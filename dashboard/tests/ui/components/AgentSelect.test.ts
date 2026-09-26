@@ -75,7 +75,7 @@ describe("AgentSelect", () => {
     expect(wrapper.emitted("update:modelValue")?.[0]).toEqual(["service-1"]);
   });
 
-  it("shows clear option when value is selected", async () => {
+  it("emits null when clicking selected item", async () => {
     const wrapper = mount(AgentSelect, {
       props: {
         modelValue: "service-1",
@@ -86,24 +86,9 @@ describe("AgentSelect", () => {
     const trigger = wrapper.find(".select-trigger");
     await trigger.trigger("click");
 
-    const clearOption = wrapper.find(".select-option.clear");
-    expect(clearOption.exists()).toBe(true);
-    expect(clearOption.text()).toContain("Limpiar");
-  });
-
-  it("emits null when clear is clicked", async () => {
-    const wrapper = mount(AgentSelect, {
-      props: {
-        modelValue: "service-1",
-        options: ["service-1", "service-2"],
-      },
-    });
-
-    const trigger = wrapper.find(".select-trigger");
-    await trigger.trigger("click");
-
-    const clearOption = wrapper.find(".select-option.clear");
-    await clearOption.trigger("click");
+    const options = wrapper.findAll(".select-option");
+    expect(options.length).toBeGreaterThan(0);
+    await options[0]!.trigger("click");
 
     expect(wrapper.emitted("update:modelValue")?.[0]).toEqual([null]);
   });
@@ -120,7 +105,7 @@ describe("AgentSelect", () => {
     expect(wrapper.find(".select-trigger").attributes("disabled")).toBeDefined();
   });
 
-  it("marks selected option as active", async () => {
+  it("shows active state when value is selected", () => {
     const wrapper = mount(AgentSelect, {
       props: {
         modelValue: "service-1",
@@ -129,11 +114,7 @@ describe("AgentSelect", () => {
     });
 
     const trigger = wrapper.find(".select-trigger");
-    await trigger.trigger("click");
-
-    const options = wrapper.findAll(".select-option");
-    expect(options.length).toBeGreaterThan(1);
-    expect(options[1]!.classes()).toContain("selected");
+    expect(trigger.classes()).toContain("active");
   });
 
   it("closes menu after selection", async () => {

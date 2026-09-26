@@ -9,6 +9,7 @@ import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import LiveControl from "../components/LiveControl.vue";
 import TraceTable from "../components/TraceTable.vue";
+import Select from "../components/Select.vue";
 import { useAsync } from "../composables/useAsync";
 import { useFilters } from "../composables/useFilters";
 import { setRefreshSeconds, useLiveRefresh } from "../composables/useLiveRefresh";
@@ -24,7 +25,7 @@ const grouped = computed(() => f.group.value === "conversation");
 // Sin agrupar (por defecto): todas las trazas. Agrupado: una fila por conversación.
 const traces = usePagedList<TraceSummaryDto>({
   key: (t) => t.traceId,
-  load: (cursor, signal) => api.listTraces({ ...resolveRange(f.range.value, Date.now()), service: f.service.value, hasErrors: f.hasErrors.value || undefined, limit: PAGE_SIZE, cursor }, signal),
+  load: (cursor, signal) => api.listTraces({ ...resolveRange(f.range.value, Date.now()), service: f.service.value, hasErrors: f.hasErrors.value || undefined, minDurationMs: f.minDurationMs.value, limit: PAGE_SIZE, cursor }, signal),
   merge: mergeLatestTraces,
   onLoaded: () => liveRefresh.touch(),
 });
@@ -60,7 +61,15 @@ const liveRefresh = useLiveRefresh(
   },
   { isBusy: () => active.value.loading.value || active.value.moreLoading.value },
 );
-watch([f.range, f.service, f.hasErrors, grouped], reload, { immediate: true });
+watch([f.range, f.service, f.hasErrors, f.minDurationMs, grouped], reload, { immediate: true });
+
+const LATENCY_OPTIONS = [
+  { label: "Cualquier latencia", value: 0 },
+  { label: "≥ 1 s", value: 1000 },
+  { label: "≥ 5 s", value: 5000 },
+  { label: "≥ 10 s", value: 10000 },
+  { label: "≥ 30 s", value: 30000 },
+];
 
 const convStatus = (c: ConversationSummaryDto) => (c.errorTurns > 0 ? "error" : c.failedSpans > 0 ? "warn" : "ok");
 const STATUS_LABEL = { ok: "OK", error: "Error", warn: "Con fallos" } as const;
@@ -105,6 +114,14 @@ const rangeLabel = computed(() => RANGE_PRESETS.find((p) => p.key === f.range.va
     <section class="table-card mt-card">
       <div class="toolbar">
         <q-toggle :model-value="f.hasErrors.value" label="Solo con errores" dense @update:model-value="(v: boolean) => f.setHasErrors(v)" />
+        <Select
+          v-if="!grouped"
+          class="latency"
+          :model-value="f.minDurationMs.value ?? 0"
+          :options="LATENCY_OPTIONS"
+          placeholder="Latencia"
+          @update:model-value="(v: number) => f.setMinDuration(v || undefined)"
+        />
         <q-toggle class="group-toggle" :model-value="grouped" label="Agrupar por conversación" dense @update:model-value="(v: boolean) => f.setGroup(v ? 'conversation' : 'flat')" />
       </div>
 
@@ -232,6 +249,9 @@ h1 {
   align-items: center;
   flex-wrap: wrap;
   gap: 16px;
+}
+.latency {
+  min-width: 170px;
 }
 .group-toggle {
   margin-left: auto;
