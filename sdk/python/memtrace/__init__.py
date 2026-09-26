@@ -1,7 +1,11 @@
 import logging
 
 from memtrace._version import __version__
-from memtrace.adapters.inbound.decorators import trace_llm_call, trace_step, trace_step_context
+from memtrace.adapters.inbound.decorators import (
+    trace_llm_call,
+    trace_step,
+    trace_step_context,
+)
 from memtrace.adapters.inbound.langchain import MemTraceCallbackHandler
 from memtrace.application.context import get_current_run_id, session
 from memtrace.dependency_container import flush, init_tracer, shutdown
