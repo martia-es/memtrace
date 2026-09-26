@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import type { SpanNodeDto } from "@contract";
 import { computed, ref, watch } from "vue";
-import { formatCount, formatDateTime, formatDuration } from "@/domain/format";
+import { formatDateTime, formatDuration } from "@/domain/format";
 import { kindMeta, statusMeta } from "@/domain/meta";
+import { genAiRows as genAiRowsOf } from "@/domain/span-io";
 import JsonBlock from "./JsonBlock.vue";
 import MessageList from "./MessageList.vue";
 
@@ -23,25 +24,7 @@ watch(
   },
 );
 
-const genAiRows = computed(() => {
-  const g = props.node.genAi;
-  if (!g) return [];
-  const num = (v: number | null) => (v === null ? null : formatCount(v));
-  return [
-    ["Operación", g.operation],
-    ["Proveedor", g.provider],
-    ["Modelo solicitado", g.requestModel],
-    ["Modelo de respuesta", g.responseModel],
-    ["Tokens de entrada", num(g.inputTokens)],
-    ["Tokens de salida", num(g.outputTokens)],
-    ["Tokens totales", num(g.totalTokens)],
-    ["Motivo de fin", g.finishReasons.join(", ") || null],
-    ["Temperatura", g.temperature],
-    ["Máx. tokens", g.maxTokens],
-    ["Herramienta", g.toolName],
-    ["Id de llamada", g.toolCallId],
-  ].filter(([, v]) => v !== null && v !== undefined) as [string, string | number][];
-});
+const genAiRows = computed(() => genAiRowsOf(props.node));
 
 const contentSections = computed(() => {
   const c = props.node.content;

@@ -21,6 +21,11 @@ export function useFilters() {
     const value = first(route.query.status);
     return value === "ok" || value === "error" ? value : undefined;
   });
+  const kind = computed(() => first(route.query.kind));
+  const model = computed(() => first(route.query.model));
+  const text = computed(() => first(route.query.q));
+  /** cómo se listan los spans: agrupados por conversación (por defecto) o sueltos */
+  const group = computed<"conversation" | "flat">(() => (first(route.query.group) === "flat" ? "flat" : "conversation"));
   const hasErrors = computed(() => first(route.query.hasErrors) === "1");
   const conversationId = computed(() => first(route.query.conversation));
   const minDurationMs = computed(() => {
@@ -41,12 +46,20 @@ export function useFilters() {
     range,
     service,
     status,
+    kind,
+    model,
+    text,
+    group,
     hasErrors,
     conversationId,
     minDurationMs,
     setRange: (value: RangeKey) => update({ range: value === DEFAULT_RANGE ? undefined : value }),
     setService: (value: string | null | undefined) => update({ service: value ?? undefined }),
     setStatus: (value: "ok" | "error" | undefined) => update({ status: value }),
+    setKind: (value: string | undefined) => update({ kind: value }),
+    setModel: (value: string | undefined) => update({ model: value }),
+    setText: (value: string | undefined) => update({ q: value?.trim() || undefined }),
+    setGroup: (value: "conversation" | "flat") => update({ group: value === "flat" ? "flat" : undefined }),
     setHasErrors: (value: boolean) => update({ hasErrors: value ? "1" : undefined }),
     setConversation: (value: string | undefined) => update({ conversation: value }),
     setMinDuration: (value: number | undefined) => update({ min: value ? String(value) : undefined }),
