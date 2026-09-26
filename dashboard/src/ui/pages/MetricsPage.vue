@@ -170,70 +170,91 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
     <EmptyState v-else-if="empty" icon="insights" title="Sin datos en este rango">Ejecuta un agente instrumentado o amplía el rango de tiempo.</EmptyState>
 
     <template v-else-if="data">
-      <section class="hero" aria-label="Indicadores principales">
-        <div class="hero-main">
-          <div class="hero-top">
-            <span class="hero-label">Tasa de éxito</span>
-            <span class="health" :class="health.key"><i />{{ health.text }}</span>
-          </div>
-          <div class="hero-value">{{ formatPercent(successRate) }}</div>
-          <div class="hero-sub">{{ formatCount(data.totals.traces - data.totals.errorTraces) }} de {{ formatCount(data.totals.traces) }} ejecuciones completadas sin error</div>
-          <div class="hero-spark">
-            <EChart :option="traceSpark" height="84px" label="Tendencia de ejecuciones" />
+      <!-- KPI Principal: Estado del Sistema -->
+      <section class="status-banner" :class="health.key" aria-label="Estado del sistema">
+        <div class="status-main">
+          <div class="status-icon"><i /></div>
+          <div class="status-content">
+            <div class="status-title">{{ health.text }}</div>
+            <div class="status-desc">{{ formatPercent(successRate) }} de tasa de éxito</div>
           </div>
         </div>
-
-        <div class="hero-side">
-          <div class="metric">
-            <span>Ejecuciones</span>
-            <strong>{{ formatCount(data.totals.traces) }}</strong>
-            <small>{{ formatCount(data.totals.spans) }} operaciones</small>
+        <div class="status-metrics">
+          <div class="status-metric">
+            <div class="status-value">{{ formatCount(data.totals.traces - data.totals.errorTraces) }}</div>
+            <div class="status-label">Ejecutadas sin error</div>
           </div>
-          <div class="metric">
-            <span>Conversaciones</span>
-            <strong>{{ formatCount(data.totals.conversations) }}</strong>
-            <small>usuarios atendidos</small>
-          </div>
-          <div class="metric">
-            <span>Tiempo de respuesta p95</span>
-            <strong>{{ formatDuration(data.latencyMs.p95) }}</strong>
-            <small>el 95 % responde en menos</small>
-          </div>
-          <div class="metric" :class="{ bad: data.totals.errorTraces > 0 }">
-            <span>Incidencias</span>
-            <strong>{{ formatCount(data.totals.errorTraces) }}</strong>
-            <small>{{ formatPercent(data.totals.errorRate) }} de las ejecuciones</small>
+          <div class="status-metric">
+            <div class="status-value" :style="{ color: data.totals.errorTraces > 0 ? '#d9382e' : '#2a5a0d' }">{{ formatCount(data.totals.errorTraces) }}</div>
+            <div class="status-label">Incidencias</div>
           </div>
         </div>
       </section>
 
-      <section class="strip mt-card" aria-label="Rendimiento y consumo">
-        <div class="strip-cell">
-          <span>Latencia mediana</span>
-          <strong>{{ formatDuration(data.latencyMs.p50) }}</strong>
-        </div>
-        <div class="strip-cell">
-          <span>Latencia p99</span>
-          <strong>{{ formatDuration(data.latencyMs.p99) }}</strong>
-        </div>
-        <div class="strip-cell">
-          <span>Tokens totales</span>
-          <strong>{{ formatCount(data.totals.totalTokens) }}</strong>
-        </div>
-        <div class="strip-cell">
-          <span>Tokens por ejecución</span>
-          <strong>{{ formatCount(Math.round(tokensPerTrace)) }}</strong>
-        </div>
-        <div class="strip-cell wide">
-          <span>Entrada / salida</span>
-          <div class="split" role="img" :aria-label="`${formatCount(data.totals.inputTokens)} de entrada, ${formatCount(data.totals.outputTokens)} de salida`">
-            <i class="in" :style="{ width: `${tokenSplit.input}%` }" />
-            <i class="out" :style="{ width: `${tokenSplit.output}%` }" />
+      <!-- KPI Cards - Fila Principal -->
+      <section class="kpi-grid" aria-label="Indicadores clave">
+        <div class="kpi-card">
+          <div class="kpi-header">
+            <span class="kpi-label">Ejecuciones</span>
+            <span class="kpi-badge">Total</span>
           </div>
-          <small>{{ formatCount(data.totals.inputTokens) }} entrada · {{ formatCount(data.totals.outputTokens) }} salida</small>
+          <div class="kpi-value">{{ formatCount(data.totals.traces) }}</div>
+          <div class="kpi-subtitle">{{ formatCount(data.totals.spans) }} operaciones</div>
+          <div class="kpi-sparkline">
+            <EChart :option="traceSpark" height="32px" label="Tendencia de ejecuciones" />
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-header">
+            <span class="kpi-label">Latencia p95</span>
+            <span class="kpi-badge">Rendimiento</span>
+          </div>
+          <div class="kpi-value">{{ formatDuration(data.latencyMs.p95) }}</div>
+          <div class="kpi-subtitle">{{ formatDuration(data.latencyMs.p50) }} mediana</div>
+          <div class="kpi-bar">
+            <div class="kpi-bar-fill" :style="{
+              width: Math.min(100, (data.latencyMs.p95 / Math.max(data.latencyMs.p95, data.latencyMs.p99 * 1.2)) * 100) + '%',
+              backgroundColor: data.latencyMs.p95 < 1000 ? '#7fae1f' : data.latencyMs.p95 < 3000 ? '#e39a1b' : '#d9382e'
+            }" />
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-header">
+            <span class="kpi-label">Tokens consumidos</span>
+            <span class="kpi-badge">Coste</span>
+          </div>
+          <div class="kpi-value">{{ formatCount(data.totals.totalTokens) }}</div>
+          <div class="kpi-subtitle">{{ formatCount(Math.round(tokensPerTrace)) }} por ejecución</div>
+          <div class="kpi-split">
+            <div class="kpi-split-item">
+              <div class="kpi-split-bar">
+                <div class="kpi-split-fill" :style="{ width: `${tokenSplit.input}%`, backgroundColor: '#4a32c9' }" />
+              </div>
+              <div class="kpi-split-label">{{ formatPercent(tokenSplit.input / 100) }} entrada</div>
+            </div>
+            <div class="kpi-split-item">
+              <div class="kpi-split-bar">
+                <div class="kpi-split-fill" :style="{ width: `${tokenSplit.output}%`, backgroundColor: '#c4f26b' }" />
+              </div>
+              <div class="kpi-split-label">{{ formatPercent(tokenSplit.output / 100) }} salida</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-header">
+            <span class="kpi-label">Conversaciones</span>
+            <span class="kpi-badge">Usuarios</span>
+          </div>
+          <div class="kpi-value">{{ formatCount(data.totals.conversations) }}</div>
+          <div class="kpi-subtitle">usuarios atendidos</div>
+          <div style="flex: 1;" />
         </div>
       </section>
 
+      <!-- Gráficos -->
       <div class="grid">
         <section class="mt-card panel span-2">
           <div class="panel-head">
@@ -330,7 +351,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 24px;
   max-width: 1320px;
   margin: 0 auto;
   padding: 24px 20px 32px;
@@ -364,144 +385,230 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
   min-height: 240px;
 }
 
-/* Hero */
-.hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
-  gap: 16px;
-}
-.hero-main {
-  position: relative;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  padding: 26px 28px 0;
-  border-radius: 28px;
-  color: var(--mt-ink);
-  background: var(--mt-card);
-  box-shadow: var(--mt-shadow);
-}
-.hero-top {
+/* Status Banner - Estado del Sistema */
+.status-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 32px;
+  padding: 28px;
+  border-radius: 28px;
+  background: var(--mt-card);
+  box-shadow: var(--mt-shadow);
 }
-.hero-label {
-  color: var(--mt-muted);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+
+.status-banner.ok {
+  border-left: 6px solid #2a5a0d;
 }
-.health {
-  display: inline-flex;
+.status-banner.warn {
+  border-left: 6px solid #e39a1b;
+}
+.status-banner.error {
+  border-left: 6px solid #d9382e;
+}
+
+.status-main {
+  display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 5px 12px;
-  border-radius: 999px;
-  background: var(--mt-soft);
+  gap: 20px;
+  flex: 1;
+  min-width: 0;
+}
+
+.status-icon {
+  flex-shrink: 0;
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.status-banner.ok .status-icon {
+  background: rgba(42, 90, 13, 0.15);
+}
+.status-banner.warn .status-icon {
+  background: rgba(227, 154, 27, 0.15);
+}
+.status-banner.error .status-icon {
+  background: rgba(217, 56, 46, 0.15);
+}
+
+.status-icon i {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: block;
+}
+
+.status-banner.ok .status-icon i {
+  background: #2a5a0d;
+  box-shadow: 0 0 0 8px rgba(42, 90, 13, 0.1);
+}
+.status-banner.warn .status-icon i {
+  background: #e39a1b;
+  box-shadow: 0 0 0 8px rgba(227, 154, 27, 0.1);
+}
+.status-banner.error .status-icon i {
+  background: #d9382e;
+  box-shadow: 0 0 0 8px rgba(217, 56, 46, 0.1);
+}
+
+.status-content {
+  flex: 1;
+}
+
+.status-title {
+  font-size: 18px;
+  font-weight: 700;
   color: var(--mt-ink);
+  letter-spacing: -0.02em;
+}
+
+.status-desc {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--mt-muted);
+}
+
+.status-metrics {
+  display: flex;
+  gap: 32px;
+  flex-shrink: 0;
+}
+
+.status-metric {
+  text-align: right;
+}
+
+.status-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #2a5a0d;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.status-label {
+  margin-top: 6px;
   font-size: 12px;
+  color: var(--mt-muted);
   font-weight: 600;
 }
-.health i {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #4fa01e;
-  box-shadow: 0 0 0 4px rgba(79, 160, 30, 0.18);
-}
-.health.warn i { background: #f6b73c; box-shadow: 0 0 0 4px rgba(246, 183, 60, 0.2); }
-.health.error i { background: #ff6b5e; box-shadow: 0 0 0 4px rgba(255, 107, 94, 0.2); }
-.hero-value {
-  margin-top: 18px;
-  font-size: clamp(3rem, 6vw, 4.6rem);
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: -0.06em;
-  color: var(--mt-violet);
-}
-.hero-sub {
-  margin-top: 10px;
-  color: var(--mt-muted);
-  font-size: 13px;
-}
-.hero-spark {
-  margin: 18px -28px 0;
-}
-.hero-side {
+
+/* KPI Grid */
+.kpi-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
 }
-.metric {
+
+.kpi-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  justify-content: center;
-  padding: 18px 20px;
+  gap: 12px;
+  padding: 22px;
   border-radius: 24px;
   background: var(--mt-card);
   box-shadow: var(--mt-shadow);
 }
-.metric span,
-.strip-cell span {
-  color: var(--mt-muted);
-  font-size: 12px;
-  font-weight: 600;
-}
-.metric strong {
-  font-size: clamp(1.6rem, 2.6vw, 2.2rem);
-  line-height: 1;
-  letter-spacing: -0.05em;
-}
-.metric small,
-.strip-cell small {
-  color: var(--mt-faint);
-  font-size: 12px;
-}
-.metric.bad strong {
-  color: var(--mt-err-ink);
+
+.kpi-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
-/* Strip */
-.strip {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 1.6fr);
-  padding: 6px 0;
+.kpi-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--mt-muted);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
-.strip-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 14px 22px;
-  border-left: 1px solid var(--mt-line);
+
+.kpi-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: var(--mt-soft);
+  color: var(--mt-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
-.strip-cell:first-child {
-  border-left: 0;
-}
-.strip-cell strong {
-  font-size: 1.35rem;
-  line-height: 1.1;
+
+.kpi-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--mt-violet);
+  line-height: 1;
   letter-spacing: -0.04em;
 }
-.split {
+
+.kpi-subtitle {
+  font-size: 12px;
+  color: var(--mt-muted);
+  font-weight: 500;
+}
+
+.kpi-sparkline {
+  margin: 8px -4px 0;
+}
+
+.kpi-bar {
   display: flex;
-  height: 10px;
-  margin: 6px 0 2px;
+  height: 6px;
+  border-radius: 3px;
   overflow: hidden;
-  border-radius: 999px;
+  background: var(--mt-soft);
+  margin-top: 6px;
+}
+
+.kpi-bar-fill {
+  flex-grow: 1;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.kpi-split {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kpi-split-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kpi-split-bar {
+  display: flex;
+  height: 4px;
+  border-radius: 2px;
+  overflow: hidden;
   background: var(--mt-soft);
 }
-.split .in { background: var(--mt-violet); }
-.split .out { background: var(--mt-accent); }
+
+.kpi-split-fill {
+  flex-grow: 1;
+  border-radius: 2px;
+}
+
+.kpi-split-label {
+  font-size: 11px;
+  color: var(--mt-muted);
+  font-weight: 600;
+}
 
 /* Panels */
 .grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
+  margin-top: 8px;
 }
 .span-2 {
   grid-column: span 2;
@@ -509,7 +616,10 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 .panel {
   box-sizing: border-box;
   min-width: 0;
-  padding: 22px 22px 18px;
+  padding: 24px;
+  border-radius: 24px;
+  background: var(--mt-card);
+  box-shadow: var(--mt-shadow);
 }
 .panel-head {
   display: flex;
@@ -517,17 +627,20 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 14px;
+  margin-bottom: 18px;
 }
 .panel h2 {
   margin: 0;
   font-size: 17px;
   letter-spacing: -0.03em;
+  font-weight: 700;
+  color: var(--mt-ink);
 }
 .panel p {
-  margin: 4px 0 0;
+  margin: 6px 0 0;
   color: var(--mt-muted);
-  font-size: 12.5px;
+  font-size: 13px;
+  font-weight: 500;
 }
 .legend {
   display: flex;
@@ -547,7 +660,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
   border-radius: 3px;
 }
 .none {
-  padding: 28px 0;
+  padding: 40px 0;
   color: var(--mt-faint);
   font-size: 13px;
   text-align: center;
@@ -557,7 +670,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 .rank {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -573,38 +686,43 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
+  color: var(--mt-ink);
 }
 .rank-num {
   font-weight: 700;
   font-size: 14px;
   white-space: nowrap;
+  color: var(--mt-violet);
 }
 .rank-num small {
-  color: var(--mt-faint);
+  color: var(--mt-muted);
   font-weight: 500;
   font-size: 11px;
+  margin-left: 4px;
 }
 .rank-meta {
-  margin-top: 6px;
+  margin-top: 8px;
   color: var(--mt-muted);
   font-size: 12px;
+  display: flex;
+  gap: 16px;
 }
 .bar {
-  height: 8px;
+  height: 6px;
   margin-top: 8px;
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: 3px;
   background: var(--mt-soft);
 }
 .bar i {
   display: block;
   height: 100%;
-  border-radius: 999px;
+  border-radius: 3px;
   background: var(--mt-violet);
 }
 .bar.soft i {
-  background: #a99be8;
+  background: #c4a9f0;
 }
 
 /* Tabla de herramientas */
@@ -613,8 +731,8 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
   border-collapse: collapse;
 }
 .tools th {
-  padding: 0 10px 10px;
-  color: var(--mt-faint);
+  padding: 0 12px 12px;
+  color: var(--mt-muted);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -623,7 +741,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
   border-bottom: 1px solid var(--mt-line);
 }
 .tools td {
-  padding: 13px 10px;
+  padding: 14px 12px;
   font-size: 13px;
   border-bottom: 1px solid var(--mt-line-2);
 }
@@ -631,13 +749,14 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
   border-bottom: 0;
 }
 .tools tbody tr:hover {
-  background: var(--mt-soft-2);
+  background: var(--mt-soft);
 }
 .tools .r {
   text-align: right;
 }
 .tools .name {
-  font-weight: 600;
+  font-weight: 700;
+  color: var(--mt-ink);
 }
 .cell-bar {
   display: flex;
@@ -651,31 +770,48 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 }
 .cell-bar span {
   min-width: 48px;
-  font-weight: 600;
+  font-weight: 700;
   text-align: right;
+  color: var(--mt-violet);
+}
+
+@media (max-width: 1200px) {
+  .status-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 20px;
+  }
+  .status-metrics {
+    width: 100%;
+    justify-content: flex-start;
+  }
 }
 
 @media (max-width: 1100px) {
-  .hero,
+  .kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .grid {
     grid-template-columns: 1fr;
   }
   .span-2 {
     grid-column: auto;
   }
-  .strip {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .strip-cell {
-    border-left: 0;
-  }
-  .strip-cell.wide {
-    grid-column: span 2;
-  }
 }
-@media (max-width: 600px) {
-  .hero-side {
+
+@media (max-width: 768px) {
+  .status-metrics {
+    flex-direction: column;
+    gap: 16px;
+  }
+  .status-metric {
+    text-align: left;
+  }
+  .kpi-grid {
     grid-template-columns: 1fr;
+  }
+  .page {
+    gap: 16px;
   }
 }
 </style>
