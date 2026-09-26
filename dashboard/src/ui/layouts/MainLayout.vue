@@ -5,6 +5,7 @@ import { resolveRange } from "@/domain/time-range";
 import { useFilters } from "../composables/useFilters";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
+import AgentSelect from "../components/AgentSelect.vue";
 
 const route = useRoute();
 const f = useFilters();
@@ -71,16 +72,10 @@ const serviceOptions = computed(() => services.data.value?.items ?? []);
       </nav>
       <section v-if="!isCollapsed" class="sidebar-filters">
         <div class="sidebar-filter-label">Agente</div>
-        <q-select
-          class="service-select"
+        <AgentSelect
           :model-value="f.service.value ?? null"
           :options="serviceOptions"
           :loading="services.loading.value"
-          dense
-          outlined
-          clearable
-          options-dense
-          behavior="menu"
           @update:model-value="(v) => f.setService(v ?? null)"
         />
       </section>
@@ -208,9 +203,6 @@ const serviceOptions = computed(() => services.data.value?.items ?? []);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--mt-muted);
-}
-.service-select {
-  width: 100%;
 }
 .otlp {
   margin-top: auto;
