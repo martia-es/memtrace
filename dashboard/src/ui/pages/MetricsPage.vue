@@ -38,7 +38,14 @@ watch([f.range, f.service], reload, { immediate: true });
 const data = computed(() => overview.data.value);
 const empty = computed(() => data.value !== null && data.value.totals.traces === 0 && data.value.totals.spans === 0);
 
-const PALETTE = { violet: "#4a32c9", lime: "#c4f26b", limeDeep: "#7fae1f", danger: "#d9382e", amber: "#e39a1b" };
+const PALETTE = {
+  lime: "#c4f26b",
+  blue: "#a8d8f0",
+  pink: "#f0b3d9",
+  purple: "#d9b3f0",
+  yellow: "#fce4a3",
+  peach: "#f9d5b8",
+};
 
 const successRate = computed(() => (data.value ? 1 - data.value.totals.errorRate : 1));
 const health = computed(() => {
@@ -67,7 +74,7 @@ function sparkOption(values: number[], color: string): EChartsCoreOption {
     series: [{ type: "line", data: values, smooth: 0.4, showSymbol: false, lineStyle: { width: 2.5, color }, areaStyle: { color, opacity: 0.22 } }],
   };
 }
-const traceSpark = computed(() => sparkOption(data.value?.timeseries.map((p) => p.traces) ?? [], PALETTE.violet));
+const traceSpark = computed(() => sparkOption(data.value?.timeseries.map((p) => p.traces) ?? [], PALETTE.lime));
 
 function axisBase() {
   const c = chartColors($q.dark.isActive);
@@ -106,7 +113,7 @@ const activityOption = computed<EChartsCoreOption>(() => {
       { type: "value", ...a, splitLine: { show: false }, axisLabel: { ...a.axisLabel, formatter: (v: number) => formatDuration(v) } },
     ],
     series: [
-      { name: "Correctas", type: "bar", stack: "t", barMaxWidth: 26, data: d?.timeseries.map((p) => p.traces - p.errorTraces) ?? [], itemStyle: { color: PALETTE.violet, borderRadius: [0, 0, 0, 0] } },
+      { name: "Correctas", type: "bar", stack: "t", barMaxWidth: 26, data: d?.timeseries.map((p) => p.traces - p.errorTraces) ?? [], itemStyle: { color: PALETTE.lime, borderRadius: [0, 0, 0, 0] } },
       { name: "Con error", type: "bar", stack: "t", barMaxWidth: 26, data: d?.timeseries.map((p) => p.errorTraces) ?? [], itemStyle: { color: PALETTE.purple, borderRadius: [6, 6, 0, 0] } },
       {
         name: "Latencia p95",
@@ -114,7 +121,7 @@ const activityOption = computed<EChartsCoreOption>(() => {
         yAxisIndex: 1,
         smooth: 0.35,
         showSymbol: false,
-        lineStyle: { width: 2.5, color: PALETTE.limeDeep },
+        lineStyle: { width: 2.5, color: PALETTE.purple },
         data: d?.timeseries.map((p) => p.p95Ms) ?? [],
       },
     ],
@@ -139,7 +146,7 @@ const inputTokensOption = computed<EChartsCoreOption>(() => {
         type: "line",
         smooth: 0.35,
         showSymbol: false,
-        lineStyle: { width: 2.5, color: PALETTE.violet },
+        lineStyle: { width: 2.5, color: PALETTE.lime },
         areaStyle: { color: "rgba(74,50,201,0.16)" },
         data: d?.timeseries.map((p) => Math.round((p.totalTokens * data.value!.totals.inputTokens) / data.value!.totals.totalTokens)) ?? [],
       },
@@ -191,7 +198,7 @@ const latencyByModelOption = computed<EChartsCoreOption>(() => {
         type: "bar",
         barMaxWidth: 40,
         data: d?.byModel.map((m) => m.p95Ms) ?? [],
-        itemStyle: { color: PALETTE.violet, borderRadius: [6, 6, 0, 0] },
+        itemStyle: { color: PALETTE.lime, borderRadius: [6, 6, 0, 0] },
       },
     ],
   };
@@ -200,13 +207,15 @@ const latencyByModelOption = computed<EChartsCoreOption>(() => {
 const toolUsageOption = computed<EChartsCoreOption>(() => {
   const d = data.value;
   const c = chartColors($q.dark.isActive);
-  const colors = [PALETTE.violet, PALETTE.amber, PALETTE.danger, PALETTE.limeDeep, "#6c5ce7", "#fd79a8"];
+  const colors = [PALETTE.lime, PALETTE.yellow, PALETTE.purple, PALETTE.purple, PALETTE.purple, PALETTE.pink];
   const total = d?.byTool.reduce((acc, t) => acc + t.calls, 0) ?? 1;
   const toolData = d?.byTool.map((t, i) => {
-    const percentage = ((t.calls / total) * 100).toFixed(0);
+    const errorRate = t.calls ? ((t.errors / t.calls) * 100).toFixed(0) : 0;
     return {
       value: t.calls,
-      name: `${t.tool} (${percentage}%)`,
+      name: t.tool,
+      errors: t.errors,
+      errorRate: errorRate,
       itemStyle: { color: colors[i % colors.length] }
     };
   }) ?? [];
@@ -220,7 +229,13 @@ const toolUsageOption = computed<EChartsCoreOption>(() => {
       textStyle: { color: c.text },
       borderColor: c.grid,
       extraCssText: "border-radius: 8px;",
-      formatter: "{b}: {c} usos"
+      formatter: (param: any) => {
+        if (param.data) {
+          const percentage = ((param.value / total) * 100).toFixed(0);
+          return `<strong>${param.name}</strong><br/>Usos: ${param.value} (${percentage}%)<br/>Fallos: ${param.data.errors} (${param.data.errorRate}%)`;
+        }
+        return '';
+      }
     },
     series: [
       {
@@ -258,7 +273,7 @@ const inputTokensByModelOption = computed<EChartsCoreOption>(() => {
         type: "bar",
         barMaxWidth: 40,
         data: d?.byModel.map((m) => m.inputTokens) ?? [],
-        itemStyle: { color: PALETTE.violet, borderRadius: [6, 6, 0, 0] },
+        itemStyle: { color: PALETTE.lime, borderRadius: [6, 6, 0, 0] },
       },
     ],
   };
@@ -353,13 +368,13 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 
         <div class="metric-card">
           <div class="metric-label">LATENCIA P95</div>
-          <div class="metric-value" style="color: #e39a1b">{{ formatDuration(data.latencyMs.p95) }}</div>
+          <div class="metric-value" style="color: #f9d5b8">{{ formatDuration(data.latencyMs.p95) }}</div>
           <div class="metric-detail">{{ formatDuration(data.latencyMs.p50) }} mediana</div>
         </div>
 
         <div class="metric-card">
           <div class="metric-label">TOKENS TOTALES</div>
-          <div class="metric-value" style="color: #4a32c9">{{ formatCount(data.totals.totalTokens) }}</div>
+          <div class="metric-value" style="color: #a8d8f0">{{ formatCount(data.totals.totalTokens) }}</div>
           <div class="metric-detail">{{ formatCount(Math.round(tokensPerTrace)) }} por exec.</div>
         </div>
       </div>
@@ -433,7 +448,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
                   <div class="stat-label">tokens</div>
                 </div>
                 <div class="model-stat-item">
-                  <div class="stat-value" style="color: #e39a1b">{{ formatDuration(m.p95Ms) }}</div>
+                  <div class="stat-value" style="color: #f9d5b8">{{ formatDuration(m.p95Ms) }}</div>
                   <div class="stat-label">latencia p95</div>
                 </div>
               </div>
