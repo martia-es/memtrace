@@ -1,7 +1,8 @@
 """Composition root: único sitio donde se elige qué adapters concretos se cablean."""
 import logging
 import threading
-from typing import Any, Mapping, Optional
+from collections.abc import Mapping
+from typing import Any, Optional
 
 from memtrace.application.ports import SpanPort
 from memtrace.application.tracing_service import TracingService
@@ -27,7 +28,10 @@ def _build_port(
         logger.info("[MemTrace] Desactivado (MEMTRACE_ENABLED=false).")
         return NoopSpanPort()
     try:
-        from memtrace.adapters.outbound.otel.factory import OtelConfig, create_otel_adapter
+        from memtrace.adapters.outbound.otel.factory import (
+            OtelConfig,
+            create_otel_adapter,
+        )
 
         proto = protocol or settings.protocol
         config = OtelConfig(
