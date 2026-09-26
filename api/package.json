@@ -1,0 +1,28 @@
+{
+  "name": "memtrace-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "API de consulta de MemTrace (pieza 4): único punto de acceso al almacén de trazas",
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start -p 3001",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:integration": "CLICKHOUSE_INTEGRATION=1 vitest run tests/integration"
+  },
+  "dependencies": {
+    "@clickhouse/client": "^1.23.1",
+    "next": "^16.3.6",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^5.0.2"
+  }
+}

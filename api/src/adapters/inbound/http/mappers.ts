@@ -1,0 +1,84 @@
+import type { MetricsOverview } from "@/domain/metrics";
+import type { SpanNode } from "@/domain/span";
+import type { Page, TraceDetail, TraceSummary } from "@/domain/trace";
+import type { OverviewResponse, SpanNodeDto, TraceDetailResponse, TraceListResponse, TraceSummaryDto } from "./contract";
+import { encodeCursor } from "./schemas";
+
+const isoFromUs = (us: number) => new Date(Math.round(us / 1000)).toISOString();
+const isoFromMs = (ms: number) => new Date(ms).toISOString();
+
+export function toTraceSummaryDto(t: TraceSummary): TraceSummaryDto {
+  return {
+    traceId: t.traceId,
+    rootSpanName: t.rootSpanName,
+    serviceName: t.serviceName,
+    startTime: isoFromUs(t.startTimeUs),
+    durationMs: t.durationMs,
+    status: t.status,
+    spanCount: t.spanCount,
+    errorCount: t.errorCount,
+    totalTokens: t.totalTokens,
+  };
+}
+
+export function toTraceListResponse(page: Page<TraceSummary>): TraceListResponse {
+  return { items: page.items.map(toTraceSummaryDto), nextCursor: page.nextCursor ? encodeCursor(page.nextCursor) : null };
+}
+
+/** Iterativo (post-orden): una traza muy profunda no debe desbordar la pila. */
+function toSpanNodeDtos(roots: SpanNode[]): SpanNodeDto[] {
+  const dtos = new Map<SpanNode, SpanNodeDto>();
+  const order: SpanNode[] = [];
+  const stack = [...roots];
+  while (stack.length > 0) {
+    const node = stack.pop()!;
+    order.push(node);
+    stack.push(...node.children);
+  }
+  for (let i = order.length - 1; i >= 0; i--) {
+    const node = order[i]!;
+    dtos.set(node, {
+      spanId: node.spanId,
+      parentSpanId: node.parentSpanId,
+      name: node.name,
+      kind: node.kind,
+      serviceName: node.serviceName,
+      startTime: isoFromUs(node.startTimeUs),
+      offsetMs: node.offsetMs,
+      durationMs: node.durationMs,
+      status: node.status,
+      orphan: node.orphan,
+      genAi: node.genAi,
+      content: node.content,
+      attributes: node.attributes,
+      events: node.events.map((e) => ({ name: e.name, time: isoFromUs(e.timeUs), attributes: e.attributes })),
+      children: node.children.map((child) => dtos.get(child)!),
+    });
+  }
+  return roots.map((root) => dtos.get(root)!);
+}
+
+export function toTraceDetailResponse(t: TraceDetail): TraceDetailResponse {
+  return {
+    traceId: t.traceId,
+    startTime: isoFromUs(t.startTimeUs),
+    durationMs: t.durationMs,
+    status: t.status,
+    spanCount: t.spanCount,
+    errorCount: t.errorCount,
+    totalTokens: t.totalTokens,
+    truncated: t.truncated,
+    roots: toSpanNodeDtos(t.roots),
+  };
+}
+
+export function toOverviewResponse(o: MetricsOverview & { fromMs: number; toMs: number }): OverviewResponse {
+  return {
+    range: { from: isoFromMs(o.fromMs), to: isoFromMs(o.toMs), bucketSeconds: o.bucketSeconds },
+    totals: o.totals,
+    latencyMs: o.latencyMs,
+    timeseries: o.timeseries.map(({ bucketStartMs, ...rest }) => ({ bucketStart: isoFromMs(bucketStartMs), ...rest })),
+    byModel: o.byModel,
+    byTool: o.byTool,
+  };
+}

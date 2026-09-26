@@ -104,6 +104,9 @@ MemTrace/
 │   ├── 20-clickhouse.yaml
 │   ├── 30-clickhouse-migrations.yaml
 │   └── 40-otel-collector.yaml
+├── sdk/python/                 # SDK Python (memtrace): decoradores + integración LangChain, exporta OTLP
+├── api/                        # API de consulta (Next.js + TypeScript): único acceso a ClickHouse
+├── examples/                   # Ejemplos de agentes instrumentados
 ├── migrations/                 # Migraciones SQL versionadas para ClickHouse
 │   └── clickhouse/
 │       └── 001_init_traces.sql
