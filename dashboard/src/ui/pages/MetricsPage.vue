@@ -218,6 +218,54 @@ const toolUsageOption = computed<EChartsCoreOption>(() => {
   };
 });
 
+const inputTokensByModelOption = computed<EChartsCoreOption>(() => {
+  const d = data.value;
+  const c = chartColors($q.dark.isActive);
+  const a = axisBase();
+  return {
+    backgroundColor: "transparent",
+    textStyle: { color: c.text },
+    animationDuration: 520,
+    grid: { left: 6, right: 6, top: 16, bottom: 6, containLabel: true },
+    tooltip: tooltip(),
+    xAxis: { type: "category", data: d?.byModel.map((m) => m.model.substring(0, 15)) ?? [], ...a, splitLine: { show: false }, axisLine: { lineStyle: { color: c.grid } } },
+    yAxis: { type: "value", ...a, axisLabel: { ...a.axisLabel, formatter: (v: number) => formatCount(v) } },
+    series: [
+      {
+        name: "Tokens entrada",
+        type: "bar",
+        barMaxWidth: 40,
+        data: d?.byModel.map((m) => m.inputTokens) ?? [],
+        itemStyle: { color: PALETTE.violet, borderRadius: [6, 6, 0, 0] },
+      },
+    ],
+  };
+});
+
+const outputTokensByModelOption = computed<EChartsCoreOption>(() => {
+  const d = data.value;
+  const c = chartColors($q.dark.isActive);
+  const a = axisBase();
+  return {
+    backgroundColor: "transparent",
+    textStyle: { color: c.text },
+    animationDuration: 520,
+    grid: { left: 6, right: 6, top: 16, bottom: 6, containLabel: true },
+    tooltip: tooltip(),
+    xAxis: { type: "category", data: d?.byModel.map((m) => m.model.substring(0, 15)) ?? [], ...a, splitLine: { show: false }, axisLine: { lineStyle: { color: c.grid } } },
+    yAxis: { type: "value", ...a, axisLabel: { ...a.axisLabel, formatter: (v: number) => formatCount(v) } },
+    series: [
+      {
+        name: "Tokens salida",
+        type: "bar",
+        barMaxWidth: 40,
+        data: d?.byModel.map((m) => m.outputTokens) ?? [],
+        itemStyle: { color: PALETTE.lime, borderRadius: [6, 6, 0, 0] },
+      },
+    ],
+  };
+});
+
 const maxModelCalls = computed(() => Math.max(1, ...(data.value?.byModel.map((m) => m.calls) ?? [1])));
 const maxToolCalls = computed(() => Math.max(1, ...(data.value?.byTool.map((t) => t.calls) ?? [1])));
 const pct = (value: number, max: number) => `${Math.max(3, (value / max) * 100)}%`;
@@ -311,15 +359,30 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
       <!-- Tokens Row -->
       <div class="tokens-grid">
         <section class="chart-panel">
-          <h2>Tokens de Entrada</h2>
+          <h2>Tokens de Entrada (Timeseries)</h2>
           <EChart :option="inputTokensOption" height="300px" label="Tokens de entrada" />
         </section>
 
         <section class="chart-panel">
-          <h2>Tokens de Salida</h2>
+          <h2>Tokens de Salida (Timeseries)</h2>
           <EChart :option="outputTokensOption" height="300px" label="Tokens de salida" />
         </section>
 
+        <section class="chart-panel">
+          <h2>Entrada por Modelo</h2>
+          <EChart v-if="data.byModel.length" :option="inputTokensByModelOption" height="300px" label="Tokens entrada por modelo" />
+          <div v-else class="no-data">Sin llamadas a LLM</div>
+        </section>
+
+        <section class="chart-panel">
+          <h2>Salida por Modelo</h2>
+          <EChart v-if="data.byModel.length" :option="outputTokensByModelOption" height="300px" label="Tokens salida por modelo" />
+          <div v-else class="no-data">Sin llamadas a LLM</div>
+        </section>
+      </div>
+
+      <!-- Latency Row -->
+      <div class="latency-row">
         <section class="chart-panel">
           <h2>Latencia por Modelo</h2>
           <EChart v-if="data.byModel.length" :option="latencyByModelOption" height="300px" label="Latencia p95 por modelo" />
@@ -611,7 +674,13 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 
 .tokens-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.latency-row {
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 16px;
 }
 
@@ -782,6 +851,9 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
   .tokens-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+  .summary-overview {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 @media (max-width: 1200px) {
@@ -792,10 +864,13 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
     grid-template-columns: 1fr;
   }
   .tokens-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
   }
   .details-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .summary-overview {
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
