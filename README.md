@@ -77,14 +77,14 @@ Una vez ejecutado `make up`, tendrás acceso directo a:
 
 ### Dashboard y API de consulta
 
-Con el stack levantado, en dos terminales:
+Con el stack levantado (`make up`):
 
 ```bash
-cd api && npm install && CLICKHOUSE_PASSWORD=memtrace-dev-only npm run dev   # API en :3001
-cd dashboard && npm install && npm run dev                                   # Dashboard en http://localhost:5173
+make dev        # API en :3001 + dashboard en http://localhost:5173 (Ctrl+C para parar)
+make dev-data   # en otra terminal: genera trazas de ejemplo (requiere `pip install -e sdk/python`)
 ```
 
-Para ver trazas de ejemplo: `MEMTRACE_CAPTURE_CONTENT=true python examples/02_multi_step_agent.py`. Detalles en [`api/README.md`](api/README.md) y [`dashboard/README.md`](dashboard/README.md).
+El dashboard se actualiza solo (por defecto cada 5 s). Detalles en [`api/README.md`](api/README.md) y [`dashboard/README.md`](dashboard/README.md).
 
 ---
 
@@ -100,6 +100,8 @@ El proyecto incluye un `Makefile` interactivo para gestionar fácilmente el cicl
 | **`make forward`** | Vuelve a iniciar la redirección de puertos en primer plano si fuera necesario. |
 | **`make logs`** | Muestra los registros (*logs*) en tiempo real del OpenTelemetry Collector. |
 | **`make migrate`** | Re-ejecuta de forma manual las migraciones de base de datos. |
+| **`make dev`** | Levanta la API (:3001) y el dashboard (:5173) a la vez; Ctrl+C los para. |
+| **`make dev-data`** | Genera trazas de ejemplo con un agente simulado. |
 | **`make down`** | Detiene el clúster conservando todos los datos guardados. |
 | **`make reset`** | **Elimina** por completo el clúster de Kubernetes y sus volúmenes de datos. |
 

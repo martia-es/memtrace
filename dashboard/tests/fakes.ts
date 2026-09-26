@@ -50,7 +50,9 @@ export class FakeTraceApi implements TraceApi {
     const index = params.cursor ? Number(params.cursor) : 0;
     return this.pages[index] ?? { items: [], nextCursor: null };
   }
+  traceCalls = 0;
   async getTrace() {
+    this.traceCalls += 1;
     if (this.detail instanceof Error) throw this.detail;
     if (!this.detail) throw new Error("no detail configured");
     return this.detail;

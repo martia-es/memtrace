@@ -28,6 +28,7 @@ Roadmap piece 5 is a SPA built with Vite + Quasar and charts (ECharts/Recharts/D
 7. **Trace timeline is HTML/CSS, not a chart library**: a waterfall with collapsible tree rows, keyboard navigation (`role="tree"`, Enter/Space) and text labels is more accessible and simpler than an ECharts custom series. Bars are coloured by `memtrace.step_type`, errors in red; orphan spans and truncated traces show warnings.
 8. **Lists use cursor "load more"** instead of numbered pages, matching the API's keyset pagination.
 9. **UI language is Spanish**, strings inline (no i18n framework).
+10. **Near-real-time by polling, on by default (5 s)**; no push channel. `useLiveRefresh` shares one persisted interval (Off/5/10/30 s) across pages, pauses in hidden tabs and refreshes immediately when they return, and skips a tick while a request is in flight. Live refreshes of the list are *merged* with what is loaded (older pages loaded with "load more" are kept; new traces are highlighted). The detail page polls only while the root span is missing (orphans, trace younger than 5 min), since spans arrive before their root.
 
 ## Consequences
 
@@ -38,4 +39,6 @@ Roadmap piece 5 is a SPA built with Vite + Quasar and charts (ECharts/Recharts/D
   - No absolute date range, no i18n and no auth in Phase 1.
   - `jsdom` is pinned to 26 (v30 requires a newer Node than the project's 24.6).
   - Visual checks were done manually with Playwright screenshots; there is no visual-regression suite in CI.
+  - Latency to screen is the sum of the SDK batch (default 5 s), the Collector batch (1 s) and the poll interval; measured 4-10 s. Polling costs the API/ClickHouse a list query per open tab per tick (the API's concurrency limit, ADR-009/010, bounds the damage). Server push (SSE) would remove the poll delay but needs a change-notification source that ClickHouse does not offer; not justified for Phase 1.
+  - A trace only appears in the list once its root span ends (roots end last); long-running traces are visible in the list only when finished.
   - Packaging (Dockerfile, ingress) is pending; today it is served by `vite preview`/`vite dev`.

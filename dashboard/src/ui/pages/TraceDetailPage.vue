@@ -9,6 +9,7 @@ import SpanWaterfall from "../components/SpanWaterfall.vue";
 import StatusBadge from "../components/StatusBadge.vue";
 import { useAsync } from "../composables/useAsync";
 import { useFilters } from "../composables/useFilters";
+import { useLiveRefresh } from "../composables/useLiveRefresh";
 import { useTraceApi } from "../composables/useTraceApi";
 
 const props = defineProps<{ traceId: string }>();
@@ -19,6 +20,15 @@ const f = useFilters();
 
 const trace = useAsync((signal) => api.getTrace(props.traceId, signal));
 watch(() => props.traceId, () => void trace.run(), { immediate: true });
+
+// Una traza en curso aún no ha exportado su span raíz (termina el último): sus spans salen como huérfanos.
+// Mientras eso ocurra (y sea reciente) se actualiza sola; al llegar el raíz deja de refrescar.
+const IN_PROGRESS_WINDOW_MS = 5 * 60_000;
+const inProgress = computed(() => {
+  const t = trace.data.value;
+  return Boolean(t && t.roots.some((r) => r.orphan) && Date.now() - Date.parse(t.startTime) < IN_PROGRESS_WINDOW_MS);
+});
+useLiveRefresh(() => trace.run(), { active: () => inProgress.value, isBusy: () => trace.loading.value });
 
 const collapsed = ref<Set<string>>(new Set());
 const roots = computed(() => trace.data.value?.roots ?? []);
@@ -80,7 +90,8 @@ const conversationId = computed(() => roots.value[0]?.attributes["gen_ai.convers
         La traza tiene más de 5000 spans: solo se muestran los primeros.
       </q-banner>
       <q-banner v-if="hasOrphans" rounded dense class="bg-warning text-black q-mb-md">
-        Algunos spans no tienen padre en la traza (perdidos o aún no exportados) y se muestran como raíces.
+        <template v-if="inProgress">La traza sigue en curso: se actualiza sola hasta que llegue el span raíz.</template>
+        <template v-else>Algunos spans no tienen padre en la traza (perdidos o aún no exportados) y se muestran como raíces.</template>
       </q-banner>
 
       <div class="layout">

@@ -9,9 +9,10 @@ import EChart from "../components/EChart.vue";
 import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import FilterBar from "../components/FilterBar.vue";
+import LiveControl from "../components/LiveControl.vue";
 import KpiCard from "../components/KpiCard.vue";
 import { useAsync } from "../composables/useAsync";
-import { useAutoRefresh } from "../composables/useAutoRefresh";
+import { setRefreshSeconds, useLiveRefresh } from "../composables/useLiveRefresh";
 import { useFilters } from "../composables/useFilters";
 import { useTraceApi } from "../composables/useTraceApi";
 
@@ -21,12 +22,15 @@ const f = useFilters();
 
 const overview = useAsync((signal) => api.getOverview({ ...resolveRange(f.range.value, Date.now()), service: f.service.value }, signal));
 const services = useAsync((signal) => api.listServices(resolveRange(f.range.value, Date.now()), signal));
+async function loadOverview() {
+  if (await overview.run()) liveRefresh.touch();
+}
+const liveRefresh = useLiveRefresh(loadOverview, { isBusy: () => overview.loading.value });
 const reload = () => {
-  void overview.run();
+  void loadOverview();
   void services.run();
 };
 watch([f.range, f.service], reload, { immediate: true });
-const live = useAutoRefresh(() => void overview.run());
 
 const data = computed(() => overview.data.value);
 const empty = computed(() => data.value !== null && data.value.totals.traces === 0 && data.value.totals.spans === 0);
@@ -106,8 +110,8 @@ const toolColumns = [
       @update:service="f.setService"
       @refresh="reload"
     >
-      <q-toggle v-model="live.enabled.value" dense label="En vivo (10 s)" />
     </FilterBar>
+    <LiveControl class="q-mt-sm" :seconds="liveRefresh.seconds.value" :updated-at="liveRefresh.updatedAt.value" @update:seconds="setRefreshSeconds" />
 
     <ErrorBanner v-if="overview.error.value" class="q-mt-md" :error="overview.error.value" @retry="reload" />
     <div v-else-if="overview.loading.value && !data" class="row justify-center q-pa-xl"><q-spinner size="32px" color="primary" /></div>

@@ -1,3 +1,6 @@
+// Las pruebas parten con la actualización automática desactivada; las que la necesitan la activan explícitamente
+localStorage.setItem("memtrace.refresh", "0");
+
 // jsdom no implementa estas APIs que usan Quasar y ECharts
 Object.defineProperty(window, "matchMedia", {
   writable: true,

@@ -10,7 +10,8 @@ export function useAsync<T>(loader: (signal: AbortSignal) => Promise<T>) {
   const loading = ref(false);
   let controller: AbortController | null = null;
 
-  async function run(): Promise<void> {
+  /** Devuelve el resultado, o null si falló o fue sustituida por una carga más reciente. */
+  async function run(): Promise<T | null> {
     controller?.abort();
     const current = new AbortController();
     controller = current;
@@ -18,10 +19,13 @@ export function useAsync<T>(loader: (signal: AbortSignal) => Promise<T>) {
     error.value = null;
     try {
       const result = await loader(current.signal);
-      if (controller === current) data.value = result;
+      if (controller !== current) return null;
+      data.value = result;
+      return result;
     } catch (e) {
-      if (current.signal.aborted) return;
+      if (current.signal.aborted) return null;
       if (controller === current) error.value = e instanceof Error ? e : new Error(String(e));
+      return null;
     } finally {
       if (controller === current) loading.value = false;
     }

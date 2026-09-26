@@ -1,16 +1,18 @@
 <script setup lang="ts">
 import type { TraceSummaryDto } from "@contract";
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import type { ListTracesParams } from "@/application/trace-api";
 import { formatCount, formatDateTime, formatDuration, formatRelativeTime } from "@/domain/format";
+import { mergeLatest } from "@/domain/merge";
 import { resolveRange } from "@/domain/time-range";
 import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import FilterBar from "../components/FilterBar.vue";
+import LiveControl from "../components/LiveControl.vue";
 import StatusBadge from "../components/StatusBadge.vue";
 import { useAsync } from "../composables/useAsync";
-import { useAutoRefresh } from "../composables/useAutoRefresh";
+import { setRefreshSeconds, useLiveRefresh } from "../composables/useLiveRefresh";
 import { useFilters } from "../composables/useFilters";
 import { useTraceApi } from "../composables/useTraceApi";
 
@@ -37,25 +39,52 @@ const first = useAsync((signal) => api.listTraces(params(), signal));
 const more = useAsync((signal) => api.listTraces(params(nextCursor.value ?? undefined), signal));
 const services = useAsync((signal) => api.listServices(resolveRange(f.range.value, Date.now()), signal));
 
-watch(first.data, (page) => {
+// Trazas que acaban de aparecer en una actualización automática: se resaltan unos segundos
+const newIds = ref<Set<string>>(new Set());
+let flashTimer: ReturnType<typeof setTimeout> | null = null;
+function flash(ids: string[]) {
+  if (ids.length === 0) return;
+  newIds.value = new Set(ids);
+  if (flashTimer) clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => (newIds.value = new Set()), 3000);
+}
+onBeforeUnmount(() => flashTimer && clearTimeout(flashTimer));
+
+/**
+ * `live`: actualización automática => se fusiona con lo ya cargado (no se pierden las páginas de "Cargar más").
+ * Cambio de filtros o botón de actualizar => se reemplaza la lista.
+ */
+async function refresh(isLive: boolean) {
+  const page = await first.run();
   if (!page) return;
-  items.value = page.items;
-  nextCursor.value = page.nextCursor;
+  liveRefresh.touch();
   now.value = Date.now();
-});
-watch(more.data, (page) => {
+  if (isLive) {
+    const merged = mergeLatest(items.value, nextCursor.value, page);
+    items.value = merged.items;
+    nextCursor.value = merged.nextCursor;
+    flash(merged.newIds);
+  } else {
+    items.value = page.items;
+    nextCursor.value = page.nextCursor;
+  }
+}
+
+async function loadMore() {
+  const page = await more.run();
   if (!page) return;
-  items.value = [...items.value, ...page.items];
+  const known = new Set(items.value.map((t) => t.traceId));
+  items.value = [...items.value, ...page.items.filter((t) => !known.has(t.traceId))];
   nextCursor.value = page.nextCursor;
-});
+}
+
+const liveRefresh = useLiveRefresh(() => refresh(true), { isBusy: () => first.loading.value || more.loading.value });
 
 const reload = () => {
-  void first.run();
+  void refresh(false);
   void services.run();
 };
 watch([f.range, f.service, f.status, f.hasErrors, f.minDurationMs], reload, { immediate: true });
-
-const live = useAutoRefresh(() => void first.run());
 
 const maxDuration = computed(() => Math.max(1, ...items.value.map((t) => t.durationMs)));
 const filtered = computed(() => Boolean(f.service.value || f.status.value || f.hasErrors.value || f.minDurationMs.value));
@@ -113,8 +142,8 @@ const open = (_evt: Event, row: TraceSummaryDto) => void router.push({ name: "tr
         debounce="400"
         @update:model-value="(v) => f.setMinDuration(Number(v) || undefined)"
       />
-      <q-toggle v-model="live.enabled.value" dense label="En vivo (10 s)" />
     </FilterBar>
+    <LiveControl class="q-mt-sm" :seconds="liveRefresh.seconds.value" :updated-at="liveRefresh.updatedAt.value" @update:seconds="setRefreshSeconds" />
 
     <ErrorBanner v-if="first.error.value" class="q-mt-md" :error="first.error.value" @retry="reload" />
 
@@ -127,6 +156,7 @@ const open = (_evt: Event, row: TraceSummaryDto) => void router.push({ name: "tr
       row-key="traceId"
       :rows-per-page-options="[0]"
       hide-pagination
+      :table-row-class-fn="(row: TraceSummaryDto) => (newIds.has(row.traceId) ? 'row-new' : '')"
       :loading="first.loading.value && items.length === 0"
       no-data-label=""
       @row-click="open"
@@ -180,9 +210,9 @@ const open = (_evt: Event, row: TraceSummaryDto) => void router.push({ name: "tr
     </q-table>
 
     <div v-if="nextCursor" class="row justify-center q-mt-md">
-      <q-btn outline no-caps color="primary" label="Cargar más" :loading="more.loading.value" @click="more.run()" />
+      <q-btn outline no-caps color="primary" label="Cargar más" :loading="more.loading.value" @click="loadMore" />
     </div>
-    <ErrorBanner v-if="more.error.value" class="q-mt-md" :error="more.error.value" @retry="more.run()" />
+    <ErrorBanner v-if="more.error.value" class="q-mt-md" :error="more.error.value" @retry="loadMore" />
     <div v-if="items.length > 0" class="text-caption text-grey-7 text-center q-mt-sm">
       {{ items.length }} {{ items.length === 1 ? "traza" : "trazas" }}{{ nextCursor ? " · hay más" : "" }}
     </div>
@@ -196,6 +226,17 @@ const open = (_evt: Event, row: TraceSummaryDto) => void router.push({ name: "tr
 }
 .dur-text {
   min-width: 64px;
+}
+/* aparición de trazas nuevas: fundido del resaltado */
+:deep(tr.row-new) {
+  animation: fade-new 3s ease-out;
+}
+@keyframes fade-new {
+  from { background: rgba(33, 186, 69, 0.28); }
+  to { background: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :deep(tr.row-new) { animation: none; background: rgba(33, 186, 69, 0.14); }
 }
 :deep(tbody tr) {
   cursor: pointer;
