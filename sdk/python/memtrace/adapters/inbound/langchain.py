@@ -100,11 +100,27 @@ def _message_dicts(messages: List[List[Any]]) -> List[Dict[str, Any]]:
 
 
 def _generation_dicts(response: Any) -> List[Dict[str, Any]]:
-    return [
-        {"role": getattr(getattr(g, "message", None), "type", "assistant"), "content": getattr(g, "text", "")}
-        for gens in getattr(response, "generations", None) or []
-        for g in gens
-    ]
+    result = []
+    for gens in getattr(response, "generations", None) or []:
+        for g in gens:
+            msg = getattr(g, "message", None)
+            role = getattr(msg, "type", "assistant")
+            content = getattr(g, "text", "")
+
+            d: Dict[str, Any] = {"role": role, "content": content}
+
+            # Captura tool_calls si el mensaje los contiene (ReAct / AgentExecutor patterns)
+            if msg:
+                tool_calls = getattr(msg, "tool_calls", None)
+                if tool_calls:
+                    d["tool_calls"] = tool_calls
+                # También revisar en additional_kwargs (algunos modelos lo guardan ahí)
+                additional = getattr(msg, "additional_kwargs", {}) or {}
+                if not tool_calls and "tool_calls" in additional:
+                    d["tool_calls"] = additional["tool_calls"]
+
+            result.append(d)
+    return result
 
 
 class MemTraceCallbackHandler(BaseCallbackHandler):
