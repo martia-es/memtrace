@@ -83,21 +83,20 @@ const footer = computed(() => {
   return `${n} ${noun}${active.value.nextCursor.value ? " · hay más" : ""}`;
 });
 const rangeLabel = computed(() => RANGE_PRESETS.find((p) => p.key === f.range.value)!.long);
+const rangeOptions = computed(() => RANGE_PRESETS.map((p) => ({ label: p.long, value: p.key })));
 </script>
 
 <template>
   <div class="page">
     <header class="top">
       <h1>Conversaciones</h1>
-      <button type="button" class="range mt-card" :aria-label="`Rango de tiempo: ${rangeLabel}`">
-        {{ rangeLabel }}
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
-        <q-menu auto-close anchor="bottom right" self="top right" :offset="[0, 6]">
-          <q-list dense style="min-width: 170px">
-            <q-item v-for="p in RANGE_PRESETS" :key="p.key" clickable :active="p.key === f.range.value" @click="f.setRange(p.key)"><q-item-section>{{ p.long }}</q-item-section></q-item>
-          </q-list>
-        </q-menu>
-      </button>
+      <Select
+        class="range mt-card"
+        :model-value="f.range.value"
+        :options="rangeOptions"
+        :aria-label="`Rango de tiempo: ${rangeLabel}`"
+        @update:model-value="f.setRange"
+      />
     </header>
 
     <section class="kpis mt-card" aria-label="Resumen">
@@ -188,18 +187,25 @@ h1 {
   letter-spacing: -0.03em;
 }
 .range {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  height: 34px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.range :deep(.select-trigger) {
   height: 34px;
   padding: 0 14px;
   border: 0;
   border-radius: 17px;
+  background: var(--mt-soft);
   color: var(--mt-ink);
-  font: inherit;
-  font-size: 13px;
   font-weight: 600;
-  cursor: pointer;
+}
+.range :deep(.select-trigger:hover) {
+  background: rgba(127, 207, 74, 0.12);
+  border-color: transparent;
+}
+.range :deep(.select-trigger.active) {
+  color: var(--mt-ink);
 }
 .kpis {
   display: grid;
