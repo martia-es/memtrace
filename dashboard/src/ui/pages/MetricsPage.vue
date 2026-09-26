@@ -338,7 +338,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
           <div class="metric-label">ERRORES</div>
           <div class="metric-value" :style="{ color: data.totals.errorTraces > 0 ? '#d9382e' : '#2a5a0d' }">{{ formatCount(data.totals.errorTraces) }}</div>
           <div class="metric-detail">{{ formatPercent(data.totals.errorRate) }}</div>
-          <button v-if="data.totals.errorTraces > 0" class="view-errors-btn" @click="goToErrors">Ver trazas</button>
+          <a v-if="data.totals.errorTraces > 0" class="error-link" @click="goToErrors">Ver trazas →</a>
         </div>
 
         <div class="metric-card">
@@ -660,21 +660,19 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
   font-weight: 600;
 }
 
-.view-errors-btn {
+.error-link {
   margin-top: 8px;
-  padding: 8px 12px;
-  border: none;
-  border-radius: 8px;
-  background: #d9382e;
-  color: white;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
+  color: #d9382e;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: color 0.2s;
+  text-decoration: none;
 }
 
-.view-errors-btn:hover {
-  background: #b8271a;
+.error-link:hover {
+  color: #b8271a;
+  text-decoration: underline;
 }
 
 /* Charts Grid */
