@@ -75,6 +75,17 @@ Una vez ejecutado `make up`, tendrás acceso directo a:
 * 📡 **Endpoint OTLP Collector (gRPC):** `localhost:4317`
 * 🌐 **Endpoint OTLP Collector (HTTP):** `localhost:4318`
 
+### Dashboard y API de consulta
+
+Con el stack levantado, en dos terminales:
+
+```bash
+cd api && npm install && CLICKHOUSE_PASSWORD=memtrace-dev-only npm run dev   # API en :3001
+cd dashboard && npm install && npm run dev                                   # Dashboard en http://localhost:5173
+```
+
+Para ver trazas de ejemplo: `MEMTRACE_CAPTURE_CONTENT=true python examples/02_multi_step_agent.py`. Detalles en [`api/README.md`](api/README.md) y [`dashboard/README.md`](dashboard/README.md).
+
 ---
 
 ## 🛠️ Comandos del `Makefile`
@@ -107,6 +118,7 @@ MemTrace/
 │   └── config/                 # Configuración de ClickHouse (ConfigMap generado por kustomize)
 ├── sdk/python/                 # SDK Python (memtrace): decoradores + integración LangChain, exporta OTLP
 ├── api/                        # API de consulta (Next.js + TypeScript): único acceso a ClickHouse
+├── dashboard/                  # Dashboard (Vite + Vue 3 + Quasar): consume solo la API
 ├── examples/                   # Ejemplos de agentes instrumentados
 ├── migrations/                 # Migraciones SQL versionadas para ClickHouse
 │   └── clickhouse/

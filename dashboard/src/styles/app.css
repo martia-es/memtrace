@@ -1,0 +1,36 @@
+:root {
+  --wf-line: rgba(0, 0, 0, 0.09);
+  --wf-hover: rgba(0, 0, 0, 0.035);
+  --wf-selected: rgba(59, 91, 219, 0.10);
+  --code-bg: rgba(0, 0, 0, 0.03);
+  --header-bg: #ffffff;
+}
+body.body--dark {
+  --wf-line: rgba(255, 255, 255, 0.12);
+  --wf-hover: rgba(255, 255, 255, 0.05);
+  --wf-selected: rgba(124, 156, 255, 0.16);
+  --code-bg: rgba(255, 255, 255, 0.05);
+  --header-bg: #161d2b;
+}
+body {
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.q-header {
+  color: var(--q-dark, inherit);
+}
+body.body--dark .q-header {
+  color: #e3e8f0;
+}
+body.body--light .q-header {
+  color: #1f2a3a;
+}
+.toggle-group {
+  border: 1px solid var(--wf-line);
+  border-radius: 4px;
+}
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--code-bg);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
