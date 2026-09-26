@@ -138,7 +138,7 @@ MemTrace/
 │   ├── 50-api.yaml             # API de consulta (Deployment + Service)
 │   ├── 60-dashboard.yaml       # Dashboard servido por nginx (Deployment + Service)
 │   └── config/                 # Configuración de ClickHouse (ConfigMap generado por kustomize)
-├── sdk/python/                 # SDK Python (memtrace): decoradores + integración LangChain, exporta OTLP
+├── sdk/python/                 # SDK Python (memtrace-ai en PyPI, import memtrace): decoradores + integración LangChain, exporta OTLP
 ├── api/                        # API de consulta (Next.js + TypeScript): único acceso a ClickHouse
 ├── dashboard/                  # Dashboard (Vite + Vue 3 + Quasar): consume solo la API
 ├── examples/                   # Ejemplos de agentes instrumentados

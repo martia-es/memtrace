@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "memtrace"
+name = "memtrace-ai"
 version = "0.1.0"
 description = "Librería de observabilidad y trazabilidad OTel para Agentes de IA"
 readme = "README.md"

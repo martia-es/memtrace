@@ -1,9 +1,11 @@
-# memtrace (Python SDK)
+# memtrace-ai (Python SDK)
 
 Instrumenta agentes de IA y exporta trazas por OTLP (convenciones GenAI de OpenTelemetry). No conoce el almacén: solo habla con el OTel Collector.
 
+> El nombre del paquete publicado en PyPI es `memtrace-ai`; el import en Python sigue siendo `memtrace`.
+
 ```bash
-pip install -e ".[langchain]"   # extras: http (OTLP/HTTP), langchain, dev
+pip install memtrace-ai[langchain]   # extras: http (OTLP/HTTP), langchain, dev
 ```
 
 ```python
