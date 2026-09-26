@@ -48,6 +48,8 @@ export interface TraceSummaryDto {
   spanCount: number;
   errorCount: number;
   totalTokens: number;
+  /** conversación a la que pertenece el turno (ADR-012) */
+  conversationId: string | null;
 }
 
 export interface TraceListResponse {
@@ -88,7 +90,34 @@ export interface TraceDetailResponse {
   errorCount: number;
   totalTokens: number;
   truncated: boolean;
+  conversationId: string | null;
   roots: SpanNodeDto[];
+}
+
+/** Conversación = trazas (turnos) con el mismo `gen_ai.conversation.id` (ADR-012). */
+export interface ConversationSummaryDto {
+  conversationId: string;
+  serviceNames: string[];
+  startTime: string;
+  lastActivity: string;
+  turnCount: number;
+  /** turnos cuyo span raíz falló */
+  errorTurns: number;
+  /** spans fallidos en cualquier punto de la conversación */
+  failedSpans: number;
+  totalTokens: number;
+  /** suma de las duraciones de los turnos (sin esperas del usuario) */
+  activeMs: number;
+}
+
+export interface ConversationListResponse {
+  items: ConversationSummaryDto[];
+  nextCursor: string | null;
+}
+
+/** Resumen + turnos en orden cronológico */
+export interface ConversationDetailResponse extends ConversationSummaryDto {
+  turns: TraceListResponse;
 }
 
 export interface OverviewResponse {
@@ -96,6 +125,7 @@ export interface OverviewResponse {
   totals: {
     traces: number;
     spans: number;
+    conversations: number;
     errorTraces: number;
     errorRate: number;
     inputTokens: number;

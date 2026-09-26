@@ -17,6 +17,18 @@ const config = { ...configFromEnv(), password: process.env.CLICKHOUSE_PASSWORD ?
 const SERVICE = `it-${randomBytes(4).toString("hex")}`;
 const TRACE_A = randomBytes(16).toString("hex");
 const TRACE_B = randomBytes(16).toString("hex");
+// Conversaciones (ADR-012) en un servicio aparte para no alterar las cifras de los tests anteriores
+const CONV_SERVICE = `${SERVICE}-conv`;
+const CONV1 = `${SERVICE}-c1`;
+const CONV2 = `${SERVICE}-c2`;
+const CONV3 = `${SERVICE}-c3`;
+const T1 = randomBytes(16).toString("hex");
+const T2 = randomBytes(16).toString("hex");
+const T3 = randomBytes(16).toString("hex");
+const T4 = randomBytes(16).toString("hex"); // sin conversación
+const T5_OLD = randomBytes(16).toString("hex"); // CONV3, hace 3 días: fuera del rango pero dentro de la retención
+const T6 = randomBytes(16).toString("hex");
+const DAY = 24 * 3600_000;
 const hex8 = () => randomBytes(8).toString("hex");
 
 const T0 = Date.now() - 10 * 60_000;
@@ -24,6 +36,7 @@ const ts = (offsetMs: number) => new Date(T0 + offsetMs).toISOString().replace("
 
 interface Row {
   trace: string;
+  service?: string;
   spanId?: string;
   parent?: string;
   name: string;
@@ -41,7 +54,7 @@ const toRow = (r: Row) => ({
   ParentSpanId: r.parent ?? "",
   SpanName: r.name,
   SpanKind: "SPAN_KIND_INTERNAL",
-  ServiceName: SERVICE,
+  ServiceName: r.service ?? SERVICE,
   SpanAttributes: r.attrs ?? {},
   Duration: r.durationMs * 1e6,
   StatusCode: `STATUS_CODE_${r.status ?? "OK"}`,
@@ -85,13 +98,34 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
     await insert([
       { trace: TRACE_A, parent: rootA, name: "tardia", offsetMs: 1500, durationMs: 100, attrs: { "memtrace.step_type": "tool", "gen_ai.operation.name": "execute_tool", "gen_ai.tool.name": "tardia" } },
     ]);
+    const conv = (id: string, extra: Record<string, string> = {}) => ({ "gen_ai.conversation.id": id, ...extra });
+    const chat = (id: string, tin: number, tout: number) =>
+      conv(id, { "gen_ai.operation.name": "chat", "gen_ai.usage.input_tokens": String(tin), "gen_ai.usage.output_tokens": String(tout), "gen_ai.usage.total_tokens": String(tin + tout) });
+    const r1 = hex8();
+    const r2 = hex8();
+    await insert([
+      // CONV1: dos turnos; el primero tiene un LLM y una herramienta fallida
+      { trace: T1, service: CONV_SERVICE, spanId: r1, name: "turno-1", offsetMs: 0, durationMs: 1000, attrs: conv(CONV1) },
+      { trace: T1, service: CONV_SERVICE, parent: r1, name: "llm", offsetMs: 50, durationMs: 300, attrs: chat(CONV1, 10, 5) },
+      { trace: T1, service: CONV_SERVICE, parent: r1, name: "tool", offsetMs: 400, durationMs: 100, status: "ERROR", attrs: conv(CONV1) },
+      { trace: T2, service: CONV_SERVICE, spanId: r2, name: "turno-2", offsetMs: 60_000, durationMs: 500, attrs: conv(CONV1) },
+      { trace: T2, service: CONV_SERVICE, parent: r2, name: "llm", offsetMs: 60_050, durationMs: 200, attrs: chat(CONV1, 20, 10) },
+      // CONV2: un turno cuyo raíz falla
+      { trace: T3, service: CONV_SERVICE, name: "turno-3", offsetMs: 120_000, durationMs: 200, status: "ERROR", attrs: conv(CONV2) },
+      // sin conversación
+      { trace: T4, service: CONV_SERVICE, name: "suelta", offsetMs: 130_000, durationMs: 50 },
+      // CONV3: un turno de hace 3 días y otro reciente
+      { trace: T5_OLD, service: CONV_SERVICE, name: "turno-viejo", offsetMs: -3 * DAY, durationMs: 400, attrs: conv(CONV3) },
+      { trace: T6, service: CONV_SERVICE, name: "turno-nuevo", offsetMs: 180_000, durationMs: 100, attrs: conv(CONV3) },
+    ]);
     await insert([{ trace: TRACE_B, name: "agent-B", offsetMs: 10_000, durationMs: 1000, status: "ERROR", attrs: { "memtrace.step_type": "agent" } }]);
   });
 
   afterAll(async () => {
     const settings = { mutations_sync: "1" as const };
     await writer.command({ query: `ALTER TABLE ${config.database}.otel_traces DELETE WHERE ServiceName = {s:String}`, query_params: { s: SERVICE }, clickhouse_settings: settings });
-    await writer.command({ query: `ALTER TABLE ${config.database}.otel_traces_trace_id_ts DELETE WHERE TraceId IN {ids:Array(String)}`, query_params: { ids: [TRACE_A, TRACE_B] }, clickhouse_settings: settings });
+    await writer.command({ query: `ALTER TABLE ${config.database}.otel_traces DELETE WHERE ServiceName = {s:String}`, query_params: { s: CONV_SERVICE }, clickhouse_settings: settings });
+    await writer.command({ query: `ALTER TABLE ${config.database}.otel_traces_trace_id_ts DELETE WHERE TraceId IN {ids:Array(String)}`, query_params: { ids: [TRACE_A, TRACE_B, T1, T2, T3, T4, T5_OLD, T6] }, clickhouse_settings: settings });
     await writer.close();
   });
 
@@ -170,5 +204,68 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
     const dead = new ClickHouseTraceRepository(createReadOnlyClient({ ...config, url: "http://127.0.0.1:1" }), config.database);
     await expect(dead.ping()).rejects.toBeInstanceOf(RepositoryUnavailableError);
     await expect(dead.listServices(range)).rejects.toBeInstanceOf(RepositoryUnavailableError);
+  });
+
+  describe("conversations (ADR-012)", () => {
+    const list = (extra: object = {}) => repo.listConversations({ ...range, service: CONV_SERVICE, limit: 10, ...extra });
+
+    it("lists conversations by last activity with figures over their whole history", async () => {
+      const page = await list();
+      expect(page.items.map((c) => c.conversationId)).toEqual([CONV3, CONV2, CONV1]); // T6 (+180 s) > T3 (+120 s) > T2 (+60 s)
+      const [c3, c2, c1] = page.items;
+      expect(c1).toMatchObject({ turnCount: 2, errorTurns: 0, failedSpans: 1, totalTokens: 45, serviceNames: [CONV_SERVICE] });
+      expect(c1!.activeMs).toBeCloseTo(1500, 0);
+      expect(c2).toMatchObject({ turnCount: 1, errorTurns: 1, failedSpans: 1, totalTokens: 0 });
+      // CONV3 cuenta su turno de hace 3 días aunque el rango solo cubre los últimos 40 min
+      expect(c3!.turnCount).toBe(2);
+      expect(c3!.startTimeUs / 1000).toBeLessThan(range.fromMs);
+      expect(page.nextCursor).toBeNull();
+    });
+
+    it("never lists traces without a conversation as conversations", async () => {
+      const ids = (await list()).items.map((c) => c.conversationId);
+      expect(ids).toHaveLength(3);
+    });
+
+    it("paginates with a keyset cursor", async () => {
+      const first = await list({ limit: 2 });
+      expect(first.items.map((c) => c.conversationId)).toEqual([CONV3, CONV2]);
+      expect(first.nextCursor).not.toBeNull();
+      const second = await list({ limit: 2, cursor: first.nextCursor! });
+      expect(second.items.map((c) => c.conversationId)).toEqual([CONV1]);
+      expect(second.nextCursor).toBeNull();
+    });
+
+    it("filters by hasErrors and by service", async () => {
+      expect((await list({ hasErrors: true })).items.map((c) => c.conversationId).sort()).toEqual([CONV1, CONV2].sort());
+      expect((await repo.listConversations({ ...range, service: "no-such-service", limit: 10 })).items).toEqual([]);
+    });
+
+    it("returns one conversation over the retention window, or null", async () => {
+      const found = await repo.getConversation(CONV3, { fromMs: Date.now() - 30 * DAY, toMs: Date.now() });
+      expect(found).toMatchObject({ conversationId: CONV3, turnCount: 2 });
+      expect(await repo.getConversation("no-such-conversation", { fromMs: Date.now() - 30 * DAY, toMs: Date.now() })).toBeNull();
+    });
+
+    it("lists a conversation's turns chronologically, paginated, with their conversation id", async () => {
+      const q = { fromMs: Date.now() - 30 * DAY, toMs: Date.now(), conversationId: CONV3, order: "asc" as const, limit: 1 };
+      const first = await repo.listTraces(q);
+      expect(first.items.map((t) => [t.traceId, t.conversationId])).toEqual([[T5_OLD, CONV3]]);
+      const second = await repo.listTraces({ ...q, cursor: first.nextCursor! });
+      expect(second.items.map((t) => t.traceId)).toEqual([T6]);
+      expect(second.nextCursor).toBeNull();
+    });
+
+    it("exposes the conversation in the trace list, null when absent", async () => {
+      const page = await repo.listTraces({ ...range, service: CONV_SERVICE, limit: 20 });
+      const byTrace = Object.fromEntries(page.items.map((t) => [t.traceId, t.conversationId]));
+      expect(byTrace[T4]).toBeNull();
+      expect(byTrace[T1]).toBe(CONV1);
+    });
+
+    it("counts distinct conversations in the overview", async () => {
+      const o = await repo.getOverview({ ...range, service: CONV_SERVICE, bucketSeconds: chooseBucketSeconds(range.fromMs, range.toMs) });
+      expect(o.totals.conversations).toBe(3);
+    });
   });
 });

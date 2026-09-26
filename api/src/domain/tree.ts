@@ -94,6 +94,13 @@ function rootStatus(roots: SpanNode[]): StatusCode {
   return "unset";
 }
 
+/** La conversación la declara el span raíz; si no, cualquier span que la lleve. */
+function conversationOf(roots: SpanNode[], nodes: SpanNode[]): string | null {
+  const key = "gen_ai.conversation.id";
+  const pick = (list: SpanNode[]) => list.map((n) => n.attributes[key]).find((v) => v !== undefined && v !== "");
+  return pick(roots.filter((r) => r.parentSpanId === null)) ?? pick(nodes) ?? null;
+}
+
 /** Construye el detalle de una traza (árbol + agregados) a partir de sus spans planos. */
 export function buildTraceDetail(traceId: string, spans: Span[], truncated: boolean): TraceDetail {
   const startTimeUs = spans.reduce((min, s) => Math.min(min, s.startTimeUs), Infinity);
@@ -110,6 +117,7 @@ export function buildTraceDetail(traceId: string, spans: Span[], truncated: bool
 
   return {
     traceId,
+    conversationId: conversationOf(roots, nodes),
     startTimeUs,
     durationMs: (endUs - startTimeUs) / 1000,
     status: rootStatus(roots),

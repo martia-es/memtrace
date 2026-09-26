@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ValidationError } from "@/domain/errors";
+import type { ConversationCursor } from "@/domain/conversation";
 import type { PageCursor } from "@/domain/trace";
 
 const isoDate = z.iso.datetime({ offset: true }).transform((value) => new Date(value));
@@ -17,9 +18,27 @@ export const listTracesQuery = z.object({
   status: z.enum(["ok", "error"]).optional(),
   hasErrors: boolean.optional(),
   minDurationMs: z.coerce.number().min(0).optional(),
+  conversationId: z.string().min(1).max(200).optional(),
   limit: z.coerce.number().int().optional(), // el rango 1..200 lo impone el servicio
   cursor: z.string().max(512).optional(),
 });
+
+export const listConversationsQuery = z.object({
+  ...timeRangeShape,
+  service: nonEmpty.optional(),
+  hasErrors: boolean.optional(),
+  limit: z.coerce.number().int().optional(),
+  cursor: z.string().max(512).optional(),
+});
+
+/** Turnos de una conversación: solo paginación */
+export const turnsQuery = z.object({
+  limit: z.coerce.number().int().optional(),
+  cursor: z.string().max(512).optional(),
+});
+
+/** Los ids de conversación son texto libre (los pone la aplicación): solo se acota su longitud */
+export const conversationIdParam = z.string().min(1).max(200);
 
 export const overviewQuery = z.object({ ...timeRangeShape, service: nonEmpty.optional() });
 export const servicesQuery = z.object({ ...timeRangeShape });
@@ -51,6 +70,21 @@ const cursorSchema = z.object({ t: z.number().int(), id: z.string().regex(/^[0-9
 
 export function encodeCursor(cursor: PageCursor): string {
   return Buffer.from(JSON.stringify({ t: cursor.startTimeUs, id: cursor.traceId })).toString("base64url");
+}
+
+const conversationCursorSchema = z.object({ t: z.number().int(), id: z.string().min(1).max(200) });
+
+export function encodeConversationCursor(cursor: ConversationCursor): string {
+  return Buffer.from(JSON.stringify({ t: cursor.lastActivityUs, id: cursor.conversationId })).toString("base64url");
+}
+
+export function decodeConversationCursor(raw: string): ConversationCursor {
+  try {
+    const parsed = conversationCursorSchema.parse(JSON.parse(Buffer.from(raw, "base64url").toString("utf8")));
+    return { lastActivityUs: parsed.t, conversationId: parsed.id };
+  } catch {
+    throw new ValidationError("Invalid request", { cursor: "invalid or expired cursor" });
+  }
 }
 
 export function decodeCursor(raw: string): PageCursor {

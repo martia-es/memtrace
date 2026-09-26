@@ -1,9 +1,10 @@
 import type { ClickHouseClient } from "@clickhouse/client";
 import { RepositoryUnavailableError } from "@/application/errors";
-import type { TraceListQuery, TraceRepository, TraceSpans } from "@/application/ports/trace-repository";
+import type { ConversationListQuery, TraceListQuery, TraceRepository, TraceSpans } from "@/application/ports/trace-repository";
+import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
 import type { MetricsOverview, MetricsQuery } from "@/domain/metrics";
 import type { Span, StatusCode } from "@/domain/span";
-import type { TimeRange } from "@/domain/time-range";
+import { MAX_RANGE_MS, type TimeRange } from "@/domain/time-range";
 import type { Page, TraceSummary } from "@/domain/trace";
 import { QueryLimiter } from "./query-limiter";
 
@@ -109,16 +110,21 @@ export class ClickHouseTraceRepository implements TraceRepository {
       );
       p.toWithWindowMs = q.toMs + TRACE_WINDOW_MS;
     }
+    if (q.conversationId) {
+      where.push("ConversationId = {conversationId:String}");
+      p.conversationId = q.conversationId;
+    }
+    const dir = q.order === "asc" ? "ASC" : "DESC";
     if (q.cursor) {
-      where.push("(toUnixTimestamp64Micro(Timestamp), TraceId) < ({cursorUs:Int64}, {cursorTraceId:String})");
+      where.push(`(toUnixTimestamp64Micro(Timestamp), TraceId) ${dir === "ASC" ? ">" : "<"} ({cursorUs:Int64}, {cursorTraceId:String})`);
       p.cursorUs = q.cursor.startTimeUs;
       p.cursorTraceId = q.cursor.traceId;
     }
 
     const roots = await this.rows(
-      `SELECT TraceId, SpanName, ServiceName, toUnixTimestamp64Micro(Timestamp) AS startUs, Duration, StatusCode
+      `SELECT TraceId, SpanName, ServiceName, ConversationId, toUnixTimestamp64Micro(Timestamp) AS startUs, Duration, StatusCode
        FROM ${this.spans} WHERE ${where.join(" AND ")}
-       ORDER BY startUs DESC, TraceId DESC LIMIT {limit:UInt32}`,
+       ORDER BY startUs ${dir}, TraceId ${dir} LIMIT {limit:UInt32}`,
       p,
     );
 
@@ -138,6 +144,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
         spanCount: agg?.spanCount ?? 1,
         errorCount: agg?.errorCount ?? 0,
         totalTokens: agg?.totalTokens ?? 0,
+        conversationId: r.ConversationId ? String(r.ConversationId) : null,
       };
     });
 
@@ -166,6 +173,89 @@ export class ClickHouseTraceRepository implements TraceRepository {
         spanCount: num(r.spanCount),
         errorCount: num(r.errorCount),
         totalTokens: num(r.totalTokens),
+      });
+    }
+    return result;
+  }
+
+  async listConversations(q: ConversationListQuery): Promise<Page<ConversationSummary, ConversationCursor>> {
+    const { clause, params } = ClickHouseTraceRepository.range(q.fromMs, q.toMs);
+    const where = ["ParentSpanId = ''", "ConversationId != ''", clause];
+    const p: Params = { ...params, limit: q.limit + 1 };
+
+    if (q.service) {
+      where.push("ServiceName = {service:String}");
+      p.service = q.service;
+    }
+    if (q.hasErrors) {
+      where.push(
+        `ConversationId IN (SELECT ConversationId FROM ${this.spans} WHERE ConversationId != '' AND StatusCode = ${ERROR} AND Timestamp >= fromUnixTimestamp64Milli({fromMs:Int64}) AND Timestamp < fromUnixTimestamp64Milli({toWithWindowMs:Int64}))`,
+      );
+      p.toWithWindowMs = q.toMs + TRACE_WINDOW_MS;
+    }
+    const having = q.cursor ? "HAVING (lastUs, ConversationId) < ({cursorUs:Int64}, {cursorId:String})" : "";
+    if (q.cursor) {
+      p.cursorUs = q.cursor.lastActivityUs;
+      p.cursorId = q.cursor.conversationId;
+    }
+
+    // 1) qué conversaciones (por su última actividad dentro del rango)
+    const found = await this.rows(
+      `SELECT ConversationId, max(toUnixTimestamp64Micro(Timestamp)) AS lastUs
+       FROM ${this.spans} WHERE ${where.join(" AND ")}
+       GROUP BY ConversationId ${having}
+       ORDER BY lastUs DESC, ConversationId DESC LIMIT {limit:UInt32}`,
+      p,
+    );
+    const hasMore = found.length > q.limit;
+    const page = found.slice(0, q.limit).map((r) => String(r.ConversationId));
+
+    // 2) sus cifras, sobre toda la historia retenida
+    const summaries = await this.conversationSummaries(page, q.toMs);
+    const items = page.map((id) => summaries.get(id)).filter((s): s is ConversationSummary => s !== undefined);
+    const lastRow = found[q.limit - 1];
+    return {
+      items,
+      nextCursor: hasMore && lastRow ? { lastActivityUs: num(lastRow.lastUs), conversationId: String(lastRow.ConversationId) } : null,
+    };
+  }
+
+  async getConversation(conversationId: string, range: TimeRange): Promise<ConversationSummary | null> {
+    const found = await this.conversationSummaries([conversationId], range.toMs);
+    return found.get(conversationId) ?? null;
+  }
+
+  /** Cifras por conversación en una sola pasada sobre la columna `ConversationId` (ADR-012). */
+  private async conversationSummaries(ids: string[], toMs: number): Promise<Map<string, ConversationSummary>> {
+    const result = new Map<string, ConversationSummary>();
+    if (ids.length === 0) return result;
+    const { clause, params } = ClickHouseTraceRepository.range(toMs - MAX_RANGE_MS, toMs + TRACE_WINDOW_MS);
+
+    const rows = await this.rows(
+      `SELECT ConversationId,
+              groupUniqArray(10)(ServiceName) AS services,
+              uniqExactIf(TraceId, ParentSpanId = '') AS turns,
+              min(toUnixTimestamp64Micro(Timestamp)) AS firstUs,
+              maxIf(toUnixTimestamp64Micro(Timestamp) + intDiv(Duration, 1000), ParentSpanId = '') AS lastEndUs,
+              countIf(ParentSpanId = '' AND StatusCode = ${ERROR}) AS errorTurns,
+              uniqExactIf(SpanId, StatusCode = ${ERROR}) AS failedSpans,
+              sumIf(${TOKENS}, ${OP} = 'chat') AS totalTokens,
+              sumIf(Duration, ParentSpanId = '') AS activeNs
+       FROM ${this.spans} WHERE ConversationId IN {ids:Array(String)} AND ${clause} GROUP BY ConversationId`,
+      { ...params, ids },
+    );
+    for (const r of rows) {
+      const id = String(r.ConversationId);
+      result.set(id, {
+        conversationId: id,
+        serviceNames: ((r.services as string[]) ?? []).slice().sort(),
+        startTimeUs: num(r.firstUs),
+        lastActivityUs: num(r.lastEndUs),
+        turnCount: num(r.turns),
+        errorTurns: num(r.errorTurns),
+        failedSpans: num(r.failedSpans),
+        totalTokens: num(r.totalTokens),
+        activeMs: nsToMs(r.activeNs),
       });
     }
     return result;
@@ -225,7 +315,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
         p,
       ),
       this.rows(
-        `SELECT count() AS spans, sumIf(${attrNum("gen_ai.usage.input_tokens")}, ${OP} = 'chat') AS inputTokens,
+        `SELECT count() AS spans, uniqExactIf(ConversationId, ConversationId != '') AS conversations, sumIf(${attrNum("gen_ai.usage.input_tokens")}, ${OP} = 'chat') AS inputTokens,
                 sumIf(${attrNum("gen_ai.usage.output_tokens")}, ${OP} = 'chat') AS outputTokens,
                 sumIf(${TOKENS}, ${OP} = 'chat') AS totalTokens ${from}`,
         p,
@@ -278,6 +368,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
       totals: {
         traces,
         spans: num(s.spans),
+        conversations: num(s.conversations),
         errorTraces,
         errorRate: traces > 0 ? errorTraces / traces : 0,
         inputTokens: num(s.inputTokens),

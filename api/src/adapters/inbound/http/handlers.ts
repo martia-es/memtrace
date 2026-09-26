@@ -1,17 +1,21 @@
 import { RepositoryUnavailableError } from "@/application/errors";
 import type { TraceQueryService } from "@/application/trace-query-service";
-import { TraceNotFoundError, ValidationError } from "@/domain/errors";
+import { ConversationNotFoundError, TraceNotFoundError, ValidationError } from "@/domain/errors";
 import type { ServicesResponse } from "./contract";
-import { toOverviewResponse, toTraceDetailResponse, toTraceListResponse } from "./mappers";
+import { toConversationDetailResponse, toConversationListResponse, toOverviewResponse, toTraceDetailResponse, toTraceListResponse } from "./mappers";
 import { json, problem } from "./problem";
 import {
+  conversationIdParam,
+  decodeConversationCursor,
   decodeCursor,
+  listConversationsQuery,
   listTracesQuery,
   overviewQuery,
   parseOrThrow,
   queryToObject,
   servicesQuery,
   traceIdParam,
+  turnsQuery,
 } from "./schemas";
 
 /** Traduce los errores de la aplicación a respuestas RFC 7807; nada interno llega al cliente. */
@@ -20,7 +24,7 @@ async function guard(run: () => Promise<Response>): Promise<Response> {
     return await run();
   } catch (error) {
     if (error instanceof ValidationError) return problem(400, "Bad Request", error.message, error.fields);
-    if (error instanceof TraceNotFoundError) return problem(404, "Not Found", error.message);
+    if (error instanceof TraceNotFoundError || error instanceof ConversationNotFoundError) return problem(404, "Not Found", error.message);
     if (error instanceof RepositoryUnavailableError) return problem(503, "Service Unavailable", error.message);
     console.error("[memtrace-api] Unhandled error:", error);
     return problem(500, "Internal Server Error");
@@ -36,6 +40,21 @@ export function createHandlers(service: TraceQueryService) {
         const { cursor, ...filters } = parseOrThrow(listTracesQuery, query(request));
         const page = await service.listTraces({ ...filters, cursor: cursor ? decodeCursor(cursor) : undefined });
         return json(toTraceListResponse(page));
+      }),
+
+    listConversations: (request: Request) =>
+      guard(async () => {
+        const { cursor, ...filters } = parseOrThrow(listConversationsQuery, query(request));
+        const page = await service.listConversations({ ...filters, cursor: cursor ? decodeConversationCursor(cursor) : undefined });
+        return json(toConversationListResponse(page));
+      }),
+
+    getConversation: (request: Request, rawConversationId: string) =>
+      guard(async () => {
+        const conversationId = parseOrThrow(conversationIdParam, rawConversationId, "conversationId");
+        const { cursor, limit } = parseOrThrow(turnsQuery, query(request));
+        const detail = await service.getConversation(conversationId, { limit, cursor: cursor ? decodeCursor(cursor) : undefined });
+        return json(toConversationDetailResponse(detail.conversation, detail.turns));
       }),
 
     getTrace: (_request: Request, rawTraceId: string) =>

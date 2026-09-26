@@ -1,4 +1,5 @@
-import type { TraceListQuery, TraceRepository, TraceSpans } from "@/application/ports/trace-repository";
+import type { ConversationListQuery, TraceListQuery, TraceRepository, TraceSpans } from "@/application/ports/trace-repository";
+import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
 import type { MetricsOverview, MetricsQuery } from "@/domain/metrics";
 import type { Span } from "@/domain/span";
 import type { TimeRange } from "@/domain/time-range";
@@ -24,7 +25,7 @@ export function span(overrides: Partial<Span> = {}): Span {
 
 export const emptyOverview: MetricsOverview = {
   bucketSeconds: 60,
-  totals: { traces: 0, spans: 0, errorTraces: 0, errorRate: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+  totals: { traces: 0, spans: 0, conversations: 0, errorTraces: 0, errorRate: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0 },
   latencyMs: { p50: 0, p95: 0, p99: 0 },
   timeseries: [],
   byModel: [],
@@ -35,6 +36,10 @@ export const emptyOverview: MetricsOverview = {
 export class FakeTraceRepository implements TraceRepository {
   lastListQuery?: TraceListQuery;
   lastOverviewQuery?: MetricsQuery;
+  lastConversationQuery?: ConversationListQuery;
+  lastConversationRange?: TimeRange;
+  conversationPage: Page<ConversationSummary, ConversationCursor> = { items: [], nextCursor: null };
+  conversations = new Map<string, ConversationSummary>();
   page: Page<TraceSummary> = { items: [], nextCursor: null };
   traces = new Map<string, TraceSpans>();
   overview: MetricsOverview = emptyOverview;
@@ -61,6 +66,16 @@ export class FakeTraceRepository implements TraceRepository {
   async listServices(_range: TimeRange) {
     this.check();
     return this.services;
+  }
+  async listConversations(query: ConversationListQuery) {
+    this.check();
+    this.lastConversationQuery = query;
+    return this.conversationPage;
+  }
+  async getConversation(conversationId: string, range: TimeRange) {
+    this.check();
+    this.lastConversationRange = range;
+    return this.conversations.get(conversationId) ?? null;
   }
   async ping() {
     this.check();

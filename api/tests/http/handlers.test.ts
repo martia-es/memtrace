@@ -20,7 +20,7 @@ describe("GET /traces", () => {
     const { repo, handlers } = setup();
     const cursor = { startTimeUs: 1_790_000_000_123_456, traceId: TRACE_ID };
     repo.page = {
-      items: [{ traceId: TRACE_ID, rootSpanName: "agent", serviceName: "svc", startTimeUs: 1_790_000_000_123_456, durationMs: 12.5, status: "ok", spanCount: 3, errorCount: 0, totalTokens: 7 }],
+      items: [{ traceId: TRACE_ID, rootSpanName: "agent", serviceName: "svc", startTimeUs: 1_790_000_000_123_456, durationMs: 12.5, status: "ok", spanCount: 3, errorCount: 0, totalTokens: 7, conversationId: "conv-1" }],
       nextCursor: cursor,
     };
     const response = await handlers.listTraces(get("/traces"));
@@ -98,5 +98,50 @@ describe("other endpoints", () => {
     expect((await handlers.ready()).status).toBe(200);
     repo.failWith = new RepositoryUnavailableError();
     expect((await handlers.ready()).status).toBe(503);
+  });
+});
+
+
+describe("conversations endpoints", () => {
+  const summary = (id: string) => ({
+    conversationId: id, serviceNames: ["svc"], startTimeUs: 1_790_000_000_000_000, lastActivityUs: 1_790_000_060_000_000,
+    turnCount: 2, errorTurns: 1, failedSpans: 2, totalTokens: 30, activeMs: 1500.5,
+  });
+
+  it("lists conversations with ISO dates and a cursor that round-trips", async () => {
+    const { repo, handlers } = setup();
+    const cursor = { lastActivityUs: 1_790_000_060_000_000, conversationId: "conv a/b" };
+    repo.conversationPage = { items: [summary("conv a/b")], nextCursor: cursor };
+    const response = await handlers.listConversations(get("/conversations?service=svc&hasErrors=true"));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.items[0]).toMatchObject({ conversationId: "conv a/b", turnCount: 2, errorTurns: 1, lastActivity: new Date(1_790_000_060_000).toISOString() });
+
+    await handlers.listConversations(get(`/conversations?cursor=${body.nextCursor}&limit=5`));
+    expect(repo.lastConversationQuery).toMatchObject({ cursor, limit: 5 });
+  });
+
+  it("rejects an invalid cursor or limit", async () => {
+    const { handlers } = setup();
+    expect((await handlers.listConversations(get("/conversations?cursor=%%%"))).status).toBe(400);
+    expect((await handlers.listConversations(get("/conversations?limit=999"))).status).toBe(400);
+  });
+
+  it("returns a conversation with its turns, and 404 when unknown", async () => {
+    const { repo, handlers } = setup();
+    repo.conversations.set("c1", summary("c1"));
+    repo.page = { items: [{ traceId: TRACE_ID, rootSpanName: "turno", serviceName: "svc", startTimeUs: 1_790_000_000_000_000, durationMs: 5, status: "ok", spanCount: 2, errorCount: 0, totalTokens: 0, conversationId: "c1" }], nextCursor: null };
+    const ok = await handlers.getConversation(get("/conversations/c1"), "c1");
+    const body = await ok.json();
+    expect(ok.status).toBe(200);
+    expect(body).toMatchObject({ conversationId: "c1", turnCount: 2 });
+    expect(body.turns.items[0]).toMatchObject({ conversationId: "c1", rootSpanName: "turno" });
+    expect((await handlers.getConversation(get("/conversations/x"), "x")).status).toBe(404);
+  });
+
+  it("passes the conversationId filter to the trace list", async () => {
+    const { repo, handlers } = setup();
+    await handlers.listTraces(get("/traces?conversationId=c1"));
+    expect(repo.lastListQuery).toMatchObject({ conversationId: "c1" });
   });
 });

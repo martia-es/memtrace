@@ -9,6 +9,8 @@ export interface OverviewTotals {
   /** trazas = spans raíz en el rango */
   traces: number;
   spans: number;
+  /** conversaciones distintas con algún span en el rango */
+  conversations: number;
   /** trazas cuyo span raíz falló (coincide con el filtro `status=error` del listado) */
   errorTraces: number;
   errorRate: number;

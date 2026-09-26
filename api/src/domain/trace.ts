@@ -12,6 +12,8 @@ export interface TraceSummary {
   spanCount: number;
   errorCount: number;
   totalTokens: number;
+  /** conversación a la que pertenece el turno (ADR-012) */
+  conversationId: string | null;
 }
 
 export interface TraceDetail {
@@ -23,6 +25,7 @@ export interface TraceDetail {
   errorCount: number;
   totalTokens: number;
   truncated: boolean;
+  conversationId: string | null;
   roots: SpanNode[];
 }
 
@@ -32,7 +35,7 @@ export interface PageCursor {
   traceId: string;
 }
 
-export interface Page<T> {
+export interface Page<T, C = PageCursor> {
   items: T[];
-  nextCursor: PageCursor | null;
+  nextCursor: C | null;
 }

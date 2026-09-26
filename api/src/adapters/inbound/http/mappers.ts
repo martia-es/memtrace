@@ -1,8 +1,9 @@
+import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
 import type { MetricsOverview } from "@/domain/metrics";
 import type { SpanNode } from "@/domain/span";
 import type { Page, TraceDetail, TraceSummary } from "@/domain/trace";
-import type { OverviewResponse, SpanNodeDto, TraceDetailResponse, TraceListResponse, TraceSummaryDto } from "./contract";
-import { encodeCursor } from "./schemas";
+import type { ConversationDetailResponse, ConversationListResponse, ConversationSummaryDto, OverviewResponse, SpanNodeDto, TraceDetailResponse, TraceListResponse, TraceSummaryDto } from "./contract";
+import { encodeConversationCursor, encodeCursor } from "./schemas";
 
 const isoFromUs = (us: number) => new Date(Math.round(us / 1000)).toISOString();
 const isoFromMs = (ms: number) => new Date(ms).toISOString();
@@ -18,7 +19,33 @@ export function toTraceSummaryDto(t: TraceSummary): TraceSummaryDto {
     spanCount: t.spanCount,
     errorCount: t.errorCount,
     totalTokens: t.totalTokens,
+    conversationId: t.conversationId,
   };
+}
+
+export function toConversationSummaryDto(c: ConversationSummary): ConversationSummaryDto {
+  return {
+    conversationId: c.conversationId,
+    serviceNames: c.serviceNames,
+    startTime: isoFromUs(c.startTimeUs),
+    lastActivity: isoFromUs(c.lastActivityUs),
+    turnCount: c.turnCount,
+    errorTurns: c.errorTurns,
+    failedSpans: c.failedSpans,
+    totalTokens: c.totalTokens,
+    activeMs: c.activeMs,
+  };
+}
+
+export function toConversationListResponse(page: Page<ConversationSummary, ConversationCursor>): ConversationListResponse {
+  return {
+    items: page.items.map(toConversationSummaryDto),
+    nextCursor: page.nextCursor ? encodeConversationCursor(page.nextCursor) : null,
+  };
+}
+
+export function toConversationDetailResponse(conversation: ConversationSummary, turns: Page<TraceSummary>): ConversationDetailResponse {
+  return { ...toConversationSummaryDto(conversation), turns: toTraceListResponse(turns) };
 }
 
 export function toTraceListResponse(page: Page<TraceSummary>): TraceListResponse {
@@ -68,6 +95,7 @@ export function toTraceDetailResponse(t: TraceDetail): TraceDetailResponse {
     errorCount: t.errorCount,
     totalTokens: t.totalTokens,
     truncated: t.truncated,
+    conversationId: t.conversationId,
     roots: toSpanNodeDtos(t.roots),
   };
 }

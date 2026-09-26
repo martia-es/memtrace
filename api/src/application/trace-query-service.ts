@@ -1,6 +1,7 @@
-import { TraceNotFoundError, ValidationError } from "@/domain/errors";
+import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
+import { ConversationNotFoundError, TraceNotFoundError, ValidationError } from "@/domain/errors";
 import { chooseBucketSeconds, fillTimeseries, type MetricsOverview } from "@/domain/metrics";
-import { resolveTimeRange } from "@/domain/time-range";
+import { MAX_RANGE_MS, resolveTimeRange } from "@/domain/time-range";
 import type { Page, PageCursor, TraceDetail, TraceSummary } from "@/domain/trace";
 import { buildTraceDetail } from "@/domain/tree";
 import type { TraceRepository } from "./ports/trace-repository";
@@ -16,8 +17,23 @@ export interface ListTracesInput {
   status?: "ok" | "error";
   hasErrors?: boolean;
   minDurationMs?: number;
+  conversationId?: string;
   limit?: number;
   cursor?: PageCursor;
+}
+
+export interface ListConversationsInput {
+  from?: Date;
+  to?: Date;
+  service?: string;
+  hasErrors?: boolean;
+  limit?: number;
+  cursor?: ConversationCursor;
+}
+
+export interface ConversationDetail {
+  conversation: ConversationSummary;
+  turns: Page<TraceSummary>;
 }
 
 /** Casos de uso de consulta. Los adapters de entrada solo hablan con esta clase. */
@@ -27,11 +43,39 @@ export class TraceQueryService {
     private readonly now: () => number = Date.now,
   ) {}
 
-  listTraces(input: ListTracesInput): Promise<Page<TraceSummary>> {
-    const limit = input.limit ?? DEFAULT_PAGE_SIZE;
+  private pageSize(value: number | undefined): number {
+    const limit = value ?? DEFAULT_PAGE_SIZE;
     if (!Number.isInteger(limit) || limit < 1 || limit > MAX_PAGE_SIZE) {
       throw new ValidationError("Invalid limit", { limit: `must be an integer between 1 and ${MAX_PAGE_SIZE}` });
     }
+    return limit;
+  }
+
+  listConversations(input: ListConversationsInput): Promise<Page<ConversationSummary, ConversationCursor>> {
+    return this.repository.listConversations({
+      ...resolveTimeRange(input, this.now()),
+      service: input.service,
+      hasErrors: input.hasErrors,
+      limit: this.pageSize(input.limit),
+      cursor: input.cursor,
+    });
+  }
+
+  /** Resumen de la conversación + sus turnos en orden cronológico (paginados). */
+  async getConversation(conversationId: string, input: { limit?: number; cursor?: PageCursor } = {}): Promise<ConversationDetail> {
+    const limit = this.pageSize(input.limit);
+    const toMs = this.now();
+    const range = { fromMs: toMs - MAX_RANGE_MS, toMs };
+    const [conversation, turns] = await Promise.all([
+      this.repository.getConversation(conversationId, range),
+      this.repository.listTraces({ ...range, conversationId, order: "asc", limit, cursor: input.cursor }),
+    ]);
+    if (!conversation) throw new ConversationNotFoundError(conversationId);
+    return { conversation, turns };
+  }
+
+  listTraces(input: ListTracesInput): Promise<Page<TraceSummary>> {
+    const limit = this.pageSize(input.limit);
     const range = resolveTimeRange(input, this.now());
     return this.repository.listTraces({
       ...range,
@@ -39,6 +83,7 @@ export class TraceQueryService {
       status: input.status,
       hasErrors: input.hasErrors,
       minDurationMs: input.minDurationMs,
+      conversationId: input.conversationId,
       limit,
       cursor: input.cursor,
     });
