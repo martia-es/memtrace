@@ -201,10 +201,18 @@ const toolUsageOption = computed<EChartsCoreOption>(() => {
   const d = data.value;
   const c = chartColors($q.dark.isActive);
   const colors = [PALETTE.violet, PALETTE.amber, PALETTE.danger, PALETTE.limeDeep, "#6c5ce7", "#fd79a8"];
+  const totalCalls = d?.byTool.reduce((acc, t) => acc + t.calls, 0) ?? 1;
   return {
     backgroundColor: "transparent",
     textStyle: { color: c.text },
-    tooltip: { trigger: "item", backgroundColor: "rgba(255,255,255,0.98)", textStyle: { color: c.text }, borderColor: c.grid, extraCssText: "border-radius: 8px;" },
+    tooltip: {
+      trigger: "item",
+      backgroundColor: "rgba(255,255,255,0.98)",
+      textStyle: { color: c.text },
+      borderColor: c.grid,
+      extraCssText: "border-radius: 8px;",
+      formatter: "{b}: {c} usos ({d}%)"
+    },
     series: [
       {
         name: "Uso de herramientas",
@@ -212,7 +220,11 @@ const toolUsageOption = computed<EChartsCoreOption>(() => {
         radius: ["40%", "70%"],
         data: d?.byTool.map((t, i) => ({ value: t.calls, name: t.tool, itemStyle: { color: colors[i % colors.length] } })) ?? [],
         emphasis: { itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: "rgba(0, 0, 0, 0.5)" } },
-        label: { fontSize: 11, fontWeight: 600 },
+        label: {
+          fontSize: 11,
+          fontWeight: 600,
+          formatter: (param: any) => `${param.name}\n${((param.value / totalCalls) * 100).toFixed(0)}%`
+        },
       },
     ],
   };
