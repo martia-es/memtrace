@@ -2,6 +2,7 @@ import type { ConversationCursor, ConversationSummary } from "@/domain/conversat
 import { ConversationNotFoundError, TraceNotFoundError, ValidationError } from "@/domain/errors";
 import { chooseBucketSeconds, fillTimeseries, type MetricsOverview } from "@/domain/metrics";
 import { MAX_RANGE_MS, resolveTimeRange } from "@/domain/time-range";
+import { toSpanRow, type SpanCursor, type SpanRow } from "@/domain/span-row";
 import { buildTranscript, type Transcript } from "@/domain/transcript";
 import type { Page, PageCursor, TraceDetail, TraceSummary } from "@/domain/trace";
 import { buildTraceDetail } from "@/domain/tree";
@@ -31,6 +32,19 @@ export interface ListConversationsInput {
   hasErrors?: boolean;
   limit?: number;
   cursor?: ConversationCursor;
+}
+
+export interface ListSpansInput {
+  from?: Date;
+  to?: Date;
+  service?: string;
+  kind?: string;
+  model?: string;
+  status?: "ok" | "error";
+  text?: string;
+  conversationId?: string;
+  limit?: number;
+  cursor?: SpanCursor;
 }
 
 export interface ConversationDetail {
@@ -86,6 +100,12 @@ export class TraceQueryService {
     ]);
     if (!conversation) throw new ConversationNotFoundError(conversationId);
     return buildTranscript(conversationId, messages.records, messages.truncated);
+  }
+
+  async listSpans(input: ListSpansInput): Promise<Page<SpanRow, SpanCursor>> {
+    const { from, to, limit, ...filters } = input;
+    const page = await this.repository.listSpans({ ...filters, ...resolveTimeRange({ from, to }, this.now()), limit: this.pageSize(limit) });
+    return { items: page.items.map(toSpanRow), nextCursor: page.nextCursor };
   }
 
   listTraces(input: ListTracesInput): Promise<Page<TraceSummary>> {

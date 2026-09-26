@@ -3,7 +3,7 @@ import type { SpanNodeDto } from "@contract";
 import { computed, ref, watch } from "vue";
 import { formatDuration } from "@/domain/format";
 import { kindMeta } from "@/domain/meta";
-import { buildRows, parentIds } from "@/domain/waterfall";
+import { axisTicks, buildRows, parentIds } from "@/domain/waterfall";
 
 const props = defineProps<{ roots: SpanNodeDto[]; totalMs: number; selectedId: string | null }>();
 defineEmits<{ select: [spanId: string] }>();
@@ -14,6 +14,7 @@ const collapsed = ref<Set<string>>(new Set());
 watch(() => props.roots, () => (collapsed.value = new Set()));
 
 const rows = computed(() => buildRows(props.roots, props.totalMs, collapsed.value));
+const ticks = computed(() => axisTicks(props.totalMs, 4));
 const toggle = (spanId: string) => {
   const next = new Set(collapsed.value);
   if (!next.delete(spanId)) next.add(spanId);
@@ -25,6 +26,15 @@ defineExpose({ collapseAll: () => (collapsed.value = new Set(parentIds(props.roo
 
 <template>
   <div class="tree">
+    <div class="axis" aria-hidden="true">
+      <span class="axis-edge start">0</span>
+      <div class="axis-track">
+        <span v-for="t in ticks" :key="t.pct" class="axis-tick" :style="{ left: `${t.pct}%` }">
+          <span class="axis-label">{{ formatDuration(t.ms) }}</span>
+        </span>
+      </div>
+      <span class="axis-edge end">{{ formatDuration(props.totalMs) }}</span>
+    </div>
     <div class="rows" role="tree" aria-label="Árbol de spans">
       <button
         v-for="r in rows"
@@ -48,7 +58,10 @@ defineExpose({ collapseAll: () => (collapsed.value = new Set(parentIds(props.roo
           <span class="dot" :style="{ background: r.node.status.code === 'error' ? '#e5484d' : kindMeta(r.node.kind).color }" />
           <span class="name mono" :class="{ err: r.node.status.code === 'error' }" :title="r.node.name">{{ r.node.name }}</span>
         </span>
-        <span class="track"><span class="bar" :style="{ left: `${r.leftPct}%`, width: `${r.widthPct}%`, background: r.node.status.code === 'error' ? '#e5484d' : kindMeta(r.node.kind).color }" /></span>
+        <span class="track" :title="`${formatDuration(r.node.offsetMs)} → ${formatDuration(r.node.offsetMs + r.node.durationMs)}`">
+          <span v-for="t in ticks" :key="t.pct" class="grid" :style="{ left: `${t.pct}%` }" />
+          <span class="bar" :style="{ left: `${r.leftPct}%`, width: `${r.widthPct}%`, background: r.node.status.code === 'error' ? '#e5484d' : kindMeta(r.node.kind).color }" />
+        </span>
         <span class="dur mono" :class="{ err: r.node.status.code === 'error' }">{{ formatDuration(r.node.durationMs) }}</span>
       </button>
     </div>
@@ -65,6 +78,48 @@ defineExpose({ collapseAll: () => (collapsed.value = new Set(parentIds(props.roo
   flex-direction: column;
   min-height: 0;
   flex: 1;
+}
+.axis {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 42px;
+  gap: 8px;
+  align-items: end;
+  padding: 2px 12px 8px;
+  color: var(--mt-muted);
+  font-family: var(--mt-mono);
+  font-size: 10.5px;
+  line-height: 1;
+}
+.axis-edge {
+  white-space: nowrap;
+}
+.axis-edge.end {
+  text-align: right;
+}
+.axis-track {
+  position: relative;
+  height: 18px;
+  border-bottom: 1px solid var(--mt-line-2);
+}
+.axis-tick {
+  position: absolute;
+  top: 0;
+  bottom: -1px;
+  width: 1px;
+  background: var(--mt-line-2);
+}
+.axis-label {
+  position: absolute;
+  left: 0;
+  top: -1px;
+  transform: translate(-50%, -100%);
+  white-space: nowrap;
+}
+.axis-tick:first-child .axis-label {
+  transform: translate(0, -100%);
+}
+.axis-tick:last-child .axis-label {
+  transform: translate(-100%, -100%);
 }
 .rows {
   overflow-y: auto;
@@ -141,6 +196,14 @@ defineExpose({ collapseAll: () => (collapsed.value = new Set(parentIds(props.roo
   height: 8px;
   border-radius: 4px;
   background: var(--mt-line-2);
+  overflow: hidden;
+}
+.grid {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: color-mix(in srgb, var(--mt-line) 80%, transparent);
 }
 .bar {
   position: absolute;

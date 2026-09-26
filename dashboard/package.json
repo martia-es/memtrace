@@ -6,12 +6,15 @@
   "description": "Dashboard de MemTrace (pieza 5): consume únicamente la API de consulta",
   "scripts": {
     "dev": "vite",
+    "dev:mock": "node ./scripts/dev-mock.mjs",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
+    "@fontsource-variable/plus-jakarta-sans": "^5.3.0",
+    "@fontsource/geist-mono": "^5.3.0",
     "@quasar/extras": "^2.1.0",
     "echarts": "^6.1.0",
     "quasar": "^2.33.2",

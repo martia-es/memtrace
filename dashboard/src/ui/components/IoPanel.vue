@@ -98,12 +98,19 @@ h2 {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0;
   padding-right: 8px;
 }
 .json {
   margin: 0;
+  padding: 12px 14px;
+  border-radius: 8px;
   background: var(--mt-soft-2);
+  border: 1px solid var(--mt-line-2);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .empty {
   margin: 0;

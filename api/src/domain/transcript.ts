@@ -56,7 +56,7 @@ function textOf(content: unknown): string {
  * El SDK trunca el contenido largo (`…[truncated]`), lo que deja un JSON inválido:
  * en ese caso se devuelve el texto crudo como un único mensaje sin rol en vez de perderlo.
  */
-function parseMessages(raw: string | null): Message[] {
+export function parseMessages(raw: string | null): Message[] {
   if (!raw) return [];
   try {
     const parsed: unknown = JSON.parse(raw);
@@ -71,7 +71,7 @@ function parseMessages(raw: string | null): Message[] {
   return [{ role: "unknown", text: raw.trim() }];
 }
 
-const lastOf = (messages: Message[], role: Role) => messages.filter((m) => m.role === role && m.text !== "").at(-1)?.text ?? null;
+export const lastOf = (messages: Message[], role: Role) => messages.filter((m) => m.role === role && m.text !== "").at(-1)?.text ?? null;
 
 /**
  * Por turno (traza): el usuario es el último mensaje `user` de la entrada del primer LLM (el que acaba de

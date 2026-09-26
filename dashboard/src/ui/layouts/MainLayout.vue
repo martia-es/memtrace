@@ -1,30 +1,45 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
+import { resolveRange } from "@/domain/time-range";
 import { useFilters } from "../composables/useFilters";
+import { useAsync } from "../composables/useAsync";
+import { useTraceApi } from "../composables/useTraceApi";
 
 const route = useRoute();
-const { shared } = useFilters();
+const f = useFilters();
+const { shared } = f;
+const api = useTraceApi();
 const isCollapsed = ref(false);
+const services = useAsync((signal) => api.listServices(resolveRange(f.range.value, Date.now()), signal));
 
 const OTLP_ENDPOINT = import.meta.env.VITE_OTLP_ENDPOINT ?? "http://localhost:4318";
 
 const NAV = [
-  { name: "spans", label: "Conversaciones", icon: "M4 5h16v11H9l-5 4z" },
+  { name: "conversations", label: "Conversaciones", icon: "M4 5h16v11H9l-5 4z" },
   { name: "metrics", label: "Métricas", icon: "M3 13h4v8H3zM10 3h4v18h-4zM17 9h4v12h-4z" },
 ] as const;
 
+watch(
+  f.range,
+  () => {
+    void services.run();
+  },
+  { immediate: true },
+);
+
 // el detalle de una traza o de una conversación pertenece a su sección
-const section = computed(() => (route.meta.section as string | undefined) ?? "spans");
-// las pantallas del diseño (spans, conversación) gestionan su propio scroll; el resto van en una tarjeta que se desplaza
+const section = computed(() => (route.meta.section as string | undefined) ?? "conversations");
+// las pantallas del diseño (conversaciones, traza) gestionan su propio scroll; el resto van en una tarjeta que se desplaza
 const framed = computed(() => route.meta.framed === true);
+const serviceOptions = computed(() => services.data.value?.items ?? []);
 </script>
 
 <template>
   <div class="shell">
     <aside class="sidebar mt-card" :class="{ collapsed: isCollapsed }">
       <div class="sidebar-header">
-        <router-link :to="{ name: 'spans' }" class="brand" aria-label="MemTrace">
+        <router-link :to="{ name: 'conversations' }" class="brand" aria-label="MemTrace">
           <svg width="26" height="26" viewBox="0 0 22 22" aria-hidden="true">
             <rect x="1" y="3" width="12" height="4" rx="2" fill="#6FCF4A" /><rect x="6" y="9" width="15" height="4" rx="2" fill="#7A5AF8" /><rect x="3" y="15" width="9" height="4" rx="2" fill="#FF8A3D" />
           </svg>
@@ -54,10 +69,21 @@ const framed = computed(() => route.meta.framed === true);
           <span v-if="!isCollapsed">{{ item.label }}</span>
         </router-link>
       </nav>
-      <div v-if="!isCollapsed" class="otlp">
-        <span class="otlp-title">Endpoint OTLP</span>
-        <span class="mono otlp-url">{{ OTLP_ENDPOINT }}</span>
-      </div>
+      <section v-if="!isCollapsed" class="sidebar-filters">
+        <div class="sidebar-filter-label">Agente</div>
+        <q-select
+          class="service-select"
+          :model-value="f.service.value ?? null"
+          :options="serviceOptions"
+          :loading="services.loading.value"
+          dense
+          outlined
+          clearable
+          options-dense
+          behavior="menu"
+          @update:model-value="(v) => f.setService(v ?? null)"
+        />
+      </section>
     </aside>
     <main class="content" :class="{ scroll: !framed }">
       <router-view v-if="framed" />
@@ -72,10 +98,10 @@ const framed = computed(() => route.meta.framed === true);
 .shell {
   box-sizing: border-box;
   display: flex;
-  gap: 16px;
+  gap: 12px;
   height: 100vh;
   min-height: 640px;
-  padding: 28px;
+  padding: 14px;
   font-size: 13px;
 }
 .sidebar {
@@ -91,6 +117,11 @@ const framed = computed(() => route.meta.framed === true);
 .sidebar.collapsed {
   width: 80px;
   padding: 20px 8px 16px;
+}
+.sidebar.collapsed .sidebar-header {
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 10px;
 }
 .sidebar-header {
   display: flex;
@@ -110,6 +141,11 @@ const framed = computed(() => route.meta.framed === true);
   letter-spacing: -0.03em;
   flex: 1;
   min-width: 0;
+}
+.sidebar.collapsed .brand {
+  justify-content: center;
+  padding: 0;
+  flex: 0;
 }
 .collapse-btn {
   display: flex;
@@ -159,6 +195,22 @@ const framed = computed(() => route.meta.framed === true);
 .nav-item.active {
   background: var(--mt-accent);
   color: var(--mt-accent-ink);
+}
+.sidebar-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 8px;
+}
+.sidebar-filter-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mt-muted);
+}
+.service-select {
+  width: 100%;
 }
 .otlp {
   margin-top: auto;

@@ -23,7 +23,7 @@ def search_tool(query: str) -> str:
 def llm_call_step(prompt: str, context_data: str) -> str:
     print("🤖 [LLM] Generando respuesta con GPT-4o...")
     response_text = f"Respuesta procesada sobre: {context_data}"
-    
+
     # Registrar atributos de llamada GenAI
     trace_llm_call(
         provider="openai",
@@ -40,20 +40,20 @@ def llm_call_step(prompt: str, context_data: str) -> str:
 @trace_step(name="Ejecutar_Agente_Principal", step_type="agent")
 async def run_agent(query: str):
     print(f"🚀 Iniciando ejecución del Agente con consulta: '{query}'")
-    
+
     # Paso 1: Usar la herramienta
     data = search_tool(query)
-    
+
     # Paso 2: Llamar al LLM
     final_result = llm_call_step(query, data)
-    
+
     print(f"✅ Agente completado con éxito: {final_result}")
     return final_result
 
 
 if __name__ == "__main__":
     asyncio.run(run_agent("¿Qué es MemTrace y cómo funciona en Kubernetes?"))
-    
+
     # Asegurar que todos los spans en el buffer se envían al Collector
     shutdown()
     print("✨ Spans vaciados correctamente al OTel Collector.")

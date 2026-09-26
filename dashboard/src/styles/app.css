@@ -1,36 +1,145 @@
+/* Tokens del diseño (memtrace.html): verde suave de fondo, tarjetas blancas muy redondeadas, lima como acento. */
 :root {
-  --wf-line: rgba(0, 0, 0, 0.09);
-  --wf-hover: rgba(0, 0, 0, 0.035);
-  --wf-selected: rgba(59, 91, 219, 0.10);
-  --code-bg: rgba(0, 0, 0, 0.03);
-  --header-bg: #ffffff;
-}
-body.body--dark {
-  --wf-line: rgba(255, 255, 255, 0.12);
-  --wf-hover: rgba(255, 255, 255, 0.05);
-  --wf-selected: rgba(124, 156, 255, 0.16);
-  --code-bg: rgba(255, 255, 255, 0.05);
-  --header-bg: #161d2b;
+  --mt-bg: #dceee2;
+  --mt-card: #ffffff;
+  --mt-ink: #0e1a13;
+  --mt-muted: #56655c;
+  --mt-faint: #66756d;
+  --mt-soft: #f1f5f2;
+  --mt-soft-2: #f4f8f5;
+  --mt-line: #e8eee9;
+  --mt-line-2: #eef2ef;
+  --mt-accent: #c4f26b;
+  --mt-accent-ink: #14260a;
+  --mt-violet: #4a32c9;
+  --mt-ok-bg: #ddf6b8;
+  --mt-ok-ink: #2a5a0d;
+  --mt-err-bg: #ffe1de;
+  --mt-err-ink: #b3261e;
+  --mt-warn-bg: #ffefd2;
+  --mt-warn-ink: #8a5300;
+  --mt-shadow: 0 1px 2px rgba(20, 60, 35, 0.04), 0 8px 24px rgba(20, 60, 35, 0.05);
+  --mt-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --mt-sans: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --q-primary: #4a32c9;
+  --wf-line: rgba(14, 26, 19, 0.1);
+  --wf-hover: rgba(14, 26, 19, 0.04);
+  --wf-selected: rgba(74, 50, 201, 0.1);
+  --code-bg: rgba(14, 26, 19, 0.04);
 }
 body {
-  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--mt-sans);
+  color: var(--mt-ink);
+  background: var(--mt-bg);
 }
-.q-header {
-  color: var(--q-dark, inherit);
+.mono {
+  font-family: var(--mt-mono);
 }
-body.body--dark .q-header {
-  color: #e3e8f0;
+.mt-card {
+  background: var(--mt-card);
+  border-radius: 28px;
+  box-shadow: var(--mt-shadow);
 }
-body.body--light .q-header {
-  color: #1f2a3a;
+.mt-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
 }
-.toggle-group {
-  border: 1px solid var(--wf-line);
-  border-radius: 4px;
+.mt-pill.ok { background: var(--mt-ok-bg); color: var(--mt-ok-ink); }
+.mt-pill.error { background: var(--mt-err-bg); color: var(--mt-err-ink); }
+.mt-pill.warn { background: var(--mt-warn-bg); color: var(--mt-warn-ink); }
+.mt-pill.unset { background: var(--mt-soft); color: var(--mt-muted); }
+.mt-segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 20px;
+  background: var(--mt-soft);
+}
+.mt-segmented button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--mt-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.mt-segmented button[aria-pressed="true"] {
+  background: #fff;
+  color: var(--mt-ink);
+  box-shadow: 0 1px 3px rgba(20, 60, 35, 0.15);
+}
+.mt-segmented.small { padding: 3px; border-radius: 16px; }
+.mt-segmented.small button { height: 24px; padding: 0 10px; border-radius: 12px; font-size: 11.5px; }
+.mt-round-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--mt-soft);
+  color: var(--mt-ink);
+  cursor: pointer;
+}
+:focus-visible {
+  outline: 2px solid var(--mt-violet);
+  outline-offset: 2px;
 }
 code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--mt-mono);
   background: var(--code-bg);
   padding: 1px 5px;
   border-radius: 4px;
+}
+.toggle-group {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--mt-soft);
+  border: 1px solid var(--wf-line);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.45);
+}
+
+.toggle-group .q-btn-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.toggle-group .q-btn {
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--mt-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow: none !important;
+}
+
+.toggle-group .q-btn .q-btn__content {
+  line-height: 1;
+}
+
+.toggle-group .q-btn.q-btn--active {
+  background: var(--mt-card);
+  color: var(--mt-ink);
+  box-shadow: 0 1px 3px rgba(20, 60, 35, 0.14), 0 0 0 1px rgba(20, 60, 35, 0.04) !important;
+}
+
+.toggle-group .q-btn:before {
+  display: none;
 }

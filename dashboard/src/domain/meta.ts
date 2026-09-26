@@ -17,15 +17,16 @@ export function statusMeta(code: StatusCodeDto): Meta {
   }
 }
 
-const KINDS: Record<string, Meta> = {
-  agent: { label: "Agente", icon: "smart_toy", color: "#6d5bd0" },
-  llm: { label: "LLM", icon: "psychology", color: "#0e8f7e" },
-  tool: { label: "Herramienta", icon: "build", color: "#d9822b" },
-  chain: { label: "Cadena", icon: "link", color: "#4b7bd1" },
-  retriever: { label: "Retriever", icon: "search", color: "#b0489a" },
-  embedding: { label: "Embedding", icon: "hub", color: "#8a6d3b" },
+// colores del diseño; `bg` es el fondo suave de la insignia
+const KINDS: Record<string, Meta & { bg: string }> = {
+  agent: { label: "Agente", icon: "smart_toy", color: "#b8c4bc", bg: "#edf1ee" },
+  llm: { label: "LLM", icon: "psychology", color: "#7a5af8", bg: "#ede8ff" },
+  tool: { label: "Herramienta", icon: "build", color: "#ff8a3d", bg: "#ffe9d9" },
+  chain: { label: "Cadena", icon: "link", color: "#4b7bd1", bg: "#e3ecfb" },
+  retriever: { label: "Retriever", icon: "search", color: "#2fb5d6", bg: "#ddf3fa" },
+  embedding: { label: "Embedding", icon: "hub", color: "#1fb5a0", bg: "#ddf5f1" },
 };
 
-export function kindMeta(kind: string): Meta {
-  return KINDS[kind] ?? { label: kind === "unknown" ? "Otro" : kind, icon: "circle", color: "#7a8699" };
+export function kindMeta(kind: string): Meta & { bg: string } {
+  return KINDS[kind] ?? { label: kind === "unknown" ? "Otro" : kind, icon: "circle", color: "#9aa79f", bg: "#eef2ef" };
 }

@@ -2,13 +2,15 @@ import { RepositoryUnavailableError } from "@/application/errors";
 import type { TraceQueryService } from "@/application/trace-query-service";
 import { ConversationNotFoundError, TraceNotFoundError, ValidationError } from "@/domain/errors";
 import type { ServicesResponse } from "./contract";
-import { toTranscriptResponse, toConversationDetailResponse, toConversationListResponse, toOverviewResponse, toTraceDetailResponse, toTraceListResponse } from "./mappers";
+import { toSpanListResponse, toTranscriptResponse, toConversationDetailResponse, toConversationListResponse, toOverviewResponse, toTraceDetailResponse, toTraceListResponse } from "./mappers";
 import { json, problem } from "./problem";
 import {
   conversationIdParam,
   decodeConversationCursor,
   decodeCursor,
+  decodeSpanCursor,
   listConversationsQuery,
+  listSpansQuery,
   listTracesQuery,
   overviewQuery,
   parseOrThrow,
@@ -40,6 +42,13 @@ export function createHandlers(service: TraceQueryService) {
         const { cursor, ...filters } = parseOrThrow(listTracesQuery, query(request));
         const page = await service.listTraces({ ...filters, cursor: cursor ? decodeCursor(cursor) : undefined });
         return json(toTraceListResponse(page));
+      }),
+
+    listSpans: (request: Request) =>
+      guard(async () => {
+        const { cursor, ...filters } = parseOrThrow(listSpansQuery, query(request));
+        const page = await service.listSpans({ ...filters, cursor: cursor ? decodeSpanCursor(cursor) : undefined });
+        return json(toSpanListResponse(page));
       }),
 
     listConversations: (request: Request) =>

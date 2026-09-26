@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "memtrace"
+version = "0.1.0"
+description = "Librería de observabilidad y trazabilidad OTel para Agentes de IA"
+readme = "README.md"
+requires-python = ">=3.10.18"
+dependencies = [
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.20.0",
+    "langchain>=1.4.2",
+    "langchain-google-genai>=1.0.0",
+    "python-dotenv>=1.2.3",
+]
+
+[tool.setuptools.packages.find]
+where = ["sdk/python"]
+include = ["memtrace*"]

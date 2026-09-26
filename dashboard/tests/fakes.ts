@@ -1,5 +1,5 @@
-import type { TranscriptResponse, ConversationDetailResponse, ConversationListResponse, ConversationSummaryDto, OverviewResponse, ServicesResponse, SpanNodeDto, TraceDetailResponse, TraceListResponse, TraceSummaryDto } from "@contract";
-import type { ListConversationsParams, ListTracesParams, RangeParams, TraceApi } from "@/application/trace-api";
+import type { SpanListResponse, SpanRowDto, TranscriptResponse, ConversationDetailResponse, ConversationListResponse, ConversationSummaryDto, OverviewResponse, ServicesResponse, SpanNodeDto, TraceDetailResponse, TraceListResponse, TraceSummaryDto } from "@contract";
+import type { ListConversationsParams, ListSpansParams, ListTracesParams, RangeParams, TraceApi } from "@/application/trace-api";
 
 export function summary(overrides: Partial<TraceSummaryDto> = {}): TraceSummaryDto {
   return {
@@ -28,6 +28,26 @@ export function conversation(overrides: Partial<ConversationSummaryDto> = {}): C
     failedSpans: 0,
     totalTokens: 0,
     activeMs: 100,
+    ...overrides,
+  };
+}
+
+export function spanRow(overrides: Partial<SpanRowDto> = {}): SpanRowDto {
+  return {
+    spanId: "b".repeat(16),
+    traceId: "a".repeat(32),
+    parentSpanId: null,
+    conversationId: null,
+    name: "tool.search",
+    kind: "tool",
+    serviceName: "svc",
+    startTime: "2026-09-26T12:00:00.000Z",
+    durationMs: 50,
+    status: "ok",
+    model: null,
+    totalTokens: null,
+    input: null,
+    output: null,
     ...overrides,
   };
 }
@@ -65,6 +85,12 @@ export class FakeTraceApi implements TraceApi {
     this.listCalls.push(params);
     const index = params.cursor ? Number(params.cursor) : 0;
     return this.pages[index] ?? { items: [], nextCursor: null };
+  }
+  spanPages: SpanListResponse[] = [{ items: [], nextCursor: null }];
+  spanCalls: ListSpansParams[] = [];
+  async listSpans(params: ListSpansParams) {
+    this.spanCalls.push(params);
+    return this.spanPages[params.cursor ? Number(params.cursor) : 0] ?? { items: [], nextCursor: null };
   }
   conversationPages: ConversationListResponse[] = [{ items: [], nextCursor: null }];
   conversationCalls: ListConversationsParams[] = [];

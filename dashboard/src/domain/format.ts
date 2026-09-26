@@ -33,6 +33,14 @@ export function formatRelativeTime(iso: string, nowMs: number): string {
   return `hace ${Math.round(hours / 24)} d`;
 }
 
+const clock = new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+const clockShort = new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false });
+
+/** Hora del día (HH:MM:SS, o HH:MM con `seconds: false`) en la zona del navegador. */
+export function formatClock(iso: string, seconds = true): string {
+  return (seconds ? clock : clockShort).format(new Date(iso));
+}
+
 export function formatDateTime(iso: string): string {
   return dateTime.format(new Date(iso));
 }

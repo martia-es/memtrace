@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ValidationError } from "@/domain/errors";
 import type { ConversationCursor } from "@/domain/conversation";
+import type { SpanCursor } from "@/domain/span-row";
 import type { PageCursor } from "@/domain/trace";
 
 const isoDate = z.iso.datetime({ offset: true }).transform((value) => new Date(value));
@@ -20,6 +21,18 @@ export const listTracesQuery = z.object({
   minDurationMs: z.coerce.number().min(0).optional(),
   conversationId: z.string().min(1).max(200).optional(),
   limit: z.coerce.number().int().optional(), // el rango 1..200 lo impone el servicio
+  cursor: z.string().max(512).optional(),
+});
+
+export const listSpansQuery = z.object({
+  ...timeRangeShape,
+  service: nonEmpty.optional(),
+  kind: z.enum(["llm", "tool", "retriever", "agent", "chain", "embedding", "unknown"]).optional(),
+  model: nonEmpty.optional(),
+  status: z.enum(["ok", "error"]).optional(),
+  text: z.string().min(1).max(200).optional(),
+  conversationId: z.string().min(1).max(200).optional(),
+  limit: z.coerce.number().int().optional(),
   cursor: z.string().max(512).optional(),
 });
 
@@ -91,6 +104,21 @@ export function decodeCursor(raw: string): PageCursor {
   try {
     const parsed = cursorSchema.parse(JSON.parse(Buffer.from(raw, "base64url").toString("utf8")));
     return { startTimeUs: parsed.t, traceId: parsed.id };
+  } catch {
+    throw new ValidationError("Invalid request", { cursor: "invalid or expired cursor" });
+  }
+}
+
+const spanCursorSchema = z.object({ t: z.number().int(), id: z.string().min(1).max(64) });
+
+export function encodeSpanCursor(cursor: SpanCursor): string {
+  return Buffer.from(JSON.stringify({ t: cursor.startTimeUs, id: cursor.spanId })).toString("base64url");
+}
+
+export function decodeSpanCursor(raw: string): SpanCursor {
+  try {
+    const parsed = spanCursorSchema.parse(JSON.parse(Buffer.from(raw, "base64url").toString("utf8")));
+    return { startTimeUs: parsed.t, spanId: parsed.id };
   } catch {
     throw new ValidationError("Invalid request", { cursor: "invalid or expired cursor" });
   }

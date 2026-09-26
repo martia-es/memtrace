@@ -1,6 +1,6 @@
 # ADR-015: Unified Hierarchy View (Conversations → Traces → Spans)
 
-**Status:** Accepted
+**Status:** Superseded by ADR-017
 **Date:** 2026-09-26
 **Author:** Marta García
 

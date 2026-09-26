@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { RANGE_PRESETS, type RangeKey } from "@/domain/time-range";
 
-defineProps<{ range: RangeKey; service: string | undefined; services: string[]; loading: boolean }>();
-defineEmits<{ "update:range": [RangeKey]; "update:service": [string | null]; refresh: [] }>();
+defineProps<{ range: RangeKey; loading: boolean }>();
+defineEmits<{ "update:range": [RangeKey]; refresh: [] }>();
 </script>
 
 <template>
@@ -17,17 +17,6 @@ defineEmits<{ "update:range": [RangeKey]; "update:service": [string | null]; ref
       class="toggle-group"
       aria-label="Rango de tiempo"
       @update:model-value="$emit('update:range', $event)"
-    />
-    <q-select
-      :model-value="service ?? null"
-      :options="services"
-      label="Servicio"
-      dense
-      outlined
-      clearable
-      options-dense
-      style="min-width: 200px"
-      @update:model-value="$emit('update:service', $event)"
     />
     <slot />
     <q-space />

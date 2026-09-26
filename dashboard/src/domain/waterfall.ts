@@ -54,6 +54,17 @@ export function findNode(roots: SpanNodeDto[], spanId: string): SpanNodeDto | nu
   return null;
 }
 
+/** Primer span (en orden de la traza) que terminó con error; null si no hay ninguno. */
+export function firstErrorNode(roots: SpanNodeDto[]): SpanNodeDto | null {
+  const stack = [...roots].reverse();
+  while (stack.length > 0) {
+    const node = stack.pop()!;
+    if (node.status.code === "error") return node;
+    for (let i = node.children.length - 1; i >= 0; i--) stack.push(node.children[i]!);
+  }
+  return null;
+}
+
 /** Ids de los ancestros de un span: para expandirlos si se enlaza directamente a un span interno. */
 export function ancestorIds(roots: SpanNodeDto[], spanId: string): string[] {
   const parentOf = new Map<string, string>();

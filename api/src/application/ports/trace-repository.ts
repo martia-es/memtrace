@@ -2,6 +2,7 @@ import type { ConversationCursor, ConversationSummary } from "@/domain/conversat
 import type { MetricsOverview, MetricsQuery } from "@/domain/metrics";
 import type { ChatSpanRecord } from "@/domain/transcript";
 import type { Span } from "@/domain/span";
+import type { SpanCursor, SpanRecord } from "@/domain/span-row";
 import type { Page, PageCursor, TraceSummary } from "@/domain/trace";
 import type { TimeRange } from "@/domain/time-range";
 
@@ -28,6 +29,19 @@ export interface ConversationListQuery extends TimeRange {
   cursor?: ConversationCursor;
 }
 
+export interface SpanListQuery extends TimeRange {
+  service?: string;
+  /** tipo de paso (`memtrace.step_type`; los spans de GenAI sin él se clasifican por su operación) */
+  kind?: string;
+  model?: string;
+  status?: "ok" | "error";
+  /** texto contenido en la entrada o salida capturadas (sin distinguir mayúsculas) */
+  text?: string;
+  conversationId?: string;
+  limit: number;
+  cursor?: SpanCursor;
+}
+
 export interface TraceSpans {
   spans: Span[];
   truncated: boolean;
@@ -51,5 +65,7 @@ export interface TraceRepository {
   getConversation(conversationId: string, range: TimeRange): Promise<ConversationSummary | null>;
   /** spans de LLM de la conversación con su contenido capturado, cronológicos; hasta `maxSpans` (+ `truncated`) */
   getConversationMessages(conversationId: string, range: TimeRange, maxSpans: number): Promise<{ records: ChatSpanRecord[]; truncated: boolean }>;
+  /** spans sueltos, los más recientes primero; el contenido llega crudo y el servicio lo resume */
+  listSpans(query: SpanListQuery): Promise<Page<SpanRecord, SpanCursor>>;
   ping(): Promise<void>;
 }

@@ -1,10 +1,11 @@
 import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
 import type { MetricsOverview } from "@/domain/metrics";
+import type { SpanCursor, SpanRow } from "@/domain/span-row";
 import type { Transcript } from "@/domain/transcript";
 import type { SpanNode } from "@/domain/span";
 import type { Page, TraceDetail, TraceSummary } from "@/domain/trace";
-import type { TranscriptResponse, ConversationDetailResponse, ConversationListResponse, ConversationSummaryDto, OverviewResponse, SpanNodeDto, TraceDetailResponse, TraceListResponse, TraceSummaryDto } from "./contract";
-import { encodeConversationCursor, encodeCursor } from "./schemas";
+import type { TranscriptResponse, ConversationDetailResponse, ConversationListResponse, ConversationSummaryDto, OverviewResponse, SpanListResponse, SpanNodeDto, TraceDetailResponse, TraceListResponse, TraceSummaryDto } from "./contract";
+import { encodeConversationCursor, encodeCursor, encodeSpanCursor } from "./schemas";
 
 const isoFromUs = (us: number) => new Date(Math.round(us / 1000)).toISOString();
 const isoFromMs = (ms: number) => new Date(ms).toISOString();
@@ -47,6 +48,13 @@ export function toConversationListResponse(page: Page<ConversationSummary, Conve
 
 export function toConversationDetailResponse(conversation: ConversationSummary, turns: Page<TraceSummary>): ConversationDetailResponse {
   return { ...toConversationSummaryDto(conversation), turns: toTraceListResponse(turns) };
+}
+
+export function toSpanListResponse(page: Page<SpanRow, SpanCursor>): SpanListResponse {
+  return {
+    items: page.items.map(({ startTimeUs, ...row }) => ({ ...row, startTime: isoFromUs(startTimeUs) })),
+    nextCursor: page.nextCursor ? encodeSpanCursor(page.nextCursor) : null,
+  };
 }
 
 export function toTranscriptResponse(t: Transcript): TranscriptResponse {

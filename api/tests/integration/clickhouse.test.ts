@@ -277,5 +277,32 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
       expect((await repo.getConversationMessages(CONV1, range30, 1)).truncated).toBe(true);
       expect((await repo.getConversationMessages(CONV2, range30, 10)).records).toEqual([]); // sin spans de LLM
     });
+
+    it("lists spans newest first, deducing the kind and reading captured content", async () => {
+      const q = { ...range, service: CONV_SERVICE, conversationId: CONV1, limit: 10 };
+      const { items, nextCursor } = await repo.listSpans(q);
+      expect(nextCursor).toBeNull();
+      expect(items.map((s) => s.name)).toEqual(["llm", "turno-2", "tool", "llm", "turno-1"]);
+      const llm = items[3]!;
+      expect(llm).toMatchObject({ kind: "llm", chat: true, model: "gpt-4o", totalTokens: 15, conversationId: CONV1, status: "ok", parentSpanId: expect.any(String) });
+      expect(JSON.parse(llm.inputRaw!)[0].content).toBe("¿dónde está mi pedido?");
+      expect(items[2]).toMatchObject({ kind: "unknown", chat: false, totalTokens: null, status: "error", inputRaw: null });
+      expect(items[4]!.parentSpanId).toBeNull();
+    });
+
+    it("filters spans by kind, model, status and text, and paginates with a keyset cursor", async () => {
+      const q = { ...range, service: CONV_SERVICE, limit: 20 };
+      const names = async (extra: object) => (await repo.listSpans({ ...q, ...extra })).items.map((s) => s.name);
+      expect(await names({ kind: "llm", conversationId: CONV1 })).toEqual(["llm", "llm"]);
+      expect(await names({ model: "gpt-4o" })).toEqual(["llm"]);
+      expect(await names({ status: "error", conversationId: CONV1 })).toEqual(["tool"]);
+      expect(await names({ text: "MAÑANA" })).toEqual(["llm"]);
+      expect(await names({ text: "no-existe-xyz" })).toEqual([]);
+
+      const first = await repo.listSpans({ ...q, conversationId: CONV1, limit: 2 });
+      expect(first.items).toHaveLength(2);
+      const second = await repo.listSpans({ ...q, conversationId: CONV1, limit: 10, cursor: first.nextCursor! });
+      expect(second.items.map((s) => s.name)).toEqual(["tool", "llm", "turno-1"]);
+    });
   });
 });

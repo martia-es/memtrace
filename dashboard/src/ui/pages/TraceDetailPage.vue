@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { formatCount, formatDateTime, formatDuration, shortId } from "@/domain/format";
-import { ancestorIds, findNode, parentIds } from "@/domain/waterfall";
+import { findNode, firstErrorNode } from "@/domain/waterfall";
 import ErrorBanner from "../components/ErrorBanner.vue";
-import SpanDetail from "../components/SpanDetail.vue";
-import SpanWaterfall from "../components/SpanWaterfall.vue";
+import SpanInspector from "../components/SpanInspector.vue";
+import SpanTree from "../components/SpanTree.vue";
 import StatusBadge from "../components/StatusBadge.vue";
 import { useAsync } from "../composables/useAsync";
 import { useFilters } from "../composables/useFilters";
@@ -30,127 +30,228 @@ const inProgress = computed(() => {
 });
 useLiveRefresh(() => trace.run(), { active: () => inProgress.value, isBusy: () => trace.loading.value });
 
-const collapsed = ref<Set<string>>(new Set());
 const roots = computed(() => trace.data.value?.roots ?? []);
-
-const selectedId = computed<string | null>(() => {
-  const fromUrl = typeof route.query.span === "string" ? route.query.span : null;
-  if (fromUrl && findNode(roots.value, fromUrl)) return fromUrl;
-  return roots.value[0]?.spanId ?? null;
-});
-const selectedNode = computed(() => (selectedId.value ? findNode(roots.value, selectedId.value) : null));
-
-// Al abrir un enlace a un span interno hay que expandir sus ancestros
-watch([selectedId, roots], () => {
-  if (!selectedId.value) return;
-  const hidden = ancestorIds(roots.value, selectedId.value).filter((id) => collapsed.value.has(id));
-  if (hidden.length > 0) collapsed.value = new Set([...collapsed.value].filter((id) => !hidden.includes(id)));
-});
-
-const select = (spanId: string) => void router.replace({ query: { ...route.query, span: spanId } });
-const toggle = (spanId: string) => {
-  const next = new Set(collapsed.value);
-  if (!next.delete(spanId)) next.add(spanId);
-  collapsed.value = next;
-};
-const collapseAll = () => (collapsed.value = new Set(parentIds(roots.value)));
-const expandAll = () => (collapsed.value = new Set());
-
-const copyId = () => void navigator.clipboard?.writeText(props.traceId);
-const back = () => void router.push({ name: "traces", query: f.shared.value });
-const hasOrphans = computed(() => trace.data.value?.roots.some((r) => r.orphan) ?? false);
+const hasOrphans = computed(() => roots.value.some((r) => r.orphan));
 const rootName = computed(() => roots.value.find((r) => !r.orphan)?.name ?? roots.value[0]?.name ?? "Traza");
 const conversationId = computed(() => trace.data.value?.conversationId ?? null);
+
+// ---- span seleccionado (?span=): el del enlace, si no el primero con error y si no la raíz ----
+const selectedNode = computed(() => {
+  const wanted = typeof route.query.span === "string" ? route.query.span : null;
+  return (wanted ? findNode(roots.value, wanted) : null) ?? firstErrorNode(roots.value) ?? roots.value[0] ?? null;
+});
+const select = (spanId: string) => void router.replace({ query: { ...route.query, span: spanId } });
+
+const hint = "Este span no tiene contenido guardado. Activa MEMTRACE_CAPTURE_CONTENT=true en el agente para verlo aquí (se guarda tal cual: revisa la privacidad).";
+
+const copyId = () => void navigator.clipboard?.writeText(props.traceId);
+const goList = () => void router.push({ name: "conversations", query: f.shared.value });
+const goConversation = () => conversationId.value && void router.push({ name: "conversation", params: { conversationId: conversationId.value }, query: f.shared.value });
 </script>
 
 <template>
-  <q-page padding class="page">
-    <div class="row items-center q-gutter-x-sm q-mb-sm">
-      <q-btn flat round dense icon="arrow_back" aria-label="Volver al listado" @click="back" />
-      <div class="text-h6">{{ trace.data.value ? rootName : "Traza" }}</div>
-      <div class="text-caption text-grey-7 mono">{{ shortId(traceId) }}</div>
-      <q-btn flat round dense size="sm" icon="content_copy" aria-label="Copiar id de traza" @click="copyId" />
-    </div>
-
+  <div class="page">
+    <nav v-if="!trace.data.value" class="crumbs plain" aria-label="Ruta">
+      <button type="button" class="crumb" @click="goList">Conversaciones</button>
+      <q-icon name="chevron_right" size="16px" />
+      <span class="mono current">{{ shortId(traceId) }}</span>
+    </nav>
     <ErrorBanner v-if="trace.error.value" :error="trace.error.value" @retry="trace.run()" />
-    <div v-else-if="trace.loading.value && !trace.data.value" class="row justify-center q-pa-xl"><q-spinner size="32px" color="primary" /></div>
+    <div v-else-if="!trace.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
 
     <template v-if="trace.data.value">
-      <div class="row items-center q-gutter-sm q-mb-md">
-        <StatusBadge :status="trace.data.value.status" show-label />
-        <q-chip dense square icon="schedule" :label="formatDuration(trace.data.value.durationMs)" />
-        <q-chip dense square icon="account_tree" :label="`${formatCount(trace.data.value.spanCount)} spans`" />
-        <q-chip v-if="trace.data.value.errorCount" dense square color="negative" text-color="white" icon="error" :label="`${trace.data.value.errorCount} con error`" />
-        <q-chip v-if="trace.data.value.totalTokens" dense square icon="toll" :label="`${formatCount(trace.data.value.totalTokens)} tokens`" />
-        <q-chip
-          v-if="conversationId"
-          dense
-          square
-          clickable
-          icon="forum"
-          color="primary"
-          text-color="white"
-          :label="`Conversación: ${conversationId}`"
-          @click="router.push({ name: 'conversation', params: { conversationId }, query: f.shared.value })"
-        >
-          <q-tooltip>Ver todos los turnos de esta conversación</q-tooltip>
-        </q-chip>
-        <span class="text-caption text-grey-7">{{ formatDateTime(trace.data.value.startTime) }}</span>
-      </div>
+      <header class="head mt-card">
+      <nav class="crumbs" aria-label="Ruta">
+        <button type="button" class="crumb" @click="goList">Conversaciones</button>
+        <template v-if="conversationId">
+          <q-icon name="chevron_right" size="16px" />
+          <button type="button" class="crumb mono" @click="goConversation">{{ conversationId }}</button>
+        </template>
+        <q-icon name="chevron_right" size="16px" />
+        <span class="mono current">{{ shortId(traceId) }}</span>
+      </nav>
+        <h1 :title="rootName">{{ rootName }}</h1>
+        <div class="pills">
+          <span class="muted sub">{{ formatDateTime(trace.data.value.startTime) }}</span>
+          <StatusBadge :status="trace.data.value.status" show-label />
+          <span class="mt-pill unset"><q-icon name="schedule" size="15px" /> {{ formatDuration(trace.data.value.durationMs) }}</span>
+          <span class="mt-pill unset"><q-icon name="account_tree" size="15px" /> {{ `${formatCount(trace.data.value.spanCount)} spans` }}</span>
+          <span v-if="trace.data.value.errorCount" class="mt-pill error"><q-icon name="error" size="15px" /> {{ `${trace.data.value.errorCount} con error` }}</span>
+          <span v-if="trace.data.value.totalTokens" class="mt-pill unset"><q-icon name="toll" size="15px" /> {{ `${formatCount(trace.data.value.totalTokens)} tokens` }}</span>
+          <button type="button" class="mt-round-btn" aria-label="Copiar id de traza" @click="copyId"><q-icon name="content_copy" size="18px" /></button>
+        </div>
+      </header>
 
-      <q-banner v-if="trace.data.value.truncated" rounded dense class="bg-warning text-black q-mb-md">
-        La traza tiene más de 5000 spans: solo se muestran los primeros.
-      </q-banner>
-      <q-banner v-if="hasOrphans" rounded dense class="bg-warning text-black q-mb-md">
+      <div v-if="trace.data.value.truncated" class="banner warn">La traza tiene más de 5000 spans: solo se muestran los primeros.</div>
+      <div v-if="hasOrphans" class="banner warn">
         <template v-if="inProgress">La traza sigue en curso: se actualiza sola hasta que llegue el span raíz.</template>
         <template v-else>Algunos spans no tienen padre en la traza (perdidos o aún no exportados) y se muestran como raíces.</template>
-      </q-banner>
+      </div>
 
-      <div class="layout">
-        <div class="col-wf">
-          <div class="row items-center q-mb-xs">
-            <div class="text-subtitle2">Cascada</div>
-            <q-space />
-            <q-btn flat dense no-caps size="sm" icon="unfold_less" label="Colapsar" @click="collapseAll" />
-            <q-btn flat dense no-caps size="sm" icon="unfold_more" label="Expandir" @click="expandAll" />
+      <div class="cols">
+        <section class="mt-card tree-card" aria-label="Árbol de spans">
+          <div class="tree-head">
+            <h2>Spans</h2>
+            <span class="mono muted meta">{{ formatDuration(trace.data.value.durationMs) }}</span>
           </div>
-          <SpanWaterfall :roots="roots" :total-ms="trace.data.value.durationMs" :selected-id="selectedId" :collapsed="collapsed" @select="select" @toggle="toggle" />
-        </div>
-        <q-card v-if="selectedNode" flat bordered class="col-detail">
-          <q-card-section><SpanDetail :node="selectedNode" /></q-card-section>
-        </q-card>
+          <SpanTree :roots="roots" :total-ms="trace.data.value.durationMs" :selected-id="selectedNode?.spanId ?? null" @select="select" />
+        </section>
+
+        <SpanInspector v-if="selectedNode" :node="selectedNode" :empty-hint="hint" />
+        <section v-else class="mt-card empty-card">Esta traza no tiene spans que mostrar.</section>
       </div>
     </template>
-  </q-page>
+  </div>
 </template>
 
 <style scoped>
 .page {
-  max-width: 1500px;
-  margin: 0 auto;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
-.mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--mt-muted);
+  font-size: 12.5px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
-.layout {
+.crumbs.plain {
+  padding: 0 8px;
+}
+.crumb {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--mt-violet);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.current {
+  color: var(--mt-ink);
+}
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 60px;
+}
+.muted {
+  color: var(--mt-muted);
+}
+h1,
+h2 {
+  margin: 0;
+}
+h1 {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+h2 {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.head {
+  box-sizing: border-box;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+.head h1 {
+  flex: 1;
+  min-width: 0;
+  padding-left: 14px;
+  border-left: 1px solid var(--mt-line);
+}
+.sub {
+  font-size: 12px;
+  margin-right: 4px;
+}
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.mt-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.mt-pill.error {
+  background: var(--mt-err-bg);
+  color: var(--mt-err-ink);
+}
+.mt-pill.unset {
+  background: var(--mt-soft);
+  color: var(--mt-ink);
+}
+.banner {
+  padding: 12px 14px;
+  border-radius: 18px;
+  font-size: 13px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.banner.warn {
+  background: var(--mt-warn-bg);
+  color: var(--mt-warn-ink);
+}
+/* árbol ~40 % · inspector ~60 % */
+.cols {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 440px;
-  gap: 16px;
-  align-items: start;
+  grid-template-columns: minmax(300px, 2fr) minmax(0, 3fr);
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
 }
-.col-detail {
-  position: sticky;
-  top: 66px;
-  max-height: calc(100vh - 90px);
-  overflow: auto;
+.tree-card {
+  box-sizing: border-box;
+  padding: 10px 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  min-width: 0;
+}
+.tree-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 8px 6px;
+}
+.tree-head .meta {
+  font-size: 12px;
+}
+.empty-card {
+  padding: 30px;
+  color: var(--mt-muted);
 }
 @media (max-width: 1100px) {
-  .layout {
+  .cols {
     grid-template-columns: minmax(0, 1fr);
+    overflow-y: auto;
   }
-  .col-detail {
-    position: static;
-    max-height: none;
+  .tree-card {
+    max-height: 50vh;
   }
 }
 </style>

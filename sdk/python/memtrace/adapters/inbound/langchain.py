@@ -91,36 +91,40 @@ def _name(serialized: Optional[Dict[str, Any]], kwargs: Dict[str, Any], default:
     return kwargs.get("name") or ser.get("name") or (ident[-1] if ident else None) or default
 
 
+def _tool_calls_of(msg: Any) -> Any:
+    """`tool_calls` del mensaje del modelo (o de `additional_kwargs` en algunos proveedores)."""
+    calls = getattr(msg, "tool_calls", None)
+    if not calls:
+        calls = (getattr(msg, "additional_kwargs", None) or {}).get("tool_calls")
+    return calls or None
+
+
 def _message_dicts(messages: List[List[Any]]) -> List[Dict[str, Any]]:
-    return [
-        {"role": getattr(m, "type", None) or getattr(m, "role", None) or "user", "content": getattr(m, "content", str(m))}
-        for batch in messages
-        for m in batch
-    ]
+    out = []
+    for batch in messages:
+        for m in batch:
+            d: Dict[str, Any] = {
+                "role": getattr(m, "type", None) or getattr(m, "role", None) or "user",
+                "content": getattr(m, "content", str(m)),
+            }
+            calls = _tool_calls_of(m)
+            if calls:
+                d["tool_calls"] = calls
+            out.append(d)
+    return out
 
 
 def _generation_dicts(response: Any) -> List[Dict[str, Any]]:
-    result = []
+    out = []
     for gens in getattr(response, "generations", None) or []:
         for g in gens:
             msg = getattr(g, "message", None)
-            role = getattr(msg, "type", "assistant")
-            content = getattr(g, "text", "")
-
-            d: Dict[str, Any] = {"role": role, "content": content}
-
-            # Captura tool_calls si el mensaje los contiene (ReAct / AgentExecutor patterns)
-            if msg:
-                tool_calls = getattr(msg, "tool_calls", None)
-                if tool_calls:
-                    d["tool_calls"] = tool_calls
-                # También revisar en additional_kwargs (algunos modelos lo guardan ahí)
-                additional = getattr(msg, "additional_kwargs", {}) or {}
-                if not tool_calls and "tool_calls" in additional:
-                    d["tool_calls"] = additional["tool_calls"]
-
-            result.append(d)
-    return result
+            d: Dict[str, Any] = {"role": getattr(msg, "type", "assistant"), "content": getattr(g, "text", "")}
+            calls = _tool_calls_of(msg)
+            if calls:
+                d["tool_calls"] = calls
+            out.append(d)
+    return out
 
 
 class MemTraceCallbackHandler(BaseCallbackHandler):

@@ -57,6 +57,31 @@ export interface TraceListResponse {
   nextCursor: string | null;
 }
 
+/** Un span suelto del listado plano, con una vista previa (≤ 240 caracteres) de su entrada y salida. */
+export interface SpanRowDto {
+  spanId: string;
+  traceId: string;
+  parentSpanId: string | null;
+  conversationId: string | null;
+  name: string;
+  /** llm | tool | retriever | agent | chain | embedding | unknown */
+  kind: string;
+  serviceName: string;
+  startTime: string;
+  durationMs: number;
+  status: StatusCodeDto;
+  model: string | null;
+  /** null si el span no es una llamada a un LLM */
+  totalTokens: number | null;
+  input: string | null;
+  output: string | null;
+}
+
+export interface SpanListResponse {
+  items: SpanRowDto[];
+  nextCursor: string | null;
+}
+
 export interface SpanEventDto {
   name: string;
   time: string;

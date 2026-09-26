@@ -168,3 +168,33 @@ describe("conversations endpoints", () => {
     expect(body).toMatchObject({ contentCaptured: false, turns: [] });
   });
 });
+
+describe("GET /spans", () => {
+  it("returns previews with ISO dates, forwards filters and round-trips the cursor", async () => {
+    const { repo, handlers } = setup();
+    const cursor = { startTimeUs: 1_790_000_000_000_000, spanId: "00f067aa0ba902b7" };
+    repo.spanPage = {
+      items: [{ spanId: "00f067aa0ba902b7", traceId: TRACE_ID, parentSpanId: null, conversationId: "c1", name: "tool.search", kind: "tool", serviceName: "svc", startTimeUs: 1_790_000_000_000_000, durationMs: 9, status: "error", model: null, totalTokens: null, inputRaw: '{"a":1}', outputRaw: "TimeoutError", chat: false }],
+      nextCursor: cursor,
+    };
+    const response = await handlers.listSpans(get("/spans?kind=tool&status=error&text=vuelo&service=svc&conversationId=c1&limit=20"));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.items[0]).toMatchObject({ name: "tool.search", kind: "tool", input: '{"a":1}', output: "TimeoutError", startTime: new Date(1_790_000_000_000).toISOString() });
+    expect(repo.lastSpanQuery).toMatchObject({ kind: "tool", status: "error", text: "vuelo", service: "svc", conversationId: "c1", limit: 20 });
+
+    await handlers.listSpans(get(`/spans?cursor=${body.nextCursor}`));
+    expect(repo.lastSpanQuery?.cursor).toEqual(cursor);
+  });
+
+  it.each(["kind=weird", "status=maybe", "limit=999", "cursor=%%%", "text="])("rejects %s", async (qs) => {
+    const { handlers } = setup();
+    expect((await handlers.listSpans(get(`/spans?${qs}`))).status).toBe(400);
+  });
+
+  it("answers 503 when the store is unavailable", async () => {
+    const { repo, handlers } = setup();
+    repo.failWith = new RepositoryUnavailableError(new Error("down"));
+    expect((await handlers.listSpans(get("/spans"))).status).toBe(503);
+  });
+});

@@ -1,5 +1,5 @@
-import type { TranscriptResponse, ConversationDetailResponse, ConversationListResponse, OverviewResponse, ProblemDetails, ServicesResponse, TraceDetailResponse, TraceListResponse } from "@contract";
-import { ApiError, type ListConversationsParams, type ListTracesParams, type RangeParams, type TraceApi } from "@/application/trace-api";
+import type { SpanListResponse, TranscriptResponse, ConversationDetailResponse, ConversationListResponse, OverviewResponse, ProblemDetails, ServicesResponse, TraceDetailResponse, TraceListResponse } from "@contract";
+import { ApiError, type ListConversationsParams, type ListSpansParams, type ListTracesParams, type RangeParams, type TraceApi } from "@/application/trace-api";
 
 type Fetch = typeof fetch;
 type QueryValue = string | number | boolean | undefined;
@@ -13,6 +13,10 @@ export class HttpTraceApi implements TraceApi {
 
   listTraces(params: ListTracesParams, signal?: AbortSignal) {
     return this.get<TraceListResponse>("/traces", { ...params }, signal);
+  }
+
+  listSpans(params: ListSpansParams, signal?: AbortSignal) {
+    return this.get<SpanListResponse>("/spans", { ...params }, signal);
   }
 
   getTrace(traceId: string, signal?: AbortSignal) {

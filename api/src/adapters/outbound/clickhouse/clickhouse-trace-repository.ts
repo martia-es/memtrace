@@ -1,7 +1,8 @@
 import type { ClickHouseClient } from "@clickhouse/client";
 import { RepositoryUnavailableError } from "@/application/errors";
-import type { ConversationListQuery, TraceListQuery, TraceRepository, TraceSpans } from "@/application/ports/trace-repository";
+import type { ConversationListQuery, SpanListQuery, TraceListQuery, TraceRepository, TraceSpans } from "@/application/ports/trace-repository";
 import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
+import type { SpanCursor, SpanRecord } from "@/domain/span-row";
 import type { ChatSpanRecord } from "@/domain/transcript";
 import type { MetricsOverview, MetricsQuery } from "@/domain/metrics";
 import type { Span, StatusCode } from "@/domain/span";
@@ -17,6 +18,13 @@ const OP = "SpanAttributes['gen_ai.operation.name']";
 const attrNum = (key: string) => `toUInt64OrZero(SpanAttributes['${key}'])`;
 /** Total reportado o, si falta el atributo, entrada + salida (misma regla que el dominio). */
 const TOKENS = `if(mapContains(SpanAttributes, 'gen_ai.usage.total_tokens'), ${attrNum("gen_ai.usage.total_tokens")}, ${attrNum("gen_ai.usage.input_tokens")} + ${attrNum("gen_ai.usage.output_tokens")})`;
+
+const attr = (key: string) => `SpanAttributes['${key}']`;
+const CONTENT_KEYS = ["gen_ai.input.messages", "gen_ai.output.messages", "gen_ai.tool.call.arguments", "gen_ai.tool.call.result", "memtrace.input", "memtrace.output"];
+/** Tipo de paso: el declarado por el SDK o, si falta, el que se deduce de la operación GenAI. */
+const KIND = `multiIf(${attr("memtrace.step_type")} != '', ${attr("memtrace.step_type")}, ${OP} = 'chat', 'llm', ${OP} = 'execute_tool', 'tool', 'unknown')`;
+/** Primer atributo de contenido presente, acotado al máximo que guarda el SDK (16 KB). */
+const firstOf = (keys: string[]) => `substring(multiIf(${keys.map((k) => `${attr(k)} != '', ${attr(k)}`).join(", ")}, ''), 1, 16384)`;
 
 type Row = Record<string, unknown>;
 type Params = Record<string, string | number | string[]>;
@@ -86,6 +94,74 @@ export class ClickHouseTraceRepository implements TraceRepository {
       params,
     );
     return rows.map((r) => r.ServiceName);
+  }
+
+  async listSpans(q: SpanListQuery): Promise<Page<SpanRecord, SpanCursor>> {
+    const { clause, params } = ClickHouseTraceRepository.range(q.fromMs, q.toMs);
+    const where = [clause];
+    const p: Params = { ...params, limit: q.limit + 1 };
+
+    if (q.service) {
+      where.push("ServiceName = {service:String}");
+      p.service = q.service;
+    }
+    if (q.kind) {
+      where.push(`${KIND} = {kind:String}`);
+      p.kind = q.kind;
+    }
+    if (q.model) {
+      where.push(`${attr("gen_ai.request.model")} = {model:String}`);
+      p.model = q.model;
+    }
+    if (q.status) {
+      where.push("StatusCode = {statusCode:String}");
+      p.statusCode = q.status === "ok" ? "STATUS_CODE_OK" : "STATUS_CODE_ERROR";
+    }
+    if (q.conversationId) {
+      where.push("ConversationId = {conversationId:String}");
+      p.conversationId = q.conversationId;
+    }
+    if (q.text) {
+      where.push(`(${CONTENT_KEYS.map((k) => `positionCaseInsensitiveUTF8(${attr(k)}, {text:String}) > 0`).join(" OR ")})`);
+      p.text = q.text;
+    }
+    if (q.cursor) {
+      where.push("(toUnixTimestamp64Micro(Timestamp), SpanId) < ({cursorUs:Int64}, {cursorSpanId:String})");
+      p.cursorUs = q.cursor.startTimeUs;
+      p.cursorSpanId = q.cursor.spanId;
+    }
+
+    const rows = await this.rows(
+      `SELECT SpanId, TraceId, ParentSpanId, ConversationId, SpanName, ServiceName, toUnixTimestamp64Micro(Timestamp) AS startUs,
+              Duration, StatusCode, ${KIND} AS kind, ${attr("gen_ai.request.model")} AS model, ${OP} = 'chat' AS isChat,
+              if(${OP} = 'chat', ${TOKENS}, 0) AS tokens,
+              ${firstOf(["gen_ai.input.messages", "gen_ai.tool.call.arguments", "memtrace.input"])} AS inputRaw,
+              ${firstOf(["gen_ai.output.messages", "gen_ai.tool.call.result", "memtrace.output"])} AS outputRaw
+       FROM ${this.spans} WHERE ${where.join(" AND ")}
+       ORDER BY startUs DESC, SpanId DESC LIMIT {limit:UInt32}`,
+      p,
+    );
+
+    const page = rows.slice(0, q.limit);
+    const items: SpanRecord[] = page.map((r) => ({
+      spanId: String(r.SpanId),
+      traceId: String(r.TraceId),
+      parentSpanId: r.ParentSpanId ? String(r.ParentSpanId) : null,
+      conversationId: r.ConversationId ? String(r.ConversationId) : null,
+      name: String(r.SpanName),
+      kind: String(r.kind),
+      serviceName: String(r.ServiceName),
+      startTimeUs: num(r.startUs),
+      durationMs: nsToMs(r.Duration),
+      status: toStatus(r.StatusCode),
+      model: r.model ? String(r.model) : null,
+      totalTokens: r.isChat ? num(r.tokens) : null,
+      inputRaw: r.inputRaw ? String(r.inputRaw) : null,
+      outputRaw: r.outputRaw ? String(r.outputRaw) : null,
+      chat: Boolean(r.isChat),
+    }));
+    const last = items[items.length - 1];
+    return { items, nextCursor: rows.length > q.limit && last ? { startTimeUs: last.startTimeUs, spanId: last.spanId } : null };
   }
 
   async listTraces(q: TraceListQuery): Promise<Page<TraceSummary>> {

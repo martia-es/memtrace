@@ -1,8 +1,9 @@
-import type { ConversationListQuery, TraceListQuery, TraceRepository, TraceSpans } from "@/application/ports/trace-repository";
+import type { ConversationListQuery, SpanListQuery, TraceListQuery, TraceRepository, TraceSpans } from "@/application/ports/trace-repository";
 import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
 import type { ChatSpanRecord } from "@/domain/transcript";
 import type { MetricsOverview, MetricsQuery } from "@/domain/metrics";
 import type { Span } from "@/domain/span";
+import type { SpanCursor, SpanRecord } from "@/domain/span-row";
 import type { TimeRange } from "@/domain/time-range";
 import type { Page, TraceSummary } from "@/domain/trace";
 
@@ -39,6 +40,8 @@ export class FakeTraceRepository implements TraceRepository {
   lastOverviewQuery?: MetricsQuery;
   lastConversationQuery?: ConversationListQuery;
   lastConversationRange?: TimeRange;
+  lastSpanQuery?: SpanListQuery;
+  spanPage: Page<SpanRecord, SpanCursor> = { items: [], nextCursor: null };
   conversationPage: Page<ConversationSummary, ConversationCursor> = { items: [], nextCursor: null };
   conversations = new Map<string, ConversationSummary>();
   chatRecords: ChatSpanRecord[] = [];
@@ -79,6 +82,11 @@ export class FakeTraceRepository implements TraceRepository {
     this.check();
     this.lastConversationRange = range;
     return this.conversations.get(conversationId) ?? null;
+  }
+  async listSpans(query: SpanListQuery) {
+    this.check();
+    this.lastSpanQuery = query;
+    return this.spanPage;
   }
   async getConversationMessages() {
     this.check();

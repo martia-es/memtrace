@@ -10,6 +10,16 @@ export interface IoBlock {
   structured: boolean;
   /** el mensaje es del usuario o del sistema (se tiñe distinto en la interfaz) */
   role: "user" | "assistant" | "system" | "tool" | "error" | "other";
+  /** herramientas que el modelo pidió ejecutar en este mensaje */
+  calls?: ToolCall[];
+  /** el mensaje no tiene texto, solo llamadas a herramientas */
+  hideText?: boolean;
+}
+
+export interface ToolCall {
+  name: string;
+  id: string | null;
+  args: Record<string, unknown>;
 }
 
 const ROLES: Record<string, IoBlock["role"]> = { user: "user", human: "user", assistant: "assistant", ai: "assistant", system: "system", tool: "tool", function: "tool" };
@@ -26,47 +36,55 @@ const textOf = (content: unknown): string => {
 
 const pretty = (value: unknown): string => (typeof value === "string" ? value : JSON.stringify(value, null, 2));
 
+const asObject = (v: unknown): Record<string, unknown> => {
+  if (typeof v === "string") {
+    try {
+      const parsed: unknown = JSON.parse(v);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : { value: v };
+    } catch {
+      return { value: v };
+    }
+  }
+  return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : v === undefined || v === null ? {} : { value: v };
+};
+
+/** Llamadas a herramientas de un mensaje del modelo (LangChain `tool_calls`, formato OpenAI `function`). */
+function toolCallsOf(value: unknown): ToolCall[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((c) => {
+    if (!c || typeof c !== "object") return [];
+    const o = c as { name?: unknown; id?: unknown; args?: unknown; arguments?: unknown; function?: { name?: unknown; arguments?: unknown } };
+    const name = o.name ?? o.function?.name;
+    if (typeof name !== "string") return [];
+    return [{ name, id: typeof o.id === "string" ? o.id : null, args: asObject(o.args ?? o.arguments ?? o.function?.arguments) }];
+  });
+}
+
 function fromMessages(value: unknown): IoBlock[] | null {
   if (!Array.isArray(value) || value.length === 0) return null;
   if (!value.every((m) => typeof m === "object" && m !== null && "role" in m && "content" in m)) return null;
-
-  const blocks = (value as { role: unknown; content: unknown; tool_calls?: unknown }[])
-    .flatMap((m) => {
-      const role = String(m.role);
-      const text = textOf(m.content);
-      const result: IoBlock[] = [];
-
-      // Bloque principal con el contenido (si no está vacío)
-      if (text.trim() && text !== "{}") {
-        result.push({
-          label: role,
-          text,
-          structured: typeof m.content !== "string" && text.trimStart().startsWith("{"),
-          role: ROLES[role.toLowerCase()] ?? "other",
-        });
-      }
-
-      // Si hay tool_calls, mostrarlos como bloque adicional (ReAct patterns)
-      if (m.tool_calls && Array.isArray(m.tool_calls) && m.tool_calls.length > 0) {
-        result.push({
-          label: "tool_calls",
-          text: pretty(m.tool_calls),
-          structured: true,
-          role: "tool",
-        });
-      }
-
-      return result;
-    });
-
-  return blocks.length > 0 ? blocks : null;
+  return (value as { role: unknown; content: unknown; tool_calls?: unknown }[]).map((m) => {
+    const role = String(m.role);
+    const calls = toolCallsOf(m.tool_calls);
+    const empty = m.content === "" || (Array.isArray(m.content) && m.content.length === 0);
+    const text = empty ? (calls.length ? JSON.stringify(m.tool_calls, null, 2) : "") : textOf(m.content);
+    return {
+      label: role,
+      text,
+      structured: !empty && typeof m.content !== "string" && text.trimStart().startsWith("{"),
+      role: ROLES[role.toLowerCase()] ?? "other",
+      calls,
+      // el contenido vacío solo se oculta si hay llamadas que mostrar en su lugar
+      hideText: empty && calls.length > 0,
+    };
+  });
 }
 
 function single(label: string, value: unknown): IoBlock[] {
   // un string con JSON (el SDK guarda lo capturado como texto) se muestra con formato
   const text = pretty(value);
   const structured = typeof value !== "string" || /^\s*[{[]/.test(text);
-  return [{ label, text, structured, role: "other" }];
+  return [{ label, text, structured, role: "other", calls: [] }];
 }
 
 export interface SpanIo {

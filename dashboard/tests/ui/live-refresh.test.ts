@@ -6,7 +6,7 @@ import { createMemoryHistory, createRouter } from "vue-router";
 import { TRACE_API } from "@/dependency-container";
 import { setRefreshSeconds, useLiveRefresh } from "@/ui/composables/useLiveRefresh";
 import TraceDetailPage from "@/ui/pages/TraceDetailPage.vue";
-import TracesPage from "@/ui/pages/TracesPage.vue";
+import ConversationsPage from "@/ui/pages/ConversationsPage.vue";
 import { FakeTraceApi, node, summary } from "../fakes";
 
 const setVisibility = (state: "visible" | "hidden") => {
@@ -108,7 +108,7 @@ async function mountPage(component: object, api: FakeTraceApi, path: string, pro
   return wrapper;
 }
 
-describe("TracesPage live refresh", () => {
+describe("ConversationsPage live refresh", () => {
   const trace = (id: string, name: string, minutesAgo: number) =>
     summary({ traceId: id.repeat(32), rootSpanName: name, startTime: new Date(Date.now() - minutesAgo * 60_000).toISOString() });
 
@@ -119,7 +119,7 @@ describe("TracesPage live refresh", () => {
       { items: [trace("0", "cero", 4)], nextCursor: null },
     ];
     setRefreshSeconds(5);
-    const wrapper = await mountPage(TracesPage, api, "/traces?range=24h");
+    const wrapper = await mountPage(ConversationsPage, api, "/conversations?range=24h");
     await wrapper.findAll("button").find((b) => b.text().includes("Cargar más"))!.trigger("click");
     await vi.advanceTimersByTimeAsync(0);
     await flushPromises();
@@ -134,16 +134,16 @@ describe("TracesPage live refresh", () => {
     expect(api.listCalls.length).toBeGreaterThan(callsBefore);
     expect(wrapper.text()).toContain("nueva");
     expect(wrapper.text()).toContain("cero"); // la página cargada con "Cargar más" sigue ahí
-    expect(wrapper.find("tr.row-new").text()).toContain("nueva");
+    expect(wrapper.find("tr.fresh").text()).toContain("nueva");
 
     await vi.advanceTimersByTimeAsync(3_100); // el resaltado se apaga
-    expect(wrapper.find("tr.row-new").exists()).toBe(false);
+    expect(wrapper.find("tr.fresh").exists()).toBe(false);
     wrapper.unmount();
   });
 
   it("does not fetch by itself when set to Off", async () => {
     const api = new FakeTraceApi();
-    const wrapper = await mountPage(TracesPage, api, "/traces");
+    const wrapper = await mountPage(ConversationsPage, api, "/conversations");
     const calls = api.listCalls.length;
     await vi.advanceTimersByTimeAsync(60_000);
     expect(api.listCalls.length).toBe(calls);

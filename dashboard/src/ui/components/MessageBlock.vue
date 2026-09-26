@@ -3,171 +3,162 @@ import type { IoBlock } from "@/domain/span-io";
 
 defineProps<{ block: IoBlock }>();
 
-const icon = (role: IoBlock["role"]) =>
-  ({ user: "person", assistant: "smart_toy", system: "settings", tool: "build", error: "error_outline", other: "chat" })[role];
-
 const roleName = (role: IoBlock["role"]) =>
-  ({
-    user: "Humano",
-    assistant: "IA",
-    system: "Sistema",
-    tool: "Herramienta",
-    error: "Error",
-    other: "Otro",
-  })[role];
+  ({ user: "Humano", assistant: "IA", system: "Sistema", tool: "Herramienta", error: "Error", other: "Contenido" })[role];
+
+const argValue = (v: unknown) => (typeof v === "string" ? v : JSON.stringify(v));
 </script>
 
 <template>
-  <div class="message-block" :class="`role-${block.role}`">
-    <div class="header">
-      <div class="role-badge">
-        <q-icon :name="icon(block.role)" size="18px" />
-        <span class="role-name">{{ roleName(block.role) }}</span>
+  <article class="msg" :class="`role-${block.role}`">
+    <header class="head">
+      <span class="role">{{ roleName(block.role) }}</span>
+      <span v-if="block.label.toLowerCase() !== roleName(block.role).toLowerCase() && block.label !== block.role" class="tag mono">{{ block.label }}</span>
+    </header>
+
+    <div v-if="!block.hideText" class="section">
+      <pre v-if="block.structured" class="text mono">{{ block.text }}</pre>
+      <p v-else-if="block.text" class="text">{{ block.text }}</p>
+      <p v-else class="text muted">Mensaje vacío</p>
+    </div>
+
+    <div v-for="(c, i) in block.calls" :key="i" class="call">
+      <div class="call-head section">
+        <span class="fn mono">{{ c.name }}</span>
+        <span v-if="c.id" class="chip mono">{{ c.id }}</span>
       </div>
-      <div class="label-tag">{{ block.label }}</div>
+      <dl v-if="Object.keys(c.args).length" class="args mono">
+        <div v-for="(v, k) in c.args" :key="k" class="arg">
+          <dt>{{ k }}:</dt>
+          <dd>{{ argValue(v) }}</dd>
+        </div>
+      </dl>
+      <p v-else class="no-args muted">Sin argumentos</p>
     </div>
-    <div class="content-wrapper">
-      <pre v-if="block.structured" class="content mono">{{ block.text }}</pre>
-      <div v-else class="content">{{ block.text }}</div>
-    </div>
-  </div>
+  </article>
 </template>
 
 <style scoped>
-.message-block {
-  border: 2px solid transparent;
-  border-radius: 10px;
-  padding: 12px 14px;
-  font-size: 13px;
-  line-height: 1.6;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-
-.message-block.role-user {
-  background: #e8f5e9;
-  border-color: #81c784;
-}
-.message-block.role-assistant {
-  background: #f3e5f5;
-  border-color: #ba68c8;
-}
-.message-block.role-system {
-  background: #fff3e0;
-  border-color: #ffb74d;
-}
-.message-block.role-tool {
-  background: #ffe0b2;
-  border-color: #ff9800;
-}
-.message-block.role-error {
-  background: #ffebee;
-  border-color: #e53935;
-}
-.message-block.role-other {
-  background: #eceff1;
-  border-color: #78909c;
-}
-
-@media (prefers-color-scheme: dark) {
-  .message-block.role-user {
-    background: #1b5e20;
-    border-color: #66bb6a;
-    color: #c8e6c9;
-  }
-  .message-block.role-assistant {
-    background: #4a148c;
-    border-color: #ba68c8;
-    color: #e1bee7;
-  }
-  .message-block.role-system {
-    background: #e65100;
-    border-color: #ffb74d;
-    color: #ffe0b2;
-  }
-  .message-block.role-tool {
-    background: #bf360c;
-    border-color: #ff9800;
-    color: #ffcc80;
-  }
-  .message-block.role-error {
-    background: #b71c1c;
-    border-color: #ef5350;
-    color: #ef9a9a;
-  }
-  .message-block.role-other {
-    background: #263238;
-    border-color: #90a4ae;
-    color: #cfd8dc;
-  }
-}
-
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid currentColor;
-  opacity: 0.7;
-}
-
-.role-badge {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 600;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-:deep(.q-icon) {
+.msg {
+  --accent: var(--mt-faint);
   flex-shrink: 0;
+  border: 1px solid var(--mt-line);
+  border-radius: 12px;
+  background: var(--mt-card);
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+.role-user {
+  --accent: var(--mt-accent);
+}
+.role-assistant {
+  --accent: var(--mt-violet);
+}
+.role-tool {
+  --accent: var(--mt-warn-ink);
+}
+.role-error {
+  --accent: var(--mt-err-ink);
 }
 
-.role-name {
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--mt-line-2);
+  background: var(--mt-soft-2);
+}
+.role {
+  font-size: 11.5px;
   font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--accent);
 }
-
-.label-tag {
+.tag {
   font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 4px;
-  background: currentColor;
-  opacity: 0.15;
-  color: inherit;
-  white-space: nowrap;
+  color: var(--mt-faint);
 }
 
-.content-wrapper {
-  flex: 1;
-  min-width: 0;
+.section {
+  padding: 12px 16px;
 }
-
-.content {
+.text {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--mt-ink);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  margin: 0;
-  padding: 0;
-  font-family: inherit;
-  color: inherit;
 }
-
-.content.mono {
-  font-family: var(--mt-mono);
+.text.mono {
   font-size: 12px;
-  background: rgba(0, 0, 0, 0.05);
-  padding: 8px 10px;
-  border-radius: 6px;
-  overflow-x: auto;
+  line-height: 1.55;
+}
+.role-system .text {
+  color: var(--mt-muted);
+}
+.role-error .text {
+  color: var(--mt-err-ink);
+}
+.muted {
+  color: var(--mt-faint);
 }
 
-@media (prefers-color-scheme: dark) {
-  .content.mono {
-    background: rgba(255, 255, 255, 0.08);
-  }
+.call + .call,
+.section + .call {
+  border-top: 1px solid var(--mt-line-2);
+}
+.call-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-bottom: 10px;
+}
+.fn {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--mt-ink);
+}
+.chip {
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--mt-line);
+  background: var(--mt-soft-2);
+  font-size: 11px;
+  color: var(--mt-muted);
+  overflow-wrap: anywhere;
+}
+.args {
+  margin: 0;
+  padding: 10px 16px 12px;
+  background: color-mix(in srgb, var(--mt-accent) 5%, var(--mt-card));
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.arg {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+.arg dt {
+  color: var(--mt-accent);
+  flex-shrink: 0;
+}
+.arg dd {
+  margin: 0;
+  color: var(--mt-ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.no-args {
+  margin: 0;
+  padding: 0 16px 12px;
+  font-size: 12.5px;
 }
 </style>

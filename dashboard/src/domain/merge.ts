@@ -1,4 +1,4 @@
-import type { ConversationSummaryDto, TraceListResponse, TraceSummaryDto } from "@contract";
+import type { ConversationSummaryDto, SpanListResponse, TraceListResponse, TraceSummaryDto } from "@contract";
 
 export interface Paged<T> {
   items: T[];
@@ -42,3 +42,6 @@ export const mergeLatestTraces = (current: TraceSummaryDto[], cursor: string | n
 
 export const mergeLatestConversations = (current: ConversationSummaryDto[], cursor: string | null, latest: Paged<ConversationSummaryDto>) =>
   mergeLatestPage(current, cursor, latest, (c) => c.conversationId, (c) => Date.parse(c.lastActivity));
+
+export const mergeLatestSpans = (current: SpanListResponse["items"], cursor: string | null, latest: SpanListResponse) =>
+  mergeLatestPage(current, cursor, latest, (s) => s.spanId, (s) => Date.parse(s.startTime));
