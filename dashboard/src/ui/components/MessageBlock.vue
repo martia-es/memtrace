@@ -4,146 +4,170 @@ import type { IoBlock } from "@/domain/span-io";
 defineProps<{ block: IoBlock }>();
 
 const icon = (role: IoBlock["role"]) =>
-  ({ user: "person", assistant: "smart_toy", system: "settings", tool: "build", error: "error", other: "info" })[role];
+  ({ user: "person", assistant: "smart_toy", system: "settings", tool: "build", error: "error_outline", other: "chat" })[role];
 
-const tint = (role: IoBlock["role"]) =>
+const roleName = (role: IoBlock["role"]) =>
   ({
-    user: "var(--msg-user-bg)",
-    assistant: "var(--msg-assistant-bg)",
-    system: "var(--msg-system-bg)",
-    tool: "var(--msg-tool-bg)",
-    error: "var(--msg-error-bg)",
-    other: "var(--msg-other-bg)",
-  })[role];
-
-const labelColor = (role: IoBlock["role"]) =>
-  ({
-    user: "var(--msg-user-label)",
-    assistant: "var(--msg-assistant-label)",
-    system: "var(--msg-system-label)",
-    tool: "var(--msg-tool-label)",
-    error: "var(--msg-error-label)",
-    other: "var(--msg-other-label)",
+    user: "Humano",
+    assistant: "IA",
+    system: "Sistema",
+    tool: "Herramienta",
+    error: "Error",
+    other: "Otro",
   })[role];
 </script>
 
 <template>
-  <div class="message-block" :class="`role-${block.role}`" :style="{ '--bg': tint(block.role), '--label-color': labelColor(block.role) } as any">
+  <div class="message-block" :class="`role-${block.role}`">
     <div class="header">
-      <q-icon :name="icon(block.role)" size="16px" />
-      <span class="label">{{ block.label }}</span>
+      <div class="role-badge">
+        <q-icon :name="icon(block.role)" size="18px" />
+        <span class="role-name">{{ roleName(block.role) }}</span>
+      </div>
+      <div class="label-tag">{{ block.label }}</div>
     </div>
-    <pre v-if="block.structured" class="content mono">{{ block.text }}</pre>
-    <div v-else class="content">{{ block.text }}</div>
+    <div class="content-wrapper">
+      <pre v-if="block.structured" class="content mono">{{ block.text }}</pre>
+      <div v-else class="content">{{ block.text }}</div>
+    </div>
   </div>
 </template>
 
 <style scoped>
-:root {
-  --msg-user-bg: #f0f5f3;
-  --msg-user-label: #1f4a37;
-  --msg-user-text: #1a1a1a;
-  --msg-assistant-bg: #f0ebff;
-  --msg-assistant-label: #2a1e7f;
-  --msg-assistant-text: #1a1a1a;
-  --msg-system-bg: #fef8f0;
-  --msg-system-label: #4a3a00;
-  --msg-system-text: #2d2d2d;
-  --msg-tool-bg: #fff4ea;
-  --msg-tool-label: #5a2a0a;
-  --msg-tool-text: #2d2d2d;
-  --msg-error-bg: #fff0ee;
-  --msg-error-label: #7a0a0a;
-  --msg-error-text: #4a0a0a;
-  --msg-other-bg: #f0f5f3;
-  --msg-other-label: #1f4a37;
-  --msg-other-text: #1a1a1a;
+.message-block {
+  border: 2px solid transparent;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.message-block.role-user {
+  background: #e8f5e9;
+  border-color: #81c784;
+}
+.message-block.role-assistant {
+  background: #f3e5f5;
+  border-color: #ba68c8;
+}
+.message-block.role-system {
+  background: #fff3e0;
+  border-color: #ffb74d;
+}
+.message-block.role-tool {
+  background: #ffe0b2;
+  border-color: #ff9800;
+}
+.message-block.role-error {
+  background: #ffebee;
+  border-color: #e53935;
+}
+.message-block.role-other {
+  background: #eceff1;
+  border-color: #78909c;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --msg-user-bg: #1a3a2e;
-    --msg-user-label: #7eddcb;
-    --msg-user-text: #d0f0e8;
-    --msg-assistant-bg: #2d1f4a;
-    --msg-assistant-label: #b99fff;
-    --msg-assistant-text: #e0d5ff;
-    --msg-system-bg: #3a3220;
-    --msg-system-label: #d4b45a;
-    --msg-system-text: #dcc898;
-    --msg-tool-bg: #4a2f15;
-    --msg-tool-label: #ffb366;
-    --msg-tool-text: #f0d4b8;
-    --msg-error-bg: #4a1a1a;
-    --msg-error-label: #ff7070;
-    --msg-error-text: #ffb3b3;
-    --msg-other-bg: #1a3a2e;
-    --msg-other-label: #7eddcb;
-    --msg-other-text: #d0f0e8;
+  .message-block.role-user {
+    background: #1b5e20;
+    border-color: #66bb6a;
+    color: #c8e6c9;
   }
-}
-
-.message-block {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  border-radius: 12px;
-  background: var(--bg);
-  padding: 10px 12px;
-  font-size: 13px;
+  .message-block.role-assistant {
+    background: #4a148c;
+    border-color: #ba68c8;
+    color: #e1bee7;
+  }
+  .message-block.role-system {
+    background: #e65100;
+    border-color: #ffb74d;
+    color: #ffe0b2;
+  }
+  .message-block.role-tool {
+    background: #bf360c;
+    border-color: #ff9800;
+    color: #ffcc80;
+  }
+  .message-block.role-error {
+    background: #b71c1c;
+    border-color: #ef5350;
+    color: #ef9a9a;
+  }
+  .message-block.role-other {
+    background: #263238;
+    border-color: #90a4ae;
+    color: #cfd8dc;
+  }
 }
 
 .header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid currentColor;
+  opacity: 0.7;
+}
+
+.role-badge {
+  display: flex;
+  align-items: center;
   gap: 6px;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 :deep(.q-icon) {
-  color: var(--label-color);
+  flex-shrink: 0;
 }
 
-.label {
+.role-name {
+  font-weight: 700;
+}
+
+.label-tag {
   font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--label-color);
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: currentColor;
+  opacity: 0.15;
+  color: inherit;
+  white-space: nowrap;
+}
+
+.content-wrapper {
+  flex: 1;
+  min-width: 0;
 }
 
 .content {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  line-height: 1.5;
   margin: 0;
+  padding: 0;
+  font-family: inherit;
   color: inherit;
 }
 
 .content.mono {
   font-family: var(--mt-mono);
   font-size: 12px;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 8px 10px;
+  border-radius: 6px;
+  overflow-x: auto;
 }
 
-.content {
-  color: var(--msg-user-text);
-}
-
-.role-user .content {
-  color: var(--msg-user-text);
-}
-.role-assistant .content {
-  color: var(--msg-assistant-text);
-}
-.role-system .content {
-  color: var(--msg-system-text);
-}
-.role-tool .content {
-  color: var(--msg-tool-text);
-}
-.role-error .content {
-  color: var(--msg-error-text);
-}
-.role-other .content {
-  color: var(--msg-other-text);
+@media (prefers-color-scheme: dark) {
+  .content.mono {
+    background: rgba(255, 255, 255, 0.08);
+  }
 }
 </style>
