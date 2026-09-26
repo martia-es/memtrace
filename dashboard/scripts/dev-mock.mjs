@@ -40,6 +40,8 @@ const conversations = [
 const traces = [
     {
         traceId: "t-0001".padEnd(32, "1"),
+        input: "Pregunta de ejemplo 1: ¿puedes resumir el estado del proyecto?",
+        output: "Respuesta de ejemplo 1: el proyecto avanza según lo previsto.",
         rootSpanName: "assistant.turn",
         serviceName: "planner",
         startTime: "2026-09-26T11:12:00.000Z",
@@ -52,6 +54,8 @@ const traces = [
     },
     {
         traceId: "t-0002".padEnd(32, "2"),
+        input: "Pregunta de ejemplo 2: ¿puedes resumir el estado del proyecto?",
+        output: "Respuesta de ejemplo 2: el proyecto avanza según lo previsto.",
         rootSpanName: "assistant.turn",
         serviceName: "tools",
         startTime: "2026-09-26T11:16:00.000Z",
@@ -64,6 +68,8 @@ const traces = [
     },
     {
         traceId: "t-0003".padEnd(32, "3"),
+        input: "Pregunta de ejemplo 3: ¿puedes resumir el estado del proyecto?",
+        output: "Respuesta de ejemplo 3: el proyecto avanza según lo previsto.",
         rootSpanName: "assistant.turn",
         serviceName: "research",
         startTime: "2026-09-26T10:42:00.000Z",
@@ -269,7 +275,10 @@ const overview = {
         { model: "gpt-5.4-mini", calls: 3, inputTokens: 2800, outputTokens: 1680, p95Ms: 966 },
     ],
     byTool: [
-        { tool: "search", calls: 1, errors: 1, p95Ms: 310 },
+        { tool: "search", calls: 15, errors: 2, p95Ms: 310 },
+        { tool: "database_query", calls: 12, errors: 0, p95Ms: 280 },
+        { tool: "api_call", calls: 8, errors: 1, p95Ms: 450 },
+        { tool: "email_send", calls: 5, errors: 0, p95Ms: 120 },
     ],
 };
 
