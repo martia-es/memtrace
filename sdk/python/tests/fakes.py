@@ -1,0 +1,49 @@
+from contextlib import contextmanager
+from typing import Any, List, Mapping, Optional
+
+
+class FakeHandle:
+    def __init__(self, name, attributes, parent):
+        self.name, self.parent = name, parent
+        self.attributes = dict(attributes)
+        self.ended = False
+        self.error: Optional[BaseException] = None
+
+    def set_attributes(self, attributes: Mapping[str, Any]) -> None:
+        self.attributes.update(attributes)
+
+    def end(self, error=None) -> None:
+        self.ended, self.error = True, error
+
+
+class FakeSpanPort:
+    """Puerto de salida en memoria: permite probar la aplicación sin OpenTelemetry."""
+
+    def __init__(self):
+        self.spans: List[FakeHandle] = []
+        self._current: Optional[FakeHandle] = None
+        self.fail = False
+
+    def start_span(self, name, attributes, parent=None):
+        if self.fail:
+            raise RuntimeError("backend caído")
+        span = FakeHandle(name, attributes, parent or self._current)
+        self.spans.append(span)
+        return span
+
+    @contextmanager
+    def activate(self, span):
+        previous, self._current = self._current, span
+        try:
+            yield
+        finally:
+            self._current = previous
+
+    def current(self):
+        return self._current
+
+    def flush(self, timeout_millis=30000):
+        return True
+
+    def shutdown(self):
+        pass

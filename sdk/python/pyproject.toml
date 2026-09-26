@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "memtrace"
+version = "0.1.0"
+description = "Librería de observabilidad y trazabilidad OTel para Agentes de IA"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "MemTrace Authors"}
+]
+dependencies = [
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.20.0",
+]
+
+[project.optional-dependencies]
+http = [
+    "opentelemetry-exporter-otlp-proto-http>=1.20.0",
+]
+langchain = [
+    "langchain-core>=0.1.0"
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "langchain-core>=0.1.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["memtrace*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
