@@ -23,7 +23,7 @@ def search(query: str) -> str:
 
 
 agent = create_agent(
-    model="google_genai:gemini-3.6-flash",
+    model="google_genai:gemini-2.5-flash",
     tools=[search],
     system_prompt="You are a helpful assistant. Be concise and accurate.",
 )
@@ -33,8 +33,6 @@ config = {
     "configurable": {"thread_id": conversation_id},
     "callbacks": [MemTraceCallbackHandler()],
     "metadata": {
-        # "session_id": conversation_id,
-        # "conversation_id": conversation_id,
         "thread_id": conversation_id,
     },
 }
@@ -54,9 +52,3 @@ try:
         print(result)
 finally:
     shutdown()
-
-# OPCIÓN 2: Automática (requiere: pip install memtrace[otel-langchain])
-# Descomenta para activar autoinstrumentación en TODO:
-# from memtrace import enable_langchain_instrumentation
-# enable_langchain_instrumentation()
-# result = agent.invoke({...}, config=config)  # Sin callbacks

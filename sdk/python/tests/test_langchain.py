@@ -1,3 +1,5 @@
+import sys
+import types
 import uuid
 
 import pytest
@@ -67,3 +69,18 @@ def test_langchain_inside_trace_step_is_child(spans):
         h.on_chain_start({"name": "c"}, {}, run_id=rid, parent_run_id=None)
         h.on_chain_end({}, run_id=rid)
     assert by_name(spans, "c").parent.span_id == by_name(spans, "outer").context.span_id
+
+
+def test_enable_langchain_instrumentation_accepts_current_class_name(monkeypatch):
+    calls = []
+
+    class FakeInstrumentor:
+        def instrument(self):
+            calls.append("instrumented")
+
+    fake_module = types.SimpleNamespace(LangchainInstrumentor=FakeInstrumentor)
+    monkeypatch.setitem(sys.modules, "opentelemetry.instrumentation.langchain", fake_module)
+
+    memtrace.enable_langchain_instrumentation()
+
+    assert calls == ["instrumented"]

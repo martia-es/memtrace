@@ -33,12 +33,24 @@ def enable_langchain_instrumentation() -> None:
     - Manual: agent.invoke(..., callbacks=[MemTraceCallbackHandler()])
     """
     try:
-        from opentelemetry.instrumentation.langchain import LangChainInstrumentor
+        from opentelemetry.instrumentation import langchain as langchain_instrumentation
 
-        instrumentor = LangChainInstrumentor()
+        instrumentor_cls = None
+        for class_name in ("LangChainInstrumentor", "LangchainInstrumentor"):
+            instrumentor_cls = getattr(langchain_instrumentation, class_name, None)
+            if instrumentor_cls is not None:
+                break
+
+        if instrumentor_cls is None:
+            raise AttributeError(
+                "No se encontró una clase instrumentor de LangChain en "
+                "opentelemetry.instrumentation.langchain"
+            )
+
+        instrumentor = instrumentor_cls()
         instrumentor.instrument()
         logger.info("[MemTrace] Autoinstrumentación de LangChain activada")
-    except ImportError as e:
+    except (ImportError, AttributeError) as e:
         logger.warning(
             "[MemTrace] LangChain instrumentation requiere: "
             "pip install opentelemetry-instrumentation-langchain"
