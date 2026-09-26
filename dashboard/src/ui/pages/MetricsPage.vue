@@ -107,7 +107,7 @@ const activityOption = computed<EChartsCoreOption>(() => {
     ],
     series: [
       { name: "Correctas", type: "bar", stack: "t", barMaxWidth: 26, data: d?.timeseries.map((p) => p.traces - p.errorTraces) ?? [], itemStyle: { color: PALETTE.violet, borderRadius: [0, 0, 0, 0] } },
-      { name: "Con error", type: "bar", stack: "t", barMaxWidth: 26, data: d?.timeseries.map((p) => p.errorTraces) ?? [], itemStyle: { color: PALETTE.danger, borderRadius: [6, 6, 0, 0] } },
+      { name: "Con error", type: "bar", stack: "t", barMaxWidth: 26, data: d?.timeseries.map((p) => p.errorTraces) ?? [], itemStyle: { color: PALETTE.purple, borderRadius: [6, 6, 0, 0] } },
       {
         name: "Latencia p95",
         type: "line",
@@ -346,7 +346,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 
         <div class="metric-card" :class="{ alert: data.totals.errorTraces > 0 }">
           <div class="metric-label">ERRORES</div>
-          <div class="metric-value" :style="{ color: data.totals.errorTraces > 0 ? '#d9382e' : '#2a5a0d' }">{{ formatCount(data.totals.errorTraces) }}</div>
+          <div class="metric-value" :style="{ color: data.totals.errorTraces > 0 ? '#d9b3f0' : '#c4f26b' }">{{ formatCount(data.totals.errorTraces) }}</div>
           <div class="metric-detail">{{ formatPercent(data.totals.errorRate) }}</div>
           <a v-if="data.totals.errorTraces > 0" class="error-link" @click="goToErrors">Ver trazas →</a>
         </div>
@@ -441,31 +441,6 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
           </div>
         </section>
 
-        <section class="detail-panel">
-          <div class="panel-header">
-            <h3>Herramientas</h3>
-            <span class="panel-count">{{ data.byTool.length }}</span>
-          </div>
-          <div v-if="!data.byTool.length" class="empty-state">Sin herramientas ejecutadas</div>
-          <div v-else class="tool-grid">
-            <div v-for="t in data.byTool" :key="t.tool" class="tool-card">
-              <div class="tool-title">{{ t.tool }}</div>
-              <div class="tool-status" :style="{ backgroundColor: toolErrorRate(t) === 0 ? '#2a5a0d' : toolErrorRate(t) < 0.1 ? '#e39a1b' : '#d9382e', color: 'white' }">
-                {{ toolErrorRate(t) === 0 ? 'FIABLE' : formatPercent(toolErrorRate(t)) + ' FALLOS' }}
-              </div>
-              <div class="tool-stats-row">
-                <div class="tool-stat-item">
-                  <div class="stat-value">{{ formatCount(t.calls) }}</div>
-                  <div class="stat-label">usos</div>
-                </div>
-                <div class="tool-stat-item">
-                  <div class="stat-value">{{ formatDuration(t.p95Ms) }}</div>
-                  <div class="stat-label">latencia</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
 
       </div>
     </template>
@@ -567,13 +542,13 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 }
 
 .status-card.ok {
-  border-left-color: #2a5a0d;
+  border-left-color: #c4f26b;
 }
 .status-card.warn {
-  border-left-color: #e39a1b;
+  border-left-color: #fce4a3;
 }
 .status-card.error {
-  border-left-color: #d9382e;
+  border-left-color: #d9b3f0;
 }
 
 .status-icon {
@@ -587,13 +562,13 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 }
 
 .status-card.ok .status-icon {
-  background: rgba(42, 90, 13, 0.12);
+  background: rgba(196, 242, 107, 0.12);
 }
 .status-card.warn .status-icon {
-  background: rgba(227, 154, 27, 0.12);
+  background: rgba(252, 228, 163, 0.12);
 }
 .status-card.error .status-icon {
-  background: rgba(217, 56, 46, 0.12);
+  background: rgba(217, 179, 240, 0.12);
 }
 
 .status-icon i {
@@ -603,13 +578,13 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 }
 
 .status-card.ok .status-icon i {
-  background: #2a5a0d;
+  background: #c4f26b;
 }
 .status-card.warn .status-icon i {
-  background: #e39a1b;
+  background: #fce4a3;
 }
 .status-card.error .status-icon i {
-  background: #d9382e;
+  background: #d9b3f0;
 }
 
 .status-body {
@@ -657,7 +632,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 }
 
 .metric-card.alert {
-  border: 2px solid rgba(217, 56, 46, 0.3);
+  border: 2px solid rgba(217, 179, 240, 0.3);
 }
 
 .metric-label {
@@ -685,14 +660,14 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
   margin-top: 8px;
   font-size: 12px;
   font-weight: 700;
-  color: #d9382e;
+  color: #d9b3f0;
   cursor: pointer;
   transition: color 0.2s;
   text-decoration: none;
 }
 
 .error-link:hover {
-  color: #b8271a;
+  color: #c4a1d9;
   text-decoration: underline;
 }
 
@@ -747,7 +722,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 /* Details Grid */
 .details-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 16px;
 }
 
