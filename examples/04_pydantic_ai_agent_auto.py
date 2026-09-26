@@ -19,7 +19,7 @@ init_tracer(service_name="pydantic-ai-agent")
 enable_pydantic_ai_instrumentation()
 
 agent = Agent(
-    "google:gemini-2.5-flash",
+    "anthropic:claude-haiku-4-5-20251001",
     system_prompt="You are a helpful assistant. Answer in a funny way with emojis",
 )
 

@@ -1,59 +1,42 @@
-# Load Testing Suite
+# Agent Load Testing
 
-Script de pruebas de carga para la API de MemTrace. Genera 100 peticiones concurrentes cada 2 minutos durante 10 iteraciones, usando datos mockeados.
-
-## Instalación
-
-```bash
-pip install -r requirements.txt
-```
+Simula múltiples agentes de IA generando trazas reales en ClickHouse.
 
 ## Uso
 
-### Ejecución básica (por defecto: 10 batches, 100 requests/batch, intervalo de 2 minutos)
-
 ```bash
-python load_test.py
+# Ejecución básica (10 agentes × 10 batches, cada 2 minutos)
+python load-testing/agent_load_test.py
+
+# Con parámetros
+python load-testing/agent_load_test.py \
+  --agents 50       # Agentes por batch (default: 10)
+  --batches 5       # Número de batches (default: 10)
+  --interval 60     # Segundos entre batches (default: 120)
+  --endpoint http://localhost:4317  # OTLP endpoint
 ```
 
-### Con parámetros personalizados
+## Requisitos
 
-```bash
-# Cambiar URL
-python load_test.py --url http://localhost:3000
+- Kubernetes corriendo (`make kind-up`)
+- OTel Collector en localhost:4317
+- API en http://localhost:3000
+- ClickHouse disponible
 
-# Cambiar número de batches
-python load_test.py --batches 5
+## Qué genera
 
-# Cambiar requests por batch
-python load_test.py --requests 50
+Cada agente:
+1. Busca en conocimiento (tool)
+2. Rankea documentos (tool)
+3. Genera respuesta con LLM (gpt-4o, claude-3, llama-3.1)
+4. Valida output (tool)
 
-# Cambiar intervalo entre batches (en segundos)
-python load_test.py --interval 60
+Resultado: trazas completas con modelos, tokens, latencias en ClickHouse.
 
-# Combinar parámetros
-python load_test.py --batches 20 --requests 200 --interval 120
-```
+## Ver resultados
 
-## Características
+Dashboard: http://localhost:3000 → Traces → filtrar por `service_name = "load-test-orchestrator"`
 
-- ✅ 100 requests concurrentes por batch
-- ✅ 10 batches separados por 2 minutos (configurable)
-- ✅ Datos completamente mockeados (sin llamadas reales a LLMs)
-- ✅ Endpoints testeados: `/traces`, `/spans`, `/conversations`, `/services`, `/health`
-- ✅ Simulación de latencia realista (20-200ms)
-- ✅ Reporte detallado: estadísticas por batch y resumen final
-- ✅ Soporte para interrumpir con Ctrl+C
+## Cancelar
 
-## Métricas capturadas
-
-- Requests exitosos/fallidos
-- Tiempo de respuesta (min, max, promedio)
-- Tasa de éxito general
-- Tiempo total de ejecución
-
-## Notas
-
-- Los datos son 100% mockeados, no hay consumo de créditos de LLMs
-- Las peticiones se ejecutan concurrentemente (asyncio)
-- Puedes interrumpir el test en cualquier momento con Ctrl+C
+Ctrl+C en cualquier momento.

@@ -18,15 +18,19 @@ init_tracer(service_name="pydantic-ai-agent")
 # con los decoradores de MemTrace.
 agent = Agent(
     "anthropic:claude-haiku-4-5-20251001",
-    system_prompt="You are a helpful assistant. Be concise and accurate.",
+    system_prompt="You are a helpful assistant. Be concise and accurate. Use the tools to get the weather for a city.",
 )
 
 
 @agent.tool_plain
 @trace_step(name="search", step_type="tool")
 def search(query: str) -> str:
-    """Search for information."""
-    return f"Results for: {query}"
+    """Get the current weather for a city.
+
+    Args:
+        city: City for which to retrieve the weather.
+    """
+    return "hey babe the weather in that city is sunny and hot!!!"
 
 
 @trace_step(name="pydantic_ai_agent", step_type="agent")
