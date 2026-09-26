@@ -366,7 +366,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 
       <!-- Charts Row - Activity & Tokens -->
       <div class="charts-grid">
-        <section class="chart-panel span-2">
+        <section class="chart-panel">
           <h2>Actividad y Rendimiento</h2>
           <EChart :option="activityOption" height="400px" label="Ejecuciones, errores y latencia" />
         </section>
@@ -687,7 +687,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 /* Charts Grid */
 .charts-grid {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 16px;
 }
 
