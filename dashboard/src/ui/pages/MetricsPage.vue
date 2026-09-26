@@ -14,10 +14,16 @@ import { useAsync } from "../composables/useAsync";
 import { setRefreshSeconds, useLiveRefresh } from "../composables/useLiveRefresh";
 import { useFilters } from "../composables/useFilters";
 import { useTraceApi } from "../composables/useTraceApi";
+import { useRouter } from "vue-router";
 
 const api = useTraceApi();
 const $q = useQuasar();
 const f = useFilters();
+const router = useRouter();
+
+const goToErrors = () => {
+  router.push({ name: "traces", query: { status: "error", range: f.range.value } });
+};
 
 const overview = useAsync((signal) => api.getOverview({ ...resolveRange(f.range.value, Date.now()), service: f.service.value }, signal));
 async function loadOverview() {
@@ -39,7 +45,7 @@ const health = computed(() => {
   const rate = data.value?.totals.errorRate ?? 0;
   if (rate === 0) return { key: "ok", text: "Operación estable" };
   if (rate < 0.05) return { key: "warn", text: "Atención: errores puntuales" };
-  return { key: "error", text: "Degradado: tasa de error alta" };
+  return { key: "error", text: "Revisar: errores en ejecuciones" };
 });
 const tokenSplit = computed(() => {
   const t = data.value?.totals;
@@ -185,7 +191,7 @@ const latencyByModelOption = computed<EChartsCoreOption>(() => {
         type: "bar",
         barMaxWidth: 40,
         data: d?.byModel.map((m) => m.p95Ms) ?? [],
-        itemStyle: { color: PALETTE.amber, borderRadius: [6, 6, 0, 0] },
+        itemStyle: { color: PALETTE.violet, borderRadius: [6, 6, 0, 0] },
       },
     ],
   };
@@ -238,6 +244,22 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
     <EmptyState v-else-if="empty" icon="insights" title="Sin datos en este rango">Ejecuta un agente instrumentado o amplía el rango de tiempo.</EmptyState>
 
     <template v-else-if="data">
+      <!-- Summary Overview -->
+      <div class="summary-overview">
+        <div class="summary-tile">
+          <div class="summary-number">{{ formatCount(data.totals.traces) }}</div>
+          <div class="summary-text">Ejecuciones</div>
+        </div>
+        <div class="summary-tile">
+          <div class="summary-number">{{ formatCount(data.totals.conversations) }}</div>
+          <div class="summary-text">Conversaciones</div>
+        </div>
+        <div class="summary-tile">
+          <div class="summary-number">{{ formatCount(data.totals.spans) }}</div>
+          <div class="summary-text">Operaciones</div>
+        </div>
+      </div>
+
       <!-- Top Row: Status + Key Metrics -->
       <div class="top-row">
         <div class="status-card" :class="health.key">
@@ -256,6 +278,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
           <div class="metric-label">ERRORES</div>
           <div class="metric-value" :style="{ color: data.totals.errorTraces > 0 ? '#d9382e' : '#2a5a0d' }">{{ formatCount(data.totals.errorTraces) }}</div>
           <div class="metric-detail">{{ formatPercent(data.totals.errorRate) }}</div>
+          <button v-if="data.totals.errorTraces > 0" class="view-errors-btn" @click="goToErrors">Ver trazas</button>
         </div>
 
         <div class="metric-card">
@@ -347,25 +370,6 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
           </div>
         </section>
 
-        <section class="detail-panel">
-          <div class="panel-header">
-            <h3>Resumen</h3>
-          </div>
-          <div class="summary-grid">
-            <div class="summary-item">
-              <div class="summary-value">{{ formatCount(data.totals.traces) }}</div>
-              <div class="summary-label">Ejecuciones</div>
-            </div>
-            <div class="summary-item">
-              <div class="summary-value">{{ formatCount(data.totals.conversations) }}</div>
-              <div class="summary-label">Conversaciones</div>
-            </div>
-            <div class="summary-item">
-              <div class="summary-value">{{ formatCount(data.totals.spans) }}</div>
-              <div class="summary-label">Operaciones</div>
-            </div>
-          </div>
-        </section>
       </div>
     </template>
   </q-page>
@@ -412,6 +416,40 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
   justify-content: center;
   align-items: center;
   min-height: 240px;
+}
+
+/* Summary Overview */
+.summary-overview {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 4px;
+}
+
+.summary-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px;
+  border-radius: 20px;
+  background: var(--mt-soft);
+  text-align: center;
+}
+
+.summary-number {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--mt-violet);
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.summary-text {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--mt-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 /* Top Row */
@@ -545,6 +583,23 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
   font-size: 12px;
   color: var(--mt-muted);
   font-weight: 600;
+}
+
+.view-errors-btn {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 8px;
+  background: #d9382e;
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.view-errors-btn:hover {
+  background: #b8271a;
 }
 
 /* Charts Grid */
