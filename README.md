@@ -58,9 +58,12 @@ make up
 
 ✨ **Este único comando:**
 1. Comprueba y crea el clúster de Kubernetes (`memtrace-cluster`).
-2. Despliega todos los recursos y aplica las migraciones de base de datos.
-3. Espera a que ClickHouse y el Colector estén 100% disponibles.
-4. **Redirige automáticamente los puertos a tu máquina local.**
+2. Construye las imágenes de la API y del dashboard y las carga en el clúster.
+3. Despliega todos los recursos y aplica las migraciones de base de datos.
+4. Espera a que ClickHouse, el Colector, la API y el dashboard estén 100% disponibles.
+5. **Redirige automáticamente los puertos a tu máquina local.**
+
+Cuando termine, abre el dashboard en **http://localhost:8080**.
 
 ---
 
@@ -68,6 +71,7 @@ make up
 
 Una vez ejecutado `make up`, tendrás acceso directo a:
 
+* 📊 **Dashboard:** [http://localhost:8080](http://localhost:8080) (nginx sirve la app y reenvía `/api` a la API; ADR-014)
 * 🌐 **UI Web de ClickHouse (Play):** [http://localhost:8123/play](http://localhost:8123/play)
   * **Usuario:** `default`
   * **Contraseña:** `memtrace-dev-only`
@@ -75,18 +79,16 @@ Una vez ejecutado `make up`, tendrás acceso directo a:
 * 📡 **Endpoint OTLP Collector (gRPC):** `localhost:4317`
 * 🌐 **Endpoint OTLP Collector (HTTP):** `localhost:4318`
 
-### Dashboard y API de consulta
-
-`make up` construye las imágenes de la API y del dashboard (`api/Dockerfile`, `dashboard/Dockerfile`), las carga en el clúster y las despliega junto a ClickHouse y el collector. El dashboard queda en **http://localhost:8080** (nginx sirve la app y reenvía `/api` a la API; ADR-014).
-
-Para desarrollar con recarga en caliente, con el stack levantado:
+### Probar con trazas
 
 ```bash
-make dev        # API en :3001 + dashboard en http://localhost:5173 (Ctrl+C para parar)
-make dev-data   # en otra terminal: genera trazas de ejemplo (requiere `pip install -e sdk/python`)
+pip install -e sdk/python   # una vez: el SDK de Python
+make dev-data               # agente simulado que envía trazas al collector (localhost:4317)
 ```
 
-El dashboard se actualiza solo (por defecto cada 5 s). Detalles en [`api/README.md`](api/README.md) y [`dashboard/README.md`](dashboard/README.md).
+Tu propio agente solo debe apuntar al collector, que es el valor por defecto del SDK (`localhost:4317`); ver [`sdk/python/README.md`](sdk/python/README.md). El dashboard se actualiza solo (por defecto cada 5 s).
+
+Si cambias código de la API o del dashboard, reconstruye y redespliega con `make images`. Detalles en [`api/README.md`](api/README.md) y [`dashboard/README.md`](dashboard/README.md).
 
 ---
 
@@ -103,7 +105,6 @@ El proyecto incluye un `Makefile` interactivo para gestionar fácilmente el cicl
 | **`make logs`** | Muestra los registros (*logs*) en tiempo real del OpenTelemetry Collector. |
 | **`make migrate`** | Re-ejecuta de forma manual las migraciones de base de datos. |
 | **`make images`** | Reconstruye las imágenes de la API y el dashboard, las carga en el clúster y reinicia sus pods. |
-| **`make dev`** | Levanta la API (:3001) y el dashboard (:5173) a la vez; Ctrl+C los para. |
 | **`make dev-data`** | Genera trazas de ejemplo con un agente simulado. |
 | **`make down`** | Detiene el clúster conservando todos los datos guardados. |
 | **`make reset`** | **Elimina** por completo el clúster de Kubernetes y sus volúmenes de datos. |

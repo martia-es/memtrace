@@ -6,7 +6,7 @@ API_IMAGE  ?= docker.io/memtrace/api:dev
 DASH_IMAGE ?= docker.io/memtrace/dashboard:dev
 
 .DEFAULT_GOAL := help
-.PHONY: help check up images status forward logs query migrate down reset dev dev-data
+.PHONY: help check up images status forward logs query migrate down reset dev-data
 
 help: ## Muestra esta ayuda
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-10s %s\n", $$1, $$2}'
@@ -88,17 +88,6 @@ reset: ## BORRA el clúster y TODOS los datos (pide confirmación)
 	else \
 		echo "Cancelado"; \
 	fi
-
-dev: ## Levanta la API (:3001) y el dashboard (:5173) a la vez (Ctrl+C para parar; requiere 'make up')
-	@command -v node >/dev/null 2>&1 || { echo "Falta 'node': instálalo antes de continuar"; exit 1; }
-	@[ -d api/node_modules ] || (cd api && npm install)
-	@[ -d dashboard/node_modules ] || (cd dashboard && npm install)
-	@curl -s -o /dev/null --max-time 2 http://localhost:8123/ping || echo "⚠️  ClickHouse no responde en localhost:8123: ejecuta 'make up' (o 'make forward') primero"
-	@echo "API → http://localhost:3001  |  Dashboard → http://localhost:5173  (Ctrl+C para parar)"
-	@trap 'kill 0' EXIT; \
-	(cd api && CLICKHOUSE_PASSWORD=$${CLICKHOUSE_PASSWORD:-memtrace-dev-only} npm run dev) & \
-	(cd dashboard && npm run dev) & \
-	wait
 
 dev-data: ## Genera trazas de ejemplo (agente simulado) para probar el dashboard
 	@$(PYTHON) -c "import opentelemetry.sdk" 2>/dev/null || { echo "Falta el SDK de Python: pip install -e sdk/python"; exit 1; }
