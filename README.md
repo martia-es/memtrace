@@ -88,7 +88,21 @@ make dev-data               # agente simulado que envía trazas al collector (lo
 
 Tu propio agente solo debe apuntar al collector, que es el valor por defecto del SDK (`localhost:4317`); ver [`sdk/python/README.md`](sdk/python/README.md). El dashboard se actualiza solo (por defecto cada 5 s).
 
-Si cambias código de la API o del dashboard, reconstruye y redespliega con `make images`. Detalles en [`api/README.md`](api/README.md) y [`dashboard/README.md`](dashboard/README.md).
+### Ver tus cambios de código
+
+Si cambias código de la API o del dashboard:
+
+```bash
+make images     # reconstruye las imágenes, las carga en el clúster y reinicia los pods (1-2 min)
+# el port-forward del dashboard apuntaba al pod anterior: rehazlo
+pkill -f "kubectl port-forward svc/dashboard"; kubectl port-forward svc/dashboard 8080:8080 -n memtrace &
+```
+
+Después recarga http://localhost:8080 con recarga forzada (Ctrl/Cmd+Shift+R). Si el código no compila, `make images` falla y el clúster sigue con la versión anterior.
+
+Para iterar más rápido sobre el dashboard sin reconstruir imágenes: `kubectl port-forward svc/api 3001:3001 -n memtrace &` y, en `dashboard/`, `npm install && npm run dev` (http://localhost:5173, con proxy a la API del clúster).
+
+Detalles en [`api/README.md`](api/README.md) y [`dashboard/README.md`](dashboard/README.md).
 
 ---
 
