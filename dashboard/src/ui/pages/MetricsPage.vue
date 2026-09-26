@@ -115,7 +115,7 @@ const activityOption = computed<EChartsCoreOption>(() => {
   };
 });
 
-const tokensOption = computed<EChartsCoreOption>(() => {
+const inputTokensOption = computed<EChartsCoreOption>(() => {
   const d = data.value;
   const c = chartColors($q.dark.isActive);
   const a = axisBase();
@@ -129,15 +129,84 @@ const tokensOption = computed<EChartsCoreOption>(() => {
     yAxis: { type: "value", ...a, axisLabel: { ...a.axisLabel, formatter: (v: number) => formatCount(v) } },
     series: [
       {
-        name: "Tokens",
+        name: "Tokens de entrada",
         type: "line",
         smooth: 0.35,
         showSymbol: false,
         lineStyle: { width: 2.5, color: PALETTE.violet },
-        areaStyle: {
-          color: { type: "linear", x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: "rgba(74,50,201,0.32)" }, { offset: 1, color: "rgba(74,50,201,0)" }] },
-        },
-        data: d?.timeseries.map((p) => p.totalTokens) ?? [],
+        areaStyle: { color: "rgba(74,50,201,0.16)" },
+        data: d?.timeseries.map((p) => Math.round((p.totalTokens * data.value!.totals.inputTokens) / data.value!.totals.totalTokens)) ?? [],
+      },
+    ],
+  };
+});
+
+const outputTokensOption = computed<EChartsCoreOption>(() => {
+  const d = data.value;
+  const c = chartColors($q.dark.isActive);
+  const a = axisBase();
+  return {
+    backgroundColor: "transparent",
+    textStyle: { color: c.text },
+    animationDuration: 520,
+    grid: { left: 6, right: 6, top: 16, bottom: 6, containLabel: true },
+    tooltip: tooltip(),
+    xAxis: { type: "category", boundaryGap: false, data: d?.timeseries.map((p) => label(p.bucketStart)) ?? [], ...a, splitLine: { show: false }, axisLine: { lineStyle: { color: c.grid } } },
+    yAxis: { type: "value", ...a, axisLabel: { ...a.axisLabel, formatter: (v: number) => formatCount(v) } },
+    series: [
+      {
+        name: "Tokens de salida",
+        type: "line",
+        smooth: 0.35,
+        showSymbol: false,
+        lineStyle: { width: 2.5, color: PALETTE.lime },
+        areaStyle: { color: "rgba(196,242,107,0.16)" },
+        data: d?.timeseries.map((p) => Math.round((p.totalTokens * data.value!.totals.outputTokens) / data.value!.totals.totalTokens)) ?? [],
+      },
+    ],
+  };
+});
+
+const latencyByModelOption = computed<EChartsCoreOption>(() => {
+  const d = data.value;
+  const c = chartColors($q.dark.isActive);
+  const a = axisBase();
+  return {
+    backgroundColor: "transparent",
+    textStyle: { color: c.text },
+    animationDuration: 520,
+    grid: { left: 6, right: 6, top: 16, bottom: 6, containLabel: true },
+    tooltip: tooltip(),
+    xAxis: { type: "category", data: d?.byModel.map((m) => m.model.substring(0, 15)) ?? [], ...a, splitLine: { show: false }, axisLine: { lineStyle: { color: c.grid } } },
+    yAxis: { type: "value", ...a, axisLabel: { ...a.axisLabel, formatter: (v: number) => formatDuration(v) } },
+    series: [
+      {
+        name: "Latencia p95",
+        type: "bar",
+        barMaxWidth: 40,
+        data: d?.byModel.map((m) => m.p95Ms) ?? [],
+        itemStyle: { color: PALETTE.amber, borderRadius: [6, 6, 0, 0] },
+      },
+    ],
+  };
+});
+
+const toolUsageOption = computed<EChartsCoreOption>(() => {
+  const d = data.value;
+  const c = chartColors($q.dark.isActive);
+  const colors = [PALETTE.violet, PALETTE.amber, PALETTE.danger, PALETTE.limeDeep, "#6c5ce7", "#fd79a8"];
+  return {
+    backgroundColor: "transparent",
+    textStyle: { color: c.text },
+    tooltip: { trigger: "item", backgroundColor: "rgba(255,255,255,0.98)", textStyle: { color: c.text }, borderColor: c.grid, extraCssText: "border-radius: 8px;" },
+    series: [
+      {
+        name: "Uso de herramientas",
+        type: "pie",
+        radius: ["40%", "70%"],
+        data: d?.byTool.map((t, i) => ({ value: t.calls, name: t.tool, itemStyle: { color: colors[i % colors.length] } })) ?? [],
+        emphasis: { itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: "rgba(0, 0, 0, 0.5)" } },
+        label: { fontSize: 11, fontWeight: 600 },
       },
     ],
   };
@@ -145,7 +214,6 @@ const tokensOption = computed<EChartsCoreOption>(() => {
 
 const maxModelCalls = computed(() => Math.max(1, ...(data.value?.byModel.map((m) => m.calls) ?? [1])));
 const maxToolCalls = computed(() => Math.max(1, ...(data.value?.byTool.map((t) => t.calls) ?? [1])));
-const maxToolP95 = computed(() => Math.max(1, ...(data.value?.byTool.map((t) => t.p95Ms) ?? [1])));
 const pct = (value: number, max: number) => `${Math.max(3, (value / max) * 100)}%`;
 const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.errors / t.calls : 0);
 </script>
@@ -197,13 +265,13 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
         </div>
 
         <div class="metric-card">
-          <div class="metric-label">TOKENS</div>
+          <div class="metric-label">TOKENS TOTALES</div>
           <div class="metric-value" style="color: #4a32c9">{{ formatCount(data.totals.totalTokens) }}</div>
           <div class="metric-detail">{{ formatCount(Math.round(tokensPerTrace)) }} por exec.</div>
         </div>
       </div>
 
-      <!-- Charts Row -->
+      <!-- Charts Row - Activity & Tokens -->
       <div class="charts-grid">
         <section class="chart-panel span-2">
           <h2>Actividad y Rendimiento</h2>
@@ -211,8 +279,28 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
         </section>
 
         <section class="chart-panel">
-          <h2>Consumo de Tokens</h2>
-          <EChart :option="tokensOption" height="400px" label="Tokens consumidos" />
+          <h2>Distribución de Herramientas</h2>
+          <EChart v-if="data.byTool.length" :option="toolUsageOption" height="400px" label="Uso de herramientas" />
+          <div v-else class="no-data">Sin herramientas ejecutadas</div>
+        </section>
+      </div>
+
+      <!-- Tokens Row -->
+      <div class="tokens-grid">
+        <section class="chart-panel">
+          <h2>Tokens de Entrada</h2>
+          <EChart :option="inputTokensOption" height="300px" label="Tokens de entrada" />
+        </section>
+
+        <section class="chart-panel">
+          <h2>Tokens de Salida</h2>
+          <EChart :option="outputTokensOption" height="300px" label="Tokens de salida" />
+        </section>
+
+        <section class="chart-panel">
+          <h2>Latencia por Modelo</h2>
+          <EChart v-if="data.byModel.length" :option="latencyByModelOption" height="300px" label="Latencia p95 por modelo" />
+          <div v-else class="no-data">Sin llamadas a LLM</div>
         </section>
       </div>
 
@@ -230,7 +318,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
               <div class="item-stats">
                 <span class="stat">{{ formatCount(m.calls) }} llamadas</span>
                 <span class="stat">{{ formatCount(m.inputTokens + m.outputTokens) }} tk</span>
-                <span class="stat" style="color: #e39a1b">{{ formatDuration(m.p95Ms) }}</span>
+                <span class="stat" style="color: #e39a1b">{{ formatDuration(m.p95Ms) }} p95</span>
               </div>
               <div class="item-bar">
                 <div class="item-bar-fill" :style="{ width: pct(m.calls, maxModelCalls) }" />
@@ -251,10 +339,10 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
               <div class="item-stats">
                 <span class="stat">{{ formatCount(t.calls) }} usos</span>
                 <span class="stat" :style="{ color: toolErrorRate(t) === 0 ? '#2a5a0d' : toolErrorRate(t) < 0.1 ? '#e39a1b' : '#d9382e' }">
-                  {{ toolErrorRate(t) === 0 ? 'OK' : formatPercent(toolErrorRate(t)) }}
+                  Tasa error: {{ formatPercent(toolErrorRate(t)) }}
                 </span>
               </div>
-              <div class="item-detail">{{ formatDuration(t.p95Ms) }}</div>
+              <div class="item-detail">{{ formatDuration(t.p95Ms) }} latencia p95</div>
             </div>
           </div>
         </section>
@@ -378,7 +466,6 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  display: block;
 }
 
 .status-card.ok .status-icon i {
@@ -467,6 +554,12 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
   gap: 16px;
 }
 
+.tokens-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
 .chart-panel {
   padding: 28px;
   border-radius: 24px;
@@ -484,6 +577,16 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
   font-weight: 700;
   color: var(--mt-ink);
   letter-spacing: -0.02em;
+}
+
+.no-data {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 380px;
+  color: var(--mt-muted);
+  font-size: 14px;
+  font-weight: 600;
 }
 
 /* Details Grid */
@@ -554,7 +657,8 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 
 .item-stats {
   display: flex;
-  gap: 12px;
+  flex-direction: column;
+  gap: 4px;
   font-size: 12px;
   font-weight: 600;
   color: var(--mt-muted);
@@ -620,8 +724,8 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
   .top-row {
     grid-template-columns: 1.2fr 1fr 1fr 1fr;
   }
-  .charts-grid {
-    grid-template-columns: 1.5fr 1fr;
+  .tokens-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 
@@ -632,6 +736,9 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
   .charts-grid {
     grid-template-columns: 1fr;
   }
+  .tokens-grid {
+    grid-template-columns: 1fr;
+  }
   .details-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -639,7 +746,8 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 
 @media (max-width: 768px) {
   .top-row,
-  .details-grid {
+  .details-grid,
+  .tokens-grid {
     grid-template-columns: 1fr;
   }
   .status-card {
