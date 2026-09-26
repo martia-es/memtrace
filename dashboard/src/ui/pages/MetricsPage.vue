@@ -420,16 +420,22 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
             <span class="panel-count">{{ data.byModel.length }}</span>
           </div>
           <div v-if="!data.byModel.length" class="empty-state">Sin llamadas a LLM</div>
-          <div v-else class="items-list">
-            <div v-for="m in data.byModel" :key="m.model" class="item">
-              <div class="item-name">{{ m.model }}</div>
-              <div class="item-stats">
-                <span class="stat">{{ formatCount(m.calls) }} llamadas</span>
-                <span class="stat">{{ formatCount(m.inputTokens + m.outputTokens) }} tk</span>
-                <span class="stat" style="color: #e39a1b">{{ formatDuration(m.p95Ms) }} p95</span>
+          <div v-else class="model-grid">
+            <div v-for="m in data.byModel" :key="m.model" class="model-card">
+              <div class="model-title">{{ m.model }}</div>
+              <div class="model-stat-main">
+                <div class="model-number">{{ formatCount(m.calls) }}</div>
+                <div class="model-label">llamadas</div>
               </div>
-              <div class="item-bar">
-                <div class="item-bar-fill" :style="{ width: pct(m.calls, maxModelCalls) }" />
+              <div class="model-stats-row">
+                <div class="model-stat-item">
+                  <div class="stat-value">{{ formatCount(m.inputTokens + m.outputTokens) }}</div>
+                  <div class="stat-label">tokens</div>
+                </div>
+                <div class="model-stat-item">
+                  <div class="stat-value" style="color: #e39a1b">{{ formatDuration(m.p95Ms) }}</div>
+                  <div class="stat-label">latencia p95</div>
+                </div>
               </div>
             </div>
           </div>
@@ -441,16 +447,22 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
             <span class="panel-count">{{ data.byTool.length }}</span>
           </div>
           <div v-if="!data.byTool.length" class="empty-state">Sin herramientas ejecutadas</div>
-          <div v-else class="items-list">
-            <div v-for="t in data.byTool" :key="t.tool" class="item">
-              <div class="item-name">{{ t.tool }}</div>
-              <div class="item-stats">
-                <span class="stat">{{ formatCount(t.calls) }} usos</span>
-                <span class="stat" :style="{ color: toolErrorRate(t) === 0 ? '#2a5a0d' : toolErrorRate(t) < 0.1 ? '#e39a1b' : '#d9382e' }">
-                  Tasa error: {{ formatPercent(toolErrorRate(t)) }}
-                </span>
+          <div v-else class="tool-grid">
+            <div v-for="t in data.byTool" :key="t.tool" class="tool-card">
+              <div class="tool-title">{{ t.tool }}</div>
+              <div class="tool-status" :style="{ backgroundColor: toolErrorRate(t) === 0 ? '#2a5a0d' : toolErrorRate(t) < 0.1 ? '#e39a1b' : '#d9382e', color: 'white' }">
+                {{ toolErrorRate(t) === 0 ? 'FIABLE' : formatPercent(toolErrorRate(t)) + ' FALLOS' }}
               </div>
-              <div class="item-detail">{{ formatDuration(t.p95Ms) }} latencia p95</div>
+              <div class="tool-stats-row">
+                <div class="tool-stat-item">
+                  <div class="stat-value">{{ formatCount(t.calls) }}</div>
+                  <div class="stat-label">usos</div>
+                </div>
+                <div class="tool-stat-item">
+                  <div class="stat-value">{{ formatDuration(t.p95Ms) }}</div>
+                  <div class="stat-label">latencia</div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -777,68 +789,133 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
   font-size: 13px;
 }
 
-.items-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+/* Model Grid */
+.model-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
 }
 
-.item {
+.model-card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 18px;
+  gap: 12px;
+  padding: 20px;
   border-radius: 16px;
-  background: linear-gradient(135deg, var(--mt-soft) 0%, var(--mt-card) 100%);
-  border-left: 4px solid var(--mt-violet);
+  background: var(--mt-soft);
+  border: 2px solid var(--mt-line);
   transition: all 0.2s ease;
 }
 
-.item:hover {
-  box-shadow: 0 4px 12px rgba(74, 50, 201, 0.1);
-  transform: translateY(-2px);
+.model-card:hover {
+  border-color: var(--mt-violet);
+  box-shadow: 0 4px 12px rgba(74, 50, 201, 0.15);
 }
 
-.item-name {
-  font-size: 14px;
+.model-title {
+  font-size: 12px;
   font-weight: 800;
-  color: var(--mt-ink);
-  letter-spacing: -0.02em;
+  color: var(--mt-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
-.item-stats {
+.model-stat-main {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
+  gap: 4px;
 }
 
-.stat {
-  display: flex;
-  align-items: center;
+.model-number {
+  font-size: 32px;
+  font-weight: 900;
+  color: var(--mt-violet);
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.model-label {
+  font-size: 11px;
+  font-weight: 600;
   color: var(--mt-muted);
 }
 
-.item-detail {
-  font-size: 13px;
-  color: var(--mt-muted);
-  font-weight: 600;
-  padding-top: 4px;
+.model-stats-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding-top: 10px;
   border-top: 1px solid var(--mt-line);
 }
 
-.item-bar {
-  height: 6px;
-  border-radius: 3px;
-  background: var(--mt-line);
-  overflow: hidden;
+.model-stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.item-bar-fill {
-  height: 100%;
-  border-radius: 3px;
-  background: var(--mt-violet);
+.stat-value {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--mt-ink);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.stat-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--mt-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Tool Grid */
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.tool-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 16px;
+  background: var(--mt-soft);
+  border: 2px solid var(--mt-line);
+  transition: all 0.2s ease;
+}
+
+.tool-card:hover {
+  border-color: var(--mt-violet);
+  box-shadow: 0 4px 12px rgba(74, 50, 201, 0.15);
+}
+
+.tool-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--mt-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.tool-status {
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+  letter-spacing: 0.08em;
+}
+
+.tool-stats-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--mt-line);
 }
 
 .summary-grid {
