@@ -11,6 +11,7 @@ configMapGenerator:
   - name: clickhouse-migrations
     files:
       - migrations/clickhouse/001_init_traces.sql
+      - migrations/clickhouse/002_conversation_id.sql
     options:
       disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
   - name: clickhouse-config
