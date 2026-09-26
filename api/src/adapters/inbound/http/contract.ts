@@ -48,6 +48,9 @@ export interface TraceSummaryDto {
   spanCount: number;
   errorCount: number;
   totalTokens: number;
+  /** vista previa (≤ 240 caracteres) del mensaje de entrada y de salida */
+  input: string | null;
+  output: string | null;
   /** conversación a la que pertenece el turno (ADR-012) */
   conversationId: string | null;
 }

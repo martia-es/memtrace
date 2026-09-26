@@ -2,7 +2,7 @@ import type { ClickHouseClient } from "@clickhouse/client";
 import { RepositoryUnavailableError } from "@/application/errors";
 import type { ConversationListQuery, SpanListQuery, TraceListQuery, TraceRepository, TraceSpans } from "@/application/ports/trace-repository";
 import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
-import type { SpanCursor, SpanRecord } from "@/domain/span-row";
+import { previewOf, type SpanCursor, type SpanRecord } from "@/domain/span-row";
 import type { ChatSpanRecord } from "@/domain/transcript";
 import type { MetricsOverview, MetricsQuery } from "@/domain/metrics";
 import type { Span, StatusCode } from "@/domain/span";
@@ -221,6 +221,8 @@ export class ClickHouseTraceRepository implements TraceRepository {
         spanCount: agg?.spanCount ?? 1,
         errorCount: agg?.errorCount ?? 0,
         totalTokens: agg?.totalTokens ?? 0,
+        input: agg ? previewOf(agg.inputRaw, "input", agg.inputChat) : null,
+        output: agg ? previewOf(agg.outputRaw, "output", agg.outputChat) : null,
         conversationId: r.ConversationId ? String(r.ConversationId) : null,
       };
     });
@@ -231,7 +233,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
 
   /** Agregados por traza para una página, acotados en tiempo para podar particiones diarias. */
   private async aggregatesFor(roots: Row[]) {
-    const result = new Map<string, { spanCount: number; errorCount: number; totalTokens: number }>();
+    const result = new Map<string, { spanCount: number; errorCount: number; totalTokens: number; inputRaw: string | null; inputChat: boolean; outputRaw: string | null; outputChat: boolean }>();
     if (roots.length === 0) return result;
 
     const startsMs = roots.map((r) => num(r.startUs) / 1000);
@@ -239,9 +241,16 @@ export class ClickHouseTraceRepository implements TraceRepository {
     const toMs = Math.ceil(Math.max(...startsMs)) + TRACE_WINDOW_MS;
     const { clause, params } = ClickHouseTraceRepository.range(fromMs, toMs);
 
+    // Entrada = la del primer span que la tiene; salida = la del último en terminar.
+    const inputExpr = firstOf(["memtrace.input", "gen_ai.input.messages", "gen_ai.tool.call.arguments"]);
+    const outputExpr = firstOf(["memtrace.output", "gen_ai.output.messages", "gen_ai.tool.call.result"]);
     const rows = await this.rows(
       `SELECT TraceId, uniqExact(SpanId) AS spanCount, uniqExactIf(SpanId, StatusCode = ${ERROR}) AS errorCount,
-              sumIf(${TOKENS}, ${OP} = 'chat') AS totalTokens
+              sumIf(${TOKENS}, ${OP} = 'chat') AS totalTokens,
+              argMinIf(${inputExpr}, Timestamp, ${inputExpr} != '') AS inputRaw,
+              argMinIf(${OP} = 'chat', Timestamp, ${inputExpr} != '') AS inputChat,
+              argMaxIf(${outputExpr}, Timestamp + toIntervalNanosecond(Duration), ${outputExpr} != '') AS outputRaw,
+              argMaxIf(${OP} = 'chat', Timestamp + toIntervalNanosecond(Duration), ${outputExpr} != '') AS outputChat
        FROM ${this.spans} WHERE TraceId IN {ids:Array(String)} AND ${clause} GROUP BY TraceId`,
       { ...params, ids: roots.map((r) => String(r.TraceId)) },
     );
@@ -250,6 +259,10 @@ export class ClickHouseTraceRepository implements TraceRepository {
         spanCount: num(r.spanCount),
         errorCount: num(r.errorCount),
         totalTokens: num(r.totalTokens),
+        inputRaw: r.inputRaw ? String(r.inputRaw) : null,
+        inputChat: Boolean(r.inputChat),
+        outputRaw: r.outputRaw ? String(r.outputRaw) : null,
+        outputChat: Boolean(r.outputChat),
       });
     }
     return result;

@@ -12,6 +12,8 @@ export function summary(overrides: Partial<TraceSummaryDto> = {}): TraceSummaryD
     spanCount: 3,
     errorCount: 0,
     totalTokens: 0,
+    input: null,
+    output: null,
     conversationId: null,
     ...overrides,
   };

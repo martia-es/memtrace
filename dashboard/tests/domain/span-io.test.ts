@@ -29,6 +29,12 @@ describe("spanIo", () => {
     expect(io.output[0]).toMatchObject({ label: "salida", text: "respuesta" });
   });
 
+  it("extracts chat messages from a chain input shaped as {messages: [...]}", () => {
+    const io = spanIo(node({ content: { input: { messages: [{ role: "human", content: "hola" }] } } }));
+    expect(io.input[0]).toMatchObject({ label: "human", role: "user", text: "hola" });
+    expect(spanIo(node({ content: { input: '{"messages":[{"role":"human","content":"hi"}]}' } })).input[0]).toMatchObject({ role: "user", text: "hi" });
+  });
+
   it("keeps non-message arrays as a single block", () => {
     expect(spanIo(node({ content: { inputMessages: [1, 2] } })).input).toHaveLength(1);
   });

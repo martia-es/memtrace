@@ -55,19 +55,19 @@ defineExpose({ collapseAll: () => (collapsed.value = new Set(parentIds(props.roo
               <path :d="r.collapsed ? 'M9 6l6 6-6 6' : 'M6 9l6 6 6-6'" />
             </svg>
           </span>
-          <span class="dot" :style="{ background: r.node.status.code === 'error' ? '#e5484d' : kindMeta(r.node.kind).color }" />
+          <span class="dot" :style="{ background: r.node.status.code === 'error' ? '#4a7c59' : kindMeta(r.node.kind).color }" />
           <span class="name mono" :class="{ err: r.node.status.code === 'error' }" :title="r.node.name">{{ r.node.name }}</span>
         </span>
         <span class="track" :title="`${formatDuration(r.node.offsetMs)} → ${formatDuration(r.node.offsetMs + r.node.durationMs)}`">
           <span v-for="t in ticks" :key="t.pct" class="grid" :style="{ left: `${t.pct}%` }" />
-          <span class="bar" :style="{ left: `${r.leftPct}%`, width: `${r.widthPct}%`, background: r.node.status.code === 'error' ? '#e5484d' : kindMeta(r.node.kind).color }" />
+          <span class="bar" :style="{ left: `${r.leftPct}%`, width: `${r.widthPct}%`, background: r.node.status.code === 'error' ? '#4a7c59' : kindMeta(r.node.kind).color }" />
         </span>
         <span class="dur mono" :class="{ err: r.node.status.code === 'error' }">{{ formatDuration(r.node.durationMs) }}</span>
       </button>
     </div>
     <div class="legend">
       <span v-for="k in kindsPresent" :key="k"><span class="sw" :style="{ background: kindMeta(k).color }" />{{ kindMeta(k).label }}</span>
-      <span><span class="sw" style="background: #e5484d" />Error</span>
+      <span><span class="sw" style="background: #4a7c59" />Error</span>
     </div>
   </div>
 </template>

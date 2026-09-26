@@ -96,7 +96,7 @@ const backToList = () => void router.push({ name: "conversations", query: { ...f
       <header class="head mt-card">
         <div class="titles">
           <div class="title-row">
-            <h1>Conversación</h1>
+            <h1 class="leading-none">Conversación</h1>
             <span v-if="conversation.errorTurns" class="mt-pill error">{{ conversation.errorTurns }} {{ conversation.errorTurns === 1 ? "traza con error" : "trazas con error" }}</span>
             <span v-else-if="conversation.failedSpans" class="mt-pill warn">{{ conversation.failedSpans }} {{ conversation.failedSpans === 1 ? "span con fallos" : "spans con fallos" }}</span>
           </div>
@@ -138,7 +138,7 @@ const backToList = () => void router.push({ name: "conversations", query: { ...f
   border: 0;
   background: none;
   padding: 0;
-  color: var(--mt-violet);
+  color: #c4f26b;
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -159,6 +159,7 @@ h1 {
   font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.03em;
+  line-height: 1;
 }
 .head {
   box-sizing: border-box;
@@ -186,7 +187,7 @@ h1 {
   text-overflow: ellipsis;
 }
 .id {
-  color: var(--mt-violet);
+  color: #c4f26b;
   font-size: 12px;
 }
 .stats {

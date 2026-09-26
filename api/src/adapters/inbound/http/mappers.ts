@@ -21,6 +21,8 @@ export function toTraceSummaryDto(t: TraceSummary): TraceSummaryDto {
     spanCount: t.spanCount,
     errorCount: t.errorCount,
     totalTokens: t.totalTokens,
+    input: t.input,
+    output: t.output,
     conversationId: t.conversationId,
   };
 }

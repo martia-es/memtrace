@@ -24,6 +24,7 @@ __all__ = [
     "get_current_run_id",
     "MemTraceCallbackHandler",
     "enable_langchain_instrumentation",
+    "enable_pydantic_ai_instrumentation",
 ]
 
 
@@ -63,3 +64,15 @@ def enable_langchain_instrumentation() -> None:
             "LangChain instrumentation requires: "
             "pip install opentelemetry-instrumentation-langchain"
         ) from e
+
+
+def enable_pydantic_ai_instrumentation() -> None:
+    """Activa la autoinstrumentación automática de Pydantic AI.
+
+    Requiere: pip install pydantic-ai
+
+    Usa el TracerProvider que configuró init_tracer, sin cambios de código.
+    """
+    from memtrace.adapters.inbound.pydantic_ai import enable_pydantic_ai_instrumentation as _enable
+
+    _enable()

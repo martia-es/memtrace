@@ -3,6 +3,7 @@ import type { EChartsCoreOption } from "echarts/core";
 import { computed, watch } from "vue";
 import { chartColors } from "../chart-theme";
 import { formatCount, formatDuration, formatPercent } from "@/domain/format";
+import { PALETTE, CHART_COLORS } from "@/domain/palette";
 import { resolveRange } from "@/domain/time-range";
 import { useQuasar } from "quasar";
 import EChart from "../components/EChart.vue";
@@ -22,7 +23,7 @@ const f = useFilters();
 const router = useRouter();
 
 const goToErrors = () => {
-  router.push({ name: "traces", query: { status: "error", range: f.range.value } });
+  router.push({ name: "conversations", query: { status: "error", range: f.range.value } });
 };
 
 const overview = useAsync((signal) => api.getOverview({ ...resolveRange(f.range.value, Date.now()), service: f.service.value }, signal));
@@ -38,14 +39,6 @@ watch([f.range, f.service], reload, { immediate: true });
 const data = computed(() => overview.data.value);
 const empty = computed(() => data.value !== null && data.value.totals.traces === 0 && data.value.totals.spans === 0);
 
-const PALETTE = {
-  lime: "#c4f26b",
-  blue: "#a8d8f0",
-  pink: "#f0b3d9",
-  purple: "#d9b3f0",
-  yellow: "#fce4a3",
-  peach: "#f9d5b8",
-};
 
 const successRate = computed(() => (data.value ? 1 - data.value.totals.errorRate : 1));
 const health = computed(() => {
@@ -114,14 +107,14 @@ const activityOption = computed<EChartsCoreOption>(() => {
     ],
     series: [
       { name: "Correctas", type: "bar", stack: "t", barMaxWidth: 26, data: d?.timeseries.map((p) => p.traces - p.errorTraces) ?? [], itemStyle: { color: PALETTE.lime, borderRadius: [0, 0, 0, 0] } },
-      { name: "Con error", type: "bar", stack: "t", barMaxWidth: 26, data: d?.timeseries.map((p) => p.errorTraces) ?? [], itemStyle: { color: PALETTE.purple, borderRadius: [6, 6, 0, 0] } },
+      { name: "Con error", type: "bar", stack: "t", barMaxWidth: 26, data: d?.timeseries.map((p) => p.errorTraces) ?? [], itemStyle: { color: PALETTE.teal, borderRadius: [6, 6, 0, 0] } },
       {
         name: "Latencia p95",
         type: "line",
         yAxisIndex: 1,
         smooth: 0.35,
         showSymbol: false,
-        lineStyle: { width: 2.5, color: PALETTE.purple },
+        lineStyle: { width: 2.5, color: PALETTE.teal },
         data: d?.timeseries.map((p) => p.p95Ms) ?? [],
       },
     ],
@@ -147,7 +140,7 @@ const inputTokensOption = computed<EChartsCoreOption>(() => {
         smooth: 0.35,
         showSymbol: false,
         lineStyle: { width: 2.5, color: PALETTE.lime },
-        areaStyle: { color: "rgba(74,50,201,0.16)" },
+        areaStyle: { color: "rgba(196,242,107,0.16)" },
         data: d?.timeseries.map((p) => Math.round((p.totalTokens * data.value!.totals.inputTokens) / data.value!.totals.totalTokens)) ?? [],
       },
     ],
@@ -207,7 +200,7 @@ const latencyByModelOption = computed<EChartsCoreOption>(() => {
 const toolUsageOption = computed<EChartsCoreOption>(() => {
   const d = data.value;
   const c = chartColors($q.dark.isActive);
-  const colors = [PALETTE.lime, PALETTE.yellow, PALETTE.purple, PALETTE.purple, PALETTE.purple, PALETTE.pink];
+  const colors = [...CHART_COLORS];
   const total = d?.byTool.reduce((acc, t) => acc + t.calls, 0) ?? 1;
   const toolData = d?.byTool.map((t, i) => {
     const errorRate = t.calls ? ((t.errors / t.calls) * 100).toFixed(0) : 0;
@@ -361,20 +354,23 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 
         <div class="metric-card" :class="{ alert: data.totals.errorTraces > 0 }">
           <div class="metric-label">ERRORES</div>
-          <div class="metric-value" :style="{ color: data.totals.errorTraces > 0 ? '#d9b3f0' : '#c4f26b' }">{{ formatCount(data.totals.errorTraces) }}</div>
+          <div class="metric-value-with-icon">
+            <q-icon v-if="data.totals.errorTraces > 0" name="error" size="20px" color="#d9b3f0" />
+            <div :style="{ color: data.totals.errorTraces > 0 ? '#5fb59a' : '#c4f26b' }">{{ formatCount(data.totals.errorTraces) }}</div>
+          </div>
           <div class="metric-detail">{{ formatPercent(data.totals.errorRate) }}</div>
           <a v-if="data.totals.errorTraces > 0" class="error-link" @click="goToErrors">Ver trazas →</a>
         </div>
 
         <div class="metric-card">
           <div class="metric-label">LATENCIA P95</div>
-          <div class="metric-value" style="color: #f9d5b8">{{ formatDuration(data.latencyMs.p95) }}</div>
+          <div class="metric-value" style="color: #5fb59a">{{ formatDuration(data.latencyMs.p95) }}</div>
           <div class="metric-detail">{{ formatDuration(data.latencyMs.p50) }} mediana</div>
         </div>
 
         <div class="metric-card">
           <div class="metric-label">TOKENS TOTALES</div>
-          <div class="metric-value" style="color: #a8d8f0">{{ formatCount(data.totals.totalTokens) }}</div>
+          <div class="metric-value" style="color: #7ecf96">{{ formatCount(data.totals.totalTokens) }}</div>
           <div class="metric-detail">{{ formatCount(Math.round(tokensPerTrace)) }} por exec.</div>
         </div>
       </div>
@@ -448,7 +444,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
                   <div class="stat-label">tokens</div>
                 </div>
                 <div class="model-stat-item">
-                  <div class="stat-value" style="color: #f9d5b8">{{ formatDuration(m.p95Ms) }}</div>
+                  <div class="stat-value" style="color: #5fb59a">{{ formatDuration(m.p95Ms) }}</div>
                   <div class="stat-label">latencia p95</div>
                 </div>
               </div>
@@ -525,7 +521,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 .summary-number {
   font-size: 32px;
   font-weight: 800;
-  color: var(--mt-violet);
+  color: #c4f26b;
   line-height: 1;
   letter-spacing: -0.03em;
 }
@@ -560,10 +556,10 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
   border-left-color: #c4f26b;
 }
 .status-card.warn {
-  border-left-color: #fce4a3;
+  border-left-color: #4a7c59;
 }
 .status-card.error {
-  border-left-color: #d9b3f0;
+  border-left-color: #5fb59a;
 }
 
 .status-icon {
@@ -596,10 +592,10 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
   background: #c4f26b;
 }
 .status-card.warn .status-icon i {
-  background: #fce4a3;
+  background: #4a7c59;
 }
 .status-card.error .status-icon i {
-  background: #d9b3f0;
+  background: #5fb59a;
 }
 
 .status-body {
@@ -617,7 +613,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 .status-value {
   font-size: 48px;
   font-weight: 900;
-  color: var(--mt-violet);
+  color: #c4f26b;
   line-height: 1;
   letter-spacing: -0.05em;
   margin-top: 4px;
@@ -665,6 +661,16 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
   letter-spacing: -0.05em;
 }
 
+.metric-value-with-icon {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 42px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+
 .metric-detail {
   font-size: 12px;
   color: var(--mt-muted);
@@ -675,14 +681,14 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
   margin-top: 8px;
   font-size: 12px;
   font-weight: 700;
-  color: #d9b3f0;
+  color: #5fb59a;
   cursor: pointer;
   transition: color 0.2s;
   text-decoration: none;
 }
 
 .error-link:hover {
-  color: #c4a1d9;
+  color: #5fb59a;
   text-decoration: underline;
 }
 
@@ -769,7 +775,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 .panel-count {
   font-size: 20px;
   font-weight: 800;
-  color: var(--mt-violet);
+  color: #c4f26b;
 }
 
 .empty-state {
@@ -798,7 +804,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 }
 
 .model-card:hover {
-  border-color: var(--mt-violet);
+  border-color: #c4f26b;
   box-shadow: 0 4px 12px rgba(74, 50, 201, 0.15);
 }
 
@@ -819,7 +825,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 .model-number {
   font-size: 32px;
   font-weight: 900;
-  color: var(--mt-violet);
+  color: #c4f26b;
   line-height: 1;
   letter-spacing: -0.04em;
 }
@@ -879,7 +885,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 }
 
 .tool-card:hover {
-  border-color: var(--mt-violet);
+  border-color: #c4f26b;
   box-shadow: 0 4px 12px rgba(74, 50, 201, 0.15);
 }
 
@@ -927,7 +933,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 .summary-value {
   font-size: 32px;
   font-weight: 800;
-  color: var(--mt-violet);
+  color: #c4f26b;
   line-height: 1;
   letter-spacing: -0.04em;
 }

@@ -26,3 +26,15 @@ def test_capture_policy():
     assert CapturePolicy(enabled=False).apply({"a": 1}) is None
     assert CapturePolicy(enabled=True).apply({"a": 1}) == '{"a": 1}'
     assert CapturePolicy(enabled=True, max_length=5).apply("x" * 50).endswith("[truncated]")
+
+
+def test_to_json_serializes_chat_messages_as_role_and_content():
+    import json
+
+    from memtrace.domain.serialization import to_json
+
+    class Msg:
+        type = "human"
+        content = "hola"
+
+    assert json.loads(to_json({"messages": [Msg()]})) == {"messages": [{"role": "human", "content": "hola"}]}

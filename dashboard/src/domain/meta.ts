@@ -1,4 +1,5 @@
 import type { StatusCodeDto } from "@contract";
+import { SPAN_COLORS, SPAN_BG_COLORS } from "./palette";
 
 export interface Meta {
   label: string;
@@ -19,14 +20,14 @@ export function statusMeta(code: StatusCodeDto): Meta {
 
 // colores del diseño; `bg` es el fondo suave de la insignia
 const KINDS: Record<string, Meta & { bg: string }> = {
-  agent: { label: "Agente", icon: "smart_toy", color: "#b8c4bc", bg: "#edf1ee" },
-  llm: { label: "LLM", icon: "psychology", color: "#7a5af8", bg: "#ede8ff" },
-  tool: { label: "Herramienta", icon: "build", color: "#ff8a3d", bg: "#ffe9d9" },
-  chain: { label: "Cadena", icon: "link", color: "#4b7bd1", bg: "#e3ecfb" },
-  retriever: { label: "Retriever", icon: "search", color: "#2fb5d6", bg: "#ddf3fa" },
-  embedding: { label: "Embedding", icon: "hub", color: "#1fb5a0", bg: "#ddf5f1" },
+  agent: { label: "Agente", icon: "smart_toy", color: SPAN_COLORS.agent, bg: SPAN_BG_COLORS.agent },
+  llm: { label: "LLM", icon: "psychology", color: SPAN_COLORS.llm, bg: SPAN_BG_COLORS.llm },
+  tool: { label: "Herramienta", icon: "build", color: SPAN_COLORS.tool, bg: SPAN_BG_COLORS.tool },
+  chain: { label: "Cadena", icon: "link", color: SPAN_COLORS.chain, bg: SPAN_BG_COLORS.chain },
+  retriever: { label: "Retriever", icon: "search", color: SPAN_COLORS.retriever, bg: SPAN_BG_COLORS.retriever },
+  embedding: { label: "Embedding", icon: "hub", color: SPAN_COLORS.embedding, bg: SPAN_BG_COLORS.embedding },
 };
 
 export function kindMeta(kind: string): Meta & { bg: string } {
-  return KINDS[kind] ?? { label: kind === "unknown" ? "Otro" : kind, icon: "circle", color: "#9aa79f", bg: "#eef2ef" };
+  return KINDS[kind] ?? { label: kind === "unknown" ? "Otro" : kind, icon: "circle", color: SPAN_COLORS.unknown, bg: SPAN_BG_COLORS.unknown };
 }

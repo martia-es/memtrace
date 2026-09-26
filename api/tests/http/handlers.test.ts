@@ -20,7 +20,7 @@ describe("GET /traces", () => {
     const { repo, handlers } = setup();
     const cursor = { startTimeUs: 1_790_000_000_123_456, traceId: TRACE_ID };
     repo.page = {
-      items: [{ traceId: TRACE_ID, rootSpanName: "agent", serviceName: "svc", startTimeUs: 1_790_000_000_123_456, durationMs: 12.5, status: "ok", spanCount: 3, errorCount: 0, totalTokens: 7, conversationId: "conv-1" }],
+      items: [{ traceId: TRACE_ID, rootSpanName: "agent", serviceName: "svc", startTimeUs: 1_790_000_000_123_456, durationMs: 12.5, status: "ok", spanCount: 3, errorCount: 0, totalTokens: 7, input: null, output: null, conversationId: "conv-1" }],
       nextCursor: cursor,
     };
     const response = await handlers.listTraces(get("/traces"));
@@ -130,7 +130,7 @@ describe("conversations endpoints", () => {
   it("returns a conversation with its turns, and 404 when unknown", async () => {
     const { repo, handlers } = setup();
     repo.conversations.set("c1", summary("c1"));
-    repo.page = { items: [{ traceId: TRACE_ID, rootSpanName: "turno", serviceName: "svc", startTimeUs: 1_790_000_000_000_000, durationMs: 5, status: "ok", spanCount: 2, errorCount: 0, totalTokens: 0, conversationId: "c1" }], nextCursor: null };
+    repo.page = { items: [{ traceId: TRACE_ID, rootSpanName: "turno", serviceName: "svc", startTimeUs: 1_790_000_000_000_000, durationMs: 5, status: "ok", spanCount: 2, errorCount: 0, totalTokens: 0, input: null, output: null, conversationId: "c1" }], nextCursor: null };
     const ok = await handlers.getConversation(get("/conversations/c1"), "c1");
     const body = await ok.json();
     expect(ok.status).toBe(200);

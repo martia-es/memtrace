@@ -70,7 +70,7 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
         <q-icon name="chevron_right" size="16px" />
         <span class="mono current">{{ shortId(traceId) }}</span>
       </nav>
-        <h1 :title="rootName">{{ rootName }}</h1>
+        <h1 class="leading-none" :title="rootName">{{ rootName }}</h1>
         <div class="pills">
           <span class="muted sub">{{ formatDateTime(trace.data.value.startTime) }}</span>
           <StatusBadge :status="trace.data.value.status" show-label />
@@ -128,7 +128,7 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
   border: 0;
   background: none;
   padding: 0;
-  color: var(--mt-violet);
+  color: #c4f26b;
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -155,6 +155,7 @@ h1 {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1;
 }
 h2 {
   font-size: 16px;
@@ -163,16 +164,16 @@ h2 {
 }
 .head {
   box-sizing: border-box;
-  padding: 8px 16px;
+  padding: 4px 16px;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   flex-shrink: 0;
 }
 .head h1 {
   flex: 1;
   min-width: 0;
-  padding-left: 14px;
+  padding-left: 10px;
   border-left: 1px solid var(--mt-line);
 }
 .sub {
@@ -184,7 +185,7 @@ h2 {
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 4px;
   flex-shrink: 0;
 }
 .mt-pill {

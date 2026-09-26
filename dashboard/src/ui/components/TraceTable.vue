@@ -18,6 +18,9 @@ defineEmits<{ open: [traceId: string]; openConversation: [conversationId: string
     <thead>
       <tr>
         <th>Traza</th>
+        <th>Trace ID</th>
+        <th>Entrada</th>
+        <th>Salida</th>
         <th>Servicio</th>
         <th>Inicio</th>
         <th class="num">Duración</th>
@@ -30,6 +33,9 @@ defineEmits<{ open: [traceId: string]; openConversation: [conversationId: string
     <tbody>
       <tr v-for="t in items" :key="t.traceId" class="item" :class="{ fresh: newKeys?.has(t.traceId) }" tabindex="0" @click="$emit('open', t.traceId)" @keydown.enter="$emit('open', t.traceId)">
         <td class="name" :title="labels?.get(t.traceId) ?? t.rootSpanName">{{ labels?.get(t.traceId) ?? t.rootSpanName }}</td>
+        <td class="mono id" :title="t.traceId">{{ t.traceId }}</td>
+        <td class="preview" :title="t.input ?? undefined">{{ t.input ?? "–" }}</td>
+        <td class="preview" :title="t.output ?? undefined">{{ t.output ?? "–" }}</td>
         <td class="muted">{{ t.serviceName }}</td>
         <td class="muted mono">{{ formatDateTime(t.startTime) }}</td>
         <td class="num mono">{{ formatDuration(t.durationMs) }}</td>
@@ -92,8 +98,21 @@ td {
 .muted {
   color: var(--mt-muted);
 }
+.id {
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--mt-muted);
+  font-size: 12px;
+}
+.preview {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--mt-muted);
+}
 .conv-link {
-  color: var(--mt-violet);
+  color: #c4f26b;
   font-size: 12px;
   text-decoration: none;
 }

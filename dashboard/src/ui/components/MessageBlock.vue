@@ -52,7 +52,7 @@ const argValue = (v: unknown) => (typeof v === "string" ? v : JSON.stringify(v))
   --accent: var(--mt-accent);
 }
 .role-assistant {
-  --accent: var(--mt-violet);
+  --accent: #c4f26b;
 }
 .role-tool {
   --accent: var(--mt-warn-ink);

@@ -87,6 +87,12 @@ function single(label: string, value: unknown): IoBlock[] {
   return [{ label, text, structured, role: "other", calls: [] }];
 }
 
+/** Entrada genérica de un grafo/cadena: `{"messages": [...]}` (o el string JSON de eso). */
+function messagesIn(value: unknown): unknown {
+  const obj = typeof value === "string" && value.trimStart().startsWith("{") ? asObject(value) : value;
+  return obj && typeof obj === "object" && "messages" in obj ? (obj as { messages: unknown }).messages : undefined;
+}
+
 export interface SpanIo {
   input: IoBlock[];
   output: IoBlock[];
@@ -105,7 +111,7 @@ export function spanIo(node: SpanNodeDto): SpanIo {
   const pick = (messages: unknown, tool: unknown, generic: unknown, toolLabel: string, genericLabel: string) => {
     if (messages !== undefined) return { blocks: fromMessages(messages) ?? single("mensajes", messages), raw: messages };
     if (tool !== undefined) return { blocks: single(toolLabel, tool), raw: tool };
-    if (generic !== undefined) return { blocks: single(genericLabel, generic), raw: generic };
+    if (generic !== undefined) return { blocks: fromMessages(messagesIn(generic)) ?? single(genericLabel, generic), raw: generic };
     return { blocks: [], raw: undefined };
   };
   const input = pick(c.inputMessages, c.toolArguments, c.input, "argumentos", "entrada");

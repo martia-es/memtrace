@@ -29,7 +29,7 @@ defineProps<{ label: string; value: string; hint?: string; tone?: "default" | "n
   padding: 18px;
 }
 .label {
-  color: var(--mt-violet);
+  color: #c4f26b;
   font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.09em;

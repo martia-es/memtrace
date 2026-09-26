@@ -16,6 +16,7 @@ dependencies = [
     "langchain-google-genai>=1.0.0",
     "python-dotenv>=1.2.3",
     "opentelemetry-instrumentation-langchain>=0.62.3",
+    "pydantic-ai-slim[google]>=1.0.0",
 ]
 
 [tool.setuptools.packages.find]
