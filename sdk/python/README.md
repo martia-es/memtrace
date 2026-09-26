@@ -15,7 +15,7 @@ init_tracer(service_name="mi-agente")   # o variables MEMTRACE_*
 def buscar(q: str) -> str: ...
 
 # LangChain / LangGraph
-from memtrace.integrations import MemTraceCallbackHandler
+from memtrace.adapters.inbound.langchain import MemTraceCallbackHandler
 chain.invoke(x, config={"callbacks": [MemTraceCallbackHandler()]})
 
 flush()  # scripts cortos / serverless; shutdown() al salir
