@@ -17,7 +17,7 @@ init_tracer(service_name="pydantic-ai-agent")
 # OPCIÓN MANUAL: sin Agent.instrument_all(); controlas qué se instrumenta
 # con los decoradores de MemTrace.
 agent = Agent(
-    "google:gemini-2.5-flash",
+    "anthropic:claude-haiku-4-5-20251001",
     system_prompt="You are a helpful assistant. Be concise and accurate.",
 )
 
@@ -32,7 +32,7 @@ def search(query: str) -> str:
 @trace_step(name="pydantic_ai_agent", step_type="agent")
 def ask(prompt: str) -> str:
     result = agent.run_sync(prompt)
-    usage = result.usage()
+    usage = result.usage
 
     trace_llm_call(
         provider="google",
