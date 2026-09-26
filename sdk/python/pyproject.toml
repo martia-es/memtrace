@@ -25,10 +25,14 @@ http = [
 langchain = [
     "langchain-core>=0.1.0"
 ]
+otel-langchain = [
+    "opentelemetry-instrumentation-langchain>=0.45.0",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
     "langchain-core>=0.1.0",
+    "opentelemetry-instrumentation-langchain>=0.45.0",
 ]
 
 [tool.setuptools.packages.find]

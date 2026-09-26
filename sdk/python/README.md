@@ -14,9 +14,14 @@ init_tracer(service_name="mi-agente")   # o variables MEMTRACE_*
 @trace_step(name="buscar", step_type="tool")
 def buscar(q: str) -> str: ...
 
-# LangChain / LangGraph
-from memtrace.adapters.inbound.langchain import MemTraceCallbackHandler
+# LangChain / LangGraph — Opción 1: Manual (recomendado)
+from memtrace import MemTraceCallbackHandler
 chain.invoke(x, config={"callbacks": [MemTraceCallbackHandler()]})
+
+# LangChain / LangGraph — Opción 2: Automática (pip install memtrace[otel-langchain])
+# from memtrace import enable_langchain_instrumentation
+# enable_langchain_instrumentation()
+# chain.invoke(x)  # captura automática
 
 flush()  # scripts cortos / serverless; shutdown() al salir
 ```
