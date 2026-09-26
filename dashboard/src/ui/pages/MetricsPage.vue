@@ -456,8 +456,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
   display: flex;
   flex-direction: column;
   gap: 20px;
-  max-width: 1600px;
-  margin: 0 auto;
+  width: 100%;
   padding: 24px 20px 32px;
   font-family: var(--mt-sans);
 }
