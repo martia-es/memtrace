@@ -9,6 +9,7 @@ Decisiones relacionadas:
 - [ADR-003](adrs/adr-003-clickhouse-schema-and-migrations.md): esquema propio y migraciones versionadas.
 - [ADR-004](adrs/adr-004-genai-semconv-and-content-capture.md): atributos GenAI y captura de contenido.
 - [ADR-005](adrs/adr-005-persistent-storage-and-queue.md): persistencia de ClickHouse y cola persistente del Collector.
+- [ADR-006](adrs/adr-006-kind-and-podman-support.md): Soporte para Kind y Podman en el entorno local de Kubernetes.
 
 ---
 
@@ -116,7 +117,7 @@ spec:
     spec:
       containers:
       - name: clickhouse
-        image: clickhouse/clickhouse-server:24.3-alpine
+        image: clickhouse/clickhouse-server:23.8-alpine
         ports:
         - containerPort: 8123
           name: http
@@ -198,7 +199,7 @@ spec:
       restartPolicy: OnFailure
       containers:
       - name: migrate
-        image: clickhouse/clickhouse-server:24.3-alpine
+        image: clickhouse/clickhouse-server:23.8-alpine
         env:
         - name: CLICKHOUSE_PASSWORD
           valueFrom:
@@ -283,7 +284,6 @@ data:
         username: default
         password: ${env:CLICKHOUSE_PASSWORD}
         traces_table_name: otel_traces
-        create_schema: false          # el esquema es propiedad de las migraciones (ADR-003)
         timeout: 5s
         retry_on_failure:
           enabled: true
@@ -779,7 +779,7 @@ Crear `migrations/clickhouse/NNN_descripcion.sql` (numeración correlativa, nunc
    kubectl rollout restart deploy/otel-collector -n memtrace
    ```
 7. **Verificar cola persistente**: escalar ClickHouse a 0 (`kubectl scale statefulset/clickhouse --replicas=0 -n memtrace`), enviar trazas, volver a 1 y comprobar que los spans llegan.
-8. **Verificar compatibilidad exporter/esquema**: tras enviar la primera traza, `kubectl logs deploy/otel-collector -n memtrace` no debe mostrar errores de inserción (columnas desconocidas o ausentes). Si los hay, contrastar `001_init_traces.sql` con el esquema que genera el exporter con `create_schema: true` en un clúster de prueba.
+8. **Verificar compatibilidad exporter/esquema**: tras enviar la primera traza, `kubectl logs deploy/otel-collector -n memtrace` no debe mostrar errores de inserción (columnas desconocidas o ausentes). Si los hay, contrastar `001_init_traces.sql` con el esquema generado por las migraciones.
 9. **Verificar permisos de la cola**: el Collector debe arrancar sin errores de `file_storage` y aparecer contenido en `/var/lib/otelcol/queue` (`kubectl exec deploy/otel-collector -n memtrace -- ls /var/lib/otelcol/queue`).
 
 ### Límites conocidos

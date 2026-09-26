@@ -1,0 +1,165 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: memtrace
+data:
+  otel-collector-config.yaml: |
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+      file_storage/queue:
+        directory: /var/lib/otelcol/queue
+        timeout: 10s
+
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      # Evita que el collector exceda el límite de memoria del contenedor
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 80
+        spike_limit_percentage: 20
+      # Agrupa en lotes para maximizar la escritura columnar en ClickHouse
+      batch:
+        send_batch_size: 2000
+        timeout: 1s
+        send_batch_max_size: 5000
+
+    exporters:
+      clickhouse:
+        endpoint: tcp://clickhouse.memtrace.svc.cluster.local:9000
+        database: memtrace
+        username: default
+        password: ${env:CLICKHOUSE_PASSWORD}
+        traces_table_name: otel_traces
+        timeout: 5s
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 3600s     # una caída de ClickHouse de hasta 1h no pierde datos
+        sending_queue:
+          enabled: true
+          num_consumers: 4
+          queue_size: 5000            # lotes, no spans
+          storage: file_storage/queue # cola persistente en disco (ADR-005)
+
+    service:
+      extensions: [health_check, file_storage/queue]
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [clickhouse]
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: otel-collector-queue
+  namespace: memtrace
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: memtrace
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate            # el PVC es RWO: no pueden coexistir dos pods
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+    spec:
+      securityContext:
+        fsGroup: 10001        # usuario del contenedor contrib
+      initContainers:
+      # El provisioner local-path de k3d no siempre respeta fsGroup: se fijan permisos explícitamente
+      - name: fix-queue-permissions
+        image: busybox:1.36
+        command: ["sh", "-c", "chown -R 10001:10001 /var/lib/otelcol/queue"]
+        securityContext:
+          runAsUser: 0
+        volumeMounts:
+        - name: queue
+          mountPath: /var/lib/otelcol/queue
+      containers:
+      - name: otel-collector
+        image: otel/opentelemetry-collector-contrib:0.96.0
+        args: ["--config=/etc/otelcol-contrib/otel-collector-config.yaml"]
+        env:
+        - name: CLICKHOUSE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: clickhouse-credentials
+              key: password
+        ports:
+        - containerPort: 4317
+          name: otlp-grpc
+        - containerPort: 4318
+          name: otlp-http
+        - containerPort: 13133
+          name: health
+        readinessProbe:
+          httpGet:
+            path: /
+            port: health
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /
+            port: health
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"     # base de memory_limiter (limit_percentage)
+            cpu: "1"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/otelcol-contrib
+        - name: queue
+          mountPath: /var/lib/otelcol/queue
+      volumes:
+      - name: config-volume
+        configMap:
+          name: otel-collector-config
+      - name: queue
+        persistentVolumeClaim:
+          claimName: otel-collector-queue
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: memtrace
+spec:
+  type: ClusterIP
+  ports:
+  - port: 4317
+    targetPort: 4317
+    name: otlp-grpc
+  - port: 4318
+    targetPort: 4318
+    name: otlp-http
+  selector:
+    app: otel-collector

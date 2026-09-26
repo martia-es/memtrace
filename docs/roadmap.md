@@ -7,13 +7,13 @@ MemTrace es una plataforma integrada de observabilidad y aprendizaje para agente
 - **Trace**: Recopilar, almacenar y analizar trazas de ejecución de agentes de IA
 - **Mem**: Extraer conocimiento de las trazas para mejorar iterativamente el comportamiento de los agentes
 
-El stack corre en Kubernetes local (k3d, ver ADR-002), permitiendo un ciclo de desarrollo rápido sin dependencias de servicios cloud.
+El stack corre en Kubernetes local (kind/k3d, ver ADR-002 y ADR-006), permitiendo un ciclo de desarrollo rápido sin dependencias de servicios cloud.
 
 ---
 
 ## Fase 1: Trace - Plataforma de Trazabilidad
 
-**Objetivo**: Implementar una herramienta de observabilidad tipo LangSmith que permita recopilar y analizar trazas de agentes de IA en tiempo real, corriendo en local sobre Kubernetes (k3d).
+**Objetivo**: Implementar una herramienta de observabilidad tipo LangSmith que permita recopilar y analizar trazas de agentes de IA en tiempo real, corriendo en local sobre Kubernetes (kind).
 
 ### 1. Piezas necesarias
 

@@ -1,0 +1,47 @@
+# El ConfigMap `clickhouse-migrations` lo genera kustomize (ver kustomization.yaml).
+# Los Jobs son inmutables: para relanzar, borrar antes el Job (ver docs/phase_1_design.md §0.3).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: clickhouse-migrate
+  namespace: memtrace
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: migrate
+        image: clickhouse/clickhouse-server:24.3-alpine
+        env:
+        - name: CLICKHOUSE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: clickhouse-credentials
+              key: password
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          set -eu
+          CH="clickhouse-client --host clickhouse --user default --password $CLICKHOUSE_PASSWORD"
+          until $CH --query "SELECT 1" >/dev/null 2>&1; do echo "waiting for clickhouse"; sleep 2; done
+          $CH --query "CREATE DATABASE IF NOT EXISTS memtrace"
+          $CH --query "CREATE TABLE IF NOT EXISTS memtrace.schema_migrations (version String, applied_at DateTime DEFAULT now()) ENGINE = MergeTree ORDER BY version"
+          for f in $(ls /migrations/*.sql | sort); do
+            v=$(basename "$f")
+            done_count=$($CH --query "SELECT count() FROM memtrace.schema_migrations WHERE version = '$v'")
+            if [ "$done_count" = "0" ]; then
+              echo "applying $v"
+              $CH --multiquery < "$f"
+              $CH --query "INSERT INTO memtrace.schema_migrations (version) VALUES ('$v')"
+            else
+              echo "skipping $v (already applied)"
+            fi
+          done
+        volumeMounts:
+        - name: migrations
+          mountPath: /migrations
+      volumes:
+      - name: migrations
+        configMap:
+          name: clickhouse-migrations

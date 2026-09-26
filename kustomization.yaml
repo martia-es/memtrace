@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: memtrace
+resources:
+  - k8s/00-namespace.yaml
+  - k8s/10-clickhouse-secret.yaml
+  - k8s/20-clickhouse.yaml
+  - k8s/30-clickhouse-migrations.yaml
+  - k8s/40-otel-collector.yaml
+configMapGenerator:
+  - name: clickhouse-migrations
+    files:
+      - migrations/clickhouse/001_init_traces.sql
+generatorOptions:
+  disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
