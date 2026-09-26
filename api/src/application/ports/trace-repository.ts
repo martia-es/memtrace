@@ -1,5 +1,6 @@
 import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
 import type { MetricsOverview, MetricsQuery } from "@/domain/metrics";
+import type { ChatSpanRecord } from "@/domain/transcript";
 import type { Span } from "@/domain/span";
 import type { Page, PageCursor, TraceSummary } from "@/domain/trace";
 import type { TimeRange } from "@/domain/time-range";
@@ -48,5 +49,7 @@ export interface TraceRepository {
   listConversations(query: ConversationListQuery): Promise<Page<ConversationSummary, ConversationCursor>>;
   /** null si no existe; `range` acota la búsqueda (la retención) */
   getConversation(conversationId: string, range: TimeRange): Promise<ConversationSummary | null>;
+  /** spans de LLM de la conversación con su contenido capturado, cronológicos; hasta `maxSpans` (+ `truncated`) */
+  getConversationMessages(conversationId: string, range: TimeRange, maxSpans: number): Promise<{ records: ChatSpanRecord[]; truncated: boolean }>;
   ping(): Promise<void>;
 }

@@ -144,4 +144,27 @@ describe("conversations endpoints", () => {
     await handlers.listTraces(get("/traces?conversationId=c1"));
     expect(repo.lastListQuery).toMatchObject({ conversationId: "c1" });
   });
+
+  it("serves the transcript and 404s for an unknown conversation", async () => {
+    const { repo, handlers } = setup();
+    repo.conversations.set("c1", summary("c1"));
+    repo.chatRecords = [{
+      traceId: TRACE_ID, startTimeUs: 1_790_000_000_000_000, model: "gpt-4o",
+      inputMessages: JSON.stringify([{ role: "user", content: "hola" }]), outputMessages: JSON.stringify([{ role: "assistant", content: "buenas" }]),
+    }];
+    const ok = await handlers.getTranscript(get("/conversations/c1/transcript"), "c1");
+    const body = await ok.json();
+    expect(ok.status).toBe(200);
+    expect(body).toMatchObject({ conversationId: "c1", contentCaptured: true, truncated: false });
+    expect(body.turns[0]).toEqual({ traceId: TRACE_ID, model: "gpt-4o", user: "hola", assistant: "buenas", startTime: new Date(1_790_000_000_000).toISOString() });
+    expect((await handlers.getTranscript(get("/x"), "x")).status).toBe(404);
+  });
+
+  it("says content was not captured instead of returning an empty error", async () => {
+    const { repo, handlers } = setup();
+    repo.conversations.set("c1", summary("c1"));
+    repo.chatRecords = [{ traceId: TRACE_ID, startTimeUs: 1, model: null, inputMessages: null, outputMessages: null }];
+    const body = await (await handlers.getTranscript(get("/x"), "c1")).json();
+    expect(body).toMatchObject({ contentCaptured: false, turns: [] });
+  });
 });

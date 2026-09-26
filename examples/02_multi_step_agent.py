@@ -33,9 +33,20 @@ def lookup_order(order_id: str) -> dict:
 
 
 @trace_step(name="llm_razonar", step_type="llm")
-def think(prompt: str, model: str, tokens_in: int) -> str:
+def think(question: str, model: str, tokens_in: int, order: dict = None) -> str:
     time.sleep(random.uniform(0.15, 0.45))
-    answer = f"Respuesta a: {prompt[:40]}"
+    if order is None:
+        answer = "Voy a consultar el estado de tu pedido."
+    else:
+        answer = f"Tu pedido está {order['estado']}."
+    messages = [
+        {"role": "system", "content": "Eres un asistente de soporte de una tienda online."},
+        {"role": "user", "content": question},
+    ]
+    if order is not None:
+        messages.append({"role": "tool", "content": str(order)})
+
+    # Con MEMTRACE_CAPTURE_CONTENT=true, estos mensajes alimentan la pestaña "Transcripción" del dashboard
     trace_llm_call(
         provider="openai" if model.startswith("gpt") else "anthropic",
         model=model,
@@ -45,10 +56,7 @@ def think(prompt: str, model: str, tokens_in: int) -> str:
         finish_reasons=["stop"],
         temperature=0.2,
         max_tokens=1024,
-        input_messages=[
-            {"role": "system", "content": "Eres un asistente de soporte."},
-            {"role": "user", "content": prompt},
-        ],
+        input_messages=messages,
         output_messages=[{"role": "assistant", "content": answer}],
     )
     return answer
@@ -56,13 +64,13 @@ def think(prompt: str, model: str, tokens_in: int) -> str:
 
 @trace_step(name="atender_consulta", step_type="agent")
 def handle(question: str, order_id: str, model: str) -> str:
-    docs = retrieve(question)
-    plan = think(f"{question} | contexto: {docs[0]}", model, tokens_in=random.randint(300, 900))
+    retrieve(question)
+    think(question, model, tokens_in=random.randint(300, 900))
     try:
         order = lookup_order(order_id)
     except ConnectionError:
-        order = {"estado": "desconocido"}
-    return think(f"{plan} | pedido: {order}", model, tokens_in=random.randint(500, 1400))
+        order = {"estado": "en un estado que no puedo consultar ahora mismo"}
+    return think(question, model, tokens_in=random.randint(500, 1400), order=order)
 
 
 if __name__ == "__main__":

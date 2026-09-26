@@ -1,4 +1,4 @@
-import type { ConversationDetailResponse, ConversationListResponse, OverviewResponse, ProblemDetails, ServicesResponse, TraceDetailResponse, TraceListResponse } from "@contract";
+import type { TranscriptResponse, ConversationDetailResponse, ConversationListResponse, OverviewResponse, ProblemDetails, ServicesResponse, TraceDetailResponse, TraceListResponse } from "@contract";
 import { ApiError, type ListConversationsParams, type ListTracesParams, type RangeParams, type TraceApi } from "@/application/trace-api";
 
 type Fetch = typeof fetch;
@@ -33,6 +33,10 @@ export class HttpTraceApi implements TraceApi {
 
   getConversation(conversationId: string, params: { limit?: number; cursor?: string } = {}, signal?: AbortSignal) {
     return this.get<ConversationDetailResponse>(`/conversations/${encodeURIComponent(conversationId)}`, { ...params }, signal);
+  }
+
+  getTranscript(conversationId: string, signal?: AbortSignal) {
+    return this.get<TranscriptResponse>(`/conversations/${encodeURIComponent(conversationId)}/transcript`, {}, signal);
   }
 
   private async get<T>(path: string, query: Record<string, QueryValue>, signal?: AbortSignal): Promise<T> {

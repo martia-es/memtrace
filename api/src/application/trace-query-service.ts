@@ -2,6 +2,7 @@ import type { ConversationCursor, ConversationSummary } from "@/domain/conversat
 import { ConversationNotFoundError, TraceNotFoundError, ValidationError } from "@/domain/errors";
 import { chooseBucketSeconds, fillTimeseries, type MetricsOverview } from "@/domain/metrics";
 import { MAX_RANGE_MS, resolveTimeRange } from "@/domain/time-range";
+import { buildTranscript, type Transcript } from "@/domain/transcript";
 import type { Page, PageCursor, TraceDetail, TraceSummary } from "@/domain/trace";
 import { buildTraceDetail } from "@/domain/tree";
 import type { TraceRepository } from "./ports/trace-repository";
@@ -9,6 +10,7 @@ import type { TraceRepository } from "./ports/trace-repository";
 export const DEFAULT_PAGE_SIZE = 50;
 export const MAX_PAGE_SIZE = 200;
 export const MAX_SPANS_PER_TRACE = 5000;
+export const MAX_CHAT_SPANS_PER_TRANSCRIPT = 500;
 
 export interface ListTracesInput {
   from?: Date;
@@ -72,6 +74,18 @@ export class TraceQueryService {
     ]);
     if (!conversation) throw new ConversationNotFoundError(conversationId);
     return { conversation, turns };
+  }
+
+  /** Mensajes usuario/asistente de cada turno; solo hay contenido si el agente lo capturó (ADR-004). */
+  async getTranscript(conversationId: string): Promise<Transcript> {
+    const toMs = this.now();
+    const range = { fromMs: toMs - MAX_RANGE_MS, toMs };
+    const [conversation, messages] = await Promise.all([
+      this.repository.getConversation(conversationId, range),
+      this.repository.getConversationMessages(conversationId, range, MAX_CHAT_SPANS_PER_TRANSCRIPT),
+    ]);
+    if (!conversation) throw new ConversationNotFoundError(conversationId);
+    return buildTranscript(conversationId, messages.records, messages.truncated);
   }
 
   listTraces(input: ListTracesInput): Promise<Page<TraceSummary>> {

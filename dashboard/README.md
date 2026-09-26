@@ -17,7 +17,7 @@ Para generar datos de prueba: `MEMTRACE_CAPTURE_CONTENT=true python examples/02_
 |---|---|
 | **Trazas** (`/traces`) | listado con filtros (rango, servicio, estado, spans fallidos, duración mínima), modo "en vivo" y "cargar más" |
 | **Detalle** (`/traces/:id`) | cascada de spans colapsable y panel con GenAI, mensajes del LLM, eventos y atributos |
-| **Conversaciones** (`/conversations`) | trazas agrupadas por `gen_ai.conversation.id` (ADR-012): listado con turnos, tiempo activo, tokens y errores; el detalle muestra los turnos en orden con la espera entre ellos y enlaza a cada traza |
+| **Conversaciones** (`/conversations`) | trazas agrupadas por `gen_ai.conversation.id` (ADR-012): listado con turnos, tiempo activo, tokens y errores; el detalle muestra los turnos en orden con la espera entre ellos y enlaza a cada traza; la pestaña **Transcripción** los lee como un chat (ADR-013; requiere `MEMTRACE_CAPTURE_CONTENT=true` en el agente) |
 | **Métricas** (`/metrics`) | KPIs, actividad y latencia p95, tokens por intervalo, uso por modelo y por herramienta |
 
 **Tiempo real**: el listado y las métricas se actualizan solos (selector `Off / 5 s / 10 s / 30 s`, por defecto 5 s, recordado en el navegador). Se pausa con la pestaña oculta y refresca al volver; no apila peticiones; conserva las páginas cargadas con "Cargar más" y resalta las trazas nuevas. El detalle de una traza en curso se actualiza hasta que llega su span raíz. Retraso medido hasta verla en pantalla: ~4 s (el agente vacía al salir), ~10 s con un agente de larga vida y el lote del SDK por defecto (5 s), ~5 s con `MEMTRACE_BATCH_SCHEDULE_DELAY_MS=1000`.

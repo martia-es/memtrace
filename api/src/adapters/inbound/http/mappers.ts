@@ -1,8 +1,9 @@
 import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
 import type { MetricsOverview } from "@/domain/metrics";
+import type { Transcript } from "@/domain/transcript";
 import type { SpanNode } from "@/domain/span";
 import type { Page, TraceDetail, TraceSummary } from "@/domain/trace";
-import type { ConversationDetailResponse, ConversationListResponse, ConversationSummaryDto, OverviewResponse, SpanNodeDto, TraceDetailResponse, TraceListResponse, TraceSummaryDto } from "./contract";
+import type { TranscriptResponse, ConversationDetailResponse, ConversationListResponse, ConversationSummaryDto, OverviewResponse, SpanNodeDto, TraceDetailResponse, TraceListResponse, TraceSummaryDto } from "./contract";
 import { encodeConversationCursor, encodeCursor } from "./schemas";
 
 const isoFromUs = (us: number) => new Date(Math.round(us / 1000)).toISOString();
@@ -46,6 +47,15 @@ export function toConversationListResponse(page: Page<ConversationSummary, Conve
 
 export function toConversationDetailResponse(conversation: ConversationSummary, turns: Page<TraceSummary>): ConversationDetailResponse {
   return { ...toConversationSummaryDto(conversation), turns: toTraceListResponse(turns) };
+}
+
+export function toTranscriptResponse(t: Transcript): TranscriptResponse {
+  return {
+    conversationId: t.conversationId,
+    contentCaptured: t.contentCaptured,
+    truncated: t.truncated,
+    turns: t.turns.map(({ startTimeUs, ...turn }) => ({ ...turn, startTime: isoFromUs(startTimeUs) })),
+  };
 }
 
 export function toTraceListResponse(page: Page<TraceSummary>): TraceListResponse {

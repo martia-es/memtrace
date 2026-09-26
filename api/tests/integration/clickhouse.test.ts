@@ -106,10 +106,10 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
     await insert([
       // CONV1: dos turnos; el primero tiene un LLM y una herramienta fallida
       { trace: T1, service: CONV_SERVICE, spanId: r1, name: "turno-1", offsetMs: 0, durationMs: 1000, attrs: conv(CONV1) },
-      { trace: T1, service: CONV_SERVICE, parent: r1, name: "llm", offsetMs: 50, durationMs: 300, attrs: chat(CONV1, 10, 5) },
+      { trace: T1, service: CONV_SERVICE, parent: r1, name: "llm", offsetMs: 50, durationMs: 300, attrs: { ...chat(CONV1, 10, 5), "gen_ai.request.model": "gpt-4o", "gen_ai.input.messages": JSON.stringify([{ role: "user", content: "¿dónde está mi pedido?" }]), "gen_ai.output.messages": JSON.stringify([{ role: "assistant", content: "en camino" }]) } },
       { trace: T1, service: CONV_SERVICE, parent: r1, name: "tool", offsetMs: 400, durationMs: 100, status: "ERROR", attrs: conv(CONV1) },
       { trace: T2, service: CONV_SERVICE, spanId: r2, name: "turno-2", offsetMs: 60_000, durationMs: 500, attrs: conv(CONV1) },
-      { trace: T2, service: CONV_SERVICE, parent: r2, name: "llm", offsetMs: 60_050, durationMs: 200, attrs: chat(CONV1, 20, 10) },
+      { trace: T2, service: CONV_SERVICE, parent: r2, name: "llm", offsetMs: 60_050, durationMs: 200, attrs: { ...chat(CONV1, 20, 10), "gen_ai.input.messages": JSON.stringify([{ role: "user", content: "¿y mañana?" }]), "gen_ai.output.messages": JSON.stringify([{ role: "assistant", content: "sí, mañana" }]) } },
       // CONV2: un turno cuyo raíz falla
       { trace: T3, service: CONV_SERVICE, name: "turno-3", offsetMs: 120_000, durationMs: 200, status: "ERROR", attrs: conv(CONV2) },
       // sin conversación
@@ -266,6 +266,16 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
     it("counts distinct conversations in the overview", async () => {
       const o = await repo.getOverview({ ...range, service: CONV_SERVICE, bucketSeconds: chooseBucketSeconds(range.fromMs, range.toMs) });
       expect(o.totals.conversations).toBe(3);
+    });
+    it("returns the captured messages of a conversation's LLM spans in order", async () => {
+      const range30 = { fromMs: Date.now() - 30 * DAY, toMs: Date.now() };
+      const { records, truncated } = await repo.getConversationMessages(CONV1, range30, 10);
+      expect(truncated).toBe(false);
+      expect(records.map((r) => [r.traceId, r.model])).toEqual([[T1, "gpt-4o"], [T2, null]]);
+      expect(JSON.parse(records[0]!.inputMessages!)[0].content).toBe("¿dónde está mi pedido?");
+      expect(records[1]!.outputMessages).toContain("sí, mañana");
+      expect((await repo.getConversationMessages(CONV1, range30, 1)).truncated).toBe(true);
+      expect((await repo.getConversationMessages(CONV2, range30, 10)).records).toEqual([]); // sin spans de LLM
     });
   });
 });

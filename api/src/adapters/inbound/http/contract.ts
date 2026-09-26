@@ -110,6 +110,14 @@ export interface ConversationSummaryDto {
   activeMs: number;
 }
 
+/** Mensajes de la conversación por turno; vacío si el agente no capturó contenido (ADR-013). */
+export interface TranscriptResponse {
+  conversationId: string;
+  contentCaptured: boolean;
+  truncated: boolean;
+  turns: { traceId: string; startTime: string; model: string | null; user: string | null; assistant: string | null }[];
+}
+
 export interface ConversationListResponse {
   items: ConversationSummaryDto[];
   nextCursor: string | null;

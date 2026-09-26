@@ -1,4 +1,4 @@
-import type { ConversationDetailResponse, ConversationListResponse, OverviewResponse, ServicesResponse, TraceDetailResponse, TraceListResponse } from "@contract";
+import type { TranscriptResponse, ConversationDetailResponse, ConversationListResponse, OverviewResponse, ServicesResponse, TraceDetailResponse, TraceListResponse } from "@contract";
 
 export interface RangeParams {
   from: string;
@@ -29,6 +29,8 @@ export interface TraceApi {
   getOverview(params: RangeParams & { service?: string }, signal?: AbortSignal): Promise<OverviewResponse>;
   listServices(params: RangeParams, signal?: AbortSignal): Promise<ServicesResponse>;
   listConversations(params: ListConversationsParams, signal?: AbortSignal): Promise<ConversationListResponse>;
+  /** mensajes usuario/asistente por turno; `contentCaptured=false` si el agente no guardó contenido */
+  getTranscript(conversationId: string, signal?: AbortSignal): Promise<TranscriptResponse>;
   /** resumen + turnos en orden cronológico */
   getConversation(conversationId: string, params?: { limit?: number; cursor?: string }, signal?: AbortSignal): Promise<ConversationDetailResponse>;
 }

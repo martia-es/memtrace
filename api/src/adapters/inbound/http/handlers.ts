@@ -2,7 +2,7 @@ import { RepositoryUnavailableError } from "@/application/errors";
 import type { TraceQueryService } from "@/application/trace-query-service";
 import { ConversationNotFoundError, TraceNotFoundError, ValidationError } from "@/domain/errors";
 import type { ServicesResponse } from "./contract";
-import { toConversationDetailResponse, toConversationListResponse, toOverviewResponse, toTraceDetailResponse, toTraceListResponse } from "./mappers";
+import { toTranscriptResponse, toConversationDetailResponse, toConversationListResponse, toOverviewResponse, toTraceDetailResponse, toTraceListResponse } from "./mappers";
 import { json, problem } from "./problem";
 import {
   conversationIdParam,
@@ -55,6 +55,12 @@ export function createHandlers(service: TraceQueryService) {
         const { cursor, limit } = parseOrThrow(turnsQuery, query(request));
         const detail = await service.getConversation(conversationId, { limit, cursor: cursor ? decodeCursor(cursor) : undefined });
         return json(toConversationDetailResponse(detail.conversation, detail.turns));
+      }),
+
+    getTranscript: (_request: Request, rawConversationId: string) =>
+      guard(async () => {
+        const conversationId = parseOrThrow(conversationIdParam, rawConversationId, "conversationId");
+        return json(toTranscriptResponse(await service.getTranscript(conversationId)));
       }),
 
     getTrace: (_request: Request, rawTraceId: string) =>

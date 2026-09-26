@@ -1,5 +1,6 @@
 import type { ConversationListQuery, TraceListQuery, TraceRepository, TraceSpans } from "@/application/ports/trace-repository";
 import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
+import type { ChatSpanRecord } from "@/domain/transcript";
 import type { MetricsOverview, MetricsQuery } from "@/domain/metrics";
 import type { Span } from "@/domain/span";
 import type { TimeRange } from "@/domain/time-range";
@@ -40,6 +41,8 @@ export class FakeTraceRepository implements TraceRepository {
   lastConversationRange?: TimeRange;
   conversationPage: Page<ConversationSummary, ConversationCursor> = { items: [], nextCursor: null };
   conversations = new Map<string, ConversationSummary>();
+  chatRecords: ChatSpanRecord[] = [];
+  chatTruncated = false;
   page: Page<TraceSummary> = { items: [], nextCursor: null };
   traces = new Map<string, TraceSpans>();
   overview: MetricsOverview = emptyOverview;
@@ -76,6 +79,10 @@ export class FakeTraceRepository implements TraceRepository {
     this.check();
     this.lastConversationRange = range;
     return this.conversations.get(conversationId) ?? null;
+  }
+  async getConversationMessages() {
+    this.check();
+    return { records: this.chatRecords, truncated: this.chatTruncated };
   }
   async ping() {
     this.check();

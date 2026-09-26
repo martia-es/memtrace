@@ -18,6 +18,7 @@ npm run dev                  # http://localhost:3001
 | `GET /api/v1/traces/{traceId}` | traza con su árbol de spans |
 | `GET /api/v1/conversations` | conversaciones (trazas con el mismo `gen_ai.conversation.id`), paginadas |
 | `GET /api/v1/conversations/{id}` | resumen + turnos en orden cronológico |
+| `GET /api/v1/conversations/{id}/transcript` | mensajes usuario/asistente por turno (requiere contenido capturado, ADR-013) |
 | `GET /api/v1/metrics/overview` | totales, latencia, serie temporal, tokens por modelo y tools |
 | `GET /api/v1/services` | servicios vistos en el rango |
 | `GET /api/v1/health`, `/health/ready` | liveness / readiness |

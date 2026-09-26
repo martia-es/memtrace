@@ -2,6 +2,7 @@ import type { ClickHouseClient } from "@clickhouse/client";
 import { RepositoryUnavailableError } from "@/application/errors";
 import type { ConversationListQuery, TraceListQuery, TraceRepository, TraceSpans } from "@/application/ports/trace-repository";
 import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
+import type { ChatSpanRecord } from "@/domain/transcript";
 import type { MetricsOverview, MetricsQuery } from "@/domain/metrics";
 import type { Span, StatusCode } from "@/domain/span";
 import { MAX_RANGE_MS, type TimeRange } from "@/domain/time-range";
@@ -259,6 +260,30 @@ export class ClickHouseTraceRepository implements TraceRepository {
       });
     }
     return result;
+  }
+
+  async getConversationMessages(conversationId: string, range: TimeRange, maxSpans: number): Promise<{ records: ChatSpanRecord[]; truncated: boolean }> {
+    const { clause, params } = ClickHouseTraceRepository.range(range.toMs - MAX_RANGE_MS, range.toMs + TRACE_WINDOW_MS);
+    const rows = await this.rows(
+      `SELECT TraceId, toUnixTimestamp64Micro(Timestamp) AS startUs,
+              SpanAttributes['gen_ai.request.model'] AS model,
+              SpanAttributes['gen_ai.input.messages'] AS input,
+              SpanAttributes['gen_ai.output.messages'] AS output
+       FROM ${this.spans}
+       WHERE ConversationId = {conversationId:String} AND ${OP} = 'chat' AND ${clause}
+       ORDER BY Timestamp ASC LIMIT {limit:UInt32}`,
+      { ...params, conversationId, limit: maxSpans + 1 },
+    );
+    return {
+      records: rows.slice(0, maxSpans).map((r) => ({
+        traceId: String(r.TraceId),
+        startTimeUs: num(r.startUs),
+        model: r.model ? String(r.model) : null,
+        inputMessages: r.input ? String(r.input) : null,
+        outputMessages: r.output ? String(r.output) : null,
+      })),
+      truncated: rows.length > maxSpans,
+    };
   }
 
   async getTraceSpans(traceId: string, maxSpans: number): Promise<TraceSpans | null> {

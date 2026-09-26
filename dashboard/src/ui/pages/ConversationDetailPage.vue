@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { withGaps } from "@/domain/conversation";
 import { formatCount, formatDateTime, formatDuration } from "@/domain/format";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import StatusBadge from "../components/StatusBadge.vue";
+import TranscriptView from "../components/TranscriptView.vue";
 import { useAsync } from "../composables/useAsync";
 import { useFilters } from "../composables/useFilters";
 import { useLiveRefresh } from "../composables/useLiveRefresh";
@@ -13,6 +14,7 @@ import { useTraceApi } from "../composables/useTraceApi";
 const props = defineProps<{ conversationId: string }>();
 const api = useTraceApi();
 const router = useRouter();
+const route = useRoute();
 const f = useFilters();
 
 const PAGE = 100;
@@ -38,14 +40,25 @@ async function loadMore() {
   extra.value = [...extra.value, ...result.turns.items];
   cursor.value = result.turns.nextCursor;
 }
+// Pestaña en la URL (?tab=transcript): enlace compartible. La transcripción se pide al abrirla, no antes.
+const tab = computed<"turns" | "transcript">(() => (route.query.tab === "transcript" ? "transcript" : "turns"));
+const setTab = (value: "turns" | "transcript") => void router.replace({ query: { ...route.query, tab: value === "turns" ? undefined : value } });
+const transcript = useAsync((signal) => api.getTranscript(props.conversationId, signal));
+
 const liveRefresh = useLiveRefresh(async () => {
+  if (tab.value === "transcript") {
+    await Promise.all([transcript.run(), load()]);
+    return;
+  }
   turnsLimit.value = Math.min(MAX_PAGE, Math.max(PAGE, turns.value.length + 20));
   await load();
-}, { isBusy: () => detail.loading.value || more.loading.value });
+}, { isBusy: () => detail.loading.value || more.loading.value || transcript.loading.value });
+watch(tab, (value) => value === "transcript" && void transcript.run(), { immediate: true });
 
 watch(() => props.conversationId, () => {
   turnsLimit.value = PAGE;
   void load();
+  if (tab.value === "transcript") void transcript.run();
 }, { immediate: true });
 
 const turns = computed(() => withGaps([...(detail.data.value?.turns.items ?? []), ...extra.value]));
@@ -83,7 +96,19 @@ const back = () => void router.push({ name: "conversations", query: f.shared.val
         <span class="text-caption text-grey-7">{{ formatDateTime(detail.data.value.startTime) }} → {{ formatDateTime(detail.data.value.lastActivity) }}</span>
       </div>
 
-      <q-timeline color="primary" class="q-mt-md" layout="dense">
+      <q-tabs :model-value="tab" dense no-caps align="left" active-color="primary" indicator-color="primary" @update:model-value="setTab">
+        <q-tab name="turns" icon="view_timeline" label="Turnos" />
+        <q-tab name="transcript" icon="chat" label="Transcripción" />
+      </q-tabs>
+      <q-separator />
+
+      <template v-if="tab === 'transcript'">
+        <ErrorBanner v-if="transcript.error.value" class="q-mt-md" :error="transcript.error.value" @retry="transcript.run()" />
+        <div v-else-if="!transcript.data.value" class="row justify-center q-pa-xl"><q-spinner size="28px" color="primary" /></div>
+        <TranscriptView v-else :transcript="transcript.data.value" @open="open" />
+      </template>
+
+      <q-timeline v-else color="primary" class="q-mt-md" layout="dense">
         <q-timeline-entry
           v-for="t in turns"
           :key="t.trace.traceId"
@@ -117,7 +142,7 @@ const back = () => void router.push({ name: "conversations", query: f.shared.val
         </q-timeline-entry>
       </q-timeline>
 
-      <div v-if="cursor" class="row justify-center q-mt-md">
+      <div v-if="cursor && tab === 'turns'" class="row justify-center q-mt-md">
         <q-btn outline no-caps color="primary" label="Cargar más turnos" :loading="more.loading.value" @click="loadMore" />
       </div>
       <ErrorBanner v-if="more.error.value" class="q-mt-md" :error="more.error.value" @retry="loadMore" />

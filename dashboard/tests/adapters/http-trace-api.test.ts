@@ -57,4 +57,10 @@ describe("HttpTraceApi", () => {
     await api.getConversation("chat #1/ñ", { limit: 20 });
     expect(fetchFn.mock.calls[1]![0]).toBe(`/api/v1/conversations/${encodeURIComponent("chat #1/ñ")}?limit=20`);
   });
+
+  it("requests the transcript of a conversation", async () => {
+    const fetchFn = vi.fn().mockImplementation(async () => ok({ turns: [] }));
+    await new HttpTraceApi("/api/v1", fetchFn).getTranscript("chat #1");
+    expect(fetchFn.mock.calls[0]![0]).toBe(`/api/v1/conversations/${encodeURIComponent("chat #1")}/transcript`);
+  });
 });
