@@ -45,4 +45,16 @@ describe("HttpTraceApi", () => {
     const aborted = new HttpTraceApi("/api/v1", vi.fn().mockRejectedValue(new DOMException("aborted", "AbortError")));
     await expect(aborted.getTrace("x")).rejects.toMatchObject({ name: "AbortError" });
   });
+
+  it("builds the conversation requests and encodes free-form ids", async () => {
+    const fetchFn = vi.fn().mockImplementation(async () => ok({ items: [], nextCursor: null }));
+    const api = new HttpTraceApi("/api/v1", fetchFn);
+    await api.listConversations({ from: "a", to: "b", hasErrors: true, cursor: "c" });
+    const list = new URL(fetchFn.mock.calls[0]![0] as string, "http://x");
+    expect(list.pathname).toBe("/api/v1/conversations");
+    expect(Object.fromEntries(list.searchParams)).toEqual({ from: "a", to: "b", hasErrors: "true", cursor: "c" });
+
+    await api.getConversation("chat #1/ñ", { limit: 20 });
+    expect(fetchFn.mock.calls[1]![0]).toBe(`/api/v1/conversations/${encodeURIComponent("chat #1/ñ")}?limit=20`);
+  });
 });

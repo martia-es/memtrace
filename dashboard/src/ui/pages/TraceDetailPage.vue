@@ -60,7 +60,7 @@ const copyId = () => void navigator.clipboard?.writeText(props.traceId);
 const back = () => void router.push({ name: "traces", query: f.shared.value });
 const hasOrphans = computed(() => trace.data.value?.roots.some((r) => r.orphan) ?? false);
 const rootName = computed(() => roots.value.find((r) => !r.orphan)?.name ?? roots.value[0]?.name ?? "Traza");
-const conversationId = computed(() => roots.value[0]?.attributes["gen_ai.conversation.id"]);
+const conversationId = computed(() => trace.data.value?.conversationId ?? null);
 </script>
 
 <template>
@@ -82,7 +82,19 @@ const conversationId = computed(() => roots.value[0]?.attributes["gen_ai.convers
         <q-chip dense square icon="account_tree" :label="`${formatCount(trace.data.value.spanCount)} spans`" />
         <q-chip v-if="trace.data.value.errorCount" dense square color="negative" text-color="white" icon="error" :label="`${trace.data.value.errorCount} con error`" />
         <q-chip v-if="trace.data.value.totalTokens" dense square icon="toll" :label="`${formatCount(trace.data.value.totalTokens)} tokens`" />
-        <q-chip v-if="conversationId" dense square icon="forum" :label="conversationId" />
+        <q-chip
+          v-if="conversationId"
+          dense
+          square
+          clickable
+          icon="forum"
+          color="primary"
+          text-color="white"
+          :label="`Conversación: ${conversationId}`"
+          @click="router.push({ name: 'conversation', params: { conversationId }, query: f.shared.value })"
+        >
+          <q-tooltip>Ver todos los turnos de esta conversación</q-tooltip>
+        </q-chip>
         <span class="text-caption text-grey-7">{{ formatDateTime(trace.data.value.startTime) }}</span>
       </div>
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergeLatest } from "@/domain/merge";
+import { mergeLatestConversations, mergeLatestTraces as mergeLatest } from "@/domain/merge";
 import { summary } from "../fakes";
 
 const at = (id: string, iso: string, extra = {}) => summary({ traceId: id.padEnd(32, "0"), startTime: iso, ...extra });
@@ -12,7 +12,7 @@ describe("mergeLatest", () => {
     const merged = mergeLatest(current, "cur", latest);
     expect(ids(merged.items)).toEqual(["c", "a"]);
     expect(merged.nextCursor).toBeNull();
-    expect(merged.newIds.map((i) => i[0])).toEqual(["c"]);
+    expect(merged.newKeys.map((i) => i[0])).toEqual(["c"]);
   });
 
   it("keeps the pages loaded with 'load more' and puts new traces on top", () => {
@@ -22,7 +22,7 @@ describe("mergeLatest", () => {
     const merged = mergeLatest(current, "end-of-loaded", latest);
     expect(ids(merged.items)).toEqual(["e", "d", "c", "b", "a"]);
     expect(merged.nextCursor).toBe("end-of-loaded"); // sigue paginando desde donde el usuario lo dejó
-    expect(merged.newIds.map((i) => i[0])).toEqual(["e"]);
+    expect(merged.newKeys.map((i) => i[0])).toEqual(["e"]);
   });
 
   it("uses the fresh version of a trace that already existed", () => {
@@ -40,6 +40,6 @@ describe("mergeLatest", () => {
   });
 
   it("handles an empty latest page", () => {
-    expect(mergeLatest([at("a", "2026-01-01T10:00:00Z")], "c", { items: [], nextCursor: null })).toEqual({ items: [], nextCursor: null, newIds: [] });
+    expect(mergeLatest([at("a", "2026-01-01T10:00:00Z")], "c", { items: [], nextCursor: null })).toEqual({ items: [], nextCursor: null, newKeys: [] });
   });
 });

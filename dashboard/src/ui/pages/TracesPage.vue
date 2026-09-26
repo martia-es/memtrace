@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import type { TraceSummaryDto } from "@contract";
-import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import type { ListTracesParams } from "@/application/trace-api";
 import { formatCount, formatDateTime, formatDuration, formatRelativeTime } from "@/domain/format";
-import { mergeLatest } from "@/domain/merge";
+import { mergeLatestTraces } from "@/domain/merge";
 import { resolveRange } from "@/domain/time-range";
 import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
@@ -12,6 +12,7 @@ import FilterBar from "../components/FilterBar.vue";
 import LiveControl from "../components/LiveControl.vue";
 import StatusBadge from "../components/StatusBadge.vue";
 import { useAsync } from "../composables/useAsync";
+import { usePagedList } from "../composables/usePagedList";
 import { setRefreshSeconds, useLiveRefresh } from "../composables/useLiveRefresh";
 import { useFilters } from "../composables/useFilters";
 import { useTraceApi } from "../composables/useTraceApi";
@@ -20,9 +21,6 @@ const PAGE_SIZE = 50;
 const api = useTraceApi();
 const router = useRouter();
 const f = useFilters();
-
-const items = ref<TraceSummaryDto[]>([]);
-const nextCursor = ref<string | null>(null);
 const now = ref(Date.now());
 
 const params = (cursor?: string): ListTracesParams => ({
@@ -31,63 +29,34 @@ const params = (cursor?: string): ListTracesParams => ({
   status: f.status.value,
   hasErrors: f.hasErrors.value || undefined,
   minDurationMs: f.minDurationMs.value,
+  conversationId: f.conversationId.value,
   limit: PAGE_SIZE,
   cursor,
 });
 
-const first = useAsync((signal) => api.listTraces(params(), signal));
-const more = useAsync((signal) => api.listTraces(params(nextCursor.value ?? undefined), signal));
+const list = usePagedList<TraceSummaryDto>({
+  key: (t) => t.traceId,
+  load: (cursor, signal) => api.listTraces(params(cursor), signal),
+  merge: mergeLatestTraces,
+  onLoaded: () => {
+    liveRefresh.touch();
+    now.value = Date.now();
+  },
+});
+const items = list.items;
+const nextCursor = list.nextCursor;
 const services = useAsync((signal) => api.listServices(resolveRange(f.range.value, Date.now()), signal));
 
-// Trazas que acaban de aparecer en una actualización automática: se resaltan unos segundos
-const newIds = ref<Set<string>>(new Set());
-let flashTimer: ReturnType<typeof setTimeout> | null = null;
-function flash(ids: string[]) {
-  if (ids.length === 0) return;
-  newIds.value = new Set(ids);
-  if (flashTimer) clearTimeout(flashTimer);
-  flashTimer = setTimeout(() => (newIds.value = new Set()), 3000);
-}
-onBeforeUnmount(() => flashTimer && clearTimeout(flashTimer));
-
-/**
- * `live`: actualización automática => se fusiona con lo ya cargado (no se pierden las páginas de "Cargar más").
- * Cambio de filtros o botón de actualizar => se reemplaza la lista.
- */
-async function refresh(isLive: boolean) {
-  const page = await first.run();
-  if (!page) return;
-  liveRefresh.touch();
-  now.value = Date.now();
-  if (isLive) {
-    const merged = mergeLatest(items.value, nextCursor.value, page);
-    items.value = merged.items;
-    nextCursor.value = merged.nextCursor;
-    flash(merged.newIds);
-  } else {
-    items.value = page.items;
-    nextCursor.value = page.nextCursor;
-  }
-}
-
-async function loadMore() {
-  const page = await more.run();
-  if (!page) return;
-  const known = new Set(items.value.map((t) => t.traceId));
-  items.value = [...items.value, ...page.items.filter((t) => !known.has(t.traceId))];
-  nextCursor.value = page.nextCursor;
-}
-
-const liveRefresh = useLiveRefresh(() => refresh(true), { isBusy: () => first.loading.value || more.loading.value });
+const liveRefresh = useLiveRefresh(() => list.refresh(), { isBusy: () => list.loading.value || list.moreLoading.value });
 
 const reload = () => {
-  void refresh(false);
+  void list.reload();
   void services.run();
 };
-watch([f.range, f.service, f.status, f.hasErrors, f.minDurationMs], reload, { immediate: true });
+watch([f.range, f.service, f.status, f.hasErrors, f.minDurationMs, f.conversationId], reload, { immediate: true });
 
 const maxDuration = computed(() => Math.max(1, ...items.value.map((t) => t.durationMs)));
-const filtered = computed(() => Boolean(f.service.value || f.status.value || f.hasErrors.value || f.minDurationMs.value));
+const filtered = computed(() => Boolean(f.service.value || f.status.value || f.hasErrors.value || f.minDurationMs.value || f.conversationId.value));
 
 const columns = [
   { name: "status", label: "", field: "status", align: "left" as const, style: "width: 90px" },
@@ -115,7 +84,7 @@ const open = (_evt: Event, row: TraceSummaryDto) => void router.push({ name: "tr
       :range="f.range.value"
       :service="f.service.value"
       :services="services.data.value?.items ?? []"
-      :loading="first.loading.value"
+      :loading="list.loading.value"
       @update:range="f.setRange"
       @update:service="f.setService"
       @refresh="reload"
@@ -145,7 +114,13 @@ const open = (_evt: Event, row: TraceSummaryDto) => void router.push({ name: "tr
     </FilterBar>
     <LiveControl class="q-mt-sm" :seconds="liveRefresh.seconds.value" :updated-at="liveRefresh.updatedAt.value" @update:seconds="setRefreshSeconds" />
 
-    <ErrorBanner v-if="first.error.value" class="q-mt-md" :error="first.error.value" @retry="reload" />
+    <div v-if="f.conversationId.value" class="q-mt-sm">
+      <q-chip removable icon="forum" color="primary" text-color="white" @remove="f.setConversation(undefined)">
+        Conversación: {{ f.conversationId.value }}
+      </q-chip>
+    </div>
+
+    <ErrorBanner v-if="list.error.value" class="q-mt-md" :error="list.error.value" @retry="reload" />
 
     <q-table
       class="q-mt-md"
@@ -156,8 +131,8 @@ const open = (_evt: Event, row: TraceSummaryDto) => void router.push({ name: "tr
       row-key="traceId"
       :rows-per-page-options="[0]"
       hide-pagination
-      :table-row-class-fn="(row: TraceSummaryDto) => (newIds.has(row.traceId) ? 'row-new' : '')"
-      :loading="first.loading.value && items.length === 0"
+      :table-row-class-fn="(row: TraceSummaryDto) => (list.newKeys.value.has(row.traceId) ? 'row-new' : '')"
+      :loading="list.loading.value && items.length === 0"
       no-data-label=""
       @row-click="open"
     >
@@ -167,7 +142,17 @@ const open = (_evt: Event, row: TraceSummaryDto) => void router.push({ name: "tr
       <template #body-cell-name="{ row }">
         <q-td>
           <div class="text-weight-medium">{{ row.rootSpanName }}</div>
-          <div class="text-caption text-grey-7">{{ row.serviceName }}</div>
+          <div class="text-caption text-grey-7">
+            {{ row.serviceName }}
+            <router-link
+              v-if="row.conversationId"
+              class="conv-link"
+              :to="{ name: 'conversation', params: { conversationId: row.conversationId }, query: f.shared.value }"
+              @click.stop
+            >
+              <q-icon name="forum" size="14px" /> {{ row.conversationId }}
+            </router-link>
+          </div>
         </q-td>
       </template>
       <template #body-cell-start="{ row }">
@@ -198,7 +183,7 @@ const open = (_evt: Event, row: TraceSummaryDto) => void router.push({ name: "tr
         <q-td class="text-right">{{ row.totalTokens ? formatCount(row.totalTokens) : "–" }}</q-td>
       </template>
       <template #bottom-row>
-        <q-tr v-if="!first.loading.value && items.length === 0 && !first.error.value">
+        <q-tr v-if="!list.loading.value && items.length === 0 && !list.error.value">
           <q-td colspan="100%">
             <EmptyState icon="timeline" :title="filtered ? 'Ninguna traza coincide con los filtros' : 'Todavía no hay trazas en este rango'">
               <template v-if="!filtered">Ejecuta un agente instrumentado (p. ej. <code>examples/01_raw_agent.py</code>) o amplía el rango.</template>
@@ -210,9 +195,9 @@ const open = (_evt: Event, row: TraceSummaryDto) => void router.push({ name: "tr
     </q-table>
 
     <div v-if="nextCursor" class="row justify-center q-mt-md">
-      <q-btn outline no-caps color="primary" label="Cargar más" :loading="more.loading.value" @click="loadMore" />
+      <q-btn outline no-caps color="primary" label="Cargar más" :loading="list.moreLoading.value" @click="list.loadMore" />
     </div>
-    <ErrorBanner v-if="more.error.value" class="q-mt-md" :error="more.error.value" @retry="loadMore" />
+    <ErrorBanner v-if="list.moreError.value" class="q-mt-md" :error="list.moreError.value" @retry="list.loadMore" />
     <div v-if="items.length > 0" class="text-caption text-grey-7 text-center q-mt-sm">
       {{ items.length }} {{ items.length === 1 ? "traza" : "trazas" }}{{ nextCursor ? " · hay más" : "" }}
     </div>
@@ -223,6 +208,14 @@ const open = (_evt: Event, row: TraceSummaryDto) => void router.push({ name: "tr
 .page {
   max-width: 1300px;
   margin: 0 auto;
+}
+.conv-link {
+  margin-left: 8px;
+  color: var(--q-primary);
+  text-decoration: none;
+}
+.conv-link:hover {
+  text-decoration: underline;
 }
 .dur-text {
   min-width: 64px;

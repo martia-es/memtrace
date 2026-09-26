@@ -6,6 +6,8 @@ export const router = createRouter({
     { path: "/", redirect: { name: "traces" } },
     { path: "/traces", name: "traces", component: () => import("./pages/TracesPage.vue"), meta: { title: "Trazas" } },
     { path: "/traces/:traceId", name: "trace", component: () => import("./pages/TraceDetailPage.vue"), props: true, meta: { title: "Traza" } },
+    { path: "/conversations", name: "conversations", component: () => import("./pages/ConversationsPage.vue"), meta: { title: "Conversaciones" } },
+    { path: "/conversations/:conversationId", name: "conversation", component: () => import("./pages/ConversationDetailPage.vue"), props: true, meta: { title: "Conversación" } },
     { path: "/metrics", name: "metrics", component: () => import("./pages/MetricsPage.vue"), meta: { title: "Métricas" } },
     { path: "/:pathMatch(.*)*", redirect: { name: "traces" } },
   ],

@@ -21,6 +21,8 @@ chain.invoke(x, config={"callbacks": [MemTraceCallbackHandler()]})
 flush()  # scripts cortos / serverless; shutdown() al salir
 ```
 
+**Conversaciones**: envuelve cada turno con `with memtrace.session("id-de-la-conversacion"):` (o pasa `thread_id` / `session_id` / `conversation_id` en el `metadata` de LangChain) y el dashboard agrupará las trazas en una conversación. El id debe ser estable entre turnos, único por conversación y sin datos personales (aparece en las URLs). Sin él, cada turno queda como una traza suelta.
+
 Los spans creados dentro de un `@trace_step` (o de `with memtrace.session("id")`) cuelgan de él, incluidos los del handler de LangChain y los de librerías auto-instrumentadas.
 
 ## Configuración

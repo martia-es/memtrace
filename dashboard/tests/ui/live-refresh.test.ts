@@ -153,7 +153,7 @@ describe("TracesPage live refresh", () => {
 
 describe("TraceDetailPage live refresh", () => {
   const detail = (roots: ReturnType<typeof node>[]) => ({
-    traceId: "b".repeat(32), startTime: new Date(Date.now() - 5_000).toISOString(), durationMs: 50, status: "ok" as const,
+    traceId: "b".repeat(32), conversationId: null, startTime: new Date(Date.now() - 5_000).toISOString(), durationMs: 50, status: "ok" as const,
     spanCount: roots.length, errorCount: 0, totalTokens: 0, truncated: false, roots,
   });
 

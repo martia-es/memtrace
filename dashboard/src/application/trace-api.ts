@@ -1,4 +1,4 @@
-import type { OverviewResponse, ServicesResponse, TraceDetailResponse, TraceListResponse } from "@contract";
+import type { ConversationDetailResponse, ConversationListResponse, OverviewResponse, ServicesResponse, TraceDetailResponse, TraceListResponse } from "@contract";
 
 export interface RangeParams {
   from: string;
@@ -10,6 +10,14 @@ export interface ListTracesParams extends RangeParams {
   status?: "ok" | "error";
   hasErrors?: boolean;
   minDurationMs?: number;
+  conversationId?: string;
+  limit?: number;
+  cursor?: string;
+}
+
+export interface ListConversationsParams extends RangeParams {
+  service?: string;
+  hasErrors?: boolean;
   limit?: number;
   cursor?: string;
 }
@@ -20,6 +28,9 @@ export interface TraceApi {
   getTrace(traceId: string, signal?: AbortSignal): Promise<TraceDetailResponse>;
   getOverview(params: RangeParams & { service?: string }, signal?: AbortSignal): Promise<OverviewResponse>;
   listServices(params: RangeParams, signal?: AbortSignal): Promise<ServicesResponse>;
+  listConversations(params: ListConversationsParams, signal?: AbortSignal): Promise<ConversationListResponse>;
+  /** resumen + turnos en orden cronológico */
+  getConversation(conversationId: string, params?: { limit?: number; cursor?: string }, signal?: AbortSignal): Promise<ConversationDetailResponse>;
 }
 
 /** Error de la API (RFC 7807) o de conexión (`status === 0`). */

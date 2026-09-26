@@ -66,14 +66,23 @@ def handle(question: str, order_id: str, model: str) -> str:
 
 
 if __name__ == "__main__":
-    scenarios = [
-        ("¿Dónde está mi pedido?", "A-1001", "gpt-4o"),
-        ("Quiero devolver un producto", "A-1002", "claude-sonnet-5"),
-        ("¿Cuándo llega?", "A-1013", "gpt-4o"),  # la herramienta falla
-        ("Cambiar dirección de envío", "A-1004", "claude-sonnet-5"),
-    ]
-    for i, (question, order_id, model) in enumerate(scenarios):
-        with session(f"conversacion-{i + 1}"):
-            handle(question, order_id, model)
+    # Una conversación = varios turnos (trazas) bajo el mismo id de sesión (gen_ai.conversation.id)
+    conversations = {
+        "cliente-ana": [
+            ("¿Dónde está mi pedido?", "A-1001", "gpt-4o"),
+            ("¿Cuándo llega?", "A-1013", "gpt-4o"),  # la herramienta falla
+            ("Gracias, ¿puedo devolverlo?", "A-1001", "gpt-4o"),
+        ],
+        "cliente-luis": [
+            ("Quiero devolver un producto", "A-1002", "claude-sonnet-5"),
+            ("Cambiar dirección de envío", "A-1004", "claude-sonnet-5"),
+        ],
+        "cliente-eva": [("¿Tenéis stock del modelo azul?", "A-1005", "claude-sonnet-5")],
+    }
+    for conversation_id, turns in conversations.items():
+        with session(conversation_id):
+            for question, order_id, model in turns:
+                handle(question, order_id, model)
+                time.sleep(random.uniform(0.3, 1.2))  # el usuario lee y escribe
     memtrace.shutdown()
     print("✨ Trazas enviadas: abre el dashboard en http://localhost:5173")

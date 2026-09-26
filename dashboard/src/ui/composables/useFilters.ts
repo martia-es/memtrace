@@ -22,6 +22,7 @@ export function useFilters() {
     return value === "ok" || value === "error" ? value : undefined;
   });
   const hasErrors = computed(() => first(route.query.hasErrors) === "1");
+  const conversationId = computed(() => first(route.query.conversation));
   const minDurationMs = computed(() => {
     const value = Number(first(route.query.min));
     return Number.isFinite(value) && value > 0 ? value : undefined;
@@ -41,11 +42,13 @@ export function useFilters() {
     service,
     status,
     hasErrors,
+    conversationId,
     minDurationMs,
     setRange: (value: RangeKey) => update({ range: value === DEFAULT_RANGE ? undefined : value }),
     setService: (value: string | null | undefined) => update({ service: value ?? undefined }),
     setStatus: (value: "ok" | "error" | undefined) => update({ status: value }),
     setHasErrors: (value: boolean) => update({ hasErrors: value ? "1" : undefined }),
+    setConversation: (value: string | undefined) => update({ conversation: value }),
     setMinDuration: (value: number | undefined) => update({ min: value ? String(value) : undefined }),
     /** query que se conserva al navegar entre secciones */
     shared: computed(() => ({ ...(first(route.query.range) ? { range: first(route.query.range) } : {}), ...(service.value ? { service: service.value } : {}) })),

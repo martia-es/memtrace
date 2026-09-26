@@ -1,5 +1,5 @@
-import type { OverviewResponse, ServicesResponse, SpanNodeDto, TraceDetailResponse, TraceListResponse, TraceSummaryDto } from "@contract";
-import type { ListTracesParams, RangeParams, TraceApi } from "@/application/trace-api";
+import type { ConversationDetailResponse, ConversationListResponse, ConversationSummaryDto, OverviewResponse, ServicesResponse, SpanNodeDto, TraceDetailResponse, TraceListResponse, TraceSummaryDto } from "@contract";
+import type { ListConversationsParams, ListTracesParams, RangeParams, TraceApi } from "@/application/trace-api";
 
 export function summary(overrides: Partial<TraceSummaryDto> = {}): TraceSummaryDto {
   return {
@@ -12,6 +12,22 @@ export function summary(overrides: Partial<TraceSummaryDto> = {}): TraceSummaryD
     spanCount: 3,
     errorCount: 0,
     totalTokens: 0,
+    conversationId: null,
+    ...overrides,
+  };
+}
+
+export function conversation(overrides: Partial<ConversationSummaryDto> = {}): ConversationSummaryDto {
+  return {
+    conversationId: "conv-1",
+    serviceNames: ["svc"],
+    startTime: "2026-09-26T12:00:00.000Z",
+    lastActivity: "2026-09-26T12:05:00.000Z",
+    turnCount: 2,
+    errorTurns: 0,
+    failedSpans: 0,
+    totalTokens: 0,
+    activeMs: 100,
     ...overrides,
   };
 }
@@ -50,6 +66,22 @@ export class FakeTraceApi implements TraceApi {
     const index = params.cursor ? Number(params.cursor) : 0;
     return this.pages[index] ?? { items: [], nextCursor: null };
   }
+  conversationPages: ConversationListResponse[] = [{ items: [], nextCursor: null }];
+  conversationCalls: ListConversationsParams[] = [];
+  conversationDetail: ConversationDetailResponse | Error | null = null;
+  conversationDetailCalls: { id: string; limit?: number; cursor?: string }[] = [];
+
+  async listConversations(params: ListConversationsParams) {
+    this.conversationCalls.push(params);
+    return this.conversationPages[params.cursor ? Number(params.cursor) : 0] ?? { items: [], nextCursor: null };
+  }
+  async getConversation(id: string, params: { limit?: number; cursor?: string } = {}) {
+    this.conversationDetailCalls.push({ id, ...params });
+    if (this.conversationDetail instanceof Error) throw this.conversationDetail;
+    if (!this.conversationDetail) throw new Error("no conversation configured");
+    return this.conversationDetail;
+  }
+
   traceCalls = 0;
   async getTrace() {
     this.traceCalls += 1;

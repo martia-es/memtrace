@@ -121,6 +121,7 @@ const toolColumns = [
     <template v-else-if="data">
       <div class="kpis q-mt-md">
         <KpiCard label="Trazas" :value="formatCount(data.totals.traces)" :hint="`${formatCount(data.totals.spans)} spans`" />
+        <KpiCard label="Conversaciones" :value="formatCount(data.totals.conversations)" />
         <KpiCard label="Tasa de error (raíz)" :value="formatPercent(data.totals.errorRate)" :hint="`${data.totals.errorTraces} trazas con el raíz fallido`" :tone="data.totals.errorTraces > 0 ? 'negative' : 'default'" />
         <KpiCard label="Latencia p50" :value="formatDuration(data.latencyMs.p50)" />
         <KpiCard label="Latencia p95" :value="formatDuration(data.latencyMs.p95)" />

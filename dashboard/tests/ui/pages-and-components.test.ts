@@ -82,7 +82,7 @@ describe("TraceDetailPage / SpanWaterfall", () => {
   const detail = () => {
     const child = node({ spanId: "c1", parentSpanId: "r", name: "llm", kind: "llm", offsetMs: 5, durationMs: 20, status: { code: "error", message: "boom" } });
     const root = node({ spanId: "r", name: "raiz", kind: "agent", durationMs: 50, children: [child] });
-    return { traceId: "b".repeat(32), startTime: "2026-09-26T12:00:00.000Z", durationMs: 50, status: "ok" as const, spanCount: 2, errorCount: 1, totalTokens: 0, truncated: false, roots: [root] };
+    return { traceId: "b".repeat(32), conversationId: null, startTime: "2026-09-26T12:00:00.000Z", durationMs: 50, status: "ok" as const, spanCount: 2, errorCount: 1, totalTokens: 0, truncated: false, roots: [root] };
   };
 
   it("renders the waterfall, selects a span from the URL and shows its error", async () => {

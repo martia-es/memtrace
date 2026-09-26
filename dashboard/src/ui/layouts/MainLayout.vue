@@ -31,9 +31,12 @@ function cycleTheme() {
   }
 }
 const themeIcon = computed(() => ({ auto: "brightness_auto", light: "light_mode", dark: "dark_mode" })[mode.value]);
-// el detalle de una traza pertenece a la sección "Trazas"
-const section = computed(() => (route.name === "metrics" ? "metrics" : "traces"));
-const go = (name: "traces" | "metrics") => void router.push({ name, query: shared.value });
+// el detalle de una traza/conversación pertenece a su sección
+const section = computed(() => {
+  if (route.name === "metrics") return "metrics";
+  return route.name === "conversations" || route.name === "conversation" ? "conversations" : "traces";
+});
+const go = (name: "traces" | "conversations" | "metrics") => void router.push({ name, query: shared.value });
 </script>
 
 <template>
@@ -45,6 +48,7 @@ const go = (name: "traces" | "metrics") => void router.push({ name, query: share
         </router-link>
         <q-tabs :model-value="section" no-caps align="left" class="q-ml-lg" active-color="primary" indicator-color="primary" shrink>
           <q-tab name="traces" label="Trazas" icon="timeline" @click="go('traces')" />
+          <q-tab name="conversations" label="Conversaciones" icon="forum" @click="go('conversations')" />
           <q-tab name="metrics" label="Métricas" icon="insights" @click="go('metrics')" />
         </q-tabs>
         <q-space />
