@@ -230,12 +230,11 @@ const toolUsageOption = computed<EChartsCoreOption>(() => {
         data: toolData,
         emphasis: { itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: "rgba(0, 0, 0, 0.5)" } },
         label: {
+          show: true,
           fontSize: 12,
           fontWeight: 600,
-          color: c.text,
-          position: "outer"
-        },
-        labelLine: { show: true, lineStyle: { color: c.grid } }
+          color: c.text
+        }
       },
     ],
   };
