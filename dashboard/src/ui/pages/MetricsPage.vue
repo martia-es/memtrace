@@ -786,36 +786,46 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 .item {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 16px;
+  gap: 10px;
+  padding: 18px;
   border-radius: 16px;
-  background: var(--mt-soft);
+  background: linear-gradient(135deg, var(--mt-soft) 0%, var(--mt-card) 100%);
+  border-left: 4px solid var(--mt-violet);
+  transition: all 0.2s ease;
+}
+
+.item:hover {
+  box-shadow: 0 4px 12px rgba(74, 50, 201, 0.1);
+  transform: translateY(-2px);
 }
 
 .item-name {
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 800;
   color: var(--mt-ink);
+  letter-spacing: -0.02em;
 }
 
 .item-stats {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--mt-muted);
 }
 
 .stat {
   display: flex;
   align-items: center;
+  color: var(--mt-muted);
 }
 
 .item-detail {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--mt-muted);
   font-weight: 600;
+  padding-top: 4px;
+  border-top: 1px solid var(--mt-line);
 }
 
 .item-bar {
