@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import type { IoBlock } from "@/domain/span-io";
+import MessageBlock from "./MessageBlock.vue";
 
 const props = defineProps<{
   title: string;
@@ -25,8 +26,6 @@ async function copy() {
     /* portapapeles no disponible */
   }
 }
-const tint = (b: IoBlock) => ({ user: "#f4f8f5", assistant: "#ede8ff", system: "#f6f4ee", tool: "#ffe9d9", error: "#ffe1de", other: "#f4f8f5" })[b.role];
-const labelColor = (b: IoBlock) => ({ user: "#56655c", assistant: "#4a32c9", system: "#8a6d3b", tool: "#b24a0a", error: "#b3261e", other: "#56655c" })[b.role];
 </script>
 
 <template>
@@ -46,10 +45,7 @@ const labelColor = (b: IoBlock) => ({ user: "#56655c", assistant: "#4a32c9", sys
       <p v-if="blocks.length === 0" class="empty">{{ emptyHint }}</p>
       <pre v-else-if="mode === 'json'" class="block mono json">{{ json }}</pre>
       <template v-else>
-        <div v-for="(b, i) in blocks" :key="i" class="item">
-          <span class="label" :style="{ color: labelColor(b) }">{{ b.label }}</span>
-          <div class="block" :class="{ mono: b.structured }" :style="{ background: tint(b) }">{{ b.text }}</div>
-        </div>
+        <MessageBlock v-for="(b, i) in blocks" :key="i" :block="b" />
       </template>
     </div>
   </section>
@@ -104,30 +100,6 @@ h2 {
   flex-direction: column;
   gap: 10px;
   padding-right: 8px;
-}
-.item {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  flex-shrink: 0;
-}
-.label {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.block {
-  border-radius: 16px;
-  padding: 10px 14px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-size: 13px;
-  color: #22302a;
-}
-.block.mono {
-  font-size: 12px;
 }
 .json {
   margin: 0;
