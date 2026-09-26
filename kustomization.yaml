@@ -7,6 +7,8 @@ resources:
   - k8s/20-clickhouse.yaml
   - k8s/30-clickhouse-migrations.yaml
   - k8s/40-otel-collector.yaml
+  - k8s/50-api.yaml
+  - k8s/60-dashboard.yaml
 configMapGenerator:
   - name: clickhouse-migrations
     files:

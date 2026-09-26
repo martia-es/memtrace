@@ -77,7 +77,9 @@ Una vez ejecutado `make up`, tendrás acceso directo a:
 
 ### Dashboard y API de consulta
 
-Con el stack levantado (`make up`):
+`make up` construye las imágenes de la API y del dashboard (`api/Dockerfile`, `dashboard/Dockerfile`), las carga en el clúster y las despliega junto a ClickHouse y el collector. El dashboard queda en **http://localhost:8080** (nginx sirve la app y reenvía `/api` a la API; ADR-014).
+
+Para desarrollar con recarga en caliente, con el stack levantado:
 
 ```bash
 make dev        # API en :3001 + dashboard en http://localhost:5173 (Ctrl+C para parar)
@@ -100,6 +102,7 @@ El proyecto incluye un `Makefile` interactivo para gestionar fácilmente el cicl
 | **`make forward`** | Vuelve a iniciar la redirección de puertos en primer plano si fuera necesario. |
 | **`make logs`** | Muestra los registros (*logs*) en tiempo real del OpenTelemetry Collector. |
 | **`make migrate`** | Re-ejecuta de forma manual las migraciones de base de datos. |
+| **`make images`** | Reconstruye las imágenes de la API y el dashboard, las carga en el clúster y reinicia sus pods. |
 | **`make dev`** | Levanta la API (:3001) y el dashboard (:5173) a la vez; Ctrl+C los para. |
 | **`make dev-data`** | Genera trazas de ejemplo con un agente simulado. |
 | **`make down`** | Detiene el clúster conservando todos los datos guardados. |
@@ -117,6 +120,8 @@ MemTrace/
 │   ├── 20-clickhouse.yaml
 │   ├── 30-clickhouse-migrations.yaml
 │   ├── 40-otel-collector.yaml
+│   ├── 50-api.yaml             # API de consulta (Deployment + Service)
+│   ├── 60-dashboard.yaml       # Dashboard servido por nginx (Deployment + Service)
 │   └── config/                 # Configuración de ClickHouse (ConfigMap generado por kustomize)
 ├── sdk/python/                 # SDK Python (memtrace): decoradores + integración LangChain, exporta OTLP
 ├── api/                        # API de consulta (Next.js + TypeScript): único acceso a ClickHouse

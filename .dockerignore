@@ -1,0 +1,11 @@
+# El dashboard se construye con el repo entero como contexto (necesita el contrato de la API): se excluye el resto
+.git
+sdk
+docs
+k8s
+examples
+migrations
+**/node_modules
+**/.next
+**/dist
+**/.env*
