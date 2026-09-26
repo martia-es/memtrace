@@ -1,0 +1,17 @@
+<!--
+  Reduce los hilos de fondo de ClickHouse (ADR-010).
+  Cada contenedor del nodo kind está limitado a 307 PIDs y el ClickHouse por defecto usa ~300 en reposo.
+  Solo se recortan pools de funciones que MemTrace no usa (Kafka, Distributed, Buffer, réplicas):
+  `background_pool_size` (merges, mutaciones y TTL) se deja intacto a propósito.
+-->
+<clickhouse>
+    <background_schedule_pool_size>16</background_schedule_pool_size>                   <!-- defecto 128 -->
+    <background_message_broker_schedule_pool_size>2</background_message_broker_schedule_pool_size> <!-- 16 -->
+    <background_distributed_schedule_pool_size>2</background_distributed_schedule_pool_size>       <!-- 16 -->
+    <background_buffer_flush_schedule_pool_size>2</background_buffer_flush_schedule_pool_size>     <!-- 16 -->
+    <background_move_pool_size>2</background_move_pool_size>                            <!-- 8 -->
+    <background_fetches_pool_size>2</background_fetches_pool_size>                      <!-- 8 -->
+    <background_common_pool_size>4</background_common_pool_size>                        <!-- 8 -->
+    <max_thread_pool_free_size>32</max_thread_pool_free_size>                            <!-- 1000: el pool global no devuelve hilos tras una ráfaga y el contenedor se queda cerca del tope -->
+    <max_active_parts_loading_thread_pool_size>8</max_active_parts_loading_thread_pool_size>       <!-- 64, solo al arrancar -->
+</clickhouse>

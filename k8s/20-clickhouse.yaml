@@ -45,6 +45,13 @@ spec:
         volumeMounts:
         - name: data
           mountPath: /var/lib/clickhouse
+        - name: config
+          mountPath: /etc/clickhouse-server/config.d/low-footprint.xml
+          subPath: clickhouse-low-footprint.xml
+      volumes:
+      - name: config
+        configMap:
+          name: clickhouse-config   # kustomize le añade un hash: cambiar la config reinicia el pod
   volumeClaimTemplates:
   - metadata:
       name: data

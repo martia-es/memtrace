@@ -11,5 +11,9 @@ configMapGenerator:
   - name: clickhouse-migrations
     files:
       - migrations/clickhouse/001_init_traces.sql
-generatorOptions:
-  disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
+    options:
+      disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
+  - name: clickhouse-config
+    files:
+      - k8s/config/clickhouse-low-footprint.xml
+    # con hash en el nombre: cambiar la config cambia la plantilla y reinicia el StatefulSet

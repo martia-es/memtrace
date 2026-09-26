@@ -103,7 +103,8 @@ MemTrace/
 │   ├── 10-clickhouse-secret.yaml
 │   ├── 20-clickhouse.yaml
 │   ├── 30-clickhouse-migrations.yaml
-│   └── 40-otel-collector.yaml
+│   ├── 40-otel-collector.yaml
+│   └── config/                 # Configuración de ClickHouse (ConfigMap generado por kustomize)
 ├── sdk/python/                 # SDK Python (memtrace): decoradores + integración LangChain, exporta OTLP
 ├── api/                        # API de consulta (Next.js + TypeScript): único acceso a ClickHouse
 ├── examples/                   # Ejemplos de agentes instrumentados

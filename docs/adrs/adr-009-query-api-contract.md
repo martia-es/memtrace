@@ -154,7 +154,7 @@ RFC 7807 `application/problem+json`: `{ "type", "title", "status", "detail", "er
 
 - **Positive**: the dashboard depends on a small, stable JSON contract; SQL is confined to one adapter and swappable; tree logic and GenAI extraction are unit-testable; keyset pagination stays stable under concurrent inserts.
 - **Negative**:
-  - **The local ClickHouse has almost no thread headroom.** In the kind node every container is capped at 307 PIDs (`pids.max`, inherited from the node's 2048-PID limit) and an idle ClickHouse 23.8 already uses ~297. Six parallel queries exhausted it and left the server refusing even `SELECT count()` until the pod was restarted (data intact on the PVC). The API therefore limits concurrency and threads (above), but the root cause is infrastructure: raise the PID limit of the kind/podman node or shrink ClickHouse background pools. This needs its own decision (ADR-002/ADR-005 scope) and is not solved here.
+  - **The local ClickHouse has little thread headroom** (kind caps each container at 307 PIDs). Parallel queries exhausted the default ClickHouse during integration tests; ADR-010 reduces its background threads (~300 → ~140) and this API additionally limits per-query threads and concurrency.
   - Listing shows only traces with an exported root, and a trace with a lost root is invisible in the list (reachable by ID only).
   - `status` (root) and `hasErrors` (any span) are different notions; the UI must show both or it will mislead.
   - Listing without a `service` filter cannot use the sort key for ordering; acceptable at local volume, and ADR-003 already anticipates a projection/materialized view via a new migration.

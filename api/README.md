@@ -55,4 +55,4 @@ npm run typecheck
 | `CLICKHOUSE_QUERY_MAX_THREADS` | `2` | hilos por consulta |
 | `CLICKHOUSE_MAX_CONCURRENT_QUERIES` | `3` | consultas simultáneas por proceso |
 
-> El ClickHouse local tiene muy poco margen de hilos (límite de 307 PIDs por contenedor en kind); por eso la API limita la concurrencia. Detalle en el ADR-009.
+> El ClickHouse local tiene un margen de hilos limitado (kind fija 307 PIDs por contenedor): ver [ADR-010](../docs/adrs/adr-010-clickhouse-thread-footprint-in-kind.md). Por eso la API limita hilos por consulta y concurrencia.
