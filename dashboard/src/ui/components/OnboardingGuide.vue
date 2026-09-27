@@ -3,44 +3,34 @@ import { ref, computed } from "vue";
 
 type Framework = "langchain" | "langgraph" | "pydantic-ai";
 type Language = "python" | "typescript";
-type TabKey = "install" | "env" | "example";
-
-function copyToClipboard(text: string) {
-  navigator.clipboard.writeText(text).then(() => {
-    console.log("Copied to clipboard");
-  });
-}
 
 const selectedFramework = ref<Framework>("langchain");
 const selectedLanguage = ref<Language>("python");
-const activeTab = ref<TabKey>("install");
+const copiedKey = ref<string | null>(null);
 
-interface SetupStep {
-  title: string;
-  content: string;
+function copy(text: string, key: string) {
+  void navigator.clipboard.writeText(text);
+  copiedKey.value = key;
+  setTimeout(() => {
+    if (copiedKey.value === key) copiedKey.value = null;
+  }, 1500);
 }
 
 interface SetupGuide {
-  install: SetupStep;
-  env: SetupStep;
-  example: SetupStep;
+  installLabel: string;
+  install: string;
+  env: string;
+  example: string;
 }
 
 const setupGuides: Record<`${Framework}-${Language}`, SetupGuide> = {
   "langchain-python": {
-    install: {
-      title: "pip",
-      content: "pip install memtrace-ai[langchain]",
-    },
-    env: {
-      title: "Shell",
-      content: `export MEMTRACE_SERVICE_NAME="mi-agente"
-export MEMTRACE_OTLP_ENDPOINT="http://localhost:4317"
-export MEMTRACE_CAPTURE_CONTENT="true"`,
-    },
-    example: {
-      title: "example.py",
-      content: `from memtrace import init_tracer, MemTraceCallbackHandler, session
+    installLabel: "pip",
+    install: "pip install memtrace-ai[langchain]",
+    env: `MEMTRACE_SERVICE_NAME="mi-agente"
+MEMTRACE_OTLP_ENDPOINT="http://localhost:4317"
+MEMTRACE_CAPTURE_CONTENT="true"`,
+    example: `from memtrace import init_tracer, MemTraceCallbackHandler, session
 from langchain.agents import create_agent
 from langchain.tools import tool
 
@@ -54,7 +44,7 @@ def search(query: str) -> str:
 agent = create_agent(
     model="openai:gpt-4",
     tools=[search],
-    system_prompt="You are helpful."
+    system_prompt="You are helpful.",
 )
 
 conversation_id = "chat-123"
@@ -64,75 +54,48 @@ config = {
 }
 
 with session(conversation_id):
-    result = agent.invoke(
-        {"input": "What's the weather?"},
-        config=config
-    )`,
-    },
+    result = agent.invoke({"input": "What's the weather?"}, config=config)`,
   },
   "langchain-typescript": {
-    install: {
-      title: "npm",
-      content: "npm install memtrace-ai langchain",
-    },
-    env: {
-      title: "Shell",
-      content: `export MEMTRACE_SERVICE_NAME="mi-agente"
-export MEMTRACE_OTLP_ENDPOINT="http://localhost:4317"
-export MEMTRACE_CAPTURE_CONTENT="true"`,
-    },
-    example: {
-      title: "example.ts",
-      content: `import { initTracer, MemTraceCallbackHandler, session } from "memtrace-ai";
+    installLabel: "npm",
+    install: "npm install memtrace-ai langchain",
+    env: `MEMTRACE_SERVICE_NAME="mi-agente"
+MEMTRACE_OTLP_ENDPOINT="http://localhost:4317"
+MEMTRACE_CAPTURE_CONTENT="true"`,
+    example: `import { initTracer, MemTraceCallbackHandler, session } from "memtrace-ai";
 import { createAgent } from "langchain/agents";
 import { tool } from "@langchain/core/tools";
 
 initTracer({ serviceName: "mi-agente" });
 
 const search = tool(
-  async (query: string) => {
-    return \`Results for: \${query}\`;
-  },
-  {
-    name: "search",
-    description: "Search for information.",
-  }
+  async (query: string) => \`Results for: \${query}\`,
+  { name: "search", description: "Search for information." },
 );
 
 const agent = await createAgent({
   model: "gpt-4",
   tools: [search],
-  systemPrompt: "You are helpful."
+  systemPrompt: "You are helpful.",
 });
 
 const conversationId = "chat-123";
 const config = {
   callbacks: [new MemTraceCallbackHandler()],
-  metadata: { threadId: conversationId }
+  metadata: { threadId: conversationId },
 };
 
 await session(conversationId, async () => {
-  const result = await agent.invoke(
-    { input: "What's the weather?" },
-    config
-  );
+  await agent.invoke({ input: "What's the weather?" }, config);
 });`,
-    },
   },
   "langgraph-python": {
-    install: {
-      title: "pip",
-      content: "pip install memtrace-ai[langchain] langgraph",
-    },
-    env: {
-      title: "Shell",
-      content: `export MEMTRACE_SERVICE_NAME="mi-agente"
-export MEMTRACE_OTLP_ENDPOINT="http://localhost:4317"
-export MEMTRACE_CAPTURE_CONTENT="true"`,
-    },
-    example: {
-      title: "example.py",
-      content: `from memtrace import init_tracer, MemTraceCallbackHandler, session
+    installLabel: "pip",
+    install: "pip install memtrace-ai[langchain] langgraph",
+    env: `MEMTRACE_SERVICE_NAME="mi-agente"
+MEMTRACE_OTLP_ENDPOINT="http://localhost:4317"
+MEMTRACE_CAPTURE_CONTENT="true"`,
+    example: `from memtrace import init_tracer, MemTraceCallbackHandler, session
 from langgraph.graph import StateGraph
 from langchain.tools import tool
 
@@ -158,42 +121,26 @@ config = {
 }
 
 with session(conversation_id):
-    result = graph.invoke(
-        {"input": "What's the weather?"},
-        config=config
-    )`,
-    },
+    result = graph.invoke({"input": "What's the weather?"}, config=config)`,
   },
   "langgraph-typescript": {
-    install: {
-      title: "npm",
-      content: "npm install memtrace-ai langchain langgraph",
-    },
-    env: {
-      title: "Shell",
-      content: `export MEMTRACE_SERVICE_NAME="mi-agente"
-export MEMTRACE_OTLP_ENDPOINT="http://localhost:4317"
-export MEMTRACE_CAPTURE_CONTENT="true"`,
-    },
-    example: {
-      title: "example.ts",
-      content: `import { initTracer, MemTraceCallbackHandler, session } from "memtrace-ai";
+    installLabel: "npm",
+    install: "npm install memtrace-ai langchain langgraph",
+    env: `MEMTRACE_SERVICE_NAME="mi-agente"
+MEMTRACE_OTLP_ENDPOINT="http://localhost:4317"
+MEMTRACE_CAPTURE_CONTENT="true"`,
+    example: `import { initTracer, MemTraceCallbackHandler, session } from "memtrace-ai";
 import { StateGraph } from "@langchain/langgraph";
 import { tool } from "@langchain/core/tools";
 
 initTracer({ serviceName: "mi-agente" });
 
 const search = tool(
-  async (query: string) => {
-    return \`Results for: \${query}\`;
-  },
-  { name: "search", description: "Search for information." }
+  async (query: string) => \`Results for: \${query}\`,
+  { name: "search", description: "Search for information." },
 );
 
-const builder = new StateGraph({
-  channels: { input: { value: null } }
-});
-
+const builder = new StateGraph({ channels: { input: { value: null } } });
 builder.addNode("agent", async (state) => state);
 builder.setEntryPoint("agent");
 const graph = builder.compile();
@@ -201,39 +148,25 @@ const graph = builder.compile();
 const conversationId = "chat-123";
 const config = {
   callbacks: [new MemTraceCallbackHandler()],
-  metadata: { threadId: conversationId }
+  metadata: { threadId: conversationId },
 };
 
 await session(conversationId, async () => {
-  const result = await graph.invoke(
-    { input: "What's the weather?" },
-    config
-  );
+  await graph.invoke({ input: "What's the weather?" }, config);
 });`,
-    },
   },
   "pydantic-ai-python": {
-    install: {
-      title: "pip",
-      content: "pip install memtrace-ai pydantic-ai",
-    },
-    env: {
-      title: "Shell",
-      content: `export MEMTRACE_SERVICE_NAME="mi-agente"
-export MEMTRACE_OTLP_ENDPOINT="http://localhost:4317"
-export MEMTRACE_CAPTURE_CONTENT="true"`,
-    },
-    example: {
-      title: "example.py",
-      content: `from memtrace import init_tracer, session, trace_step
+    installLabel: "pip",
+    install: "pip install memtrace-ai pydantic-ai",
+    env: `MEMTRACE_SERVICE_NAME="mi-agente"
+MEMTRACE_OTLP_ENDPOINT="http://localhost:4317"
+MEMTRACE_CAPTURE_CONTENT="true"`,
+    example: `from memtrace import init_tracer, session, trace_step
 from pydantic_ai import Agent
 
 init_tracer(service_name="mi-agente")
 
-agent = Agent(
-    "openai:gpt-4",
-    system_prompt="You are a helpful assistant."
-)
+agent = Agent("openai:gpt-4", system_prompt="You are a helpful assistant.")
 
 @agent.tool_plain
 @trace_step(name="search", step_type="tool")
@@ -248,366 +181,243 @@ def ask(prompt: str) -> str:
 conversation_id = "chat-123"
 with session(conversation_id):
     result = ask("What's the weather?")`,
-    },
   },
   "pydantic-ai-typescript": {
-    install: {
-      title: "npm",
-      content: "npm install memtrace-ai pydantic-ai",
-    },
-    env: {
-      title: "Shell",
-      content: `export MEMTRACE_SERVICE_NAME="mi-agente"
-export MEMTRACE_OTLP_ENDPOINT="http://localhost:4317"
-export MEMTRACE_CAPTURE_CONTENT="true"`,
-    },
-    example: {
-      title: "example.ts",
-      content: `import { initTracer, session, traceStep } from "memtrace-ai";
+    installLabel: "npm",
+    install: "npm install memtrace-ai pydantic-ai",
+    env: `MEMTRACE_SERVICE_NAME="mi-agente"
+MEMTRACE_OTLP_ENDPOINT="http://localhost:4317"
+MEMTRACE_CAPTURE_CONTENT="true"`,
+    example: `import { initTracer, session, traceStep } from "memtrace-ai";
 import { Agent } from "pydantic-ai";
 
 initTracer({ serviceName: "mi-agente" });
 
 const agent = new Agent({
   model: "openai:gpt-4",
-  systemPrompt: "You are a helpful assistant."
+  systemPrompt: "You are a helpful assistant.",
 });
 
 agent.tool(
   "search",
-  async (query: string) => {
-    return "The weather is sunny!";
-  },
-  { description: "Get weather for a city." }
+  async (query: string) => "The weather is sunny!",
+  { description: "Get weather for a city." },
 );
 
-const ask = traceStep(
-  "ask",
-  async (prompt: string) => {
-    return await agent.run(prompt);
-  }
-);
+const ask = traceStep("ask", async (prompt: string) => agent.run(prompt));
 
 const conversationId = "chat-123";
 await session(conversationId, async () => {
-  const result = await ask("What's the weather?");
+  await ask("What's the weather?");
 });`,
-    },
   },
 };
 
-const currentGuide = computed(() => {
-  const key = `${selectedFramework.value}-${selectedLanguage.value}` as const;
-  return setupGuides[key];
-});
-
-const frameworks = [
-  { id: "langchain" as const, label: "LangChain", icon: "🔗" },
-  { id: "langgraph" as const, label: "LangGraph", icon: "📊" },
-  { id: "pydantic-ai" as const, label: "PydanticAI", icon: "🤖" },
+const FRAMEWORKS: { id: Framework; label: string }[] = [
+  { id: "langchain", label: "LangChain" },
+  { id: "langgraph", label: "LangGraph" },
+  { id: "pydantic-ai", label: "PydanticAI" },
 ];
 
-const languages = [
-  { id: "python" as const, label: "Python", icon: "🐍" },
-  { id: "typescript" as const, label: "TypeScript", icon: "📘" },
+const LANGUAGES: { id: Language; label: string }[] = [
+  { id: "python", label: "Python" },
+  { id: "typescript", label: "TypeScript" },
 ];
+
+const guide = computed(() => setupGuides[`${selectedFramework.value}-${selectedLanguage.value}`]);
 </script>
 
 <template>
-  <div class="guide">
-    <!-- Header -->
-    <div class="header">
-      <div class="header-content">
-        <q-icon name="schedule" size="24px" class="header-icon" />
-        <div class="header-text">
-          <h2>Waiting for traces...</h2>
-          <p>No traces detected yet. Follow our guide to start tracing your application.</p>
+  <div class="onboarding mt-card">
+    <div class="intro">
+      <q-icon name="forum" size="32px" class="intro-icon" />
+      <div class="intro-title">No traces detected yet</div>
+      <div class="intro-sub">Follow this guide to start tracing your application.</div>
+    </div>
+
+    <div class="pickers">
+      <div class="picker">
+        <span class="picker-label">Framework</span>
+        <div class="mt-segmented">
+          <button
+            v-for="fw in FRAMEWORKS"
+            :key="fw.id"
+            type="button"
+            :aria-pressed="selectedFramework === fw.id"
+            @click="selectedFramework = fw.id"
+          >
+            {{ fw.label }}
+          </button>
         </div>
       </div>
-      <a href="#" class="view-docs">View docs →</a>
+
+      <div class="picker">
+        <span class="picker-label">Language</span>
+        <div class="mt-segmented">
+          <button
+            v-for="lang in LANGUAGES"
+            :key="lang.id"
+            type="button"
+            :aria-pressed="selectedLanguage === lang.id"
+            @click="selectedLanguage = lang.id"
+          >
+            {{ lang.label }}
+          </button>
+        </div>
+      </div>
     </div>
 
-    <!-- Section 1: Select Framework -->
-    <section class="guide-section">
-      <h3>Trace an existing app</h3>
-      <div class="frameworks-grid">
-        <button
-          v-for="fw in frameworks"
-          :key="fw.id"
-          :class="{ active: selectedFramework === fw.id }"
-          class="framework-btn"
-          @click="selectedFramework = fw.id"
-        >
-          <span class="fw-icon">{{ fw.icon }}</span>
-          <span class="fw-label">{{ fw.label }}</span>
-        </button>
-      </div>
-    </section>
+    <ol class="steps">
+      <li class="step">
+        <span class="step-label">Install</span>
+        <div class="snippet">
+          <pre><code>{{ guide.install }}</code></pre>
+          <button class="copy" type="button" title="Copy" @click="copy(guide.install, 'install')">
+            <q-icon :name="copiedKey === 'install' ? 'check' : 'content_copy'" size="15px" />
+          </button>
+        </div>
+      </li>
 
-    <!-- Section 2: Select Language -->
-    <section class="guide-section">
-      <h3>Select a language</h3>
-      <div class="languages-grid">
-        <button
-          v-for="lang in languages"
-          :key="lang.id"
-          :class="{ active: selectedLanguage === lang.id }"
-          class="language-btn"
-          @click="selectedLanguage = lang.id"
-        >
-          <span class="lang-icon">{{ lang.icon }}</span>
-          <span class="lang-label">{{ lang.label }}</span>
-        </button>
-      </div>
-    </section>
+      <li class="step">
+        <span class="step-label">Set environment variables</span>
+        <div class="snippet">
+          <pre><code>{{ guide.env }}</code></pre>
+          <button class="copy" type="button" title="Copy" @click="copy(guide.env, 'env')">
+            <q-icon :name="copiedKey === 'env' ? 'check' : 'content_copy'" size="15px" />
+          </button>
+        </div>
+      </li>
 
-    <!-- Section 3: Install Dependencies -->
-    <section class="guide-section">
-      <h3>Install dependencies</h3>
-      <div class="code-block">
-        <pre><code>{{ currentGuide.install.content }}</code></pre>
-        <button
-          class="copy-btn"
-          :title="`Copy: ${currentGuide.install.content}`"
-          @click="copyToClipboard(currentGuide.install.content)"
-        >
-          <q-icon name="content_copy" size="16px" />
-        </button>
-      </div>
-    </section>
-
-    <!-- Section 4: Configure Environment -->
-    <section class="guide-section">
-      <h3>Configure environment</h3>
-      <div class="code-block">
-        <pre><code>{{ currentGuide.env.content }}</code></pre>
-        <button class="copy-btn" title="Copy" @click="copyToClipboard(currentGuide.env.content)">
-          <q-icon name="content_copy" size="16px" />
-        </button>
-      </div>
-    </section>
-
-    <!-- Section 5: Run Quickstart -->
-    <section class="guide-section">
-      <h3>Run the quickstart</h3>
-      <div class="code-block">
-        <pre><code>{{ currentGuide.example.content }}</code></pre>
-        <button class="copy-btn" title="Copy" @click="copyToClipboard(currentGuide.example.content)">
-          <q-icon name="content_copy" size="16px" />
-        </button>
-      </div>
-    </section>
-
-    <!-- Footer Tip -->
-    <div class="footer-tip">
-      <strong>💡 Tip:</strong> Ensure MemTrace backend is running with <code>make up</code>
-    </div>
+      <li class="step">
+        <span class="step-label">Instrument your agent</span>
+        <div class="snippet">
+          <pre><code>{{ guide.example }}</code></pre>
+          <button class="copy" type="button" title="Copy" @click="copy(guide.example, 'example')">
+            <q-icon :name="copiedKey === 'example' ? 'check' : 'content_copy'" size="15px" />
+          </button>
+        </div>
+      </li>
+    </ol>
   </div>
 </template>
 
 <style scoped>
-.guide {
-  max-width: 1000px;
-  margin: 20px auto;
-  padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-}
-
-/* Header */
-.header {
+.onboarding {
+  margin: 8px auto;
+  padding: 32px;
+  max-width: 720px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px 24px;
-  background: #f8f9fa;
-  border-radius: 8px 8px 0 0;
-  border-bottom: 1px solid #e5e7eb;
+  flex-direction: column;
+  gap: 28px;
 }
 
-.header-content {
+.intro {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 16px;
+  text-align: center;
+  gap: 4px;
+  color: var(--mt-muted);
 }
-
-.header-icon {
-  flex-shrink: 0;
-  color: #3b82f6;
+.intro-icon {
+  color: var(--mt-muted);
+  margin-bottom: 4px;
 }
-
-.header-text h2 {
-  margin: 0 0 4px;
-  font-size: 18px;
-  font-weight: 600;
-  color: #1f2937;
-}
-
-.header-text p {
-  margin: 0;
-  font-size: 14px;
-  color: #6b7280;
-}
-
-.view-docs {
-  padding: 6px 12px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #3b82f6;
-  text-decoration: none;
-  border-radius: 4px;
-  transition: background 200ms;
-  white-space: nowrap;
-}
-
-.view-docs:hover {
-  background: rgba(59, 130, 246, 0.1);
-}
-
-/* Sections */
-.guide-section {
-  padding: 24px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.guide-section:last-of-type {
-  border-bottom: none;
-}
-
-.guide-section h3 {
-  margin: 0 0 16px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #1f2937;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-/* Frameworks Grid */
-.frameworks-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 8px;
-}
-
-.framework-btn,
-.language-btn {
-  padding: 12px 16px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  background: #fff;
-  color: #1f2937;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  transition: all 200ms;
-}
-
-.framework-btn:hover,
-.language-btn:hover {
-  border-color: #3b82f6;
-  background: #f0f4ff;
-}
-
-.framework-btn.active,
-.language-btn.active {
-  border-color: #3b82f6;
-  background: #3b82f6;
-  color: #fff;
-}
-
-.fw-icon,
-.lang-icon {
+.intro-title {
   font-size: 16px;
+  font-weight: 700;
+  color: var(--mt-ink);
+  letter-spacing: -0.01em;
+}
+.intro-sub {
+  font-size: 13px;
 }
 
-/* Code Block */
-.code-block {
-  position: relative;
-  background: #1f2937;
-  border-radius: 6px;
-  overflow: hidden;
-  border: 1px solid #374151;
+.pickers {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 24px;
+}
+.picker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.picker-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--mt-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
-.code-block pre {
+.steps {
+  list-style: none;
   margin: 0;
-  padding: 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.step-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--mt-ink);
+}
+
+.snippet {
+  position: relative;
+  background: var(--code-bg);
+  border-radius: 12px;
+}
+.snippet pre {
+  margin: 0;
+  padding: 12px 40px 12px 14px;
   overflow-x: auto;
 }
-
-.code-block code {
-  font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+.snippet code {
+  background: transparent;
+  padding: 0;
+  font-family: var(--mt-mono);
   font-size: 12px;
   line-height: 1.6;
-  color: #d1d5db;
+  color: var(--mt-ink);
+  white-space: pre;
 }
 
-.copy-btn {
+.copy {
   position: absolute;
   top: 8px;
   right: 8px;
-  padding: 6px;
-  border: 1px solid rgba(209, 213, 219, 0.3);
-  border-radius: 4px;
-  background: rgba(0, 0, 0, 0.2);
-  color: #d1d5db;
-  cursor: pointer;
-  transition: all 200ms;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--mt-card);
+  color: var(--mt-muted);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(20, 60, 35, 0.12);
+}
+.copy:hover {
+  color: var(--mt-ink);
 }
 
-.copy-btn:hover {
-  background: rgba(59, 130, 246, 0.2);
-  border-color: #3b82f6;
-  color: #3b82f6;
-}
-
-/* Languages Grid */
-.languages-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 8px;
-}
-
-/* Footer Tip */
-.footer-tip {
-  padding: 16px 24px;
-  background: #eff6ff;
-  border-bottom: 1px solid #dbeafe;
-  border-radius: 0 0 8px 8px;
-  font-size: 13px;
-  color: #1e40af;
-  border-left: 4px solid #3b82f6;
-}
-
-.footer-tip code {
-  background: rgba(59, 130, 246, 0.1);
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-family: monospace;
-  font-size: 12px;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .guide {
-    margin: 16px 0;
+@media (max-width: 560px) {
+  .onboarding {
+    padding: 24px 16px;
   }
-
-  .header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
-  .frameworks-grid,
-  .languages-grid {
-    grid-template-columns: repeat(2, 1fr);
+  .pickers {
+    gap: 16px;
   }
 }
 </style>
