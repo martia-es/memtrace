@@ -43,9 +43,9 @@ const empty = computed(() => data.value !== null && data.value.totals.traces ===
 const successRate = computed(() => (data.value ? 1 - data.value.totals.errorRate : 1));
 const health = computed(() => {
   const rate = data.value?.totals.errorRate ?? 0;
-  if (rate === 0) return { key: "ok", text: "Operación estable" };
-  if (rate < 0.05) return { key: "warn", text: "Atención: errores puntuales" };
-  return { key: "error", text: "Revisar: errores en ejecuciones" };
+  if (rate === 0) return { key: "ok", text: "Stable operation" };
+  if (rate < 0.05) return { key: "warn", text: "Warning: Occasional errors" };
+  return { key: "error", text: "Alert: Errors in executions" };
 });
 const tokenSplit = computed(() => {
   const t = data.value?.totals;
@@ -106,10 +106,10 @@ const activityOption = computed<EChartsCoreOption>(() => {
       { type: "value", ...a, splitLine: { show: false }, axisLabel: { ...a.axisLabel, formatter: (v: number) => formatDuration(v) } },
     ],
     series: [
-      { name: "Correctas", type: "bar", stack: "t", barMaxWidth: 26, data: d?.timeseries.map((p) => p.traces - p.errorTraces) ?? [], itemStyle: { color: PALETTE.lime, borderRadius: [0, 0, 0, 0] } },
-      { name: "Con error", type: "bar", stack: "t", barMaxWidth: 26, data: d?.timeseries.map((p) => p.errorTraces) ?? [], itemStyle: { color: PALETTE.teal, borderRadius: [6, 6, 0, 0] } },
+      { name: "Successful", type: "bar", stack: "t", barMaxWidth: 26, data: d?.timeseries.map((p) => p.traces - p.errorTraces) ?? [], itemStyle: { color: PALETTE.lime, borderRadius: [0, 0, 0, 0] } },
+      { name: "With errors", type: "bar", stack: "t", barMaxWidth: 26, data: d?.timeseries.map((p) => p.errorTraces) ?? [], itemStyle: { color: PALETTE.teal, borderRadius: [6, 6, 0, 0] } },
       {
-        name: "Latencia p95",
+        name: "Latency p95",
         type: "line",
         yAxisIndex: 1,
         smooth: 0.35,
@@ -135,7 +135,7 @@ const inputTokensOption = computed<EChartsCoreOption>(() => {
     yAxis: { type: "value", ...a, axisLabel: { ...a.axisLabel, formatter: (v: number) => formatCount(v) } },
     series: [
       {
-        name: "Tokens de entrada",
+        name: "Input tokens",
         type: "line",
         smooth: 0.35,
         showSymbol: false,
@@ -161,7 +161,7 @@ const outputTokensOption = computed<EChartsCoreOption>(() => {
     yAxis: { type: "value", ...a, axisLabel: { ...a.axisLabel, formatter: (v: number) => formatCount(v) } },
     series: [
       {
-        name: "Tokens de salida",
+        name: "Output tokens",
         type: "line",
         smooth: 0.35,
         showSymbol: false,
@@ -187,7 +187,7 @@ const latencyByModelOption = computed<EChartsCoreOption>(() => {
     yAxis: { type: "value", ...a, axisLabel: { ...a.axisLabel, formatter: (v: number) => formatDuration(v) } },
     series: [
       {
-        name: "Latencia p95",
+        name: "Latency p95",
         type: "bar",
         barMaxWidth: 40,
         data: d?.byModel.map((m) => m.p95Ms) ?? [],
@@ -225,14 +225,14 @@ const toolUsageOption = computed<EChartsCoreOption>(() => {
       formatter: (param: any) => {
         if (param.data) {
           const percentage = ((param.value / total) * 100).toFixed(0);
-          return `<strong>${param.name}</strong><br/>Usos: ${param.value} (${percentage}%)<br/>Fallos: ${param.data.errors} (${param.data.errorRate}%)`;
+          return `<strong>${param.name}</strong><br/>Uses: ${param.value} (${percentage}%)<br/>Failures: ${param.data.errors} (${param.data.errorRate}%)`;
         }
         return '';
       }
     },
     series: [
       {
-        name: "Uso de herramientas",
+        name: "Tool usage",
         type: "pie",
         radius: ["40%", "70%"],
         data: toolData,
@@ -262,7 +262,7 @@ const inputTokensByModelOption = computed<EChartsCoreOption>(() => {
     yAxis: { type: "value", ...a, axisLabel: { ...a.axisLabel, formatter: (v: number) => formatCount(v) } },
     series: [
       {
-        name: "Tokens entrada",
+        name: "Input tokens",
         type: "bar",
         barMaxWidth: 40,
         data: d?.byModel.map((m) => m.inputTokens) ?? [],
@@ -286,7 +286,7 @@ const outputTokensByModelOption = computed<EChartsCoreOption>(() => {
     yAxis: { type: "value", ...a, axisLabel: { ...a.axisLabel, formatter: (v: number) => formatCount(v) } },
     series: [
       {
-        name: "Tokens salida",
+        name: "Output tokens",
         type: "bar",
         barMaxWidth: 40,
         data: d?.byModel.map((m) => m.outputTokens) ?? [],
@@ -306,8 +306,8 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
   <q-page class="page">
     <header class="head">
       <div>
-        <div class="eyebrow">Observabilidad · Resumen ejecutivo</div>
-        <h1>Panel de Control</h1>
+        <div class="eyebrow">Observability · Executive Summary</div>
+        <h1>Dashboard</h1>
       </div>
       <FilterBar :range="f.range.value" :loading="overview.loading.value" @update:range="f.setRange" @refresh="reload">
         <LiveControl :seconds="liveRefresh.seconds.value" :updated-at="liveRefresh.updatedAt.value" @update:seconds="setRefreshSeconds" />
@@ -319,22 +319,22 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
       <q-spinner size="32px" color="primary" />
     </div>
 
-    <EmptyState v-else-if="empty" icon="insights" title="Sin datos en este rango">Ejecuta un agente instrumentado o amplía el rango de tiempo.</EmptyState>
+    <EmptyState v-else-if="empty" icon="insights" title="No data in this range">Run an instrumented agent or extend the time range.</EmptyState>
 
     <template v-else-if="data">
       <!-- Summary Overview -->
       <div class="summary-overview">
         <div class="summary-tile">
           <div class="summary-number">{{ formatCount(data.totals.traces) }}</div>
-          <div class="summary-text">Ejecuciones</div>
+          <div class="summary-text">Executions</div>
         </div>
         <div class="summary-tile">
           <div class="summary-number">{{ formatCount(data.totals.conversations) }}</div>
-          <div class="summary-text">Conversaciones</div>
+          <div class="summary-text">Conversations</div>
         </div>
         <div class="summary-tile">
           <div class="summary-number">{{ formatCount(data.totals.spans) }}</div>
-          <div class="summary-text">Operaciones</div>
+          <div class="summary-text">Operations</div>
         </div>
       </div>
 
@@ -343,83 +343,83 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
         <div class="status-card" :class="health.key">
           <div class="status-icon"><i /></div>
           <div class="status-body">
-            <div class="status-label">ESTADO</div>
+            <div class="status-label">STATUS</div>
             <div class="status-value">{{ formatPercent(successRate) }}</div>
             <div class="status-text">{{ health.text }}</div>
           </div>
           <div class="spark-box">
-            <EChart :option="traceSpark" height="72px" label="Tendencia" />
+            <EChart :option="traceSpark" height="72px" label="Trend" />
           </div>
         </div>
 
         <div class="metric-card" :class="{ alert: data.totals.errorTraces > 0 }">
-          <div class="metric-label">ERRORES</div>
+          <div class="metric-label">ERRORS</div>
           <div class="metric-value-with-icon">
             <q-icon v-if="data.totals.errorTraces > 0" name="error" size="20px" color="#d9b3f0" />
             <div :style="{ color: data.totals.errorTraces > 0 ? '#5fb59a' : '#c4f26b' }">{{ formatCount(data.totals.errorTraces) }}</div>
           </div>
           <div class="metric-detail">{{ formatPercent(data.totals.errorRate) }}</div>
-          <a v-if="data.totals.errorTraces > 0" class="error-link" @click="goToErrors">Ver trazas →</a>
+          <a v-if="data.totals.errorTraces > 0" class="error-link" @click="goToErrors">View traces →</a>
         </div>
 
         <div class="metric-card">
-          <div class="metric-label">LATENCIA P95</div>
+          <div class="metric-label">LATENCY P95</div>
           <div class="metric-value" style="color: #5fb59a">{{ formatDuration(data.latencyMs.p95) }}</div>
-          <div class="metric-detail">{{ formatDuration(data.latencyMs.p50) }} mediana</div>
+          <div class="metric-detail">{{ formatDuration(data.latencyMs.p50) }} median</div>
         </div>
 
         <div class="metric-card">
-          <div class="metric-label">TOKENS TOTALES</div>
+          <div class="metric-label">TOTAL TOKENS</div>
           <div class="metric-value" style="color: #7ecf96">{{ formatCount(data.totals.totalTokens) }}</div>
-          <div class="metric-detail">{{ formatCount(Math.round(tokensPerTrace)) }} por exec.</div>
+          <div class="metric-detail">{{ formatCount(Math.round(tokensPerTrace)) }} per exec.</div>
         </div>
       </div>
 
       <!-- Charts Row - Activity & Tokens -->
       <div class="charts-grid">
         <section class="chart-panel">
-          <h2>Actividad y Rendimiento</h2>
-          <EChart :option="activityOption" height="400px" label="Ejecuciones, errores y latencia" />
+          <h2>Activity and Performance</h2>
+          <EChart :option="activityOption" height="400px" label="Executions, errors, and latency" />
         </section>
 
         <section class="chart-panel">
-          <h2>Distribución de Herramientas</h2>
-          <EChart v-if="data.byTool.length" :option="toolUsageOption" height="400px" label="Uso de herramientas" />
-          <div v-else class="no-data">Sin herramientas ejecutadas</div>
+          <h2>Tool Distribution</h2>
+          <EChart v-if="data.byTool.length" :option="toolUsageOption" height="400px" label="Tool usage" />
+          <div v-else class="no-data">No tools executed</div>
         </section>
       </div>
 
       <!-- Tokens Row -->
       <div class="tokens-grid">
         <section class="chart-panel">
-          <h2>Tokens de Entrada (Timeseries)</h2>
-          <EChart :option="inputTokensOption" height="300px" label="Tokens de entrada" />
+          <h2>Input Tokens (Timeseries)</h2>
+          <EChart :option="inputTokensOption" height="300px" label="Input tokens" />
         </section>
 
         <section class="chart-panel">
-          <h2>Tokens de Salida (Timeseries)</h2>
-          <EChart :option="outputTokensOption" height="300px" label="Tokens de salida" />
+          <h2>Output Tokens (Timeseries)</h2>
+          <EChart :option="outputTokensOption" height="300px" label="Output tokens" />
         </section>
 
         <section class="chart-panel">
-          <h2>Entrada por Modelo</h2>
-          <EChart v-if="data.byModel.length" :option="inputTokensByModelOption" height="300px" label="Tokens entrada por modelo" />
-          <div v-else class="no-data">Sin llamadas a LLM</div>
+          <h2>Input by Model</h2>
+          <EChart v-if="data.byModel.length" :option="inputTokensByModelOption" height="300px" label="Input tokens by model" />
+          <div v-else class="no-data">No LLM calls</div>
         </section>
 
         <section class="chart-panel">
-          <h2>Salida por Modelo</h2>
-          <EChart v-if="data.byModel.length" :option="outputTokensByModelOption" height="300px" label="Tokens salida por modelo" />
-          <div v-else class="no-data">Sin llamadas a LLM</div>
+          <h2>Output by Model</h2>
+          <EChart v-if="data.byModel.length" :option="outputTokensByModelOption" height="300px" label="Output tokens by model" />
+          <div v-else class="no-data">No LLM calls</div>
         </section>
       </div>
 
       <!-- Latency Row -->
       <div class="latency-row">
         <section class="chart-panel">
-          <h2>Latencia por Modelo</h2>
-          <EChart v-if="data.byModel.length" :option="latencyByModelOption" height="300px" label="Latencia p95 por modelo" />
-          <div v-else class="no-data">Sin llamadas a LLM</div>
+          <h2>Latency by Model</h2>
+          <EChart v-if="data.byModel.length" :option="latencyByModelOption" height="300px" label="Latency p95 by model" />
+          <div v-else class="no-data">No LLM calls</div>
         </section>
       </div>
 
@@ -427,16 +427,16 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
       <div class="details-grid">
         <section class="detail-panel">
           <div class="panel-header">
-            <h3>Modelos de IA</h3>
+            <h3>AI Models</h3>
             <span class="panel-count">{{ data.byModel.length }}</span>
           </div>
-          <div v-if="!data.byModel.length" class="empty-state">Sin llamadas a LLM</div>
+          <div v-if="!data.byModel.length" class="empty-state">No LLM calls</div>
           <div v-else class="model-grid">
             <div v-for="m in data.byModel" :key="m.model" class="model-card">
               <div class="model-title">{{ m.model }}</div>
               <div class="model-stat-main">
                 <div class="model-number">{{ formatCount(m.calls) }}</div>
-                <div class="model-label">llamadas</div>
+                <div class="model-label">calls</div>
               </div>
               <div class="model-stats-row">
                 <div class="model-stat-item">
@@ -445,7 +445,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
                 </div>
                 <div class="model-stat-item">
                   <div class="stat-value" style="color: #5fb59a">{{ formatDuration(m.p95Ms) }}</div>
-                  <div class="stat-label">latencia p95</div>
+                  <div class="stat-label">latency p95</div>
                 </div>
               </div>
             </div>

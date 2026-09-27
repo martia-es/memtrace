@@ -17,8 +17,8 @@ const services = useAsync((signal) => api.listServices(resolveRange(f.range.valu
 const OTLP_ENDPOINT = import.meta.env.VITE_OTLP_ENDPOINT ?? "http://localhost:4318";
 
 const NAV = [
-  { name: "conversations", label: "Conversaciones", icon: "M4 5h16v11H9l-5 4z" },
-  { name: "metrics", label: "Métricas", icon: "M3 13h4v8H3zM10 3h4v18h-4zM17 9h4v12h-4z" },
+  { name: "conversations", label: "Conversations", icon: "M4 5h16v11H9l-5 4z" },
+  { name: "metrics", label: "Metrics", icon: "M3 13h4v8H3zM10 3h4v18h-4zM17 9h4v12h-4z" },
 ] as const;
 
 watch(
@@ -29,9 +29,9 @@ watch(
   { immediate: true },
 );
 
-// el detalle de una traza o de una conversación pertenece a su sección
+// the details of a trace or conversation belong to their section
 const section = computed(() => (route.meta.section as string | undefined) ?? "conversations");
-// las pantallas del diseño (conversaciones, traza) gestionan su propio scroll; el resto van en una tarjeta que se desplaza
+// design screens (conversations, trace) manage their own scroll; the rest go in a card that scrolls
 const framed = computed(() => route.meta.framed === true);
 const serviceOptions = computed(() => services.data.value?.items ?? []);
 </script>
@@ -48,7 +48,7 @@ const serviceOptions = computed(() => services.data.value?.items ?? []);
         </router-link>
         <button
           class="collapse-btn"
-          :aria-label="isCollapsed ? 'Expandir menú' : 'Contraer menú'"
+          :aria-label="isCollapsed ? 'Expand menu' : 'Collapse menu'"
           @click="isCollapsed = !isCollapsed"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -56,7 +56,7 @@ const serviceOptions = computed(() => services.data.value?.items ?? []);
           </svg>
         </button>
       </div>
-      <nav aria-label="Principal" class="nav">
+      <nav aria-label="Main" class="nav">
         <router-link
           v-for="item in NAV"
           :key="item.name"
@@ -71,7 +71,7 @@ const serviceOptions = computed(() => services.data.value?.items ?? []);
         </router-link>
       </nav>
       <section v-if="!isCollapsed" class="sidebar-filters">
-        <div class="sidebar-filter-label">Agente</div>
+        <div class="sidebar-filter-label">Agent</div>
         <AgentSelect
           :model-value="f.service.value ?? null"
           :options="serviceOptions"

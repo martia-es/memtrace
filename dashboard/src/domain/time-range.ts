@@ -1,10 +1,10 @@
 export const RANGE_PRESETS = [
-  { key: "15m", label: "15 min", long: "Últimos 15 min", ms: 15 * 60_000 },
-  { key: "1h", label: "1 h", long: "Última hora", ms: 60 * 60_000 },
-  { key: "6h", label: "6 h", long: "Últimas 6 h", ms: 6 * 60 * 60_000 },
-  { key: "24h", label: "24 h", long: "Últimas 24 h", ms: 24 * 60 * 60_000 },
-  { key: "7d", label: "7 d", long: "Últimos 7 días", ms: 7 * 24 * 60 * 60_000 },
-  { key: "30d", label: "30 d", long: "Últimos 30 días", ms: 30 * 24 * 60 * 60_000 }, // = retención de ClickHouse (ADR-003)
+  { key: "15m", label: "15 min", long: "Last 15 minutes", ms: 15 * 60_000 },
+  { key: "1h", label: "1 h", long: "Last hour", ms: 60 * 60_000 },
+  { key: "6h", label: "6 h", long: "Last 6 hours", ms: 6 * 60 * 60_000 },
+  { key: "24h", label: "24 h", long: "Last 24 hours", ms: 24 * 60 * 60_000 },
+  { key: "7d", label: "7 d", long: "Last 7 days", ms: 7 * 24 * 60 * 60_000 },
+  { key: "30d", label: "30 d", long: "Last 30 days", ms: 30 * 24 * 60 * 60_000 }, // = ClickHouse retention (ADR-003)
 ] as const;
 
 export type RangeKey = (typeof RANGE_PRESETS)[number]["key"];

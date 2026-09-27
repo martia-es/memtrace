@@ -10,7 +10,7 @@ defineEmits<{ select: [spanId: string] }>();
 
 const INDENT = 16;
 const collapsed = ref<Set<string>>(new Set());
-// una traza nueva empieza expandida
+// a new trace starts expanded
 watch(() => props.roots, () => (collapsed.value = new Set()));
 
 const rows = computed(() => buildRows(props.roots, props.totalMs, collapsed.value));
@@ -35,7 +35,7 @@ defineExpose({ collapseAll: () => (collapsed.value = new Set(parentIds(props.roo
       </div>
       <span class="axis-edge end">{{ formatDuration(props.totalMs) }}</span>
     </div>
-    <div class="rows" role="tree" aria-label="Árbol de spans">
+    <div class="rows" role="tree" aria-label="Span tree">
       <button
         v-for="r in rows"
         :key="r.node.spanId"

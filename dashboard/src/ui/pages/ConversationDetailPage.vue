@@ -20,7 +20,7 @@ const PAGE = 100;
 const MAX_PAGE = 200;
 const turnsLimit = ref(PAGE);
 
-// ---- conversación y trazas (cronológicas: una nueva llega al final, así que al refrescar se vuelve a pedir el tramo cargado + margen) ----
+// ---- conversation and traces (chronological: new ones arrive at the end, so when refreshing we request the loaded range + margin) ----
 const detail = useAsync((signal) => api.getConversation(props.conversationId, { limit: turnsLimit.value }, signal));
 const more = useAsync((signal) => api.getConversation(props.conversationId, { limit: PAGE, cursor: cursor.value ?? undefined }, signal));
 const extra = ref<NonNullable<typeof detail.data.value>["turns"]["items"]>([]);
@@ -40,7 +40,7 @@ async function loadMore() {
   cursor.value = result.turns.nextCursor;
 }
 
-// El texto de cada turno sale de la transcripción (solo existe si el agente capturó contenido, ADR-013)
+// The text for each turn comes from the transcript (only exists if the agent captured content, ADR-013)
 const transcript = useAsync((signal) => api.getTranscript(props.conversationId, signal));
 const labels = computed(() => new Map((transcript.data.value?.turns ?? []).map((t) => [t.traceId, t.user?.replace(/\s+/g, " ").slice(0, 120)])));
 
@@ -64,16 +64,16 @@ const liveRefresh = useLiveRefresh(
   { isBusy: () => detail.loading.value || more.loading.value || transcript.loading.value },
 );
 
-// ---- cabecera ----
+// ---- header ----
 const conversation = computed(() => detail.data.value);
 const stats = computed(() => {
   const c = conversation.value;
   if (!c) return [];
   return [
-    { k: "Trazas", v: formatCount(c.turnCount) },
-    { k: "Tiempo activo", v: formatDuration(c.activeMs) },
+    { k: "Traces", v: formatCount(c.turnCount) },
+    { k: "Active time", v: formatDuration(c.activeMs) },
     { k: "Tokens", v: c.totalTokens ? formatCount(c.totalTokens) : "–" },
-    { k: "Spans fallidos", v: formatCount(c.failedSpans) },
+    { k: "Failed spans", v: formatCount(c.failedSpans) },
   ];
 });
 
@@ -83,8 +83,8 @@ const backToList = () => void router.push({ name: "conversations", query: { ...f
 
 <template>
   <div class="page">
-    <nav class="crumbs" aria-label="Ruta">
-      <button type="button" class="crumb" @click="backToList">Conversaciones</button>
+    <nav class="crumbs" aria-label="Breadcrumbs">
+      <button type="button" class="crumb" @click="backToList">Conversations</button>
       <q-icon name="chevron_right" size="16px" />
       <span class="mono current">{{ conversationId }}</span>
     </nav>
@@ -96,9 +96,9 @@ const backToList = () => void router.push({ name: "conversations", query: { ...f
       <header class="head mt-card">
         <div class="titles">
           <div class="title-row">
-            <h1 class="leading-none">Conversación</h1>
-            <span v-if="conversation.errorTurns" class="mt-pill error">{{ conversation.errorTurns }} {{ conversation.errorTurns === 1 ? "traza con error" : "trazas con error" }}</span>
-            <span v-else-if="conversation.failedSpans" class="mt-pill warn">{{ conversation.failedSpans }} {{ conversation.failedSpans === 1 ? "span con fallos" : "spans con fallos" }}</span>
+            <h1 class="leading-none">Conversation</h1>
+            <span v-if="conversation.errorTurns" class="mt-pill error">{{ conversation.errorTurns }} {{ conversation.errorTurns === 1 ? "trace with error" : "traces with error" }}</span>
+            <span v-else-if="conversation.failedSpans" class="mt-pill warn">{{ conversation.failedSpans }} {{ conversation.failedSpans === 1 ? "span with failures" : "spans with failures" }}</span>
           </div>
           <span class="muted sub"><span class="mono id">{{ conversationId }}</span> · {{ conversation.serviceNames.join(", ") }} · {{ formatDateTime(conversation.startTime) }}</span>
         </div>
@@ -107,10 +107,10 @@ const backToList = () => void router.push({ name: "conversations", query: { ...f
         </div>
       </header>
 
-      <section class="mt-card list" aria-label="Trazas de la conversación">
+      <section class="mt-card list" aria-label="Conversation traces">
         <TraceTable v-if="traces.length" :items="traces" :labels="labels" @open="openTrace" />
-        <p v-else class="muted empty">Esta conversación no tiene trazas que mostrar.</p>
-        <button v-if="cursor" type="button" class="more" :disabled="more.loading.value" @click="loadMore">{{ more.loading.value ? "Cargando…" : "Cargar más trazas" }}</button>
+        <p v-else class="muted empty">This conversation has no traces to show.</p>
+        <button v-if="cursor" type="button" class="more" :disabled="more.loading.value" @click="loadMore">{{ more.loading.value ? "Loading…" : "Load more traces" }}</button>
         <ErrorBanner v-if="more.error.value" :error="more.error.value" @retry="loadMore" />
       </section>
     </template>

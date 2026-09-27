@@ -4,7 +4,7 @@ import type { IoBlock } from "@/domain/span-io";
 defineProps<{ block: IoBlock }>();
 
 const roleName = (role: IoBlock["role"]) =>
-  ({ user: "Humano", assistant: "IA", system: "Sistema", tool: "Herramienta", error: "Error", other: "Contenido" })[role];
+  ({ user: "Human", assistant: "AI", system: "System", tool: "Tool", error: "Error", other: "Content" })[role];
 
 const argValue = (v: unknown) => (typeof v === "string" ? v : JSON.stringify(v));
 </script>
@@ -19,7 +19,7 @@ const argValue = (v: unknown) => (typeof v === "string" ? v : JSON.stringify(v))
     <div v-if="!block.hideText" class="section">
       <pre v-if="block.structured" class="text mono">{{ block.text }}</pre>
       <p v-else-if="block.text" class="text">{{ block.text }}</p>
-      <p v-else class="text muted">Mensaje vacío</p>
+      <p v-else class="text muted">Empty message</p>
     </div>
 
     <div v-for="(c, i) in block.calls" :key="i" class="call">
@@ -33,7 +33,7 @@ const argValue = (v: unknown) => (typeof v === "string" ? v : JSON.stringify(v))
           <dd>{{ argValue(v) }}</dd>
         </div>
       </dl>
-      <p v-else class="no-args muted">Sin argumentos</p>
+      <p v-else class="no-args muted">No arguments</p>
     </div>
   </article>
 </template>

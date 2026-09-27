@@ -3,6 +3,7 @@ import { ref, computed } from "vue";
 
 type Framework = "langchain" | "langgraph" | "pydantic-ai";
 type Language = "python" | "typescript";
+type TabKey = "install" | "env" | "example";
 
 function copyToClipboard(text: string) {
   navigator.clipboard.writeText(text).then(() => {
@@ -12,6 +13,7 @@ function copyToClipboard(text: string) {
 
 const selectedFramework = ref<Framework>("langchain");
 const selectedLanguage = ref<Language>("python");
+const activeTab = ref<TabKey>("install");
 
 interface SetupStep {
   title: string;
@@ -20,27 +22,27 @@ interface SetupStep {
 
 interface SetupGuide {
   install: SetupStep;
-  envVars: SetupStep;
+  env: SetupStep;
   example: SetupStep;
 }
 
 const setupGuides: Record<`${Framework}-${Language}`, SetupGuide> = {
   "langchain-python": {
     install: {
-      title: "1. Instalar el SDK",
+      title: "pip",
       content: "pip install memtrace-ai[langchain]",
     },
-    envVars: {
-      title: "2. Variables de entorno",
+    env: {
+      title: "Shell",
       content: `export MEMTRACE_SERVICE_NAME="mi-agente"
 export MEMTRACE_OTLP_ENDPOINT="http://localhost:4317"
 export MEMTRACE_CAPTURE_CONTENT="true"`,
     },
     example: {
-      title: "3. Usar en tu código",
+      title: "example.py",
       content: `from memtrace import init_tracer, MemTraceCallbackHandler, session
-from langchain.tools import tool
 from langchain.agents import create_agent
+from langchain.tools import tool
 
 init_tracer(service_name="mi-agente")
 
@@ -52,7 +54,7 @@ def search(query: str) -> str:
 agent = create_agent(
     model="openai:gpt-4",
     tools=[search],
-    system_prompt="You are a helpful assistant."
+    system_prompt="You are helpful."
 )
 
 conversation_id = "chat-123"
@@ -70,17 +72,17 @@ with session(conversation_id):
   },
   "langchain-typescript": {
     install: {
-      title: "1. Instalar el SDK",
-      content: "npm install memtrace-ai",
+      title: "npm",
+      content: "npm install memtrace-ai langchain",
     },
-    envVars: {
-      title: "2. Variables de entorno",
+    env: {
+      title: "Shell",
       content: `export MEMTRACE_SERVICE_NAME="mi-agente"
 export MEMTRACE_OTLP_ENDPOINT="http://localhost:4317"
 export MEMTRACE_CAPTURE_CONTENT="true"`,
     },
     example: {
-      title: "3. Usar en tu código",
+      title: "example.ts",
       content: `import { initTracer, MemTraceCallbackHandler, session } from "memtrace-ai";
 import { createAgent } from "langchain/agents";
 import { tool } from "@langchain/core/tools";
@@ -100,7 +102,7 @@ const search = tool(
 const agent = await createAgent({
   model: "gpt-4",
   tools: [search],
-  systemPrompt: "You are a helpful assistant."
+  systemPrompt: "You are helpful."
 });
 
 const conversationId = "chat-123";
@@ -119,17 +121,17 @@ await session(conversationId, async () => {
   },
   "langgraph-python": {
     install: {
-      title: "1. Instalar el SDK",
-      content: "pip install memtrace-ai[langchain]",
+      title: "pip",
+      content: "pip install memtrace-ai[langchain] langgraph",
     },
-    envVars: {
-      title: "2. Variables de entorno",
+    env: {
+      title: "Shell",
       content: `export MEMTRACE_SERVICE_NAME="mi-agente"
 export MEMTRACE_OTLP_ENDPOINT="http://localhost:4317"
 export MEMTRACE_CAPTURE_CONTENT="true"`,
     },
     example: {
-      title: "3. Usar en tu código",
+      title: "example.py",
       content: `from memtrace import init_tracer, MemTraceCallbackHandler, session
 from langgraph.graph import StateGraph
 from langchain.tools import tool
@@ -142,7 +144,6 @@ def search(query: str) -> str:
     return f"Results for: {query}"
 
 def agent_step(state):
-    # Tu lógica del agente
     return state
 
 builder = StateGraph(dict)
@@ -165,17 +166,17 @@ with session(conversation_id):
   },
   "langgraph-typescript": {
     install: {
-      title: "1. Instalar el SDK",
-      content: "npm install memtrace-ai",
+      title: "npm",
+      content: "npm install memtrace-ai langchain langgraph",
     },
-    envVars: {
-      title: "2. Variables de entorno",
+    env: {
+      title: "Shell",
       content: `export MEMTRACE_SERVICE_NAME="mi-agente"
 export MEMTRACE_OTLP_ENDPOINT="http://localhost:4317"
 export MEMTRACE_CAPTURE_CONTENT="true"`,
     },
     example: {
-      title: "3. Usar en tu código",
+      title: "example.ts",
       content: `import { initTracer, MemTraceCallbackHandler, session } from "memtrace-ai";
 import { StateGraph } from "@langchain/langgraph";
 import { tool } from "@langchain/core/tools";
@@ -186,10 +187,7 @@ const search = tool(
   async (query: string) => {
     return \`Results for: \${query}\`;
   },
-  {
-    name: "search",
-    description: "Search for information.",
-  }
+  { name: "search", description: "Search for information." }
 );
 
 const builder = new StateGraph({
@@ -216,17 +214,17 @@ await session(conversationId, async () => {
   },
   "pydantic-ai-python": {
     install: {
-      title: "1. Instalar el SDK",
-      content: "pip install memtrace-ai",
+      title: "pip",
+      content: "pip install memtrace-ai pydantic-ai",
     },
-    envVars: {
-      title: "2. Variables de entorno",
+    env: {
+      title: "Shell",
       content: `export MEMTRACE_SERVICE_NAME="mi-agente"
 export MEMTRACE_OTLP_ENDPOINT="http://localhost:4317"
 export MEMTRACE_CAPTURE_CONTENT="true"`,
     },
     example: {
-      title: "3. Usar en tu código",
+      title: "example.py",
       content: `from memtrace import init_tracer, session, trace_step
 from pydantic_ai import Agent
 
@@ -254,17 +252,17 @@ with session(conversation_id):
   },
   "pydantic-ai-typescript": {
     install: {
-      title: "1. Instalar el SDK",
+      title: "npm",
       content: "npm install memtrace-ai pydantic-ai",
     },
-    envVars: {
-      title: "2. Variables de entorno",
+    env: {
+      title: "Shell",
       content: `export MEMTRACE_SERVICE_NAME="mi-agente"
 export MEMTRACE_OTLP_ENDPOINT="http://localhost:4317"
 export MEMTRACE_CAPTURE_CONTENT="true"`,
     },
     example: {
-      title: "3. Usar en tu código",
+      title: "example.ts",
       content: `import { initTracer, session, traceStep } from "memtrace-ai";
 import { Agent } from "pydantic-ai";
 
@@ -302,211 +300,249 @@ const currentGuide = computed(() => {
   const key = `${selectedFramework.value}-${selectedLanguage.value}` as const;
   return setupGuides[key];
 });
+
+const frameworks = [
+  { id: "langchain" as const, label: "LangChain", icon: "🔗" },
+  { id: "langgraph" as const, label: "LangGraph", icon: "📊" },
+  { id: "pydantic-ai" as const, label: "PydanticAI", icon: "🤖" },
+];
+
+const languages = [
+  { id: "python" as const, label: "Python", icon: "🐍" },
+  { id: "typescript" as const, label: "TypeScript", icon: "📘" },
+];
 </script>
 
 <template>
-  <div class="onboarding">
+  <div class="guide">
+    <!-- Header -->
     <div class="header">
-      <q-icon name="rocket_launch" size="48px" class="icon" />
-      <div class="text">
-        <h2>No traces detected yet</h2>
-        <p>Follow our guide to start tracing your application</p>
+      <div class="header-content">
+        <q-icon name="schedule" size="24px" class="header-icon" />
+        <div class="header-text">
+          <h2>Waiting for traces...</h2>
+          <p>No traces detected yet. Follow our guide to start tracing your application.</p>
+        </div>
       </div>
+      <a href="#" class="view-docs">View docs →</a>
     </div>
 
-    <div class="selectors">
-      <div class="selector-group">
-        <label>Framework</label>
-        <div class="buttons">
-          <button
-            v-for="fw in ['langchain', 'langgraph', 'pydantic-ai'] as const"
-            :key="fw"
-            :class="{ active: selectedFramework === fw }"
-            @click="selectedFramework = fw"
-          >
-            {{ fw === "pydantic-ai" ? "PydanticAI" : fw.charAt(0).toUpperCase() + fw.slice(1) }}
-          </button>
-        </div>
+    <!-- Section 1: Select Framework -->
+    <section class="guide-section">
+      <h3>Trace an existing app</h3>
+      <div class="frameworks-grid">
+        <button
+          v-for="fw in frameworks"
+          :key="fw.id"
+          :class="{ active: selectedFramework === fw.id }"
+          class="framework-btn"
+          @click="selectedFramework = fw.id"
+        >
+          <span class="fw-icon">{{ fw.icon }}</span>
+          <span class="fw-label">{{ fw.label }}</span>
+        </button>
       </div>
+    </section>
 
-      <div class="selector-group">
-        <label>Language</label>
-        <div class="buttons">
-          <button
-            v-for="lang in ['python', 'typescript'] as const"
-            :key="lang"
-            :class="{ active: selectedLanguage === lang }"
-            @click="selectedLanguage = lang"
-          >
-            {{ lang.charAt(0).toUpperCase() + lang.slice(1) }}
-          </button>
-        </div>
+    <!-- Section 2: Select Language -->
+    <section class="guide-section">
+      <h3>Select a language</h3>
+      <div class="languages-grid">
+        <button
+          v-for="lang in languages"
+          :key="lang.id"
+          :class="{ active: selectedLanguage === lang.id }"
+          class="language-btn"
+          @click="selectedLanguage = lang.id"
+        >
+          <span class="lang-icon">{{ lang.icon }}</span>
+          <span class="lang-label">{{ lang.label }}</span>
+        </button>
       </div>
-    </div>
+    </section>
 
-    <div class="steps">
-      <div class="step">
-        <div class="step-title">{{ currentGuide.install.title }}</div>
-        <div class="code-block">
-          <pre><code>{{ currentGuide.install.content }}</code></pre>
-          <button class="copy-btn" title="Copy to clipboard" @click="copyToClipboard(currentGuide.install.content)">
-            <q-icon name="content_copy" size="16px" />
-          </button>
-        </div>
+    <!-- Section 3: Install Dependencies -->
+    <section class="guide-section">
+      <h3>Install dependencies</h3>
+      <div class="code-block">
+        <pre><code>{{ currentGuide.install.content }}</code></pre>
+        <button
+          class="copy-btn"
+          :title="`Copy: ${currentGuide.install.content}`"
+          @click="copyToClipboard(currentGuide.install.content)"
+        >
+          <q-icon name="content_copy" size="16px" />
+        </button>
       </div>
+    </section>
 
-      <div class="step">
-        <div class="step-title">{{ currentGuide.envVars.title }}</div>
-        <div class="code-block">
-          <pre><code>{{ currentGuide.envVars.content }}</code></pre>
-          <button class="copy-btn" title="Copy to clipboard" @click="copyToClipboard(currentGuide.envVars.content)">
-            <q-icon name="content_copy" size="16px" />
-          </button>
-        </div>
+    <!-- Section 4: Configure Environment -->
+    <section class="guide-section">
+      <h3>Configure environment</h3>
+      <div class="code-block">
+        <pre><code>{{ currentGuide.env.content }}</code></pre>
+        <button class="copy-btn" title="Copy" @click="copyToClipboard(currentGuide.env.content)">
+          <q-icon name="content_copy" size="16px" />
+        </button>
       </div>
+    </section>
 
-      <div class="step">
-        <div class="step-title">{{ currentGuide.example.title }}</div>
-        <div class="code-block">
-          <pre><code>{{ currentGuide.example.content }}</code></pre>
-          <button class="copy-btn" title="Copy to clipboard" @click="copyToClipboard(currentGuide.example.content)">
-            <q-icon name="content_copy" size="16px" />
-          </button>
-        </div>
+    <!-- Section 5: Run Quickstart -->
+    <section class="guide-section">
+      <h3>Run the quickstart</h3>
+      <div class="code-block">
+        <pre><code>{{ currentGuide.example.content }}</code></pre>
+        <button class="copy-btn" title="Copy" @click="copyToClipboard(currentGuide.example.content)">
+          <q-icon name="content_copy" size="16px" />
+        </button>
       </div>
-    </div>
+    </section>
 
-    <div class="footer-note">
-      <p>
-        <strong>Tip:</strong> Point your OTLP endpoint to <code>http://localhost:4317</code> to send traces locally.
-        Ensure the MemTrace backend is running: <code>make up</code>
-      </p>
+    <!-- Footer Tip -->
+    <div class="footer-tip">
+      <strong>💡 Tip:</strong> Ensure MemTrace backend is running with <code>make up</code>
     </div>
   </div>
 </template>
 
 <style scoped>
-.onboarding {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  padding: 40px;
-  background: var(--mt-card);
-  border-radius: 12px;
+.guide {
+  max-width: 1000px;
   margin: 20px auto;
-  max-width: 900px;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
+/* Header */
 .header {
   display: flex;
   align-items: center;
-  gap: 20px;
-  text-align: left;
+  justify-content: space-between;
+  padding: 20px 24px;
+  background: #f8f9fa;
+  border-radius: 8px 8px 0 0;
+  border-bottom: 1px solid #e5e7eb;
 }
 
-.icon {
+.header-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-icon {
   flex-shrink: 0;
-  color: #7fcf4a;
+  color: #3b82f6;
 }
 
-.header h2 {
-  margin: 0 0 4px 0;
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--mt-ink);
+.header-text h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
 }
 
-.header p {
+.header-text p {
   margin: 0;
   font-size: 14px;
-  color: var(--mt-muted);
+  color: #6b7280;
 }
 
-.selectors {
-  display: flex;
-  gap: 32px;
-  flex-wrap: wrap;
+.view-docs {
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #3b82f6;
+  text-decoration: none;
+  border-radius: 4px;
+  transition: background 200ms;
+  white-space: nowrap;
 }
 
-.selector-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.view-docs:hover {
+  background: rgba(59, 130, 246, 0.1);
 }
 
-.selector-group label {
-  font-size: 12px;
+/* Sections */
+.guide-section {
+  padding: 24px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.guide-section:last-of-type {
+  border-bottom: none;
+}
+
+.guide-section h3 {
+  margin: 0 0 16px;
+  font-size: 14px;
   font-weight: 600;
-  color: var(--mt-muted);
+  color: #1f2937;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
-.buttons {
-  display: flex;
+/* Frameworks Grid */
+.frameworks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 8px;
 }
 
-.buttons button {
-  padding: 8px 16px;
-  border: 1px solid var(--mt-line);
-  border-radius: 8px;
-  background: var(--mt-soft);
-  color: var(--mt-ink);
+.framework-btn,
+.language-btn {
+  padding: 12px 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #1f2937;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 200ms ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 200ms;
 }
 
-.buttons button:hover {
-  border-color: #7fcf4a;
-  background: rgba(127, 207, 74, 0.08);
+.framework-btn:hover,
+.language-btn:hover {
+  border-color: #3b82f6;
+  background: #f0f4ff;
 }
 
-.buttons button.active {
-  border-color: #7fcf4a;
-  background: #7fcf4a;
+.framework-btn.active,
+.language-btn.active {
+  border-color: #3b82f6;
+  background: #3b82f6;
   color: #fff;
 }
 
-.steps {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+.fw-icon,
+.lang-icon {
+  font-size: 16px;
 }
 
-.step {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.step-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--mt-ink);
-}
-
+/* Code Block */
 .code-block {
   position: relative;
-  background: #1a1a1a;
-  border-radius: 8px;
+  background: #1f2937;
+  border-radius: 6px;
   overflow: hidden;
+  border: 1px solid #374151;
 }
 
 .code-block pre {
   margin: 0;
-  padding: 12px 16px;
+  padding: 16px;
   overflow-x: auto;
-  font-size: 12px;
-  line-height: 1.5;
 }
 
 .code-block code {
-  color: #e0e0e0;
   font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
-  white-space: pre;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #d1d5db;
 }
 
 .copy-btn {
@@ -514,61 +550,64 @@ const currentGuide = computed(() => {
   top: 8px;
   right: 8px;
   padding: 6px;
-  border: 1px solid rgba(224, 224, 224, 0.2);
+  border: 1px solid rgba(209, 213, 219, 0.3);
   border-radius: 4px;
-  background: rgba(30, 30, 30, 0.8);
-  color: #e0e0e0;
+  background: rgba(0, 0, 0, 0.2);
+  color: #d1d5db;
   cursor: pointer;
-  transition: all 200ms ease;
+  transition: all 200ms;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .copy-btn:hover {
-  background: rgba(127, 207, 74, 0.2);
-  border-color: #7fcf4a;
-  color: #7fcf4a;
+  background: rgba(59, 130, 246, 0.2);
+  border-color: #3b82f6;
+  color: #3b82f6;
 }
 
-.footer-note {
-  padding: 12px 16px;
-  background: rgba(127, 207, 74, 0.08);
-  border-left: 3px solid #7fcf4a;
-  border-radius: 4px;
+/* Languages Grid */
+.languages-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+/* Footer Tip */
+.footer-tip {
+  padding: 16px 24px;
+  background: #eff6ff;
+  border-bottom: 1px solid #dbeafe;
+  border-radius: 0 0 8px 8px;
   font-size: 13px;
-  color: var(--mt-ink);
+  color: #1e40af;
+  border-left: 4px solid #3b82f6;
 }
 
-.footer-note p {
-  margin: 0;
-}
-
-.footer-note code {
-  background: rgba(0, 0, 0, 0.1);
+.footer-tip code {
+  background: rgba(59, 130, 246, 0.1);
   padding: 2px 6px;
   border-radius: 3px;
-  font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+  font-family: monospace;
   font-size: 12px;
 }
 
+/* Responsive */
 @media (max-width: 768px) {
-  .onboarding {
-    padding: 24px;
+  .guide {
+    margin: 16px 0;
   }
 
   .header {
     flex-direction: column;
-    text-align: center;
+    align-items: flex-start;
+    gap: 12px;
   }
 
-  .selectors {
-    flex-direction: column;
-    gap: 16px;
-  }
-
-  .buttons {
-    flex-wrap: wrap;
+  .frameworks-grid,
+  .languages-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 </style>

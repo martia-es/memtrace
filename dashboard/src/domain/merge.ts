@@ -8,14 +8,14 @@ export interface Paged<T> {
 export interface MergedList<T> {
   items: T[];
   nextCursor: string | null;
-  /** elementos que no estaban en la lista antes de esta actualización */
+  /** items that were not in the list before this update */
   newKeys: string[];
 }
 
 /**
- * Integra la primera página recién pedida (orden descendente por `time`) con lo que el usuario ya tenía cargado.
- * Actualizar no debe tirar las páginas que cargó con "Cargar más": lo más antiguo que la primera página se
- * conserva y lo que ya existía se reemplaza por su versión reciente.
+ * Integrates the first newly requested page (descending by `time`) with what the user already had loaded.
+ * Updating should not discard pages loaded with "Load more": what's older than the first page is
+ * kept and what already existed is replaced with its recent version.
  */
 export function mergeLatestPage<T>(
   current: T[],

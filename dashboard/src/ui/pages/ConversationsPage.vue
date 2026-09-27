@@ -23,7 +23,7 @@ const router = useRouter();
 const f = useFilters();
 const grouped = computed(() => f.group.value === "conversation");
 
-// Sin agrupar (por defecto): todas las trazas. Agrupado: una fila por conversación.
+// Ungrouped (default): all traces. Grouped: one row per conversation.
 const traces = usePagedList<TraceSummaryDto>({
   key: (t) => t.traceId,
   load: (cursor, signal) => api.listTraces({ ...resolveRange(f.range.value, Date.now()), service: f.service.value, hasErrors: f.hasErrors.value || undefined, minDurationMs: f.minDurationMs.value, limit: PAGE_SIZE, cursor }, signal),
@@ -38,16 +38,16 @@ const conversations = usePagedList<ConversationSummaryDto>({
 });
 const active = computed(() => (grouped.value ? conversations : traces));
 
-// ---- KPIs y opciones de filtro ----
+// ---- KPIs and filter options ----
 const overview = useAsync((signal) => api.getOverview({ ...resolveRange(f.range.value, Date.now()), service: f.service.value }, signal));
 const kpis = computed(() => {
   const o = overview.data.value;
   if (!o) return [];
   return [
-    { k: "Conversaciones", v: formatCount(o.totals.conversations), tone: "" },
-    { k: "Trazas", v: formatCount(o.totals.traces), tone: "" },
-    { k: "Latencia p95", v: formatDuration(o.latencyMs.p95), tone: "" },
-    { k: "Tasa de error", v: formatPercent(o.totals.errorRate), tone: o.totals.errorRate > 0 ? "bad" : "" },
+    { k: "Conversations", v: formatCount(o.totals.conversations), tone: "" },
+    { k: "Traces", v: formatCount(o.totals.traces), tone: "" },
+    { k: "Latency p95", v: formatDuration(o.latencyMs.p95), tone: "" },
+    { k: "Error Rate", v: formatPercent(o.totals.errorRate), tone: o.totals.errorRate > 0 ? "bad" : "" },
     { k: "Tokens", v: formatCount(o.totals.totalTokens), tone: "" },
   ];
 });
@@ -65,7 +65,7 @@ const liveRefresh = useLiveRefresh(
 watch([f.range, f.service, f.hasErrors, f.minDurationMs, grouped], reload, { immediate: true });
 
 const LATENCY_OPTIONS = [
-  { label: "Cualquier latencia", value: 0 },
+  { label: "Any latency", value: 0 },
   { label: "≥ 1 s", value: 1000 },
   { label: "≥ 5 s", value: 5000 },
   { label: "≥ 10 s", value: 10000 },
@@ -73,15 +73,15 @@ const LATENCY_OPTIONS = [
 ];
 
 const convStatus = (c: ConversationSummaryDto) => (c.errorTurns > 0 ? "error" : c.failedSpans > 0 ? "warn" : "ok");
-const STATUS_LABEL = { ok: "OK", error: "Error", warn: "Con fallos" } as const;
+const STATUS_LABEL = { ok: "OK", error: "Error", warn: "With failures" } as const;
 
 const openTrace = (traceId: string) => void router.push({ name: "trace", params: { traceId }, query: f.shared.value });
 const openConversation = (conversationId: string) => void router.push({ name: "conversation", params: { conversationId }, query: f.shared.value });
 
 const footer = computed(() => {
   const n = active.value.items.value.length;
-  const noun = grouped.value ? (n === 1 ? "conversación" : "conversaciones") : n === 1 ? "traza" : "trazas";
-  return `${n} ${noun}${active.value.nextCursor.value ? " · hay más" : ""}`;
+  const noun = grouped.value ? (n === 1 ? "conversation" : "conversations") : n === 1 ? "trace" : "traces";
+  return `${n} ${noun}${active.value.nextCursor.value ? " · more available" : ""}`;
 });
 const rangeLabel = computed(() => RANGE_PRESETS.find((p) => p.key === f.range.value)!.long);
 const rangeOptions = computed(() => RANGE_PRESETS.map((p) => ({ label: p.long, value: p.key })));
@@ -90,39 +90,39 @@ const rangeOptions = computed(() => RANGE_PRESETS.map((p) => ({ label: p.long, v
 <template>
   <div class="page">
     <header class="top">
-      <h1>Conversaciones</h1>
+      <h1>Conversations</h1>
       <Select
         class="range mt-card"
         :model-value="f.range.value"
         :options="rangeOptions"
-        :aria-label="`Rango de tiempo: ${rangeLabel}`"
+        :aria-label="`Time range: ${rangeLabel}`"
         @update:model-value="f.setRange"
       />
     </header>
 
-    <section class="kpis mt-card" aria-label="Resumen">
+    <section class="kpis mt-card" aria-label="Summary">
       <template v-if="kpis.length">
         <div v-for="(k, i) in kpis" :key="k.k" class="kpi" :class="{ first: i === 0 }">
           <span class="kpi-k">{{ k.k }}</span>
           <span class="kpi-v" :class="k.tone">{{ k.v }}</span>
         </div>
       </template>
-      <div v-else-if="overview.error.value" class="kpi-msg">No se pudo cargar el resumen.</div>
-      <div v-else class="kpi-msg">Cargando resumen…</div>
+      <div v-else-if="overview.error.value" class="kpi-msg">Could not load summary.</div>
+      <div v-else class="kpi-msg">Loading summary…</div>
     </section>
 
     <section class="table-card mt-card">
       <div class="toolbar">
-        <q-toggle :model-value="f.hasErrors.value" label="Solo con errores" dense @update:model-value="(v: boolean) => f.setHasErrors(v)" />
+        <q-toggle :model-value="f.hasErrors.value" label="Only with errors" dense @update:model-value="(v: boolean) => f.setHasErrors(v)" />
         <Select
           v-if="!grouped"
           class="latency"
           :model-value="f.minDurationMs.value ?? 0"
           :options="LATENCY_OPTIONS"
-          placeholder="Latencia"
+          placeholder="Latency"
           @update:model-value="(v: number) => f.setMinDuration(v || undefined)"
         />
-        <q-toggle class="group-toggle" :model-value="grouped" label="Agrupar por conversación" dense @update:model-value="(v: boolean) => f.setGroup(v ? 'conversation' : 'flat')" />
+        <q-toggle class="group-toggle" :model-value="grouped" label="Group by conversation" dense @update:model-value="(v: boolean) => f.setGroup(v ? 'conversation' : 'flat')" />
       </div>
 
       <ErrorBanner v-if="active.error.value" :error="active.error.value" @retry="reload" />
@@ -130,7 +130,7 @@ const rangeOptions = computed(() => RANGE_PRESETS.map((p) => ({ label: p.long, v
       <div class="list">
         <table v-if="grouped && conversations.items.value.length" class="conversations">
           <thead>
-            <tr><th>Conversación</th><th>Agente</th><th>Última actividad</th><th class="num">Turnos</th><th class="num">Tiempo activo</th><th class="num">Tokens</th><th>Estado</th></tr>
+            <tr><th>Conversation</th><th>Agent</th><th>Last Activity</th><th class="num">Turns</th><th class="num">Active Time</th><th class="num">Tokens</th><th>Status</th></tr>
           </thead>
           <tbody>
             <tr v-for="c in conversations.items.value" :key="c.conversationId" class="item" :class="{ fresh: conversations.newKeys.value.has(c.conversationId) }" tabindex="0" @click="openConversation(c.conversationId)" @keydown.enter="openConversation(c.conversationId)">
@@ -156,7 +156,7 @@ const rangeOptions = computed(() => RANGE_PRESETS.map((p) => ({ label: p.long, v
         <div class="footer-actions">
           <LiveControl :seconds="liveRefresh.seconds.value" :updated-at="liveRefresh.updatedAt.value" @update:seconds="setRefreshSeconds" />
           <button v-if="active.nextCursor.value" type="button" class="more" :disabled="active.moreLoading.value" @click="active.loadMore">
-            {{ active.moreLoading.value ? "Cargando…" : "Cargar más" }}
+            {{ active.moreLoading.value ? "Loading…" : "Load more" }}
           </button>
         </div>
       </div>

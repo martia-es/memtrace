@@ -9,7 +9,7 @@ export interface PillOption {
 const props = defineProps<{ label: string; modelValue: string | undefined; options: PillOption[]; allLabel?: string }>();
 defineEmits<{ "update:modelValue": [string | undefined] }>();
 
-const current = computed(() => props.options.find((o) => o.value === props.modelValue)?.label ?? props.modelValue ?? props.allLabel ?? "Todos");
+const current = computed(() => props.options.find((o) => o.value === props.modelValue)?.label ?? props.modelValue ?? props.allLabel ?? "All");
 </script>
 
 <template>
@@ -18,11 +18,11 @@ const current = computed(() => props.options.find((o) => o.value === props.model
     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
     <q-menu auto-close anchor="bottom left" self="top left" :offset="[0, 6]" class="pill-menu">
       <q-list dense style="min-width: 160px">
-        <q-item clickable :active="modelValue === undefined" @click="$emit('update:modelValue', undefined)"><q-item-section>{{ allLabel ?? "Todos" }}</q-item-section></q-item>
+        <q-item clickable :active="modelValue === undefined" @click="$emit('update:modelValue', undefined)"><q-item-section>{{ allLabel ?? "All" }}</q-item-section></q-item>
         <q-item v-for="o in options" :key="o.value" clickable :active="modelValue === o.value" @click="$emit('update:modelValue', o.value)">
           <q-item-section>{{ o.label }}</q-item-section>
         </q-item>
-        <q-item v-if="options.length === 0" dense><q-item-section class="text-grey-7">Sin opciones</q-item-section></q-item>
+        <q-item v-if="options.length === 0" dense><q-item-section class="text-grey-7">No options</q-item-section></q-item>
       </q-list>
     </q-menu>
   </button>

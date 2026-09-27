@@ -25,7 +25,7 @@ const handleUpdate = (value: string) => {
     :model-value="modelValue"
     :options="selectOptions"
     :loading="loading"
-    placeholder="Seleccionar agente"
+    placeholder="Select agent"
     @update:model-value="handleUpdate"
   />
 </template>

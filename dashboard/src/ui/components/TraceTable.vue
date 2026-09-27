@@ -6,7 +6,7 @@ import StatusBadge from "./StatusBadge.vue";
 defineProps<{
   items: TraceSummaryDto[];
   newKeys?: Set<string>;
-  /** texto alternativo al nombre del span raíz (p. ej. el mensaje del usuario) */
+  /** alternative text to the root span name (e.g., the user message) */
   labels?: Map<string, string | null | undefined>;
   showConversation?: boolean;
 }>();
@@ -17,17 +17,17 @@ defineEmits<{ open: [traceId: string]; openConversation: [conversationId: string
   <table class="traces">
     <thead>
       <tr>
-        <th>Traza</th>
+        <th>Trace</th>
         <th>Trace ID</th>
-        <th>Entrada</th>
-        <th>Salida</th>
-        <th>Servicio</th>
-        <th>Inicio</th>
-        <th class="num">Duración</th>
+        <th>Input</th>
+        <th>Output</th>
+        <th>Service</th>
+        <th>Start Time</th>
+        <th class="num">Duration</th>
         <th class="num">Spans</th>
         <th class="num">Tokens</th>
-        <th>Estado</th>
-        <th v-if="showConversation">Conversación</th>
+        <th>Status</th>
+        <th v-if="showConversation">Conversation</th>
       </tr>
     </thead>
     <tbody>

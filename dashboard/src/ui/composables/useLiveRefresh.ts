@@ -13,7 +13,7 @@ function load(): RefreshSeconds {
   }
 }
 
-/** Compartido entre páginas y persistido: el usuario elige el intervalo una vez. */
+/** Shared between pages and persisted: the user chooses the interval once. */
 const seconds = ref<RefreshSeconds>(load());
 
 export function setRefreshSeconds(value: RefreshSeconds) {
@@ -21,12 +21,12 @@ export function setRefreshSeconds(value: RefreshSeconds) {
   try {
     localStorage.setItem(STORAGE_KEY, String(value));
   } catch {
-    /* almacenamiento no disponible: solo se pierde la persistencia */
+    /* storage unavailable: only persistence is lost */
   }
 }
 
 export interface LiveRefreshOptions {
-  /** false => no refrescar ahora (p. ej. el detalle solo lo necesita mientras la traza está incompleta) */
+  /** false => don't refresh now (e.g., details only need it while the trace is incomplete) */
   active?: () => boolean;
   /** true => hay una petición en curso: se salta el tick para no apilar peticiones */
   isBusy?: () => boolean;

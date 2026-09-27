@@ -15,11 +15,11 @@ defineEmits<{ "update:range": [RangeKey]; refresh: [] }>();
       unelevated
       toggle-color="primary"
       class="toggle-group"
-      aria-label="Rango de tiempo"
+      aria-label="Time range"
       @update:model-value="$emit('update:range', $event)"
     />
     <slot />
     <q-space />
-    <q-btn flat round dense icon="refresh" :loading="loading" aria-label="Actualizar" @click="$emit('refresh')" />
+    <q-btn flat round dense icon="refresh" :loading="loading" aria-label="Refresh" @click="$emit('refresh')" />
   </div>
 </template>

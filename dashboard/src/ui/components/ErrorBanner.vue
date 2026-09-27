@@ -8,9 +8,9 @@ defineEmits<{ retry: [] }>();
 const message = computed(() => {
   const e = props.error;
   if (e instanceof ApiError) {
-    if (e.status === 0) return "No se pudo contactar con la API. ¿Está en marcha (`npm run dev` en api/) y el proxy apunta a ella?";
-    if (e.status === 503) return "El almacén de trazas (ClickHouse) no responde. Comprueba `make status`.";
-    if (e.status === 404) return "No encontrado. Si es una traza, puede estar fuera de la retención (30 días).";
+    if (e.status === 0) return "Could not reach the API. Is it running (`npm run dev` in api/) and does the proxy point to it?";
+    if (e.status === 503) return "The trace store (ClickHouse) is not responding. Check `make status`.";
+    if (e.status === 404) return "Not found. If it's a trace, it may be outside the retention period (30 days).";
     return e.detail ?? e.title;
   }
   return e.message;
@@ -21,6 +21,6 @@ const message = computed(() => {
   <q-banner rounded class="bg-negative text-white" role="alert">
     <template #avatar><q-icon name="error_outline" /></template>
     {{ message }}
-    <template #action><q-btn flat label="Reintentar" @click="$emit('retry')" /></template>
+    <template #action><q-btn flat label="Retry" @click="$emit('retry')" /></template>
   </q-banner>
 </template>

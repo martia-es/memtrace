@@ -5,10 +5,10 @@ export const router = createRouter({
   routes: [
     { path: "/", redirect: { name: "conversations" } },
     { path: "/spans", redirect: { name: "conversations" } },
-    { path: "/conversations", name: "conversations", component: () => import("./pages/ConversationsPage.vue"), meta: { title: "Conversaciones", section: "conversations", framed: true } },
-    { path: "/conversations/:conversationId", name: "conversation", component: () => import("./pages/ConversationDetailPage.vue"), props: true, meta: { title: "Conversación", section: "conversations", framed: true } },
-    { path: "/traces/:traceId", name: "trace", component: () => import("./pages/TraceDetailPage.vue"), props: true, meta: { title: "Traza", section: "conversations", framed: true } },
-    { path: "/metrics", name: "metrics", component: () => import("./pages/MetricsPage.vue"), meta: { title: "Métricas", section: "metrics" } },
+    { path: "/conversations", name: "conversations", component: () => import("./pages/ConversationsPage.vue"), meta: { title: "Conversations", section: "conversations", framed: true } },
+    { path: "/conversations/:conversationId", name: "conversation", component: () => import("./pages/ConversationDetailPage.vue"), props: true, meta: { title: "Conversation", section: "conversations", framed: true } },
+    { path: "/traces/:traceId", name: "trace", component: () => import("./pages/TraceDetailPage.vue"), props: true, meta: { title: "Trace", section: "conversations", framed: true } },
+    { path: "/metrics", name: "metrics", component: () => import("./pages/MetricsPage.vue"), meta: { title: "Metrics", section: "metrics" } },
     { path: "/:pathMatch(.*)*", redirect: { name: "conversations" } },
   ],
 });

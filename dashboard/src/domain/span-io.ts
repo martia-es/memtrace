@@ -1,18 +1,18 @@
 import type { SpanNodeDto } from "@contract";
 import { formatCount } from "./format";
 
-/** Un bloque de texto del panel de entrada/salida de un span. */
+/** A text block from the input/output panel of a span. */
 export interface IoBlock {
-  /** rol del mensaje ("user", "assistant"…) o el nombre del contenido ("Argumentos", "Resultado") */
+  /** role of the message ("user", "assistant"…) or name of the content ("Arguments", "Result") */
   label: string;
   text: string;
-  /** JSON o datos estructurados: se muestran en monoespaciada */
+  /** JSON or structured data: displayed in monospace */
   structured: boolean;
-  /** el mensaje es del usuario o del sistema (se tiñe distinto en la interfaz) */
+  /** the message is from user or system (colored differently in the interface) */
   role: "user" | "assistant" | "system" | "tool" | "error" | "other";
-  /** herramientas que el modelo pidió ejecutar en este mensaje */
+  /** tools the model requested to execute in this message */
   calls?: ToolCall[];
-  /** el mensaje no tiene texto, solo llamadas a herramientas */
+  /** the message has no text, only tool calls */
   hideText?: boolean;
 }
 
@@ -48,7 +48,7 @@ const asObject = (v: unknown): Record<string, unknown> => {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : v === undefined || v === null ? {} : { value: v };
 };
 
-/** Llamadas a herramientas de un mensaje del modelo (LangChain `tool_calls`, formato OpenAI `function`). */
+/** Tool calls from a model message (LangChain `tool_calls`, OpenAI `function` format). */
 function toolCallsOf(value: unknown): ToolCall[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((c) => {
@@ -74,20 +74,20 @@ function fromMessages(value: unknown): IoBlock[] | null {
       structured: !empty && typeof m.content !== "string" && text.trimStart().startsWith("{"),
       role: ROLES[role.toLowerCase()] ?? "other",
       calls,
-      // el contenido vacío solo se oculta si hay llamadas que mostrar en su lugar
+      // empty content is only hidden if there are calls to display instead
       hideText: empty && calls.length > 0,
     };
   });
 }
 
 function single(label: string, value: unknown): IoBlock[] {
-  // un string con JSON (el SDK guarda lo capturado como texto) se muestra con formato
+  // a string with JSON (the SDK saves captured content as text) is displayed formatted
   const text = pretty(value);
   const structured = typeof value !== "string" || /^\s*[{[]/.test(text);
   return [{ label, text, structured, role: "other", calls: [] }];
 }
 
-/** Entrada genérica de un grafo/cadena: `{"messages": [...]}` (o el string JSON de eso). */
+/** Generic graph/chain input: `{"messages": [...]}` (or its JSON string). */
 function messagesIn(value: unknown): unknown {
   const obj = typeof value === "string" && value.trimStart().startsWith("{") ? asObject(value) : value;
   return obj && typeof obj === "object" && "messages" in obj ? (obj as { messages: unknown }).messages : undefined;
@@ -102,43 +102,43 @@ export interface SpanIo {
 }
 
 /**
- * Qué mostrar como entrada y salida de un span: mensajes de chat si es un LLM, argumentos y resultado si es una
- * herramienta, y la entrada/salida genérica en el resto. Vacío si el agente no capturó contenido (ADR-004).
+ * What to show as span input and output: chat messages if it's an LLM, arguments and result if it's a
+ * tool, and generic input/output for the rest. Empty if the agent didn't capture content (ADR-004).
  */
 export function spanIo(node: SpanNodeDto): SpanIo {
   const c = node.content;
   if (!c) return { input: [], output: [], inputJson: "", outputJson: "" };
   const pick = (messages: unknown, tool: unknown, generic: unknown, toolLabel: string, genericLabel: string) => {
-    if (messages !== undefined) return { blocks: fromMessages(messages) ?? single("mensajes", messages), raw: messages };
+    if (messages !== undefined) return { blocks: fromMessages(messages) ?? single("messages", messages), raw: messages };
     if (tool !== undefined) return { blocks: single(toolLabel, tool), raw: tool };
     if (generic !== undefined) return { blocks: fromMessages(messagesIn(generic)) ?? single(genericLabel, generic), raw: generic };
     return { blocks: [], raw: undefined };
   };
-  const input = pick(c.inputMessages, c.toolArguments, c.input, "argumentos", "entrada");
-  const output = pick(c.outputMessages, c.toolResult, c.output, "resultado", "salida");
+  const input = pick(c.inputMessages, c.toolArguments, c.input, "arguments", "input");
+  const output = pick(c.outputMessages, c.toolResult, c.output, "result", "output");
   return { input: input.blocks, output: output.blocks, inputJson: raw(input.raw), outputJson: raw(output.raw) };
 }
 
 const raw = (value: unknown): string => (value === undefined ? "" : pretty(value));
 
-/** Datos GenAI del span como pares etiqueta/valor (los que no existen se omiten). */
+/** GenAI data from the span as label/value pairs (non-existent ones are omitted). */
 export function genAiRows(node: SpanNodeDto): [string, string | number][] {
   const g = node.genAi;
   if (!g) return [];
   const num = (v: number | null) => (v === null ? null : formatCount(v));
   const rows: [string, string | number | null][] = [
-    ["Operación", g.operation],
-    ["Proveedor", g.provider],
-    ["Modelo solicitado", g.requestModel],
-    ["Modelo de respuesta", g.responseModel],
-    ["Tokens de entrada", num(g.inputTokens)],
-    ["Tokens de salida", num(g.outputTokens)],
-    ["Tokens totales", num(g.totalTokens)],
-    ["Motivo de fin", g.finishReasons.join(", ") || null],
-    ["Temperatura", g.temperature],
-    ["Máx. tokens", g.maxTokens],
-    ["Herramienta", g.toolName],
-    ["Id de llamada", g.toolCallId],
+    ["Operation", g.operation],
+    ["Provider", g.provider],
+    ["Request model", g.requestModel],
+    ["Response model", g.responseModel],
+    ["Input tokens", num(g.inputTokens)],
+    ["Output tokens", num(g.outputTokens)],
+    ["Total tokens", num(g.totalTokens)],
+    ["Finish reason", g.finishReasons.join(", ") || null],
+    ["Temperature", g.temperature],
+    ["Max tokens", g.maxTokens],
+    ["Tool", g.toolName],
+    ["Tool call ID", g.toolCallId],
   ];
   return rows.filter((r): r is [string, string | number] => r[1] !== null && r[1] !== undefined);
 }

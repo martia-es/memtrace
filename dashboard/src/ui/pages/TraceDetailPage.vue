@@ -21,8 +21,8 @@ const f = useFilters();
 const trace = useAsync((signal) => api.getTrace(props.traceId, signal));
 watch(() => props.traceId, () => void trace.run(), { immediate: true });
 
-// Una traza en curso aún no ha exportado su span raíz (termina el último): sus spans salen como huérfanos.
-// Mientras eso ocurra (y sea reciente) se actualiza sola; al llegar el raíz deja de refrescar.
+// An in-progress trace hasn't exported its root span yet (finishes last): its spans come out as orphans.
+// While this happens (and is recent) it auto-updates; when the root arrives it stops refreshing.
 const IN_PROGRESS_WINDOW_MS = 5 * 60_000;
 const inProgress = computed(() => {
   const t = trace.data.value;
@@ -32,17 +32,17 @@ useLiveRefresh(() => trace.run(), { active: () => inProgress.value, isBusy: () =
 
 const roots = computed(() => trace.data.value?.roots ?? []);
 const hasOrphans = computed(() => roots.value.some((r) => r.orphan));
-const rootName = computed(() => roots.value.find((r) => !r.orphan)?.name ?? roots.value[0]?.name ?? "Traza");
+const rootName = computed(() => roots.value.find((r) => !r.orphan)?.name ?? roots.value[0]?.name ?? "Trace");
 const conversationId = computed(() => trace.data.value?.conversationId ?? null);
 
-// ---- span seleccionado (?span=): el del enlace, si no el primero con error y si no la raíz ----
+// ---- selected span (?span=): the one from the link, if not the first with error, if not the root ----
 const selectedNode = computed(() => {
   const wanted = typeof route.query.span === "string" ? route.query.span : null;
   return (wanted ? findNode(roots.value, wanted) : null) ?? firstErrorNode(roots.value) ?? roots.value[0] ?? null;
 });
 const select = (spanId: string) => void router.replace({ query: { ...route.query, span: spanId } });
 
-const hint = "Este span no tiene contenido guardado. Activa MEMTRACE_CAPTURE_CONTENT=true en el agente para verlo aquí (se guarda tal cual: revisa la privacidad).";
+const hint = "This span has no content saved. Enable MEMTRACE_CAPTURE_CONTENT=true on the agent to see it here (it's saved as-is: check privacy).";
 
 const copyId = () => void navigator.clipboard?.writeText(props.traceId);
 const goList = () => void router.push({ name: "conversations", query: f.shared.value });
@@ -51,8 +51,8 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
 
 <template>
   <div class="page">
-    <nav v-if="!trace.data.value" class="crumbs plain" aria-label="Ruta">
-      <button type="button" class="crumb" @click="goList">Conversaciones</button>
+    <nav v-if="!trace.data.value" class="crumbs plain" aria-label="Breadcrumbs">
+      <button type="button" class="crumb" @click="goList">Conversations</button>
       <q-icon name="chevron_right" size="16px" />
       <span class="mono current">{{ shortId(traceId) }}</span>
     </nav>
@@ -61,8 +61,8 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
 
     <template v-if="trace.data.value">
       <header class="head mt-card">
-      <nav class="crumbs" aria-label="Ruta">
-        <button type="button" class="crumb" @click="goList">Conversaciones</button>
+      <nav class="crumbs" aria-label="Breadcrumbs">
+        <button type="button" class="crumb" @click="goList">Conversations</button>
         <template v-if="conversationId">
           <q-icon name="chevron_right" size="16px" />
           <button type="button" class="crumb mono" @click="goConversation">{{ conversationId }}</button>
@@ -76,20 +76,20 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
           <StatusBadge :status="trace.data.value.status" show-label />
           <span class="mt-pill unset"><q-icon name="schedule" size="15px" /> {{ formatDuration(trace.data.value.durationMs) }}</span>
           <span class="mt-pill unset"><q-icon name="account_tree" size="15px" /> {{ `${formatCount(trace.data.value.spanCount)} spans` }}</span>
-          <span v-if="trace.data.value.errorCount" class="mt-pill error"><q-icon name="error" size="15px" /> {{ `${trace.data.value.errorCount} con error` }}</span>
+          <span v-if="trace.data.value.errorCount" class="mt-pill error"><q-icon name="error" size="15px" /> {{ `${trace.data.value.errorCount} with error` }}</span>
           <span v-if="trace.data.value.totalTokens" class="mt-pill unset"><q-icon name="toll" size="15px" /> {{ `${formatCount(trace.data.value.totalTokens)} tokens` }}</span>
-          <button type="button" class="mt-round-btn" aria-label="Copiar id de traza" @click="copyId"><q-icon name="content_copy" size="18px" /></button>
+          <button type="button" class="mt-round-btn" aria-label="Copy trace ID" @click="copyId"><q-icon name="content_copy" size="18px" /></button>
         </div>
       </header>
 
-      <div v-if="trace.data.value.truncated" class="banner warn">La traza tiene más de 5000 spans: solo se muestran los primeros.</div>
+      <div v-if="trace.data.value.truncated" class="banner warn">Trace has more than 5000 spans: only showing the first ones.</div>
       <div v-if="hasOrphans" class="banner warn">
-        <template v-if="inProgress">La traza sigue en curso: se actualiza sola hasta que llegue el span raíz.</template>
-        <template v-else>Algunos spans no tienen padre en la traza (perdidos o aún no exportados) y se muestran como raíces.</template>
+        <template v-if="inProgress">The trace is still in progress: auto-updating until the root span arrives.</template>
+        <template v-else>Some spans have no parent in the trace (lost or not yet exported) and are shown as roots.</template>
       </div>
 
       <div class="cols">
-        <section class="mt-card tree-card" aria-label="Árbol de spans">
+        <section class="mt-card tree-card" aria-label="Span tree">
           <div class="tree-head">
             <h2>Spans</h2>
             <span class="mono muted meta">{{ formatDuration(trace.data.value.durationMs) }}</span>

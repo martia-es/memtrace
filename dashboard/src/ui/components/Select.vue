@@ -17,7 +17,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   loading: false,
   disabled: false,
-  placeholder: "Seleccionar",
+  placeholder: "Select",
 });
 
 const emit = defineEmits<{ "update:modelValue": [value: T] }>();
@@ -67,7 +67,7 @@ const closeMenu = () => {
       <div v-if="isOpen" class="select-menu">
         <div v-if="loading" class="select-loading">
           <div class="spinner"></div>
-          Cargando...
+          Loading...
         </div>
         <template v-else>
           <button

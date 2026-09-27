@@ -6,14 +6,14 @@ import { REFRESH_OPTIONS, type RefreshSeconds } from "@/domain/refresh";
 defineProps<{ seconds: RefreshSeconds; updatedAt: number | null }>();
 defineEmits<{ "update:seconds": [RefreshSeconds] }>();
 
-// reloj propio para que "actualizado hace N s" avance entre refrescos
+// Own clock so "updated N s ago" advances between refreshes
 const now = ref(Date.now());
 const ticker = setInterval(() => (now.value = Date.now()), 1000);
 onBeforeUnmount(() => clearInterval(ticker));
 </script>
 
 <template>
-  <div class="row items-center q-gutter-x-sm no-wrap live" role="group" aria-label="Actualización automática">
+  <div class="row items-center q-gutter-x-sm no-wrap live" role="group" aria-label="Auto-refresh">
     <span class="dot" :class="{ on: seconds > 0 }" aria-hidden="true" />
     <q-btn-toggle
       :model-value="seconds"
@@ -23,11 +23,11 @@ onBeforeUnmount(() => clearInterval(ticker));
       unelevated
       toggle-color="primary"
       class="toggle-group"
-      aria-label="Intervalo de actualización"
+      aria-label="Refresh interval"
       @update:model-value="$emit('update:seconds', $event)"
     />
     <span class="text-caption text-grey-7 status" aria-live="off">
-      {{ updatedAt ? `Actualizado ${formatRelativeTime(new Date(updatedAt).toISOString(), now)}` : "Cargando…" }}
+      {{ updatedAt ? `Updated ${formatRelativeTime(new Date(updatedAt).toISOString(), now)} ago` : "Loading…" }}
     </span>
   </div>
 </template>
