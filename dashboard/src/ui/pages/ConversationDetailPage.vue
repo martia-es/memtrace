@@ -272,7 +272,7 @@ h1 {
   cursor: pointer;
 }
 .toggle-btn.active {
-  background: #fff;
+  background: var(--mt-card);
   color: var(--mt-ink);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
@@ -312,9 +312,9 @@ h1 {
   margin: 10px auto 0;
   height: 30px;
   padding: 0 14px;
-  border: 1px solid #e3eae5;
+  border: 1px solid var(--mt-line);
   border-radius: 15px;
-  background: #fff;
+  background: var(--mt-card);
   font: inherit;
   font-weight: 600;
   cursor: pointer;

@@ -353,9 +353,9 @@ td {
 .more {
   height: 34px;
   padding: 0 16px;
-  border: 1px solid #e3eae5;
+  border: 1px solid var(--mt-line);
   border-radius: 17px;
-  background: #fff;
+  background: var(--mt-card);
   color: var(--mt-ink);
   font: inherit;
   font-weight: 600;

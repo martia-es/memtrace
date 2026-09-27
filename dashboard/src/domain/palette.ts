@@ -21,15 +21,11 @@ export const SPAN_COLORS = {
   unknown: PALETTE.moss,
 } as const;
 
-export const SPAN_BG_COLORS = {
-  agent: PALETTE.lightGreen,
-  llm: "#dff5e8",
-  tool: "#dff5e8",
-  chain: PALETTE.lightGreen,
-  retriever: PALETTE.lightGreen,
-  embedding: "#dff5e8",
-  unknown: PALETTE.lightGreen,
-} as const;
+// Fondo suave de las insignias de span: mezcla el color del kind con la tarjeta,
+// así se adapta solo a tema claro/oscuro (--mt-card) sin duplicar una paleta oscura.
+export function spanBg(color: string): string {
+  return `color-mix(in srgb, ${color} 18%, var(--mt-card))`;
+}
 
 export const CHART_COLORS = [
   PALETTE.darkGreen,

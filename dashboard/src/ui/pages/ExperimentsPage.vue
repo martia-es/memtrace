@@ -686,7 +686,7 @@ function formatDate(iso: string | null): string {
   padding: 0 13px;
   border-radius: 16px;
   border: 1px solid var(--mt-line);
-  background: #fff;
+  background: var(--mt-card);
   color: var(--mt-muted);
   font: inherit;
   font-size: 12px;
@@ -1038,8 +1038,8 @@ function formatDate(iso: string | null): string {
   height: 40px;
   padding: 0 14px;
   border-radius: 20px;
-  border: 1px solid #e3eae5;
-  background: #fff;
+  border: 1px solid var(--mt-line);
+  background: var(--mt-card);
   font: inherit;
   font-size: 13px;
   color: var(--mt-ink);

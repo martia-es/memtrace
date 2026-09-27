@@ -86,7 +86,7 @@ function tooltip() {
   return {
     trigger: "axis" as const,
     confine: true,
-    backgroundColor: "rgba(255,255,255,0.98)",
+    backgroundColor: $q.dark.isActive ? "rgba(22,34,26,0.98)" : "rgba(255,255,255,0.98)",
     textStyle: { color: c.text, fontSize: 12 },
     borderColor: c.grid,
     extraCssText: "box-shadow: 0 12px 32px rgba(14,26,19,0.14); border-radius: 12px;",
@@ -221,7 +221,7 @@ const toolUsageOption = computed<EChartsCoreOption>(() => {
     textStyle: { color: c.text },
     tooltip: {
       trigger: "item",
-      backgroundColor: "rgba(255,255,255,0.98)",
+      backgroundColor: $q.dark.isActive ? "rgba(22,34,26,0.98)" : "rgba(255,255,255,0.98)",
       textStyle: { color: c.text },
       borderColor: c.grid,
       extraCssText: "border-radius: 8px;",

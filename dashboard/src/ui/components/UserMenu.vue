@@ -2,13 +2,18 @@
 import { computed } from "vue";
 import { useAsync } from "../composables/useAsync";
 import { useIdentityApi } from "../composables/useIdentityApi";
+import { useTheme } from "../composables/useTheme";
 // signOut import removed (next-auth/react is React‑only and not usable in Vue)
+
+const DOCS_URL = "https://docs.memtrace.com";
 
 defineProps<{ collapsed: boolean }>();
 
 const identityApi = useIdentityApi();
 const me = useAsync((signal) => identityApi.getMe(signal));
 void me.run();
+
+const { theme, toggle: toggleTheme } = useTheme();
 
 const handleSignOut = async () => {
   try {
@@ -50,6 +55,22 @@ const initials = computed(() => {
             <span class="user-email">{{ me.data.value.email }}</span>
           </span>
         </div>
+        <div class="menu-divider" />
+        <button type="button" class="menu-action neutral" @click="toggleTheme">
+          <svg v-if="theme === 'dark'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+          </svg>
+          <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z" />
+          </svg>
+          Tema: {{ theme === "dark" ? "Oscuro" : "Claro" }}
+        </button>
+        <a :href="DOCS_URL" target="_blank" rel="noopener noreferrer" class="menu-action neutral">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          </svg>
+          Documentación
+        </a>
         <div class="menu-divider" />
         <button type="button" class="menu-action" @click="handleSignOut">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -186,6 +207,7 @@ const initials = computed(() => {
   align-items: center;
   gap: 10px;
   width: 100%;
+  box-sizing: border-box;
   padding: 10px 14px;
   margin: 0 0 6px;
   border: none;
@@ -195,10 +217,17 @@ const initials = computed(() => {
   font-size: 13px;
   font-weight: 600;
   text-align: left;
+  text-decoration: none;
   cursor: pointer;
   transition: background 0.15s ease;
 }
 .user-menu-popover .menu-action:hover {
   background: var(--mt-err-bg);
+}
+.user-menu-popover .menu-action.neutral {
+  color: var(--mt-ink);
+}
+.user-menu-popover .menu-action.neutral:hover {
+  background: var(--mt-soft);
 }
 </style>

@@ -35,9 +35,9 @@ const current = computed(() => props.options.find((o) => o.value === props.model
   gap: 6px;
   height: 36px;
   padding: 0 14px;
-  border: 1px solid #e3eae5;
+  border: 1px solid var(--mt-line);
   border-radius: 18px;
-  background: #fff;
+  background: var(--mt-card);
   color: var(--mt-ink);
   font: inherit;
   font-weight: 500;
@@ -46,7 +46,7 @@ const current = computed(() => props.options.find((o) => o.value === props.model
 }
 .pill.active {
   border-color: var(--mt-accent);
-  background: #f5f2ff;
+  background: var(--wf-selected);
 }
 .k {
   color: var(--mt-muted);

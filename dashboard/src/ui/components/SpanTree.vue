@@ -159,23 +159,23 @@ defineExpose({ collapseAll: () => (collapsed.value = new Set(parentIds(props.roo
   background: var(--mt-soft-2);
 }
 .row.selected {
-  background: #f5f2ff;
-  box-shadow: inset 0 0 0 1px #d9d0ff;
+  background: var(--wf-selected);
+  box-shadow: inset 0 0 0 1px var(--mt-accent);
 }
 .guide {
   position: absolute;
   top: 0;
   bottom: 0;
   width: 1px;
-  background: #d5ded8;
+  background: var(--mt-line);
 }
 .elbow {
   position: absolute;
   top: 0;
   height: 50%;
   width: 9px;
-  border-left: 1px solid #d5ded8;
-  border-bottom: 1px solid #d5ded8;
+  border-left: 1px solid var(--mt-line);
+  border-bottom: 1px solid var(--mt-line);
   border-bottom-left-radius: 6px;
 }
 .name-cell {
