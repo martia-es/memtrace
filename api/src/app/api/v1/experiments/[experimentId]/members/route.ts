@@ -6,6 +6,26 @@ import { getIdentity } from "@/dependency-container";
 
 export const dynamic = "force-dynamic";
 
+/** Lista los miembros aceptados y las invitaciones pendientes del experimento. Requiere ser org_admin o admin. */
+export async function GET(_request: Request, context: { params: Promise<{ experimentId: string }> }) {
+  return identityGuard(async () => {
+    const { experimentId } = await context.params;
+    const user = await requireUser();
+    if (user instanceof Response) return user;
+
+    const { identityRepository, authorizationService } = getIdentity();
+    if (!(await authorizationService.canManageExperimentMembers(user.id, experimentId))) {
+      return problem(403, "Forbidden", "No permission to manage members of this experiment");
+    }
+
+    const [members, pendingInvitations] = await Promise.all([
+      identityRepository.listExperimentMembers(experimentId),
+      identityRepository.listPendingInvitations({ experimentId }),
+    ]);
+    return json({ members, pendingInvitations });
+  });
+}
+
 /**
  * Invita a otro usuario a este experimento (ADR-013/ADR-014). Requiere ser org_admin o admin del experimento.
  * Si el invitado no tiene cuenta todavía, se guarda como invitación pendiente y se le manda un email:

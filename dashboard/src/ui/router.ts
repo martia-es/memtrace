@@ -13,7 +13,7 @@ export const router = createRouter({
       children: [
         { path: "", redirect: (to) => ({ name: "conversations", params: to.params }) },
         { path: "spans", redirect: (to) => ({ name: "conversations", params: to.params }) },
-        { path: "conversations", name: "conversations", component: () => import("./pages/ConversationsPage.vue"), meta: { title: "Conversations", section: "conversations", framed: true } },
+        { path: "conversations", name: "conversations", component: () => import("./pages/ConversationsPage.vue"), meta: { title: "Conversations", section: "conversations" } },
         { path: "conversations/:conversationId", name: "conversation", component: () => import("./pages/ConversationDetailPage.vue"), props: true, meta: { title: "Conversation", section: "conversations", framed: true } },
         { path: "traces/:traceId", name: "trace", component: () => import("./pages/TraceDetailPage.vue"), props: true, meta: { title: "Trace", section: "conversations", framed: true } },
         { path: "metrics", name: "metrics", component: () => import("./pages/MetricsPage.vue"), meta: { title: "Metrics", section: "metrics" } },

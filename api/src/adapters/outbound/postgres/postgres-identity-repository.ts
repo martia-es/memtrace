@@ -6,7 +6,12 @@ import type {
   Experiment,
   ExperimentAccess,
   ExperimentRole,
+  ExperimentSummary,
+  Member,
+  OrgRole,
   Organization,
+  OrganizationSummary,
+  PendingInvitation,
   PendingInvitationTarget,
   User,
 } from "@/domain/identity";
@@ -57,16 +62,19 @@ export class PostgresIdentityRepository implements IdentityRepository {
     return rows[0] ?? null;
   }
 
-  async listOrganizationsForUser(userId: string): Promise<Organization[]> {
-    const { rows } = await this.pool.query<{ id: string; name: string }>(
-      `SELECT o.id, o.name
+  async listOrganizationsForUser(userId: string): Promise<OrganizationSummary[]> {
+    const { rows } = await this.pool.query<{ id: string; name: string; my_role: OrgRole | null }>(
+      `SELECT DISTINCT o.id, o.name,
+              CASE WHEN om.user_id IS NOT NULL THEN 'org_admin' ELSE NULL END AS my_role
          FROM organizations o
-         JOIN org_memberships m ON m.organization_id = o.id
-        WHERE m.user_id = $1
+         LEFT JOIN org_memberships om ON om.organization_id = o.id AND om.user_id = $1
+         LEFT JOIN experiments e ON e.organization_id = o.id
+         LEFT JOIN experiment_memberships em ON em.experiment_id = e.id AND em.user_id = $1
+        WHERE om.user_id IS NOT NULL OR em.user_id IS NOT NULL
         ORDER BY o.name`,
       [userId],
     );
-    return rows;
+    return rows.map((row) => ({ id: row.id, name: row.name, myRole: row.my_role }));
   }
 
   async isOrgAdmin(userId: string, organizationId: string): Promise<boolean> {
@@ -83,6 +91,18 @@ export class PostgresIdentityRepository implements IdentityRepository {
        ON CONFLICT (organization_id, user_id) DO NOTHING`,
       [organizationId, userId],
     );
+  }
+
+  async listOrgMembers(organizationId: string): Promise<Member[]> {
+    const { rows } = await this.pool.query<{ user_id: string; email: string; name: string | null; role: OrgRole }>(
+      `SELECT u.id AS user_id, u.email, u.name, m.role
+         FROM org_memberships m
+         JOIN users u ON u.id = m.user_id
+        WHERE m.organization_id = $1
+        ORDER BY u.email`,
+      [organizationId],
+    );
+    return rows.map(toMember);
   }
 
   async createExperiment(organizationId: string, name: string, serviceName: string): Promise<Experiment> {
@@ -104,9 +124,18 @@ export class PostgresIdentityRepository implements IdentityRepository {
     return rows[0] ? toExperiment(rows[0]) : null;
   }
 
-  async listExperimentsForUser(userId: string): Promise<Experiment[]> {
-    const { rows } = await this.pool.query<{ id: string; organization_id: string; name: string; service_name: string }>(
-      `SELECT DISTINCT e.id, e.organization_id, e.name, e.service_name
+  async listExperimentsForUser(userId: string): Promise<ExperimentSummary[]> {
+    const { rows } = await this.pool.query<{
+      id: string;
+      organization_id: string;
+      name: string;
+      service_name: string;
+      my_role: ExperimentRole | null;
+      org_admin: boolean;
+    }>(
+      `SELECT DISTINCT e.id, e.organization_id, e.name, e.service_name,
+              em.role AS my_role,
+              (om.user_id IS NOT NULL) AS org_admin
          FROM experiments e
          LEFT JOIN experiment_memberships em ON em.experiment_id = e.id AND em.user_id = $1
          LEFT JOIN org_memberships om ON om.organization_id = e.organization_id AND om.user_id = $1
@@ -114,7 +143,7 @@ export class PostgresIdentityRepository implements IdentityRepository {
         ORDER BY e.name`,
       [userId],
     );
-    return rows.map(toExperiment);
+    return rows.map((row) => ({ ...toExperiment(row), myRole: row.org_admin ? "org_admin" : (row.my_role as ExperimentRole) }));
   }
 
   async addExperimentMember(experimentId: string, userId: string, role: ExperimentRole): Promise<void> {
@@ -123,6 +152,18 @@ export class PostgresIdentityRepository implements IdentityRepository {
        ON CONFLICT (experiment_id, user_id) DO UPDATE SET role = EXCLUDED.role`,
       [experimentId, userId, role],
     );
+  }
+
+  async listExperimentMembers(experimentId: string): Promise<Member[]> {
+    const { rows } = await this.pool.query<{ user_id: string; email: string; name: string | null; role: ExperimentRole }>(
+      `SELECT u.id AS user_id, u.email, u.name, m.role
+         FROM experiment_memberships m
+         JOIN users u ON u.id = m.user_id
+        WHERE m.experiment_id = $1
+        ORDER BY u.email`,
+      [experimentId],
+    );
+    return rows.map(toMember);
   }
 
   async createPendingInvitation(email: string, target: PendingInvitationTarget, invitedByUserId: string): Promise<void> {
@@ -166,6 +207,27 @@ export class PostgresIdentityRepository implements IdentityRepository {
     } finally {
       client.release();
     }
+  }
+
+  async listPendingInvitations(target: { organizationId: string } | { experimentId: string }): Promise<PendingInvitation[]> {
+    const column = "organizationId" in target ? "organization_id" : "experiment_id";
+    const value = "organizationId" in target ? target.organizationId : target.experimentId;
+    const { rows } = await this.pool.query<{
+      id: string;
+      email: string;
+      organization_id: string | null;
+      experiment_id: string | null;
+      role: OrgRole | ExperimentRole;
+      invited_by: string;
+      created_at: string;
+    }>(
+      `SELECT id, email, organization_id, experiment_id, role, invited_by, created_at
+         FROM pending_invitations
+        WHERE ${column} = $1
+        ORDER BY created_at DESC`,
+      [value],
+    );
+    return rows.map(toPendingInvitation);
   }
 
   async resolveExperimentAccess(userId: string, experimentId: string): Promise<ExperimentAccess> {
@@ -235,4 +297,25 @@ function toApiKey(row: { id: string; experiment_id: string; key_prefix: string; 
 
 function toExperiment(row: { id: string; organization_id: string; name: string; service_name: string }): Experiment {
   return { id: row.id, organizationId: row.organization_id, name: row.name, serviceName: row.service_name };
+}
+
+function toMember(row: { user_id: string; email: string; name: string | null; role: OrgRole | ExperimentRole }): Member {
+  return { userId: row.user_id, email: row.email, name: row.name, role: row.role };
+}
+
+function toPendingInvitation(row: {
+  id: string;
+  email: string;
+  organization_id: string | null;
+  experiment_id: string | null;
+  role: OrgRole | ExperimentRole;
+  invited_by: string;
+  created_at: string;
+}): PendingInvitation {
+  const target = (
+    row.organization_id
+      ? { organizationId: row.organization_id, role: row.role as OrgRole }
+      : { experimentId: row.experiment_id as string, role: row.role as ExperimentRole }
+  ) as PendingInvitationTarget;
+  return { id: row.id, email: row.email, invitedByUserId: row.invited_by, target, createdAt: row.created_at };
 }

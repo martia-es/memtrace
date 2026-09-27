@@ -51,7 +51,7 @@ function switchExperiment(experimentId: string | null) {
   <div class="shell">
     <aside class="sidebar mt-card" :class="{ collapsed: isCollapsed }">
       <div class="sidebar-header">
-        <router-link :to="{ name: 'conversations', params: { experimentId: currentExperimentId } }" class="brand" aria-label="MemTrace">
+        <router-link :to="navExperimentId ? { name: 'conversations', params: { experimentId: navExperimentId } } : { name: 'admin' }" class="brand" aria-label="MemTrace">
           <svg width="26" height="26" viewBox="0 0 22 22" aria-hidden="true">
             <rect x="1" y="3" width="12" height="4" rx="2" fill="#6FCF4A" /><rect x="6" y="9" width="15" height="4" rx="2" fill="#7A5AF8" /><rect x="3" y="15" width="9" height="4" rx="2" fill="#FF8A3D" />
           </svg>

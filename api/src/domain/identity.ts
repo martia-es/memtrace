@@ -24,6 +24,20 @@ export interface Experiment {
 }
 
 /**
+ * Organización listada en `GET /organizations` (ADR-016): incluye toda organización visible para el
+ * usuario, no solo aquellas de las que es org_admin. `myRole` distingue ambos casos para que la UI
+ * sepa qué acciones de gestión mostrar (crear experimento, invitar org_admin, ver miembros).
+ */
+export interface OrganizationSummary extends Organization {
+  myRole: OrgRole | null;
+}
+
+/** Experimento listado en `GET /experiments` (ADR-016), con el rol resuelto del usuario para esa fila. */
+export interface ExperimentSummary extends Experiment {
+  myRole: Exclude<ExperimentAccess, null>;
+}
+
+/**
  * Acceso resuelto de un usuario a un experimento concreto: org_admin de su
  * organización, o membership directa en el experimento. `null` si no tiene acceso.
  */
@@ -56,4 +70,13 @@ export interface PendingInvitation {
   email: string;
   invitedByUserId: string;
   target: PendingInvitationTarget;
+  createdAt: string;
+}
+
+/** Miembro ya aceptado de una organización o experimento, con sus datos de usuario. */
+export interface Member {
+  userId: string;
+  email: string;
+  name: string | null;
+  role: OrgRole | ExperimentRole;
 }

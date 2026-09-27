@@ -179,6 +179,53 @@ MemTrace/
 
 ---
 
+## 👥 Alta de un usuario nuevo
+
+1. La persona entra al dashboard ([http://localhost:8080](http://localhost:8080)) y se autentica con Google o Microsoft (OIDC vía Auth.js). No hay registro con contraseña: el primer login crea su cuenta automáticamente.
+2. **Si no pertenece a ninguna organización todavía**, cualquier usuario autenticado puede crear una y se convierte en su primer `org_admin`.
+3. **Para añadir a alguien a una organización o experimento ya existente**, un `org_admin` (o un `admin` del experimento) lo invita por email, antes de que esa persona haya iniciado sesión nunca:
+
+   ```bash
+   # Invitar como org_admin de una organización
+   curl -X POST http://localhost:3001/api/v1/organizations/{organizationId}/members \
+     -H "Content-Type: application/json" \
+     -d '{"email": "nueva.persona@empresa.com"}'
+
+   # Invitar como admin/member de un experimento concreto
+   curl -X POST http://localhost:3001/api/v1/experiments/{experimentId}/members \
+     -H "Content-Type: application/json" \
+     -d '{"email": "nueva.persona@empresa.com", "role": "member"}'
+   ```
+
+   Si la persona invitada ya tiene cuenta, el rol se asigna al momento (`201`). Si no, queda como invitación pendiente (`202`) y se le envía un email pidiéndole que inicie sesión; el rol se aplica automáticamente en su primer login.
+
+   El envío de email usa [Resend](https://resend.com/), configurado con `RESEND_API_KEY` y `EMAIL_FROM` en `.env`. Sin esas variables, la invitación se registra pero el email no se envía (solo se loguea un aviso) — útil en local, pero hay que configurarlas para invitar a alguien que no vaya a mirar los logs.
+
+## 🤖 Alta de un agente nuevo
+
+Cada agente instrumentado envía trazas al Collector autenticándose con una API key ligada a un experimento concreto.
+
+1. Un `admin` u `org_admin` del experimento genera la key:
+
+   ```bash
+   curl -X POST http://localhost:3001/api/v1/experiments/{experimentId}/api-keys
+   # -> 201 { "id": "...", "keyPrefix": "mtk_Ab3xY9", "plaintext": "mtk_Ab3xY9...", ... }
+   ```
+
+   El valor de `plaintext` solo se devuelve en este momento — guárdalo, no se puede recuperar después (solo se persiste su hash).
+
+2. El agente debe enviar esa key como header `Authorization: Bearer <key>` en cada request OTLP/HTTP. El SDK de Python no tiene todavía una opción dedicada para esto: pásala vía la variable estándar de headers OTLP:
+
+   ```bash
+   export MEMTRACE_OTLP_HEADERS="authorization=Bearer mtk_Ab3xY9..."
+   ```
+
+   *(Pendiente: añadir un parámetro `api_key` de primera clase al SDK en vez de depender de este workaround.)*
+
+3. La API valida la key contra el almacén de identidad antes de reenviar la traza al Collector; una key inválida o revocada se rechaza con 401. Nota: la validación actual solo comprueba que la key sea válida, no que el `service.name` de la traza coincida con el experimento de la key — ver comentario en `ingest/v1/traces/route.ts`.
+
+---
+
 ## 📚 Documentación Adicional
 
 * 🗺️ [**Roadmap del Proyecto**](docs/roadmap.md) — Visión completa y fases de desarrollo.

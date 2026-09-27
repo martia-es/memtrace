@@ -108,7 +108,7 @@ Los atributos que la pieza 1 adjunta a cada span (modelo usado, tokens, prompt, 
 - **3 roles en total, en 2 niveles distintos:**
   - `org_admin` (nivel organización): tiene admin implícito sobre **todos** los experimentos de su organización, sin necesitar membership explícita en cada uno. Puede crear experimentos nuevos dentro de la organización e invitar usuarios (como `org_admin`, o directamente a un experimento como `admin`/`member`).
   - `admin` (nivel experimento): igual que `member`, más invitar a otros usuarios a ese experimento concreto (como `admin` o `member`). No tiene visibilidad sobre otros experimentos de la organización salvo que se le invite a ellos también.
-  - `member` (nivel experimento): solo lectura sobre ese experimento (trazas, dashboard, métricas).
+  - `member` (nivel experimento): solo lectura sobre ese experimento (trazas, dashboard, métricas), más generar su propia API key para instrumentar el agente (ver [ADR-016](adrs/adr-016-admin-page-visible-to-experiment-members.md)). No puede invitar ni gestionar a nadie.
 - **Regla de autorización**: acceso a un experimento = `org_admin` de su organización **OR** membership directa en ese experimento. La pieza 7 evalúa ambas condiciones en cada petición.
 - **Bootstrap**: cualquier usuario autenticado puede crear una organización nueva y se convierte en su primer `org_admin`. Crear un experimento dentro de una organización requiere ser `org_admin` de esa organización (ya no "cualquier usuario autenticado", como en la versión anterior de este documento).
 
@@ -133,17 +133,17 @@ Los atributos que la pieza 1 adjunta a cada span (modelo usado, tokens, prompt, 
 
 - [x] Decisión de modelo de roles: multi-tenant, `org_admin` (organización) + `admin`/`member` (experimento)
 - [x] Registrar apps OAuth en Google Cloud Console y Microsoft Entra ID
-- [ ] Login con Google (OIDC) funcionando en el dashboard
-- [ ] Login con Microsoft/Azure AD (OIDC) funcionando en el dashboard
-- [ ] Almacén de identidad (PostgreSQL) con esquema de organizaciones / usuarios / experimentos / membership de organización (usuario, organización, `org_admin`) / membership de experimento (usuario, experimento, rol) / sesiones
-- [ ] Creación de organización: cualquier usuario autenticado puede crear una y pasa a ser su primer `org_admin`
-- [ ] Creación de experimento: solo un `org_admin` de la organización puede crear experimentos dentro de ella
+- [x] Login con Google (OIDC) funcionando en el dashboard
+- [x] Login con Microsoft/Azure AD (OIDC) funcionando en el dashboard
+- [x] Almacén de identidad (PostgreSQL) con esquema de organizaciones / usuarios / experimentos / membership de organización (usuario, organización, `org_admin`) / membership de experimento (usuario, experimento, rol) / sesiones
+- [x] Creación de organización: cualquier usuario autenticado puede crear una y pasa a ser su primer `org_admin`
+- [x] Creación de experimento: solo un `org_admin` de la organización puede crear experimentos dentro de ella
 - [x] Flujo de invitación a organización: un `org_admin` invita a otro usuario como `org_admin` de esa organización
 - [x] Flujo de invitación a experimento: un `admin` (o `org_admin`) invita a otro usuario como `admin`/`member` de ese experimento
-- [ ] Middleware de autorización en la API de consulta aplicado a todos los endpoints existentes de Fase 1, evaluando `org_admin` OR membership de experimento
-- [ ] Autenticación por API key para agentes en el OTel Collector
+- [x] Middleware de autorización en la API de consulta aplicado a todos los endpoints existentes de Fase 1, evaluando `org_admin` OR membership de experimento
+- [x] Autenticación por API key para agentes en el OTel Collector — implementada como proxy delante del collector, validando el key antes de reenviar OTLP; el collector en sí no tiene extensión de auth propia
 - [x] ADR de la decisión de arquitectura (segundo almacén + estrategia de auth) — [ADR-013](adrs/adr-013-identity-postgres-and-oauth-rbac.md)
-- [ ] Documentación de cómo dar de alta un usuario/agente nuevo
+- [x] Documentación de cómo dar de alta un usuario/agente nuevo — ver [README.md](../README.md#-alta-de-un-usuario-nuevo)
 
 ---
 

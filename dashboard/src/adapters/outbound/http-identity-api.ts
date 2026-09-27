@@ -1,5 +1,5 @@
 import { ApiError } from "@/application/trace-api";
-import type { ApiKeyDto, CurrentUser, ExperimentDto, IdentityApi, OrganizationDto } from "@/application/identity-api";
+import type { ApiKeyDto, CurrentUser, ExperimentDto, IdentityApi, MembersResponseDto, OrganizationDto } from "@/application/identity-api";
 
 type Fetch = typeof fetch;
 
@@ -30,6 +30,10 @@ export class HttpIdentityApi implements IdentityApi {
     await this.post(`/organizations/${encodeURIComponent(organizationId)}/members`, { email }, signal);
   }
 
+  listOrgMembers(organizationId: string, signal?: AbortSignal): Promise<MembersResponseDto> {
+    return this.get(`/organizations/${encodeURIComponent(organizationId)}/members`, signal);
+  }
+
   async listExperiments(signal?: AbortSignal): Promise<ExperimentDto[]> {
     const { items } = await this.get<{ items: ExperimentDto[] }>("/experiments", signal);
     return items;
@@ -41,6 +45,10 @@ export class HttpIdentityApi implements IdentityApi {
 
   async addExperimentMember(experimentId: string, email: string, role: "admin" | "member", signal?: AbortSignal): Promise<void> {
     await this.post(`/experiments/${encodeURIComponent(experimentId)}/members`, { email, role }, signal);
+  }
+
+  listExperimentMembers(experimentId: string, signal?: AbortSignal): Promise<MembersResponseDto> {
+    return this.get(`/experiments/${encodeURIComponent(experimentId)}/members`, signal);
   }
 
   async listApiKeys(experimentId: string, signal?: AbortSignal): Promise<ApiKeyDto[]> {

@@ -1,6 +1,6 @@
 import type { SpanListResponse, SpanRowDto, TranscriptResponse, ConversationDetailResponse, ConversationListResponse, ConversationSummaryDto, ConversationTreeResponse, OverviewResponse, ServicesResponse, SpanNodeDto, TraceDetailResponse, TraceListResponse, TraceSummaryDto } from "@contract";
 import type { ListConversationsParams, ListSpansParams, ListTracesParams, RangeParams, TraceApi } from "@/application/trace-api";
-import type { ApiKeyDto, CurrentUser, ExperimentDto, IdentityApi, OrganizationDto } from "@/application/identity-api";
+import type { ApiKeyDto, CurrentUser, ExperimentDto, IdentityApi, MembersResponseDto, OrganizationDto } from "@/application/identity-api";
 
 /** Puerto de identidad (ADR-013): usada solo por OnboardingGuide en estas pruebas de UI, sin sesión real. */
 export class FakeIdentityApi implements IdentityApi {
@@ -11,16 +11,22 @@ export class FakeIdentityApi implements IdentityApi {
     return [];
   }
   async createOrganization(name: string): Promise<OrganizationDto> {
-    return { id: "org-1", name };
+    return { id: "org-1", name, myRole: "org_admin" };
   }
   async addOrgAdmin(): Promise<void> {}
+  async listOrgMembers(): Promise<MembersResponseDto> {
+    return { members: [], pendingInvitations: [] };
+  }
   async listExperiments(): Promise<ExperimentDto[]> {
     return [];
   }
   async createExperiment(organizationId: string, name: string, serviceName: string): Promise<ExperimentDto> {
-    return { id: "exp-1", organizationId, name, serviceName };
+    return { id: "exp-1", organizationId, name, serviceName, myRole: "org_admin" };
   }
   async addExperimentMember(): Promise<void> {}
+  async listExperimentMembers(): Promise<MembersResponseDto> {
+    return { members: [], pendingInvitations: [] };
+  }
   async listApiKeys(): Promise<ApiKeyDto[]> {
     return [];
   }

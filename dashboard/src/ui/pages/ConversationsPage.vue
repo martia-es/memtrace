@@ -93,15 +93,11 @@ const rangeOptions = computed(() => RANGE_PRESETS.map((p) => ({ label: p.long, v
 </script>
 
 <template>
-  <div class="page">
+  <q-page class="page">
     <PageHeader :crumbs="[{ label: 'MemTrace', to: { name: 'conversations', params: { experimentId } } }, { label: 'Conversations' }]" icon="M4 5h16v11H9l-5 4z" title="Conversations">
-      <Select
-        class="range mt-card"
-        :model-value="f.range.value"
-        :options="rangeOptions"
-        :aria-label="`Time range: ${rangeLabel}`"
-        @update:model-value="f.setRange"
-      />
+      <FilterBar :range="f.range.value" :loading="overview.loading.value" @update:range="f.setRange" @refresh="reload">
+        <LiveControl :seconds="liveRefresh.seconds.value" :updated-at="liveRefresh.updatedAt.value" @update:seconds="setRefreshSeconds" />
+      </FilterBar>
     </PageHeader>
 
     <section class="kpis mt-card" aria-label="Summary">
@@ -160,25 +156,30 @@ const rangeOptions = computed(() => RANGE_PRESETS.map((p) => ({ label: p.long, v
 
       <ErrorBanner v-if="active.moreError.value" :error="active.moreError.value" @retry="active.loadMore" />
       <div class="footer">
-        <span class="strong muted">{{ footer }}</span>
         <div class="footer-actions">
-          <LiveControl :seconds="liveRefresh.seconds.value" :updated-at="liveRefresh.updatedAt.value" @update:seconds="setRefreshSeconds" />
           <button v-if="active.nextCursor.value" type="button" class="more" :disabled="active.moreLoading.value" @click="active.loadMore">
             {{ active.moreLoading.value ? "Loading…" : "Load more" }}
           </button>
         </div>
       </div>
     </section>
-  </div>
+  </q-page>
 </template>
 
 <style scoped>
 .page {
+  box-sizing: border-box;
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  width: 100%;
+  padding: 24px 20px 32px;
+  font-family: var(--mt-sans);
+  background: var(--mt-card);
+  border-radius: 28px;
+  box-shadow: var(--mt-shadow);
 }
 .range {
   height: 34px;

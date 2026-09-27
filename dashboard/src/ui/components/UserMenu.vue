@@ -37,18 +37,26 @@ const initials = computed(() => {
 <template>
   <div v-if="me.data.value" class="user-menu" :class="{ collapsed }">
     <button type="button" class="user-trigger" :title="collapsed ? (me.data.value.name ?? me.data.value.email) : undefined">
-      <img v-if="me.data.value.image" :src="me.data.value.image" :alt="me.data.value.name ?? me.data.value.email" class="avatar" referrerpolicy="no-referrer" />
-      <span v-else class="avatar avatar-fallback">{{ initials }}</span>
+      <span class="avatar avatar-fallback">{{ initials }}</span>
       <span v-if="!collapsed" class="user-info">
         <span class="user-name">{{ me.data.value.name ?? me.data.value.email }}</span>
         <span class="user-email">{{ me.data.value.email }}</span>
       </span>
-      <q-menu auto-close anchor="top left" self="bottom left" :offset="[0, 6]">
-        <q-list dense style="min-width: 180px">
-          <q-item clickable @click="handleSignOut">
-            <q-item-section>Sign out</q-item-section>
-          </q-item>
-        </q-list>
+      <q-menu auto-close anchor="top left" self="bottom left" :offset="[0, 8]" class="user-menu-popover">
+        <div class="menu-header">
+          <span class="avatar avatar-fallback">{{ initials }}</span>
+          <span class="menu-header-info">
+            <span class="user-name">{{ me.data.value.name ?? me.data.value.email }}</span>
+            <span class="user-email">{{ me.data.value.email }}</span>
+          </span>
+        </div>
+        <div class="menu-divider" />
+        <button type="button" class="menu-action" @click="handleSignOut">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" />
+          </svg>
+          Sign out
+        </button>
       </q-menu>
     </button>
   </div>
@@ -115,5 +123,82 @@ const initials = computed(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+</style>
+
+<style>
+.user-menu-popover {
+  border-radius: 18px;
+  box-shadow: var(--mt-shadow), 0 0 0 1px var(--mt-line);
+  overflow: hidden;
+}
+.user-menu-popover .menu-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  min-width: 220px;
+}
+.user-menu-popover .menu-header .avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.user-menu-popover .menu-header .avatar-fallback {
+  background: var(--mt-accent);
+  color: var(--mt-accent-ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+.user-menu-popover .menu-header-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+.user-menu-popover .user-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--mt-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.user-menu-popover .user-email {
+  font-size: 11.5px;
+  color: var(--mt-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.user-menu-popover .menu-divider {
+  height: 1px;
+  background: var(--mt-line);
+  margin: 0 0 6px;
+}
+.user-menu-popover .menu-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  margin: 0 0 6px;
+  border: none;
+  background: transparent;
+  color: var(--mt-err-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.user-menu-popover .menu-action:hover {
+  background: var(--mt-err-bg);
 }
 </style>

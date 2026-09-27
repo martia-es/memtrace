@@ -6,6 +6,26 @@ import { getIdentity } from "@/dependency-container";
 
 export const dynamic = "force-dynamic";
 
+/** Lista los miembros aceptados y las invitaciones pendientes de la organización. Requiere ser org_admin. */
+export async function GET(_request: Request, context: { params: Promise<{ organizationId: string }> }) {
+  return identityGuard(async () => {
+    const { organizationId } = await context.params;
+    const user = await requireUser();
+    if (user instanceof Response) return user;
+
+    const { identityRepository, authorizationService } = getIdentity();
+    if (!(await authorizationService.canManageOrganization(user.id, organizationId))) {
+      return problem(403, "Forbidden", "No permission to manage members of this organization");
+    }
+
+    const [members, pendingInvitations] = await Promise.all([
+      identityRepository.listOrgMembers(organizationId),
+      identityRepository.listPendingInvitations({ organizationId }),
+    ]);
+    return json({ members, pendingInvitations });
+  });
+}
+
 /**
  * Invita a otro usuario como org_admin de esta organización (ADR-013/ADR-014). Requiere ser org_admin ya.
  * Si el invitado no tiene cuenta todavía, se guarda como invitación pendiente y se le manda un email:

@@ -1,8 +1,8 @@
 import http from "node:http";
+import crypto from "node:crypto";
 import { spawn } from "node:child_process";
 
 const MOCK_PORT = 3001;
-const VITE_PORT = 5173;
 
 const now = new Date("2026-09-26T12:00:00.000Z");
 
@@ -11,6 +11,28 @@ const ranges = {
     to: "2026-09-26T12:00:00.000Z",
     bucketSeconds: 600,
 };
+
+// --- Identidad (ADR-013/ADR-016) ---------------------------------------
+
+const me = { id: "user-1", email: "dev@memtrace.local", name: "Dev User", image: null };
+
+const organizations = [{ id: "org-1", name: "Acme", myRole: "org_admin" }];
+
+const experiments = [{ id: "exp-1", organizationId: "org-1", name: "Default Experiment", serviceName: "planner", myRole: "org_admin" }];
+
+const orgMembers = {
+    "org-1": { members: [{ userId: me.id, email: me.email, name: me.name, role: "org_admin" }], pendingInvitations: [] },
+};
+
+const experimentMembers = {
+    "exp-1": { members: [{ userId: me.id, email: me.email, name: me.name, role: "org_admin" }], pendingInvitations: [] },
+};
+
+const apiKeys = {
+    "exp-1": [{ id: "key-1", experimentId: "exp-1", keyPrefix: "mtk_dev1234", createdAt: "2026-09-20T09:00:00.000Z", lastUsedAt: "2026-09-26T08:00:00.000Z" }],
+};
+
+// --- Trazas / conversaciones (ADR-013, scoped por experimento) ----------
 
 const conversations = [
     {
@@ -144,6 +166,7 @@ const detailByTrace = {
         totalTokens: traces[0].totalTokens,
         truncated: false,
         conversationId: "conv-1",
+        framework: "langchain",
         roots: [
             {
                 spanId: "root-1",
@@ -171,6 +194,7 @@ const detailByTrace = {
                     toolCallId: null,
                 },
                 content: { inputMessages: [{ role: "user", content: "Planifica el siguiente paso." }], outputMessages: [{ role: "assistant", content: "Claro." }] },
+                framework: "langchain",
                 attributes: { "gen_ai.operation": "chat" },
                 events: [{ name: "start", time: traces[0].startTime, attributes: {} }],
                 children: [],
@@ -187,6 +211,7 @@ const detailByTrace = {
         totalTokens: traces[1].totalTokens,
         truncated: false,
         conversationId: "conv-1",
+        framework: "langchain",
         roots: [
             {
                 spanId: "root-2",
@@ -214,6 +239,7 @@ const detailByTrace = {
                     toolCallId: "call-1",
                 },
                 content: { toolArguments: { query: "Buscar en base de conocimiento" }, toolResult: { error: "Timeout" } },
+                framework: "langchain",
                 attributes: {},
                 events: [{ name: "error", time: traces[1].startTime, attributes: { message: "Timeout" } }],
                 children: [],
@@ -230,6 +256,7 @@ const detailByTrace = {
         totalTokens: traces[2].totalTokens,
         truncated: false,
         conversationId: "conv-2",
+        framework: null,
         roots: [],
     },
 };
@@ -271,9 +298,7 @@ const overview = {
         { bucketStart: "2026-09-26T11:00:00.000Z", traces: 2, errorTraces: 1, p95Ms: 966, totalTokens: 4180 },
         { bucketStart: "2026-09-26T11:30:00.000Z", traces: 0, errorTraces: 0, p95Ms: 0, totalTokens: 0 },
     ],
-    byModel: [
-        { model: "gpt-5.4-mini", calls: 3, inputTokens: 2800, outputTokens: 1680, p95Ms: 966 },
-    ],
+    byModel: [{ model: "gpt-5.4-mini", calls: 3, inputTokens: 2800, outputTokens: 1680, p95Ms: 966 }],
     byTool: [
         { tool: "search", calls: 15, errors: 2, p95Ms: 310 },
         { tool: "database_query", calls: 12, errors: 0, p95Ms: 280 },
@@ -301,7 +326,140 @@ function slicePage(items, cursor, limit = 50) {
     return { items: page, nextCursor };
 }
 
-function handler(req, res) {
+async function readJsonBody(req) {
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    if (chunks.length === 0) return {};
+    return JSON.parse(Buffer.concat(chunks).toString("utf-8"));
+}
+
+function handleExperimentScoped(res, experimentId, subpath, url) {
+    if (subpath === "/traces") return json(res, 200, slicePage(traces, url.searchParams.get("cursor"), Number(url.searchParams.get("limit") ?? 50)));
+    if (subpath === "/spans") return json(res, 200, slicePage(spans, url.searchParams.get("cursor"), Number(url.searchParams.get("limit") ?? 50)));
+    if (subpath === "/metrics/overview") return json(res, 200, overview);
+    if (subpath === "/conversations") return json(res, 200, slicePage(conversations, url.searchParams.get("cursor"), Number(url.searchParams.get("limit") ?? 50)));
+
+    const traceMatch = subpath.match(/^\/traces\/([^/]+)$/);
+    if (traceMatch) {
+        const detail = detailByTrace[decodeURIComponent(traceMatch[1])];
+        if (!detail) return problem(res, 404, "Not Found", `Trace ${traceMatch[1]} not found`);
+        return json(res, 200, detail);
+    }
+
+    const treeMatch = subpath.match(/^\/conversations\/([^/]+)\/tree$/);
+    if (treeMatch) {
+        const id = decodeURIComponent(treeMatch[1]);
+        if (!transcripts[id]) return problem(res, 404, "Not Found", `Conversation ${id} not found`);
+        const items = traces.filter((trace) => trace.conversationId === id).map((trace) => detailByTrace[trace.traceId]);
+        return json(res, 200, { items, nextCursor: null });
+    }
+
+    const transcriptMatch = subpath.match(/^\/conversations\/([^/]+)\/transcript$/);
+    if (transcriptMatch) {
+        const transcript = transcripts[decodeURIComponent(transcriptMatch[1])];
+        if (!transcript) return problem(res, 404, "Not Found", `Conversation ${transcriptMatch[1]} not found`);
+        return json(res, 200, transcript);
+    }
+
+    const conversationMatch = subpath.match(/^\/conversations\/([^/]+)$/);
+    if (conversationMatch) {
+        const id = decodeURIComponent(conversationMatch[1]);
+        const conversation = conversations.find((item) => item.conversationId === id);
+        if (!conversation) return problem(res, 404, "Not Found", `Conversation ${id} not found`);
+        const turns = slicePage(traces.filter((trace) => trace.conversationId === id), url.searchParams.get("cursor"), Number(url.searchParams.get("limit") ?? 50));
+        return json(res, 200, { ...conversation, turns });
+    }
+
+    return null;
+}
+
+async function handleIdentity(req, res, method, path, url) {
+    if (path === "/me" && method === "GET") return json(res, 200, me);
+
+    if (path === "/organizations" && method === "GET") return json(res, 200, { items: organizations });
+    if (path === "/organizations" && method === "POST") {
+        const { name } = await readJsonBody(req);
+        const organization = { id: `org-${organizations.length + 1}`, name, myRole: "org_admin" };
+        organizations.push(organization);
+        orgMembers[organization.id] = { members: [{ userId: me.id, email: me.email, name: me.name, role: "org_admin" }], pendingInvitations: [] };
+        return json(res, 201, organization);
+    }
+
+    const orgMembersMatch = path.match(/^\/organizations\/([^/]+)\/members$/);
+    if (orgMembersMatch) {
+        const organizationId = decodeURIComponent(orgMembersMatch[1]);
+        if (method === "GET") {
+            const record = orgMembers[organizationId];
+            if (!record) return problem(res, 404, "Not Found", `Organization ${organizationId} not found`);
+            return json(res, 200, record);
+        }
+        if (method === "POST") {
+            const { email } = await readJsonBody(req);
+            const record = orgMembers[organizationId] ?? { members: [], pendingInvitations: [] };
+            record.pendingInvitations.push({ id: crypto.randomUUID(), email, role: "org_admin", createdAt: new Date().toISOString() });
+            orgMembers[organizationId] = record;
+            return json(res, 202, { organizationId, email, role: "org_admin", status: "pending" });
+        }
+    }
+
+    const orgExperimentsMatch = path.match(/^\/organizations\/([^/]+)\/experiments$/);
+    if (orgExperimentsMatch && method === "POST") {
+        const organizationId = decodeURIComponent(orgExperimentsMatch[1]);
+        const { name, serviceName } = await readJsonBody(req);
+        const experiment = { id: `exp-${experiments.length + 1}`, organizationId, name, serviceName, myRole: "org_admin" };
+        experiments.push(experiment);
+        experimentMembers[experiment.id] = { members: [{ userId: me.id, email: me.email, name: me.name, role: "org_admin" }], pendingInvitations: [] };
+        apiKeys[experiment.id] = [];
+        return json(res, 201, experiment);
+    }
+
+    if (path === "/experiments" && method === "GET") return json(res, 200, { items: experiments });
+
+    const expMembersMatch = path.match(/^\/experiments\/([^/]+)\/members$/);
+    if (expMembersMatch) {
+        const experimentId = decodeURIComponent(expMembersMatch[1]);
+        if (method === "GET") {
+            const record = experimentMembers[experimentId];
+            if (!record) return problem(res, 404, "Not Found", `Experiment ${experimentId} not found`);
+            return json(res, 200, record);
+        }
+        if (method === "POST") {
+            const { email, role } = await readJsonBody(req);
+            const record = experimentMembers[experimentId] ?? { members: [], pendingInvitations: [] };
+            record.pendingInvitations.push({ id: crypto.randomUUID(), email, role, createdAt: new Date().toISOString() });
+            experimentMembers[experimentId] = record;
+            return json(res, 202, { experimentId, email, role, status: "pending" });
+        }
+    }
+
+    const apiKeysMatch = path.match(/^\/experiments\/([^/]+)\/api-keys$/);
+    if (apiKeysMatch) {
+        const experimentId = decodeURIComponent(apiKeysMatch[1]);
+        if (method === "GET") return json(res, 200, { items: apiKeys[experimentId] ?? [] });
+        if (method === "POST") {
+            const key = {
+                id: crypto.randomUUID(),
+                experimentId,
+                keyPrefix: `mtk_${crypto.randomBytes(4).toString("hex")}`,
+                createdAt: new Date().toISOString(),
+                lastUsedAt: null,
+            };
+            apiKeys[experimentId] = [...(apiKeys[experimentId] ?? []), key];
+            return json(res, 201, { ...key, plaintext: `${key.keyPrefix}_${crypto.randomBytes(16).toString("hex")}` });
+        }
+    }
+
+    const apiKeyMatch = path.match(/^\/experiments\/([^/]+)\/api-keys\/([^/]+)$/);
+    if (apiKeyMatch && method === "DELETE") {
+        const [, experimentId, keyId] = apiKeyMatch;
+        apiKeys[experimentId] = (apiKeys[experimentId] ?? []).filter((key) => key.id !== decodeURIComponent(keyId));
+        return json(res, 200, { revoked: true });
+    }
+
+    return null;
+}
+
+async function handler(req, res) {
     const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
     if (!url.pathname.startsWith("/api/v1")) {
         problem(res, 404, "Not Found");
@@ -311,40 +469,23 @@ function handler(req, res) {
     const path = url.pathname.slice("/api/v1".length);
     const method = req.method ?? "GET";
 
-    if (method !== "GET") {
-        problem(res, 405, "Method Not Allowed");
-        return;
-    }
+    try {
+        if (path === "/services" && method === "GET") return json(res, 200, services);
 
-    if (path === "/services") return json(res, 200, services);
-    if (path === "/metrics/overview") return json(res, 200, overview);
-    if (path === "/traces") return json(res, 200, slicePage(traces, url.searchParams.get("cursor"), Number(url.searchParams.get("limit") ?? 50)));
-    if (path === "/spans") return json(res, 200, slicePage(spans, url.searchParams.get("cursor"), Number(url.searchParams.get("limit") ?? 50)));
-    if (path === "/conversations") return json(res, 200, slicePage(conversations, url.searchParams.get("cursor"), Number(url.searchParams.get("limit") ?? 50)));
-
-    const conversationMatch = path.match(/^\/conversations\/([^/]+)(\/transcript)?$/);
-    if (conversationMatch) {
-        const id = decodeURIComponent(conversationMatch[1]);
-        if (conversationMatch[2] === "/transcript") {
-            const transcript = transcripts[id];
-            if (!transcript) return problem(res, 404, "Not Found", `Conversation ${id} not found`);
-            return json(res, 200, transcript);
+        const experimentScopedMatch = path.match(/^\/experiments\/([^/]+)(\/.*)$/);
+        if (experimentScopedMatch && method === "GET") {
+            const [, experimentId, subpath] = experimentScopedMatch;
+            const handled = handleExperimentScoped(res, decodeURIComponent(experimentId), subpath, url);
+            if (handled !== null) return;
         }
-        const conversation = conversations.find((item) => item.conversationId === id);
-        const detail = conversation ? { ...conversation, turns: slicePage(traces.filter((trace) => trace.conversationId === id), url.searchParams.get("cursor"), Number(url.searchParams.get("limit") ?? 50)) } : null;
-        if (!detail) return problem(res, 404, "Not Found", `Conversation ${id} not found`);
-        return json(res, 200, detail);
-    }
 
-    const traceMatch = path.match(/^\/traces\/([^/]+)$/);
-    if (traceMatch) {
-        const traceId = decodeURIComponent(traceMatch[1]);
-        const detail = detailByTrace[traceId];
-        if (!detail) return problem(res, 404, "Not Found", `Trace ${traceId} not found`);
-        return json(res, 200, detail);
-    }
+        const identityHandled = await handleIdentity(req, res, method, path, url);
+        if (identityHandled !== null) return;
 
-    problem(res, 404, "Not Found");
+        problem(res, 404, "Not Found");
+    } catch (error) {
+        problem(res, 400, "Bad Request", error instanceof Error ? error.message : String(error));
+    }
 }
 
 const apiServer = http.createServer(handler);
