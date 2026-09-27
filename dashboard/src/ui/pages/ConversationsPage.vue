@@ -6,6 +6,7 @@ import { formatCount, formatDateTime, formatDuration, formatPercent } from "@/do
 import { mergeLatestConversations, mergeLatestTraces } from "@/domain/merge";
 import { RANGE_PRESETS, resolveRange } from "@/domain/time-range";
 import EmptyState from "../components/EmptyState.vue";
+import OnboardingGuide from "../components/OnboardingGuide.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import LiveControl from "../components/LiveControl.vue";
 import TraceTable from "../components/TraceTable.vue";
@@ -145,9 +146,7 @@ const rangeOptions = computed(() => RANGE_PRESETS.map((p) => ({ label: p.long, v
         </table>
         <TraceTable v-else-if="!grouped && traces.items.value.length" :items="traces.items.value" :new-keys="traces.newKeys.value" show-conversation @open="openTrace" @open-conversation="openConversation" />
 
-        <EmptyState v-if="!active.loading.value && active.items.value.length === 0 && !active.error.value" icon="forum" :title="grouped ? 'Todavía no hay conversaciones en este rango' : 'Todavía no hay trazas en este rango'">
-          Instrumenta tu agente con el SDK de MemTrace y envía trazas al endpoint OTLP.
-        </EmptyState>
+        <OnboardingGuide v-if="!active.loading.value && active.items.value.length === 0 && !active.error.value" />
         <div v-if="active.loading.value && active.items.value.length === 0" class="spinner"><q-spinner size="28px" color="primary" /></div>
       </div>
 
