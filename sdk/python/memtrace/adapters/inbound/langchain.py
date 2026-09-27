@@ -146,6 +146,8 @@ class MemTraceCallbackHandler(BaseCallbackHandler):
             sc.MEMTRACE_METADATA: to_json(md, self._service.max_content_length) if md else None,
             # `thread_id` es el identificador de conversación de LangGraph
             sc.GEN_AI_CONVERSATION_ID: md.get("session_id") or md.get("conversation_id") or md.get("thread_id"),
+            # LangGraph inyecta `langgraph_node`/`langgraph_step` en el metadata de cada run (ADR-011)
+            sc.MEMTRACE_FRAMEWORK: "langgraph" if any(k.startswith("langgraph_") for k in md) else "langchain",
         }
 
     def _start(self, name, step_type, run_id, parent_run_id, tags, metadata, extra=None) -> None:

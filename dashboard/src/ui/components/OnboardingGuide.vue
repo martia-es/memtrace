@@ -1,5 +1,12 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
+import { useQuasar } from "quasar";
+import { useIdentityApi } from "../composables/useIdentityApi";
+
+const props = defineProps<{ serviceName: string; experimentId: string }>();
+
+const $q = useQuasar();
+const identityApi = useIdentityApi();
 
 type Framework = "langchain" | "langgraph" | "pydantic-ai";
 type Language = "python" | "typescript";
@@ -16,10 +23,35 @@ function copy(text: string, key: string) {
   }, 1500);
 }
 
+// API key generada aquí mismo (ADR-013, pieza 9): solo vive en memoria del componente, se ve una vez.
+const generatedApiKey = ref<string | null>(null);
+const generatingApiKey = ref(false);
+async function generateApiKey() {
+  generatingApiKey.value = true;
+  try {
+    const created = await identityApi.createApiKey(props.experimentId);
+    generatedApiKey.value = created.plaintext;
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    $q.notify({ message: `No se pudo generar la API key: ${detail}`, color: "negative", timeout: 4000 });
+  } finally {
+    generatingApiKey.value = false;
+  }
+}
+
+function buildEnv(serviceName: string, apiKey: string | null): string {
+  const ingestUrl = `${window.location.origin}/api/v1/ingest`;
+  const bearer = apiKey ?? "PEGA_AQUI_TU_API_KEY";
+  return `MEMTRACE_SERVICE_NAME="${serviceName || "mi-agente"}"
+MEMTRACE_OTLP_PROTOCOL="http"
+MEMTRACE_OTLP_ENDPOINT="${ingestUrl}"
+MEMTRACE_OTLP_HEADERS="Authorization=Bearer ${bearer}"
+MEMTRACE_CAPTURE_CONTENT="true"`;
+}
+
 interface SetupGuide {
   installLabel: string;
   install: string;
-  env: string;
   example: string;
 }
 
@@ -27,9 +59,6 @@ const setupGuides: Record<`${Framework}-${Language}`, SetupGuide> = {
   "langchain-python": {
     installLabel: "pip",
     install: "pip install memtrace-ai[langchain]",
-    env: `MEMTRACE_SERVICE_NAME="mi-agente"
-MEMTRACE_OTLP_ENDPOINT="http://localhost:4317"
-MEMTRACE_CAPTURE_CONTENT="true"`,
     example: `from memtrace import init_tracer, MemTraceCallbackHandler, session
 from langchain.agents import create_agent
 from langchain.tools import tool
@@ -59,9 +88,6 @@ with session(conversation_id):
   "langchain-typescript": {
     installLabel: "npm",
     install: "npm install memtrace-ai langchain",
-    env: `MEMTRACE_SERVICE_NAME="mi-agente"
-MEMTRACE_OTLP_ENDPOINT="http://localhost:4317"
-MEMTRACE_CAPTURE_CONTENT="true"`,
     example: `import { initTracer, MemTraceCallbackHandler, session } from "memtrace-ai";
 import { createAgent } from "langchain/agents";
 import { tool } from "@langchain/core/tools";
@@ -92,9 +118,6 @@ await session(conversationId, async () => {
   "langgraph-python": {
     installLabel: "pip",
     install: "pip install memtrace-ai[langchain] langgraph",
-    env: `MEMTRACE_SERVICE_NAME="mi-agente"
-MEMTRACE_OTLP_ENDPOINT="http://localhost:4317"
-MEMTRACE_CAPTURE_CONTENT="true"`,
     example: `from memtrace import init_tracer, MemTraceCallbackHandler, session
 from langgraph.graph import StateGraph
 from langchain.tools import tool
@@ -126,9 +149,6 @@ with session(conversation_id):
   "langgraph-typescript": {
     installLabel: "npm",
     install: "npm install memtrace-ai langchain langgraph",
-    env: `MEMTRACE_SERVICE_NAME="mi-agente"
-MEMTRACE_OTLP_ENDPOINT="http://localhost:4317"
-MEMTRACE_CAPTURE_CONTENT="true"`,
     example: `import { initTracer, MemTraceCallbackHandler, session } from "memtrace-ai";
 import { StateGraph } from "@langchain/langgraph";
 import { tool } from "@langchain/core/tools";
@@ -158,9 +178,6 @@ await session(conversationId, async () => {
   "pydantic-ai-python": {
     installLabel: "pip",
     install: "pip install memtrace-ai pydantic-ai",
-    env: `MEMTRACE_SERVICE_NAME="mi-agente"
-MEMTRACE_OTLP_ENDPOINT="http://localhost:4317"
-MEMTRACE_CAPTURE_CONTENT="true"`,
     example: `from memtrace import init_tracer, session, trace_step
 from pydantic_ai import Agent
 
@@ -185,9 +202,6 @@ with session(conversation_id):
   "pydantic-ai-typescript": {
     installLabel: "npm",
     install: "npm install memtrace-ai pydantic-ai",
-    env: `MEMTRACE_SERVICE_NAME="mi-agente"
-MEMTRACE_OTLP_ENDPOINT="http://localhost:4317"
-MEMTRACE_CAPTURE_CONTENT="true"`,
     example: `import { initTracer, session, traceStep } from "memtrace-ai";
 import { Agent } from "pydantic-ai";
 
@@ -224,7 +238,12 @@ const LANGUAGES: { id: Language; label: string }[] = [
   { id: "typescript", label: "TypeScript" },
 ];
 
-const guide = computed(() => setupGuides[`${selectedFramework.value}-${selectedLanguage.value}`]);
+// las plantillas usan "mi-agente" como placeholder fijo: se sustituye por el service.name real del experimento
+const guide = computed(() => {
+  const base = setupGuides[`${selectedFramework.value}-${selectedLanguage.value}`];
+  const example = props.serviceName ? base.example.replaceAll("mi-agente", props.serviceName) : base.example;
+  return { ...base, env: buildEnv(props.serviceName, generatedApiKey.value), example };
+});
 </script>
 
 <template>
@@ -279,7 +298,15 @@ const guide = computed(() => setupGuides[`${selectedFramework.value}-${selectedL
       </li>
 
       <li class="step">
-        <span class="step-label">Set environment variables</span>
+        <div class="step-header">
+          <span class="step-label">Set environment variables</span>
+          <button class="generate-key-btn" type="button" :disabled="generatingApiKey" @click="generateApiKey">
+            {{ generatedApiKey ? "Generar otra API key" : "Generar API key" }}
+          </button>
+        </div>
+        <p v-if="generatedApiKey" class="key-warning">
+          Cópiala ahora — no se volverá a mostrar completa. Si sales de esta pantalla tendrás que generar una nueva.
+        </p>
         <div class="snippet">
           <pre><code>{{ guide.env }}</code></pre>
           <button class="copy" type="button" title="Copy" @click="copy(guide.env, 'env')">
@@ -370,6 +397,33 @@ const guide = computed(() => setupGuides[`${selectedFramework.value}-${selectedL
   font-size: 13px;
   font-weight: 600;
   color: var(--mt-ink);
+}
+.step-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.generate-key-btn {
+  flex-shrink: 0;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 15px;
+  border: none;
+  background: var(--mt-accent);
+  color: var(--mt-accent-ink);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.generate-key-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.key-warning {
+  margin: -2px 0 0;
+  font-size: 12px;
+  color: var(--mt-warn-ink);
 }
 
 .snippet {

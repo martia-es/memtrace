@@ -4,9 +4,9 @@ import { describe, expect, it } from "vitest";
 import { defineComponent, h } from "vue";
 import { createMemoryHistory, createRouter } from "vue-router";
 import { ApiError } from "@/application/trace-api";
-import { TRACE_API } from "@/dependency-container";
+import { IDENTITY_API, TRACE_API } from "@/dependency-container";
 import ConversationDetailPage from "@/ui/pages/ConversationDetailPage.vue";
-import { FakeTraceApi, conversation, summary } from "../fakes";
+import { FakeIdentityApi, FakeTraceApi, conversation, node, summary, traceDetail } from "../fakes";
 
 async function setup(component: object, api: FakeTraceApi, path: string, props: Record<string, unknown> = {}) {
   const router = createRouter({
@@ -20,7 +20,7 @@ async function setup(component: object, api: FakeTraceApi, path: string, props: 
   await router.push(path);
   await router.isReady();
   const Host = defineComponent({ setup: () => () => h(QLayout, () => h(QPageContainer, () => h(component, props))) });
-  const wrapper = mount(Host, { global: { plugins: [[Quasar, { plugins: { Dark, Notify } }], router], provide: { [TRACE_API as symbol]: api } } });
+  const wrapper = mount(Host, { global: { plugins: [[Quasar, { plugins: { Dark, Notify } }], router], provide: { [TRACE_API as symbol]: api, [IDENTITY_API as symbol]: new FakeIdentityApi() } } });
   await flushPromises();
   return { wrapper, router };
 }
@@ -86,6 +86,28 @@ describe("ConversationDetailPage", () => {
     await flushPromises();
     expect(router.currentRoute.value.name).toBe("conversations");
     expect(router.currentRoute.value.query).toMatchObject({ range: "6h", service: "svc-a", group: "conversation" });
+  });
+
+  it("switches to the tree view, stacking each turn's span tree, and lets you inspect a span", async () => {
+    const { wrapper, api } = await open("/conversations/conv-1", (api) => {
+      api.conversationTree = {
+        items: [
+          traceDetail({ traceId: T1, roots: [node({ spanId: "s1", name: "root-1" })] }),
+          traceDetail({ traceId: T2, roots: [node({ spanId: "s2", name: "root-2" })], status: "error", errorCount: 1 }),
+        ],
+        nextCursor: null,
+      };
+    });
+
+    await buttonWith(wrapper, "Tree").trigger("click");
+    await flushPromises();
+    expect(api.conversationTreeCalls[0]).toMatchObject({ id: "conv-1" });
+    expect(wrapper.text()).toContain("root-1");
+    expect(wrapper.text()).toContain("root-2");
+
+    await wrapper.find(".row").trigger("click"); // primer span del primer turno
+    await flushPromises();
+    expect(wrapper.find(".empty-card").exists()).toBe(false);
   });
 
   it("explains an unknown conversation", async () => {

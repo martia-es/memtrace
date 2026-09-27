@@ -21,6 +21,7 @@ const toggle = (spanId: string) => {
   collapsed.value = next;
 };
 const kindsPresent = computed(() => [...new Set(rows.value.map((r) => r.node.kind))]);
+const subLabel = (node: SpanNodeDto) => (node.kind === "llm" ? node.genAi?.responseModel ?? node.genAi?.requestModel ?? null : node.kind === "tool" ? node.genAi?.toolName ?? null : null);
 defineExpose({ collapseAll: () => (collapsed.value = new Set(parentIds(props.roots))), expandAll: () => (collapsed.value = new Set()) });
 </script>
 
@@ -48,26 +49,34 @@ defineExpose({ collapseAll: () => (collapsed.value = new Set(parentIds(props.roo
         :aria-expanded="r.hasChildren ? !r.collapsed : undefined"
         @click="$emit('select', r.node.spanId)"
       >
-        <span v-for="d in r.depth" :key="d" class="guide" :style="{ left: `${12 + (d - 1) * INDENT + 6}px` }" />
+        <template v-for="d in r.depth" :key="d">
+          <span v-if="d < r.depth" class="guide" :style="{ left: `${12 + (d - 1) * INDENT + 6}px` }" />
+          <span v-else class="elbow" :style="{ left: `${12 + (d - 1) * INDENT + 6}px` }" />
+        </template>
         <span class="name-cell" :style="{ paddingLeft: `${r.depth * INDENT}px` }">
           <span class="caret" :class="{ hidden: !r.hasChildren }" @click.stop="toggle(r.node.spanId)">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#56655c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path :d="r.collapsed ? 'M9 6l6 6-6 6' : 'M6 9l6 6 6-6'" />
             </svg>
           </span>
-          <span class="dot" :style="{ background: r.node.status.code === 'error' ? '#4a7c59' : kindMeta(r.node.kind).color }" />
-          <span class="name mono" :class="{ err: r.node.status.code === 'error' }" :title="r.node.name">{{ r.node.name }}</span>
+          <span class="kind-box" :style="{ background: kindMeta(r.node.kind).bg }">
+            <q-icon :name="kindMeta(r.node.kind).icon" :style="{ color: r.node.status.code === 'error' ? 'var(--mt-err-ink)' : kindMeta(r.node.kind).color }" size="11px" />
+          </span>
+          <span class="name-lines">
+            <span class="name mono" :class="{ err: r.node.status.code === 'error' }" :title="r.node.name">{{ r.node.name }}</span>
+            <span v-if="subLabel(r.node)" class="sub muted">{{ subLabel(r.node) }}</span>
+          </span>
         </span>
         <span class="track" :title="`${formatDuration(r.node.offsetMs)} → ${formatDuration(r.node.offsetMs + r.node.durationMs)}`">
           <span v-for="t in ticks" :key="t.pct" class="grid" :style="{ left: `${t.pct}%` }" />
-          <span class="bar" :style="{ left: `${r.leftPct}%`, width: `${r.widthPct}%`, background: r.node.status.code === 'error' ? '#4a7c59' : kindMeta(r.node.kind).color }" />
+          <span class="bar" :style="{ left: `${r.leftPct}%`, width: `${r.widthPct}%`, background: r.node.status.code === 'error' ? 'var(--mt-err-ink)' : kindMeta(r.node.kind).color }" />
         </span>
         <span class="dur mono" :class="{ err: r.node.status.code === 'error' }">{{ formatDuration(r.node.durationMs) }}</span>
       </button>
     </div>
     <div class="legend">
       <span v-for="k in kindsPresent" :key="k"><span class="sw" :style="{ background: kindMeta(k).color }" />{{ kindMeta(k).label }}</span>
-      <span><span class="sw" style="background: #4a7c59" />Error</span>
+      <span><span class="sw" style="background: var(--mt-err-ink)" />Error</span>
     </div>
   </div>
 </template>
@@ -136,8 +145,8 @@ defineExpose({ collapseAll: () => (collapsed.value = new Set(parentIds(props.roo
   gap: 8px;
   align-items: center;
   flex-shrink: 0;
-  height: 42px;
-  padding: 0 12px;
+  min-height: 42px;
+  padding: 4px 12px;
   border: 0;
   border-radius: 14px;
   background: transparent;
@@ -160,6 +169,15 @@ defineExpose({ collapseAll: () => (collapsed.value = new Set(parentIds(props.roo
   width: 1px;
   background: #d5ded8;
 }
+.elbow {
+  position: absolute;
+  top: 0;
+  height: 50%;
+  width: 9px;
+  border-left: 1px solid #d5ded8;
+  border-bottom: 1px solid #d5ded8;
+  border-bottom-left-radius: 6px;
+}
 .name-cell {
   display: flex;
   align-items: center;
@@ -175,11 +193,27 @@ defineExpose({ collapseAll: () => (collapsed.value = new Set(parentIds(props.roo
 .caret.hidden {
   visibility: hidden;
 }
-.dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 4px;
+.kind-box {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.name-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  line-height: 1.2;
+}
+.sub {
+  font-size: 10.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .name {
   font-size: 12.5px;

@@ -3,11 +3,11 @@ import { Dark, Notify, QLayout, QPageContainer, Quasar } from "quasar";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defineComponent, effectScope, h, nextTick } from "vue";
 import { createMemoryHistory, createRouter } from "vue-router";
-import { TRACE_API } from "@/dependency-container";
+import { IDENTITY_API, TRACE_API } from "@/dependency-container";
 import { setRefreshSeconds, useLiveRefresh } from "@/ui/composables/useLiveRefresh";
 import TraceDetailPage from "@/ui/pages/TraceDetailPage.vue";
 import ConversationsPage from "@/ui/pages/ConversationsPage.vue";
-import { FakeTraceApi, node, summary } from "../fakes";
+import { FakeIdentityApi, FakeTraceApi, node, summary } from "../fakes";
 
 const setVisibility = (state: "visible" | "hidden") => {
   Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
@@ -102,7 +102,7 @@ async function mountPage(component: object, api: FakeTraceApi, path: string, pro
   await router.push(path);
   await router.isReady();
   const Host = defineComponent({ setup: () => () => h(QLayout, () => h(QPageContainer, () => h(component, props))) });
-  const wrapper = mount(Host, { global: { plugins: [[Quasar, { plugins: { Dark, Notify } }], router], provide: { [TRACE_API as symbol]: api } } });
+  const wrapper = mount(Host, { global: { plugins: [[Quasar, { plugins: { Dark, Notify } }], router], provide: { [TRACE_API as symbol]: api, [IDENTITY_API as symbol]: new FakeIdentityApi() } } });
   await vi.advanceTimersByTimeAsync(0);
   await flushPromises();
   return wrapper;
@@ -154,7 +154,7 @@ describe("ConversationsPage live refresh", () => {
 describe("TraceDetailPage live refresh", () => {
   const detail = (roots: ReturnType<typeof node>[]) => ({
     traceId: "b".repeat(32), conversationId: null, startTime: new Date(Date.now() - 5_000).toISOString(), durationMs: 50, status: "ok" as const,
-    spanCount: roots.length, errorCount: 0, totalTokens: 0, truncated: false, roots,
+    spanCount: roots.length, errorCount: 0, totalTokens: 0, truncated: false, framework: null, roots,
   });
 
   it("keeps refreshing while the root span is missing, then stops once it arrives", async () => {

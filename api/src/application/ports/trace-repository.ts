@@ -56,6 +56,8 @@ export interface TraceRepository {
   listTraces(query: TraceListQuery): Promise<Page<TraceSummary>>;
   /** null si la traza no existe; con más de `maxSpans` spans devuelve los primeros y `truncated: true` */
   getTraceSpans(traceId: string, maxSpans: number): Promise<TraceSpans | null>;
+  /** spans de varias trazas en una sola consulta, agrupados por traceId; cada grupo se trunca a `maxSpansPerTrace` */
+  getTraceSpansForTraces(traceIds: string[], maxSpansPerTrace: number): Promise<Map<string, TraceSpans>>;
   /** serie temporal *dispersa* (solo buckets con datos); el servicio la rellena */
   getOverview(query: MetricsQuery): Promise<MetricsOverview>;
   listServices(range: TimeRange): Promise<string[]>;

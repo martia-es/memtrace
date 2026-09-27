@@ -1,3 +1,4 @@
+import { detectFramework } from "./framework";
 import { extractContent, extractGenAi, extractKind, remainingAttributes, tokensOf } from "./genai";
 import type { Span, SpanNode } from "./span";
 import type { StatusCode } from "./span";
@@ -54,6 +55,7 @@ export function buildSpanTree(spans: Span[], traceStartUs: number): SpanTree {
       orphan,
       genAi: extractGenAi(span.attributes),
       content: extractContent(span.attributes),
+      framework: detectFramework(span.scopeName, span.attributes),
       attributes: remainingAttributes(span.attributes),
       events: span.events,
       children: [],
@@ -101,6 +103,12 @@ function conversationOf(roots: SpanNode[], nodes: SpanNode[]): string | null {
   return pick(roots.filter((r) => r.parentSpanId === null)) ?? pick(nodes) ?? null;
 }
 
+/** El framework lo declara el span raíz; si no, cualquier span en el que se haya detectado. */
+function frameworkOf(roots: SpanNode[], nodes: SpanNode[]): string | null {
+  const pick = (list: SpanNode[]) => list.map((n) => n.framework).find((v) => v !== null);
+  return pick(roots.filter((r) => r.parentSpanId === null)) ?? pick(nodes) ?? null;
+}
+
 /** Construye el detalle de una traza (árbol + agregados) a partir de sus spans planos. */
 export function buildTraceDetail(traceId: string, spans: Span[], truncated: boolean): TraceDetail {
   const startTimeUs = spans.reduce((min, s) => Math.min(min, s.startTimeUs), Infinity);
@@ -118,6 +126,7 @@ export function buildTraceDetail(traceId: string, spans: Span[], truncated: bool
   return {
     traceId,
     conversationId: conversationOf(roots, nodes),
+    framework: frameworkOf(roots, nodes),
     startTimeUs,
     durationMs: (endUs - startTimeUs) / 1000,
     status: rootStatus(roots),

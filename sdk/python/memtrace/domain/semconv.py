@@ -24,6 +24,8 @@ GEN_AI_TOOL_CALL_RESULT = "gen_ai.tool.call.result"
 
 # Propios: solo donde no hay atributo estándar
 MEMTRACE_STEP_TYPE = "memtrace.step_type"
+# framework de agentes detectado (ver ADR-011): "langchain" | "langgraph"
+MEMTRACE_FRAMEWORK = "memtrace.framework"
 MEMTRACE_METADATA = "memtrace.metadata"
 MEMTRACE_TAGS = "memtrace.tags"
 MEMTRACE_INPUT = "memtrace.input"

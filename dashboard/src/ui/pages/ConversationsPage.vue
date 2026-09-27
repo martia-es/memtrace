@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type { ConversationSummaryDto, TraceSummaryDto } from "@contract";
-import { computed, watch } from "vue";
-import { useRouter } from "vue-router";
+import { computed, inject, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { CURRENT_EXPERIMENT } from "@/dependency-container";
 import { formatCount, formatDateTime, formatDuration, formatPercent } from "@/domain/format";
 import { mergeLatestConversations, mergeLatestTraces } from "@/domain/merge";
 import { RANGE_PRESETS, resolveRange } from "@/domain/time-range";
@@ -9,6 +10,7 @@ import EmptyState from "../components/EmptyState.vue";
 import OnboardingGuide from "../components/OnboardingGuide.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import LiveControl from "../components/LiveControl.vue";
+import PageHeader from "../components/PageHeader.vue";
 import TraceTable from "../components/TraceTable.vue";
 import Select from "../components/Select.vue";
 import { useAsync } from "../composables/useAsync";
@@ -20,6 +22,9 @@ import { useTraceApi } from "../composables/useTraceApi";
 const PAGE_SIZE = 50;
 const api = useTraceApi();
 const router = useRouter();
+const route = useRoute();
+const experimentId = computed(() => route.params.experimentId as string);
+const currentExperiment = inject(CURRENT_EXPERIMENT, computed(() => null));
 const f = useFilters();
 const grouped = computed(() => f.group.value === "conversation");
 
@@ -75,8 +80,8 @@ const LATENCY_OPTIONS = [
 const convStatus = (c: ConversationSummaryDto) => (c.errorTurns > 0 ? "error" : c.failedSpans > 0 ? "warn" : "ok");
 const STATUS_LABEL = { ok: "OK", error: "Error", warn: "With failures" } as const;
 
-const openTrace = (traceId: string) => void router.push({ name: "trace", params: { traceId }, query: f.shared.value });
-const openConversation = (conversationId: string) => void router.push({ name: "conversation", params: { conversationId }, query: f.shared.value });
+const openTrace = (traceId: string) => void router.push({ name: "trace", params: { experimentId: experimentId.value, traceId }, query: f.shared.value });
+const openConversation = (conversationId: string) => void router.push({ name: "conversation", params: { experimentId: experimentId.value, conversationId }, query: f.shared.value });
 
 const footer = computed(() => {
   const n = active.value.items.value.length;
@@ -89,8 +94,7 @@ const rangeOptions = computed(() => RANGE_PRESETS.map((p) => ({ label: p.long, v
 
 <template>
   <div class="page">
-    <header class="top">
-      <h1>Conversations</h1>
+    <PageHeader :crumbs="[{ label: 'MemTrace', to: { name: 'conversations', params: { experimentId } } }, { label: 'Conversations' }]" icon="M4 5h16v11H9l-5 4z" title="Conversations">
       <Select
         class="range mt-card"
         :model-value="f.range.value"
@@ -98,7 +102,7 @@ const rangeOptions = computed(() => RANGE_PRESETS.map((p) => ({ label: p.long, v
         :aria-label="`Time range: ${rangeLabel}`"
         @update:model-value="f.setRange"
       />
-    </header>
+    </PageHeader>
 
     <section class="kpis mt-card" aria-label="Summary">
       <template v-if="kpis.length">
@@ -146,7 +150,11 @@ const rangeOptions = computed(() => RANGE_PRESETS.map((p) => ({ label: p.long, v
         </table>
         <TraceTable v-else-if="!grouped && traces.items.value.length" :items="traces.items.value" :new-keys="traces.newKeys.value" show-conversation @open="openTrace" @open-conversation="openConversation" />
 
-        <OnboardingGuide v-if="!active.loading.value && active.items.value.length === 0 && !active.error.value" />
+        <OnboardingGuide
+          v-if="!active.loading.value && active.items.value.length === 0 && !active.error.value"
+          :service-name="currentExperiment?.serviceName ?? ''"
+          :experiment-id="experimentId"
+        />
         <div v-if="active.loading.value && active.items.value.length === 0" class="spinner"><q-spinner size="28px" color="primary" /></div>
       </div>
 
@@ -171,19 +179,6 @@ const rangeOptions = computed(() => RANGE_PRESETS.map((p) => ({ label: p.long, v
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-.top {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  height: 36px;
-  flex-shrink: 0;
-}
-h1 {
-  margin: 0 auto 0 8px;
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
 }
 .range {
   height: 34px;

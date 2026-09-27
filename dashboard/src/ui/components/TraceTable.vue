@@ -112,7 +112,7 @@ td {
   color: var(--mt-muted);
 }
 .conv-link {
-  color: #c4f26b;
+  color: #4a7c59;
   font-size: 12px;
   text-decoration: none;
 }

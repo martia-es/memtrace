@@ -385,7 +385,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
     if (!bounds || num(bounds.n) === 0) return null;
 
     const rows = await this.rows(
-      `SELECT SpanId, ParentSpanId, SpanName, ServiceName, toUnixTimestamp64Micro(Timestamp) AS startUs,
+      `SELECT SpanId, ParentSpanId, SpanName, ServiceName, ScopeName, toUnixTimestamp64Micro(Timestamp) AS startUs,
               Duration, StatusCode, StatusMessage, SpanAttributes,
               \`Events.Name\` AS evName, \`Events.Attributes\` AS evAttrs,
               arrayMap(t -> toUnixTimestamp64Micro(t), \`Events.Timestamp\`) AS evTs
@@ -405,6 +405,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
         parentSpanId: r.ParentSpanId ? String(r.ParentSpanId) : null,
         name: String(r.SpanName),
         serviceName: String(r.ServiceName),
+        scopeName: String(r.ScopeName),
         startTimeUs: num(r.startUs),
         durationMs: nsToMs(r.Duration),
         status: { code: toStatus(r.StatusCode), message: r.StatusMessage ? String(r.StatusMessage) : null },
@@ -413,6 +414,65 @@ export class ClickHouseTraceRepository implements TraceRepository {
       };
     });
     return { spans, truncated: rows.length > maxSpans };
+  }
+
+  /** Igual que `getTraceSpans` pero para varias trazas en una sola consulta (vista de árbol de conversación). */
+  async getTraceSpansForTraces(traceIds: string[], maxSpansPerTrace: number): Promise<Map<string, TraceSpans>> {
+    const result = new Map<string, TraceSpans>();
+    if (traceIds.length === 0) return result;
+
+    const [bounds] = await this.rows(
+      `SELECT toUnixTimestamp64Micro(min(Start)) AS startUs, toUnixTimestamp64Micro(max(End)) AS endUs
+       FROM ${this.traceIndex} WHERE TraceId IN {ids:Array(String)}`,
+      { ids: traceIds },
+    );
+    if (!bounds || bounds.startUs == null) return result;
+
+    // rn cuenta los spans de cada traza por separado: permite truncar cada una a `maxSpansPerTrace` sin
+    // que una traza grande se coma el presupuesto de las demás.
+    const rows = await this.rows(
+      `SELECT SpanId, TraceId, ParentSpanId, SpanName, ServiceName, ScopeName, toUnixTimestamp64Micro(Timestamp) AS startUs,
+              Duration, StatusCode, StatusMessage, SpanAttributes,
+              \`Events.Name\` AS evName, \`Events.Attributes\` AS evAttrs,
+              arrayMap(t -> toUnixTimestamp64Micro(t), \`Events.Timestamp\`) AS evTs
+       FROM ${this.spans}
+       WHERE TraceId IN {ids:Array(String)}
+         AND Timestamp >= fromUnixTimestamp64Micro({startUs:Int64}) AND Timestamp <= fromUnixTimestamp64Micro({endUs:Int64})
+       QUALIFY row_number() OVER (PARTITION BY TraceId ORDER BY Timestamp ASC) <= {maxSpansPerTrace:UInt32}
+       ORDER BY TraceId ASC, Timestamp ASC`,
+      { ids: traceIds, startUs: num(bounds.startUs), endUs: num(bounds.endUs), maxSpansPerTrace: maxSpansPerTrace + 1 },
+    );
+
+    const byTraceId = new Map<string, Row[]>();
+    for (const r of rows) {
+      const traceId = String(r.TraceId);
+      const list = byTraceId.get(traceId) ?? [];
+      list.push(r);
+      byTraceId.set(traceId, list);
+    }
+
+    for (const [traceId, group] of byTraceId) {
+      const page = group.slice(0, maxSpansPerTrace);
+      const spans: Span[] = page.map((r) => {
+        const evName = (r.evName as string[]) ?? [];
+        const evAttrs = (r.evAttrs as Record<string, string>[]) ?? [];
+        const evTs = (r.evTs as unknown[]) ?? [];
+        return {
+          spanId: String(r.SpanId),
+          parentSpanId: r.ParentSpanId ? String(r.ParentSpanId) : null,
+          name: String(r.SpanName),
+          serviceName: String(r.ServiceName),
+          scopeName: String(r.ScopeName),
+          startTimeUs: num(r.startUs),
+          durationMs: nsToMs(r.Duration),
+          status: { code: toStatus(r.StatusCode), message: r.StatusMessage ? String(r.StatusMessage) : null },
+          attributes: (r.SpanAttributes as Record<string, string>) ?? {},
+          events: evName.map((name, i) => ({ name, timeUs: num(evTs[i]), attributes: evAttrs[i] ?? {} })),
+        };
+      });
+      result.set(traceId, { spans, truncated: group.length > maxSpansPerTrace });
+    }
+    return result;
   }
 
   async getOverview(q: MetricsQuery): Promise<MetricsOverview> {

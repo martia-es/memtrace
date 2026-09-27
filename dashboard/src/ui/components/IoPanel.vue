@@ -14,6 +14,7 @@ const props = defineProps<{
 }>();
 
 const mode = ref<"text" | "json">("text");
+const collapsed = ref(false);
 const copied = ref(false);
 const copyText = computed(() => (mode.value === "json" ? props.json : props.blocks.map((b) => b.text).join("\n\n")));
 
@@ -29,19 +30,24 @@ async function copy() {
 </script>
 
 <template>
-  <section class="mt-card panel" :aria-label="title">
+  <section class="panel" :class="{ collapsed }" :aria-label="title">
     <div class="head">
+      <button type="button" class="collapse-btn" :aria-expanded="!collapsed" :aria-label="collapsed ? `Expandir ${title.toLowerCase()}` : `Colapsar ${title.toLowerCase()}`" @click="collapsed = !collapsed">
+        <q-icon name="chevron_right" size="16px" :class="{ open: !collapsed }" />
+      </button>
       <h2>{{ title }}</h2>
       <span class="badge" :class="{ error: badgeTone === 'error' }">{{ badge }}</span>
-      <div class="mt-segmented small toggle" role="group" :aria-label="`Formato de ${title.toLowerCase()}`">
-        <button type="button" :aria-pressed="mode === 'text'" @click="mode = 'text'">Texto</button>
-        <button type="button" :aria-pressed="mode === 'json'" @click="mode = 'json'">JSON</button>
-      </div>
-      <button type="button" class="mt-round-btn copy" :aria-label="`Copiar ${title.toLowerCase()}`" :disabled="blocks.length === 0" @click="copy">
-        <q-icon :name="copied ? 'check' : 'content_copy'" size="14px" />
-      </button>
+      <template v-if="!collapsed">
+        <div class="mt-segmented small toggle" role="group" :aria-label="`Formato de ${title.toLowerCase()}`">
+          <button type="button" :aria-pressed="mode === 'text'" @click="mode = 'text'">Texto</button>
+          <button type="button" :aria-pressed="mode === 'json'" @click="mode = 'json'">JSON</button>
+        </div>
+        <button type="button" class="mt-round-btn copy" :aria-label="`Copiar ${title.toLowerCase()}`" :disabled="blocks.length === 0" @click="copy">
+          <q-icon :name="copied ? 'check' : 'content_copy'" size="14px" />
+        </button>
+      </template>
     </div>
-    <div class="body">
+    <div v-if="!collapsed" class="body">
       <p v-if="blocks.length === 0" class="empty">{{ emptyHint }}</p>
       <pre v-else-if="mode === 'json'" class="block mono json">{{ json }}</pre>
       <template v-else>
@@ -52,20 +58,48 @@ async function copy() {
 </template>
 
 <style scoped>
+/* Sección plana (no mt-card): vive dentro del borde único del inspector, sin su propia
+   sombra/tarjeta para que el lateral se lea como un solo bloque sólido. */
 .panel {
   box-sizing: border-box;
-  padding: 16px 12px 14px 18px;
+  padding: 14px 4px;
   display: flex;
   flex-direction: column;
   gap: 10px;
   min-width: 0;
-  min-height: 0;
+  border-bottom: 1px solid var(--mt-line);
+}
+.panel.collapsed {
+  padding: 8px 4px;
+  gap: 0;
 }
 .head {
   display: flex;
   align-items: center;
   gap: 8px;
   padding-right: 6px;
+}
+.collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--mt-muted);
+  cursor: pointer;
+}
+.collapse-btn:hover {
+  background: var(--mt-soft-2);
+}
+.collapse-btn .q-icon {
+  transition: transform 0.12s ease;
+}
+.collapse-btn .q-icon.open {
+  transform: rotate(90deg);
 }
 h2 {
   margin: 0;
@@ -92,10 +126,9 @@ h2 {
   width: 28px;
   height: 28px;
 }
+/* Sin scroll propio: el lateral entero (SpanInspector .body) es el único contenedor con scroll,
+   así ver el input completo no depende de encontrar la caja correcta bajo el ratón. */
 .body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 0;

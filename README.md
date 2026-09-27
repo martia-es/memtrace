@@ -15,23 +15,44 @@ MemTrace se divide en dos pilares fundamentales:
 
 ---
 
-## 🏗️ Arquitectura del Sistema (Fase 1)
+## 🏗️ Arquitectura del Sistema (Fase 1 + 1.5)
 
 El entorno corre íntegramente de forma local sobre **Kubernetes** (`kind` / `k3d`) usando contenedores (**Podman** o **Docker**):
 
 ```mermaid
 graph LR
     Agent["🤖 Agente de IA<br/>(SDK OpenTelemetry)"] -->|OTLP gRPC :4317 / HTTP :4318| Collector["📡 OpenTelemetry Collector<br/>(otelcol-contrib)"]
-    Collector -->|Escritura por Lotes| ClickHouse["🗄️ ClickHouse DB<br/>(Almacén Columnar)"]
-    Migrate["⚙️ Job Migraciones<br/>(clickhouse-migrate)"] -->|Esquema SQL Versionado| ClickHouse
-    User["👤 Desarrollador"] -->|Navegador / Play UI :8123| ClickHouse
+    Collector -->|Escritura por Lotes| ClickHouse["🗄️ ClickHouse DB<br/>(Almacén Columnar - Trazas)"]
+    MigrateCH["⚙️ Job Migraciones<br/>(clickhouse-migrate)"] -->|Esquema SQL Versionado| ClickHouse
+    User["👤 Desarrollador"] -->|Login OIDC Google/Microsoft| API["🔌 API de Consulta<br/>(Next.js + Auth.js)"]
+    API -->|Trazas / Spans| ClickHouse
+    API -->|Usuarios, Orgs, Experimentos, RBAC| Postgres["🐘 PostgreSQL<br/>(Almacén de Identidad)"]
+    MigratePG["⚙️ Job Migraciones<br/>(postgres-migrate)"] -->|Esquema SQL Versionado| Postgres
+    User -->|Navegador :8080| Dashboard["📊 Dashboard<br/>(Vue 3)"]
+    Dashboard -->|HTTP/JSON| API
+    User -->|Play UI :8123| ClickHouse
 ```
 
 ### Componentes Principales:
 * **OpenTelemetry Collector:** Recibe trazas vía OTLP (puertos `4317` gRPC / `4318` HTTP), agrupadamente con cola persistente en disco.
 * **ClickHouse Server:** Base de datos columnar optimizada para analítica de trazas de alto rendimiento.
 * **ClickHouse Migrations Job:** Orquestador declarativo que aplica migraciones SQL versionadas (`migrations/clickhouse/*.sql`).
+* **PostgreSQL:** Almacén de identidad transaccional (usuarios, organizaciones, experimentos, memberships y sesiones), independiente de ClickHouse — ver [ADR-013](docs/adrs/adr-013-identity-postgres-and-oauth-rbac.md).
+* **Postgres Migrations Job:** Aplica migraciones SQL versionadas del esquema de identidad (`migrations/postgres/*.sql`).
+* **API de Consulta:** Next.js + Auth.js; único punto de acceso a ClickHouse y PostgreSQL, gestiona login OIDC (Google/Microsoft) y autorización RBAC de 2 niveles (organización/experimento).
 * **Kustomize & Kubernetes:** Definición declarativa de infraestructura en [`k8s/`](k8s/) y [`kustomization.yaml`](kustomization.yaml).
+
+### Modelo de Datos de Identidad (PostgreSQL)
+
+Almacén transaccional independiente de ClickHouse, con integridad referencial (ver [ADR-013](docs/adrs/adr-013-identity-postgres-and-oauth-rbac.md)):
+
+* **`users` / `accounts` / `sessions` / `verification_token`:** tablas estándar del adaptador de Auth.js (login federado, sin contraseñas propias).
+* **`organizations`:** unidad de aislamiento multi-tenant; agrupa cualquier número de experimentos.
+* **`experiments`:** vista de trazas/dashboard de un agente instrumentado (mapea a `service.name` de OTel); pertenece a una única organización.
+* **`org_memberships`:** rol `org_admin` sobre una organización — admin implícito de todos sus experimentos.
+* **`experiment_memberships`:** rol `admin` o `member` sobre un experimento concreto.
+
+RBAC de 2 niveles sin rol global: un usuario puede actuar sobre un experimento si es `org_admin` de su organización, o tiene membership directa en ese experimento.
 
 ---
 
@@ -142,9 +163,11 @@ MemTrace/
 ├── api/                        # API de consulta (Next.js + TypeScript): único acceso a ClickHouse
 ├── dashboard/                  # Dashboard (Vite + Vue 3 + Quasar): consume solo la API
 ├── examples/                   # Ejemplos de agentes instrumentados
-├── migrations/                 # Migraciones SQL versionadas para ClickHouse
-│   └── clickhouse/
-│       └── 001_init_traces.sql
+├── migrations/                 # Migraciones SQL versionadas
+│   ├── clickhouse/              # Esquema de trazas (columnar)
+│   │   └── 001_init_traces.sql
+│   └── postgres/                # Esquema de identidad (transaccional)
+│       └── 001_init_identity.sql
 ├── docs/                       # Documentación técnica y decisiones de diseño (ADRs)
 │   ├── roadmap.md
 │   ├── phase_1_design.md

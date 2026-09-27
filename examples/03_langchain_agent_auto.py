@@ -18,7 +18,9 @@ from memtrace import (
 )
 
 load_dotenv()
-init_tracer(service_name="langchain-agent")
+# service_name / endpoint / headers vienen del .env (los genera el dashboard al crear la API key
+# de un experimento, ADR-013) en vez de hardcodearse aquí.
+init_tracer()
 
 
 @tool

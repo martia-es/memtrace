@@ -9,9 +9,9 @@
   --mt-soft-2: #f4f8f5;
   --mt-line: #e8eee9;
   --mt-line-2: #eef2ef;
-  --mt-accent: #c4f26b;
-  --mt-accent-ink: #14260a;
-  --mt-violet: #c4f26b;
+  --mt-accent: #4a7c59;
+  --mt-accent-ink: #ffffff;
+  --mt-violet: #4a7c59;
   --mt-ok-bg: #ddf6b8;
   --mt-ok-ink: #2a5a0d;
   --mt-err-bg: #ffe1de;
@@ -22,7 +22,7 @@
   --mt-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --mt-sans: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
 
-  --q-primary: #c4f26b;
+  --q-primary: #4a7c59;
   --wf-line: rgba(14, 26, 19, 0.1);
   --wf-hover: rgba(14, 26, 19, 0.04);
   --wf-selected: rgba(74, 50, 201, 0.1);
@@ -93,7 +93,7 @@ body {
   cursor: pointer;
 }
 :focus-visible {
-  outline: 2px solid #c4f26b;
+  outline: 2px solid var(--mt-accent);
   outline-offset: 2px;
 }
 code {

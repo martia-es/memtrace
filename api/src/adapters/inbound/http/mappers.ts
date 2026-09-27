@@ -4,7 +4,7 @@ import type { SpanCursor, SpanRow } from "@/domain/span-row";
 import type { Transcript } from "@/domain/transcript";
 import type { SpanNode } from "@/domain/span";
 import type { Page, TraceDetail, TraceSummary } from "@/domain/trace";
-import type { TranscriptResponse, ConversationDetailResponse, ConversationListResponse, ConversationSummaryDto, OverviewResponse, SpanListResponse, SpanNodeDto, TraceDetailResponse, TraceListResponse, TraceSummaryDto } from "./contract";
+import type { TranscriptResponse, ConversationDetailResponse, ConversationListResponse, ConversationSummaryDto, ConversationTreeResponse, OverviewResponse, SpanListResponse, SpanNodeDto, TraceDetailResponse, TraceListResponse, TraceSummaryDto } from "./contract";
 import { encodeConversationCursor, encodeCursor, encodeSpanCursor } from "./schemas";
 
 const isoFromUs = (us: number) => new Date(Math.round(us / 1000)).toISOString();
@@ -97,6 +97,7 @@ function toSpanNodeDtos(roots: SpanNode[]): SpanNodeDto[] {
       orphan: node.orphan,
       genAi: node.genAi,
       content: node.content,
+      framework: node.framework,
       attributes: node.attributes,
       events: node.events.map((e) => ({ name: e.name, time: isoFromUs(e.timeUs), attributes: e.attributes })),
       children: node.children.map((child) => dtos.get(child)!),
@@ -116,8 +117,13 @@ export function toTraceDetailResponse(t: TraceDetail): TraceDetailResponse {
     totalTokens: t.totalTokens,
     truncated: t.truncated,
     conversationId: t.conversationId,
+    framework: t.framework,
     roots: toSpanNodeDtos(t.roots),
   };
+}
+
+export function toConversationTreeResponse(page: Page<TraceDetail>): ConversationTreeResponse {
+  return { items: page.items.map(toTraceDetailResponse), nextCursor: page.nextCursor ? encodeCursor(page.nextCursor) : null };
 }
 
 export function toOverviewResponse(o: MetricsOverview & { fromMs: number; toMs: number }): OverviewResponse {

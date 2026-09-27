@@ -16,6 +16,7 @@ export function span(overrides: Partial<Span> = {}): Span {
     parentSpanId: null,
     name: "step",
     serviceName: "svc",
+    scopeName: "memtrace",
     startTimeUs: 1_000_000 + counter,
     durationMs: 10,
     status: { code: "ok", message: null },
@@ -63,6 +64,15 @@ export class FakeTraceRepository implements TraceRepository {
   async getTraceSpans(traceId: string) {
     this.check();
     return this.traces.get(traceId) ?? null;
+  }
+  async getTraceSpansForTraces(traceIds: string[]) {
+    this.check();
+    const result = new Map<string, TraceSpans>();
+    for (const id of traceIds) {
+      const found = this.traces.get(id);
+      if (found) result.set(id, found);
+    }
+    return result;
   }
   async getOverview(query: MetricsQuery) {
     this.check();

@@ -1,7 +1,6 @@
 // Paleta de colores centralizada para toda la aplicación
 export const PALETTE = {
   // Verdes primarios
-  lime: "#c4f26b",        // Verde lima (sidebar, principal)
   lightGreen: "#e8f9d6",  // Verde claro (fondos suaves)
   mediumGreen: "#7ecf96", // Verde medio
   darkGreen: "#4a7c59",   // Verde oscuro (énfasis)
@@ -13,10 +12,10 @@ export const PALETTE = {
 } as const;
 
 export const SPAN_COLORS = {
-  agent: PALETTE.lime,
+  agent: PALETTE.darkGreen,
   llm: PALETTE.mediumGreen,
   tool: PALETTE.teal,
-  chain: PALETTE.darkGreen,
+  chain: PALETTE.olive,
   retriever: PALETTE.sage,
   embedding: PALETTE.seafoam,
   unknown: PALETTE.moss,
@@ -33,7 +32,7 @@ export const SPAN_BG_COLORS = {
 } as const;
 
 export const CHART_COLORS = [
-  PALETTE.lime,
+  PALETTE.darkGreen,
   PALETTE.mediumGreen,
   PALETTE.teal,
   PALETTE.teal,
@@ -44,5 +43,5 @@ export const CHART_COLORS = [
 ] as const;
 
 export const ERROR_COLOR = PALETTE.darkGreen;
-export const OK_COLOR = PALETTE.lime;
+export const OK_COLOR = PALETTE.mediumGreen;
 export const WARN_COLOR = "#fce4a3";

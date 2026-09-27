@@ -52,12 +52,11 @@ const cur = computed(() => {
     output,
     inBadge: chat ? `${io.input.length} ${io.input.length === 1 ? "message" : "messages"}` : n.content?.toolArguments !== undefined ? "arguments" : "input",
     outBadge: n.status.code === "error" ? "error" : n.content?.outputMessages !== undefined ? "response" : n.content?.toolResult !== undefined ? "result" : "output",
-    stats: [
-      stat("Duration", formatDuration(n.durationMs)),
-      stat("Tokens", tokens ? formatCount(tokens) : null),
-      stat("Model", g?.responseModel ?? g?.requestModel ?? null),
-      stat("Provider", g?.provider ?? g?.toolName ?? null),
-    ].filter((s): s is { k: string; v: string } => s !== null),
+    stats: [stat("Duration", formatDuration(n.durationMs)), stat("Tokens", tokens ? formatCount(tokens) : null)].filter(
+      (s): s is { k: string; v: string } => s !== null,
+    ),
+    modelChip: g?.responseModel ?? g?.requestModel ?? g?.toolName ?? null,
+    providerChip: g?.provider ?? null,
     attrs: Object.entries(n.attributes),
     events: n.events.map((e) => ({ ...e, offset: Date.parse(e.time) - Date.parse(n.startTime) })),
     meta: [
@@ -85,9 +84,13 @@ const tabs = computed(() => [
 <template>
   <section class="inspector mt-card" aria-label="Selected span details">
     <div class="head">
-      <span class="kind-box" :style="{ background: cur.kind.bg }"><span class="kind-dot" :style="{ background: cur.kind.color }" /></span>
+      <span class="kind-box" :style="{ background: cur.kind.bg }"><q-icon :name="cur.kind.icon" :style="{ color: cur.kind.color }" size="16px" /></span>
       <div class="title">
-        <span class="mono name" :title="node.name">{{ node.name }}</span>
+        <div class="name-row">
+          <span class="mono name" :title="node.name">{{ node.name }}</span>
+          <span v-if="cur.modelChip" class="chip mono">{{ cur.modelChip }}</span>
+          <span v-if="cur.providerChip" class="chip mono muted-chip">{{ cur.providerChip }}</span>
+        </div>
         <span class="muted">
           {{ cur.kind.label }} · start +{{ formatDuration(node.offsetMs) }} ·
           <span class="st" :class="node.status.code">{{ node.status.code === "ok" ? "OK" : node.status.code === "error" ? "Error" : "No status" }}</span>
@@ -138,6 +141,9 @@ const tabs = computed(() => [
   flex: 1;
   min-width: 0;
   min-height: 0;
+  /* Panel sólido: sin sombra, el borde marca los límites */
+  box-shadow: none;
+  border: 1px solid var(--mt-line);
 }
 .muted {
   color: var(--mt-muted);
@@ -158,11 +164,6 @@ const tabs = computed(() => [
   align-items: center;
   justify-content: center;
 }
-.kind-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 4px;
-}
 .title {
   display: flex;
   flex: 1;
@@ -170,12 +171,31 @@ const tabs = computed(() => [
   flex-direction: column;
   gap: 3px;
 }
+.name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
 .name {
   font-size: 15px;
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.chip {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--mt-soft);
+  color: var(--mt-ink);
+  font-size: 11px;
+}
+.chip.muted-chip {
+  background: transparent;
+  border: 1px solid var(--mt-line);
+  color: var(--mt-muted);
 }
 .st {
   font-weight: 600;
@@ -206,6 +226,8 @@ const tabs = computed(() => [
   white-space: nowrap;
 }
 /* input arriba, output abajo, metadata al final; la columna hace scroll si no cabe */
+/* Un único scroll para todo el lateral: Input, Output y las pestañas fluyen en la misma columna
+   en vez de cada uno con su propio scroll interno (si no, scrollear Input no mueve Output). */
 .body {
   display: flex;
   flex-direction: column;
@@ -216,8 +238,7 @@ const tabs = computed(() => [
 }
 .slot {
   display: flex;
-  flex: 1 0 200px;
-  min-height: 200px;
+  flex-shrink: 0;
 }
 .slot > :deep(*) {
   flex: 1;

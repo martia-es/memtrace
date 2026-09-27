@@ -64,6 +64,25 @@ def test_chat_model_usage_metadata_and_hierarchy(spans):
     assert tool.status.status_code.name == "ERROR"
 
 
+def test_detects_langgraph_from_metadata(spans):
+    h = MemTraceCallbackHandler()
+    rid = uuid.uuid4()
+    h.on_chain_start(
+        None, {}, run_id=rid, name="agent",
+        metadata={"thread_id": "t1", "langgraph_node": "call_model", "langgraph_step": 2},
+    )
+    h.on_chain_end({}, run_id=rid)
+    assert by_name(spans, "agent").attributes["memtrace.framework"] == "langgraph"
+
+
+def test_defaults_to_langchain_without_langgraph_metadata(spans):
+    h = MemTraceCallbackHandler()
+    rid = uuid.uuid4()
+    h.on_chain_start(None, {}, run_id=rid, name="chain", metadata={"thread_id": "t1"})
+    h.on_chain_end({}, run_id=rid)
+    assert by_name(spans, "chain").attributes["memtrace.framework"] == "langchain"
+
+
 def test_openai_style_llm_output_tokens(spans):
     h = MemTraceCallbackHandler()
     rid = uuid.uuid4()

@@ -3,7 +3,10 @@ import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { withGaps } from "@/domain/conversation";
 import { formatCount, formatDateTime, formatDuration } from "@/domain/format";
+import { findNode } from "@/domain/waterfall";
+import ConversationTree from "../components/ConversationTree.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
+import SpanInspector from "../components/SpanInspector.vue";
 import TraceTable from "../components/TraceTable.vue";
 import { useAsync } from "../composables/useAsync";
 import { useFilters } from "../composables/useFilters";
@@ -14,11 +17,30 @@ const props = defineProps<{ conversationId: string }>();
 const api = useTraceApi();
 const router = useRouter();
 const route = useRoute();
+const experimentId = computed(() => route.params.experimentId as string);
 const f = useFilters();
 
 const PAGE = 100;
 const MAX_PAGE = 200;
 const turnsLimit = ref(PAGE);
+
+// ---- view toggle: flat table vs unified span tree of the whole conversation ----
+const view = computed(() => (route.query.view === "tree" ? "tree" : "table"));
+const setView = (mode: "table" | "tree") => void router.replace({ query: { ...route.query, view: mode === "table" ? undefined : mode } });
+
+const tree = useAsync((signal) => api.getConversationTree(props.conversationId, { limit: turnsLimit.value }, signal));
+watch(view, (mode) => {
+  if (mode === "tree" && !tree.data.value) void tree.run();
+});
+
+const selected = ref<{ traceId: string; spanId: string } | null>(null);
+const selectSpan = (traceId: string, spanId: string) => (selected.value = { traceId, spanId });
+const selectedNode = computed(() => {
+  if (!selected.value) return null;
+  const turn = tree.data.value?.items.find((t) => t.traceId === selected.value!.traceId);
+  return turn ? findNode(turn.roots, selected.value.spanId) : null;
+});
+const hint = "This span has no content saved. Enable MEMTRACE_CAPTURE_CONTENT=true on the agent to see it here (it's saved as-is: check privacy).";
 
 // ---- conversation and traces (chronological: new ones arrive at the end, so when refreshing we request the loaded range + margin) ----
 const detail = useAsync((signal) => api.getConversation(props.conversationId, { limit: turnsLimit.value }, signal));
@@ -50,8 +72,10 @@ watch(
   () => props.conversationId,
   () => {
     turnsLimit.value = PAGE;
+    selected.value = null;
     void load();
     void transcript.run();
+    if (route.query.view === "tree") void tree.run();
   },
   { immediate: true },
 );
@@ -59,9 +83,9 @@ watch(
 const liveRefresh = useLiveRefresh(
   async () => {
     turnsLimit.value = Math.min(MAX_PAGE, Math.max(PAGE, traces.value.length + 20));
-    await Promise.all([load(), transcript.run()]);
+    await Promise.all([load(), transcript.run(), ...(route.query.view === "tree" ? [tree.run()] : [])]);
   },
-  { isBusy: () => detail.loading.value || more.loading.value || transcript.loading.value },
+  { isBusy: () => detail.loading.value || more.loading.value || transcript.loading.value || tree.loading.value },
 );
 
 // ---- header ----
@@ -77,8 +101,8 @@ const stats = computed(() => {
   ];
 });
 
-const openTrace = (traceId: string) => void router.push({ name: "trace", params: { traceId }, query: f.shared.value });
-const backToList = () => void router.push({ name: "conversations", query: { ...f.shared.value, group: "conversation" } });
+const openTrace = (traceId: string) => void router.push({ name: "trace", params: { experimentId: experimentId.value, traceId }, query: f.shared.value });
+const backToList = () => void router.push({ name: "conversations", params: { experimentId: experimentId.value }, query: { ...f.shared.value, group: "conversation" } });
 </script>
 
 <template>
@@ -105,14 +129,30 @@ const backToList = () => void router.push({ name: "conversations", query: { ...f
         <div class="stats">
           <div v-for="s in stats" :key="s.k" class="stat"><span class="muted k">{{ s.k }}</span><span class="v">{{ s.v }}</span></div>
         </div>
+        <div class="view-toggle" role="group" aria-label="View mode">
+          <button type="button" class="toggle-btn" :class="{ active: view === 'table' }" @click="setView('table')">Table</button>
+          <button type="button" class="toggle-btn" :class="{ active: view === 'tree' }" @click="setView('tree')">Tree</button>
+        </div>
       </header>
 
-      <section class="mt-card list" aria-label="Conversation traces">
+      <section v-if="view === 'table'" class="mt-card list" aria-label="Conversation traces">
         <TraceTable v-if="traces.length" :items="traces" :labels="labels" @open="openTrace" />
         <p v-else class="muted empty">This conversation has no traces to show.</p>
         <button v-if="cursor" type="button" class="more" :disabled="more.loading.value" @click="loadMore">{{ more.loading.value ? "Loading…" : "Load more traces" }}</button>
         <ErrorBanner v-if="more.error.value" :error="more.error.value" @retry="loadMore" />
       </section>
+
+      <template v-else>
+        <ErrorBanner v-if="tree.error.value" :error="tree.error.value" @retry="tree.run" />
+        <div v-else-if="!tree.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
+        <div v-else class="cols">
+          <section class="mt-card tree-card" aria-label="Conversation span tree">
+            <ConversationTree :turns="tree.data.value.items" :selected-trace-id="selected?.traceId ?? null" :selected-span-id="selected?.spanId ?? null" @select="selectSpan" />
+          </section>
+          <SpanInspector v-if="selectedNode" :node="selectedNode" :empty-hint="hint" />
+          <section v-else class="mt-card empty-card">Select a span to inspect it.</section>
+        </div>
+      </template>
     </template>
   </div>
 </template>
@@ -138,7 +178,7 @@ const backToList = () => void router.push({ name: "conversations", query: { ...f
   border: 0;
   background: none;
   padding: 0;
-  color: #c4f26b;
+  color: var(--mt-accent);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -187,7 +227,7 @@ h1 {
   text-overflow: ellipsis;
 }
 .id {
-  color: #c4f26b;
+  color: var(--mt-accent);
   font-size: 12px;
 }
 .stats {
@@ -212,12 +252,56 @@ h1 {
   letter-spacing: -0.02em;
   white-space: nowrap;
 }
+.view-toggle {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--mt-soft-2);
+  flex-shrink: 0;
+}
+.toggle-btn {
+  border: 0;
+  background: none;
+  padding: 5px 14px;
+  border-radius: 9px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--mt-muted);
+  cursor: pointer;
+}
+.toggle-btn.active {
+  background: #fff;
+  color: var(--mt-ink);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
 .list {
   box-sizing: border-box;
   flex: 1;
   min-height: 0;
   overflow: auto;
   padding: 12px 14px;
+}
+/* árbol ~40 % · inspector ~60 %, igual que en TraceDetailPage */
+.cols {
+  display: grid;
+  grid-template-columns: minmax(300px, 2fr) minmax(0, 3fr);
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+}
+.tree-card {
+  box-sizing: border-box;
+  padding: 8px 6px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+.empty-card {
+  padding: 30px;
+  color: var(--mt-muted);
 }
 .empty {
   margin: 0;
@@ -238,6 +322,13 @@ h1 {
 @media (max-width: 1100px) {
   .stats {
     display: none;
+  }
+  .cols {
+    grid-template-columns: minmax(0, 1fr);
+    overflow-y: auto;
+  }
+  .tree-card {
+    max-height: 50vh;
   }
 }
 </style>

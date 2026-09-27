@@ -12,14 +12,19 @@
     "test:integration": "CLICKHOUSE_INTEGRATION=1 vitest run tests/integration"
   },
   "dependencies": {
+    "@auth/pg-adapter": "^1.11.3",
     "@clickhouse/client": "^1.23.1",
     "next": "^16.3.6",
+    "next-auth": "^5.0.0-beta.32",
+    "pg": "^8.23.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "resend": "^4.8.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "@types/pg": "^8.11.10",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "typescript": "^5.9.0",

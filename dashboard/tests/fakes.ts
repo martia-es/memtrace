@@ -1,5 +1,34 @@
-import type { SpanListResponse, SpanRowDto, TranscriptResponse, ConversationDetailResponse, ConversationListResponse, ConversationSummaryDto, OverviewResponse, ServicesResponse, SpanNodeDto, TraceDetailResponse, TraceListResponse, TraceSummaryDto } from "@contract";
+import type { SpanListResponse, SpanRowDto, TranscriptResponse, ConversationDetailResponse, ConversationListResponse, ConversationSummaryDto, ConversationTreeResponse, OverviewResponse, ServicesResponse, SpanNodeDto, TraceDetailResponse, TraceListResponse, TraceSummaryDto } from "@contract";
 import type { ListConversationsParams, ListSpansParams, ListTracesParams, RangeParams, TraceApi } from "@/application/trace-api";
+import type { ApiKeyDto, CurrentUser, ExperimentDto, IdentityApi, OrganizationDto } from "@/application/identity-api";
+
+/** Puerto de identidad (ADR-013): usada solo por OnboardingGuide en estas pruebas de UI, sin sesión real. */
+export class FakeIdentityApi implements IdentityApi {
+  async getMe(): Promise<CurrentUser | null> {
+    return null;
+  }
+  async listOrganizations(): Promise<OrganizationDto[]> {
+    return [];
+  }
+  async createOrganization(name: string): Promise<OrganizationDto> {
+    return { id: "org-1", name };
+  }
+  async addOrgAdmin(): Promise<void> {}
+  async listExperiments(): Promise<ExperimentDto[]> {
+    return [];
+  }
+  async createExperiment(organizationId: string, name: string, serviceName: string): Promise<ExperimentDto> {
+    return { id: "exp-1", organizationId, name, serviceName };
+  }
+  async addExperimentMember(): Promise<void> {}
+  async listApiKeys(): Promise<ApiKeyDto[]> {
+    return [];
+  }
+  async createApiKey(experimentId: string): Promise<ApiKeyDto & { plaintext: string }> {
+    return { id: "key-1", experimentId, keyPrefix: "mtk_test", createdAt: new Date().toISOString(), lastUsedAt: null, plaintext: "mtk_test-plaintext" };
+  }
+  async revokeApiKey(): Promise<void> {}
+}
 
 export function summary(overrides: Partial<TraceSummaryDto> = {}): TraceSummaryDto {
   return {
@@ -68,9 +97,27 @@ export function node(overrides: Partial<SpanNodeDto> = {}): SpanNodeDto {
     orphan: false,
     genAi: null,
     content: null,
+    framework: null,
     attributes: {},
     events: [],
     children: [],
+    ...overrides,
+  };
+}
+
+export function traceDetail(overrides: Partial<TraceDetailResponse> = {}): TraceDetailResponse {
+  return {
+    traceId: "a".repeat(32),
+    startTime: "2026-09-26T12:00:00.000Z",
+    durationMs: 120,
+    status: "ok",
+    spanCount: 1,
+    errorCount: 0,
+    totalTokens: 0,
+    truncated: false,
+    conversationId: null,
+    framework: null,
+    roots: [node()],
     ...overrides,
   };
 }
@@ -116,6 +163,15 @@ export class FakeTraceApi implements TraceApi {
     if (this.conversationDetail instanceof Error) throw this.conversationDetail;
     if (!this.conversationDetail) throw new Error("no conversation configured");
     return this.conversationDetail;
+  }
+
+  conversationTree: ConversationTreeResponse | Error | null = null;
+  conversationTreeCalls: { id: string; limit?: number; cursor?: string }[] = [];
+  async getConversationTree(id: string, params: { limit?: number; cursor?: string } = {}) {
+    this.conversationTreeCalls.push({ id, ...params });
+    if (this.conversationTree instanceof Error) throw this.conversationTree;
+    if (!this.conversationTree) throw new Error("no conversation tree configured");
+    return this.conversationTree;
   }
 
   traceCalls = 0;

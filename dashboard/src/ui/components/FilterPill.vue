@@ -45,7 +45,7 @@ const current = computed(() => props.options.find((o) => o.value === props.model
   white-space: nowrap;
 }
 .pill.active {
-  border-color: #c4f26b;
+  border-color: var(--mt-accent);
   background: #f5f2ff;
 }
 .k {

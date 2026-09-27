@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from "vue";
+import { computed, useTemplateRef, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { formatCount, formatDateTime, formatDuration, shortId } from "@/domain/format";
 import { findNode, firstErrorNode } from "@/domain/waterfall";
@@ -16,6 +16,7 @@ const props = defineProps<{ traceId: string }>();
 const api = useTraceApi();
 const route = useRoute();
 const router = useRouter();
+const experimentId = computed(() => route.params.experimentId as string);
 const f = useFilters();
 
 const trace = useAsync((signal) => api.getTrace(props.traceId, signal));
@@ -44,9 +45,10 @@ const select = (spanId: string) => void router.replace({ query: { ...route.query
 
 const hint = "This span has no content saved. Enable MEMTRACE_CAPTURE_CONTENT=true on the agent to see it here (it's saved as-is: check privacy).";
 
+const treeRef = useTemplateRef<InstanceType<typeof SpanTree>>("treeRef");
 const copyId = () => void navigator.clipboard?.writeText(props.traceId);
-const goList = () => void router.push({ name: "conversations", query: f.shared.value });
-const goConversation = () => conversationId.value && void router.push({ name: "conversation", params: { conversationId: conversationId.value }, query: f.shared.value });
+const goList = () => void router.push({ name: "conversations", params: { experimentId: experimentId.value }, query: f.shared.value });
+const goConversation = () => conversationId.value && void router.push({ name: "conversation", params: { experimentId: experimentId.value, conversationId: conversationId.value }, query: f.shared.value });
 </script>
 
 <template>
@@ -74,6 +76,7 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
         <div class="pills">
           <span class="muted sub">{{ formatDateTime(trace.data.value.startTime) }}</span>
           <StatusBadge :status="trace.data.value.status" show-label />
+          <span v-if="trace.data.value.framework" class="mt-pill unset"><q-icon name="hub" size="15px" /> {{ trace.data.value.framework }}</span>
           <span class="mt-pill unset"><q-icon name="schedule" size="15px" /> {{ formatDuration(trace.data.value.durationMs) }}</span>
           <span class="mt-pill unset"><q-icon name="account_tree" size="15px" /> {{ `${formatCount(trace.data.value.spanCount)} spans` }}</span>
           <span v-if="trace.data.value.errorCount" class="mt-pill error"><q-icon name="error" size="15px" /> {{ `${trace.data.value.errorCount} with error` }}</span>
@@ -92,9 +95,14 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
         <section class="mt-card tree-card" aria-label="Span tree">
           <div class="tree-head">
             <h2>Spans</h2>
-            <span class="mono muted meta">{{ formatDuration(trace.data.value.durationMs) }}</span>
+            <div class="tree-actions">
+              <button type="button" class="link-btn" @click="treeRef?.expandAll()">Expand all</button>
+              <span class="dot-sep">·</span>
+              <button type="button" class="link-btn" @click="treeRef?.collapseAll()">Collapse all</button>
+              <span class="mono muted meta">{{ formatDuration(trace.data.value.durationMs) }}</span>
+            </div>
           </div>
-          <SpanTree :roots="roots" :total-ms="trace.data.value.durationMs" :selected-id="selectedNode?.spanId ?? null" @select="select" />
+          <SpanTree ref="treeRef" :roots="roots" :total-ms="trace.data.value.durationMs" :selected-id="selectedNode?.spanId ?? null" @select="select" />
         </section>
 
         <SpanInspector v-if="selectedNode" :node="selectedNode" :empty-hint="hint" />
@@ -128,7 +136,7 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
   border: 0;
   background: none;
   padding: 0;
-  color: #c4f26b;
+  color: var(--mt-accent);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -239,8 +247,29 @@ h2 {
   align-items: center;
   padding: 0 8px 6px;
 }
+.tree-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .tree-head .meta {
   font-size: 12px;
+}
+.link-btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--mt-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.link-btn:hover {
+  color: var(--mt-ink);
+}
+.dot-sep {
+  color: var(--mt-line);
 }
 .empty-card {
   padding: 30px;

@@ -139,6 +139,20 @@ describe("conversations endpoints", () => {
     expect((await handlers.getConversation(get("/conversations/x"), "x")).status).toBe(404);
   });
 
+  it("returns the span tree of each turn, and 404 when unknown", async () => {
+    const { repo, handlers } = setup();
+    repo.conversations.set("c1", summary("c1"));
+    repo.page = { items: [{ traceId: TRACE_ID, rootSpanName: "turno", serviceName: "svc", startTimeUs: 1_790_000_000_000_000, durationMs: 5, status: "ok", spanCount: 1, errorCount: 0, totalTokens: 0, input: null, output: null, conversationId: "c1" }], nextCursor: null };
+    repo.traces.set(TRACE_ID, { spans: [span({ spanId: TRACE_ID })], truncated: false });
+    const ok = await handlers.getConversationTree(get("/conversations/c1/tree"), "c1");
+    const body = await ok.json();
+    expect(ok.status).toBe(200);
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0]).toMatchObject({ traceId: TRACE_ID });
+    expect(body.items[0].roots).toHaveLength(1);
+    expect((await handlers.getConversationTree(get("/conversations/x/tree"), "x")).status).toBe(404);
+  });
+
   it("passes the conversationId filter to the trace list", async () => {
     const { repo, handlers } = setup();
     await handlers.listTraces(get("/traces?conversationId=c1"));

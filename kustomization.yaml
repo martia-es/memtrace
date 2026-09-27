@@ -4,8 +4,11 @@ namespace: memtrace
 resources:
   - k8s/00-namespace.yaml
   - k8s/10-clickhouse-secret.yaml
+  - k8s/15-postgres-secret.yaml
   - k8s/20-clickhouse.yaml
+  - k8s/25-postgres.yaml
   - k8s/30-clickhouse-migrations.yaml
+  - k8s/35-postgres-migrations.yaml
   - k8s/40-otel-collector.yaml
   - k8s/50-api.yaml
   - k8s/60-dashboard.yaml
@@ -16,7 +19,23 @@ configMapGenerator:
       - migrations/clickhouse/002_conversation_id.sql
     options:
       disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
+  - name: postgres-migrations
+    files:
+      - migrations/postgres/001_init_identity.sql
+      - migrations/postgres/002_api_keys.sql
+      - migrations/postgres/003_pending_invitations.sql
+    options:
+      disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
   - name: clickhouse-config
     files:
       - k8s/config/clickhouse-low-footprint.xml
     # con hash en el nombre: cambiar la config cambia la plantilla y reinicia el StatefulSet
+secretGenerator:
+  - name: identity-oauth-credentials
+    envs:
+      - k8s/secrets/identity-oauth.env   # NO commiteado (ver k8s/secrets/README.md); ADR-013
+    # con hash en el nombre: si cambian los secretos, el Deployment de la API se reinicia solo
+  - name: resend-credentials
+    envs:
+      - k8s/secrets/resend.env   # NO commiteado (ver k8s/secrets/README.md)
+    # con hash en el nombre: si cambia la API key, el Deployment de la API se reinicia solo

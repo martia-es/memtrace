@@ -31,6 +31,42 @@ spec:
               key: password
         - name: CLICKHOUSE_DATABASE
           value: memtrace
+        # Gateway de ingesta autenticado por API key (ADR-013, pieza 9)
+        - name: OTEL_COLLECTOR_HTTP_URL
+          value: http://otel-collector:4318
+        # Almacén de identidad + login federado (ADR-013)
+        - name: POSTGRES_HOST
+          value: postgres
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_USER
+          value: memtrace
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: password
+        - name: POSTGRES_DATABASE
+          value: memtrace_identity
+        - name: AUTH_URL
+          value: http://localhost:8080
+        - name: AUTH_SECRET
+          valueFrom: { secretKeyRef: { name: identity-oauth-credentials, key: AUTH_SECRET } }
+        - name: GOOGLE_CLIENT_ID
+          valueFrom: { secretKeyRef: { name: identity-oauth-credentials, key: GOOGLE_CLIENT_ID } }
+        - name: GOOGLE_CLIENT_SECRET
+          valueFrom: { secretKeyRef: { name: identity-oauth-credentials, key: GOOGLE_CLIENT_SECRET } }
+        - name: MICROSOFT_APPLICATION_ID
+          valueFrom: { secretKeyRef: { name: identity-oauth-credentials, key: MICROSOFT_APPLICATION_ID } }
+        - name: MICROSOFT_TENANT_ID
+          valueFrom: { secretKeyRef: { name: identity-oauth-credentials, key: MICROSOFT_TENANT_ID } }
+        - name: MICROSOFT_CLIENT_SECRET
+          valueFrom: { secretKeyRef: { name: identity-oauth-credentials, key: MICROSOFT_CLIENT_SECRET } }
+        # Envío de emails de invitación (ADR-014)
+        - name: RESEND_API_KEY
+          valueFrom: { secretKeyRef: { name: resend-credentials, key: RESEND_API_KEY } }
+        - name: EMAIL_FROM
+          valueFrom: { secretKeyRef: { name: resend-credentials, key: EMAIL_FROM } }
         ports:
         - containerPort: 3001
           name: http

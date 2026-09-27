@@ -29,6 +29,8 @@ export interface TraceDetail {
   totalTokens: number;
   truncated: boolean;
   conversationId: string | null;
+  /** framework de agentes detectado en la traza, si lo hay (ADR-011) */
+  framework: string | null;
   roots: SpanNode[];
 }
 

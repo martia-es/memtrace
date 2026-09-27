@@ -1,4 +1,4 @@
-import type { SpanListResponse, TranscriptResponse, ConversationDetailResponse, ConversationListResponse, OverviewResponse, ServicesResponse, TraceDetailResponse, TraceListResponse } from "@contract";
+import type { SpanListResponse, TranscriptResponse, ConversationDetailResponse, ConversationListResponse, ConversationTreeResponse, OverviewResponse, ServicesResponse, TraceDetailResponse, TraceListResponse } from "@contract";
 
 export interface RangeParams {
   from: string;
@@ -47,6 +47,8 @@ export interface TraceApi {
   getTranscript(conversationId: string, signal?: AbortSignal): Promise<TranscriptResponse>;
   /** resumen + turnos en orden cronológico */
   getConversation(conversationId: string, params?: { limit?: number; cursor?: string }, signal?: AbortSignal): Promise<ConversationDetailResponse>;
+  /** árbol de spans de cada turno, en el mismo orden y página que getConversation (vista de árbol unificado) */
+  getConversationTree(conversationId: string, params?: { limit?: number; cursor?: string }, signal?: AbortSignal): Promise<ConversationTreeResponse>;
 }
 
 /** Error de la API (RFC 7807) o de conexión (`status === 0`). */

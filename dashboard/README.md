@@ -16,7 +16,7 @@ Para generar datos de prueba: `MEMTRACE_CAPTURE_CONTENT=true python examples/02_
 | Pantalla | |
 |---|---|
 | **Conversaciones** (`/conversations`) | pantalla principal (ADR-017): KPIs y lista de **trazas**; el interruptor "Agrupar por conversación" (`?group=conversation`) muestra una fila por conversación. Filtros por rango, agente y errores, y modo "en vivo" |
-| **Conversación** (`/conversations/:id`) | trazas de esa conversación (usa el mensaje del usuario como etiqueta si hay contenido capturado) |
+| **Conversación** (`/conversations/:id`) | trazas de esa conversación (usa el mensaje del usuario como etiqueta si hay contenido capturado). Interruptor **Table / Tree** (`?view=tree`, ADR-012): árbol de spans de cada turno apilado, con el mismo inspector que la vista de traza |
 | **Traza** (`/traces/:id`) | izquierda, árbol de spans con barras de tiempo; derecha, input, output y metadata del span elegido (`?span=` en la URL). Requiere `MEMTRACE_CAPTURE_CONTENT=true` para ver el contenido |
 | **Métricas** (`/metrics`) | KPIs, actividad y latencia p95, tokens por intervalo, uso por modelo y por herramienta |
 

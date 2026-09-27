@@ -11,6 +11,8 @@ import type { TraceRepository } from "./ports/trace-repository";
 export const DEFAULT_PAGE_SIZE = 50;
 export const MAX_PAGE_SIZE = 200;
 export const MAX_SPANS_PER_TRACE = 5000;
+/** Más bajo que `MAX_SPANS_PER_TRACE`: la vista de árbol de conversación carga varias trazas a la vez. */
+export const MAX_SPANS_PER_TRACE_IN_TREE = 2000;
 export const MAX_CHAT_SPANS_PER_TRANSCRIPT = 500;
 
 export interface ListTracesInput {
@@ -127,6 +129,26 @@ export class TraceQueryService {
     const found = await this.repository.getTraceSpans(traceId, MAX_SPANS_PER_TRACE);
     if (!found || found.spans.length === 0) throw new TraceNotFoundError(traceId);
     return buildTraceDetail(traceId, found.spans, found.truncated);
+  }
+
+  /** Árbol de spans de cada turno de la conversación, en el mismo orden y página que `getConversation`. */
+  async getConversationTraceTrees(conversationId: string, input: { limit?: number; cursor?: PageCursor } = {}): Promise<Page<TraceDetail>> {
+    const limit = this.pageSize(input.limit);
+    const toMs = this.now();
+    const range = { fromMs: toMs - MAX_RANGE_MS, toMs };
+    const [conversation, turns] = await Promise.all([
+      this.repository.getConversation(conversationId, range),
+      this.repository.listTraces({ ...range, conversationId, order: "asc", limit, cursor: input.cursor }),
+    ]);
+    if (!conversation) throw new ConversationNotFoundError(conversationId);
+
+    const traceIds = turns.items.map((t) => t.traceId);
+    const byTraceId = await this.repository.getTraceSpansForTraces(traceIds, MAX_SPANS_PER_TRACE_IN_TREE);
+    const items = traceIds
+      .map((traceId) => ({ traceId, found: byTraceId.get(traceId) }))
+      .filter(({ found }) => found && found.spans.length > 0)
+      .map(({ traceId, found }) => buildTraceDetail(traceId, found!.spans, found!.truncated));
+    return { items, nextCursor: turns.nextCursor };
   }
 
   async getOverview(input: { from?: Date; to?: Date; service?: string }): Promise<MetricsOverview & { fromMs: number; toMs: number }> {

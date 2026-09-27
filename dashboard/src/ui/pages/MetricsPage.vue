@@ -11,19 +11,22 @@ import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import FilterBar from "../components/FilterBar.vue";
 import LiveControl from "../components/LiveControl.vue";
+import PageHeader from "../components/PageHeader.vue";
 import { useAsync } from "../composables/useAsync";
 import { setRefreshSeconds, useLiveRefresh } from "../composables/useLiveRefresh";
 import { useFilters } from "../composables/useFilters";
 import { useTraceApi } from "../composables/useTraceApi";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 
 const api = useTraceApi();
 const $q = useQuasar();
 const f = useFilters();
 const router = useRouter();
+const route = useRoute();
+const experimentId = computed(() => route.params.experimentId as string);
 
 const goToErrors = () => {
-  router.push({ name: "conversations", query: { status: "error", range: f.range.value } });
+  router.push({ name: "conversations", params: { experimentId: experimentId.value }, query: { status: "error", range: f.range.value } });
 };
 
 const overview = useAsync((signal) => api.getOverview({ ...resolveRange(f.range.value, Date.now()), service: f.service.value }, signal));
@@ -67,7 +70,7 @@ function sparkOption(values: number[], color: string): EChartsCoreOption {
     series: [{ type: "line", data: values, smooth: 0.4, showSymbol: false, lineStyle: { width: 2.5, color }, areaStyle: { color, opacity: 0.22 } }],
   };
 }
-const traceSpark = computed(() => sparkOption(data.value?.timeseries.map((p) => p.traces) ?? [], PALETTE.lime));
+const traceSpark = computed(() => sparkOption(data.value?.timeseries.map((p) => p.traces) ?? [], PALETTE.darkGreen));
 
 function axisBase() {
   const c = chartColors($q.dark.isActive);
@@ -106,7 +109,7 @@ const activityOption = computed<EChartsCoreOption>(() => {
       { type: "value", ...a, splitLine: { show: false }, axisLabel: { ...a.axisLabel, formatter: (v: number) => formatDuration(v) } },
     ],
     series: [
-      { name: "Successful", type: "bar", stack: "t", barMaxWidth: 26, data: d?.timeseries.map((p) => p.traces - p.errorTraces) ?? [], itemStyle: { color: PALETTE.lime, borderRadius: [0, 0, 0, 0] } },
+      { name: "Successful", type: "bar", stack: "t", barMaxWidth: 26, data: d?.timeseries.map((p) => p.traces - p.errorTraces) ?? [], itemStyle: { color: PALETTE.darkGreen, borderRadius: [0, 0, 0, 0] } },
       { name: "With errors", type: "bar", stack: "t", barMaxWidth: 26, data: d?.timeseries.map((p) => p.errorTraces) ?? [], itemStyle: { color: PALETTE.teal, borderRadius: [6, 6, 0, 0] } },
       {
         name: "Latency p95",
@@ -139,8 +142,8 @@ const inputTokensOption = computed<EChartsCoreOption>(() => {
         type: "line",
         smooth: 0.35,
         showSymbol: false,
-        lineStyle: { width: 2.5, color: PALETTE.lime },
-        areaStyle: { color: "rgba(196,242,107,0.16)" },
+        lineStyle: { width: 2.5, color: PALETTE.darkGreen },
+        areaStyle: { color: "rgba(74,124,89,0.16)" },
         data: d?.timeseries.map((p) => Math.round((p.totalTokens * data.value!.totals.inputTokens) / data.value!.totals.totalTokens)) ?? [],
       },
     ],
@@ -165,8 +168,8 @@ const outputTokensOption = computed<EChartsCoreOption>(() => {
         type: "line",
         smooth: 0.35,
         showSymbol: false,
-        lineStyle: { width: 2.5, color: PALETTE.lime },
-        areaStyle: { color: "rgba(196,242,107,0.16)" },
+        lineStyle: { width: 2.5, color: PALETTE.darkGreen },
+        areaStyle: { color: "rgba(74,124,89,0.16)" },
         data: d?.timeseries.map((p) => Math.round((p.totalTokens * data.value!.totals.outputTokens) / data.value!.totals.totalTokens)) ?? [],
       },
     ],
@@ -191,7 +194,7 @@ const latencyByModelOption = computed<EChartsCoreOption>(() => {
         type: "bar",
         barMaxWidth: 40,
         data: d?.byModel.map((m) => m.p95Ms) ?? [],
-        itemStyle: { color: PALETTE.lime, borderRadius: [6, 6, 0, 0] },
+        itemStyle: { color: PALETTE.darkGreen, borderRadius: [6, 6, 0, 0] },
       },
     ],
   };
@@ -266,7 +269,7 @@ const inputTokensByModelOption = computed<EChartsCoreOption>(() => {
         type: "bar",
         barMaxWidth: 40,
         data: d?.byModel.map((m) => m.inputTokens) ?? [],
-        itemStyle: { color: PALETTE.lime, borderRadius: [6, 6, 0, 0] },
+        itemStyle: { color: PALETTE.darkGreen, borderRadius: [6, 6, 0, 0] },
       },
     ],
   };
@@ -290,7 +293,7 @@ const outputTokensByModelOption = computed<EChartsCoreOption>(() => {
         type: "bar",
         barMaxWidth: 40,
         data: d?.byModel.map((m) => m.outputTokens) ?? [],
-        itemStyle: { color: PALETTE.lime, borderRadius: [6, 6, 0, 0] },
+        itemStyle: { color: PALETTE.darkGreen, borderRadius: [6, 6, 0, 0] },
       },
     ],
   };
@@ -304,15 +307,11 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 
 <template>
   <q-page class="page">
-    <header class="head">
-      <div>
-        <div class="eyebrow">Observability · Executive Summary</div>
-        <h1>Dashboard</h1>
-      </div>
+    <PageHeader :crumbs="[{ label: 'MemTrace', to: { name: 'conversations', params: { experimentId } } }, { label: 'Metrics' }]" icon="M3 13h4v8H3zM10 3h4v18h-4zM17 9h4v12h-4z" title="Metrics">
       <FilterBar :range="f.range.value" :loading="overview.loading.value" @update:range="f.setRange" @refresh="reload">
         <LiveControl :seconds="liveRefresh.seconds.value" :updated-at="liveRefresh.updatedAt.value" @update:seconds="setRefreshSeconds" />
       </FilterBar>
-    </header>
+    </PageHeader>
 
     <ErrorBanner v-if="overview.error.value" :error="overview.error.value" @retry="reload" />
     <div v-else-if="overview.loading.value && !data" class="loading-box">
@@ -356,7 +355,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
           <div class="metric-label">ERRORS</div>
           <div class="metric-value-with-icon">
             <q-icon v-if="data.totals.errorTraces > 0" name="error" size="20px" color="#d9b3f0" />
-            <div :style="{ color: data.totals.errorTraces > 0 ? '#5fb59a' : '#c4f26b' }">{{ formatCount(data.totals.errorTraces) }}</div>
+            <div :style="{ color: data.totals.errorTraces > 0 ? '#5fb59a' : '#7ecf96' }">{{ formatCount(data.totals.errorTraces) }}</div>
           </div>
           <div class="metric-detail">{{ formatPercent(data.totals.errorRate) }}</div>
           <a v-if="data.totals.errorTraces > 0" class="error-link" @click="goToErrors">View traces →</a>
@@ -469,30 +468,6 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
   font-family: var(--mt-sans);
 }
 
-.head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 20px;
-  flex-wrap: wrap;
-  padding: 0 4px;
-}
-
-.eyebrow {
-  color: var(--mt-muted);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.head h1 {
-  margin: 4px 0 0;
-  font-size: 2rem;
-  line-height: 1.05;
-  letter-spacing: -0.04em;
-}
-
 .loading-box {
   display: flex;
   justify-content: center;
@@ -521,7 +496,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 .summary-number {
   font-size: 32px;
   font-weight: 800;
-  color: #c4f26b;
+  color: var(--mt-accent);
   line-height: 1;
   letter-spacing: -0.03em;
 }
@@ -553,7 +528,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 }
 
 .status-card.ok {
-  border-left-color: #c4f26b;
+  border-left-color: #7ecf96;
 }
 .status-card.warn {
   border-left-color: #4a7c59;
@@ -573,7 +548,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 }
 
 .status-card.ok .status-icon {
-  background: rgba(196, 242, 107, 0.12);
+  background: rgba(126, 207, 150, 0.12);
 }
 .status-card.warn .status-icon {
   background: rgba(252, 228, 163, 0.12);
@@ -589,7 +564,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 }
 
 .status-card.ok .status-icon i {
-  background: #c4f26b;
+  background: #7ecf96;
 }
 .status-card.warn .status-icon i {
   background: #4a7c59;
@@ -613,7 +588,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 .status-value {
   font-size: 48px;
   font-weight: 900;
-  color: #c4f26b;
+  color: #7ecf96;
   line-height: 1;
   letter-spacing: -0.05em;
   margin-top: 4px;
@@ -775,7 +750,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 .panel-count {
   font-size: 20px;
   font-weight: 800;
-  color: #c4f26b;
+  color: var(--mt-accent);
 }
 
 .empty-state {
@@ -804,7 +779,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 }
 
 .model-card:hover {
-  border-color: #c4f26b;
+  border-color: var(--mt-accent);
   box-shadow: 0 4px 12px rgba(74, 50, 201, 0.15);
 }
 
@@ -825,7 +800,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 .model-number {
   font-size: 32px;
   font-weight: 900;
-  color: #c4f26b;
+  color: var(--mt-accent);
   line-height: 1;
   letter-spacing: -0.04em;
 }
@@ -885,7 +860,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 }
 
 .tool-card:hover {
-  border-color: #c4f26b;
+  border-color: var(--mt-accent);
   box-shadow: 0 4px 12px rgba(74, 50, 201, 0.15);
 }
 
@@ -933,7 +908,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 .summary-value {
   font-size: 32px;
   font-weight: 800;
-  color: #c4f26b;
+  color: var(--mt-accent);
   line-height: 1;
   letter-spacing: -0.04em;
 }

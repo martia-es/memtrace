@@ -17,7 +17,7 @@ defineProps<{ label: string; value: string; hint?: string; tone?: "default" | "n
   box-sizing: border-box;
   height: 100%;
   border: 1px solid var(--mt-line);
-  background: linear-gradient(180deg, #ffffff 0%, #fbfdfb 100%);
+  background: var(--mt-card);
   overflow: hidden;
   font-family: var(--mt-sans);
 }
@@ -29,12 +29,11 @@ defineProps<{ label: string; value: string; hint?: string; tone?: "default" | "n
   padding: 18px;
 }
 .label {
-  color: #c4f26b;
+  color: var(--mt-accent);
   font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  text-shadow: 0 0 0 rgba(74, 50, 201, 0.12);
 }
 .value {
   color: var(--mt-ink);

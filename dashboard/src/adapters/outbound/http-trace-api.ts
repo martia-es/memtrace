@@ -1,56 +1,72 @@
-import type { SpanListResponse, TranscriptResponse, ConversationDetailResponse, ConversationListResponse, OverviewResponse, ProblemDetails, ServicesResponse, TraceDetailResponse, TraceListResponse } from "@contract";
+import type { SpanListResponse, TranscriptResponse, ConversationDetailResponse, ConversationListResponse, ConversationTreeResponse, OverviewResponse, ProblemDetails, ServicesResponse, TraceDetailResponse, TraceListResponse } from "@contract";
 import { ApiError, type ListConversationsParams, type ListSpansParams, type ListTracesParams, type RangeParams, type TraceApi } from "@/application/trace-api";
 
 type Fetch = typeof fetch;
 type QueryValue = string | number | boolean | undefined;
 
-/** Adapter HTTP del puerto TraceApi contra `/api/v1`. */
+/** Adapter HTTP del puerto TraceApi contra `/api/v1/experiments/{experimentId}` (ADR-013). */
 export class HttpTraceApi implements TraceApi {
+  private experimentId: string | null = null;
+
   constructor(
     private readonly baseUrl = "/api/v1",
     private readonly fetchFn: Fetch = (...args) => fetch(...args),
   ) {}
 
+  /** Fijado por el router al entrar en `/e/:experimentId/...` (ver router.ts). */
+  setExperimentId(experimentId: string): void {
+    this.experimentId = experimentId;
+  }
+
+  private scopedBase(): string {
+    if (!this.experimentId) throw new Error("HttpTraceApi: no experiment selected");
+    return `${this.baseUrl}/experiments/${encodeURIComponent(this.experimentId)}`;
+  }
+
   listTraces(params: ListTracesParams, signal?: AbortSignal) {
-    return this.get<TraceListResponse>("/traces", { ...params }, signal);
+    return this.get<TraceListResponse>(`${this.scopedBase()}/traces`, { ...params }, signal);
   }
 
   listSpans(params: ListSpansParams, signal?: AbortSignal) {
-    return this.get<SpanListResponse>("/spans", { ...params }, signal);
+    return this.get<SpanListResponse>(`${this.scopedBase()}/spans`, { ...params }, signal);
   }
 
   getTrace(traceId: string, signal?: AbortSignal) {
-    return this.get<TraceDetailResponse>(`/traces/${encodeURIComponent(traceId)}`, {}, signal);
+    return this.get<TraceDetailResponse>(`${this.scopedBase()}/traces/${encodeURIComponent(traceId)}`, {}, signal);
   }
 
   getOverview(params: RangeParams & { service?: string }, signal?: AbortSignal) {
-    return this.get<OverviewResponse>("/metrics/overview", { ...params }, signal);
+    return this.get<OverviewResponse>(`${this.scopedBase()}/metrics/overview`, { ...params }, signal);
   }
 
   listServices(params: RangeParams, signal?: AbortSignal) {
-    return this.get<ServicesResponse>("/services", { ...params }, signal);
+    return this.get<ServicesResponse>(`${this.baseUrl}/services`, { ...params }, signal);
   }
 
   listConversations(params: ListConversationsParams, signal?: AbortSignal) {
-    return this.get<ConversationListResponse>("/conversations", { ...params }, signal);
+    return this.get<ConversationListResponse>(`${this.scopedBase()}/conversations`, { ...params }, signal);
   }
 
   getConversation(conversationId: string, params: { limit?: number; cursor?: string } = {}, signal?: AbortSignal) {
-    return this.get<ConversationDetailResponse>(`/conversations/${encodeURIComponent(conversationId)}`, { ...params }, signal);
+    return this.get<ConversationDetailResponse>(`${this.scopedBase()}/conversations/${encodeURIComponent(conversationId)}`, { ...params }, signal);
+  }
+
+  getConversationTree(conversationId: string, params: { limit?: number; cursor?: string } = {}, signal?: AbortSignal) {
+    return this.get<ConversationTreeResponse>(`${this.scopedBase()}/conversations/${encodeURIComponent(conversationId)}/tree`, { ...params }, signal);
   }
 
   getTranscript(conversationId: string, signal?: AbortSignal) {
-    return this.get<TranscriptResponse>(`/conversations/${encodeURIComponent(conversationId)}/transcript`, {}, signal);
+    return this.get<TranscriptResponse>(`${this.scopedBase()}/conversations/${encodeURIComponent(conversationId)}/transcript`, {}, signal);
   }
 
-  private async get<T>(path: string, query: Record<string, QueryValue>, signal?: AbortSignal): Promise<T> {
+  private async get<T>(fullPath: string, query: Record<string, QueryValue>, signal?: AbortSignal): Promise<T> {
     const search = new URLSearchParams();
     for (const [key, value] of Object.entries(query)) if (value !== undefined) search.set(key, String(value));
     const qs = search.toString();
 
     let response: Response;
     try {
-      response = await this.fetchFn(`${this.baseUrl}${path}${qs ? `?${qs}` : ""}`, { signal, headers: { Accept: "application/json" } });
+      response = await this.fetchFn(`${fullPath}${qs ? `?${qs}` : ""}`, { signal, headers: { Accept: "application/json" } });
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") throw error;
       throw new ApiError(0, "Sin conexión", "No se pudo contactar con la API de MemTrace.");

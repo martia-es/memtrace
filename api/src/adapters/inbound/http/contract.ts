@@ -104,6 +104,7 @@ export interface SpanNodeDto {
   orphan: boolean;
   genAi: GenAiInfoDto | null;
   content: SpanContentDto | null;
+  framework: string | null;
   attributes: Record<string, string>;
   events: SpanEventDto[];
   children: SpanNodeDto[];
@@ -119,6 +120,7 @@ export interface TraceDetailResponse {
   totalTokens: number;
   truncated: boolean;
   conversationId: string | null;
+  framework: string | null;
   roots: SpanNodeDto[];
 }
 
@@ -154,6 +156,12 @@ export interface ConversationListResponse {
 /** Resumen + turnos en orden cronológico */
 export interface ConversationDetailResponse extends ConversationSummaryDto {
   turns: TraceListResponse;
+}
+
+/** Árbol de spans de cada turno de la conversación, en orden cronológico (para la vista unificada). */
+export interface ConversationTreeResponse {
+  items: TraceDetailResponse[];
+  nextCursor: string | null;
 }
 
 export interface OverviewResponse {

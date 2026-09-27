@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TraceQueryService } from "@/application/trace-query-service";
-import { TraceNotFoundError, ValidationError } from "@/domain/errors";
+import { ConversationNotFoundError, TraceNotFoundError, ValidationError } from "@/domain/errors";
 import { FakeTraceRepository, emptyOverview, span } from "../helpers";
 
 const NOW = Date.parse("2026-09-26T12:00:00Z");
@@ -37,6 +37,29 @@ describe("TraceQueryService", () => {
     const detail = await service.getTrace("t");
     expect(detail.roots).toHaveLength(1);
     expect(detail.truncated).toBe(true);
+  });
+
+  it("builds one span tree per turn, in the same order, skipping turns with no spans", async () => {
+    const { repo, service } = setup();
+    repo.conversations.set("c1", {
+      conversationId: "c1", serviceNames: ["svc"], startTimeUs: 1, lastActivityUs: 2,
+      turnCount: 2, errorTurns: 0, failedSpans: 0, totalTokens: 0, activeMs: 0,
+    });
+    repo.page = {
+      items: [
+        { traceId: "t1", rootSpanName: "turno 1", serviceName: "svc", startTimeUs: 1, durationMs: 5, status: "ok", spanCount: 1, errorCount: 0, totalTokens: 0, input: null, output: null, conversationId: "c1" },
+        { traceId: "t2", rootSpanName: "turno 2", serviceName: "svc", startTimeUs: 2, durationMs: 5, status: "ok", spanCount: 1, errorCount: 0, totalTokens: 0, input: null, output: null, conversationId: "c1" },
+      ],
+      nextCursor: null,
+    };
+    repo.traces.set("t1", { spans: [span({ spanId: "t1" })], truncated: false });
+    // t2 sin spans: llegó a listTraces pero desapareció del almacén de spans; no debe romper la respuesta
+
+    const page = await service.getConversationTraceTrees("c1");
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0]!.traceId).toBe("t1");
+
+    await expect(service.getConversationTraceTrees("nope")).rejects.toBeInstanceOf(ConversationNotFoundError);
   });
 
   it("fills the overview timeseries and passes a computed bucket size", async () => {

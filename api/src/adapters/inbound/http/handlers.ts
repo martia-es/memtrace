@@ -2,7 +2,7 @@ import { RepositoryUnavailableError } from "@/application/errors";
 import type { TraceQueryService } from "@/application/trace-query-service";
 import { ConversationNotFoundError, TraceNotFoundError, ValidationError } from "@/domain/errors";
 import type { ServicesResponse } from "./contract";
-import { toSpanListResponse, toTranscriptResponse, toConversationDetailResponse, toConversationListResponse, toOverviewResponse, toTraceDetailResponse, toTraceListResponse } from "./mappers";
+import { toSpanListResponse, toTranscriptResponse, toConversationDetailResponse, toConversationListResponse, toConversationTreeResponse, toOverviewResponse, toTraceDetailResponse, toTraceListResponse } from "./mappers";
 import { json, problem } from "./problem";
 import {
   conversationIdParam,
@@ -64,6 +64,14 @@ export function createHandlers(service: TraceQueryService) {
         const { cursor, limit } = parseOrThrow(turnsQuery, query(request));
         const detail = await service.getConversation(conversationId, { limit, cursor: cursor ? decodeCursor(cursor) : undefined });
         return json(toConversationDetailResponse(detail.conversation, detail.turns));
+      }),
+
+    getConversationTree: (request: Request, rawConversationId: string) =>
+      guard(async () => {
+        const conversationId = parseOrThrow(conversationIdParam, rawConversationId, "conversationId");
+        const { cursor, limit } = parseOrThrow(turnsQuery, query(request));
+        const page = await service.getConversationTraceTrees(conversationId, { limit, cursor: cursor ? decodeCursor(cursor) : undefined });
+        return json(toConversationTreeResponse(page));
       }),
 
     getTranscript: (_request: Request, rawConversationId: string) =>

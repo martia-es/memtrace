@@ -1,6 +1,7 @@
 import type { GenAiInfo, SpanContent } from "./span";
 
 const STEP_TYPE = "memtrace.step_type";
+const FRAMEWORK = "memtrace.framework";
 
 // atributo (ADR-004) -> campo de SpanContent
 const CONTENT_KEYS: Record<string, keyof SpanContent> = {
@@ -28,7 +29,7 @@ const GENAI_KEYS = [
 ];
 
 /** Atributos ya representados en `kind`, `genAi` o `content`: no se repiten en `attributes`. */
-const CONSUMED = new Set([STEP_TYPE, ...GENAI_KEYS, ...Object.keys(CONTENT_KEYS)]);
+const CONSUMED = new Set([STEP_TYPE, FRAMEWORK, ...GENAI_KEYS, ...Object.keys(CONTENT_KEYS)]);
 
 function num(value: string | undefined): number | null {
   if (value === undefined || value === "") return null;

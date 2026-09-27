@@ -1,0 +1,46 @@
+# El ConfigMap `postgres-migrations` lo genera kustomize (ver kustomization.yaml).
+# Los Jobs son inmutables: para relanzar, borrar antes el Job.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: postgres-migrate
+  namespace: memtrace
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: migrate
+        image: postgres:16-alpine
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: password
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          set -eu
+          PSQL="psql -h postgres -U memtrace -d memtrace_identity -v ON_ERROR_STOP=1"
+          until $PSQL -c "SELECT 1" >/dev/null 2>&1; do echo "waiting for postgres"; sleep 2; done
+          $PSQL -c "CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())"
+          for f in $(ls /migrations/*.sql | sort); do
+            v=$(basename "$f")
+            done_count=$($PSQL -tA -c "SELECT count(*) FROM schema_migrations WHERE version = '$v'")
+            if [ "$done_count" = "0" ]; then
+              echo "applying $v"
+              $PSQL -f "$f"
+              $PSQL -c "INSERT INTO schema_migrations (version) VALUES ('$v')"
+            else
+              echo "skipping $v (already applied)"
+            fi
+          done
+        volumeMounts:
+        - name: migrations
+          mountPath: /migrations
+      volumes:
+      - name: migrations
+        configMap:
+          name: postgres-migrations

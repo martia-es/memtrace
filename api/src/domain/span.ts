@@ -17,6 +17,8 @@ export interface Span {
   parentSpanId: string | null;
   name: string;
   serviceName: string;
+  /** scope de instrumentación OTel: identifica frameworks con autoinstrumentación nativa (ADR-011) */
+  scopeName: string;
   startTimeUs: number;
   durationMs: number;
   status: SpanStatus;
@@ -63,6 +65,8 @@ export interface SpanNode {
   orphan: boolean;
   genAi: GenAiInfo | null;
   content: SpanContent | null;
+  /** framework de agentes que originó el span, si se pudo detectar (ADR-011) */
+  framework: string | null;
   attributes: Record<string, string>;
   events: SpanEvent[];
   children: SpanNode[];
