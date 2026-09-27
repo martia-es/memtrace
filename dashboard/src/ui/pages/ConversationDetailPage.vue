@@ -240,7 +240,7 @@ h1 {
   flex-direction: column;
   gap: 1px;
   padding: 6px 16px;
-  border-radius: 16px;
+  border-radius: var(--mt-radius-lg);
   background: var(--mt-soft-2);
 }
 .stat .k {
@@ -256,7 +256,7 @@ h1 {
   display: flex;
   gap: 2px;
   padding: 3px;
-  border-radius: 12px;
+  border-radius: var(--mt-radius-lg);
   background: var(--mt-soft-2);
   flex-shrink: 0;
 }
@@ -264,7 +264,7 @@ h1 {
   border: 0;
   background: none;
   padding: 5px 14px;
-  border-radius: 9px;
+  border-radius: var(--mt-radius-sm);
   font: inherit;
   font-size: 12.5px;
   font-weight: 600;
@@ -313,7 +313,7 @@ h1 {
   height: 30px;
   padding: 0 14px;
   border: 1px solid var(--mt-line);
-  border-radius: 15px;
+  border-radius: var(--mt-radius-lg);
   background: var(--mt-card);
   font: inherit;
   font-weight: 600;

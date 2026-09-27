@@ -9,7 +9,7 @@ const emit = defineEmits<{ close: [] }>();
       <div class="modal-card mt-card" role="dialog" aria-modal="true" :aria-label="title">
         <div class="modal-header">
           <h2>{{ title }}</h2>
-          <button class="modal-close" type="button" aria-label="Cerrar" @click="emit('close')">
+          <button class="modal-close" type="button" aria-label="Close" @click="emit('close')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
           </button>
         </div>
@@ -63,7 +63,7 @@ const emit = defineEmits<{ close: [] }>();
   height: 32px;
   padding: 0;
   border: none;
-  border-radius: 16px;
+  border-radius: var(--mt-radius-lg);
   background: transparent;
   color: var(--mt-muted);
   cursor: pointer;

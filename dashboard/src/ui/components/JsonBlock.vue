@@ -12,14 +12,14 @@ async function copy() {
     await navigator.clipboard.writeText(text.value);
     $q.notify({ message: "Copiado", timeout: 1200, position: "bottom" });
   } catch {
-    $q.notify({ message: "No se pudo copiar", color: "negative", timeout: 1500 });
+    $q.notify({ message: "Could not copy", color: "negative", timeout: 1500 });
   }
 }
 </script>
 
 <template>
   <div class="json-block">
-    <q-btn flat round dense size="sm" icon="content_copy" class="copy" aria-label="Copiar" @click="copy" />
+    <q-btn flat round dense size="sm" icon="content_copy" class="copy" aria-label="Copy" @click="copy" />
     <pre>{{ text }}</pre>
   </div>
 </template>
@@ -28,7 +28,7 @@ async function copy() {
 .json-block {
   position: relative;
   border: 1px solid var(--wf-line);
-  border-radius: 6px;
+  border-radius: var(--mt-radius-sm);
   background: var(--code-bg);
 }
 .copy {

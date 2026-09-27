@@ -9,9 +9,9 @@
   --mt-soft-2: #f4f8f5;
   --mt-line: #e8eee9;
   --mt-line-2: #eef2ef;
-  --mt-accent: #4a7c59;
+  --mt-accent: #1c1f23;
   --mt-accent-ink: #ffffff;
-  --mt-violet: #4a7c59;
+  --mt-violet: #1c1f23;
   --mt-ok-bg: #ddf6b8;
   --mt-ok-ink: #2a5a0d;
   --mt-err-bg: #ffe1de;
@@ -22,12 +22,18 @@
   --mt-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --mt-sans: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
 
-  --q-primary: #4a7c59;
+  /* Escala de esquinas centralizada (ADR-018): mínimo redondeo en toda la app. */
+  --mt-radius-xs: 0px;
+  --mt-radius-sm: 0px;
+  --mt-radius-lg: 0px;
+
+  --q-primary: #1c1f23;
   --wf-line: rgba(14, 26, 19, 0.1);
   --wf-hover: rgba(14, 26, 19, 0.04);
-  --wf-selected: rgba(74, 50, 201, 0.1);
+  --wf-selected: rgba(28, 31, 35, 0.1);
   --code-bg: rgba(14, 26, 19, 0.04);
 }
+
 /* Tema oscuro (ADR-017): mismos tokens, activados por la clase que pone Quasar ($q.dark.set). */
 body.body--dark {
   --mt-bg: #101b14;
@@ -39,9 +45,9 @@ body.body--dark {
   --mt-soft-2: #1a2620;
   --mt-line: #263427;
   --mt-line-2: #223026;
-  --mt-accent: #6fcf4a;
+  --mt-accent: #f2f3f5;
   --mt-accent-ink: #0e1a13;
-  --mt-violet: #6fcf4a;
+  --mt-violet: #f2f3f5;
   --mt-ok-bg: #1f3d18;
   --mt-ok-ink: #b9f28c;
   --mt-err-bg: #3a1e1a;
@@ -50,44 +56,66 @@ body.body--dark {
   --mt-warn-ink: #ffcf80;
   --mt-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.4);
 
-  --q-primary: #6fcf4a;
+  --q-primary: #f2f3f5;
   --wf-line: rgba(255, 255, 255, 0.12);
   --wf-hover: rgba(255, 255, 255, 0.06);
-  --wf-selected: rgba(111, 207, 74, 0.16);
+  --wf-selected: rgba(242, 243, 245, 0.16);
   --code-bg: rgba(255, 255, 255, 0.08);
 }
+
 body {
   font-family: var(--mt-sans);
   color: var(--mt-ink);
   background: var(--mt-bg);
 }
+
 .mono {
   font-family: var(--mt-mono);
 }
+
 .mt-card {
   background: var(--mt-card);
-  border-radius: 28px;
+  border-radius: var(--mt-radius-lg);
   box-shadow: var(--mt-shadow);
 }
+
 .mt-pill {
   display: inline-block;
   padding: 3px 10px;
-  border-radius: 999px;
+  border-radius: var(--mt-radius-sm);
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
 }
-.mt-pill.ok { background: var(--mt-ok-bg); color: var(--mt-ok-ink); }
-.mt-pill.error { background: var(--mt-err-bg); color: var(--mt-err-ink); }
-.mt-pill.warn { background: var(--mt-warn-bg); color: var(--mt-warn-ink); }
-.mt-pill.unset { background: var(--mt-soft); color: var(--mt-muted); }
+
+.mt-pill.ok {
+  background: var(--mt-ok-bg);
+  color: var(--mt-ok-ink);
+}
+
+.mt-pill.error {
+  background: var(--mt-err-bg);
+  color: var(--mt-err-ink);
+}
+
+.mt-pill.warn {
+  background: var(--mt-warn-bg);
+  color: var(--mt-warn-ink);
+}
+
+.mt-pill.unset {
+  background: var(--mt-soft);
+  color: var(--mt-muted);
+}
+
 .mt-segmented {
   display: inline-flex;
   gap: 2px;
   padding: 4px;
-  border-radius: 20px;
+  border-radius: var(--mt-radius-sm);
   background: var(--mt-soft);
 }
+
 .mt-segmented button {
   display: flex;
   align-items: center;
@@ -95,7 +123,7 @@ body {
   height: 32px;
   padding: 0 16px;
   border: 0;
-  border-radius: 16px;
+  border-radius: var(--mt-radius-sm);
   background: transparent;
   color: var(--mt-muted);
   font: inherit;
@@ -103,13 +131,25 @@ body {
   font-weight: 600;
   cursor: pointer;
 }
+
 .mt-segmented button[aria-pressed="true"] {
   background: var(--mt-card);
   color: var(--mt-ink);
   box-shadow: 0 1px 3px rgba(20, 60, 35, 0.15);
 }
-.mt-segmented.small { padding: 3px; border-radius: 16px; }
-.mt-segmented.small button { height: 24px; padding: 0 10px; border-radius: 12px; font-size: 11.5px; }
+
+.mt-segmented.small {
+  padding: 3px;
+  border-radius: var(--mt-radius-sm);
+}
+
+.mt-segmented.small button {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: var(--mt-radius-xs);
+  font-size: 11.5px;
+}
+
 .mt-round-btn {
   display: inline-flex;
   align-items: center;
@@ -120,24 +160,27 @@ body {
   color: var(--mt-ink);
   cursor: pointer;
 }
+
 :focus-visible {
   outline: 2px solid var(--mt-accent);
   outline-offset: 2px;
 }
+
 code {
   font-family: var(--mt-mono);
   background: var(--code-bg);
   padding: 1px 5px;
-  border-radius: 4px;
+  border-radius: var(--mt-radius-xs);
 }
+
 .toggle-group {
   display: inline-flex;
   align-items: center;
   padding: 4px;
-  border-radius: 999px;
+  border-radius: var(--mt-radius-sm);
   background: var(--mt-soft);
   border: 1px solid var(--wf-line);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
 }
 
 .toggle-group .q-btn-group {
@@ -149,7 +192,7 @@ code {
 .toggle-group .q-btn {
   min-height: 30px;
   padding: 0 12px;
-  border-radius: 999px;
+  border-radius: var(--mt-radius-sm);
   background: transparent;
   color: var(--mt-muted);
   font-size: 12px;

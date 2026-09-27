@@ -301,11 +301,11 @@ const guide = computed(() => {
         <div class="step-header">
           <span class="step-label">Set environment variables</span>
           <button class="generate-key-btn" type="button" :disabled="generatingApiKey" @click="generateApiKey">
-            {{ generatedApiKey ? "Generar otra API key" : "Generar API key" }}
+            {{ generatedApiKey ? "Generate another API key" : "Generate API key" }}
           </button>
         </div>
         <p v-if="generatedApiKey" class="key-warning">
-          Cópiala ahora — no se volverá a mostrar completa. Si sales de esta pantalla tendrás que generar una nueva.
+          Copy it now — it won't be shown in full again. If you leave this screen you'll need to generate a new one.
         </p>
         <div class="snippet">
           <pre><code>{{ guide.env }}</code></pre>
@@ -408,7 +408,7 @@ const guide = computed(() => {
   flex-shrink: 0;
   height: 30px;
   padding: 0 14px;
-  border-radius: 15px;
+  border-radius: var(--mt-radius-lg);
   border: none;
   background: var(--mt-accent);
   color: var(--mt-accent-ink);
@@ -429,7 +429,7 @@ const guide = computed(() => {
 .snippet {
   position: relative;
   background: var(--code-bg);
-  border-radius: 12px;
+  border-radius: var(--mt-radius-lg);
 }
 .snippet pre {
   margin: 0;
@@ -456,7 +456,7 @@ const guide = computed(() => {
   width: 26px;
   height: 26px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--mt-radius-sm);
   background: var(--mt-card);
   color: var(--mt-muted);
   cursor: pointer;

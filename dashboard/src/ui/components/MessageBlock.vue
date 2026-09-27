@@ -109,7 +109,7 @@ async function copyCall(i: number, name: string, args: Record<string, unknown>) 
   width: 20px;
   height: 20px;
   flex-shrink: 0;
-  border-radius: 5px;
+  border-radius: var(--mt-radius-xs);
   background: color-mix(in srgb, var(--accent) 16%, var(--mt-card));
   color: var(--accent);
 }
@@ -130,7 +130,7 @@ async function copyCall(i: number, name: string, args: Record<string, unknown>) 
   height: 22px;
   margin-left: auto;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--mt-radius-sm);
   background: transparent;
   color: var(--mt-faint);
   cursor: pointer;
@@ -191,7 +191,7 @@ async function copyCall(i: number, name: string, args: Record<string, unknown>) 
 }
 .chip {
   padding: 1px 7px;
-  border-radius: 5px;
+  border-radius: var(--mt-radius-xs);
   border: 1px solid var(--mt-line);
   background: var(--mt-soft-2);
   font-size: 10.5px;
@@ -201,7 +201,7 @@ async function copyCall(i: number, name: string, args: Record<string, unknown>) 
 .args {
   margin: 6px 0 0;
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: var(--mt-radius-sm);
   background: var(--mt-soft-2);
   display: flex;
   flex-direction: column;

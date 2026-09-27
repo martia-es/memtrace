@@ -201,7 +201,7 @@ h2 {
   align-items: center;
   gap: 5px;
   padding: 3px 9px;
-  border-radius: 999px;
+  border-radius: var(--mt-radius-sm);
   font-size: 12px;
   font-weight: 600;
 }
@@ -215,7 +215,7 @@ h2 {
 }
 .banner {
   padding: 12px 14px;
-  border-radius: 18px;
+  border-radius: var(--mt-radius-lg);
   font-size: 13px;
   font-weight: 500;
   flex-shrink: 0;

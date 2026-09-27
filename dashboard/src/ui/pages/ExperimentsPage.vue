@@ -15,8 +15,8 @@ const $q = useQuasar();
 const organizations = useAsync((signal) => api.listOrganizations(signal));
 const experiments = useAsync((signal) => api.listExperiments(signal));
 
-// Los contadores de miembros/invitaciones deben verse sin necesidad de desplegar cada fila:
-// se cargan todos en cuanto tenemos organizaciones y experimentos, no al hacer clic.
+// Member/invitation counts must be visible without expanding each row:
+// they're all loaded as soon as we have organizations and experiments, not on click.
 const membersLoaded = ref(false);
 async function bootstrap() {
   await Promise.all([organizations.run(), experiments.run()]);
@@ -26,8 +26,8 @@ async function bootstrap() {
 void bootstrap();
 
 async function refreshAllMembers() {
-  // Ver el listado de miembros requiere poder gestionarlos (ADR-016): un member solo ve lo suyo,
-  // así que ni lo intentamos para las orgs/experimentos donde no es org_admin/admin (evita 403 en cascada).
+  // Viewing the member list requires being able to manage them (ADR-016): a member only sees their own,
+  // so we don't even try it for orgs/experiments where they aren't org_admin/admin (avoids cascading 403s).
   await Promise.all([
     ...(organizations.data.value ?? []).filter(canManageOrg).map(async (o) => {
       membersByOrg[o.id] = await api.listOrgMembers(o.id);
@@ -38,7 +38,7 @@ async function refreshAllMembers() {
   ]);
 }
 
-// ---- permisos por fila (ADR-016): admin siempre ve todo, member solo lee y se genera su API key ----
+// ---- per-row permissions (ADR-016): admin always sees everything, member only reads and generates their own API key ----
 function canManageOrg(o: OrganizationDto): boolean {
   return o.myRole === "org_admin";
 }
@@ -51,7 +51,7 @@ function notifyError(action: string, error: unknown) {
   $q.notify({ message: `${action}: ${detail}`, color: "negative", timeout: 4000 });
 }
 
-// ---- organizaciones ----
+// ---- organizations ----
 const showOrgModal = ref(false);
 const newOrgName = ref("");
 const creatingOrg = ref(false);
@@ -65,13 +65,13 @@ async function createOrganization() {
     await organizations.run();
     await refreshAllMembers();
   } catch (error) {
-    notifyError("No se pudo crear la organización", error);
+    notifyError("Could not create organization", error);
   } finally {
     creatingOrg.value = false;
   }
 }
 
-// ---- invitar org_admin ----
+// ---- invite org_admin ----
 const showOrgInviteModal = ref(false);
 const inviteOrgId = ref<string | null>(null);
 const orgInviteEmail = ref("");
@@ -88,17 +88,17 @@ async function inviteOrgAdmin() {
     const organizationId = inviteOrgId.value;
     await api.addOrgAdmin(organizationId, orgInviteEmail.value.trim());
     showOrgInviteModal.value = false;
-    $q.notify({ message: "Invitación enviada", color: "positive", timeout: 2500 });
+    $q.notify({ message: "Invitation sent", color: "positive", timeout: 2500 });
     membersByOrg[organizationId] = await api.listOrgMembers(organizationId);
     expandedOrgMembersId.value = organizationId;
   } catch (error) {
-    notifyError("No se pudo invitar", error);
+    notifyError("Could not invite", error);
   } finally {
     invitingOrgAdmin.value = false;
   }
 }
 
-// ---- miembros e invitaciones pendientes de organización (precargados, ver bootstrap) ----
+// ---- organization members and pending invitations (preloaded, see bootstrap) ----
 const expandedOrgMembersId = ref<string | null>(null);
 const membersByOrg = reactive<Record<string, MembersResponseDto>>({});
 function toggleOrgMembers(organizationId: string) {
@@ -135,7 +135,7 @@ function initials(name: string): string {
 
 const ROLE_LABEL: Record<string, string> = { org_admin: "org_admin", admin: "admin", member: "member" };
 
-// ---- directorio: todos los miembros e invitaciones, de un vistazo, con a qué pertenecen ----
+// ---- directory: all members and invitations, at a glance, with what they belong to ----
 interface DirectoryRow {
   id: string;
   name: string;
@@ -177,13 +177,13 @@ const filteredDirectoryRows = computed(() => {
   return directoryRows.value.filter((r) => r.name.toLowerCase().includes(q) || r.email.toLowerCase().includes(q) || r.scopeLabel.toLowerCase().includes(q));
 });
 
-// ---- experimentos ----
+// ---- experiments ----
 const showExperimentModal = ref(false);
 const selectedOrgId = ref<string | null>(null);
 const newServiceName = ref("");
 const newExperimentName = ref("");
 const experimentNameTouched = ref(false);
-// por defecto el nombre visible es el mismo service.name: son la misma cosa hasta que el usuario lo cambie a mano
+// by default the display name matches the service.name: they're the same thing until the user edits it manually
 function onServiceNameInput() {
   if (!experimentNameTouched.value) newExperimentName.value = newServiceName.value;
 }
@@ -204,21 +204,21 @@ async function createExperiment() {
     await experiments.run();
     await refreshAllMembers();
   } catch (error) {
-    notifyError("No se pudo crear el experimento", error);
+    notifyError("Could not create experiment", error);
   } finally {
     creatingExperiment.value = false;
   }
 }
 
-// ---- invitar a experimento ----
+// ---- invite to experiment ----
 const showExperimentInviteModal = ref(false);
 const inviteExperimentId = ref<string | null>(null);
 const experimentInviteEmail = ref("");
 const experimentInviteRole = ref<"admin" | "member">("member");
 const invitingExperimentMember = ref(false);
 const experimentRoleOptions = [
-  { label: "member (solo lectura)", value: "member" as const },
-  { label: "admin (puede invitar)", value: "admin" as const },
+  { label: "member (read-only)", value: "member" as const },
+  { label: "admin (can invite)", value: "admin" as const },
 ];
 function openExperimentInviteModal(experimentId: string) {
   inviteExperimentId.value = experimentId;
@@ -233,17 +233,17 @@ async function inviteExperimentMember() {
     const experimentId = inviteExperimentId.value;
     await api.addExperimentMember(experimentId, experimentInviteEmail.value.trim(), experimentInviteRole.value);
     showExperimentInviteModal.value = false;
-    $q.notify({ message: "Invitación enviada", color: "positive", timeout: 2500 });
+    $q.notify({ message: "Invitation sent", color: "positive", timeout: 2500 });
     membersByExperiment[experimentId] = await api.listExperimentMembers(experimentId);
     expandedMembersId.value = experimentId;
   } catch (error) {
-    notifyError("No se pudo invitar", error);
+    notifyError("Could not invite", error);
   } finally {
     invitingExperimentMember.value = false;
   }
 }
 
-// ---- miembros e invitaciones pendientes de experimento (precargados, ver bootstrap) ----
+// ---- experiment members and pending invitations (preloaded, see bootstrap) ----
 const expandedMembersId = ref<string | null>(null);
 const membersByExperiment = reactive<Record<string, MembersResponseDto>>({});
 function toggleExperimentMembers(experimentId: string) {
@@ -256,7 +256,7 @@ function expPendingCount(experimentId: string): number {
   return membersByExperiment[experimentId]?.pendingInvitations.length ?? 0;
 }
 
-// ---- API keys (ADR-013, pieza 9) ----
+// ---- API keys (ADR-013, piece 9) ----
 const expandedId = ref<string | null>(null);
 const apiKeysByExperiment = reactive<Record<string, ApiKeyDto[]>>({});
 const loadingKeys = ref(false);
@@ -274,7 +274,7 @@ async function toggleApiKeys(experimentId: string) {
   try {
     apiKeysByExperiment[experimentId] = await api.listApiKeys(experimentId);
   } catch (error) {
-    notifyError("No se pudieron cargar las API keys", error);
+    notifyError("Could not load API keys", error);
   } finally {
     loadingKeys.value = false;
   }
@@ -287,7 +287,7 @@ async function generateApiKey(experimentId: string) {
     revealedKey.value = { experimentId, plaintext: created.plaintext };
     apiKeysByExperiment[experimentId] = await api.listApiKeys(experimentId);
   } catch (error) {
-    notifyError("No se pudo generar la API key", error);
+    notifyError("Could not generate API key", error);
   } finally {
     generatingKey.value = false;
   }
@@ -298,7 +298,7 @@ async function revokeApiKey(experimentId: string, keyId: string) {
     await api.revokeApiKey(experimentId, keyId);
     apiKeysByExperiment[experimentId] = await api.listApiKeys(experimentId);
   } catch (error) {
-    notifyError("No se pudo revocar la API key", error);
+    notifyError("Could not revoke API key", error);
   }
 }
 
@@ -313,12 +313,12 @@ MEMTRACE_CAPTURE_CONTENT="true"`;
 
 function copyEnvSnippet(experiment: ExperimentDto, plaintext: string) {
   void navigator.clipboard.writeText(envSnippet(experiment, plaintext));
-  $q.notify({ message: "Copiado", timeout: 1200, position: "bottom" });
+  $q.notify({ message: "Copied", timeout: 1200, position: "bottom" });
 }
 
 function formatDate(iso: string | null): string {
-  if (!iso) return "nunca";
-  return new Date(iso).toLocaleString("es-ES", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  if (!iso) return "never";
+  return new Date(iso).toLocaleString("en-US", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 </script>
 
@@ -328,17 +328,17 @@ function formatDate(iso: string | null): string {
 
     <section class="section-head">
       <div>
-        <h2>Organizaciones</h2>
-        <p class="section-sub">Cada organización agrupa sus experimentos y sus miembros con acceso.</p>
+        <h2>Organizations</h2>
+        <p class="section-sub">Each organization groups its experiments and the members with access to them.</p>
       </div>
       <button class="primary-btn" type="button" @click="showOrgModal = true">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-        Nueva organización
+        New organization
       </button>
     </section>
 
-    <EmptyState v-if="!organizations.loading.value && !organizations.data.value?.length" icon="apartment" title="Todavía no tienes acceso a ninguna organización ni experimento">
-      Crea una organización para empezar — te conviertes en su primer org_admin.
+    <EmptyState v-if="!organizations.loading.value && !organizations.data.value?.length" icon="apartment" title="You don't have access to any organization or experiment yet">
+      Create an organization to get started — you'll become its first org_admin.
     </EmptyState>
 
     <div v-else class="org-grid">
@@ -347,9 +347,9 @@ function formatDate(iso: string | null): string {
           <div class="avatar">{{ initials(o.name) }}</div>
           <div class="org-info">
             <h3>{{ o.name }}</h3>
-            <span class="org-meta">{{ experimentCountByOrgId.get(o.id) ?? 0 }} experimento(s)</span>
+            <span class="org-meta">{{ experimentCountByOrgId.get(o.id) ?? 0 }} experiment(s)</span>
           </div>
-          <span v-if="!canManageOrg(o)" class="role-pill member">acceso vía experimento</span>
+          <span v-if="!canManageOrg(o)" class="role-pill member">access via experiment</span>
           <template v-if="canManageOrg(o)">
             <button
               class="chevron-btn"
@@ -359,13 +359,13 @@ function formatDate(iso: string | null): string {
               @click="toggleOrgMembers(o.id)"
             >
               <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
-              <span v-if="membersLoaded">{{ orgMemberCount(o.id) }} miembro(s)</span>
-              <span v-else>Miembros</span>
-              <span v-if="orgPendingCount(o.id)" class="count-badge pending">{{ orgPendingCount(o.id) }} pendiente(s)</span>
+              <span v-if="membersLoaded">{{ orgMemberCount(o.id) }} member(s)</span>
+              <span v-else>Members</span>
+              <span v-if="orgPendingCount(o.id)" class="count-badge pending">{{ orgPendingCount(o.id) }} pending</span>
             </button>
             <button class="ghost-btn" type="button" @click="openOrgInviteModal(o.id)">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM19 8v6M22 11h-6" /></svg>
-              Invitar org_admin
+              Invite org_admin
             </button>
           </template>
         </header>
@@ -381,10 +381,10 @@ function formatDate(iso: string | null): string {
               <span class="role-pill" :class="m.role">{{ ROLE_LABEL[m.role] }}</span>
             </li>
           </ul>
-          <p v-else class="hint">Sin miembros todavía.</p>
+          <p v-else class="hint">No members yet.</p>
 
           <template v-if="membersByOrg[o.id]?.pendingInvitations.length">
-            <p class="panel-subtitle">Invitaciones pendientes</p>
+            <p class="panel-subtitle">Pending invitations</p>
             <ul class="member-list">
               <li v-for="inv in membersByOrg[o.id]?.pendingInvitations" :key="inv.id" class="member-row pending">
                 <div class="avatar small pending">
@@ -392,7 +392,7 @@ function formatDate(iso: string | null): string {
                 </div>
                 <div class="member-info">
                   <span class="member-name">{{ inv.email }}</span>
-                  <span class="member-email">enviada {{ formatDate(inv.createdAt) }}</span>
+                  <span class="member-email">sent {{ formatDate(inv.createdAt) }}</span>
                 </div>
                 <span class="role-pill outline" :class="inv.role">{{ ROLE_LABEL[inv.role] }}</span>
               </li>
@@ -419,13 +419,13 @@ function formatDate(iso: string | null): string {
                   @click="toggleExperimentMembers(e.id)"
                 >
                   <svg class="chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
-                  <span v-if="membersLoaded">{{ expMemberCount(e.id) }} miembro(s)</span>
-                  <span v-else>Miembros</span>
-                  <span v-if="expPendingCount(e.id)" class="count-badge pending">{{ expPendingCount(e.id) }} pendiente(s)</span>
+                  <span v-if="membersLoaded">{{ expMemberCount(e.id) }} member(s)</span>
+                  <span v-else>Members</span>
+                  <span v-if="expPendingCount(e.id)" class="count-badge pending">{{ expPendingCount(e.id) }} pending</span>
                 </button>
                 <button class="ghost-btn" type="button" @click="openExperimentInviteModal(e.id)">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM19 8v6M22 11h-6" /></svg>
-                  Invitar
+                  Invite
                 </button>
               </template>
               <button class="chevron-btn" type="button" :class="{ open: expandedId === e.id }" :aria-expanded="expandedId === e.id" @click="toggleApiKeys(e.id)">
@@ -445,10 +445,10 @@ function formatDate(iso: string | null): string {
                   <span class="role-pill" :class="m.role">{{ ROLE_LABEL[m.role] }}</span>
                 </li>
               </ul>
-              <p v-else class="hint">Sin miembros todavía.</p>
+              <p v-else class="hint">No members yet.</p>
 
               <template v-if="membersByExperiment[e.id]?.pendingInvitations.length">
-                <p class="panel-subtitle">Invitaciones pendientes</p>
+                <p class="panel-subtitle">Pending invitations</p>
                 <ul class="member-list">
                   <li v-for="inv in membersByExperiment[e.id]?.pendingInvitations" :key="inv.id" class="member-row pending">
                     <div class="avatar small pending">
@@ -456,7 +456,7 @@ function formatDate(iso: string | null): string {
                     </div>
                     <div class="member-info">
                       <span class="member-name">{{ inv.email }}</span>
-                      <span class="member-email">enviada {{ formatDate(inv.createdAt) }}</span>
+                      <span class="member-email">sent {{ formatDate(inv.createdAt) }}</span>
                     </div>
                     <span class="role-pill outline" :class="inv.role">{{ ROLE_LABEL[inv.role] }}</span>
                   </li>
@@ -466,31 +466,31 @@ function formatDate(iso: string | null): string {
 
             <div v-if="expandedId === e.id" class="members-panel nested">
               <div v-if="revealedKey?.experimentId === e.id" class="revealed-key">
-                <p class="hint">Copia esto ahora — no se volverá a mostrar la key completa.</p>
+                <p class="hint">Copy this now — the full key won't be shown again.</p>
                 <div class="snippet-box">
                   <pre>{{ envSnippet(e, revealedKey.plaintext) }}</pre>
-                  <button class="copy-btn" type="button" @click="copyEnvSnippet(e, revealedKey.plaintext)">Copiar</button>
+                  <button class="copy-btn" type="button" @click="copyEnvSnippet(e, revealedKey.plaintext)">Copy</button>
                 </div>
               </div>
 
               <ul v-if="apiKeysByExperiment[e.id]?.length" class="member-list">
                 <li v-for="k in apiKeysByExperiment[e.id]" :key="k.id" class="member-row">
                   <span class="mono key-prefix">{{ k.keyPrefix }}…</span>
-                  <span class="member-email">creada {{ formatDate(k.createdAt) }} · último uso: {{ formatDate(k.lastUsedAt) }}</span>
-                  <button v-if="canManageExperiment(e)" class="revoke-btn" type="button" @click="revokeApiKey(e.id, k.id)">Revocar</button>
+                  <span class="member-email">created {{ formatDate(k.createdAt) }} · last used: {{ formatDate(k.lastUsedAt) }}</span>
+                  <button v-if="canManageExperiment(e)" class="revoke-btn" type="button" @click="revokeApiKey(e.id, k.id)">Revoke</button>
                 </li>
               </ul>
-              <p v-else-if="!loadingKeys" class="hint">Sin API keys todavía.</p>
+              <p v-else-if="!loadingKeys" class="hint">No API keys yet.</p>
 
               <button class="primary-btn generate-btn" type="button" :disabled="generatingKey" @click="generateApiKey(e.id)">
-                Generar API key
+                Generate API key
               </button>
             </div>
           </div>
 
           <button v-if="canManageOrg(o)" class="add-experiment-btn" type="button" @click="openExperimentModal(o.id)">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-            Nuevo experimento en {{ o.name }}
+            New experiment in {{ o.name }}
           </button>
         </div>
       </article>
@@ -498,15 +498,15 @@ function formatDate(iso: string | null): string {
 
     <section class="section-head directory-head">
       <div>
-        <h2>Todos los miembros</h2>
-        <p class="section-sub">Un único listado con quién tiene acceso a qué, y qué invitaciones siguen sin aceptar.</p>
+        <h2>All members</h2>
+        <p class="section-sub">A single list of who has access to what, and which invitations are still pending.</p>
       </div>
-      <input v-model="directoryFilter" class="text-input search-input" type="search" placeholder="Buscar por nombre, email u organización/experimento…" />
+      <input v-model="directoryFilter" class="text-input search-input" type="search" placeholder="Search by name, email, or organization/experiment…" />
     </section>
 
     <div class="mt-card directory-card">
-      <p v-if="!membersLoaded" class="hint directory-empty">Cargando…</p>
-      <p v-else-if="!filteredDirectoryRows.length" class="hint directory-empty">Sin resultados.</p>
+      <p v-if="!membersLoaded" class="hint directory-empty">Loading…</p>
+      <p v-else-if="!filteredDirectoryRows.length" class="hint directory-empty">No results.</p>
       <ul v-else class="directory-list">
         <li v-for="row in filteredDirectoryRows" :key="row.id" class="directory-row" :class="{ pending: row.status === 'pending' }">
           <div class="avatar small" :class="{ pending: row.status === 'pending' }">
@@ -525,52 +525,52 @@ function formatDate(iso: string | null): string {
             {{ row.scopeLabel }}
           </span>
           <span class="role-pill" :class="[row.role, { outline: row.status === 'pending' }]">{{ ROLE_LABEL[row.role] }}</span>
-          <span v-if="row.status === 'pending'" class="status-pill pending">pendiente · {{ formatDate(row.date) }}</span>
-          <span v-else class="status-pill active">activo</span>
+          <span v-if="row.status === 'pending'" class="status-pill pending">pending · {{ formatDate(row.date) }}</span>
+          <span v-else class="status-pill active">active</span>
         </li>
       </ul>
     </div>
 
-    <Modal v-if="showOrgModal" title="Nueva organización" @close="showOrgModal = false">
+    <Modal v-if="showOrgModal" title="New organization" @close="showOrgModal = false">
       <form class="modal-form" @submit.prevent="createOrganization">
-        <p class="hint">Al crearla te conviertes en su primer org_admin.</p>
-        <input v-model="newOrgName" class="text-input" placeholder="Nombre de la organización" autofocus />
-        <button type="submit" class="primary-btn" :disabled="creatingOrg || !newOrgName.trim()">Crear</button>
+        <p class="hint">Creating it makes you its first org_admin.</p>
+        <input v-model="newOrgName" class="text-input" placeholder="Organization name" autofocus />
+        <button type="submit" class="primary-btn" :disabled="creatingOrg || !newOrgName.trim()">Create</button>
       </form>
     </Modal>
 
-    <Modal v-if="showExperimentModal" title="Nuevo experimento" @close="showExperimentModal = false">
+    <Modal v-if="showExperimentModal" title="New experiment" @close="showExperimentModal = false">
       <form class="modal-form" @submit.prevent="createExperiment">
         <p class="hint">
-          Requiere ser org_admin de la organización elegida. Un experimento son las trazas + dashboard de un agente: el
-          <code>service.name</code> es el mismo valor que configuras como <code>MEMTRACE_SERVICE_NAME</code> al instrumentarlo.
+          Requires being org_admin of the chosen organization. An experiment is an agent's traces + dashboard: its
+          <code>service.name</code> is the same value you configure as <code>MEMTRACE_SERVICE_NAME</code> when instrumenting it.
         </p>
-        <Select v-model="selectedOrgId" :options="organizationOptions" placeholder="Organización…" />
-        <input v-model="newServiceName" class="text-input mono" placeholder="service.name (p. ej. mi-agente)" @input="onServiceNameInput" />
-        <input v-model="newExperimentName" class="text-input" placeholder="Nombre a mostrar" @input="experimentNameTouched = true" />
+        <Select v-model="selectedOrgId" :options="organizationOptions" placeholder="Organization…" />
+        <input v-model="newServiceName" class="text-input mono" placeholder="service.name (e.g. my-agent)" @input="onServiceNameInput" />
+        <input v-model="newExperimentName" class="text-input" placeholder="Display name" @input="experimentNameTouched = true" />
         <button type="submit" class="primary-btn" :disabled="creatingExperiment || !selectedOrgId || !newExperimentName.trim() || !newServiceName.trim()">
-          Crear
+          Create
         </button>
       </form>
     </Modal>
 
-    <Modal v-if="showOrgInviteModal" title="Invitar org_admin" @close="showOrgInviteModal = false">
+    <Modal v-if="showOrgInviteModal" title="Invite org_admin" @close="showOrgInviteModal = false">
       <form class="modal-form" @submit.prevent="inviteOrgAdmin">
         <p class="hint">
-          La persona invitada pasa a ser org_admin de esta organización (acceso a todos sus experimentos). Si no tiene
-          cuenta todavía, le llega un email para que inicie sesión con Google o Microsoft.
+          The invited person becomes org_admin of this organization (access to all its experiments). If they don't
+          have an account yet, they'll receive an email to sign in with Google or Microsoft.
         </p>
-        <input v-model="orgInviteEmail" class="text-input" type="email" placeholder="Email de la persona a invitar" autofocus />
-        <button type="submit" class="primary-btn" :disabled="invitingOrgAdmin || !orgInviteEmail.trim()">Invitar</button>
+        <input v-model="orgInviteEmail" class="text-input" type="email" placeholder="Email of the person to invite" autofocus />
+        <button type="submit" class="primary-btn" :disabled="invitingOrgAdmin || !orgInviteEmail.trim()">Invite</button>
       </form>
     </Modal>
 
-    <Modal v-if="showExperimentInviteModal" title="Invitar a experimento" @close="showExperimentInviteModal = false">
+    <Modal v-if="showExperimentInviteModal" title="Invite to experiment" @close="showExperimentInviteModal = false">
       <form class="modal-form" @submit.prevent="inviteExperimentMember">
-        <p class="hint">Si la persona invitada no tiene cuenta todavía, le llega un email para que inicie sesión con Google o Microsoft.</p>
-        <input v-model="experimentInviteEmail" class="text-input" type="email" placeholder="Email de la persona a invitar" autofocus />
+        <p class="hint">If the invited person doesn't have an account yet, they'll receive an email to sign in with Google or Microsoft.</p>
+        <input v-model="experimentInviteEmail" class="text-input" type="email" placeholder="Email of the person to invite" autofocus />
         <Select v-model="experimentInviteRole" :options="experimentRoleOptions" />
-        <button type="submit" class="primary-btn" :disabled="invitingExperimentMember || !experimentInviteEmail.trim()">Invitar</button>
+        <button type="submit" class="primary-btn" :disabled="invitingExperimentMember || !experimentInviteEmail.trim()">Invite</button>
       </form>
     </Modal>
   </q-page>
@@ -614,11 +614,11 @@ function formatDate(iso: string | null): string {
   font-family: var(--mt-mono);
   background: var(--mt-soft);
   padding: 1px 5px;
-  border-radius: 6px;
+  border-radius: var(--mt-radius-sm);
   font-size: 12px;
 }
 
-/* ---- tarjetas de organización ---- */
+/* ---- organization cards ---- */
 .org-grid {
   display: flex;
   flex-direction: column;
@@ -684,7 +684,7 @@ function formatDate(iso: string | null): string {
   gap: 6px;
   height: 32px;
   padding: 0 13px;
-  border-radius: 16px;
+  border-radius: var(--mt-radius-lg);
   border: 1px solid var(--mt-line);
   background: var(--mt-card);
   color: var(--mt-muted);
@@ -699,9 +699,9 @@ function formatDate(iso: string | null): string {
   border-color: var(--mt-accent);
 }
 
-/* Disclosure: despliega un panel en la misma página (sin abrir modal). Estilo plano + flecha
-   que rota, deliberadamente distinto de .ghost-btn (que abre un modal), para que se distinga
-   de un vistazo qué es "desplegar aquí" y qué es "abrir un diálogo". */
+/* Disclosure: expands a panel in the same page (no modal). Flat style + rotating arrow,
+   deliberately distinct from .ghost-btn (which opens a modal), so it's clear at a glance
+   what "expand here" is versus what "open a dialog" is. */
 .chevron-btn {
   flex-shrink: 0;
   display: inline-flex;
@@ -710,7 +710,7 @@ function formatDate(iso: string | null): string {
   height: 32px;
   padding: 0 10px;
   border: none;
-  border-radius: 16px;
+  border-radius: var(--mt-radius-lg);
   background: transparent;
   color: var(--mt-muted);
   font: inherit;
@@ -737,7 +737,7 @@ function formatDate(iso: string | null): string {
 .count-badge {
   flex-shrink: 0;
   padding: 1px 8px;
-  border-radius: 999px;
+  border-radius: var(--mt-radius-sm);
   font-size: 10.5px;
   font-weight: 700;
 }
@@ -746,7 +746,7 @@ function formatDate(iso: string | null): string {
   color: var(--mt-warn-ink);
 }
 
-/* ---- experimentos anidados ---- */
+/* ---- nested experiments ---- */
 .org-experiments {
   margin-top: 14px;
   padding-top: 14px;
@@ -756,7 +756,7 @@ function formatDate(iso: string | null): string {
   gap: 2px;
 }
 .exp-row {
-  border-radius: 14px;
+  border-radius: var(--mt-radius-lg);
   padding: 6px 8px;
 }
 .exp-row:hover {
@@ -807,17 +807,17 @@ function formatDate(iso: string | null): string {
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
-  border-radius: 10px;
+  border-radius: var(--mt-radius-sm);
 }
 .add-experiment-btn:hover {
   background: var(--mt-soft-2);
 }
 
-/* ---- paneles expandibles (miembros, invitaciones, api keys) ---- */
+/* ---- expandable panels (members, invitations, api keys) ---- */
 .members-panel {
   margin: 8px 0 4px;
   padding: 14px 16px;
-  border-radius: 16px;
+  border-radius: var(--mt-radius-lg);
   background: var(--mt-soft-2);
   display: flex;
   flex-direction: column;
@@ -849,7 +849,7 @@ function formatDate(iso: string | null): string {
   align-items: center;
   gap: 10px;
   padding: 6px 8px;
-  border-radius: 12px;
+  border-radius: var(--mt-radius-lg);
   background: var(--mt-card);
 }
 .member-row.pending {
@@ -878,7 +878,7 @@ function formatDate(iso: string | null): string {
 .role-pill {
   flex-shrink: 0;
   padding: 3px 10px;
-  border-radius: 999px;
+  border-radius: var(--mt-radius-sm);
   font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
@@ -908,7 +908,7 @@ function formatDate(iso: string | null): string {
 .revoke-btn {
   height: 26px;
   padding: 0 10px;
-  border-radius: 8px;
+  border-radius: var(--mt-radius-sm);
   border: 1px solid var(--mt-err-ink);
   background: transparent;
   color: var(--mt-err-ink);
@@ -925,7 +925,7 @@ function formatDate(iso: string | null): string {
 .snippet-box {
   position: relative;
   background: var(--code-bg);
-  border-radius: 10px;
+  border-radius: var(--mt-radius-sm);
   padding: 12px 40px 12px 14px;
 }
 .snippet-box pre {
@@ -943,7 +943,7 @@ function formatDate(iso: string | null): string {
   height: 26px;
   padding: 0 10px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--mt-radius-sm);
   background: var(--mt-card);
   color: var(--mt-muted);
   font-size: 11px;
@@ -952,7 +952,7 @@ function formatDate(iso: string | null): string {
   box-shadow: 0 1px 3px rgba(20, 60, 35, 0.12);
 }
 
-/* ---- directorio global de miembros ---- */
+/* ---- global member directory ---- */
 .directory-head {
   margin-top: 8px;
   flex-wrap: wrap;
@@ -980,7 +980,7 @@ function formatDate(iso: string | null): string {
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  border-radius: 14px;
+  border-radius: var(--mt-radius-lg);
 }
 .directory-row:hover {
   background: var(--mt-soft-2);
@@ -995,7 +995,7 @@ function formatDate(iso: string | null): string {
   align-items: center;
   gap: 5px;
   padding: 3px 10px;
-  border-radius: 999px;
+  border-radius: var(--mt-radius-sm);
   background: var(--mt-soft);
   color: var(--mt-muted);
   font-size: 11px;
@@ -1012,7 +1012,7 @@ function formatDate(iso: string | null): string {
 .status-pill {
   flex-shrink: 0;
   padding: 3px 10px;
-  border-radius: 999px;
+  border-radius: var(--mt-radius-sm);
   font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
@@ -1026,7 +1026,7 @@ function formatDate(iso: string | null): string {
   color: var(--mt-warn-ink);
 }
 
-/* ---- modales ---- */
+/* ---- modals ---- */
 .modal-form {
   display: flex;
   flex-direction: column;
@@ -1037,7 +1037,7 @@ function formatDate(iso: string | null): string {
   box-sizing: border-box;
   height: 40px;
   padding: 0 14px;
-  border-radius: 20px;
+  border-radius: var(--mt-radius-lg);
   border: 1px solid var(--mt-line);
   background: var(--mt-card);
   font: inherit;
@@ -1054,7 +1054,7 @@ function formatDate(iso: string | null): string {
   gap: 6px;
   height: 40px;
   padding: 0 20px;
-  border-radius: 20px;
+  border-radius: var(--mt-radius-lg);
   border: none;
   background: var(--mt-accent);
   color: var(--mt-accent-ink);

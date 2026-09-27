@@ -1,8 +1,8 @@
 <script setup lang="ts">
-// Auth.js no arranca el proveedor por GET con ?provider=: su página /api/auth/signin
-// solo lista opciones. Para saltar directo hay que POSTear el csrfToken a
-// /api/auth/signin/{provider} (lo mismo que hace su botón por dentro), así el usuario
-// no ve una pantalla intermedia.
+// Auth.js doesn't start the provider on a GET with ?provider=: its /api/auth/signin page
+// only lists options. To skip straight to it, the csrfToken must be POSTed to
+// /api/auth/signin/{provider} (the same thing its button does internally), so the user
+// never sees an intermediate screen.
 async function signIn(provider: "google" | "microsoft") {
   const res = await fetch("/api/auth/csrf");
   const { csrfToken } = await res.json();
@@ -36,16 +36,16 @@ async function signIn(provider: "google" | "microsoft") {
       <div class="showcase">
         <div class="showcase-brand">
           <svg width="26" height="26" viewBox="0 0 22 22" aria-hidden="true">
-            <rect x="1" y="3" width="12" height="4" rx="2" fill="#8FE86B" />
-            <rect x="6" y="9" width="15" height="4" rx="2" fill="#9C87FF" />
-            <rect x="3" y="15" width="9" height="4" rx="2" fill="#FFA25E" />
+            <rect x="1" y="3" width="12" height="4" rx="2" fill="#ffffff" />
+            <rect x="6" y="9" width="15" height="4" rx="2" fill="#ffffff" opacity="0.75" />
+            <rect x="3" y="15" width="9" height="4" rx="2" fill="#ffffff" opacity="0.5" />
           </svg>
           <span>memtrace</span>
         </div>
 
-        <h1 class="showcase-title">Ve exactamente qué hace tu agente, paso a paso.</h1>
+        <h1 class="showcase-title">See exactly what your agent does, step by step.</h1>
         <p class="showcase-sub">
-          Trazas, spans y coste de cada conversación de tus agentes LLM, sin instrumentar nada a mano.
+          Traces, spans, and cost for every conversation of your LLM agents, with no manual instrumentation.
         </p>
 
         <div class="mockup">
@@ -81,9 +81,9 @@ async function signIn(provider: "google" | "microsoft") {
         </div>
 
         <ul class="showcase-features">
-          <li>Sesiones y árboles de spans, no solo logs sueltos</li>
-          <li>Latencia, tokens y coste por modelo y por herramienta</li>
-          <li>LangChain, LangGraph y PydanticAI en Python o TypeScript</li>
+          <li>Sessions and span trees, not just loose logs</li>
+          <li>Latency, tokens, and cost per model and per tool</li>
+          <li>LangChain, LangGraph, and PydanticAI in Python or TypeScript</li>
         </ul>
       </div>
     </div>
@@ -92,14 +92,14 @@ async function signIn(provider: "google" | "microsoft") {
       <div class="login-card">
         <div class="brand mobile-only">
           <svg width="30" height="30" viewBox="0 0 22 22" aria-hidden="true">
-            <rect x="1" y="3" width="12" height="4" rx="2" fill="#6FCF4A" />
-            <rect x="6" y="9" width="15" height="4" rx="2" fill="#7A5AF8" />
-            <rect x="3" y="15" width="9" height="4" rx="2" fill="#FF8A3D" />
+            <rect x="1" y="3" width="12" height="4" rx="2" fill="var(--mt-ink)" />
+            <rect x="6" y="9" width="15" height="4" rx="2" fill="var(--mt-ink)" opacity="0.75" />
+            <rect x="3" y="15" width="9" height="4" rx="2" fill="var(--mt-ink)" opacity="0.5" />
           </svg>
           <span>memtrace</span>
         </div>
-        <h2 class="welcome">Bienvenido de nuevo</h2>
-        <p class="hint">Inicia sesión para ver tus experimentos.</p>
+        <h2 class="welcome">Welcome back</h2>
+        <p class="hint">Sign in to view your experiments.</p>
         <button class="signin-btn primary" type="button" @click="signIn('google')">
           <span class="provider-icon">
             <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
@@ -109,7 +109,7 @@ async function signIn(provider: "google" | "microsoft") {
               <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0 5.44 0 2.38 2.02.9 4.93l3.07 2.34C4.68 5.16 6.66 3.58 9 3.58z"/>
             </svg>
           </span>
-          Iniciar sesión con Google
+          Sign in with Google
         </button>
         <button class="signin-btn" type="button" @click="signIn('microsoft')">
           <span class="provider-icon">
@@ -120,7 +120,7 @@ async function signIn(provider: "google" | "microsoft") {
               <rect x="9.5" y="9.5" width="7.5" height="7.5" fill="#FFBA08"/>
             </svg>
           </span>
-          Iniciar sesión con Microsoft
+          Sign in with Microsoft
         </button>
       </div>
     </div>
@@ -134,8 +134,8 @@ async function signIn(provider: "google" | "microsoft") {
   background: var(--mt-bg);
 }
 
-/* Panel izquierdo: gradiente oscuro fijo de marca, independiente del tema claro/oscuro,
-   para dar el mismo impacto de "hero" en ambos casos. */
+/* Left panel: fixed dark brand gradient, independent of light/dark theme,
+   so it gives the same "hero" impact in both cases. */
 .showcase-panel {
   position: relative;
   flex: 1.1;
@@ -144,7 +144,7 @@ async function signIn(provider: "google" | "microsoft") {
   justify-content: center;
   padding: 48px;
   overflow: hidden;
-  background: linear-gradient(155deg, #0d1f14 0%, #143b25 42%, #1f5c38 78%, #2a7a49 100%);
+  background: linear-gradient(155deg, #0b0c0e 0%, #17191d 42%, #23262b 78%, #313540 100%);
 }
 .panel-glow {
   position: absolute;
@@ -157,14 +157,14 @@ async function signIn(provider: "google" | "microsoft") {
   height: 520px;
   top: -160px;
   left: -120px;
-  background: radial-gradient(circle, rgba(143, 232, 107, 0.45) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.16) 0%, transparent 70%);
 }
 .panel-glow-2 {
   width: 480px;
   height: 480px;
   bottom: -200px;
   right: -140px;
-  background: radial-gradient(circle, rgba(156, 135, 255, 0.35) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
 }
 .panel-grid {
   position: absolute;
@@ -229,7 +229,7 @@ async function signIn(provider: "google" | "microsoft") {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #8fe86b;
+  background: #ffffff;
   transform: translateY(-2px);
 }
 
@@ -238,7 +238,7 @@ async function signIn(provider: "google" | "microsoft") {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  border-radius: 24px;
+  border-radius: var(--mt-radius-lg);
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.14);
   backdrop-filter: blur(16px);
@@ -252,7 +252,7 @@ async function signIn(provider: "google" | "microsoft") {
 .mockup-kpi {
   flex: 1;
   padding: 10px 12px;
-  border-radius: 14px;
+  border-radius: var(--mt-radius-lg);
   background: rgba(255, 255, 255, 0.07);
   display: flex;
   flex-direction: column;
@@ -270,32 +270,32 @@ async function signIn(provider: "google" | "microsoft") {
   color: #ffffff;
 }
 .mockup-kpi-value.ok {
-  color: #b9f28c;
+  color: #ffffff;
 }
 .mockup-trace {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border-radius: 10px;
+  border-radius: var(--mt-radius-sm);
   background: rgba(255, 255, 255, 0.05);
   font-size: 12px;
 }
 .mockup-pill {
   display: inline-block;
   padding: 3px 10px;
-  border-radius: 999px;
+  border-radius: var(--mt-radius-sm);
   font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
 }
 .mockup-pill.ok {
-  background: rgba(185, 242, 140, 0.18);
-  color: #b9f28c;
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
 }
 .mockup-pill.warn {
-  background: rgba(255, 207, 128, 0.18);
-  color: #ffcf80;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.75);
 }
 .mockup-trace-name {
   flex: 1;
@@ -363,7 +363,7 @@ async function signIn(provider: "google" | "microsoft") {
   height: 52px;
   padding: 0 20px;
   border: 1.5px solid var(--mt-line);
-  border-radius: 14px;
+  border-radius: var(--mt-radius-lg);
   background: #ffffff;
   color: var(--mt-ink);
   font: inherit;
@@ -381,13 +381,13 @@ async function signIn(provider: "google" | "microsoft") {
   justify-content: center;
   width: 30px;
   height: 30px;
-  border-radius: 9px;
+  border-radius: var(--mt-radius-sm);
   background: var(--mt-soft);
 }
 .signin-btn:hover {
   border-color: var(--mt-faint);
   transform: translateY(-1px);
-  box-shadow: 0 8px 20px rgba(20, 60, 35, 0.1);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
 }
 .signin-btn.primary {
   background: var(--mt-accent);

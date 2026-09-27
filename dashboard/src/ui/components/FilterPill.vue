@@ -36,7 +36,7 @@ const current = computed(() => props.options.find((o) => o.value === props.model
   height: 36px;
   padding: 0 14px;
   border: 1px solid var(--mt-line);
-  border-radius: 18px;
+  border-radius: var(--mt-radius-lg);
   background: var(--mt-card);
   color: var(--mt-ink);
   font: inherit;

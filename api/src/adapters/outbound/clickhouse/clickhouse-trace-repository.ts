@@ -431,15 +431,20 @@ export class ClickHouseTraceRepository implements TraceRepository {
     // rn cuenta los spans de cada traza por separado: permite truncar cada una a `maxSpansPerTrace` sin
     // que una traza grande se coma el presupuesto de las demás.
     const rows = await this.rows(
-      `SELECT SpanId, TraceId, ParentSpanId, SpanName, ServiceName, ScopeName, toUnixTimestamp64Micro(Timestamp) AS startUs,
-              Duration, StatusCode, StatusMessage, SpanAttributes,
-              \`Events.Name\` AS evName, \`Events.Attributes\` AS evAttrs,
-              arrayMap(t -> toUnixTimestamp64Micro(t), \`Events.Timestamp\`) AS evTs
-       FROM ${this.spans}
-       WHERE TraceId IN {ids:Array(String)}
-         AND Timestamp >= fromUnixTimestamp64Micro({startUs:Int64}) AND Timestamp <= fromUnixTimestamp64Micro({endUs:Int64})
-       QUALIFY row_number() OVER (PARTITION BY TraceId ORDER BY Timestamp ASC) <= {maxSpansPerTrace:UInt32}
-       ORDER BY TraceId ASC, Timestamp ASC`,
+      `SELECT SpanId, TraceId, ParentSpanId, SpanName, ServiceName, ScopeName, startUs,
+              Duration, StatusCode, StatusMessage, SpanAttributes, evName, evAttrs, evTs
+       FROM (
+         SELECT SpanId, TraceId, ParentSpanId, SpanName, ServiceName, ScopeName, toUnixTimestamp64Micro(Timestamp) AS startUs,
+                Duration, StatusCode, StatusMessage, SpanAttributes,
+                \`Events.Name\` AS evName, \`Events.Attributes\` AS evAttrs,
+                arrayMap(t -> toUnixTimestamp64Micro(t), \`Events.Timestamp\`) AS evTs,
+                row_number() OVER (PARTITION BY TraceId ORDER BY Timestamp ASC) AS rn
+         FROM ${this.spans}
+         WHERE TraceId IN {ids:Array(String)}
+           AND Timestamp >= fromUnixTimestamp64Micro({startUs:Int64}) AND Timestamp <= fromUnixTimestamp64Micro({endUs:Int64})
+       )
+       WHERE rn <= {maxSpansPerTrace:UInt32}
+       ORDER BY TraceId ASC, startUs ASC`,
       { ids: traceIds, startUs: num(bounds.startUs), endUs: num(bounds.endUs), maxSpansPerTrace: maxSpansPerTrace + 1 },
     );
 

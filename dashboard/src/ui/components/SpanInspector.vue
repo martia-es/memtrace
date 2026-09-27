@@ -158,7 +158,7 @@ const tabs = computed(() => [
 .kind-box {
   width: 30px;
   height: 30px;
-  border-radius: 10px;
+  border-radius: var(--mt-radius-sm);
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -187,7 +187,7 @@ const tabs = computed(() => [
 .chip {
   flex-shrink: 0;
   padding: 2px 8px;
-  border-radius: 6px;
+  border-radius: var(--mt-radius-sm);
   background: var(--mt-soft);
   color: var(--mt-ink);
   font-size: 11px;
@@ -256,7 +256,7 @@ const tabs = computed(() => [
 .count {
   font-size: 10.5px;
   padding: 1px 7px;
-  border-radius: 999px;
+  border-radius: var(--mt-radius-sm);
   background: var(--mt-line);
   color: var(--mt-muted);
 }

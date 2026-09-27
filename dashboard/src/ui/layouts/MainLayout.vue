@@ -49,7 +49,7 @@ function switchExperiment(experimentId: string | null) {
 
 <template>
   <div class="shell">
-    <aside class="sidebar mt-card" :class="{ collapsed: isCollapsed }">
+    <aside class="sidebar" :class="{ collapsed: isCollapsed }">
       <div class="sidebar-header">
         <router-link :to="navExperimentId ? { name: 'conversations', params: { experimentId: navExperimentId } } : { name: 'admin' }" class="brand" aria-label="MemTrace">
           <svg width="26" height="26" viewBox="0 0 22 22" aria-hidden="true">
@@ -116,25 +116,25 @@ function switchExperiment(experimentId: string | null) {
 .shell {
   box-sizing: border-box;
   display: flex;
-  gap: 12px;
   height: 100vh;
   min-height: 640px;
-  padding: 14px;
   font-size: 13px;
+  background: var(--mt-card);
 }
 .sidebar {
-  width: 232px;
+  width: 188px;
   flex-shrink: 0;
   box-sizing: border-box;
-  padding: 20px 14px 16px;
+  padding: 14px 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 12px;
+  border-right: 1px solid var(--mt-line);
   transition: width 0.3s ease-out;
 }
 .sidebar.collapsed {
-  width: 80px;
-  padding: 20px 8px 16px;
+  width: 64px;
+  padding: 14px 8px 12px;
 }
 .sidebar.collapsed .sidebar-header {
   flex-direction: column;
@@ -150,11 +150,11 @@ function switchExperiment(experimentId: string | null) {
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 8px;
+  gap: 8px;
+  padding: 0 6px;
   color: inherit;
   text-decoration: none;
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 700;
   letter-spacing: -0.03em;
   flex: 1;
@@ -169,14 +169,14 @@ function switchExperiment(experimentId: string | null) {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: none;
   background: transparent;
   color: var(--mt-muted);
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: var(--mt-radius-sm);
   transition: background 0.2s ease;
 }
 .collapse-btn:hover {
@@ -186,25 +186,25 @@ function switchExperiment(experimentId: string | null) {
 .nav {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  height: 44px;
-  padding: 0 14px;
-  border-radius: 22px;
+  gap: 10px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: var(--mt-radius-sm);
   color: var(--mt-muted);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   text-decoration: none;
   transition: background 0.2s ease, color 0.2s ease;
 }
 .sidebar.collapsed .nav-item {
   justify-content: center;
-  padding: 0 8px;
-  border-radius: 12px;
+  padding: 0 6px;
+  border-radius: var(--mt-radius-sm);
   gap: 0;
 }
 .nav-item:hover {
@@ -217,11 +217,11 @@ function switchExperiment(experimentId: string | null) {
 .sidebar-filters {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 0 8px;
+  gap: 6px;
+  padding: 0 6px;
 }
 .sidebar-filter-label {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -230,7 +230,7 @@ function switchExperiment(experimentId: string | null) {
 .otlp {
   margin-top: auto;
   padding: 14px;
-  border-radius: 20px;
+  border-radius: var(--mt-radius-lg);
   background: #eaf8d6;
   display: flex;
   flex-direction: column;
@@ -252,13 +252,11 @@ function switchExperiment(experimentId: string | null) {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  background: var(--mt-card);
 }
-/* páginas "clásicas" (trazas, métricas): una tarjeta blanca que se desplaza */
+/* páginas "clásicas" (trazas, métricas): mismo blanco que el sidebar, sin tarjeta separada */
 .content.scroll {
   overflow: auto;
-  background: var(--mt-card);
-  border-radius: 28px;
-  box-shadow: var(--mt-shadow);
 }
 .layout {
   flex: 1;

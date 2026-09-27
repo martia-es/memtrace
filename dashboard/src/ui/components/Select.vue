@@ -115,7 +115,7 @@ const closeMenu = () => {
   padding: 0 12px;
   background: var(--mt-card);
   border: 1px solid var(--mt-border);
-  border-radius: 8px;
+  border-radius: var(--mt-radius-sm);
   color: var(--mt-text);
   font-size: 13px;
   font-weight: 500;

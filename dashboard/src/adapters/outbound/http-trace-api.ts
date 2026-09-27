@@ -69,7 +69,7 @@ export class HttpTraceApi implements TraceApi {
       response = await this.fetchFn(`${fullPath}${qs ? `?${qs}` : ""}`, { signal, headers: { Accept: "application/json" } });
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") throw error;
-      throw new ApiError(0, "Sin conexión", "No se pudo contactar con la API de MemTrace.");
+      throw new ApiError(0, "No connection", "Could not reach the MemTrace API.");
     }
 
     if (!response.ok) throw await toApiError(response);

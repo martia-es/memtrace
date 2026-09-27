@@ -136,7 +136,7 @@ defineExpose({ collapseAll: () => (collapsed.value = new Set(parentIds(props.roo
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 .row {
   position: relative;
@@ -145,10 +145,10 @@ defineExpose({ collapseAll: () => (collapsed.value = new Set(parentIds(props.roo
   gap: 8px;
   align-items: center;
   flex-shrink: 0;
-  min-height: 42px;
-  padding: 4px 12px;
+  min-height: 44px;
+  padding: 6px 12px;
   border: 0;
-  border-radius: 14px;
+  border-radius: var(--mt-radius-lg);
   background: transparent;
   color: var(--mt-ink);
   font: inherit;
@@ -196,7 +196,7 @@ defineExpose({ collapseAll: () => (collapsed.value = new Set(parentIds(props.roo
 .kind-box {
   width: 18px;
   height: 18px;
-  border-radius: 6px;
+  border-radius: var(--mt-radius-sm);
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -228,7 +228,7 @@ defineExpose({ collapseAll: () => (collapsed.value = new Set(parentIds(props.roo
 .track {
   position: relative;
   height: 8px;
-  border-radius: 4px;
+  border-radius: var(--mt-radius-xs);
   background: var(--mt-line-2);
   overflow: hidden;
 }
@@ -243,7 +243,7 @@ defineExpose({ collapseAll: () => (collapsed.value = new Set(parentIds(props.roo
   position: absolute;
   top: 0;
   height: 8px;
-  border-radius: 4px;
+  border-radius: var(--mt-radius-xs);
 }
 .dur {
   text-align: right;
@@ -255,8 +255,8 @@ defineExpose({ collapseAll: () => (collapsed.value = new Set(parentIds(props.roo
   display: flex;
   flex-wrap: wrap;
   gap: 6px 14px;
-  margin-top: 8px;
-  padding: 12px 8px 0;
+  margin-top: 10px;
+  padding: 14px 10px 0;
   border-top: 1px solid var(--mt-line-2);
   color: var(--mt-muted);
   font-size: 11.5px;
@@ -269,6 +269,6 @@ defineExpose({ collapseAll: () => (collapsed.value = new Set(parentIds(props.roo
 .sw {
   width: 9px;
   height: 9px;
-  border-radius: 3px;
+  border-radius: var(--mt-radius-xs);
 }
 </style>

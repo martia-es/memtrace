@@ -35,7 +35,7 @@ const roleColor = (role: string) => (role === "human" || role === "user" ? "prim
   white-space: pre-wrap;
   word-break: break-word;
   border: 1px solid var(--wf-line);
-  border-radius: 6px;
+  border-radius: var(--mt-radius-sm);
   padding: 8px 10px;
   font-size: 13px;
 }

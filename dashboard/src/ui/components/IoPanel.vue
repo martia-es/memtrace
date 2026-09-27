@@ -9,7 +9,7 @@ const props = defineProps<{
   badgeTone?: "neutral" | "error";
   blocks: IoBlock[];
   json: string;
-  /** texto de ayuda cuando no hay contenido guardado */
+  /** hint text shown when there is no stored content */
   emptyHint: string;
 }>();
 
@@ -24,7 +24,7 @@ async function copy() {
     copied.value = true;
     setTimeout(() => (copied.value = false), 1500);
   } catch {
-    /* portapapeles no disponible */
+    /* clipboard unavailable */
   }
 }
 </script>
@@ -32,17 +32,17 @@ async function copy() {
 <template>
   <section class="panel" :class="{ collapsed }" :aria-label="title">
     <div class="head">
-      <button type="button" class="collapse-btn" :aria-expanded="!collapsed" :aria-label="collapsed ? `Expandir ${title.toLowerCase()}` : `Colapsar ${title.toLowerCase()}`" @click="collapsed = !collapsed">
+      <button type="button" class="collapse-btn" :aria-expanded="!collapsed" :aria-label="collapsed ? `Expand ${title.toLowerCase()}` : `Collapse ${title.toLowerCase()}`" @click="collapsed = !collapsed">
         <q-icon name="chevron_right" size="16px" :class="{ open: !collapsed }" />
       </button>
       <h2>{{ title }}</h2>
       <span class="badge" :class="{ error: badgeTone === 'error' }">{{ badge }}</span>
       <template v-if="!collapsed">
-        <div class="mt-segmented small toggle" role="group" :aria-label="`Formato de ${title.toLowerCase()}`">
-          <button type="button" :aria-pressed="mode === 'text'" @click="mode = 'text'">Texto</button>
+        <div class="mt-segmented small toggle" role="group" :aria-label="`${title} format`">
+          <button type="button" :aria-pressed="mode === 'text'" @click="mode = 'text'">Text</button>
           <button type="button" :aria-pressed="mode === 'json'" @click="mode = 'json'">JSON</button>
         </div>
-        <button type="button" class="mt-round-btn copy" :aria-label="`Copiar ${title.toLowerCase()}`" :disabled="blocks.length === 0" @click="copy">
+        <button type="button" class="mt-round-btn copy" :aria-label="`Copy ${title.toLowerCase()}`" :disabled="blocks.length === 0" @click="copy">
           <q-icon :name="copied ? 'check' : 'content_copy'" size="14px" />
         </button>
       </template>
@@ -87,7 +87,7 @@ async function copy() {
   height: 22px;
   flex-shrink: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--mt-radius-sm);
   background: transparent;
   color: var(--mt-muted);
   cursor: pointer;
@@ -109,7 +109,7 @@ h2 {
 }
 .badge {
   padding: 2px 10px;
-  border-radius: 999px;
+  border-radius: var(--mt-radius-sm);
   background: var(--mt-soft);
   color: var(--mt-muted);
   font-size: 12px;
@@ -137,7 +137,7 @@ h2 {
 .json {
   margin: 0;
   padding: 12px 14px;
-  border-radius: 8px;
+  border-radius: var(--mt-radius-sm);
   background: var(--mt-soft-2);
   border: 1px solid var(--mt-line-2);
   font-size: 12px;

@@ -9,6 +9,7 @@ import { RANGE_PRESETS, resolveRange } from "@/domain/time-range";
 import EmptyState from "../components/EmptyState.vue";
 import OnboardingGuide from "../components/OnboardingGuide.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
+import FilterBar from "../components/FilterBar.vue";
 import LiveControl from "../components/LiveControl.vue";
 import PageHeader from "../components/PageHeader.vue";
 import TraceTable from "../components/TraceTable.vue";
@@ -178,7 +179,7 @@ const rangeOptions = computed(() => RANGE_PRESETS.map((p) => ({ label: p.long, v
   padding: 24px 20px 32px;
   font-family: var(--mt-sans);
   background: var(--mt-card);
-  border-radius: 28px;
+  border-radius: var(--mt-radius-lg);
   box-shadow: var(--mt-shadow);
 }
 .range {
@@ -190,7 +191,7 @@ const rangeOptions = computed(() => RANGE_PRESETS.map((p) => ({ label: p.long, v
   height: 34px;
   padding: 0 14px;
   border: 0;
-  border-radius: 17px;
+  border-radius: var(--mt-radius-lg);
   background: var(--mt-soft);
   color: var(--mt-ink);
   font-weight: 600;
@@ -206,7 +207,7 @@ const rangeOptions = computed(() => RANGE_PRESETS.map((p) => ({ label: p.long, v
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   flex-shrink: 0;
-  border-radius: 18px;
+  border-radius: var(--mt-radius-lg);
 }
 .kpi {
   padding: 7px 16px;
@@ -314,7 +315,7 @@ td {
 }
 .status {
   padding: 3px 8px;
-  border-radius: 6px;
+  border-radius: var(--mt-radius-sm);
   font-size: 11px;
   font-weight: 500;
 }
@@ -354,7 +355,7 @@ td {
   height: 34px;
   padding: 0 16px;
   border: 1px solid var(--mt-line);
-  border-radius: 17px;
+  border-radius: var(--mt-radius-lg);
   background: var(--mt-card);
   color: var(--mt-ink);
   font: inherit;

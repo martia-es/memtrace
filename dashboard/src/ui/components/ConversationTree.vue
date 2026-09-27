@@ -105,14 +105,14 @@ const summary = computed(() => {
   padding: 0 2px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 14px;
   overflow-y: auto;
   min-height: 0;
   flex: 1;
 }
 .run {
   border: 1px solid var(--mt-line-2);
-  border-radius: 14px;
+  border-radius: var(--mt-radius-lg);
 }
 .run-head {
   width: 100%;
@@ -172,7 +172,7 @@ const summary = computed(() => {
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  border-radius: 999px;
+  border-radius: var(--mt-radius-sm);
   font-size: 11px;
   font-weight: 600;
 }
@@ -185,7 +185,7 @@ const summary = computed(() => {
   color: var(--mt-ink);
 }
 .run-body {
-  padding: 0 8px 8px;
+  padding: 8px 8px 10px;
   border-top: 1px solid var(--mt-line-2);
 }
 </style>

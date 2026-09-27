@@ -63,13 +63,13 @@ const initials = computed(() => {
           <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z" />
           </svg>
-          Tema: {{ theme === "dark" ? "Oscuro" : "Claro" }}
+          Theme: {{ theme === "dark" ? "Dark" : "Light" }}
         </button>
         <a :href="DOCS_URL" target="_blank" rel="noopener noreferrer" class="menu-action neutral">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
           </svg>
-          Documentación
+          Documentation
         </a>
         <div class="menu-divider" />
         <button type="button" class="menu-action" @click="handleSignOut">
@@ -95,7 +95,7 @@ const initials = computed(() => {
   padding: 8px;
   border: none;
   background: transparent;
-  border-radius: 14px;
+  border-radius: var(--mt-radius-lg);
   cursor: pointer;
   text-align: left;
   font: inherit;
@@ -149,7 +149,7 @@ const initials = computed(() => {
 
 <style>
 .user-menu-popover {
-  border-radius: 18px;
+  border-radius: var(--mt-radius-lg);
   box-shadow: var(--mt-shadow), 0 0 0 1px var(--mt-line);
   overflow: hidden;
 }
