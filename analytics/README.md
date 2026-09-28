@@ -23,3 +23,5 @@ Cuando el tráfico cambie lo suficiente para que muchas respuestas nuevas caigan
 | `CLICKHOUSE_HOST` / `CLICKHOUSE_PORT` / `CLICKHOUSE_USER` / `CLICKHOUSE_PASSWORD` / `CLICKHOUSE_DATABASE` | Conexión a ClickHouse |
 | `TOPIC_MODEL_PATH` | Ruta del modelo serializado (PVC montado), por defecto `/model/bertopic` |
 | `TOPIC_BATCH_SIZE` | Nº máx. de respuestas por corrida, por defecto `500` |
+| `NUMBA_CACHE_DIR` | Directorio de caché JIT de numba (dependencia de UMAP); debe ser escribible por el usuario del contenedor (`/tmp/numba-cache` en k8s) |
+| `HF_HOME` | Caché de modelos de HuggingFace (`sentence-transformers` descarga aquí el modelo de embeddings); debe ser escribible (`/tmp/hf-cache` en k8s) |

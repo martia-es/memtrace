@@ -27,8 +27,15 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: topic-extraction
-              image: memtrace/topic-extraction:dev
+              image: localhost/memtrace/topic-extraction:dev
+              imagePullPolicy: Never
               env:
+                # numba (usado por UMAP/BERTopic) necesita un directorio de caché JIT escribible por el usuario 1000
+                - name: NUMBA_CACHE_DIR
+                  value: /tmp/numba-cache
+                # sentence-transformers descarga el modelo de embeddings a $HF_HOME; sin HOME escribible (usuario 1000) falla
+                - name: HF_HOME
+                  value: /tmp/hf-cache
                 - name: CLICKHOUSE_HOST
                   value: clickhouse
                 - name: CLICKHOUSE_PORT

@@ -12,8 +12,8 @@ spec:
       restartPolicy: Never
       containers:
         - name: fit-initial
-          image: memtrace/topic-extraction:dev
-          imagePullPolicy: IfNotPresent
+          image: localhost/memtrace/topic-extraction:dev
+          imagePullPolicy: Never
           command: ["python", "-m", "topic_extraction.fit_initial_model", "--days", "365", "--sample-size", "5000", "--model-path", "/model/bertopic"]
           env:
             - name: CLICKHOUSE_HOST
@@ -29,6 +29,12 @@ spec:
                   key: password
             - name: CLICKHOUSE_DATABASE
               value: memtrace
+            # numba (usado por UMAP/BERTopic) necesita un directorio de caché JIT escribible por el usuario 1000
+            - name: NUMBA_CACHE_DIR
+              value: /tmp/numba-cache
+            # sentence-transformers descarga el modelo de embeddings a $HF_HOME; sin HOME escribible (usuario 1000) falla
+            - name: HF_HOME
+              value: /tmp/hf-cache
           volumeMounts:
             - name: topic-model
               mountPath: /model
