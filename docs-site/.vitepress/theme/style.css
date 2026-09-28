@@ -1,0 +1,204 @@
+/* Same look as the dashboard (dashboard/src/styles/app.css + MainLayout): white surfaces separated by
+   1px lines (no shadows), compact 13px type, solid near-black active items, square corners (ADR-018). */
+:root {
+  --mt-card: #ffffff;
+  --mt-ink: #0e1a13;
+  --mt-muted: #56655c;
+  --mt-faint: #66756d;
+  --mt-soft: #f1f5f2;
+  --mt-line: #e8eee9;
+  --mt-accent: #1c1f23;
+  --mt-accent-ink: #ffffff;
+  --code-bg: rgba(14, 26, 19, 0.04);
+  --mt-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --mt-sans: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mt-warn-bg: #ffefd2;
+  --mt-warn-ink: #8a5300;
+}
+
+.dark {
+  --mt-card: #16221a;
+  --mt-ink: #eaf3ec;
+  --mt-muted: #93a89c;
+  --mt-faint: #7c9088;
+  --mt-soft: #1d2b22;
+  --mt-line: #263427;
+  --mt-accent: #f2f3f5;
+  --mt-accent-ink: #0e1a13;
+  --code-bg: rgba(255, 255, 255, 0.08);
+  --mt-warn-bg: #3a2c10;
+  --mt-warn-ink: #ffcf80;
+}
+
+/* Map VitePress tokens onto the MemTrace ones */
+:root {
+  --vp-font-family-base: var(--mt-sans);
+  --vp-font-family-mono: var(--mt-mono);
+
+  --vp-c-bg: var(--mt-card);
+  --vp-c-bg-alt: var(--mt-card);
+  --vp-c-bg-elv: var(--mt-card);
+  --vp-c-bg-soft: var(--mt-soft);
+  --vp-c-text-1: var(--mt-ink);
+  --vp-c-text-2: var(--mt-muted);
+  --vp-c-text-3: var(--mt-faint);
+  --vp-c-divider: var(--mt-line);
+  --vp-c-border: var(--mt-line);
+  --vp-c-gutter: var(--mt-line);
+
+  --vp-c-brand-1: var(--mt-ink);
+  --vp-c-brand-2: var(--mt-ink);
+  --vp-c-brand-3: var(--mt-accent);
+  --vp-c-brand-soft: var(--mt-soft);
+
+  --vp-button-brand-bg: var(--mt-accent);
+  --vp-button-brand-hover-bg: var(--mt-accent);
+  --vp-button-brand-active-bg: var(--mt-accent);
+  --vp-button-brand-text: var(--mt-accent-ink);
+  --vp-button-brand-hover-text: var(--mt-accent-ink);
+  --vp-button-brand-active-text: var(--mt-accent-ink);
+  --vp-button-brand-border: var(--mt-accent);
+  --vp-button-brand-hover-border: var(--mt-accent);
+  --vp-button-alt-bg: var(--mt-card);
+  --vp-button-alt-hover-bg: var(--mt-soft);
+  --vp-button-alt-text: var(--mt-ink);
+  --vp-button-alt-border: var(--mt-line);
+
+  --vp-home-hero-name-color: var(--mt-ink);
+  --vp-home-hero-name-background: none;
+
+  --vp-code-block-bg: var(--code-bg);
+  --vp-code-bg: var(--code-bg);
+  --vp-code-color: var(--mt-ink);
+  --vp-code-font-size: 12.5px;
+  --vp-c-default-soft: var(--mt-soft);
+  --vp-c-tip-soft: var(--mt-soft);
+  --vp-c-tip-1: var(--mt-ink);
+  --vp-c-warning-soft: var(--mt-warn-bg);
+  --vp-c-warning-1: var(--mt-warn-ink);
+  --vp-sidebar-width: 220px;
+  --vp-nav-height: 52px;
+  --vp-layout-max-width: 100%;
+}
+
+body { font-size: 13px; letter-spacing: 0; }
+
+/* Square corners and no shadows everywhere */
+*, *::before, *::after { box-shadow: none !important; }
+.VPButton, .VPFeature, .custom-block, div[class*="language-"], .vp-doc :not(pre) > code,
+.VPNavBarSearchButton, .vp-doc table, .vp-doc img, .VPSidebarItem .link, .VPFlyout .menu, .VPMenu,
+.VPLocalSearchBox .search-bar, .VPLocalSearchBox .result, .vp-doc [class*="language-"] > button.copy {
+  border-radius: 0 !important;
+}
+
+/* Top bar: brand + search + links, single white surface with a bottom line */
+.VPNav, .VPNavBar, .VPNavBar .content-body, .VPNavBar .divider-line { background: var(--mt-card) !important; }
+.VPNavBar { border-bottom: 1px solid var(--mt-line); }
+.VPNavBar .divider-line { background: transparent !important; }
+.VPNavBarTitle .title { font-weight: 700; font-size: 16px; letter-spacing: -0.03em; border-bottom: 0 !important; }
+.VPNavBarMenuLink, .VPNavBarMenuGroup { font-size: 13px; font-weight: 600; color: var(--mt-muted) !important; }
+.VPNavBarMenuLink.active, .VPNavBarMenuLink:hover { color: var(--mt-ink) !important; }
+.VPNavBarSearchButton { background: var(--mt-card) !important; border: 1px solid var(--mt-line); }
+.VPNavBarSearch .DocSearch-Button, .VPNavBarSearchButton .vp-icon { color: var(--mt-muted); }
+.VPSwitch { border-radius: 0 !important; }
+
+/* Sidebar: like the dashboard nav, active item is a solid block */
+.VPSidebar { background: var(--mt-card) !important; border-right: 1px solid var(--mt-line); padding: calc(var(--vp-nav-height) + 14px) 10px 12px !important; }
+.VPSidebar .group + .group { border-top: 0; padding-top: 0; }
+.VPSidebarItem.level-0 > .item > .text, .VPSidebarItem .text { font-size: 13px; }
+.VPSidebarItem.level-0 > .item > .text {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--mt-muted);
+  padding: 0 10px 6px;
+}
+.VPSidebarItem.level-1 > .item, .VPSidebarItem.level-1 .link { padding: 0; }
+.VPSidebarItem .link {
+  display: flex; align-items: center; height: 34px; padding: 0 10px !important;
+  font-weight: 600; color: var(--mt-muted); transition: background 0.2s ease, color 0.2s ease;
+}
+.VPSidebarItem .link:hover { background: var(--mt-soft); color: var(--mt-ink); }
+.VPSidebarItem.is-active > .item > .link { background: var(--mt-accent); }
+.VPSidebarItem.is-active > .item > .link .text { color: var(--mt-accent-ink) !important; font-weight: 600; }
+.VPSidebarItem .indicator { display: none; }
+
+/* Content */
+.VPContent, .VPDoc { background: var(--mt-card); }
+.vp-doc { font-size: 14px; }
+.vp-doc h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.03em; }
+.vp-doc h2 {
+  font-size: 18px; font-weight: 700; letter-spacing: -0.02em;
+  margin-top: 36px; padding-top: 24px; border-top: 1px solid var(--mt-line);
+}
+.vp-doc h3 { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+.vp-doc p, .vp-doc li { line-height: 1.7; }
+.vp-doc a { color: var(--mt-ink); font-weight: 600; text-decoration: none; border-bottom: 1px solid var(--mt-line); }
+.vp-doc a:hover { border-bottom-color: var(--mt-ink); }
+.vp-doc a.header-anchor { border-bottom: 0; }
+.vp-doc :not(pre) > code { font-family: var(--mt-mono); font-size: 12px; padding: 1px 5px; color: var(--mt-ink); }
+.vp-doc h1 > code, .vp-doc h2 > code, .vp-doc h3 > code { font-size: inherit; }
+
+/* Code: soft gray block, no border, monochrome */
+.vp-doc div[class*="language-"] { background: var(--code-bg); border: 0; margin: 16px 0; }
+.vp-doc div[class*="language-"] pre, .vp-doc div[class*="language-"] code { font-family: var(--mt-mono); font-size: 12.5px; line-height: 1.65; }
+.vp-doc div[class*="language-"] span { color: var(--mt-ink) !important; }
+.vp-doc div[class*="language-"] span[style*="6A737D"],
+.vp-doc div[class*="language-"] span[style*="6a737d"] { color: var(--mt-muted) !important; }
+.vp-doc div[class*="language-"] .lang { color: var(--mt-faint); font-size: 11px; }
+.vp-doc [class*="language-"] > button.copy { background-color: transparent; border: 0; }
+
+/* Tables: hairlines, dashboard-style uppercase labels */
+.vp-doc table { display: table; width: 100%; border: 1px solid var(--mt-line); margin: 16px 0; }
+.vp-doc tr, .vp-doc tr:nth-child(2n) { background: transparent; border-top: 1px solid var(--mt-line); }
+.vp-doc th, .vp-doc td { border: 0; padding: 10px 14px; font-size: 13px; }
+.vp-doc th {
+  background: transparent; color: var(--mt-muted); font-size: 11px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+
+/* Callouts */
+.vp-doc .custom-block { background: var(--mt-soft); border: 0; border-left: 2px solid var(--mt-accent); }
+.vp-doc .custom-block .custom-block-title { font-weight: 700; }
+.vp-doc .custom-block.warning { background: var(--mt-warn-bg); border-left-color: var(--mt-warn-ink); }
+.vp-doc .custom-block a { border-bottom-color: currentColor; }
+
+/* "On this page" */
+.VPDocAsideOutline .outline-title { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--mt-muted); }
+.VPDocAsideOutline .outline-link { font-size: 12.5px; font-weight: 600; }
+.VPDocAsideOutline .outline-link.active { color: var(--mt-ink); }
+.VPDocAsideOutline .outline-marker { background: var(--mt-accent); border-radius: 0; }
+.VPDocFooter { border-top: 1px solid var(--mt-line); }
+.VPDocFooterLastUpdated { font-size: 12px; }
+.pager-link { border: 1px solid var(--mt-line) !important; border-radius: 0 !important; }
+
+/* Home */
+.VPHero .name, .VPHero .text { letter-spacing: -0.04em; }
+.VPHero .tagline { color: var(--mt-muted); font-size: 16px; }
+.VPFeature { background: var(--mt-card) !important; border: 1px solid var(--mt-line) !important; }
+.VPFeature .title { font-size: 15px; font-weight: 700; }
+.VPFeature .details { color: var(--mt-muted); font-size: 13px; }
+
+/* Full width: drop VitePress's max-width caps */
+.VPNavBar .content-body, .VPNavBar .content, .VPNavBar .container,
+.VPDoc .container, .VPDoc .content-container, .VPDoc.has-aside .content-container,
+.VPHome .container, .VPFeatures .container, .VPHero .container, .VPHomeFeatures .container {
+  max-width: none !important;
+}
+.VPDoc .content { max-width: none; padding: 0 clamp(24px, 3vw, 48px); }
+.VPDoc { padding-top: 24px; }
+@media (min-width: 960px) {
+  .VPDoc { padding-inline: 0; }
+  .VPNavBar.has-sidebar .content { padding-inline: 0 32px; }
+  .VPNavBar.has-sidebar .title { width: var(--vp-sidebar-width); padding: 0 24px; box-sizing: border-box; background: transparent; border-right: 1px solid var(--mt-line); }
+  /* no empty right column when a page has no headings for the outline */
+  .VPDoc.has-aside:not(:has(.VPDocAsideOutline.has-outline)) .aside { display: none; }
+  .VPDoc.has-aside:not(:has(.VPDocAsideOutline.has-outline)) .container { display: block; }
+}
+
+/* Fixes after visual review */
+.VPSidebar > .nav, .VPSidebar .group, .VPSidebarItem, .VPSidebarItem .item { width: 100% !important; box-sizing: border-box; }
+.VPSidebarItem.level-0 { padding-bottom: 0; }
+.VPNavBarTitle .title { justify-content: flex-start; }
+.VPNavBar, .VPNavBar.home, .VPNavBar.home.top { border-bottom: 1px solid var(--mt-line) !important; }
+.VPNavBar .divider, .VPNavBar .divider-line { display: none !important; }
+.VPSwitch { background: var(--mt-soft) !important; border: 1px solid var(--mt-line); }
+.VPHero .name, .VPHero .text { font-size: 44px !important; line-height: 1.1 !important; }
+.VPHero .tagline { line-height: 1.6 !important; }

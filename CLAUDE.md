@@ -3,7 +3,7 @@
 Por cada código que vayas a implementar tienes que:
 
 1. Leer docs/roadmap.md donde se define el roadmap completo de este proyecto. No debes perder el foco ni tomar decisiones que no sean escalables con la visión final de este proyecto.
-
+2. Actualizar docs-site/ solo con la información que sea relevante para un usuario de esta libreria + herramienta.
 
 
 Además:

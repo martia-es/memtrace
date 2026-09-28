@@ -93,6 +93,7 @@ Cuando termine, abre el dashboard en **http://localhost:8080**.
 Una vez ejecutado `make up`, tendrás acceso directo a:
 
 * 📊 **Dashboard:** [http://localhost:8080](http://localhost:8080) (nginx sirve la app y reenvía `/api` a la API; ADR-014)
+* 📖 **Documentación pública:** [http://localhost:8081](http://localhost:8081) (`docs-site/`; ADR-020)
 * 🌐 **UI Web de ClickHouse (Play):** [http://localhost:8123/play](http://localhost:8123/play)
   * **Usuario:** `default`
   * **Contraseña:** `memtrace-dev-only`
@@ -141,6 +142,7 @@ El proyecto incluye un `Makefile` interactivo para gestionar fácilmente el cicl
 | **`make migrate`** | Re-ejecuta de forma manual las migraciones de base de datos. |
 | **`make images`** | Reconstruye las imágenes de la API y el dashboard, las carga en el clúster y reinicia sus pods. |
 | **`make dev-data`** | Genera trazas de ejemplo con un agente simulado. |
+| **`make docs`** | Sitio de documentación en modo desarrollo con recarga en caliente (http://localhost:5174). `make up` ya lo sirve en http://localhost:8081. |
 | **`make down`** | Detiene el clúster conservando todos los datos guardados. |
 | **`make reset`** | **Elimina** por completo el clúster de Kubernetes y sus volúmenes de datos. |
 
@@ -158,10 +160,12 @@ MemTrace/
 │   ├── 40-otel-collector.yaml
 │   ├── 50-api.yaml             # API de consulta (Deployment + Service)
 │   ├── 60-dashboard.yaml       # Dashboard servido por nginx (Deployment + Service)
+│   ├── 70-docs.yaml            # Sitio de documentación pública (nginx)
 │   └── config/                 # Configuración de ClickHouse (ConfigMap generado por kustomize)
 ├── sdk/python/                 # SDK Python (memtrace-ai en PyPI, import memtrace): decoradores + integración LangChain, exporta OTLP
 ├── api/                        # API de consulta (Next.js + TypeScript): único acceso a ClickHouse
 ├── dashboard/                  # Dashboard (Vite + Vue 3 + Quasar): consume solo la API
+├── docs-site/                  # Sitio público docs.memtraces.ai (VitePress): librería + plataforma; independiente del dashboard
 ├── examples/                   # Ejemplos de agentes instrumentados
 ├── migrations/                 # Migraciones SQL versionadas
 │   ├── clickhouse/              # Esquema de trazas (columnar)
