@@ -13,5 +13,5 @@ pip install memtrace-ai
 | `http` | `pip install "memtrace-ai[http]"` | OTLP/HTTP exporter (needed for [API-key authentication](./authentication)) |
 | `langchain` | `pip install "memtrace-ai[langchain]"` | `MemTraceCallbackHandler` for LangChain / LangGraph |
 | `otel-langchain` | `pip install "memtrace-ai[otel-langchain]"` | Automatic LangChain instrumentation |
-
-Pydantic AI needs no extra: install `pydantic-ai` alongside.
+| `pydantic-ai` | `pip install "memtrace-ai[pydantic-ai]"` | Automatic Pydantic AI instrumentation (or install `pydantic-ai` yourself) |
+| `pii` | `pip install "memtrace-ai[pii]"` | [Anonymization of personal data](./pii) with Presidio (also needs a spaCy model) |

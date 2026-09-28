@@ -53,13 +53,17 @@ Records standardized GenAI attributes on the **current** span. Call it inside a 
 
 ```python
 trace_llm_call(
-    provider="openai", model="gpt-4o", operation="chat",
+    "openai", "gpt-4o",          # provider and model; everything else is keyword-only
+    operation="chat",
     input_messages=[...], output_messages=[...],
     input_tokens=180, output_tokens=52,
     response_model=None, response_id=None, finish_reasons=(),
     temperature=None, max_tokens=None, top_p=None,
+    frequency_penalty=None, presence_penalty=None,
     attributes=None,   # extra span attributes
 )
 ```
+
+Every tracing entry point (`trace_step`, `trace_step_context`, `trace_llm_call`) also takes `service=`, the object returned by `init_tracer()`, when you need a tracer other than the global one.
 
 Token counts feed the dashboard's token metrics. Messages are stored only when [content capture](./configuration#privacy-and-content-capture) is on.

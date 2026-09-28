@@ -5,12 +5,25 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "memtrace-ai"
 version = "0.1.0"
-description = "Librería de observabilidad y trazabilidad OTel para Agentes de IA"
+description = "OpenTelemetry-based tracing and observability SDK for AI agents"
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"
+keywords = ["observability", "tracing", "opentelemetry", "llm", "ai-agents", "langchain", "pydantic-ai"]
 authors = [
     {name = "MemTrace Authors"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Monitoring",
+    "Typing :: Typed",
 ]
 dependencies = [
     "opentelemetry-api>=1.20.0",
@@ -26,19 +39,59 @@ langchain = [
     "langchain-core>=0.1.0"
 ]
 otel-langchain = [
-    "opentelemetry-instrumentation-langchain>=0.45.0",
+    "langchain-core>=0.1.0",
+    "opentelemetry-instrumentation-langchain>=0.45.0,<1",
+    "wrapt<2; python_version < '3.10'",  # older instrumentor releases break with wrapt 2 (no kwargs)
+]
+pydantic-ai = [
+    "pydantic-ai-slim>=1.0.0",
+]
+# Personal-data anonymization (memtrace.pii). The spaCy language model is installed separately:
+#   python -m spacy download en_core_web_sm
+pii = [
+    "presidio-analyzer>=2.2.35",
+    "presidio-anonymizer>=2.2.35",
+    "spacy>=3.7",
 ]
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
     "langchain-core>=0.1.0",
-    "opentelemetry-instrumentation-langchain>=0.45.0",
+    "opentelemetry-instrumentation-langchain>=0.45.0,<1",
+    "wrapt<2; python_version < '3.10'",
+    "pydantic-ai-slim>=1.0.0; python_version >= '3.10'",
+    "mypy>=1.10",
+    "ruff>=0.5",
 ]
+
+[project.urls]
+Homepage = "https://github.com/martia-es/memtrace"
+Documentation = "https://github.com/martia-es/memtrace/tree/main/docs-site"
+Changelog = "https://github.com/martia-es/memtrace/blob/main/sdk/python/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["memtrace*"]
 
+[tool.setuptools.package-data]
+memtrace = ["py.typed"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+
+[tool.ruff.lint.isort]
+known-first-party = ["memtrace", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501", "UP006", "UP007", "UP035", "UP045"]  # keep typing.Optional/List: Python 3.9 support
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_ignores = true

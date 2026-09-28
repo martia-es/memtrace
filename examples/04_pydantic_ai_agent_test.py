@@ -2,7 +2,7 @@ import os
 import sys
 from uuid import uuid4
 
-# Añadir sdk/python al path para poder importar memtrace sin necesidad de pip install
+# Add sdk/python to the path so memtrace can be imported without pip install
 sys.path.insert(
     0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "sdk", "python"))
 )

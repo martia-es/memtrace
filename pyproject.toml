@@ -19,6 +19,13 @@ dependencies = [
     "opentelemetry-instrumentation-langchain>=0.62.3",
     "pydantic-ai-slim[google]>=1.0.0",
     "langchain-anthropic>=1.7.4",
+    # PII anonymization (memtrace.pii, examples/03): Presidio + spaCy models. The models are
+    # direct wheels because `python -m spacy download` needs pip, which uv environments lack.
+    "presidio-analyzer>=2.2.35",
+    "presidio-anonymizer>=2.2.35",
+    "spacy>=3.7",
+    "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
+    "es-core-news-md @ https://github.com/explosion/spacy-models/releases/download/es_core_news_md-3.8.0/es_core_news_md-3.8.0-py3-none-any.whl",
 ]
 
 [tool.setuptools.packages.find]

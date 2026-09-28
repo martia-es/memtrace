@@ -6,14 +6,14 @@ def test_provider_normalization_and_inference():
     assert normalize_provider("openai-chat") == "openai"
     assert normalize_provider("google_genai") == "gcp.gemini"
     assert normalize_provider(None, "claude-3-5") == "anthropic"
-    assert normalize_provider(None, "desconocido") is None
+    assert normalize_provider(None, "unknown") is None
 
 
 def test_llm_attributes_total_tokens_and_none_values():
     attrs = llm_attributes(LlmCall(provider="openai", model="gpt-4o", input_tokens=3, output_tokens=4))
     assert attrs["gen_ai.usage.total_tokens"] == 7
     assert attrs["gen_ai.provider.name"] == "openai"
-    assert attrs["gen_ai.request.temperature"] is None  # el adapter descarta los None
+    assert attrs["gen_ai.request.temperature"] is None  # the adapter drops None values
 
 
 def test_step_start_attributes():
@@ -35,6 +35,6 @@ def test_to_json_serializes_chat_messages_as_role_and_content():
 
     class Msg:
         type = "human"
-        content = "hola"
+        content = "hello"
 
-    assert json.loads(to_json({"messages": [Msg()]})) == {"messages": [{"role": "human", "content": "hola"}]}
+    assert json.loads(to_json({"messages": [Msg()]})) == {"messages": [{"role": "human", "content": "hello"}]}

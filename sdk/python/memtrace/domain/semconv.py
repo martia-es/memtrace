@@ -1,4 +1,4 @@
-"""Nombres de atributos: convenciones GenAI de OpenTelemetry + los pocos propios (ADR-004)."""
+"""Attribute names: OpenTelemetry GenAI conventions plus the few MemTrace-specific ones (ADR-004)."""
 
 GEN_AI_OPERATION_NAME = "gen_ai.operation.name"
 GEN_AI_PROVIDER_NAME = "gen_ai.provider.name"
@@ -22,9 +22,9 @@ GEN_AI_TOOL_CALL_ID = "gen_ai.tool.call.id"
 GEN_AI_TOOL_CALL_ARGUMENTS = "gen_ai.tool.call.arguments"
 GEN_AI_TOOL_CALL_RESULT = "gen_ai.tool.call.result"
 
-# Propios: solo donde no hay atributo estándar
+# MemTrace-specific: only where no standard attribute exists
 MEMTRACE_STEP_TYPE = "memtrace.step_type"
-# framework de agentes detectado (ver ADR-011): "langchain" | "langgraph"
+# detected agent framework (see ADR-011): "langchain" | "langgraph"
 MEMTRACE_FRAMEWORK = "memtrace.framework"
 MEMTRACE_METADATA = "memtrace.metadata"
 MEMTRACE_TAGS = "memtrace.tags"

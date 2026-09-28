@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import functools
 import logging
+import threading
 import time
 import uuid
 from contextlib import contextmanager
@@ -20,7 +21,7 @@ _EXPIRE_CHECK_INTERVAL_SECONDS = 10
 
 
 def _failsafe(default: Any = None):
-    """Política central: la instrumentación nunca propaga excepciones al código del usuario."""
+    """Central policy: instrumentation never propagates exceptions into user code."""
 
     def decorator(fn):
         @functools.wraps(fn)
@@ -28,7 +29,7 @@ def _failsafe(default: Any = None):
             try:
                 return fn(self, *args, **kwargs)
             except Exception as exc:
-                logger.warning("[MemTrace] %s falló: %s", fn.__name__, exc)
+                logger.warning("[MemTrace] %s failed: %s", fn.__name__, exc)
                 return default
 
         return wrapper
@@ -37,21 +38,32 @@ def _failsafe(default: Any = None):
 
 
 class TracingService:
-    """Casos de uso de trazado. Los adapters de entrada (decoradores, LangChain…) solo hablan con esto."""
+    """Tracing use cases. Inbound adapters (decorators, LangChain…) only talk to this."""
 
     def __init__(
         self,
         port: SpanPort,
-        capture: CapturePolicy = CapturePolicy(),
+        capture: Optional[CapturePolicy] = None,
         span_ttl_seconds: int = 3600,
+        max_active_runs: int = 10_000,
     ) -> None:
         self._port = port
-        self._capture = capture
+        self._capture = capture or CapturePolicy()
         self._ttl = span_ttl_seconds
+        self._max_active_runs = max_active_runs
         self._registry = RunRegistry()
         self._last_expire_check = time.time()
+        self._eviction_warned = False
+        self._reaper_lock = threading.Lock()
+        self._reaper: Optional[threading.Thread] = None
+        self._stop = threading.Event()
 
-    # ----- política de contenido -----
+    @property
+    def tracer_provider(self) -> Any:
+        """Backend-native tracer provider for auto-instrumentors (None when tracing is off)."""
+        return self._port.tracer_provider
+
+    # ----- content policy -----
 
     @property
     def captures_content(self) -> bool:
@@ -64,7 +76,7 @@ class TracingService:
     def capture(self, payload: Any) -> Optional[str]:
         return self._capture.apply(payload)
 
-    # ----- runs (spans identificados por run_id) -----
+    # ----- runs (spans identified by run_id) -----
 
     @property
     def active_runs(self) -> int:
@@ -79,11 +91,13 @@ class TracingService:
         parent_run_id: Optional[uuid.UUID] = None,
         attributes: Optional[Mapping[str, Any]] = None,
     ) -> uuid.UUID:
-        """Padre: el run `parent_run_id` si sigue en vuelo; si no, el span actual; si no, raíz."""
+        """Parent: the `parent_run_id` run if still in flight; else the current span; else a root."""
         run_id = run_id or uuid.uuid4()
         self.expire_stale_if_due()
+        self._ensure_reaper()
+        self._enforce_capacity()
         parent = self._registry.get(parent_run_id) if parent_run_id else None
-        # un valor None no debe pisar los atributos por defecto (p. ej. la sesión activa)
+        # a None value must not override default attributes (e.g. the active session)
         explicit = {k: v for k, v in (attributes or {}).items() if v is not None}
         attrs = {**step_start_attributes(step_type, get_session_id()), **explicit}
         self._registry.add(run_id, self._port.start_span(name, attrs, parent))
@@ -118,9 +132,9 @@ class TracingService:
         step_type: Union[StepType, str] = StepType.CHAIN,
         attributes: Optional[Mapping[str, Any]] = None,
     ) -> Iterator[Optional[uuid.UUID]]:
-        """Bloque instrumentado: su span es el *actual* dentro del bloque (los hijos cuelgan de él).
+        """Instrumented block: its span is the *current* one inside it (children hang from it).
 
-        Rinde el `run_id`, o None si no se pudo abrir el span (el bloque se ejecuta igual).
+        Yields the `run_id`, or None if the span could not be opened (the block runs anyway).
         """
         opened = self._open_step(name, step_type, attributes)
         if opened is None:
@@ -129,7 +143,7 @@ class TracingService:
         run_id, activation, token = opened
         try:
             yield run_id
-        except BaseException as exc:  # incluye CancelledError / KeyboardInterrupt
+        except BaseException as exc:  # includes CancelledError / KeyboardInterrupt
             self._close_step(run_id, activation, token, exc)
             raise
         self._close_step(run_id, activation, token, None)
@@ -144,7 +158,7 @@ class TracingService:
             activation = self._port.activate(handle)
             activation.__enter__()
         except Exception:
-            self.end_run(run_id)  # no dejar el span huérfano
+            self.end_run(run_id)  # do not leave the span orphaned
             raise
         return run_id, activation, current_run_id.set(run_id)
 
@@ -168,7 +182,7 @@ class TracingService:
         output_messages: Optional[Sequence[Any]] = None,
         extra_attributes: Optional[Mapping[str, Any]] = None,
     ) -> None:
-        """Anota la llamada a un LLM en el span actual."""
+        """Annotates the current span with an LLM call."""
         handle = self._port.current()
         if handle is None:
             return
@@ -176,7 +190,7 @@ class TracingService:
         attrs.update(extra_attributes or {})
         handle.set_attributes(attrs)
 
-    # ----- mantenimiento -----
+    # ----- maintenance -----
 
     def expire_stale_if_due(self) -> None:
         if time.time() - self._last_expire_check >= _EXPIRE_CHECK_INTERVAL_SECONDS:
@@ -184,7 +198,7 @@ class TracingService:
 
     @_failsafe()
     def expire_stale(self, now: Optional[float] = None) -> None:
-        """Cierra los spans que superaron el TTL (callbacks de fin que nunca llegaron)."""
+        """Ends the spans that exceeded the TTL (end callbacks that never arrived)."""
         now = time.time() if now is None else now
         self._last_expire_check = now
         for handle in self._registry.pop_older_than(now - self._ttl):
@@ -194,10 +208,45 @@ class TracingService:
             except Exception:
                 pass
 
+    def _enforce_capacity(self) -> None:
+        """Bounds memory under heavy traffic: the oldest in-flight run is closed as expired."""
+        while len(self._registry) >= self._max_active_runs > 0:
+            handle = self._registry.pop_oldest()
+            if handle is None:
+                return
+            if not self._eviction_warned:
+                self._eviction_warned = True
+                logger.warning(
+                    "[MemTrace] More than %d spans in flight; closing the oldest ones early "
+                    "(raise MEMTRACE_MAX_ACTIVE_RUNS if this is expected).",
+                    self._max_active_runs,
+                )
+            try:
+                handle.set_attributes({sc.MEMTRACE_SPAN_EXPIRED: True})
+                handle.end()
+            except Exception:
+                pass
+
+    def _ensure_reaper(self) -> None:
+        """Starts (once) the daemon thread that expires orphans even when no new spans arrive."""
+        if self._reaper is not None or self._ttl <= 0 or self._stop.is_set():
+            return
+        with self._reaper_lock:
+            if self._reaper is None:
+                thread = threading.Thread(target=self._reap_loop, name="memtrace-reaper", daemon=True)
+                self._reaper = thread
+                thread.start()
+
+    def _reap_loop(self) -> None:
+        interval = min(_EXPIRE_CHECK_INTERVAL_SECONDS, max(self._ttl / 4, 0.05))
+        while not self._stop.wait(interval):
+            self.expire_stale()
+
     @_failsafe(default=False)
     def flush(self, timeout_millis: int = 30000) -> bool:
         return bool(self._port.flush(timeout_millis))
 
     @_failsafe()
     def shutdown(self) -> None:
+        self._stop.set()
         self._port.shutdown()

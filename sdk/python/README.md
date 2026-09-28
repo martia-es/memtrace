@@ -1,60 +1,73 @@
 # memtrace-ai (Python SDK)
 
-Instrumenta agentes de IA y exporta trazas por OTLP (convenciones GenAI de OpenTelemetry). No conoce el almacén: solo habla con el OTel Collector.
+Instruments AI agents and exports traces over OTLP (OpenTelemetry GenAI conventions). It does not know the storage: it only talks to the OTel Collector.
 
-> El nombre del paquete publicado en PyPI es `memtrace-ai`; el import en Python sigue siendo `memtrace`.
+> The package is published on PyPI as `memtrace-ai`; the Python import is `memtrace`.
 
 ```bash
-pip install memtrace-ai[langchain]   # extras: http (OTLP/HTTP), langchain, dev
+pip install memtrace-ai
+# extras: http (OTLP/HTTP), langchain, otel-langchain, pydantic-ai, pii, dev
 ```
 
 ```python
-from memtrace import init_tracer, trace_step, trace_llm_call, flush
+from memtrace import init_tracer, trace_step, trace_llm_call, shutdown
 
-init_tracer(service_name="mi-agente")   # o variables MEMTRACE_*
+init_tracer(service_name="my-agent")   # or MEMTRACE_* environment variables
 
-@trace_step(name="buscar", step_type="tool")
-def buscar(q: str) -> str: ...
+@trace_step(name="search", step_type="tool")
+def search(q: str) -> str: ...
 
-# LangChain / LangGraph — Opción 1: Manual (recomendado)
+# LangChain / LangGraph - Option 1: manual callback handler
 from memtrace import MemTraceCallbackHandler
 chain.invoke(x, config={"callbacks": [MemTraceCallbackHandler()]})
 
-# LangChain / LangGraph — Opción 2: Automática (pip install memtrace[otel-langchain])
+# LangChain / LangGraph - Option 2: automatic (pip install 'memtrace-ai[otel-langchain]')
 # from memtrace import enable_langchain_instrumentation
-# enable_langchain_instrumentation()
-# chain.invoke(x)  # captura automática
+# enable_langchain_instrumentation()   # once, after init_tracer(); do not combine with option 1
 
-flush()  # scripts cortos / serverless; shutdown() al salir
+# Pydantic AI - automatic (pip install 'memtrace-ai[pydantic-ai]')
+# from memtrace import enable_pydantic_ai_instrumentation
+# enable_pydantic_ai_instrumentation()
+
+shutdown()  # optional: the OTel SDK also flushes at exit; use flush() in short scripts / serverless
 ```
 
-**Conversaciones**: envuelve cada turno con `with memtrace.session("id-de-la-conversacion"):` (o pasa `thread_id` / `session_id` / `conversation_id` en el `metadata` de LangChain) y el dashboard agrupará las trazas en una conversación. El id debe ser estable entre turnos, único por conversación y sin datos personales (aparece en las URLs). Sin él, cada turno queda como una traza suelta.
+**Error policy**: the tracing calls never raise into your code. The only exceptions are the `enable_*_instrumentation()` functions, which raise `ImportError` if their extra is not installed.
 
-Los spans creados dentro de un `@trace_step` (o de `with memtrace.session("id")`) cuelgan de él, incluidos los del handler de LangChain y los de librerías auto-instrumentadas.
+**Conversations**: wrap each turn with `with memtrace.session("conversation-id"):` (or pass `thread_id` / `session_id` / `conversation_id` in LangChain's `metadata`) and the dashboard groups the traces into one conversation. The id must be stable across turns, unique per conversation and free of personal data (it shows up in URLs). Without it, every turn is a standalone trace. `session()` also applies to spans emitted by auto-instrumented libraries.
 
-## Configuración
+Spans created inside a `@trace_step` (or inside `with memtrace.session("id")`) hang from it, including those of the LangChain handler and of auto-instrumented libraries.
 
-| Variable | Defecto | |
+`trace_step`, `trace_step_context` and `trace_llm_call` accept `service=` (the value returned by `init_tracer`) to use an explicit tracer instead of the global one.
+
+## Configuration
+
+| Variable | Default | |
 |---|---|---|
-| `MEMTRACE_ENABLED` | `true` | `false` desactiva todo (no-op) |
+| `MEMTRACE_ENABLED` | `true` | `false` disables everything (no-op) |
 | `MEMTRACE_SERVICE_NAME` | `default-agent` | `service.name` |
-| `MEMTRACE_SERVICE_VERSION`, `MEMTRACE_ENVIRONMENT` | — | atributos del Resource |
+| `MEMTRACE_SERVICE_VERSION`, `MEMTRACE_ENVIRONMENT` | - | Resource attributes |
 | `MEMTRACE_OTLP_ENDPOINT` | `http://localhost:4317` (grpc) / `:4318` (http) | |
-| `MEMTRACE_OTLP_PROTOCOL` | `grpc` | o `http/protobuf` (extra `http`) |
-| `MEMTRACE_OTLP_HEADERS` | — | `k1=v1,k2=v2` |
-| `MEMTRACE_CAPTURE_CONTENT` | `false` | guarda prompts/completions/argumentos (ADR-004) |
-| `MEMTRACE_MAX_CONTENT_LENGTH` | `16384` | truncado del contenido capturado |
-| `MEMTRACE_SPAN_TTL_SECONDS` | `3600` | cierra spans huérfanos |
+| `MEMTRACE_OTLP_PROTOCOL` | `grpc` | or `http/protobuf` (extra `http`) |
+| `MEMTRACE_OTLP_HEADERS` | - | `k1=v1,k2=v2` |
+| `MEMTRACE_CAPTURE_CONTENT` | `false` | store prompts/completions/arguments (ADR-004); also gates the auto-instrumentations |
+| `MEMTRACE_MAX_CONTENT_LENGTH` | `16384` | truncation of captured content |
+| `MEMTRACE_REDACT_KEYS` | - | extra key names to mask, on top of the built-in list (ADR-021) |
+| `MEMTRACE_SPAN_TTL_SECONDS` | `3600` | closes orphaned spans |
+| `MEMTRACE_MAX_ACTIVE_RUNS` | `10000` | cap on in-flight spans |
 | `MEMTRACE_EXPORT_TIMEOUT_MS`, `MEMTRACE_BATCH_MAX_QUEUE_SIZE`, `MEMTRACE_BATCH_SCHEDULE_DELAY_MS`, `MEMTRACE_BATCH_MAX_EXPORT_SIZE` | 5000 / 2048 / 5000 / 512 | `BatchSpanProcessor` |
 
-TLS con certificado propio: `OTEL_EXPORTER_OTLP_CERTIFICATE` (estándar OTel) con un endpoint `https://`.
+**Redaction**: secrets are masked in every exported span, by key name (`api_key`, `password`, …) and by shape (`sk-…`, JWTs, `Bearer …`, URL credentials). Personal data (emails, names, IDs) is anonymized only if you opt in with the `pii` extra: `init_tracer(redact=presidio_redactor(language="es"))` (`from memtrace.pii import presidio_redactor`; also `python -m spacy download <model>`), or with your own `init_tracer(redact=fn)`.
 
-## Arquitectura
+Self-signed TLS: `OTEL_EXPORTER_OTLP_CERTIFICATE` (standard OTel) with an `https://` endpoint.
 
-Hexagonal (ADR-008): `domain` (puro) → `application` (puerto `SpanPort` + `TracingService`) ← `adapters/inbound` (decoradores, LangChain) y `adapters/outbound` (OpenTelemetry, no-op). `dependency_container.py` es la composition root. La regla de dependencias la verifica `tests/test_architecture.py`.
+## Architecture
 
-## Tests
+Hexagonal (ADR-008): `domain` (pure) → `application` (`SpanPort` port + `TracingService`) ← `adapters/inbound` (decorators, LangChain, Pydantic AI) and `adapters/outbound` (OpenTelemetry, no-op). `dependency_container.py` is the composition root. The dependency rule is checked by `tests/test_architecture.py`. Auto-instrumentors receive MemTrace's tracer provider explicitly, never a global one, and every span passes through a redacting exporter before it leaves the process (ADR-021).
+
+## Development
 
 ```bash
-pip install -e ".[dev]" && pytest
+pip install -e ".[dev,http]"
+ruff check memtrace tests && mypy memtrace && pytest
 ```

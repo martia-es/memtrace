@@ -7,7 +7,7 @@ from memtrace.application.ports import SpanHandle
 
 
 class RunRegistry:
-    """Spans en vuelo por `run_id` (los frameworks por callbacks identifican runs, no spans)."""
+    """In-flight spans by `run_id` (callback-based frameworks identify runs, not spans)."""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -26,6 +26,13 @@ class RunRegistry:
         with self._lock:
             entry = self._runs.pop(run_id, None)
         return entry[0] if entry else None
+
+    def pop_oldest(self) -> Optional[SpanHandle]:
+        with self._lock:
+            if not self._runs:
+                return None
+            oldest = min(self._runs, key=lambda rid: self._runs[rid][1])
+            return self._runs.pop(oldest)[0]
 
     def pop_older_than(self, cutoff: float) -> List[SpanHandle]:
         with self._lock:

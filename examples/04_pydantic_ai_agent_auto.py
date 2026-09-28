@@ -2,7 +2,7 @@ import os
 import sys
 from uuid import uuid4
 
-# Añadir sdk/python al path para poder importar memtrace sin necesidad de pip install
+# Add sdk/python to the path so memtrace can be imported without pip install
 sys.path.insert(
     0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "sdk", "python"))
 )
@@ -14,8 +14,8 @@ from pydantic_ai import Agent
 load_dotenv()
 init_tracer(service_name="pydantic-ai-agent")
 
-# OPCIÓN AUTOMÁTICA: activa autoinstrumentación de Pydantic AI.
-# Usa el TracerProvider que configuró init_tracer, sin callbacks ni decoradores.
+# AUTOMATIC OPTION: enables Pydantic AI auto-instrumentation.
+# Uses the tracer configured by init_tracer, with no callbacks or decorators.
 enable_pydantic_ai_instrumentation()
 
 agent = Agent(
@@ -33,7 +33,7 @@ def search(query: str) -> str:
 conversation_id = str(uuid4())
 
 try:
-    # session() agrupa los spans de ambos turnos bajo la misma conversación
+    # session() groups the spans of both turns under the same conversation
     with session(conversation_id):
         first = agent.run_sync("What's the weather in San Francisco?")
         print(first.output)

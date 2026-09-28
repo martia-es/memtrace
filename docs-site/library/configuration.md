@@ -12,7 +12,9 @@ Settings can be passed to `init_tracer` or set as environment variables.
 | `MEMTRACE_OTLP_HEADERS` | none | `k1=v1,k2=v2` |
 | `MEMTRACE_CAPTURE_CONTENT` | `false` | Store prompts, completions and tool arguments |
 | `MEMTRACE_MAX_CONTENT_LENGTH` | `16384` | Truncation limit for captured content |
-| `MEMTRACE_SPAN_TTL_SECONDS` | `3600` | Closes orphaned spans |
+| `MEMTRACE_REDACT_KEYS` | none | Extra key names to mask in captured content, comma-separated (e.g. `ssn,phone`) |
+| `MEMTRACE_SPAN_TTL_SECONDS` | `3600` | Closes orphaned spans (checked in the background too) |
+| `MEMTRACE_MAX_ACTIVE_RUNS` | `10000` | Cap on in-flight spans; the oldest are closed early beyond it |
 | `MEMTRACE_EXPORT_TIMEOUT_MS` | `5000` | Batch exporter timeout |
 | `MEMTRACE_BATCH_MAX_QUEUE_SIZE` | `2048` | Batch queue size |
 | `MEMTRACE_BATCH_SCHEDULE_DELAY_MS` | `5000` | Batch flush interval |
@@ -23,3 +25,22 @@ For a self-signed TLS certificate, use an `https://` endpoint and the standard `
 ## Privacy and content capture
 
 By default MemTrace records **metadata only**: names, timings, models, token counts, errors. Prompts, completions and function arguments are stored only with `MEMTRACE_CAPTURE_CONTENT=true`, truncated to `MEMTRACE_MAX_CONTENT_LENGTH`. Conversation transcripts in the dashboard require it.
+
+The automatic [Pydantic AI and LangChain integrations](./integrations) follow the same switch: they record no prompts or completions unless it is `true`.
+
+### Redaction
+
+Redaction runs on **every span before it leaves your process**, whatever created it: MemTrace decorators, the LangChain handler, Pydantic AI, or any auto-instrumented library. It applies to attributes, exception messages and error statuses, and it is on even when content capture is off.
+
+What is masked as `[REDACTED]`:
+
+- **By name**: any value whose key contains `api_key`, `password`, `secret`, `authorization`, `access_token`, `refresh_token`, `private_key`, `credential` or `cookie` (case-insensitive, at any depth). Add your own with `MEMTRACE_REDACT_KEYS`. `token` alone is not on the list, so `max_tokens` and `input_tokens` stay readable.
+- **By shape**, anywhere in text, prompts included: OpenAI/Anthropic `sk-…` keys, AWS, GitHub, Google and Slack keys, JWTs, `Bearer …` tokens, MemTrace `mtk_…` keys, private key blocks, `user:password@` in URLs, and `password=…` style pairs.
+
+Personal data with no fixed shape (names, emails, addresses) is not detected by default. To anonymize it, use the optional [`pii` extra](./pii) (`init_tracer(redact=presidio_redactor())`) or pass your own hook. A hook receives the content of each span (JSON-compatible data or text) and returns what to keep:
+
+```python
+init_tracer(redact=lambda content: scrub_pii(content))
+```
+
+If the hook raises, MemTrace stores a placeholder instead of the raw content.

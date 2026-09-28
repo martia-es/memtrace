@@ -14,14 +14,14 @@ def _init(monkeypatch, capture: bool):
 
 @pytest.fixture
 def spans(monkeypatch):
-    """MemTrace con exporter en memoria y captura de contenido desactivada."""
+    """MemTrace with an in-memory exporter and content capture disabled."""
     yield _init(monkeypatch, capture=False)
     memtrace.shutdown()
 
 
 @pytest.fixture
 def spans_capture(monkeypatch):
-    """Igual que `spans`, con MEMTRACE_CAPTURE_CONTENT=true."""
+    """Same as `spans`, with MEMTRACE_CAPTURE_CONTENT=true."""
     yield _init(monkeypatch, capture=True)
     memtrace.shutdown()
 

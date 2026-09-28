@@ -1,0 +1,37 @@
+# Changelog
+
+## Unreleased
+
+### Fixed
+- `enable_pydantic_ai_instrumentation()` and `enable_langchain_instrumentation()` now send their spans
+  through the tracer configured by `init_tracer()`. Before, they used the process-global OpenTelemetry
+  provider, which MemTrace never sets, so **no spans were exported**.
+- Both auto-instrumentations now respect `MEMTRACE_CAPTURE_CONTENT` (prompts and completions were
+  always recorded before).
+- Spans created by auto-instrumented libraries inside `with session(...)` now carry that session id.
+- The `otel-langchain` extra installs `langchain-core` and, on Python 3.9, `wrapt<2`.
+
+### Added
+- `pii` extra and `memtrace.pii` module: `presidio_redactor()` anonymizes personal data (names, emails,
+  phones, cards, IBAN, DNI/NIE…) before export using Microsoft Presidio, and `text_hook()` turns any
+  `str -> str` function into a `redact` hook. Optional: nothing is imported unless you use it.
+- Redaction of everything that is exported, for every span whatever its origin (decorators, LangChain,
+  Pydantic AI, any auto-instrumented library): secrets are masked by key name (`api_key`, `password`,
+  `authorization`, …, extendable with `MEMTRACE_REDACT_KEYS`) and by shape (`sk-…`, JWTs, `Bearer …`, URL
+  credentials, `password=…`), in attributes, exception messages and error statuses. An
+  `init_tracer(redact=...)` hook handles what has no fixed shape (emails, names). It fails closed.
+- Auto-instrumented spans (Pydantic AI, LangChain) now carry `memtrace.step_type`, derived from their
+  GenAI attributes, so the dashboard classifies agents and tools instead of showing `unknown`.
+- `enable_langchain_instrumentation()` survives `shutdown()` / `init_tracer()` (notebooks, tests): the
+  instrumentor is bound to a process-wide switchable provider. Late spans are dropped quietly.
+- Captured payloads are bounded (depth, items, string length) *before* serialization.
+- `MEMTRACE_MAX_ACTIVE_RUNS` caps in-flight spans; a background reaper now expires orphaned spans even
+  when no new spans arrive.
+- `init_tracer()` logs a warning when called again with different arguments (it used to ignore them silently).
+- `service=` argument on `trace_step`, `trace_step_context` and `trace_llm_call` to use an explicit tracer.
+- `trace_llm_call` accepts `frequency_penalty` and `presence_penalty`.
+- `pydantic-ai` extra, `py.typed` marker, package metadata, CI on Python 3.9-3.13.
+
+### Changed
+- **Breaking:** in `trace_llm_call`, everything after `provider` and `model` is keyword-only.
+- All log messages, errors and docstrings are now in English.

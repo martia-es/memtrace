@@ -1,7 +1,7 @@
-"""Agente simulado con varios pasos: retriever, LLM, herramientas (una falla) y sesión.
+"""Simulated multi-step agent: retriever, LLM, tools (one fails) and a session.
 
-Genera trazas variadas para probar el dashboard sin necesitar claves de ningún proveedor.
-Con MEMTRACE_CAPTURE_CONTENT=true también se guardan prompts, respuestas y argumentos.
+Generates varied traces to try the dashboard without any provider API key.
+With MEMTRACE_CAPTURE_CONTENT=true prompts, responses and arguments are stored too.
 
     MEMTRACE_CAPTURE_CONTENT=true python examples/02_multi_step_agent.py
 """
@@ -46,7 +46,7 @@ def think(question: str, model: str, tokens_in: int, order: dict = None) -> str:
     if order is not None:
         messages.append({"role": "tool", "content": str(order)})
 
-    # Con MEMTRACE_CAPTURE_CONTENT=true, estos mensajes alimentan la pestaña "Transcripción" del dashboard
+    # With MEMTRACE_CAPTURE_CONTENT=true, these messages feed the dashboard "Transcript" tab
     trace_llm_call(
         provider="openai" if model.startswith("gpt") else "anthropic",
         model=model,
@@ -74,11 +74,11 @@ def handle(question: str, order_id: str, model: str) -> str:
 
 
 if __name__ == "__main__":
-    # Una conversación = varios turnos (trazas) bajo el mismo id de sesión (gen_ai.conversation.id)
+    # One conversation = several turns (traces) under the same session id (gen_ai.conversation.id)
     conversations = {
         "cliente-ana": [
             ("¿Dónde está mi pedido?", "A-1001", "gpt-4o"),
-            ("¿Cuándo llega?", "A-1013", "gpt-4o"),  # la herramienta falla
+            ("¿Cuándo llega?", "A-1013", "gpt-4o"),  # the tool fails
             ("Gracias, ¿puedo devolverlo?", "A-1001", "gpt-4o"),
         ],
         "cliente-luis": [
@@ -91,6 +91,6 @@ if __name__ == "__main__":
         with session(conversation_id):
             for question, order_id, model in turns:
                 handle(question, order_id, model)
-                time.sleep(random.uniform(0.3, 1.2))  # el usuario lee y escribe
+                time.sleep(random.uniform(0.3, 1.2))  # the user reads and types
     memtrace.shutdown()
     print("✨ Trazas enviadas: abre el dashboard en http://localhost:5173")

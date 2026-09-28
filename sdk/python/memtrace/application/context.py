@@ -1,4 +1,4 @@
-"""Estado por contexto de ejecución (hilo / tarea asyncio)."""
+"""Per-execution-context state (thread / asyncio task)."""
 import contextvars
 import uuid
 from contextlib import contextmanager
@@ -22,7 +22,7 @@ def get_session_id() -> Optional[str]:
 
 @contextmanager
 def session(session_id: str) -> Iterator[None]:
-    """Agrupa los spans creados en el bloque bajo una conversación (`gen_ai.conversation.id`)."""
+    """Groups the spans created in the block under one conversation (`gen_ai.conversation.id`)."""
     token = _session_id.set(session_id)
     try:
         yield

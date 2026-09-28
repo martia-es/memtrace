@@ -2,7 +2,7 @@ import os
 import sys
 from uuid import uuid4
 
-# Añadir sdk/python al path para poder importar memtrace sin necesidad de pip install
+# Add sdk/python to the path so memtrace can be imported without pip install
 sys.path.insert(
     0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "sdk", "python"))
 )
@@ -14,8 +14,8 @@ from pydantic_ai import Agent
 load_dotenv()
 init_tracer(service_name="pydantic-ai-agent")
 
-# OPCIÓN MANUAL: sin Agent.instrument_all(); controlas qué se instrumenta
-# con los decoradores de MemTrace.
+# MANUAL OPTION: no Agent.instrument_all(); you control what gets instrumented
+# with the MemTrace decorators.
 agent = Agent(
     "anthropic:claude-haiku-4-5-20251001",
     system_prompt="You are a helpful assistant. Be concise and accurate. Use the tools to get the weather for a city.",

@@ -13,7 +13,7 @@ class NoopSpanHandle:
 
 
 class NoopSpanPort:
-    """Null Object: se inyecta cuando MemTrace está desactivado o el backend no está disponible."""
+    """Null Object: injected when MemTrace is disabled or the backend is unavailable."""
 
     def start_span(self, name: str, attributes: Mapping[str, Any], parent: Optional[SpanHandle] = None) -> SpanHandle:
         return NoopSpanHandle()
@@ -22,6 +22,10 @@ class NoopSpanPort:
         return nullcontext()
 
     def current(self) -> Optional[SpanHandle]:
+        return None
+
+    @property
+    def tracer_provider(self) -> Any:
         return None
 
     def flush(self, timeout_millis: int = 30000) -> bool:

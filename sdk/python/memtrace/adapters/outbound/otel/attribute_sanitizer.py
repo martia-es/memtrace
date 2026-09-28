@@ -5,7 +5,7 @@ _PRIMITIVES = (bool, str, int, float)
 
 
 def sanitize_value(val: Any) -> Any:
-    """Tipo válido de atributo OTel: primitivo o secuencia homogénea; el resto, JSON/str."""
+    """Valid OTel attribute type: a primitive or a homogeneous sequence; anything else, JSON/str."""
     if isinstance(val, _PRIMITIVES):
         return val
     if isinstance(val, (list, tuple)) and val:
@@ -21,5 +21,5 @@ def sanitize_value(val: Any) -> Any:
 
 
 def sanitize(attrs: Mapping[str, Any]) -> Dict[str, Any]:
-    """Descarta los None (ausente != vacío) y sanea el resto."""
+    """Drops None values (absent != empty) and sanitizes the rest."""
     return {k: sanitize_value(v) for k, v in attrs.items() if v is not None}

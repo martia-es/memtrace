@@ -1,4 +1,4 @@
-"""Regla de dependencias hexagonal: el núcleo no conoce tecnologías ni adapters."""
+"""Hexagonal dependency rule: the core knows neither technologies nor adapters."""
 import ast
 from pathlib import Path
 
@@ -25,9 +25,11 @@ def test_layers_respect_dependency_rule():
     for layer, banned in FORBIDDEN.items():
         for file in (ROOT / layer).rglob("*.py"):
             for mod in _imports(file):
-                # el adapter de LangChain sí puede importar langchain_core
-                if layer == "adapters/inbound" and mod == "langchain_core":
+                # inbound adapters may import the framework they adapt, including its OTel instrumentor
+                if layer == "adapters/inbound" and (
+                    mod == "langchain_core" or mod.startswith("opentelemetry.instrumentation")
+                ):
                     continue
                 if mod.startswith(banned):
-                    violations.append(f"{file.relative_to(ROOT)} importa {mod}")
+                    violations.append(f"{file.relative_to(ROOT)} imports {mod}")
     assert not violations, "\n".join(violations)

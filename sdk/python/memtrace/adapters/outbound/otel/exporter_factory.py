@@ -1,4 +1,4 @@
-"""Construcción del exporter OTLP por protocolo. Añadir uno = registrar una función."""
+"""Builds the OTLP exporter per protocol. Adding one = registering a function."""
 from typing import Callable, Dict, Mapping, Optional
 
 from memtrace.config import PROTOCOL_GRPC, PROTOCOL_HTTP
@@ -7,7 +7,7 @@ from memtrace.config import PROTOCOL_GRPC, PROTOCOL_HTTP
 def _grpc(endpoint: str, headers: Optional[Mapping[str, str]], timeout_s: float):
     from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 
-    # Con https y sin credentials se usan los certificados estándar (OTEL_EXPORTER_OTLP_CERTIFICATE)
+    # With https and no credentials the standard certificates apply (OTEL_EXPORTER_OTLP_CERTIFICATE)
     return OTLPSpanExporter(
         endpoint=endpoint,
         insecure=not endpoint.startswith("https://"),
@@ -33,5 +33,5 @@ def build_otlp_exporter(protocol: str, endpoint: str, headers: Optional[Mapping[
     try:
         builder = _BUILDERS[protocol]
     except KeyError:
-        raise ValueError(f"Protocolo OTLP no soportado: {protocol!r}") from None
+        raise ValueError(f"Unsupported OTLP protocol: {protocol!r}") from None
     return builder(endpoint, headers, max(timeout_ms / 1000, 0.001))

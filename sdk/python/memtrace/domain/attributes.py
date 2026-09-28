@@ -1,10 +1,10 @@
-"""Construcción de atributos de span a partir de conceptos del dominio. Sin OTel ni frameworks."""
-from typing import Any, Dict, Optional, Union
+"""Builds span attributes from domain concepts. No OTel, no frameworks."""
+from typing import Any, Dict, Mapping, Optional, Union
 
 from memtrace.domain import semconv as sc
 from memtrace.domain.model import LlmCall, StepType, step_type_value
 
-Attributes = Dict[str, Any]  # los valores None se descartan en el adapter de salida
+Attributes = Dict[str, Any]  # None values are dropped by the outbound adapter
 
 OPERATION_BY_STEP_TYPE = {
     StepType.LLM.value: "chat",
@@ -13,6 +13,10 @@ OPERATION_BY_STEP_TYPE = {
     StepType.RETRIEVER.value: "retrieval",
     StepType.EMBEDDING.value: "embeddings",
 }
+
+_STEP_TYPE_BY_OPERATION = {op: step for step, op in OPERATION_BY_STEP_TYPE.items()}
+# Traceloop's span kinds (opentelemetry-instrumentation-langchain)
+_STEP_TYPE_BY_TRACELOOP_KIND = {"workflow": "chain", "task": "chain", "agent": "agent", "tool": "tool", "llm": "llm"}
 
 _PROVIDER_ALIASES = {
     "google_genai": "gcp.gemini",
@@ -31,7 +35,7 @@ _MODEL_PREFIX_PROVIDERS = (
 
 
 def normalize_provider(provider: Optional[str], model: Optional[str] = None) -> Optional[str]:
-    """Normaliza el proveedor; si falta, lo infiere del nombre del modelo."""
+    """Normalizes the provider name; if missing, infers it from the model name."""
     if provider:
         p = provider.strip().lower().split("-")[0]  # "openai-chat" -> "openai"
         return _PROVIDER_ALIASES.get(p, p)
@@ -40,6 +44,15 @@ def normalize_provider(provider: Optional[str], model: Optional[str] = None) -> 
         if name.startswith(prefix):
             return prov
     return None
+
+
+def infer_step_type(attributes: Mapping[str, Any]) -> Optional[str]:
+    """Step type of a span made by third-party instrumentation, from its standard attributes."""
+    operation = attributes.get(sc.GEN_AI_OPERATION_NAME)
+    if isinstance(operation, str) and operation in _STEP_TYPE_BY_OPERATION:
+        return _STEP_TYPE_BY_OPERATION[operation]
+    kind = attributes.get("traceloop.span.kind")
+    return _STEP_TYPE_BY_TRACELOOP_KIND.get(kind) if isinstance(kind, str) else None
 
 
 def step_start_attributes(step_type: Union[StepType, str], session_id: Optional[str] = None) -> Attributes:
@@ -67,7 +80,7 @@ def llm_attributes(
     input_messages: Optional[str] = None,
     output_messages: Optional[str] = None,
 ) -> Attributes:
-    """`input_messages`/`output_messages` son JSON ya filtrado por la política de captura."""
+    """`input_messages`/`output_messages` are JSON already filtered by the capture policy."""
     return {
         sc.GEN_AI_OPERATION_NAME: call.operation,
         sc.GEN_AI_PROVIDER_NAME: normalize_provider(call.provider, call.model),

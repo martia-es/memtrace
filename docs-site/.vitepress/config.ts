@@ -22,6 +22,7 @@ export default defineConfig({
             { text: "Conversations", link: "/library/conversations" },
             { text: "Integrations", link: "/library/integrations" },
             { text: "Configuration", link: "/library/configuration" },
+            { text: "Personal data (PII)", link: "/library/pii" },
             { text: "Authentication", link: "/library/authentication" },
           ],
         },

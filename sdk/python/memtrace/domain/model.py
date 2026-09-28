@@ -1,12 +1,12 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Optional, Sequence, Union
+from typing import Any, Optional, Sequence, Tuple, Union
 
-from memtrace.domain.serialization import to_json
+from memtrace.domain.serialization import DEFAULT_SENSITIVE_KEYS, to_json
 
 
 class StepType(str, Enum):
-    """Tipo de paso de un agente. Los `str` arbitrarios también se aceptan."""
+    """Kind of agent step. Arbitrary `str` values are accepted too."""
 
     CHAIN = "chain"
     AGENT = "agent"
@@ -22,21 +22,23 @@ def step_type_value(step_type: Union[StepType, str]) -> str:
 
 @dataclass(frozen=True)
 class CapturePolicy:
-    """Política de captura de contenido (ADR-004): opt-in y truncado."""
+    """Content capture policy (ADR-004): opt-in and truncated. Sensitive keys are masked at capture time;
+    the full redaction of everything that is exported happens in the exporter (ADR-021)."""
 
     enabled: bool = False
     max_length: int = 16384
+    redact_keys: Tuple[str, ...] = DEFAULT_SENSITIVE_KEYS
 
     def apply(self, payload: Any) -> Optional[str]:
-        """JSON truncado del contenido, o None si la captura está desactivada."""
+        """Bounded, redacted JSON of the content, or None if capture is disabled."""
         if not self.enabled or payload is None:
             return None
-        return to_json(payload, self.max_length)
+        return to_json(payload, self.max_length, self.redact_keys)
 
 
 @dataclass
 class LlmCall:
-    """Datos de una llamada a un LLM (petición y/o respuesta); todo es opcional."""
+    """Data of an LLM call (request and/or response); everything is optional."""
 
     provider: Optional[str] = None
     model: Optional[str] = None

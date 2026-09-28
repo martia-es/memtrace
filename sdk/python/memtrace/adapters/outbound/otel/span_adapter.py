@@ -21,7 +21,7 @@ class OtelSpanHandle:
             if error is None:
                 self.span.set_status(Status(StatusCode.OK))
             else:
-                if isinstance(error, Exception):  # BaseException (cancelación): sin stacktrace
+                if isinstance(error, Exception):  # BaseException (cancellation): no stack trace
                     self.span.record_exception(error)
                 self.span.set_status(Status(StatusCode.ERROR, str(error) or type(error).__name__))
         finally:
@@ -29,19 +29,21 @@ class OtelSpanHandle:
 
 
 class OtelSpanAdapter:
-    """Implementa `SpanPort` sobre el SDK de OpenTelemetry."""
+    """Implements `SpanPort` on top of the OpenTelemetry SDK."""
 
-    def __init__(self, tracer: Any, provider: Any) -> None:
+    def __init__(self, tracer: Any, provider: Any, shared_provider: Any = None) -> None:
         self._tracer = tracer
         self._provider = provider
+        self._shared = shared_provider
 
     def start_span(self, name: str, attributes: Mapping[str, Any], parent: Optional[SpanHandle] = None) -> SpanHandle:
         ctx = trace.set_span_in_context(parent.span) if isinstance(parent, OtelSpanHandle) else None
-        handle = OtelSpanHandle(self._tracer.start_span(name=name, context=ctx))  # ctx=None: contexto actual
+        handle = OtelSpanHandle(self._tracer.start_span(name=name, context=ctx))  # ctx=None: current context
         handle.set_attributes(attributes)
         return handle
 
-    def activate(self, span: SpanHandle) -> ContextManager[None]:
+    def activate(self, span: SpanHandle) -> ContextManager[Any]:
+        assert isinstance(span, OtelSpanHandle)
         return trace.use_span(
             span.span, end_on_exit=False, record_exception=False, set_status_on_exception=False
         )
@@ -50,8 +52,14 @@ class OtelSpanAdapter:
         span = trace.get_current_span()
         return OtelSpanHandle(span) if span.is_recording() else None
 
+    @property
+    def tracer_provider(self) -> Any:
+        return self._shared if self._shared is not None else self._provider
+
     def flush(self, timeout_millis: int = 30000) -> bool:
         return bool(self._provider.force_flush(timeout_millis))
 
     def shutdown(self) -> None:
+        if self._shared is not None and self._shared.target is self._provider:
+            self._shared.target = None
         self._provider.shutdown()

@@ -24,10 +24,10 @@ def test_parent_resolution_run_then_current_then_root(service, port):
     assert port.spans[1].parent is port.spans[0]
 
     with service.step("block"):
-        service.start_run("inside")  # sin parent_run_id: cuelga del span actual
+        service.start_run("inside")  # no parent_run_id: hangs from the current span
     assert port.spans[3].parent is port.spans[2]
 
-    service.start_run("orphan", parent_run_id=uuid.uuid4())  # padre desconocido: raíz
+    service.start_run("orphan", parent_run_id=uuid.uuid4())  # unknown parent: root
     assert port.spans[4].parent is None
     service.end_run(child)
 
@@ -43,7 +43,7 @@ def test_step_closes_span_with_error_and_restores_state(service, port):
 def test_backend_failure_never_reaches_user_code(service, port):
     port.fail = True
     with service.step("s") as run_id:
-        assert run_id is None  # el bloque se ejecuta igual
+        assert run_id is None  # the block runs anyway
     assert service.start_run("x") is None
     service.end_run(uuid.uuid4())
 
@@ -52,7 +52,7 @@ def test_user_exception_propagates_untouched_when_backend_is_down(service, port)
     port.fail = True
     with pytest.raises(ValueError):
         with service.step("s"):
-            raise ValueError("del usuario")
+            raise ValueError("from the user")
 
 
 def test_expire_stale_ends_orphans(service, port):
@@ -78,3 +78,33 @@ def test_none_attribute_does_not_override_active_session(service, port):
         service.start_run("b", attributes={"gen_ai.conversation.id": "explicit"})
     assert port.spans[0].attributes["gen_ai.conversation.id"] == "conv-1"
     assert port.spans[1].attributes["gen_ai.conversation.id"] == "explicit"
+
+
+def test_capacity_evicts_oldest_run_and_flags_it(port):
+    svc = TracingService(port, span_ttl_seconds=0, max_active_runs=2)
+    svc.start_run("a")
+    svc.start_run("b")
+    svc.start_run("c")  # over capacity: "a" is closed early
+    assert svc.active_runs == 2
+    assert port.spans[0].ended and port.spans[0].attributes["memtrace.span.expired"] is True
+    assert not port.spans[1].ended
+
+
+def test_reaper_expires_orphans_without_new_traffic(port):
+    svc = TracingService(port, span_ttl_seconds=0.2)
+    svc.start_run("orphan")
+    deadline = time.time() + 5
+    while svc.active_runs and time.time() < deadline:
+        time.sleep(0.05)
+    assert svc.active_runs == 0 and port.spans[0].ended
+    svc.shutdown()
+
+
+def test_reaper_stops_on_shutdown(port):
+    svc = TracingService(port, span_ttl_seconds=60)
+    svc.start_run("x")
+    thread = svc._reaper
+    assert thread is not None and thread.is_alive()
+    svc.shutdown()
+    thread.join(timeout=2)
+    assert not thread.is_alive()

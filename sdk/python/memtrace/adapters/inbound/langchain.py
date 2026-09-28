@@ -15,12 +15,12 @@ logger = logging.getLogger("memtrace")
 try:
     from langchain_core.callbacks import BaseCallbackHandler
 except ImportError:
-    # Sin LangChain instalado se evita el ImportError; el handler no llegará a usarse
+    # Without LangChain installed, avoid the ImportError; the handler will never be used
     class BaseCallbackHandler:  # type: ignore[no-redef]
         pass
 
 
-# ----- traducción de estructuras de LangChain a conceptos del dominio -----
+# ----- translation of LangChain structures into domain concepts -----
 
 def _get(obj: Any, key: str) -> Any:
     return obj.get(key) if isinstance(obj, dict) else getattr(obj, key, None)
@@ -31,7 +31,7 @@ def _as_int(val: Any) -> Optional[int]:
 
 
 def _tokens(usage: Any) -> Tuple[Optional[int], Optional[int], Optional[int]]:
-    """(input, output, total) desde `usage_metadata` (LangChain), `token_usage` (OpenAI) o `usage` (Anthropic)."""
+    """(input, output, total) from `usage_metadata` (LangChain), `token_usage` (OpenAI) or `usage` (Anthropic)."""
     if not usage:
         return None, None, None
     inp = _as_int(_get(usage, "input_tokens"))
@@ -42,7 +42,7 @@ def _tokens(usage: Any) -> Tuple[Optional[int], Optional[int], Optional[int]]:
 
 
 def _response_to_call(response: Any) -> LlmCall:
-    """Datos de respuesta de un `LLMResult` (duck-typed): mensajes primero, `llm_output` de respaldo."""
+    """Response data of an `LLMResult` (duck-typed): messages first, `llm_output` as a fallback."""
     inp = out = total = None
     model = resp_id = None
     finish: List[str] = []
@@ -84,14 +84,14 @@ def _request_to_call(metadata: Optional[Dict[str, Any]], params: Dict[str, Any])
 
 
 def _name(serialized: Optional[Dict[str, Any]], kwargs: Dict[str, Any], default: str) -> str:
-    """`serialized` puede ser None (LangGraph, runnables); LangChain pasa `name` como kwarg."""
+    """`serialized` may be None (LangGraph, runnables); LangChain passes `name` as a kwarg."""
     ser = serialized or {}
     ident = ser.get("id")
     return kwargs.get("name") or ser.get("name") or (ident[-1] if ident else None) or default
 
 
 def _tool_calls_of(msg: Any) -> Any:
-    """`tool_calls` del mensaje del modelo (o de `additional_kwargs` en algunos proveedores)."""
+    """`tool_calls` of the model message (or of `additional_kwargs` for some providers)."""
     calls = getattr(msg, "tool_calls", None)
     if not calls:
         calls = (getattr(msg, "additional_kwargs", None) or {}).get("tool_calls")
@@ -127,10 +127,10 @@ def _generation_dicts(response: Any) -> List[Dict[str, Any]]:
 
 
 class MemTraceCallbackHandler(BaseCallbackHandler):
-    """CallbackHandler de LangChain / LangGraph.
+    """LangChain / LangGraph callback handler.
 
-    Uso: `chain.invoke(x, config={"callbacks": [MemTraceCallbackHandler()]})`.
-    Dentro de un `@trace_step`, sus spans cuelgan de él.
+    Usage: `chain.invoke(x, config={"callbacks": [MemTraceCallbackHandler()]})`.
+    Inside a `@trace_step`, its spans hang from it.
     """
 
     def __init__(self, service: Optional[TracingService] = None) -> None:
@@ -144,9 +144,9 @@ class MemTraceCallbackHandler(BaseCallbackHandler):
         return {
             sc.MEMTRACE_TAGS: [str(t) for t in tags] if tags else None,
             sc.MEMTRACE_METADATA: to_json(md, self._service.max_content_length) if md else None,
-            # `thread_id` es el identificador de conversación de LangGraph
+            # `thread_id` is the LangGraph conversation identifier
             sc.GEN_AI_CONVERSATION_ID: md.get("session_id") or md.get("conversation_id") or md.get("thread_id"),
-            # LangGraph inyecta `langgraph_node`/`langgraph_step` en el metadata de cada run (ADR-011)
+            # LangGraph injects `langgraph_node`/`langgraph_step` into each run's metadata (ADR-011)
             sc.MEMTRACE_FRAMEWORK: "langgraph" if any(k.startswith("langgraph_") for k in md) else "langchain",
         }
 
@@ -180,7 +180,7 @@ class MemTraceCallbackHandler(BaseCallbackHandler):
         })
 
     def on_tool_end(self, output, *, run_id, parent_run_id=None, **kwargs) -> Any:
-        result = getattr(output, "content", output)  # ToolMessage o valor plano
+        result = getattr(output, "content", output)  # ToolMessage or plain value
         self._end(run_id, {sc.GEN_AI_TOOL_CALL_RESULT: self._service.capture(result)})
 
     def on_tool_error(self, error, *, run_id, parent_run_id=None, **kwargs) -> Any:
@@ -220,8 +220,8 @@ class MemTraceCallbackHandler(BaseCallbackHandler):
         try:
             output = _generation_dicts(response) if self._service.captures_content else None
             attrs = llm_attributes(_response_to_call(response), output_messages=self._service.capture(output))
-        except Exception as exc:  # una respuesta con forma inesperada no debe perder el span
-            logger.warning("[MemTrace] Error extrayendo datos de la respuesta LLM: %s", exc)
+        except Exception as exc:  # an unexpectedly shaped response must not lose the span
+            logger.warning("[MemTrace] Error extracting data from the LLM response: %s", exc)
             attrs = None
         self._end(run_id, attrs)
 

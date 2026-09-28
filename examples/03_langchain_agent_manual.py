@@ -2,7 +2,7 @@ import os
 import sys
 from uuid import uuid4
 
-# Añadir sdk/python al path para poder importar memtrace sin necesidad de pip install
+# Add sdk/python to the path so memtrace can be imported without pip install
 sys.path.insert(
     0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "sdk", "python"))
 )
@@ -37,8 +37,8 @@ config = {
     },
 }
 
-# OPCIÓN 1: Manual — controlas qué cadenas instrumentar
-# (recomendado para librerías profesionales)
+# OPTION 1: Manual - you control which chains get instrumented
+# (recommended for production libraries)
 try:
     with session(conversation_id):
         result = agent.invoke(

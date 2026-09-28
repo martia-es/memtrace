@@ -17,7 +17,7 @@ class FakeHandle:
 
 
 class FakeSpanPort:
-    """Puerto de salida en memoria: permite probar la aplicación sin OpenTelemetry."""
+    """In-memory outbound port: lets the application be tested without OpenTelemetry."""
 
     def __init__(self):
         self.spans: List[FakeHandle] = []
@@ -26,7 +26,7 @@ class FakeSpanPort:
 
     def start_span(self, name, attributes, parent=None):
         if self.fail:
-            raise RuntimeError("backend caído")
+            raise RuntimeError("backend down")
         span = FakeHandle(name, attributes, parent or self._current)
         self.spans.append(span)
         return span
@@ -38,6 +38,10 @@ class FakeSpanPort:
             yield
         finally:
             self._current = previous
+
+    @property
+    def tracer_provider(self):
+        return None
 
     def current(self):
         return self._current

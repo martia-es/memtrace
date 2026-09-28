@@ -1,6 +1,5 @@
 import asyncio
 import time
-import uuid
 
 import pytest
 from opentelemetry.trace import StatusCode
@@ -63,7 +62,7 @@ def test_run_id_context(spans):
 
 
 def test_service_run_inherits_current_otel_context(spans):
-    """El handler de LangChain usa start_run sin parent_run_id dentro de un @trace_step."""
+    """The LangChain handler calls start_run without parent_run_id inside a @trace_step."""
     service = get_service()
     with memtrace.trace_step_context("outer"):
         rid = service.start_run("external")
@@ -76,7 +75,7 @@ def _llm_step():
     with memtrace.trace_step_context("llm", step_type="llm"):
         memtrace.trace_llm_call(
             "openai", "gpt-4o", input_tokens=10, output_tokens=5,
-            input_messages=[{"role": "user", "content": "hola"}],
+            input_messages=[{"role": "user", "content": "hello"}],
             finish_reasons=["stop"], temperature=0.2,
         )
 
@@ -94,7 +93,7 @@ def test_llm_call_attributes_without_content(spans):
 
 def test_llm_call_content_when_enabled(spans_capture):
     _llm_step()
-    assert "hola" in by_name(spans_capture, "llm").attributes["gen_ai.input.messages"]
+    assert "hello" in by_name(spans_capture, "llm").attributes["gen_ai.input.messages"]
 
 
 def test_step_content_not_captured_by_default(spans):
@@ -127,7 +126,7 @@ def test_session_sets_conversation_id(spans):
 
 def test_stale_span_is_expired_and_flagged(spans):
     service = get_service()
-    rid = service.start_run("orphan")
+    service.start_run("orphan")
     service.expire_stale(now=time.time() + 10_000)
     assert service.active_runs == 0
     assert by_name(spans, "orphan").attributes["memtrace.span.expired"] is True

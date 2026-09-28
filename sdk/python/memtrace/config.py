@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 _TRUE = ("1", "true", "yes", "on")
 
@@ -30,7 +30,7 @@ def env_int(name: str, default: int) -> int:
 
 
 def parse_headers(raw: Optional[str]) -> Dict[str, str]:
-    """Parsea 'k1=v1,k2=v2' (mismo formato que OTEL_EXPORTER_OTLP_HEADERS)."""
+    """Parses 'k1=v1,k2=v2' (same format as OTEL_EXPORTER_OTLP_HEADERS)."""
     headers: Dict[str, str] = {}
     for pair in (raw or "").split(","):
         key, sep, value = pair.partition("=")
@@ -40,7 +40,7 @@ def parse_headers(raw: Optional[str]) -> Dict[str, str]:
 
 
 class Settings:
-    """Configuración leída del entorno en cada acceso (facilita tests y cambios en caliente)."""
+    """Configuration read from the environment on every access (eases tests and live changes)."""
 
     @property
     def enabled(self) -> bool:
@@ -53,7 +53,7 @@ class Settings:
 
     @property
     def otlp_endpoint(self) -> Optional[str]:
-        """Endpoint explícito; si es None se usa `default_endpoint(protocol)`."""
+        """Explicit endpoint; if None, `default_endpoint(protocol)` is used."""
         return os.getenv("MEMTRACE_OTLP_ENDPOINT") or None
 
     @property
@@ -79,6 +79,16 @@ class Settings:
     @property
     def max_content_length(self) -> int:
         return env_int("MEMTRACE_MAX_CONTENT_LENGTH", 16384)
+
+    @property
+    def redact_keys(self) -> Tuple[str, ...]:
+        """Extra key fragments to mask in captured content (comma-separated), on top of the defaults."""
+        raw = os.getenv("MEMTRACE_REDACT_KEYS") or ""
+        return tuple(k.strip().lower() for k in raw.split(",") if k.strip())
+
+    @property
+    def max_active_runs(self) -> int:
+        return env_int("MEMTRACE_MAX_ACTIVE_RUNS", 10_000)
 
     @property
     def span_ttl_seconds(self) -> int:

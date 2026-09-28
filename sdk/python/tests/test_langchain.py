@@ -1,16 +1,14 @@
-import sys
-import types
 import uuid
 
 import pytest
 
 pytest.importorskip("langchain_core")
 
-import memtrace
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.outputs import ChatGeneration, LLMResult
-from memtrace.adapters.inbound.langchain import MemTraceCallbackHandler
 
+import memtrace
+from memtrace.adapters.inbound.langchain import MemTraceCallbackHandler
 from tests.conftest import by_name
 
 
@@ -18,7 +16,7 @@ def test_chat_model_usage_metadata_and_hierarchy(spans):
     h = MemTraceCallbackHandler()
     chain_id, llm_id, tool_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
 
-    # serialized=None (LangGraph) no debe romper; el nombre viene del kwarg `name`
+    # serialized=None (LangGraph) must not break; the name comes from the `name` kwarg
     h.on_chain_start(
         None,
         {"q": "hi"},
@@ -29,7 +27,7 @@ def test_chat_model_usage_metadata_and_hierarchy(spans):
     )
     h.on_chat_model_start(
         {"id": ["langchain", "ChatAnthropic"]},
-        [[HumanMessage(content="hola")]],
+        [[HumanMessage(content="hello")]],
         run_id=llm_id,
         parent_run_id=chain_id,
         metadata={
@@ -116,20 +114,3 @@ def test_langchain_inside_trace_step_is_child(spans):
         h.on_chain_start({"name": "c"}, {}, run_id=rid, parent_run_id=None)
         h.on_chain_end({}, run_id=rid)
     assert by_name(spans, "c").parent.span_id == by_name(spans, "outer").context.span_id
-
-
-def test_enable_langchain_instrumentation_accepts_current_class_name(monkeypatch):
-    calls = []
-
-    class FakeInstrumentor:
-        def instrument(self):
-            calls.append("instrumented")
-
-    fake_module = types.SimpleNamespace(LangchainInstrumentor=FakeInstrumentor)
-    monkeypatch.setitem(
-        sys.modules, "opentelemetry.instrumentation.langchain", fake_module
-    )
-
-    memtrace.enable_langchain_instrumentation()
-
-    assert calls == ["instrumented"]
