@@ -7,11 +7,18 @@ export interface CurrentUser {
   image: string | null;
 }
 
+/** Tema visual de una organización (ADR-019). `null` en un campo = usar el default de app.css. */
+export interface OrganizationThemeDto {
+  accentColor: string | null;
+  radiusPreset: "sharp" | "soft" | "round" | null;
+}
+
 export interface OrganizationDto {
   id: string;
   name: string;
   /** org_admin si el usuario lo es; null si solo la ve por membership directa en un experimento suyo (ADR-016). */
   myRole: "org_admin" | null;
+  theme: OrganizationThemeDto;
 }
 
 export interface ExperimentDto {
@@ -20,6 +27,8 @@ export interface ExperimentDto {
   name: string;
   serviceName: string;
   myRole: "org_admin" | "admin" | "member";
+  /** Tema de la organización dueña, embebido para que MainLayout lo aplique sin otra llamada. */
+  organizationTheme: OrganizationThemeDto;
 }
 
 export interface ApiKeyDto {
@@ -56,6 +65,7 @@ export interface IdentityApi {
   createOrganization(name: string, signal?: AbortSignal): Promise<OrganizationDto>;
   addOrgAdmin(organizationId: string, email: string, signal?: AbortSignal): Promise<void>;
   listOrgMembers(organizationId: string, signal?: AbortSignal): Promise<MembersResponseDto>;
+  updateOrganizationTheme(organizationId: string, theme: OrganizationThemeDto, signal?: AbortSignal): Promise<OrganizationDto>;
   listExperiments(signal?: AbortSignal): Promise<ExperimentDto[]>;
   createExperiment(organizationId: string, name: string, serviceName: string, signal?: AbortSignal): Promise<ExperimentDto>;
   addExperimentMember(experimentId: string, email: string, role: "admin" | "member", signal?: AbortSignal): Promise<void>;

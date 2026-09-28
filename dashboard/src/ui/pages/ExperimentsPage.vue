@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue";
+import { computed, inject, reactive, ref } from "vue";
 import { useQuasar } from "quasar";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { useAsync } from "../composables/useAsync";
-import type { ApiKeyDto, ExperimentDto, MembersResponseDto, OrganizationDto } from "@/application/identity-api";
+import { applyOrganizationTheme } from "../composables/useOrganizationTheme";
+import type { ApiKeyDto, ExperimentDto, MembersResponseDto, OrganizationDto, OrganizationThemeDto } from "@/application/identity-api";
+import { CURRENT_EXPERIMENT } from "@/dependency-container";
 import PageHeader from "../components/PageHeader.vue";
 import EmptyState from "../components/EmptyState.vue";
 import Select from "../components/Select.vue";
@@ -11,6 +13,8 @@ import Modal from "../components/Modal.vue";
 
 const api = useIdentityApi();
 const $q = useQuasar();
+// no provisto cuando /admin es la ruta de entrada (sin :experimentId todavía) — de ahí el fallback
+const currentExperiment = inject(CURRENT_EXPERIMENT, computed(() => null));
 
 const organizations = useAsync((signal) => api.listOrganizations(signal));
 const experiments = useAsync((signal) => api.listExperiments(signal));
@@ -109,6 +113,49 @@ function orgMemberCount(organizationId: string): number {
 }
 function orgPendingCount(organizationId: string): number {
   return membersByOrg[organizationId]?.pendingInvitations.length ?? 0;
+}
+
+// ---- appearance (ADR-019): accent color + border-radius preset, per organization ----
+const RADIUS_OPTIONS = [
+  { label: "Sharp", value: "sharp" as const },
+  { label: "Soft", value: "soft" as const },
+  { label: "Round", value: "round" as const },
+];
+const DEFAULT_ACCENT = "#1c1f23";
+const expandedThemeId = ref<string | null>(null);
+const themeDraft = reactive<Record<string, OrganizationThemeDto>>({});
+const savingTheme = ref(false);
+
+function toggleTheme(organizationId: string) {
+  if (expandedThemeId.value === organizationId) {
+    expandedThemeId.value = null;
+    return;
+  }
+  const current = (organizations.data.value ?? []).find((o) => o.id === organizationId)?.theme;
+  themeDraft[organizationId] = { accentColor: current?.accentColor ?? null, radiusPreset: current?.radiusPreset ?? null };
+  expandedThemeId.value = organizationId;
+}
+
+async function saveTheme(organizationId: string) {
+  const draft = themeDraft[organizationId];
+  if (!draft) return;
+  savingTheme.value = true;
+  try {
+    const updated = await api.updateOrganizationTheme(organizationId, draft);
+    await organizations.run();
+    // feedback inmediato solo si la org editada es la del experimento activo (si no, MainLayout
+    // ya la reaplicará solo con el valor correcto en cuanto se navegue a un experimento suyo)
+    if (currentExperiment.value?.organizationId === organizationId) applyOrganizationTheme(updated.theme);
+    $q.notify({ message: "Appearance updated", color: "positive", timeout: 2000 });
+  } catch (error) {
+    notifyError("Could not update appearance", error);
+  } finally {
+    savingTheme.value = false;
+  }
+}
+
+function resetTheme(organizationId: string) {
+  themeDraft[organizationId] = { accentColor: null, radiusPreset: null };
 }
 
 const organizationOptions = computed(() => (organizations.data.value ?? []).filter(canManageOrg).map((o) => ({ label: o.name, value: o.id })));
@@ -367,8 +414,50 @@ function formatDate(iso: string | null): string {
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM19 8v6M22 11h-6" /></svg>
               Invite org_admin
             </button>
+            <button
+              class="chevron-btn"
+              type="button"
+              :class="{ open: expandedThemeId === o.id }"
+              :aria-expanded="expandedThemeId === o.id"
+              @click="toggleTheme(o.id)"
+            >
+              <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+              Appearance
+            </button>
           </template>
         </header>
+
+        <div v-if="expandedThemeId === o.id && themeDraft[o.id]" class="members-panel theme-panel">
+          <div class="theme-row">
+            <span class="theme-label">Accent color</span>
+            <div class="theme-color-input">
+              <input
+                type="color"
+                :value="themeDraft[o.id]!.accentColor ?? DEFAULT_ACCENT"
+                @input="themeDraft[o.id]!.accentColor = ($event.target as HTMLInputElement).value"
+              />
+              <span class="mono">{{ themeDraft[o.id]!.accentColor ?? "default" }}</span>
+            </div>
+          </div>
+          <div class="theme-row">
+            <span class="theme-label">Corner style</span>
+            <div class="mt-segmented small">
+              <button
+                v-for="opt in RADIUS_OPTIONS"
+                :key="opt.value"
+                type="button"
+                :aria-pressed="(themeDraft[o.id]!.radiusPreset ?? 'sharp') === opt.value"
+                @click="themeDraft[o.id]!.radiusPreset = opt.value"
+              >
+                {{ opt.label }}
+              </button>
+            </div>
+          </div>
+          <div class="theme-actions">
+            <button class="ghost-btn" type="button" @click="resetTheme(o.id)">Reset to default</button>
+            <button class="primary-btn" type="button" :disabled="savingTheme" @click="saveTheme(o.id)">Save</button>
+          </div>
+        </div>
 
         <div v-if="expandedOrgMembersId === o.id" class="members-panel">
           <ul v-if="membersByOrg[o.id]?.members.length" class="member-list">
@@ -826,6 +915,43 @@ function formatDate(iso: string | null): string {
 .members-panel.nested {
   margin: 4px 0 10px;
   background: var(--mt-soft);
+}
+.theme-panel {
+  gap: 14px;
+}
+.theme-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.theme-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--mt-ink);
+}
+.theme-color-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.theme-color-input input[type="color"] {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--mt-line);
+  border-radius: var(--mt-radius-sm);
+  background: none;
+  cursor: pointer;
+}
+.theme-color-input .mono {
+  font-size: 12px;
+  color: var(--mt-muted);
+}
+.theme-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 .panel-subtitle {
   margin: 4px 0 0;

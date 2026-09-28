@@ -10,9 +10,20 @@ export interface User {
   image: string | null;
 }
 
+/**
+ * Tema visual configurable por org_admin (ADR-019): 2 dimensiones deliberadamente, no un
+ * sistema de theming completo. `null` en cada campo significa "usar el default de app.css".
+ */
+export type RadiusPreset = "sharp" | "soft" | "round";
+export interface OrganizationTheme {
+  accentColor: string | null;
+  radiusPreset: RadiusPreset | null;
+}
+
 export interface Organization {
   id: string;
   name: string;
+  theme: OrganizationTheme;
 }
 
 export interface Experiment {
@@ -21,6 +32,8 @@ export interface Experiment {
   name: string;
   /** ResourceAttributes["service.name"] emitido por el agente (piezas 1-3) */
   serviceName: string;
+  /** Tema de la organización dueña, embebido para que el dashboard no necesite otra llamada (ADR-019). */
+  organizationTheme: OrganizationTheme;
 }
 
 /**

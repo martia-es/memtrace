@@ -7,6 +7,7 @@ import type {
   Member,
   Organization,
   OrganizationSummary,
+  OrganizationTheme,
   PendingInvitation,
   PendingInvitationTarget,
   User,
@@ -23,6 +24,8 @@ export interface IdentityRepository {
   isOrgAdmin(userId: string, organizationId: string): Promise<boolean>;
   addOrgAdmin(organizationId: string, userId: string): Promise<void>;
   listOrgMembers(organizationId: string): Promise<Member[]>;
+  /** Reemplaza el tema visual de la organización (ADR-019). Requiere ser org_admin (comprobado por el caller). */
+  updateOrganizationTheme(organizationId: string, theme: OrganizationTheme): Promise<Organization>;
 
   createExperiment(organizationId: string, name: string, serviceName: string): Promise<Experiment>;
   getExperiment(experimentId: string): Promise<Experiment | null>;

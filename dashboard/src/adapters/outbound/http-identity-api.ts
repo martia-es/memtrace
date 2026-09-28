@@ -1,5 +1,5 @@
 import { ApiError } from "@/application/trace-api";
-import type { ApiKeyDto, CurrentUser, ExperimentDto, IdentityApi, MembersResponseDto, OrganizationDto } from "@/application/identity-api";
+import type { ApiKeyDto, CurrentUser, ExperimentDto, IdentityApi, MembersResponseDto, OrganizationDto, OrganizationThemeDto } from "@/application/identity-api";
 
 type Fetch = typeof fetch;
 
@@ -32,6 +32,10 @@ export class HttpIdentityApi implements IdentityApi {
 
   listOrgMembers(organizationId: string, signal?: AbortSignal): Promise<MembersResponseDto> {
     return this.get(`/organizations/${encodeURIComponent(organizationId)}/members`, signal);
+  }
+
+  updateOrganizationTheme(organizationId: string, theme: OrganizationThemeDto, signal?: AbortSignal): Promise<OrganizationDto> {
+    return this.patch(`/organizations/${encodeURIComponent(organizationId)}/theme`, theme, signal);
   }
 
   async listExperiments(signal?: AbortSignal): Promise<ExperimentDto[]> {
@@ -78,6 +82,17 @@ export class HttpIdentityApi implements IdentityApi {
   private async post<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
     const response = await this.fetchFn(`${this.baseUrl}${path}`, {
       method: "POST",
+      signal,
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) throw await toApiError(response);
+    return (await response.json()) as T;
+  }
+
+  private async patch<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
+    const response = await this.fetchFn(`${this.baseUrl}${path}`, {
+      method: "PATCH",
       signal,
       headers: { Accept: "application/json", "Content-Type": "application/json" },
       body: JSON.stringify(body),

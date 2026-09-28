@@ -17,6 +17,14 @@ export const addOrgAdminBody = z.object({
   email: z.string().trim().email(),
 });
 
+export const organizationThemeBody = z.object({
+  accentColor: z
+    .string()
+    .regex(/^#[0-9a-f]{6}$/i, "Must be a hex color like #1c1f23")
+    .nullable(),
+  radiusPreset: z.enum(["sharp", "soft", "round"]).nullable(),
+});
+
 export async function parseJsonOrThrow<T>(schema: z.ZodType<T>, request: Request): Promise<T> {
   let body: unknown;
   try {

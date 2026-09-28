@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, provide, ref } from "vue";
+import { computed, provide, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useFilters } from "../composables/useFilters";
 import { useAsync } from "../composables/useAsync";
 import { useIdentityApi } from "../composables/useIdentityApi";
+import { applyOrganizationTheme } from "../composables/useOrganizationTheme";
 import { CURRENT_EXPERIMENT } from "@/dependency-container";
 import ExperimentSelect from "../components/ExperimentSelect.vue";
 import UserMenu from "../components/UserMenu.vue";
@@ -34,6 +35,9 @@ const experimentOptions = computed(() => experiments.data.value ?? []);
 const currentExperimentId = computed(() => (route.params.experimentId as string | undefined) ?? null);
 const currentExperiment = computed(() => experimentOptions.value.find((e) => e.id === currentExperimentId.value) ?? null);
 provide(CURRENT_EXPERIMENT, currentExperiment);
+
+// tema de la organización dueña del experimento actual (ADR-019): sobrescribe accent/radius en :root
+watch(currentExperiment, (experiment) => applyOrganizationTheme(experiment?.organizationTheme ?? null), { immediate: true });
 
 // en /admin no hay :experimentId en la ruta, pero Conversations/Metrics necesitan uno para su link:
 // se cae al último usado (o al primero disponible) para no perder el contexto al volver.

@@ -1,6 +1,8 @@
 import type { SpanListResponse, SpanRowDto, TranscriptResponse, ConversationDetailResponse, ConversationListResponse, ConversationSummaryDto, ConversationTreeResponse, OverviewResponse, ServicesResponse, SpanNodeDto, TraceDetailResponse, TraceListResponse, TraceSummaryDto } from "@contract";
 import type { ListConversationsParams, ListSpansParams, ListTracesParams, RangeParams, TraceApi } from "@/application/trace-api";
-import type { ApiKeyDto, CurrentUser, ExperimentDto, IdentityApi, MembersResponseDto, OrganizationDto } from "@/application/identity-api";
+import type { ApiKeyDto, CurrentUser, ExperimentDto, IdentityApi, MembersResponseDto, OrganizationDto, OrganizationThemeDto } from "@/application/identity-api";
+
+const NO_THEME: OrganizationThemeDto = { accentColor: null, radiusPreset: null };
 
 /** Puerto de identidad (ADR-013): usada solo por OnboardingGuide en estas pruebas de UI, sin sesión real. */
 export class FakeIdentityApi implements IdentityApi {
@@ -11,17 +13,20 @@ export class FakeIdentityApi implements IdentityApi {
     return [];
   }
   async createOrganization(name: string): Promise<OrganizationDto> {
-    return { id: "org-1", name, myRole: "org_admin" };
+    return { id: "org-1", name, myRole: "org_admin", theme: NO_THEME };
   }
   async addOrgAdmin(): Promise<void> {}
   async listOrgMembers(): Promise<MembersResponseDto> {
     return { members: [], pendingInvitations: [] };
   }
+  async updateOrganizationTheme(organizationId: string, theme: OrganizationThemeDto): Promise<OrganizationDto> {
+    return { id: organizationId, name: "org", myRole: "org_admin", theme };
+  }
   async listExperiments(): Promise<ExperimentDto[]> {
     return [];
   }
   async createExperiment(organizationId: string, name: string, serviceName: string): Promise<ExperimentDto> {
-    return { id: "exp-1", organizationId, name, serviceName, myRole: "org_admin" };
+    return { id: "exp-1", organizationId, name, serviceName, myRole: "org_admin", organizationTheme: NO_THEME };
   }
   async addExperimentMember(): Promise<void> {}
   async listExperimentMembers(): Promise<MembersResponseDto> {

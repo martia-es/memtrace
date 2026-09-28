@@ -11,15 +11,26 @@ import type {
   OrgRole,
   Organization,
   OrganizationSummary,
+  OrganizationTheme,
   PendingInvitation,
   PendingInvitationTarget,
+  RadiusPreset,
   User,
 } from "@/domain/identity";
 
 const API_KEY_PREFIX = "mtk_";
+const RADIUS_PRESETS = new Set<RadiusPreset>(["sharp", "soft", "round"]);
 
 function hashApiKey(plaintext: string): string {
   return createHash("sha256").update(plaintext).digest("hex");
+}
+
+/** El JSONB puede venir vacío ('{}') o con claves parciales; siempre se devuelve la forma completa. */
+function toOrganizationTheme(raw: unknown): OrganizationTheme {
+  const value = (raw ?? {}) as Partial<OrganizationTheme>;
+  const accentColor = typeof value.accentColor === "string" ? value.accentColor : null;
+  const radiusPreset = RADIUS_PRESETS.has(value.radiusPreset as RadiusPreset) ? (value.radiusPreset as RadiusPreset) : null;
+  return { accentColor, radiusPreset };
 }
 
 export class PostgresIdentityRepository implements IdentityRepository {
@@ -37,8 +48,8 @@ export class PostgresIdentityRepository implements IdentityRepository {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
-      const { rows } = await client.query<{ id: string; name: string }>(
-        `INSERT INTO organizations (name) VALUES ($1) RETURNING id, name`,
+      const { rows } = await client.query<{ id: string; name: string; theme: unknown }>(
+        `INSERT INTO organizations (name) VALUES ($1) RETURNING id, name, theme`,
         [name],
       );
       const organization = rows[0];
@@ -48,7 +59,7 @@ export class PostgresIdentityRepository implements IdentityRepository {
         [organization.id, ownerUserId],
       );
       await client.query("COMMIT");
-      return organization;
+      return { id: organization.id, name: organization.name, theme: toOrganizationTheme(organization.theme) };
     } catch (err) {
       await client.query("ROLLBACK");
       throw err;
@@ -58,13 +69,17 @@ export class PostgresIdentityRepository implements IdentityRepository {
   }
 
   async getOrganization(organizationId: string): Promise<Organization | null> {
-    const { rows } = await this.pool.query<{ id: string; name: string }>(`SELECT id, name FROM organizations WHERE id = $1`, [organizationId]);
-    return rows[0] ?? null;
+    const { rows } = await this.pool.query<{ id: string; name: string; theme: unknown }>(
+      `SELECT id, name, theme FROM organizations WHERE id = $1`,
+      [organizationId],
+    );
+    const row = rows[0];
+    return row ? { id: row.id, name: row.name, theme: toOrganizationTheme(row.theme) } : null;
   }
 
   async listOrganizationsForUser(userId: string): Promise<OrganizationSummary[]> {
-    const { rows } = await this.pool.query<{ id: string; name: string; my_role: OrgRole | null }>(
-      `SELECT DISTINCT o.id, o.name,
+    const { rows } = await this.pool.query<{ id: string; name: string; theme: unknown; my_role: OrgRole | null }>(
+      `SELECT DISTINCT o.id, o.name, o.theme,
               CASE WHEN om.user_id IS NOT NULL THEN 'org_admin' ELSE NULL END AS my_role
          FROM organizations o
          LEFT JOIN org_memberships om ON om.organization_id = o.id AND om.user_id = $1
@@ -74,7 +89,17 @@ export class PostgresIdentityRepository implements IdentityRepository {
         ORDER BY o.name`,
       [userId],
     );
-    return rows.map((row) => ({ id: row.id, name: row.name, myRole: row.my_role }));
+    return rows.map((row) => ({ id: row.id, name: row.name, theme: toOrganizationTheme(row.theme), myRole: row.my_role }));
+  }
+
+  async updateOrganizationTheme(organizationId: string, theme: OrganizationTheme): Promise<Organization> {
+    const { rows } = await this.pool.query<{ id: string; name: string; theme: unknown }>(
+      `UPDATE organizations SET theme = $2 WHERE id = $1 RETURNING id, name, theme`,
+      [organizationId, JSON.stringify(theme)],
+    );
+    const row = rows[0];
+    if (!row) throw new Error("organization not found");
+    return { id: row.id, name: row.name, theme: toOrganizationTheme(row.theme) };
   }
 
   async isOrgAdmin(userId: string, organizationId: string): Promise<boolean> {
@@ -106,9 +131,12 @@ export class PostgresIdentityRepository implements IdentityRepository {
   }
 
   async createExperiment(organizationId: string, name: string, serviceName: string): Promise<Experiment> {
-    const { rows } = await this.pool.query<{ id: string; organization_id: string; name: string; service_name: string }>(
-      `INSERT INTO experiments (organization_id, name, service_name) VALUES ($1, $2, $3)
-       RETURNING id, organization_id, name, service_name`,
+    const { rows } = await this.pool.query<{ id: string; organization_id: string; name: string; service_name: string; org_theme: unknown }>(
+      `WITH inserted AS (
+         INSERT INTO experiments (organization_id, name, service_name) VALUES ($1, $2, $3)
+         RETURNING id, organization_id, name, service_name
+       )
+       SELECT inserted.*, o.theme AS org_theme FROM inserted JOIN organizations o ON o.id = inserted.organization_id`,
       [organizationId, name, serviceName],
     );
     const row = rows[0];
@@ -117,8 +145,11 @@ export class PostgresIdentityRepository implements IdentityRepository {
   }
 
   async getExperiment(experimentId: string): Promise<Experiment | null> {
-    const { rows } = await this.pool.query<{ id: string; organization_id: string; name: string; service_name: string }>(
-      `SELECT id, organization_id, name, service_name FROM experiments WHERE id = $1`,
+    const { rows } = await this.pool.query<{ id: string; organization_id: string; name: string; service_name: string; org_theme: unknown }>(
+      `SELECT e.id, e.organization_id, e.name, e.service_name, o.theme AS org_theme
+         FROM experiments e
+         JOIN organizations o ON o.id = e.organization_id
+        WHERE e.id = $1`,
       [experimentId],
     );
     return rows[0] ? toExperiment(rows[0]) : null;
@@ -130,13 +161,15 @@ export class PostgresIdentityRepository implements IdentityRepository {
       organization_id: string;
       name: string;
       service_name: string;
+      org_theme: unknown;
       my_role: ExperimentRole | null;
       org_admin: boolean;
     }>(
-      `SELECT DISTINCT e.id, e.organization_id, e.name, e.service_name,
+      `SELECT DISTINCT e.id, e.organization_id, e.name, e.service_name, o.theme AS org_theme,
               em.role AS my_role,
               (om.user_id IS NOT NULL) AS org_admin
          FROM experiments e
+         JOIN organizations o ON o.id = e.organization_id
          LEFT JOIN experiment_memberships em ON em.experiment_id = e.id AND em.user_id = $1
          LEFT JOIN org_memberships om ON om.organization_id = e.organization_id AND om.user_id = $1
         WHERE em.user_id IS NOT NULL OR om.user_id IS NOT NULL
@@ -295,8 +328,14 @@ function toApiKey(row: { id: string; experiment_id: string; key_prefix: string; 
   return { id: row.id, experimentId: row.experiment_id, keyPrefix: row.key_prefix, createdAt: row.created_at, lastUsedAt: row.last_used_at };
 }
 
-function toExperiment(row: { id: string; organization_id: string; name: string; service_name: string }): Experiment {
-  return { id: row.id, organizationId: row.organization_id, name: row.name, serviceName: row.service_name };
+function toExperiment(row: { id: string; organization_id: string; name: string; service_name: string; org_theme: unknown }): Experiment {
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    name: row.name,
+    serviceName: row.service_name,
+    organizationTheme: toOrganizationTheme(row.org_theme),
+  };
 }
 
 function toMember(row: { user_id: string; email: string; name: string | null; role: OrgRole | ExperimentRole }): Member {

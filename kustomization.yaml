@@ -24,6 +24,7 @@ configMapGenerator:
       - migrations/postgres/001_init_identity.sql
       - migrations/postgres/002_api_keys.sql
       - migrations/postgres/003_pending_invitations.sql
+      - migrations/postgres/004_organization_theme.sql
     options:
       disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
   - name: clickhouse-config
