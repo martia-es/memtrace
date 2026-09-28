@@ -48,6 +48,22 @@ export interface ToolUsage {
   p95Ms: number;
 }
 
+/** Distribución de temáticas de las respuestas del agente (ADR-022). */
+export interface TopicUsage {
+  topic: string;
+  responses: number;
+  avgConfidence: number;
+}
+
+/** Tokens totales de un experimento en un rango, para la comparativa de coste entre agentes. */
+export interface ServiceUsage {
+  serviceName: string;
+  traces: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+}
+
 export interface MetricsOverview {
   bucketSeconds: number;
   totals: OverviewTotals;
@@ -55,6 +71,8 @@ export interface MetricsOverview {
   timeseries: TimeseriesPoint[];
   byModel: ModelUsage[];
   byTool: ToolUsage[];
+  /** vacío si el worker de temáticas (ADR-022) aún no ha corrido sobre este rango */
+  byTopic: TopicUsage[];
 }
 
 const TARGET_BUCKETS = 60;

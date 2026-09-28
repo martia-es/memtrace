@@ -1,0 +1,38 @@
+# Job puntual para el fit inicial del modelo de temáticas (ADR-022, ver analytics/README.md).
+# No forma parte de kustomization.yaml: se aplica a mano una vez y se borra tras usarlo.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: topic-extraction-fit-initial
+  namespace: memtrace
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: fit-initial
+          image: memtrace/topic-extraction:dev
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "topic_extraction.fit_initial_model", "--days", "365", "--sample-size", "5000", "--model-path", "/model/bertopic"]
+          env:
+            - name: CLICKHOUSE_HOST
+              value: clickhouse
+            - name: CLICKHOUSE_PORT
+              value: "8123"
+            - name: CLICKHOUSE_USER
+              value: default
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: clickhouse-credentials
+                  key: password
+            - name: CLICKHOUSE_DATABASE
+              value: memtrace
+          volumeMounts:
+            - name: topic-model
+              mountPath: /model
+      volumes:
+        - name: topic-model
+          persistentVolumeClaim:
+            claimName: topic-model

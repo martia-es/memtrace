@@ -1,6 +1,6 @@
 import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
 import { ConversationNotFoundError, TraceNotFoundError, ValidationError } from "@/domain/errors";
-import { chooseBucketSeconds, fillTimeseries, type MetricsOverview } from "@/domain/metrics";
+import { chooseBucketSeconds, fillTimeseries, type MetricsOverview, type ServiceUsage } from "@/domain/metrics";
 import { MAX_RANGE_MS, resolveTimeRange } from "@/domain/time-range";
 import { toSpanRow, type SpanCursor, type SpanRow } from "@/domain/span-row";
 import { buildTranscript, type Transcript } from "@/domain/transcript";
@@ -166,6 +166,12 @@ export class TraceQueryService {
 
   listServices(input: { from?: Date; to?: Date }): Promise<string[]> {
     return this.repository.listServices(resolveTimeRange(input, this.now()));
+  }
+
+  async getUsageByServices(serviceNames: string[], input: { from?: Date; to?: Date }): Promise<{ fromMs: number; toMs: number; items: ServiceUsage[] }> {
+    const { fromMs, toMs } = resolveTimeRange(input, this.now());
+    const items = await this.repository.getUsageByServices(serviceNames, { fromMs, toMs });
+    return { fromMs, toMs, items };
   }
 
   ping(): Promise<void> {

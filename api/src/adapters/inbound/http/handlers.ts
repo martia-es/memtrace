@@ -2,7 +2,7 @@ import { RepositoryUnavailableError } from "@/application/errors";
 import type { TraceQueryService } from "@/application/trace-query-service";
 import { ConversationNotFoundError, TraceNotFoundError, ValidationError } from "@/domain/errors";
 import type { ServicesResponse } from "./contract";
-import { toSpanListResponse, toTranscriptResponse, toConversationDetailResponse, toConversationListResponse, toConversationTreeResponse, toOverviewResponse, toTraceDetailResponse, toTraceListResponse } from "./mappers";
+import { toSpanListResponse, toTranscriptResponse, toConversationDetailResponse, toConversationListResponse, toConversationTreeResponse, toExperimentUsageResponse, toOverviewResponse, toTraceDetailResponse, toTraceListResponse } from "./mappers";
 import { json, problem } from "./problem";
 import {
   conversationIdParam,
@@ -18,6 +18,7 @@ import {
   servicesQuery,
   traceIdParam,
   turnsQuery,
+  usageQuery,
 } from "./schemas";
 
 /** Traduce los errores de la aplicación a respuestas RFC 7807; nada interno llega al cliente. */
@@ -93,6 +94,14 @@ export function createHandlers(service: TraceQueryService) {
       guard(async () => {
         const items = await service.listServices(parseOrThrow(servicesQuery, query(request)));
         return json({ items } satisfies ServicesResponse);
+      }),
+
+    /** coste (tokens) por experimento accesible al usuario, para la comparativa entre agentes */
+    usageByExperiments: (request: Request, experiments: { id: string; name: string; serviceName: string }[]) =>
+      guard(async () => {
+        const range = parseOrThrow(usageQuery, query(request));
+        const { items } = await service.getUsageByServices(experiments.map((e) => e.serviceName), range);
+        return json(toExperimentUsageResponse(experiments, items));
       }),
 
     /** liveness: no toca el almacén */

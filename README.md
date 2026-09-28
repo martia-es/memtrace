@@ -161,10 +161,12 @@ MemTrace/
 │   ├── 50-api.yaml             # API de consulta (Deployment + Service)
 │   ├── 60-dashboard.yaml       # Dashboard servido por nginx (Deployment + Service)
 │   ├── 70-docs.yaml            # Sitio de documentación pública (nginx)
+│   ├── 80-topic-extraction.yaml # CronJob de temáticas de respuestas (ADR-022)
 │   └── config/                 # Configuración de ClickHouse (ConfigMap generado por kustomize)
 ├── sdk/python/                 # SDK Python (memtrace-ai en PyPI, import memtrace): decoradores + integración LangChain, exporta OTLP
 ├── api/                        # API de consulta (Next.js + TypeScript): único acceso a ClickHouse
 ├── dashboard/                  # Dashboard (Vite + Vue 3 + Quasar): consume solo la API
+├── analytics/topic_extraction/ # Worker de temáticas (BERTopic, sin LLM): enriquece trazas de forma asíncrona (ADR-022)
 ├── docs-site/                  # Sitio público docs.memtraces.ai (VitePress): librería + plataforma; independiente del dashboard
 ├── examples/                   # Ejemplos de agentes instrumentados
 ├── migrations/                 # Migraciones SQL versionadas

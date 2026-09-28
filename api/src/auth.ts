@@ -16,6 +16,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     }),
     MicrosoftEntraID({
+      id: "microsoft",
       clientId: process.env.MICROSOFT_APPLICATION_ID,
       clientSecret: process.env.MICROSOFT_CLIENT_SECRET,
       issuer: `https://login.microsoftonline.com/${process.env.MICROSOFT_TENANT_ID}/v2.0`,

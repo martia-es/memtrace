@@ -37,6 +37,7 @@ const overview = () => ({
   timeseries: [],
   byModel: [{ model: "sonnet-4-5", calls: 3, inputTokens: 1, outputTokens: 1, p95Ms: 10 }],
   byTool: [],
+  byTopic: [],
 });
 
 describe("ConversationsPage", () => {
@@ -57,7 +58,7 @@ describe("ConversationsPage", () => {
     expect(wrapper.text()).toContain("5906");
     expect(wrapper.find(".group-toggle").attributes("aria-checked")).toBe("false");
 
-    await wrapper.findAll("button").find((b) => b.text().includes("Cargar más"))!.trigger("click");
+    await wrapper.findAll("button").find((b) => b.text().includes("Load more"))!.trigger("click");
     await flushPromises();
     expect(wrapper.text()).toContain("segunda");
     expect(api.listCalls.at(-1)?.cursor).toBe("1");
@@ -105,7 +106,7 @@ describe("ConversationsPage", () => {
     const api = new FakeTraceApi();
     api.overview = overview();
     const { wrapper } = await setup(ConversationsPage, api, "/conversations");
-    expect(wrapper.text()).toContain("Todavía no hay trazas");
+    expect(wrapper.text()).toContain("No traces detected yet");
   });
 
   it("shows an actionable message when the API is unreachable", async () => {
@@ -114,7 +115,7 @@ describe("ConversationsPage", () => {
       throw new ApiError(0, "Sin conexión");
     };
     const { wrapper } = await setup(ConversationsPage, api, "/conversations");
-    expect(wrapper.find('[role="alert"]').text()).toContain("No se pudo contactar con la API");
+    expect(wrapper.find('[role="alert"]').text()).toContain("Could not reach the API");
   });
 });
 
@@ -159,7 +160,7 @@ describe("TraceDetailPage", () => {
     await flushPromises();
     expect(router.currentRoute.value.query.span).toBe("c2");
 
-    await wrapper.findAll(".inspector button").find((b) => b.text().includes("Eventos"))!.trigger("click");
+    await wrapper.findAll(".inspector button").find((b) => b.text().includes("Events"))!.trigger("click");
     expect(wrapper.find(".inspector").text()).toContain("exception.message=boom");
   });
 
@@ -178,7 +179,7 @@ describe("TraceDetailPage", () => {
       api.detail = apiDetail;
     });
 
-    await wrapper.findAll(".inspector button").find((b) => b.text().includes("Metadatos"))!.trigger("click");
+    await wrapper.findAll(".inspector button").find((b) => b.text().includes("Metadata"))!.trigger("click");
     const text = wrapper.find(".inspector").text();
     expect(text).toContain("thread_id");
     expect(text).toContain("conv-42");
@@ -213,12 +214,12 @@ describe("TraceDetailPage", () => {
 
   it("warns about orphan spans and truncated traces", async () => {
     const { wrapper } = await open(`/traces/${T}`, (api) => (api.detail = { ...detail(), truncated: true, roots: [node({ spanId: "o", name: "huerfano", orphan: true })] }));
-    expect(wrapper.text()).toContain("más de 5000 spans");
-    expect(wrapper.text()).toContain("no tienen padre");
+    expect(wrapper.text()).toContain("more than 5000 spans");
+    expect(wrapper.text()).toContain("have no parent");
   });
 
   it("explains a missing trace", async () => {
     const wrapper = mount(ErrorBanner, { props: { error: new ApiError(404, "Not Found") }, global: { plugins: [[Quasar, {}]] } });
-    expect(wrapper.text()).toContain("retención");
+    expect(wrapper.text()).toContain("retention");
   });
 });

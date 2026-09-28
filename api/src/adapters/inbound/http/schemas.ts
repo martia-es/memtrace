@@ -55,6 +55,7 @@ export const conversationIdParam = z.string().min(1).max(200);
 
 export const overviewQuery = z.object({ ...timeRangeShape, service: nonEmpty.optional() });
 export const servicesQuery = z.object({ ...timeRangeShape });
+export const usageQuery = z.object({ ...timeRangeShape });
 
 export const traceIdParam = z
   .string()

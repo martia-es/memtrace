@@ -12,7 +12,7 @@ describe("AgentSelect", () => {
     });
 
     const trigger = wrapper.find(".select-trigger");
-    expect(trigger.text()).toContain("Seleccionar agente");
+    expect(trigger.text()).toContain("Select agent");
   });
 
   it("displays selected value", () => {

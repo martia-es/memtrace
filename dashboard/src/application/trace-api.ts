@@ -1,4 +1,4 @@
-import type { SpanListResponse, TranscriptResponse, ConversationDetailResponse, ConversationListResponse, ConversationTreeResponse, OverviewResponse, ServicesResponse, TraceDetailResponse, TraceListResponse } from "@contract";
+import type { SpanListResponse, TranscriptResponse, ConversationDetailResponse, ConversationListResponse, ConversationTreeResponse, ExperimentUsageResponse, OverviewResponse, ServicesResponse, TraceDetailResponse, TraceListResponse } from "@contract";
 
 export interface RangeParams {
   from: string;
@@ -41,7 +41,11 @@ export interface TraceApi {
   listSpans(params: ListSpansParams, signal?: AbortSignal): Promise<SpanListResponse>;
   getTrace(traceId: string, signal?: AbortSignal): Promise<TraceDetailResponse>;
   getOverview(params: RangeParams & { service?: string }, signal?: AbortSignal): Promise<OverviewResponse>;
+  /** igual que getOverview pero para un experimento explícito, sin depender del scoping por setExperimentId (comparativa entre agentes) */
+  getOverviewForExperiment(experimentId: string, params: RangeParams & { service?: string }, signal?: AbortSignal): Promise<OverviewResponse>;
   listServices(params: RangeParams, signal?: AbortSignal): Promise<ServicesResponse>;
+  /** tokens por experimento accesible al usuario, para la comparativa de coste entre agentes */
+  getUsageByExperiment(params: RangeParams, signal?: AbortSignal): Promise<ExperimentUsageResponse>;
   listConversations(params: ListConversationsParams, signal?: AbortSignal): Promise<ConversationListResponse>;
   /** mensajes usuario/asistente por turno; `contentCaptured=false` si el agente no guardó contenido */
   getTranscript(conversationId: string, signal?: AbortSignal): Promise<TranscriptResponse>;

@@ -95,8 +95,9 @@ async function mountPage(component: object, api: FakeTraceApi, path: string, pro
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
-      { path: "/traces", name: "traces", component: { template: "<div />" } },
+      { path: "/conversations", name: "conversations", component: { template: "<div />" } },
       { path: "/traces/:traceId", name: "trace", component: { template: "<div />" } },
+      { path: "/conversations/:conversationId", name: "conversation", component: { template: "<div />" } },
     ],
   });
   await router.push(path);
@@ -120,7 +121,7 @@ describe("ConversationsPage live refresh", () => {
     ];
     setRefreshSeconds(5);
     const wrapper = await mountPage(ConversationsPage, api, "/conversations?range=24h");
-    await wrapper.findAll("button").find((b) => b.text().includes("Cargar más"))!.trigger("click");
+    await wrapper.findAll("button").find((b) => b.text().includes("Load more"))!.trigger("click");
     await vi.advanceTimersByTimeAsync(0);
     await flushPromises();
     expect(wrapper.text()).toContain("cero");
@@ -133,7 +134,7 @@ describe("ConversationsPage live refresh", () => {
 
     expect(api.listCalls.length).toBeGreaterThan(callsBefore);
     expect(wrapper.text()).toContain("nueva");
-    expect(wrapper.text()).toContain("cero"); // la página cargada con "Cargar más" sigue ahí
+    expect(wrapper.text()).toContain("cero"); // la página cargada con "Load more" sigue ahí
     expect(wrapper.find("tr.fresh").text()).toContain("nueva");
 
     await vi.advanceTimersByTimeAsync(3_100); // el resaltado se apaga
@@ -162,7 +163,7 @@ describe("TraceDetailPage live refresh", () => {
     api.detail = detail([node({ spanId: "c", parentSpanId: "r", orphan: true, name: "hijo" })]);
     setRefreshSeconds(5);
     const wrapper = await mountPage(TraceDetailPage, api, `/traces/${"b".repeat(32)}`, { traceId: "b".repeat(32) });
-    expect(wrapper.text()).toContain("sigue en curso");
+    expect(wrapper.text()).toContain("still in progress");
 
     await vi.advanceTimersByTimeAsync(5_000);
     await flushPromises();
@@ -173,7 +174,7 @@ describe("TraceDetailPage live refresh", () => {
     await vi.advanceTimersByTimeAsync(5_000);
     await flushPromises();
     expect(api.traceCalls).toBe(3);
-    expect(wrapper.text()).not.toContain("sigue en curso");
+    expect(wrapper.text()).not.toContain("still in progress");
 
     await vi.advanceTimersByTimeAsync(30_000);
     expect(api.traceCalls).toBe(3); // ya no refresca

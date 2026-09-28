@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { fetchCsrfToken, postSignOut } from "@/adapters/outbound/browser-auth";
 import { useAsync } from "../composables/useAsync";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTheme } from "../composables/useTheme";
@@ -17,14 +18,8 @@ const { theme, toggle: toggleTheme } = useTheme();
 
 const handleSignOut = async () => {
   try {
-    const csrfRes = await fetch("/api/auth/csrf", { credentials: "include" });
-    const { csrfToken } = await csrfRes.json();
-    await fetch("/api/auth/signout", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ csrfToken, callbackUrl: "/login" })
-    });
+    const csrfToken = await fetchCsrfToken();
+    await postSignOut(csrfToken, "/login");
   } catch (e) {
     console.warn("Logout request failed:", e);
   } finally {

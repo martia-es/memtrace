@@ -1,10 +1,10 @@
 import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
-import type { MetricsOverview } from "@/domain/metrics";
+import type { MetricsOverview, ServiceUsage } from "@/domain/metrics";
 import type { SpanCursor, SpanRow } from "@/domain/span-row";
 import type { Transcript } from "@/domain/transcript";
 import type { SpanNode } from "@/domain/span";
 import type { Page, TraceDetail, TraceSummary } from "@/domain/trace";
-import type { TranscriptResponse, ConversationDetailResponse, ConversationListResponse, ConversationSummaryDto, ConversationTreeResponse, OverviewResponse, SpanListResponse, SpanNodeDto, TraceDetailResponse, TraceListResponse, TraceSummaryDto } from "./contract";
+import type { TranscriptResponse, ConversationDetailResponse, ConversationListResponse, ConversationSummaryDto, ConversationTreeResponse, ExperimentUsageResponse, OverviewResponse, SpanListResponse, SpanNodeDto, TraceDetailResponse, TraceListResponse, TraceSummaryDto } from "./contract";
 import { encodeConversationCursor, encodeCursor, encodeSpanCursor } from "./schemas";
 
 const isoFromUs = (us: number) => new Date(Math.round(us / 1000)).toISOString();
@@ -134,5 +134,24 @@ export function toOverviewResponse(o: MetricsOverview & { fromMs: number; toMs: 
     timeseries: o.timeseries.map(({ bucketStartMs, ...rest }) => ({ bucketStart: isoFromMs(bucketStartMs), ...rest })),
     byModel: o.byModel,
     byTool: o.byTool,
+    byTopic: o.byTopic,
+  };
+}
+
+/** Cruza los experimentos visibles con su uso por ServiceName; sin datos en el rango = ceros, no se omite. */
+export function toExperimentUsageResponse(experiments: { id: string; name: string; serviceName: string }[], items: ServiceUsage[]): ExperimentUsageResponse {
+  const byService = new Map(items.map((i) => [i.serviceName, i]));
+  return {
+    items: experiments.map((e) => {
+      const usage = byService.get(e.serviceName);
+      return {
+        experimentId: e.id,
+        experimentName: e.name,
+        traces: usage?.traces ?? 0,
+        inputTokens: usage?.inputTokens ?? 0,
+        outputTokens: usage?.outputTokens ?? 0,
+        totalTokens: usage?.totalTokens ?? 0,
+      };
+    }),
   };
 }

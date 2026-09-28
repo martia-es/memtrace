@@ -1,5 +1,5 @@
 import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
-import type { MetricsOverview, MetricsQuery } from "@/domain/metrics";
+import type { MetricsOverview, MetricsQuery, ServiceUsage } from "@/domain/metrics";
 import type { ChatSpanRecord } from "@/domain/transcript";
 import type { Span } from "@/domain/span";
 import type { SpanCursor, SpanRecord } from "@/domain/span-row";
@@ -61,6 +61,8 @@ export interface TraceRepository {
   /** serie temporal *dispersa* (solo buckets con datos); el servicio la rellena */
   getOverview(query: MetricsQuery): Promise<MetricsOverview>;
   listServices(range: TimeRange): Promise<string[]>;
+  /** tokens totales por servicio (= experimento) en el rango, para la comparativa de coste entre agentes */
+  getUsageByServices(serviceNames: string[], range: TimeRange): Promise<ServiceUsage[]>;
   /** conversaciones con algún turno iniciado en el rango; sus cifras cubren toda su historia retenida */
   listConversations(query: ConversationListQuery): Promise<Page<ConversationSummary, ConversationCursor>>;
   /** null si no existe; `range` acota la búsqueda (la retención) */

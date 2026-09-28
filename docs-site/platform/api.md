@@ -19,6 +19,14 @@ All under `/api/v1/experiments/{experimentId}`:
 
 Lists are cursor-paginated: pass the `nextCursor` of a response as `cursor` to get the next page.
 
+## Cross-experiment usage
+
+| Endpoint | Description |
+|---|---|
+| `GET /experiments/usage` | Token totals per experiment, for every experiment you can access. Params: `from`, `to` |
+
+Unlike the endpoints above, this one isn't scoped to a single `{experimentId}` — it returns one row per experiment you have access to, for the cost comparison view on the dashboard's Metrics page (see ADR-023, `docs/adrs/adr-023-cross-experiment-usage-endpoint.md`, for why this is the one exception to per-experiment scoping).
+
 ## Identity
 
 | Endpoint | Description |

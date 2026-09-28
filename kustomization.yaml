@@ -13,11 +13,13 @@ resources:
   - k8s/50-api.yaml
   - k8s/60-dashboard.yaml
   - k8s/70-docs.yaml
+  - k8s/80-topic-extraction.yaml
 configMapGenerator:
   - name: clickhouse-migrations
     files:
       - migrations/clickhouse/001_init_traces.sql
       - migrations/clickhouse/002_conversation_id.sql
+      - migrations/clickhouse/003_span_topics.sql
     options:
       disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
   - name: postgres-migrations

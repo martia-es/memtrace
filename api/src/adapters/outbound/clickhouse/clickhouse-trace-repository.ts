@@ -4,7 +4,7 @@ import type { ConversationListQuery, SpanListQuery, TraceListQuery, TraceReposit
 import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
 import { previewOf, type SpanCursor, type SpanRecord } from "@/domain/span-row";
 import type { ChatSpanRecord } from "@/domain/transcript";
-import type { MetricsOverview, MetricsQuery } from "@/domain/metrics";
+import type { MetricsOverview, MetricsQuery, ServiceUsage } from "@/domain/metrics";
 import type { Span, StatusCode } from "@/domain/span";
 import { MAX_RANGE_MS, type TimeRange } from "@/domain/time-range";
 import type { Page, TraceSummary } from "@/domain/trace";
@@ -45,6 +45,7 @@ function toStatus(code: unknown): StatusCode {
 export class ClickHouseTraceRepository implements TraceRepository {
   private readonly spans: string;
   private readonly traceIndex: string;
+  private readonly topics: string;
 
   private readonly limiter: QueryLimiter;
 
@@ -57,6 +58,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(database)) throw new Error(`Invalid database name: ${database}`);
     this.spans = `${database}.otel_traces`;
     this.traceIndex = `${database}.otel_traces_trace_id_ts`;
+    this.topics = `${database}.span_topics`;
   }
 
   private async rows<T = Row>(query: string, params: Params): Promise<T[]> {
@@ -94,6 +96,28 @@ export class ClickHouseTraceRepository implements TraceRepository {
       params,
     );
     return rows.map((r) => r.ServiceName);
+  }
+
+  /** Una sola consulta agrupada por ServiceName: evita N consultas al comparar coste entre varios experimentos. */
+  async getUsageByServices(serviceNames: string[], { fromMs, toMs }: TimeRange): Promise<ServiceUsage[]> {
+    if (serviceNames.length === 0) return [];
+    const { clause, params } = ClickHouseTraceRepository.range(fromMs, toMs);
+    const rows = await this.rows(
+      `SELECT ServiceName, countIf(ParentSpanId = '') AS traces,
+              sumIf(${attrNum("gen_ai.usage.input_tokens")}, ${OP} = 'chat') AS inputTokens,
+              sumIf(${attrNum("gen_ai.usage.output_tokens")}, ${OP} = 'chat') AS outputTokens,
+              sumIf(${TOKENS}, ${OP} = 'chat') AS totalTokens
+       FROM ${this.spans} WHERE ${clause} AND ServiceName IN {serviceNames:Array(String)}
+       GROUP BY ServiceName`,
+      { ...params, serviceNames },
+    );
+    return rows.map((r) => ({
+      serviceName: String(r.ServiceName),
+      traces: num(r.traces),
+      inputTokens: num(r.inputTokens),
+      outputTokens: num(r.outputTokens),
+      totalTokens: num(r.totalTokens),
+    }));
   }
 
   async listSpans(q: SpanListQuery): Promise<Page<SpanRecord, SpanCursor>> {
@@ -487,7 +511,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
     const from = `FROM ${this.spans} WHERE ${clause}${svc}`;
     const bucket = "intDiv(toUnixTimestamp(Timestamp), {bucket:UInt32}) * {bucket:UInt32}";
 
-    const [totals, spanTotals, series, tokenSeries, models, tools] = await Promise.all([
+    const [totals, spanTotals, series, tokenSeries, models, tools, topics] = await Promise.all([
       this.rows(
         `SELECT count() AS traces, countIf(StatusCode = ${ERROR}) AS errorTraces,
                 quantiles(0.5, 0.95, 0.99)(Duration) AS q ${from} AND ParentSpanId = ''`,
@@ -518,6 +542,14 @@ export class ClickHouseTraceRepository implements TraceRepository {
         `SELECT if(SpanAttributes['gen_ai.tool.name'] != '', SpanAttributes['gen_ai.tool.name'], SpanName) AS tool,
                 count() AS calls, countIf(StatusCode = ${ERROR}) AS errors, quantile(0.95)(Duration) AS p95
          ${from} AND ${OP} = 'execute_tool' GROUP BY tool ORDER BY calls DESC LIMIT 50`,
+        p,
+      ),
+      this.rows(
+        `SELECT st.Topic AS topic, count() AS responses, avg(st.Confidence) AS avgConfidence
+         FROM ${this.topics} AS st FINAL
+         INNER JOIN ${this.spans} AS t ON t.TraceId = st.TraceId AND t.SpanId = st.SpanId
+         WHERE ${clause.replace(/(?<![\w.])Timestamp\b/g, "t.Timestamp")}${q.service ? " AND t.ServiceName = {service:String}" : ""}
+         GROUP BY st.Topic ORDER BY responses DESC LIMIT 100`,
         p,
       ),
     ]);
@@ -568,6 +600,11 @@ export class ClickHouseTraceRepository implements TraceRepository {
         calls: num(r.calls),
         errors: num(r.errors),
         p95Ms: nsToMs(r.p95),
+      })),
+      byTopic: topics.map((r) => ({
+        topic: String(r.topic),
+        responses: num(r.responses),
+        avgConfidence: num(r.avgConfidence),
       })),
     };
   }

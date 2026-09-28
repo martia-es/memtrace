@@ -18,15 +18,15 @@ describe("spanIo", () => {
 
   it("shows a tool's arguments and result, formatting JSON kept as text", () => {
     const io = spanIo(node({ content: { toolArguments: { origin: "MAD" }, toolResult: '{"ok":true}' } }));
-    expect(io.input[0]).toMatchObject({ label: "argumentos", structured: true });
+    expect(io.input[0]).toMatchObject({ label: "arguments", structured: true });
     expect(io.input[0]!.text).toContain('"origin": "MAD"');
-    expect(io.output[0]).toMatchObject({ label: "resultado", structured: true, text: '{"ok":true}' });
+    expect(io.output[0]).toMatchObject({ label: "result", structured: true, text: '{"ok":true}' });
   });
 
   it("falls back to the generic input/output, plain text unstructured", () => {
     const io = spanIo(node({ content: { input: "consulta", output: "respuesta" } }));
-    expect(io.input[0]).toMatchObject({ label: "entrada", text: "consulta", structured: false });
-    expect(io.output[0]).toMatchObject({ label: "salida", text: "respuesta" });
+    expect(io.input[0]).toMatchObject({ label: "input", text: "consulta", structured: false });
+    expect(io.output[0]).toMatchObject({ label: "output", text: "respuesta" });
   });
 
   it("extracts chat messages from a chain input shaped as {messages: [...]}", () => {
@@ -44,7 +44,7 @@ describe("genAiRows", () => {
   it("omits the fields that are not present", () => {
     expect(genAiRows(node())).toEqual([]);
     const rows = genAiRows(node({ genAi: { operation: "chat", provider: null, requestModel: "m", responseModel: null, inputTokens: 3, outputTokens: null, totalTokens: null, finishReasons: ["stop"], temperature: null, maxTokens: null, toolName: null, toolCallId: null } }));
-    expect(rows).toEqual([["Operación", "chat"], ["Modelo solicitado", "m"], ["Tokens de entrada", "3"], ["Motivo de fin", "stop"]]);
+    expect(rows).toEqual([["Operation", "chat"], ["Request model", "m"], ["Input tokens", "3"], ["Finish reason", "stop"]]);
   });
 });
 

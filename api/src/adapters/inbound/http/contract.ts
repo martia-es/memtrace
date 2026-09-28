@@ -180,10 +180,17 @@ export interface OverviewResponse {
   timeseries: { bucketStart: string; traces: number; errorTraces: number; p95Ms: number; totalTokens: number }[];
   byModel: { model: string; calls: number; inputTokens: number; outputTokens: number; p95Ms: number }[];
   byTool: { tool: string; calls: number; errors: number; p95Ms: number }[];
+  /** vacío si el worker de temáticas (ADR-022) aún no ha corrido sobre este rango */
+  byTopic: { topic: string; responses: number; avgConfidence: number }[];
 }
 
 export interface ServicesResponse {
   items: string[];
+}
+
+/** Tokens totales por experimento accesible al usuario, para la comparativa de coste entre agentes. */
+export interface ExperimentUsageResponse {
+  items: { experimentId: string; experimentName: string; traces: number; inputTokens: number; outputTokens: number; totalTokens: number }[];
 }
 
 export interface ProblemDetails {

@@ -1,0 +1,53 @@
+# Worker de extracción de temáticas (ADR-022). El fit inicial del modelo NO ocurre aquí:
+# se hace a mano (ver analytics/README.md) y se guarda en el PVC que este CronJob monta.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: topic-model
+  namespace: memtrace
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: topic-extraction
+  namespace: memtrace
+spec:
+  schedule: "0 * * * *" # cada hora
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: topic-extraction
+              image: memtrace/topic-extraction:dev
+              env:
+                - name: CLICKHOUSE_HOST
+                  value: clickhouse
+                - name: CLICKHOUSE_PORT
+                  value: "8123"
+                - name: CLICKHOUSE_USER
+                  value: default
+                - name: CLICKHOUSE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: clickhouse-credentials
+                      key: password
+                - name: CLICKHOUSE_DATABASE
+                  value: memtrace
+                - name: TOPIC_MODEL_PATH
+                  value: /model/bertopic
+              volumeMounts:
+                - name: topic-model
+                  mountPath: /model
+          volumes:
+            - name: topic-model
+              persistentVolumeClaim:
+                claimName: topic-model

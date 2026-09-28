@@ -1,4 +1,4 @@
-import type { SpanListResponse, TranscriptResponse, ConversationDetailResponse, ConversationListResponse, ConversationTreeResponse, OverviewResponse, ProblemDetails, ServicesResponse, TraceDetailResponse, TraceListResponse } from "@contract";
+import type { SpanListResponse, TranscriptResponse, ConversationDetailResponse, ConversationListResponse, ConversationTreeResponse, ExperimentUsageResponse, OverviewResponse, ProblemDetails, ServicesResponse, TraceDetailResponse, TraceListResponse } from "@contract";
 import { ApiError, type ListConversationsParams, type ListSpansParams, type ListTracesParams, type RangeParams, type TraceApi } from "@/application/trace-api";
 
 type Fetch = typeof fetch;
@@ -39,8 +39,16 @@ export class HttpTraceApi implements TraceApi {
     return this.get<OverviewResponse>(`${this.scopedBase()}/metrics/overview`, { ...params }, signal);
   }
 
+  getOverviewForExperiment(experimentId: string, params: RangeParams & { service?: string }, signal?: AbortSignal) {
+    return this.get<OverviewResponse>(`${this.baseUrl}/experiments/${encodeURIComponent(experimentId)}/metrics/overview`, { ...params }, signal);
+  }
+
   listServices(params: RangeParams, signal?: AbortSignal) {
     return this.get<ServicesResponse>(`${this.baseUrl}/services`, { ...params }, signal);
+  }
+
+  getUsageByExperiment(params: RangeParams, signal?: AbortSignal) {
+    return this.get<ExperimentUsageResponse>(`${this.baseUrl}/experiments/usage`, { ...params }, signal);
   }
 
   listConversations(params: ListConversationsParams, signal?: AbortSignal) {

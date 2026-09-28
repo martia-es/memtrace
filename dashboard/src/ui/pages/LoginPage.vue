@@ -1,11 +1,12 @@
 <script setup lang="ts">
+import { fetchCsrfToken } from "@/adapters/outbound/browser-auth";
+
 // Auth.js doesn't start the provider on a GET with ?provider=: its /api/auth/signin page
 // only lists options. To skip straight to it, the csrfToken must be POSTed to
 // /api/auth/signin/{provider} (the same thing its button does internally), so the user
 // never sees an intermediate screen.
 async function signIn(provider: "google" | "microsoft") {
-  const res = await fetch("/api/auth/csrf");
-  const { csrfToken } = await res.json();
+  const csrfToken = await fetchCsrfToken();
 
   const form = document.createElement("form");
   form.method = "POST";

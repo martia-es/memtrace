@@ -16,7 +16,7 @@ Each span is a step: an LLM call, a tool, a retriever or an agent. Spans are col
 
 ## Overview metrics
 
-Totals, latency, a time series, tokens per model and tool usage for the selected time range and experiment.
+Totals, latency, a time series, tokens per model and tool usage for the selected time range and experiment. If you have access to more than one agent, a token-usage comparison across all of them is shown at the top of the page; click an agent there (or use the agent selector next to the time range) to switch which one the rest of the page shows.
 
 ## Theme
 

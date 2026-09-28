@@ -1,4 +1,4 @@
-import type { SpanListResponse, SpanRowDto, TranscriptResponse, ConversationDetailResponse, ConversationListResponse, ConversationSummaryDto, ConversationTreeResponse, OverviewResponse, ServicesResponse, SpanNodeDto, TraceDetailResponse, TraceListResponse, TraceSummaryDto } from "@contract";
+import type { SpanListResponse, SpanRowDto, TranscriptResponse, ConversationDetailResponse, ConversationListResponse, ConversationSummaryDto, ConversationTreeResponse, ExperimentUsageResponse, OverviewResponse, ServicesResponse, SpanNodeDto, TraceDetailResponse, TraceListResponse, TraceSummaryDto } from "@contract";
 import type { ListConversationsParams, ListSpansParams, ListTracesParams, RangeParams, TraceApi } from "@/application/trace-api";
 import type { ApiKeyDto, CurrentUser, ExperimentDto, IdentityApi, MembersResponseDto, OrganizationDto, OrganizationThemeDto } from "@/application/identity-api";
 
@@ -140,6 +140,7 @@ export class FakeTraceApi implements TraceApi {
   detail: TraceDetailResponse | Error | null = null;
   services = ["svc-a", "svc-b"];
   overview: OverviewResponse | null = null;
+  usageByExperiment: ExperimentUsageResponse["items"] = [];
 
   async listTraces(params: ListTracesParams) {
     this.listCalls.push(params);
@@ -196,7 +197,16 @@ export class FakeTraceApi implements TraceApi {
     if (!this.overview) throw new Error("no overview configured");
     return this.overview;
   }
+  overviewByExperiment: Record<string, OverviewResponse> = {};
+  async getOverviewForExperiment(experimentId: string, _p: RangeParams & { service?: string }) {
+    const found = this.overviewByExperiment[experimentId];
+    if (!found) throw new Error(`no overview configured for ${experimentId}`);
+    return found;
+  }
   async listServices(_p: RangeParams): Promise<ServicesResponse> {
     return { items: this.services };
+  }
+  async getUsageByExperiment(_p: RangeParams): Promise<ExperimentUsageResponse> {
+    return { items: this.usageByExperiment };
   }
 }

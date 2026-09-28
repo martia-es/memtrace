@@ -1,7 +1,7 @@
 import type { ConversationListQuery, SpanListQuery, TraceListQuery, TraceRepository, TraceSpans } from "@/application/ports/trace-repository";
 import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
 import type { ChatSpanRecord } from "@/domain/transcript";
-import type { MetricsOverview, MetricsQuery } from "@/domain/metrics";
+import type { MetricsOverview, MetricsQuery, ServiceUsage } from "@/domain/metrics";
 import type { Span } from "@/domain/span";
 import type { SpanCursor, SpanRecord } from "@/domain/span-row";
 import type { TimeRange } from "@/domain/time-range";
@@ -33,6 +33,7 @@ export const emptyOverview: MetricsOverview = {
   timeseries: [],
   byModel: [],
   byTool: [],
+  byTopic: [],
 };
 
 /** Repositorio en memoria: prueba servicio y HTTP sin ClickHouse. */
@@ -51,6 +52,7 @@ export class FakeTraceRepository implements TraceRepository {
   traces = new Map<string, TraceSpans>();
   overview: MetricsOverview = emptyOverview;
   services: string[] = [];
+  usageByService: ServiceUsage[] = [];
   failWith?: Error;
 
   private check() {
@@ -82,6 +84,10 @@ export class FakeTraceRepository implements TraceRepository {
   async listServices(_range: TimeRange) {
     this.check();
     return this.services;
+  }
+  async getUsageByServices(_serviceNames: string[], _range: TimeRange) {
+    this.check();
+    return this.usageByService;
   }
   async listConversations(query: ConversationListQuery) {
     this.check();

@@ -65,7 +65,7 @@ describe("ConversationDetailPage", () => {
   it("shows the header aggregates and the turns in order, using the user's message as the label", async () => {
     const { wrapper, api } = await open();
     const text = wrapper.text();
-    expect(text).toContain("1 traza con error");
+    expect(text).toContain("1 trace with error");
     expect(text).toContain("300");
     expect(text.indexOf("Reserva mi vuelo a Lisboa")).toBeLessThan(text.indexOf("segundo turno")); // T1 usa la transcripción; T2 cae al span raíz
     expect(api.conversationDetailCalls[0]).toMatchObject({ id: "conv-1" });
