@@ -1,3 +1,4 @@
+import { costOf, type PricingCatalog } from "./pricing";
 import type { StatusCode } from "./span";
 import { lastOf, parseMessages } from "./transcript";
 
@@ -17,6 +18,8 @@ export interface SpanRow {
   model: string | null;
   /** null si el span no es una llamada a un LLM */
   totalTokens: number | null;
+  /** null si el span no es una llamada a un LLM, o no hay precio conocido para su modelo (ADR-025) */
+  costUsd: number | null;
   input: string | null;
   output: string | null;
 }

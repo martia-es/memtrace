@@ -27,6 +27,8 @@ export interface TraceDetail {
   spanCount: number;
   errorCount: number;
   totalTokens: number;
+  /** 0 si ningún span tiene precio conocido para su modelo, no "sin datos" (ADR-025) */
+  totalCostUsd: number;
   truncated: boolean;
   conversationId: string | null;
   /** framework de agentes detectado en la traza, si lo hay (ADR-011) */

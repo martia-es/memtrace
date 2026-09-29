@@ -1,17 +1,23 @@
 import threading
 import time
 import uuid
-from typing import Dict, List, Optional, Tuple
+from collections import OrderedDict
+from typing import List, Optional, Tuple
 
 from memtrace.application.ports import SpanHandle
 
 
 class RunRegistry:
-    """In-flight spans by `run_id` (callback-based frameworks identify runs, not spans)."""
+    """In-flight spans by `run_id` (callback-based frameworks identify runs, not spans).
+
+    Backed by an `OrderedDict` insertion-ordered by `run_id`: since runs are (almost) always
+    added in creation order, the oldest entry is always the first one, making `pop_oldest` O(1)
+    instead of a full scan.
+    """
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._runs: Dict[uuid.UUID, Tuple[SpanHandle, float]] = {}
+        self._runs: "OrderedDict[uuid.UUID, Tuple[SpanHandle, float]]" = OrderedDict()
 
     def add(self, run_id: uuid.UUID, handle: SpanHandle, created_at: Optional[float] = None) -> None:
         with self._lock:
@@ -31,8 +37,8 @@ class RunRegistry:
         with self._lock:
             if not self._runs:
                 return None
-            oldest = min(self._runs, key=lambda rid: self._runs[rid][1])
-            return self._runs.pop(oldest)[0]
+            _, (handle, _) = self._runs.popitem(last=False)
+            return handle
 
     def pop_older_than(self, cutoff: float) -> List[SpanHandle]:
         with self._lock:

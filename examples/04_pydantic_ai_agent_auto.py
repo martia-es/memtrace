@@ -8,7 +8,8 @@ sys.path.insert(
 )
 
 from dotenv import load_dotenv
-from memtrace import enable_pydantic_ai_instrumentation, init_tracer, session, shutdown
+from memtrace import init_tracer, session, shutdown
+from memtrace.pydantic_ai import enable_pydantic_ai_instrumentation
 from pydantic_ai import Agent
 
 load_dotenv()

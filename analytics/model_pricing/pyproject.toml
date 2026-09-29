@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "memtrace-model-pricing"
+version = "0.1.0"
+description = "Sync worker: downloads the LiteLLM model pricing catalog into ClickHouse (ADR-025)"
+readme = "README.md"
+requires-python = ">=3.10.18"
+dependencies = [
+    "httpx>=0.27",
+    "clickhouse-connect>=0.7",
+]
+
+[tool.setuptools.packages.find]
+include = ["model_pricing*"]

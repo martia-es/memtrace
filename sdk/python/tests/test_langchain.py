@@ -8,7 +8,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.outputs import ChatGeneration, LLMResult
 
 import memtrace
-from memtrace.adapters.inbound.langchain import MemTraceCallbackHandler
+from memtrace.langchain import MemTraceCallbackHandler
 from tests.conftest import by_name
 
 

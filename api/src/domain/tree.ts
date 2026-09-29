@@ -1,5 +1,6 @@
 import { detectFramework } from "./framework";
 import { extractContent, extractGenAi, extractKind, remainingAttributes, tokensOf } from "./genai";
+import { costOf, type PricingCatalog } from "./pricing";
 import type { Span, SpanNode } from "./span";
 import type { StatusCode } from "./span";
 import type { TraceDetail } from "./trace";
@@ -21,7 +22,7 @@ export interface SpanTree {
  *  4. Los ciclos de padres (datos corruptos) se rompen convirtiendo un span del ciclo en raíz.
  *  5. Iterativo: los bucles anidados de un agente no desbordan la pila.
  */
-export function buildSpanTree(spans: Span[], traceStartUs: number): SpanTree {
+export function buildSpanTree(spans: Span[], traceStartUs: number, pricing: PricingCatalog): SpanTree {
   const byId = new Map<string, Span>();
   for (const span of spans) if (!byId.has(span.spanId)) byId.set(span.spanId, span);
   const unique = [...byId.values()].sort(byStartThenId);
@@ -42,6 +43,7 @@ export function buildSpanTree(spans: Span[], traceStartUs: number): SpanTree {
   const visited = new Set<string>();
 
   const toNode = (span: Span, orphan: boolean): SpanNode => {
+    const genAi = extractGenAi(span.attributes);
     const node: SpanNode = {
       spanId: span.spanId,
       parentSpanId: span.parentSpanId,
@@ -53,7 +55,11 @@ export function buildSpanTree(spans: Span[], traceStartUs: number): SpanTree {
       durationMs: span.durationMs,
       status: span.status,
       orphan,
-      genAi: extractGenAi(span.attributes),
+      genAi,
+      costUsd:
+        genAi?.operation === "chat"
+          ? costOf(genAi.responseModel ?? genAi.requestModel, genAi.inputTokens ?? 0, genAi.outputTokens ?? 0, pricing)
+          : null,
       content: extractContent(span.attributes),
       framework: detectFramework(span.scopeName, span.attributes),
       attributes: remainingAttributes(span.attributes),
@@ -110,17 +116,19 @@ function frameworkOf(roots: SpanNode[], nodes: SpanNode[]): string | null {
 }
 
 /** Construye el detalle de una traza (árbol + agregados) a partir de sus spans planos. */
-export function buildTraceDetail(traceId: string, spans: Span[], truncated: boolean): TraceDetail {
+export function buildTraceDetail(traceId: string, spans: Span[], truncated: boolean, pricing: PricingCatalog): TraceDetail {
   const startTimeUs = spans.reduce((min, s) => Math.min(min, s.startTimeUs), Infinity);
-  const { roots, nodes } = buildSpanTree(spans, startTimeUs);
+  const { roots, nodes } = buildSpanTree(spans, startTimeUs, pricing);
   const endUs = nodes.reduce((max, n) => Math.max(max, n.startTimeUs + n.durationMs * 1000), startTimeUs);
 
   let errorCount = 0;
   let totalTokens = 0;
+  let totalCostUsd = 0;
   for (const node of nodes) {
     if (node.status.code === "error") errorCount += 1;
     // Solo `chat`: evita contar dos veces si un framework repite el uso en spans padre (ADR-009)
     if (node.genAi?.operation === "chat") totalTokens += tokensOf(node.genAi);
+    if (node.costUsd !== null) totalCostUsd += node.costUsd;
   }
 
   return {
@@ -133,6 +141,8 @@ export function buildTraceDetail(traceId: string, spans: Span[], truncated: bool
     spanCount: nodes.length,
     errorCount,
     totalTokens,
+    /** 0 si ningún span tiene precio conocido para su modelo, no "sin datos" (ADR-025) */
+    totalCostUsd,
     truncated,
     roots,
   };

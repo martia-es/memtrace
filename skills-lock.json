@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "likec4-skill": {
+      "source": "nedeadinside/likec4-skill",
+      "sourceType": "github",
+      "skillPath": "likec4-skill/SKILL.md",
+      "computedHash": "9e40f6980da2c3aabc6bbf7b9580383aebdcc96e338e362358ded3ac76a197c5"
+    }
+  }
+}

@@ -10,7 +10,8 @@ sys.path.insert(
 from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain.tools import tool
-from memtrace import MemTraceCallbackHandler, init_tracer, session, shutdown
+from memtrace import init_tracer, session, shutdown
+from memtrace.langchain import MemTraceCallbackHandler
 
 load_dotenv()
 init_tracer(service_name="langchain-agent")

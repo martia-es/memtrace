@@ -6,8 +6,8 @@ the tracer configured by `init_tracer`.
 import logging
 from typing import Optional
 
+from memtrace.adapters.inbound.auto_instrumentation import resolve_tracer_provider
 from memtrace.application.tracing_service import TracingService
-from memtrace.dependency_container import get_service
 
 logger = logging.getLogger("memtrace")
 
@@ -27,10 +27,8 @@ def enable_pydantic_ai_instrumentation(service: Optional[TracingService] = None)
             "Pydantic AI instrumentation requires: pip install 'memtrace-ai[pydantic-ai]'"
         ) from exc
 
-    service = service or get_service()
-    provider = service.tracer_provider
+    service, provider = resolve_tracer_provider("Pydantic AI", service)
     if provider is None:
-        logger.info("[MemTrace] Tracing is off; Pydantic AI instrumentation not enabled.")
         return
 
     Agent.instrument_all(

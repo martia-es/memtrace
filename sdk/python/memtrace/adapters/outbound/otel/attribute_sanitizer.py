@@ -1,3 +1,7 @@
+"""OTel attribute type coercion, run when a span is created. Not a security boundary: secret
+redaction is a separate, later concern owned entirely by `SanitizingSpanExporter` (ADR-021),
+which runs at export time and covers spans from every source, not just this adapter.
+"""
 import json
 from typing import Any, Dict, Mapping
 

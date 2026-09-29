@@ -3,8 +3,8 @@ import logging
 import os
 from typing import Optional
 
+from memtrace.adapters.inbound.auto_instrumentation import resolve_tracer_provider
 from memtrace.application.tracing_service import TracingService
-from memtrace.dependency_container import get_service
 
 logger = logging.getLogger("memtrace")
 
@@ -26,10 +26,9 @@ def enable_langchain_instrumentation(service: Optional[TracingService] = None) -
     except ImportError as exc:
         raise ImportError(f"LangChain instrumentation requires: {_INSTALL_HINT}") from exc
 
-    service = service or get_service()
-    provider = service.tracer_provider  # process-wide, survives shutdown()/init_tracer()
+    # provider is process-wide, survives shutdown()/init_tracer()
+    service, provider = resolve_tracer_provider("LangChain", service)
     if provider is None:
-        logger.info("[MemTrace] Tracing is off; LangChain instrumentation not enabled.")
         return
 
     # Respect the privacy default of ADR-004 unless the user set the instrumentor's own switch

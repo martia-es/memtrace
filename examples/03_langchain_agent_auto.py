@@ -11,11 +11,8 @@ from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain.tools import tool
 from langchain_core.messages import HumanMessage
-from memtrace import (
-    MemTraceCallbackHandler,
-    enable_langchain_instrumentation,
-    init_tracer,
-)
+from memtrace import init_tracer
+from memtrace.langchain import MemTraceCallbackHandler, enable_langchain_instrumentation
 from memtrace.pii import presidio_redactor
 
 load_dotenv()

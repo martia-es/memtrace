@@ -103,7 +103,7 @@ def test_reaper_expires_orphans_without_new_traffic(port):
 def test_reaper_stops_on_shutdown(port):
     svc = TracingService(port, span_ttl_seconds=60)
     svc.start_run("x")
-    thread = svc._reaper
+    thread = svc._lifecycle._reaper
     assert thread is not None and thread.is_alive()
     svc.shutdown()
     thread.join(timeout=2)

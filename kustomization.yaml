@@ -14,12 +14,14 @@ resources:
   - k8s/60-dashboard.yaml
   - k8s/70-docs.yaml
   - k8s/80-topic-extraction.yaml
+  - k8s/81-model-pricing-sync.yaml
 configMapGenerator:
   - name: clickhouse-migrations
     files:
       - migrations/clickhouse/001_init_traces.sql
       - migrations/clickhouse/002_conversation_id.sql
       - migrations/clickhouse/003_span_topics.sql
+      - migrations/clickhouse/004_model_pricing.sql
     options:
       disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
   - name: postgres-migrations

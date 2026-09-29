@@ -64,6 +64,8 @@ export interface SpanNode {
   /** true si el padre referenciado no está presente (perdido o aún no exportado) */
   orphan: boolean;
   genAi: GenAiInfo | null;
+  /** null si el span no es una llamada a un LLM, o no hay precio conocido para su modelo (ADR-025) */
+  costUsd: number | null;
   content: SpanContent | null;
   /** framework de agentes que originó el span, si se pudo detectar (ADR-011) */
   framework: string | null;

@@ -14,7 +14,12 @@ import logging
 import re
 from typing import Any, Callable, Iterable, Optional, Tuple
 
-from memtrace.domain.serialization import DEFAULT_SENSITIVE_KEYS, REDACTED, SERIALIZATION_FAILED
+from memtrace.domain.serialization import (
+    DEFAULT_SENSITIVE_KEYS,
+    REDACTED,
+    SERIALIZATION_FAILED,
+    is_sensitive_key,
+)
 
 logger = logging.getLogger("memtrace")
 
@@ -73,8 +78,7 @@ class Redactor:
         self._hook = hook
 
     def _is_sensitive_key(self, key: Any) -> bool:
-        lowered = str(key).lower()
-        return any(fragment in lowered for fragment in self._keys)
+        return is_sensitive_key(key, self._keys)
 
     def scrub_text(self, text: str) -> str:
         for pattern, replacement in _TEXT_PATTERNS:

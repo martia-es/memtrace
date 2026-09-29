@@ -48,7 +48,8 @@ def _chat_message(obj: Any) -> Optional[dict]:
     return message
 
 
-def _is_sensitive(key: Any, sensitive: Iterable[str]) -> bool:
+def is_sensitive_key(key: Any, sensitive: Iterable[str]) -> bool:
+    """Whether `key` contains one of the sensitive fragments (case-insensitive substring match)."""
     lowered = str(key).lower()
     return any(fragment in lowered for fragment in sensitive)
 
@@ -72,7 +73,7 @@ def _prune(value: Any, limit: int, sensitive: Iterable[str], depth: int = 0) -> 
             if index >= _MAX_ITEMS:
                 pruned["…"] = f"[{len(value) - _MAX_ITEMS} more items]"
                 break
-            pruned[str(key)] = REDACTED if _is_sensitive(key, sensitive) else _prune(item, limit, sensitive, depth + 1)
+            pruned[str(key)] = REDACTED if is_sensitive_key(key, sensitive) else _prune(item, limit, sensitive, depth + 1)
         return pruned
     if isinstance(value, (list, tuple, set, frozenset)):
         items = list(value) if len(value) <= _MAX_ITEMS else list(value)[:_MAX_ITEMS]

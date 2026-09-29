@@ -38,6 +38,7 @@ class TopicModel:
         results = []
         for topic_id, prob in zip(topic_ids, probabilities):
             name = names.get(topic_id, "outlier") if topic_id != -1 else "outlier"
-            confidence = float(prob) if prob is not None else 0.0
+            # con calculate_probabilities=True, prob es la distribución sobre todos los temas: nos quedamos con la más alta
+            confidence = float(prob.max()) if hasattr(prob, "max") else (float(prob) if prob is not None else 0.0)
             results.append((name, confidence))
         return results

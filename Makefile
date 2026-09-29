@@ -105,3 +105,8 @@ reset: ## BORRA el clúster y TODOS los datos (pide confirmación)
 dev-data: ## Genera trazas de ejemplo (agente simulado) para probar el dashboard
 	@$(PYTHON) -c "import opentelemetry.sdk" 2>/dev/null || { echo "Falta el SDK de Python: pip install -e sdk/python"; exit 1; }
 	MEMTRACE_CAPTURE_CONTENT=true MEMTRACE_BATCH_SCHEDULE_DELAY_MS=500 $(PYTHON) examples/02_multi_step_agent.py
+
+
+diagrams:
+	cd docs/architecture && env -u GEMINI_API_KEY npx likec4@1.59.2 serve
+

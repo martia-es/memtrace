@@ -7,7 +7,8 @@ Two options. Pick one.
 **Manual (recommended)**: attach the callback handler per call.
 
 ```python
-from memtrace import init_tracer, MemTraceCallbackHandler
+from memtrace import init_tracer
+from memtrace.langchain import MemTraceCallbackHandler
 
 init_tracer(service_name="my-agent")
 chain.invoke(x, config={"callbacks": [MemTraceCallbackHandler()]})
@@ -18,7 +19,8 @@ Requires `pip install "memtrace-ai[langchain]"`.
 **Automatic**: instrument LangChain once, after `init_tracer`.
 
 ```python
-from memtrace import init_tracer, enable_langchain_instrumentation
+from memtrace import init_tracer
+from memtrace.langchain import enable_langchain_instrumentation
 
 init_tracer(service_name="my-agent")
 enable_langchain_instrumentation()
@@ -30,7 +32,8 @@ Requires `pip install "memtrace-ai[otel-langchain]"`. It is safe to call again a
 ## Pydantic AI
 
 ```python
-from memtrace import init_tracer, enable_pydantic_ai_instrumentation
+from memtrace import init_tracer
+from memtrace.pydantic_ai import enable_pydantic_ai_instrumentation
 
 init_tracer(service_name="my-agent")
 enable_pydantic_ai_instrumentation()

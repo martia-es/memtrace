@@ -2,22 +2,18 @@ from __future__ import annotations
 
 import functools
 import logging
-import threading
-import time
 import uuid
 from contextlib import contextmanager
 from typing import Any, Iterator, Mapping, Optional, Sequence, Union
 
 from memtrace.application.context import current_run_id, get_session_id
 from memtrace.application.ports import SpanPort
+from memtrace.application.run_lifecycle import RunLifecycleGuard
 from memtrace.application.run_registry import RunRegistry
-from memtrace.domain import semconv as sc
 from memtrace.domain.attributes import llm_attributes, step_start_attributes
 from memtrace.domain.model import CapturePolicy, LlmCall, StepType
 
 logger = logging.getLogger("memtrace")
-
-_EXPIRE_CHECK_INTERVAL_SECONDS = 10
 
 
 def _failsafe(default: Any = None):
@@ -29,7 +25,7 @@ def _failsafe(default: Any = None):
             try:
                 return fn(self, *args, **kwargs)
             except Exception as exc:
-                logger.warning("[MemTrace] %s failed: %s", fn.__name__, exc)
+                logger.warning("[MemTrace] %s failed: %s", fn.__name__, exc, exc_info=logger.isEnabledFor(logging.DEBUG))
                 return default
 
         return wrapper
@@ -49,14 +45,8 @@ class TracingService:
     ) -> None:
         self._port = port
         self._capture = capture or CapturePolicy()
-        self._ttl = span_ttl_seconds
-        self._max_active_runs = max_active_runs
         self._registry = RunRegistry()
-        self._last_expire_check = time.time()
-        self._eviction_warned = False
-        self._reaper_lock = threading.Lock()
-        self._reaper: Optional[threading.Thread] = None
-        self._stop = threading.Event()
+        self._lifecycle = RunLifecycleGuard(self._registry, span_ttl_seconds, max_active_runs)
 
     @property
     def tracer_provider(self) -> Any:
@@ -93,9 +83,7 @@ class TracingService:
     ) -> uuid.UUID:
         """Parent: the `parent_run_id` run if still in flight; else the current span; else a root."""
         run_id = run_id or uuid.uuid4()
-        self.expire_stale_if_due()
-        self._ensure_reaper()
-        self._enforce_capacity()
+        self._lifecycle.before_start()
         parent = self._registry.get(parent_run_id) if parent_run_id else None
         # a None value must not override default attributes (e.g. the active session)
         explicit = {k: v for k, v in (attributes or {}).items() if v is not None}
@@ -192,55 +180,10 @@ class TracingService:
 
     # ----- maintenance -----
 
-    def expire_stale_if_due(self) -> None:
-        if time.time() - self._last_expire_check >= _EXPIRE_CHECK_INTERVAL_SECONDS:
-            self.expire_stale()
-
     @_failsafe()
     def expire_stale(self, now: Optional[float] = None) -> None:
         """Ends the spans that exceeded the TTL (end callbacks that never arrived)."""
-        now = time.time() if now is None else now
-        self._last_expire_check = now
-        for handle in self._registry.pop_older_than(now - self._ttl):
-            try:
-                handle.set_attributes({sc.MEMTRACE_SPAN_EXPIRED: True})
-                handle.end()
-            except Exception:
-                pass
-
-    def _enforce_capacity(self) -> None:
-        """Bounds memory under heavy traffic: the oldest in-flight run is closed as expired."""
-        while len(self._registry) >= self._max_active_runs > 0:
-            handle = self._registry.pop_oldest()
-            if handle is None:
-                return
-            if not self._eviction_warned:
-                self._eviction_warned = True
-                logger.warning(
-                    "[MemTrace] More than %d spans in flight; closing the oldest ones early "
-                    "(raise MEMTRACE_MAX_ACTIVE_RUNS if this is expected).",
-                    self._max_active_runs,
-                )
-            try:
-                handle.set_attributes({sc.MEMTRACE_SPAN_EXPIRED: True})
-                handle.end()
-            except Exception:
-                pass
-
-    def _ensure_reaper(self) -> None:
-        """Starts (once) the daemon thread that expires orphans even when no new spans arrive."""
-        if self._reaper is not None or self._ttl <= 0 or self._stop.is_set():
-            return
-        with self._reaper_lock:
-            if self._reaper is None:
-                thread = threading.Thread(target=self._reap_loop, name="memtrace-reaper", daemon=True)
-                self._reaper = thread
-                thread.start()
-
-    def _reap_loop(self) -> None:
-        interval = min(_EXPIRE_CHECK_INTERVAL_SECONDS, max(self._ttl / 4, 0.05))
-        while not self._stop.wait(interval):
-            self.expire_stale()
+        self._lifecycle.expire_stale(now)
 
     @_failsafe(default=False)
     def flush(self, timeout_millis: int = 30000) -> bool:
@@ -248,5 +191,5 @@ class TracingService:
 
     @_failsafe()
     def shutdown(self) -> None:
-        self._stop.set()
+        self._lifecycle.shutdown()
         self._port.shutdown()

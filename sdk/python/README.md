@@ -18,15 +18,15 @@ init_tracer(service_name="my-agent")   # or MEMTRACE_* environment variables
 def search(q: str) -> str: ...
 
 # LangChain / LangGraph - Option 1: manual callback handler
-from memtrace import MemTraceCallbackHandler
+from memtrace.langchain import MemTraceCallbackHandler
 chain.invoke(x, config={"callbacks": [MemTraceCallbackHandler()]})
 
 # LangChain / LangGraph - Option 2: automatic (pip install 'memtrace-ai[otel-langchain]')
-# from memtrace import enable_langchain_instrumentation
+# from memtrace.langchain import enable_langchain_instrumentation
 # enable_langchain_instrumentation()   # once, after init_tracer(); do not combine with option 1
 
 # Pydantic AI - automatic (pip install 'memtrace-ai[pydantic-ai]')
-# from memtrace import enable_pydantic_ai_instrumentation
+# from memtrace.pydantic_ai import enable_pydantic_ai_instrumentation
 # enable_pydantic_ai_instrumentation()
 
 shutdown()  # optional: the OTel SDK also flushes at exit; use flush() in short scripts / serverless
