@@ -93,3 +93,42 @@ export interface Member {
   name: string | null;
   role: OrgRole | ExperimentRole;
 }
+
+/**
+ * Gráfico custom guardado por un usuario sobre sus propios spans (ADR-027). `definition` es JSON de
+ * forma libre a este nivel (validado por el caller con el esquema de `CustomMetricDefinition` del
+ * dominio de trazas); la identidad no conoce esa forma, solo la persiste.
+ */
+export interface CustomMetric {
+  id: string;
+  experimentId: string;
+  name: string;
+  definition: Record<string, unknown>;
+  createdAt: string;
+}
+
+/** Dataset de evaluación offline (ADR-028): una colección curada de ejemplos para un experimento. */
+export interface Dataset {
+  id: string;
+  experimentId: string;
+  name: string;
+  createdAt: string;
+}
+
+/** Una fila de un dataset: qué darle al agente y, opcionalmente, qué esperar de vuelta. */
+export interface DatasetItem {
+  id: string;
+  datasetId: string;
+  input: unknown;
+  expectedOutput: unknown;
+  metadata: Record<string, unknown> | null;
+}
+
+/** Metadatos de una ejecución de un dataset contra una versión del agente. Los scores viven en ClickHouse. */
+export interface DatasetRun {
+  id: string;
+  datasetId: string;
+  name: string;
+  itemCount: number;
+  createdAt: string;
+}

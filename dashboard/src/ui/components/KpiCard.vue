@@ -1,12 +1,12 @@
 <script setup lang="ts">
-defineProps<{ label: string; value: string; hint?: string; tone?: "default" | "negative" }>();
+defineProps<{ label: string; value: string; hint?: string; tone?: "default" | "positive" | "warning" | "negative" }>();
 </script>
 
 <template>
   <q-card flat class="kpi mt-card">
     <q-card-section class="kpi-body">
       <div class="label">{{ label }}</div>
-      <div class="value" :class="{ negative: tone === 'negative' }">{{ value }}</div>
+      <div class="value" :class="tone">{{ value }}</div>
       <div v-if="hint" class="hint">{{ hint }}</div>
     </q-card-section>
   </q-card>
@@ -41,6 +41,12 @@ defineProps<{ label: string; value: string; hint?: string; tone?: "default" | "n
   font-weight: 700;
   line-height: 1;
   letter-spacing: -0.05em;
+}
+.value.positive {
+  color: var(--mt-ok-ink);
+}
+.value.warning {
+  color: var(--mt-warn-ink);
 }
 .value.negative {
   color: var(--mt-err-ink);

@@ -1,5 +1,7 @@
 from contextlib import contextmanager
-from typing import Any, List, Mapping, Optional
+from typing import Any, Iterable, List, Mapping, Optional
+
+from memtrace.domain.evaluation import EvalItem, ExperimentResult
 
 
 class FakeHandle:
@@ -51,3 +53,23 @@ class FakeSpanPort:
 
     def shutdown(self):
         pass
+
+
+class FakeDatasetSource:
+    """In-memory `DatasetSource`: lets `run_experiment` be tested without a real backend."""
+
+    def __init__(self, items: Iterable[EvalItem]):
+        self._items = list(items)
+
+    def fetch(self) -> Iterable[EvalItem]:
+        return list(self._items)
+
+
+class FakeResultsSink:
+    """In-memory `ResultsSink`: records every `ExperimentResult` it receives."""
+
+    def __init__(self):
+        self.saved: List[ExperimentResult] = []
+
+    def save(self, result: ExperimentResult) -> None:
+        self.saved.append(result)

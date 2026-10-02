@@ -1,10 +1,43 @@
 import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
-import type { MetricsOverview, ServiceUsage } from "@/domain/metrics";
+import type { AttributeKeyCount, AttributeValueCount, CustomMetricResult, MetricsOverview, ServiceUsage, StepKindCount } from "@/domain/metrics";
+import type { CustomMetric, Dataset, DatasetItem, DatasetRun } from "@/domain/identity";
+import type { DatasetRunItemResult, ScoreAggregate } from "@/domain/evaluation";
+import type { ModelPricing } from "@/domain/pricing";
 import type { SpanCursor, SpanRow } from "@/domain/span-row";
 import type { Transcript } from "@/domain/transcript";
 import type { SpanNode } from "@/domain/span";
 import type { Page, TraceDetail, TraceSummary } from "@/domain/trace";
-import type { TranscriptResponse, ConversationDetailResponse, ConversationListResponse, ConversationSummaryDto, ConversationTreeResponse, ExperimentUsageResponse, OverviewResponse, SpanListResponse, SpanNodeDto, TraceDetailResponse, TraceListResponse, TraceSummaryDto } from "./contract";
+import type {
+  AttributeKeysResponse,
+  AttributeValuesResponse,
+  ConversationDetailResponse,
+  ConversationListResponse,
+  ConversationSummaryDto,
+  ConversationTreeResponse,
+  CustomMetricDefinitionDto,
+  CustomMetricResultResponse,
+  CustomMetricsListResponse,
+  DatasetDto,
+  DatasetItemDto,
+  DatasetItemsListResponse,
+  DatasetRunDetailResponse,
+  DatasetRunItemResultDto,
+  DatasetRunSummaryDto,
+  DatasetRunsListResponse,
+  DatasetsListResponse,
+  ScoreAggregateDto,
+  ExperimentUsageResponse,
+  ModelPricingResponse,
+  OverviewResponse,
+  SavedCustomMetricDto,
+  SpanListResponse,
+  SpanNodeDto,
+  StepKindsResponse,
+  TraceDetailResponse,
+  TraceListResponse,
+  TraceSummaryDto,
+  TranscriptResponse,
+} from "./contract";
 import { encodeConversationCursor, encodeCursor, encodeSpanCursor } from "./schemas";
 
 const isoFromUs = (us: number) => new Date(Math.round(us / 1000)).toISOString();
@@ -96,6 +129,7 @@ function toSpanNodeDtos(roots: SpanNode[]): SpanNodeDto[] {
       status: node.status,
       orphan: node.orphan,
       genAi: node.genAi,
+      costUsd: node.costUsd,
       content: node.content,
       framework: node.framework,
       attributes: node.attributes,
@@ -115,6 +149,7 @@ export function toTraceDetailResponse(t: TraceDetail): TraceDetailResponse {
     spanCount: t.spanCount,
     errorCount: t.errorCount,
     totalTokens: t.totalTokens,
+    totalCostUsd: t.totalCostUsd,
     truncated: t.truncated,
     conversationId: t.conversationId,
     framework: t.framework,
@@ -153,5 +188,125 @@ export function toExperimentUsageResponse(experiments: { id: string; name: strin
         totalTokens: usage?.totalTokens ?? 0,
       };
     }),
+  };
+}
+
+// ----- Custom metrics sobre spans definidos por el usuario (ADR-027) -----
+
+export function toStepKindsResponse(items: StepKindCount[]): StepKindsResponse {
+  return { items };
+}
+
+export function toAttributeValuesResponse(items: AttributeValueCount[]): AttributeValuesResponse {
+  return { items };
+}
+
+/** (ADR-030) */
+export function toAttributeKeysResponse(items: AttributeKeyCount[]): AttributeKeysResponse {
+  return { items };
+}
+
+export function toCustomMetricResultResponse(result: CustomMetricResult): CustomMetricResultResponse {
+  return {
+    points: result.points,
+    timeseries: result.timeseries.map(({ bucketStartMs, points }) => ({ bucketStart: isoFromMs(bucketStartMs), points })),
+  };
+}
+
+function toCustomMetricDefinitionDto(definition: Record<string, unknown>): CustomMetricDefinitionDto {
+  // ya validado por zod al guardar (saveCustomMetricBody): aquí solo se re-tipa lo que salió de Postgres.
+  return definition as unknown as CustomMetricDefinitionDto;
+}
+
+export function toSavedCustomMetricDto(m: CustomMetric): SavedCustomMetricDto {
+  return { id: m.id, name: m.name, definition: toCustomMetricDefinitionDto(m.definition), createdAt: m.createdAt };
+}
+
+export function toCustomMetricsListResponse(items: CustomMetric[]): CustomMetricsListResponse {
+  return { items: items.map(toSavedCustomMetricDto) };
+}
+
+/** Evaluación offline (ADR-028). */
+
+function toDatasetItemDto(item: DatasetItem): DatasetItemDto {
+  return { id: item.id, input: item.input, expectedOutput: item.expectedOutput, metadata: item.metadata };
+}
+
+export function toDatasetItemsListResponse(items: DatasetItem[]): DatasetItemsListResponse {
+  return { items: items.map(toDatasetItemDto) };
+}
+
+export function toScoreAggregateDto(a: ScoreAggregate): ScoreAggregateDto {
+  return { name: a.name, dataType: a.dataType, passRate: a.passRate, average: a.average, count: a.count };
+}
+
+/** Agrupa un `ScoreAggregate[]` plano (una fila por run x evaluador) por `datasetRunId`, para
+ * adjuntar a cada run su propio subconjunto. Función pura, sin dependencia de ClickHouse. */
+export function groupAggregatesByRun(aggregates: ScoreAggregate[]): Map<string, ScoreAggregateDto[]> {
+  const byRun = new Map<string, ScoreAggregateDto[]>();
+  for (const a of aggregates) {
+    const list = byRun.get(a.datasetRunId) ?? [];
+    list.push(toScoreAggregateDto(a));
+    byRun.set(a.datasetRunId, list);
+  }
+  return byRun;
+}
+
+export function toDatasetRunSummaryDto(run: DatasetRun, aggregates: ScoreAggregateDto[] = []): DatasetRunSummaryDto {
+  return { id: run.id, name: run.name, itemCount: run.itemCount, createdAt: run.createdAt, aggregates };
+}
+
+export function toDatasetRunsListResponse(runs: DatasetRun[], aggregatesByRun: Map<string, ScoreAggregateDto[]>): DatasetRunsListResponse {
+  return { items: runs.map((r) => toDatasetRunSummaryDto(r, aggregatesByRun.get(r.id) ?? [])) };
+}
+
+export function toDatasetDto(dataset: Dataset, runCount: number, lastRun: DatasetRun | null, lastRunAggregates: ScoreAggregateDto[] = []): DatasetDto {
+  return {
+    id: dataset.id,
+    name: dataset.name,
+    createdAt: dataset.createdAt,
+    runCount,
+    lastRun: lastRun ? { id: lastRun.id, name: lastRun.name, createdAt: lastRun.createdAt, itemCount: lastRun.itemCount, aggregates: lastRunAggregates } : null,
+  };
+}
+
+export interface DatasetListEntry {
+  dataset: Dataset;
+  runCount: number;
+  lastRun: DatasetRun | null;
+  lastRunAggregates: ScoreAggregateDto[];
+}
+
+export function toDatasetsListResponse(entries: DatasetListEntry[]): DatasetsListResponse {
+  return { items: entries.map((e) => toDatasetDto(e.dataset, e.runCount, e.lastRun, e.lastRunAggregates)) };
+}
+
+function toDatasetRunItemResultDto(item: DatasetRunItemResult): DatasetRunItemResultDto {
+  return {
+    itemIndex: item.itemIndex,
+    input: item.input,
+    expectedOutput: item.expectedOutput,
+    output: item.output,
+    traceId: item.traceId,
+    error: item.error,
+    scores: item.scores,
+  };
+}
+
+export function toDatasetRunDetailResponse(dataset: Dataset, run: DatasetRun, items: DatasetRunItemResult[], aggregates: ScoreAggregateDto[] = []): DatasetRunDetailResponse {
+  return { dataset: { id: dataset.id, name: dataset.name }, run: toDatasetRunSummaryDto(run, aggregates), items: items.map(toDatasetRunItemResultDto) };
+}
+
+/** Catálogo de precios por modelo, para la vista de precios (ADR-025). */
+export function toModelPricingResponse(items: ModelPricing[]): ModelPricingResponse {
+  return {
+    items: items.map((p) => ({
+      modelId: p.modelId,
+      provider: p.provider,
+      inputPricePerToken: p.inputPricePerToken,
+      outputPricePerToken: p.outputPricePerToken,
+      source: p.source,
+      updatedAt: isoFromMs(p.updatedAtMs),
+    })),
   };
 }

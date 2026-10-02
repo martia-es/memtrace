@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { SpanNodeDto } from "@contract";
 import { computed, ref, watch } from "vue";
-import { formatDuration } from "@/domain/format";
+import { formatCostUsd, formatDuration } from "@/domain/format";
 import { kindMeta } from "@/domain/meta";
 import { axisTicks, buildRows, parentIds } from "@/domain/waterfall";
 
@@ -21,7 +21,14 @@ const toggle = (spanId: string) => {
   collapsed.value = next;
 };
 const kindsPresent = computed(() => [...new Set(rows.value.map((r) => r.node.kind))]);
-const subLabel = (node: SpanNodeDto) => (node.kind === "llm" ? node.genAi?.responseModel ?? node.genAi?.requestModel ?? null : node.kind === "tool" ? node.genAi?.toolName ?? null : null);
+const subLabel = (node: SpanNodeDto) => {
+  if (node.kind === "llm") {
+    const model = node.genAi?.responseModel ?? node.genAi?.requestModel ?? null;
+    const cost = formatCostUsd(node.costUsd);
+    return [model, cost].filter(Boolean).join(" · ") || null;
+  }
+  return node.kind === "tool" ? node.genAi?.toolName ?? null : null;
+};
 defineExpose({ collapseAll: () => (collapsed.value = new Set(parentIds(props.roots))), expandAll: () => (collapsed.value = new Set()) });
 </script>
 

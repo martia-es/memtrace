@@ -1,5 +1,9 @@
 import type {
   ApiKey,
+  CustomMetric,
+  Dataset,
+  DatasetItem,
+  DatasetRun,
   Experiment,
   ExperimentAccess,
   ExperimentRole,
@@ -48,6 +52,27 @@ export interface IdentityRepository {
   createApiKey(experimentId: string, createdByUserId: string): Promise<{ apiKey: ApiKey; plaintext: string }>;
   listApiKeys(experimentId: string): Promise<ApiKey[]>;
   revokeApiKey(experimentId: string, keyId: string): Promise<void>;
-  /** Para el gateway de ingesta (piece 9): experimentId de una key en claro válida y no revocada, o `null`. */
-  resolveApiKey(plaintext: string): Promise<{ experimentId: string; serviceName: string } | null>;
+  /** Para el gateway de ingesta (piece 9) y `requireExperimentAccess` (ADR-028): experimentId de
+   * una key en claro válida y no revocada, o `null`. `createdByUserId` es quien creó la key, usado
+   * como autor de lo que el agente crea vía API (datasets) al no tener usuario propio. */
+  resolveApiKey(plaintext: string): Promise<{ experimentId: string; serviceName: string; createdByUserId: string } | null>;
+
+  /** Gráficos custom guardados del experimento (ADR-027), más recientes primero. */
+  listCustomMetrics(experimentId: string): Promise<CustomMetric[]>;
+  createCustomMetric(experimentId: string, createdByUserId: string, name: string, definition: Record<string, unknown>): Promise<CustomMetric>;
+  deleteCustomMetric(experimentId: string, metricId: string): Promise<void>;
+
+  /** Datasets de evaluación offline del experimento (ADR-028), más recientes primero. */
+  listDatasets(experimentId: string): Promise<Dataset[]>;
+  createDataset(experimentId: string, createdByUserId: string, name: string): Promise<Dataset>;
+  getDataset(datasetId: string): Promise<Dataset | null>;
+  addDatasetItems(datasetId: string, items: Array<{ input: unknown; expectedOutput: unknown; metadata: Record<string, unknown> | null }>): Promise<DatasetItem[]>;
+  listDatasetItems(datasetId: string): Promise<DatasetItem[]>;
+
+  /** Metadatos de una ejecución (los scores viven en ClickHouse, ver `ScoreRepository`). `id` lo
+   * genera el caller (`EvaluationService`) para poder escribir en ClickHouse con el mismo id antes
+   * de crear este registro, y así no dejar un `dataset_run` huérfano si ClickHouse falla. */
+  createDatasetRun(id: string, datasetId: string, name: string, itemCount: number): Promise<DatasetRun>;
+  listDatasetRuns(datasetId: string): Promise<DatasetRun[]>;
+  getDatasetRun(runId: string): Promise<DatasetRun | null>;
 }

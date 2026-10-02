@@ -22,7 +22,7 @@ export interface SpanTree {
  *  4. Los ciclos de padres (datos corruptos) se rompen convirtiendo un span del ciclo en raíz.
  *  5. Iterativo: los bucles anidados de un agente no desbordan la pila.
  */
-export function buildSpanTree(spans: Span[], traceStartUs: number, pricing: PricingCatalog): SpanTree {
+export function buildSpanTree(spans: Span[], traceStartUs: number, pricing: PricingCatalog = new Map()): SpanTree {
   const byId = new Map<string, Span>();
   for (const span of spans) if (!byId.has(span.spanId)) byId.set(span.spanId, span);
   const unique = [...byId.values()].sort(byStartThenId);
@@ -116,7 +116,7 @@ function frameworkOf(roots: SpanNode[], nodes: SpanNode[]): string | null {
 }
 
 /** Construye el detalle de una traza (árbol + agregados) a partir de sus spans planos. */
-export function buildTraceDetail(traceId: string, spans: Span[], truncated: boolean, pricing: PricingCatalog): TraceDetail {
+export function buildTraceDetail(traceId: string, spans: Span[], truncated: boolean, pricing: PricingCatalog = new Map()): TraceDetail {
   const startTimeUs = spans.reduce((min, s) => Math.min(min, s.startTimeUs), Infinity);
   const { roots, nodes } = buildSpanTree(spans, startTimeUs, pricing);
   const endUs = nodes.reduce((max, n) => Math.max(max, n.startTimeUs + n.durationMs * 1000), startTimeUs);

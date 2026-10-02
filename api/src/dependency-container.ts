@@ -2,8 +2,10 @@
 import { TraceQueryService } from "@/application/trace-query-service";
 import { createHandlers, type Handlers } from "@/adapters/inbound/http/handlers";
 import { ClickHouseTraceRepository } from "@/adapters/outbound/clickhouse/clickhouse-trace-repository";
-import { configFromEnv, createReadOnlyClient } from "@/adapters/outbound/clickhouse/client";
+import { ClickHouseScoreRepository } from "@/adapters/outbound/clickhouse/clickhouse-score-repository";
+import { configFromEnv, createReadOnlyClient, createScoresWriteClient } from "@/adapters/outbound/clickhouse/client";
 import { AuthorizationService } from "@/application/authorization-service";
+import { EvaluationService } from "@/application/evaluation-service";
 import type { IdentityRepository } from "@/application/ports/identity-repository";
 import { PostgresIdentityRepository } from "@/adapters/outbound/postgres/postgres-identity-repository";
 import { configFromEnv as postgresConfigFromEnv, createPool } from "@/adapters/outbound/postgres/client";
@@ -14,7 +16,17 @@ import { NoopEmailSender, ResendEmailSender } from "@/adapters/outbound/email/re
 const globalForContainer = globalThis as unknown as {
   __memtraceHandlers?: Handlers;
   __memtraceIdentity?: { identityRepository: IdentityRepository; authorizationService: AuthorizationService; emailSender: EmailSender };
+  __memtraceEvaluation?: EvaluationService;
+  __memtraceScoreRepository?: ClickHouseScoreRepository;
 };
+
+function getScoreRepository(): ClickHouseScoreRepository {
+  if (!globalForContainer.__memtraceScoreRepository) {
+    const config = configFromEnv();
+    globalForContainer.__memtraceScoreRepository = new ClickHouseScoreRepository(createScoresWriteClient(config), createReadOnlyClient(config), config.database);
+  }
+  return globalForContainer.__memtraceScoreRepository;
+}
 
 export function getHandlers(): Handlers {
   if (!globalForContainer.__memtraceHandlers) {
@@ -36,4 +48,16 @@ export function getIdentity(): { identityRepository: IdentityRepository; authori
     globalForContainer.__memtraceIdentity = { identityRepository, authorizationService: new AuthorizationService(identityRepository), emailSender };
   }
   return globalForContainer.__memtraceIdentity;
+}
+
+export function getEvaluation(): EvaluationService {
+  if (!globalForContainer.__memtraceEvaluation) {
+    globalForContainer.__memtraceEvaluation = new EvaluationService(getIdentity().identityRepository, getScoreRepository());
+  }
+  return globalForContainer.__memtraceEvaluation;
+}
+
+/** Para leer scores directamente (detalle de una ejecución) sin pasar por `EvaluationService`, que solo expone el caso de uso de escritura. */
+export function getScores(): ClickHouseScoreRepository {
+  return getScoreRepository();
 }

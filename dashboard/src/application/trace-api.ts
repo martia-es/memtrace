@@ -1,4 +1,24 @@
-import type { SpanListResponse, TranscriptResponse, ConversationDetailResponse, ConversationListResponse, ConversationTreeResponse, ExperimentUsageResponse, OverviewResponse, ServicesResponse, TraceDetailResponse, TraceListResponse } from "@contract";
+import type {
+  AttributeKeysResponse,
+  AttributeValuesResponse,
+  ConversationDetailResponse,
+  ConversationListResponse,
+  ConversationTreeResponse,
+  CustomMetricDefinitionDto,
+  CustomMetricResultResponse,
+  DatasetRunDetailResponse,
+  DatasetRunsListResponse,
+  DatasetsListResponse,
+  ExperimentUsageResponse,
+  ModelPricingResponse,
+  OverviewResponse,
+  ServicesResponse,
+  SpanListResponse,
+  StepKindsResponse,
+  TraceDetailResponse,
+  TraceListResponse,
+  TranscriptResponse,
+} from "@contract";
 
 export interface RangeParams {
   from: string;
@@ -53,6 +73,24 @@ export interface TraceApi {
   getConversation(conversationId: string, params?: { limit?: number; cursor?: string }, signal?: AbortSignal): Promise<ConversationDetailResponse>;
   /** árbol de spans de cada turno, en el mismo orden y página que getConversation (vista de árbol unificado) */
   getConversationTree(conversationId: string, params?: { limit?: number; cursor?: string }, signal?: AbortSignal): Promise<ConversationTreeResponse>;
+  /** catálogo de precios por modelo (ADR-025), para la vista de precios */
+  getModelPricing(signal?: AbortSignal): Promise<ModelPricingResponse>;
+
+  /** `memtrace.step_type` distintos vistos en el rango, para el selector del builder de gráficos custom (ADR-027) */
+  getStepKinds(params: RangeParams, signal?: AbortSignal): Promise<StepKindsResponse>;
+  /** valores distintos de un atributo, acotados a los step types dados (ADR-027) */
+  getAttributeValues(params: RangeParams & { stepTypes: string[]; attribute: string }, signal?: AbortSignal): Promise<AttributeValuesResponse>;
+  /** claves de atributo vistas en los step types dados, para los selectores de "group by"/"filter by" (ADR-030) */
+  getAttributeKeys(params: RangeParams & { stepTypes: string[] }, signal?: AbortSignal): Promise<AttributeKeysResponse>;
+  /** calcula un gráfico custom sin persistirlo (ADR-027) */
+  queryCustomMetric(definition: CustomMetricDefinitionDto, range: RangeParams, signal?: AbortSignal): Promise<CustomMetricResultResponse>;
+
+  /** datasets de evaluación offline del experimento (ADR-028) */
+  listDatasets(signal?: AbortSignal): Promise<DatasetsListResponse>;
+  /** ejecuciones guardadas de un dataset, más recientes primero */
+  listDatasetRuns(datasetId: string, signal?: AbortSignal): Promise<DatasetRunsListResponse>;
+  /** detalle de una ejecución: metadatos + items con sus scores */
+  getDatasetRun(datasetId: string, runId: string, signal?: AbortSignal): Promise<DatasetRunDetailResponse>;
 }
 
 /** Error de la API (RFC 7807) o de conexión (`status === 0`). */

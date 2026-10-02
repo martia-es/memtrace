@@ -1,4 +1,25 @@
-import type { SpanListResponse, TranscriptResponse, ConversationDetailResponse, ConversationListResponse, ConversationTreeResponse, ExperimentUsageResponse, OverviewResponse, ProblemDetails, ServicesResponse, TraceDetailResponse, TraceListResponse } from "@contract";
+import type {
+  AttributeKeysResponse,
+  AttributeValuesResponse,
+  ConversationDetailResponse,
+  ConversationListResponse,
+  ConversationTreeResponse,
+  CustomMetricDefinitionDto,
+  CustomMetricResultResponse,
+  DatasetRunDetailResponse,
+  DatasetRunsListResponse,
+  DatasetsListResponse,
+  ExperimentUsageResponse,
+  ModelPricingResponse,
+  OverviewResponse,
+  ProblemDetails,
+  ServicesResponse,
+  SpanListResponse,
+  StepKindsResponse,
+  TraceDetailResponse,
+  TraceListResponse,
+  TranscriptResponse,
+} from "@contract";
 import { ApiError, type ListConversationsParams, type ListSpansParams, type ListTracesParams, type RangeParams, type TraceApi } from "@/application/trace-api";
 
 type Fetch = typeof fetch;
@@ -67,6 +88,40 @@ export class HttpTraceApi implements TraceApi {
     return this.get<TranscriptResponse>(`${this.scopedBase()}/conversations/${encodeURIComponent(conversationId)}/transcript`, {}, signal);
   }
 
+  getModelPricing(signal?: AbortSignal) {
+    return this.get<ModelPricingResponse>(`${this.baseUrl}/model-pricing`, {}, signal);
+  }
+
+  getStepKinds(params: RangeParams, signal?: AbortSignal) {
+    return this.get<StepKindsResponse>(`${this.scopedBase()}/span-kinds`, { ...params }, signal);
+  }
+
+  getAttributeValues(params: RangeParams & { stepTypes: string[]; attribute: string }, signal?: AbortSignal) {
+    const { stepTypes, ...rest } = params;
+    return this.get<AttributeValuesResponse>(`${this.scopedBase()}/attribute-values`, { ...rest, stepTypes: stepTypes.join(",") }, signal);
+  }
+
+  getAttributeKeys(params: RangeParams & { stepTypes: string[] }, signal?: AbortSignal) {
+    const { stepTypes, ...rest } = params;
+    return this.get<AttributeKeysResponse>(`${this.scopedBase()}/attribute-keys`, { ...rest, stepTypes: stepTypes.join(",") }, signal);
+  }
+
+  queryCustomMetric(definition: CustomMetricDefinitionDto, range: RangeParams, signal?: AbortSignal) {
+    return this.post<CustomMetricResultResponse>(`${this.scopedBase()}/metrics/custom`, { ...definition, ...range }, signal);
+  }
+
+  listDatasets(signal?: AbortSignal) {
+    return this.get<DatasetsListResponse>(`${this.scopedBase()}/datasets`, {}, signal);
+  }
+
+  listDatasetRuns(datasetId: string, signal?: AbortSignal) {
+    return this.get<DatasetRunsListResponse>(`${this.scopedBase()}/datasets/${encodeURIComponent(datasetId)}/runs`, {}, signal);
+  }
+
+  getDatasetRun(datasetId: string, runId: string, signal?: AbortSignal) {
+    return this.get<DatasetRunDetailResponse>(`${this.scopedBase()}/datasets/${encodeURIComponent(datasetId)}/runs/${encodeURIComponent(runId)}`, {}, signal);
+  }
+
   private async get<T>(fullPath: string, query: Record<string, QueryValue>, signal?: AbortSignal): Promise<T> {
     const search = new URLSearchParams();
     for (const [key, value] of Object.entries(query)) if (value !== undefined) search.set(key, String(value));
@@ -80,6 +135,23 @@ export class HttpTraceApi implements TraceApi {
       throw new ApiError(0, "No connection", "Could not reach the MemTrace API.");
     }
 
+    if (!response.ok) throw await toApiError(response);
+    return (await response.json()) as T;
+  }
+
+  private async post<T>(fullPath: string, body: unknown, signal?: AbortSignal): Promise<T> {
+    let response: Response;
+    try {
+      response = await this.fetchFn(fullPath, {
+        method: "POST",
+        signal,
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") throw error;
+      throw new ApiError(0, "No connection", "Could not reach the MemTrace API.");
+    }
     if (!response.ok) throw await toApiError(response);
     return (await response.json()) as T;
   }

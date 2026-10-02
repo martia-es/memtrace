@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { SpanNodeDto } from "@contract";
 import { computed, ref } from "vue";
-import { formatCount, formatDateTime, formatDuration } from "@/domain/format";
+import { formatCostUsd, formatCount, formatDateTime, formatDuration } from "@/domain/format";
 import { kindMeta } from "@/domain/meta";
 import { genAiRows, spanIo, type IoBlock } from "@/domain/span-io";
 import IoPanel from "./IoPanel.vue";
@@ -52,9 +52,11 @@ const cur = computed(() => {
     output,
     inBadge: chat ? `${io.input.length} ${io.input.length === 1 ? "message" : "messages"}` : n.content?.toolArguments !== undefined ? "arguments" : "input",
     outBadge: n.status.code === "error" ? "error" : n.content?.outputMessages !== undefined ? "response" : n.content?.toolResult !== undefined ? "result" : "output",
-    stats: [stat("Duration", formatDuration(n.durationMs)), stat("Tokens", tokens ? formatCount(tokens) : null)].filter(
-      (s): s is { k: string; v: string } => s !== null,
-    ),
+    stats: [
+      stat("Duration", formatDuration(n.durationMs)),
+      stat("Tokens", tokens ? formatCount(tokens) : null),
+      stat("Cost", formatCostUsd(n.costUsd)),
+    ].filter((s): s is { k: string; v: string } => s !== null),
     modelChip: g?.responseModel ?? g?.requestModel ?? g?.toolName ?? null,
     providerChip: g?.provider ?? null,
     attrs: Object.entries(n.attributes),

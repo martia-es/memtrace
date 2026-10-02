@@ -76,6 +76,8 @@ export interface SpanRowDto {
   model: string | null;
   /** null si el span no es una llamada a un LLM */
   totalTokens: number | null;
+  /** null si el span no es una llamada a un LLM, o no hay precio conocido para su modelo (ADR-025) */
+  costUsd: number | null;
   input: string | null;
   output: string | null;
 }
@@ -103,6 +105,8 @@ export interface SpanNodeDto {
   status: SpanStatusDto;
   orphan: boolean;
   genAi: GenAiInfoDto | null;
+  /** null si el span no es una llamada a un LLM, o no hay precio conocido para su modelo (ADR-025) */
+  costUsd: number | null;
   content: SpanContentDto | null;
   framework: string | null;
   attributes: Record<string, string>;
@@ -118,6 +122,8 @@ export interface TraceDetailResponse {
   spanCount: number;
   errorCount: number;
   totalTokens: number;
+  /** 0 si ningún span tiene precio conocido para su modelo, no "sin datos" (ADR-025) */
+  totalCostUsd: number;
   truncated: boolean;
   conversationId: string | null;
   framework: string | null;
@@ -175,10 +181,12 @@ export interface OverviewResponse {
     inputTokens: number;
     outputTokens: number;
     totalTokens: number;
+    /** 0 si ningún modelo usado tiene precio conocido, no "sin datos" (ADR-025) */
+    costUsd: number;
   };
   latencyMs: { p50: number; p95: number; p99: number };
   timeseries: { bucketStart: string; traces: number; errorTraces: number; p95Ms: number; totalTokens: number }[];
-  byModel: { model: string; calls: number; inputTokens: number; outputTokens: number; p95Ms: number }[];
+  byModel: { model: string; calls: number; inputTokens: number; outputTokens: number; p95Ms: number; costUsd: number | null }[];
   byTool: { tool: string; calls: number; errors: number; p95Ms: number }[];
   /** vacío si el worker de temáticas (ADR-022) aún no ha corrido sobre este rango */
   byTopic: { topic: string; responses: number; avgConfidence: number }[];
@@ -191,6 +199,185 @@ export interface ServicesResponse {
 /** Tokens totales por experimento accesible al usuario, para la comparativa de coste entre agentes. */
 export interface ExperimentUsageResponse {
   items: { experimentId: string; experimentName: string; traces: number; inputTokens: number; outputTokens: number; totalTokens: number }[];
+}
+
+/** Precio de un modelo, sincronizado desde LiteLLM (ADR-025). */
+export interface ModelPricingDto {
+  modelId: string;
+  provider: string;
+  inputPricePerToken: number;
+  outputPricePerToken: number;
+  source: string;
+  updatedAt: string;
+}
+
+export interface ModelPricingResponse {
+  items: ModelPricingDto[];
+}
+
+// ----- Custom metrics sobre spans definidos por el usuario (ADR-027) -----
+
+export interface StepKindDto {
+  stepType: string;
+  count: number;
+}
+
+export interface StepKindsResponse {
+  items: StepKindDto[];
+}
+
+export interface AttributeValueDto {
+  value: string;
+  count: number;
+}
+
+export interface AttributeValuesResponse {
+  items: AttributeValueDto[];
+}
+
+/** Clave de atributo vista en los step types elegidos (ADR-030). */
+export interface AttributeKeyDto {
+  key: string;
+  count: number;
+}
+
+export interface AttributeKeysResponse {
+  items: AttributeKeyDto[];
+}
+
+export type CustomMetricTypeDto = "count" | "avg_duration" | "p50_duration" | "p95_duration" | "error_rate";
+export type CustomChartTypeDto = "bar" | "pie" | "line" | "area" | "number" | "table";
+
+export interface CustomMetricFilterDto {
+  attribute: string;
+  values: string[];
+}
+
+/** Forma cerrada y declarativa de un gráfico custom: nunca SQL, ver ADR-027. */
+export interface CustomMetricDefinitionDto {
+  chartType: CustomChartTypeDto;
+  stepTypes: string[];
+  metric: CustomMetricTypeDto;
+  groupByAttribute: string | null;
+  filters: CustomMetricFilterDto[];
+}
+
+export interface CustomMetricPointDto {
+  label: string;
+  value: number;
+}
+
+export interface CustomMetricBucketDto {
+  bucketStart: string;
+  points: CustomMetricPointDto[];
+}
+
+/** `points`: resultado agregado (bar/pie/number). `timeseries`: solo cuando chartType es "line". */
+export interface CustomMetricResultResponse {
+  points: CustomMetricPointDto[];
+  timeseries: CustomMetricBucketDto[];
+}
+
+export interface SavedCustomMetricDto {
+  id: string;
+  name: string;
+  definition: CustomMetricDefinitionDto;
+  createdAt: string;
+}
+
+export interface CustomMetricsListResponse {
+  items: SavedCustomMetricDto[];
+}
+
+/** Evaluación offline (ADR-028). */
+
+export interface ScoreAggregateDto {
+  name: string;
+  dataType: ScoreDataTypeDto;
+  /** solo si `dataType === "boolean"`: fracción (0-1) de scores con valor `"true"` */
+  passRate: number | null;
+  /** solo si `dataType === "numeric"`: media del valor */
+  average: number | null;
+  count: number;
+}
+
+export interface DatasetLastRunDto {
+  id: string;
+  name: string;
+  createdAt: string;
+  itemCount: number;
+  aggregates: ScoreAggregateDto[];
+}
+
+export interface DatasetDto {
+  id: string;
+  name: string;
+  createdAt: string;
+  runCount: number;
+  lastRun: DatasetLastRunDto | null;
+}
+
+export interface DatasetsListResponse {
+  items: DatasetDto[];
+}
+
+export interface DatasetItemDto {
+  id: string;
+  input: unknown;
+  expectedOutput: unknown;
+  metadata: Record<string, unknown> | null;
+}
+
+export interface DatasetItemsListResponse {
+  items: DatasetItemDto[];
+}
+
+export type ScoreDataTypeDto = "numeric" | "boolean" | "categorical";
+export type ScoreSourceDto = "human" | "code" | "llm_judge";
+
+export interface ScoreDto {
+  name: string;
+  value: string;
+  dataType: ScoreDataTypeDto;
+  source: ScoreSourceDto;
+  comment: string | null;
+}
+
+/** Una fila tal como la sube el SDK (`memtrace.eval`, ver `eval_api_client.py`). */
+export interface DatasetRunItemSubmissionDto {
+  input: unknown;
+  expectedOutput: unknown;
+  output: unknown;
+  traceId: string | null;
+  error: string | null;
+  scores: ScoreDto[];
+}
+
+export interface SubmitDatasetRunBody {
+  name: string;
+  items: DatasetRunItemSubmissionDto[];
+}
+
+export interface DatasetRunSummaryDto {
+  id: string;
+  name: string;
+  itemCount: number;
+  createdAt: string;
+  aggregates: ScoreAggregateDto[];
+}
+
+export interface DatasetRunsListResponse {
+  items: DatasetRunSummaryDto[];
+}
+
+export interface DatasetRunItemResultDto extends DatasetRunItemSubmissionDto {
+  itemIndex: number;
+}
+
+export interface DatasetRunDetailResponse {
+  dataset: { id: string; name: string };
+  run: DatasetRunSummaryDto;
+  items: DatasetRunItemResultDto[];
 }
 
 export interface ProblemDetails {

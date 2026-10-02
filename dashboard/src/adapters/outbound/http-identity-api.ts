@@ -1,5 +1,6 @@
+import type { CustomMetricDefinitionDto } from "@contract";
 import { ApiError } from "@/application/trace-api";
-import type { ApiKeyDto, CurrentUser, ExperimentDto, IdentityApi, MembersResponseDto, OrganizationDto, OrganizationThemeDto } from "@/application/identity-api";
+import type { ApiKeyDto, CurrentUser, ExperimentDto, IdentityApi, MembersResponseDto, OrganizationDto, OrganizationThemeDto, SavedCustomMetricDto } from "@/application/identity-api";
 
 type Fetch = typeof fetch;
 
@@ -70,6 +71,23 @@ export class HttpIdentityApi implements IdentityApi {
       signal,
       headers: { Accept: "application/json" },
     });
+    if (!response.ok) throw await toApiError(response);
+  }
+
+  async listCustomMetrics(experimentId: string, signal?: AbortSignal): Promise<SavedCustomMetricDto[]> {
+    const { items } = await this.get<{ items: SavedCustomMetricDto[] }>(`/experiments/${encodeURIComponent(experimentId)}/custom-metrics`, signal);
+    return items;
+  }
+
+  createCustomMetric(experimentId: string, name: string, definition: CustomMetricDefinitionDto, signal?: AbortSignal): Promise<SavedCustomMetricDto> {
+    return this.post(`/experiments/${encodeURIComponent(experimentId)}/custom-metrics`, { name, definition }, signal);
+  }
+
+  async deleteCustomMetric(experimentId: string, metricId: string, signal?: AbortSignal): Promise<void> {
+    const response = await this.fetchFn(
+      `${this.baseUrl}/experiments/${encodeURIComponent(experimentId)}/custom-metrics/${encodeURIComponent(metricId)}`,
+      { method: "DELETE", signal, headers: { Accept: "application/json" } },
+    );
     if (!response.ok) throw await toApiError(response);
   }
 

@@ -54,6 +54,87 @@ export const turnsQuery = z.object({
 export const conversationIdParam = z.string().min(1).max(200);
 
 export const overviewQuery = z.object({ ...timeRangeShape, service: nonEmpty.optional() });
+
+// ----- Custom metrics sobre spans definidos por el usuario (ADR-027) -----
+
+export const stepKindsQuery = z.object({ ...timeRangeShape, service: nonEmpty.optional() });
+
+/** `stepTypes` llega como lista separada por comas en la query string (no hay array nativo en GET). */
+const stepTypesCsv = z
+  .string()
+  .min(1)
+  .max(2000)
+  .transform((value) => value.split(",").map((s) => s.trim()).filter(Boolean));
+
+export const attributeValuesQuery = z.object({
+  ...timeRangeShape,
+  service: nonEmpty.optional(),
+  stepTypes: stepTypesCsv,
+  attribute: nonEmpty,
+});
+
+/** Claves de atributo vistas en los step types dados (ADR-030): alimenta "group by"/"filter by". */
+export const attributeKeysQuery = z.object({
+  ...timeRangeShape,
+  service: nonEmpty.optional(),
+  stepTypes: stepTypesCsv,
+});
+
+const customMetricFilterBody = z.object({ attribute: nonEmpty, values: z.array(z.string().min(1).max(500)).min(1).max(50) });
+
+/** Cuerpo del builder de gráficos custom: enum cerrado a propósito, nunca SQL del usuario (ADR-027/030). */
+export const customMetricDefinitionBody = z.object({
+  chartType: z.enum(["bar", "pie", "line", "area", "number", "table"]),
+  stepTypes: z.array(nonEmpty).min(1).max(20),
+  metric: z.enum(["count", "avg_duration", "p50_duration", "p95_duration", "error_rate"]),
+  groupByAttribute: nonEmpty.nullable().optional().default(null),
+  filters: z.array(customMetricFilterBody).max(10).optional().default([]),
+});
+
+export const customMetricQueryBody = z.object({ ...timeRangeShape, ...customMetricDefinitionBody.shape });
+
+export const saveCustomMetricBody = z.object({
+  name: z.string().trim().min(1).max(200),
+  definition: customMetricDefinitionBody,
+});
+
+/** Evaluación offline (ADR-028). */
+
+export const createDatasetBody = z.object({
+  name: z.string().trim().min(1).max(200),
+});
+
+const datasetItemBody = z.object({
+  input: z.unknown(),
+  expectedOutput: z.unknown().optional(),
+  metadata: z.record(z.string(), z.unknown()).nullable().optional(),
+});
+
+export const addDatasetItemsBody = z.object({
+  items: z.array(datasetItemBody).min(1).max(1000),
+});
+
+const scoreBody = z.object({
+  name: z.string().min(1).max(200),
+  value: z.string(),
+  dataType: z.enum(["numeric", "boolean", "categorical"]),
+  source: z.enum(["human", "code", "llm_judge"]),
+  comment: z.string().nullable().optional().default(null),
+});
+
+const datasetRunItemBody = z.object({
+  input: z.unknown(),
+  expectedOutput: z.unknown().optional(),
+  output: z.unknown().optional(),
+  traceId: z.string().nullable().optional().default(null),
+  error: z.string().nullable().optional().default(null),
+  scores: z.array(scoreBody).default([]),
+});
+
+export const submitDatasetRunBody = z.object({
+  name: z.string().trim().min(1).max(200),
+  items: z.array(datasetRunItemBody).min(1).max(1000),
+});
 export const servicesQuery = z.object({ ...timeRangeShape });
 export const usageQuery = z.object({ ...timeRangeShape });
 

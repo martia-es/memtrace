@@ -1,16 +1,29 @@
 import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
 import { ConversationNotFoundError, TraceNotFoundError, ValidationError } from "@/domain/errors";
-import { chooseBucketSeconds, fillTimeseries, type MetricsOverview, type ServiceUsage } from "@/domain/metrics";
+import {
+  chooseBucketSeconds,
+  fillTimeseries,
+  type AttributeKeyCount,
+  type AttributeValueCount,
+  type CustomMetricDefinition,
+  type CustomMetricResult,
+  type MetricsOverview,
+  type ServiceUsage,
+  type StepKindCount,
+} from "@/domain/metrics";
 import { MAX_RANGE_MS, resolveTimeRange } from "@/domain/time-range";
 import { toSpanRow, type SpanCursor, type SpanRow } from "@/domain/span-row";
 import { buildTranscript, type Transcript } from "@/domain/transcript";
 import type { Page, PageCursor, TraceDetail, TraceSummary } from "@/domain/trace";
 import { buildTraceDetail } from "@/domain/tree";
+import { costOf, toPricingCatalog, type ModelPricing, type PricingCatalog } from "@/domain/pricing";
 import type { TraceRepository } from "./ports/trace-repository";
 
 export const DEFAULT_PAGE_SIZE = 50;
 export const MAX_PAGE_SIZE = 200;
 export const MAX_SPANS_PER_TRACE = 5000;
+/** El catálogo de precios (ADR-025) se sincroniza una vez al día: cachearlo en memoria evita una consulta extra por request. */
+const PRICING_CACHE_TTL_MS = 5 * 60 * 1000;
 /** Más bajo que `MAX_SPANS_PER_TRACE`: la vista de árbol de conversación carga varias trazas a la vez. */
 export const MAX_SPANS_PER_TRACE_IN_TREE = 2000;
 export const MAX_CHAT_SPANS_PER_TRANSCRIPT = 500;
@@ -56,10 +69,25 @@ export interface ConversationDetail {
 
 /** Casos de uso de consulta. Los adapters de entrada solo hablan con esta clase. */
 export class TraceQueryService {
+  private pricingCache: { atMs: number; catalog: PricingCatalog } | null = null;
+
   constructor(
     private readonly repository: TraceRepository,
     private readonly now: () => number = Date.now,
   ) {}
+
+  private async pricingCatalog(): Promise<PricingCatalog> {
+    const nowMs = this.now();
+    if (this.pricingCache && nowMs - this.pricingCache.atMs < PRICING_CACHE_TTL_MS) return this.pricingCache.catalog;
+    const catalog = toPricingCatalog(await this.repository.getModelPricing());
+    this.pricingCache = { atMs: nowMs, catalog };
+    return catalog;
+  }
+
+  /** Catálogo de precios completo, para la vista de precios por modelo (ADR-025). */
+  listModelPricing(): Promise<ModelPricing[]> {
+    return this.repository.getModelPricing();
+  }
 
   private pageSize(value: number | undefined): number {
     const limit = value ?? DEFAULT_PAGE_SIZE;
@@ -106,8 +134,11 @@ export class TraceQueryService {
 
   async listSpans(input: ListSpansInput): Promise<Page<SpanRow, SpanCursor>> {
     const { from, to, limit, ...filters } = input;
-    const page = await this.repository.listSpans({ ...filters, ...resolveTimeRange({ from, to }, this.now()), limit: this.pageSize(limit) });
-    return { items: page.items.map(toSpanRow), nextCursor: page.nextCursor };
+    const [page, pricing] = await Promise.all([
+      this.repository.listSpans({ ...filters, ...resolveTimeRange({ from, to }, this.now()), limit: this.pageSize(limit) }),
+      this.pricingCatalog(),
+    ]);
+    return { items: page.items.map((record) => toSpanRow(record, pricing)), nextCursor: page.nextCursor };
   }
 
   listTraces(input: ListTracesInput): Promise<Page<TraceSummary>> {
@@ -126,9 +157,9 @@ export class TraceQueryService {
   }
 
   async getTrace(traceId: string): Promise<TraceDetail> {
-    const found = await this.repository.getTraceSpans(traceId, MAX_SPANS_PER_TRACE);
+    const [found, pricing] = await Promise.all([this.repository.getTraceSpans(traceId, MAX_SPANS_PER_TRACE), this.pricingCatalog()]);
     if (!found || found.spans.length === 0) throw new TraceNotFoundError(traceId);
-    return buildTraceDetail(traceId, found.spans, found.truncated);
+    return buildTraceDetail(traceId, found.spans, found.truncated, pricing);
   }
 
   /** Árbol de spans de cada turno de la conversación, en el mismo orden y página que `getConversation`. */
@@ -143,20 +174,31 @@ export class TraceQueryService {
     if (!conversation) throw new ConversationNotFoundError(conversationId);
 
     const traceIds = turns.items.map((t) => t.traceId);
-    const byTraceId = await this.repository.getTraceSpansForTraces(traceIds, MAX_SPANS_PER_TRACE_IN_TREE);
+    const [byTraceId, pricing] = await Promise.all([
+      this.repository.getTraceSpansForTraces(traceIds, MAX_SPANS_PER_TRACE_IN_TREE),
+      this.pricingCatalog(),
+    ]);
     const items = traceIds
       .map((traceId) => ({ traceId, found: byTraceId.get(traceId) }))
       .filter(({ found }) => found && found.spans.length > 0)
-      .map(({ traceId, found }) => buildTraceDetail(traceId, found!.spans, found!.truncated));
+      .map(({ traceId, found }) => buildTraceDetail(traceId, found!.spans, found!.truncated, pricing));
     return { items, nextCursor: turns.nextCursor };
   }
 
   async getOverview(input: { from?: Date; to?: Date; service?: string }): Promise<MetricsOverview & { fromMs: number; toMs: number }> {
     const { fromMs, toMs } = resolveTimeRange(input, this.now());
     const bucketSeconds = chooseBucketSeconds(fromMs, toMs);
-    const overview = await this.repository.getOverview({ fromMs, toMs, service: input.service, bucketSeconds });
+    const [overview, pricing] = await Promise.all([
+      this.repository.getOverview({ fromMs, toMs, service: input.service, bucketSeconds }),
+      this.pricingCatalog(),
+    ]);
+    // el repositorio no conoce precios (ADR-025): el coste por modelo se calcula aquí, y el total es su suma
+    const byModel = overview.byModel.map((m) => ({ ...m, costUsd: costOf(m.model, m.inputTokens, m.outputTokens, pricing) }));
+    const totalCostUsd = byModel.reduce((sum, m) => sum + (m.costUsd ?? 0), 0);
     return {
       ...overview,
+      byModel,
+      totals: { ...overview.totals, costUsd: totalCostUsd },
       bucketSeconds, // el servicio es la autoridad: la serie rellena y el valor anunciado deben coincidir
       timeseries: fillTimeseries(overview.timeseries, fromMs, toMs, bucketSeconds),
       fromMs,
@@ -176,5 +218,38 @@ export class TraceQueryService {
 
   ping(): Promise<void> {
     return this.repository.ping();
+  }
+
+  /** `memtrace.step_type` distintos vistos en el rango, para el selector del builder de gráficos (ADR-027). */
+  async getStepKinds(input: { from?: Date; to?: Date; service?: string }): Promise<{ fromMs: number; toMs: number; items: StepKindCount[] }> {
+    const { fromMs, toMs } = resolveTimeRange(input, this.now());
+    const items = await this.repository.getStepKinds({ fromMs, toMs, service: input.service });
+    return { fromMs, toMs, items };
+  }
+
+  /** Valores distintos de un atributo, acotados a los step types dados (ADR-027): filtro/agrupación dinámicos. */
+  async getAttributeValues(
+    input: { from?: Date; to?: Date; service?: string; stepTypes: string[]; attribute: string },
+  ): Promise<{ fromMs: number; toMs: number; items: AttributeValueCount[] }> {
+    const { fromMs, toMs } = resolveTimeRange(input, this.now());
+    const items = await this.repository.getAttributeValues({ fromMs, toMs, service: input.service, stepTypes: input.stepTypes, attribute: input.attribute });
+    return { fromMs, toMs, items };
+  }
+
+  /** Claves de atributo vistas en los step types dados (ADR-030): alimenta los selectores de "group by"/"filter by". */
+  async getAttributeKeys(
+    input: { from?: Date; to?: Date; service?: string; stepTypes: string[] },
+  ): Promise<{ fromMs: number; toMs: number; items: AttributeKeyCount[] }> {
+    const { fromMs, toMs } = resolveTimeRange(input, this.now());
+    const items = await this.repository.getAttributeKeys({ fromMs, toMs, service: input.service, stepTypes: input.stepTypes });
+    return { fromMs, toMs, items };
+  }
+
+  /** Calcula un gráfico custom (ADR-027) sin persistirlo — guardarlo es responsabilidad de la identidad (Postgres). */
+  async getCustomMetric(input: CustomMetricDefinition & { from?: Date; to?: Date; service?: string }): Promise<CustomMetricResult & { fromMs: number; toMs: number }> {
+    const { fromMs, toMs } = resolveTimeRange(input, this.now());
+    const bucketSeconds = input.chartType === "line" || input.chartType === "area" ? chooseBucketSeconds(fromMs, toMs) : undefined;
+    const result = await this.repository.getCustomMetric({ ...input, fromMs, toMs, bucketSeconds });
+    return { ...result, fromMs, toMs };
   }
 }

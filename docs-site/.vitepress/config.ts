@@ -23,6 +23,7 @@ export default defineConfig({
             { text: "Integrations", link: "/library/integrations" },
             { text: "Configuration", link: "/library/configuration" },
             { text: "Personal data (PII)", link: "/library/pii" },
+            { text: "Offline evaluation", link: "/library/evaluation" },
             { text: "Authentication", link: "/library/authentication" },
           ],
         },

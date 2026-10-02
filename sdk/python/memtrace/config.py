@@ -110,5 +110,14 @@ class Settings:
     def batch_max_export_size(self) -> int:
         return env_int("MEMTRACE_BATCH_MAX_EXPORT_SIZE", 512)
 
+    @property
+    def api_url(self) -> Optional[str]:
+        """Base URL of the MemTrace query API, used by the optional `memtrace.eval` HTTP adapters."""
+        return os.getenv("MEMTRACE_API_URL") or None
+
+    @property
+    def api_key(self) -> Optional[str]:
+        return os.getenv("MEMTRACE_API_KEY") or None
+
 
 settings = Settings()

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { TraceDetailResponse } from "@contract";
 import { computed, ref } from "vue";
-import { formatCount, formatDateTime, formatDuration } from "@/domain/format";
+import { formatCostUsd, formatCount, formatDateTime, formatDuration } from "@/domain/format";
 import StatusBadge from "./StatusBadge.vue";
 import SpanTree from "./SpanTree.vue";
 
@@ -22,9 +22,10 @@ const summary = computed(() => {
   const mid = Math.floor(durations.length / 2);
   const p50 = durations.length === 0 ? 0 : durations.length % 2 ? durations[mid]! : (durations[mid - 1]! + durations[mid]!) / 2;
   const totalTokens = props.turns.reduce((sum, t) => sum + t.totalTokens, 0);
+  const totalCostUsd = props.turns.reduce((sum, t) => sum + t.totalCostUsd, 0);
   const totalSpans = props.turns.reduce((sum, t) => sum + t.spanCount, 0);
   const errorRuns = props.turns.filter((t) => t.status === "error").length;
-  return { count: props.turns.length, p50, totalTokens, totalSpans, errorRuns };
+  return { count: props.turns.length, p50, totalTokens, totalCostUsd, totalSpans, errorRuns };
 });
 </script>
 
@@ -36,6 +37,7 @@ const summary = computed(() => {
       <span class="s-item"><q-icon name="schedule" size="14px" /> P50 {{ formatDuration(summary.p50) }}</span>
       <span class="s-item"><q-icon name="account_tree" size="14px" /> {{ formatCount(summary.totalSpans) }} spans</span>
       <span v-if="summary.totalTokens" class="s-item"><q-icon name="toll" size="14px" /> {{ formatCount(summary.totalTokens) }} tokens</span>
+      <span v-if="summary.totalCostUsd" class="s-item"><q-icon name="payments" size="14px" /> {{ formatCostUsd(summary.totalCostUsd) }}</span>
       <span v-if="summary.errorRuns" class="s-item err"><q-icon name="error" size="14px" /> {{ summary.errorRuns }} {{ summary.errorRuns === 1 ? "run" : "runs" }} with error</span>
     </div>
 
@@ -52,6 +54,7 @@ const summary = computed(() => {
             <StatusBadge :status="t.status" />
             <span class="mt-pill unset">{{ formatDuration(t.durationMs) }}</span>
             <span v-if="t.totalTokens" class="mt-pill unset">{{ formatCount(t.totalTokens) }} tok</span>
+            <span v-if="t.totalCostUsd" class="mt-pill unset">{{ formatCostUsd(t.totalCostUsd) }}</span>
             <span v-if="t.errorCount" class="mt-pill error">{{ t.errorCount }} err</span>
           </span>
         </button>

@@ -1,3 +1,5 @@
+import type { CustomMetricDefinitionDto } from "@contract";
+
 /** Puerto de salida: identidad y RBAC (ADR-013). Separado de TraceApi: es otro dominio, otro almacén. */
 
 export interface CurrentUser {
@@ -58,6 +60,14 @@ export interface MembersResponseDto {
   pendingInvitations: PendingInvitationDto[];
 }
 
+/** Gráfico custom guardado por el usuario (ADR-027); su definición usa la misma forma que el query de ClickHouse. */
+export interface SavedCustomMetricDto {
+  id: string;
+  name: string;
+  definition: CustomMetricDefinitionDto;
+  createdAt: string;
+}
+
 export interface IdentityApi {
   /** `null` si no hay sesión (401) — nunca lanza para ese caso, es la forma normal de comprobar el login. */
   getMe(signal?: AbortSignal): Promise<CurrentUser | null>;
@@ -74,4 +84,9 @@ export interface IdentityApi {
   /** El campo `plaintext` solo viene relleno aquí — no se puede volver a consultar después. */
   createApiKey(experimentId: string, signal?: AbortSignal): Promise<ApiKeyDto & { plaintext: string }>;
   revokeApiKey(experimentId: string, keyId: string, signal?: AbortSignal): Promise<void>;
+
+  /** Gráficos custom guardados del experimento (ADR-027), más recientes primero. */
+  listCustomMetrics(experimentId: string, signal?: AbortSignal): Promise<SavedCustomMetricDto[]>;
+  createCustomMetric(experimentId: string, name: string, definition: CustomMetricDefinitionDto, signal?: AbortSignal): Promise<SavedCustomMetricDto>;
+  deleteCustomMetric(experimentId: string, metricId: string, signal?: AbortSignal): Promise<void>;
 }

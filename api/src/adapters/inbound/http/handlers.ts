@@ -2,10 +2,28 @@ import { RepositoryUnavailableError } from "@/application/errors";
 import type { TraceQueryService } from "@/application/trace-query-service";
 import { ConversationNotFoundError, TraceNotFoundError, ValidationError } from "@/domain/errors";
 import type { ServicesResponse } from "./contract";
-import { toSpanListResponse, toTranscriptResponse, toConversationDetailResponse, toConversationListResponse, toConversationTreeResponse, toExperimentUsageResponse, toOverviewResponse, toTraceDetailResponse, toTraceListResponse } from "./mappers";
+import {
+  toAttributeKeysResponse,
+  toAttributeValuesResponse,
+  toConversationDetailResponse,
+  toConversationListResponse,
+  toConversationTreeResponse,
+  toCustomMetricResultResponse,
+  toExperimentUsageResponse,
+  toModelPricingResponse,
+  toOverviewResponse,
+  toSpanListResponse,
+  toStepKindsResponse,
+  toTraceDetailResponse,
+  toTraceListResponse,
+  toTranscriptResponse,
+} from "./mappers";
 import { json, problem } from "./problem";
 import {
+  attributeKeysQuery,
+  attributeValuesQuery,
   conversationIdParam,
+  customMetricQueryBody,
   decodeConversationCursor,
   decodeCursor,
   decodeSpanCursor,
@@ -16,6 +34,7 @@ import {
   parseOrThrow,
   queryToObject,
   servicesQuery,
+  stepKindsQuery,
   traceIdParam,
   turnsQuery,
   usageQuery,
@@ -35,6 +54,14 @@ async function guard(run: () => Promise<Response>): Promise<Response> {
 }
 
 const query = (request: Request) => queryToObject(new URL(request.url).searchParams);
+
+async function jsonBody(request: Request): Promise<unknown> {
+  try {
+    return await request.json();
+  } catch {
+    throw new ValidationError("Invalid JSON body");
+  }
+}
 
 export function createHandlers(service: TraceQueryService) {
   return {
@@ -102,6 +129,38 @@ export function createHandlers(service: TraceQueryService) {
         const range = parseOrThrow(usageQuery, query(request));
         const { items } = await service.getUsageByServices(experiments.map((e) => e.serviceName), range);
         return json(toExperimentUsageResponse(experiments, items));
+      }),
+
+    /** catálogo de precios por modelo (ADR-025), para la vista de precios */
+    modelPricing: (_request: Request) => guard(async () => json(toModelPricingResponse(await service.listModelPricing()))),
+
+    /** `memtrace.step_type` distintos vistos en el rango, para el selector del builder de gráficos (ADR-027) */
+    stepKinds: (request: Request) =>
+      guard(async () => {
+        const { items } = await service.getStepKinds(parseOrThrow(stepKindsQuery, query(request)));
+        return json(toStepKindsResponse(items));
+      }),
+
+    /** valores distintos de un atributo, acotados a los step types dados (ADR-027) */
+    attributeValues: (request: Request) =>
+      guard(async () => {
+        const { items } = await service.getAttributeValues(parseOrThrow(attributeValuesQuery, query(request)));
+        return json(toAttributeValuesResponse(items));
+      }),
+
+    /** claves de atributo vistas en los step types dados, para los selectores de "group by"/"filter by" (ADR-030) */
+    attributeKeys: (request: Request) =>
+      guard(async () => {
+        const { items } = await service.getAttributeKeys(parseOrThrow(attributeKeysQuery, query(request)));
+        return json(toAttributeKeysResponse(items));
+      }),
+
+    /** calcula un gráfico custom sin persistirlo (ADR-027); `serviceName` lo resuelve la route desde el experimento */
+    customMetricQuery: (request: Request, serviceName: string) =>
+      guard(async () => {
+        const input = parseOrThrow(customMetricQueryBody, await jsonBody(request));
+        const result = await service.getCustomMetric({ ...input, service: serviceName });
+        return json(toCustomMetricResultResponse(result));
       }),
 
     /** liveness: no toca el almacén */

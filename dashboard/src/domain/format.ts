@@ -48,3 +48,19 @@ export function formatDateTime(iso: string): string {
 export function shortId(id: string): string {
   return id.slice(0, 8);
 }
+
+const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+/** Precios de un único span suelen ser fracciones de centavo: más decimales para no redondear a $0.00. */
+const usdPrecise = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 4, maximumFractionDigits: 6 });
+
+/** null si no hay coste conocido (span sin tokens, o sin precio para su modelo; ver ADR-025). */
+export function formatCostUsd(value: number | null): string | null {
+  if (value === null) return null;
+  if (value === 0) return "$0.00";
+  return value < 0.01 ? usdPrecise.format(value) : usd.format(value);
+}
+
+/** Precio por token expresado por millón de tokens: la convención habitual al listar precios de modelos. */
+export function formatPricePerMillion(pricePerToken: number): string {
+  return usd.format(pricePerToken * 1_000_000);
+}

@@ -17,6 +17,8 @@ export interface OverviewTotals {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
+  /** 0 si ningún modelo usado tiene precio conocido, no "sin datos"; enriquecido por TraceQueryService (ADR-025) */
+  costUsd: number;
 }
 
 export interface Latency {
@@ -39,6 +41,8 @@ export interface ModelUsage {
   inputTokens: number;
   outputTokens: number;
   p95Ms: number;
+  /** null si no hay precio conocido para el modelo; enriquecido por TraceQueryService (ADR-025) */
+  costUsd: number | null;
 }
 
 export interface ToolUsage {
@@ -83,6 +87,68 @@ export function chooseBucketSeconds(fromMs: number, toMs: number): number {
   const rangeSeconds = (toMs - fromMs) / 1000;
   const raw = Math.ceil(rangeSeconds / TARGET_BUCKETS);
   return Math.max(MIN_BUCKET_SECONDS, Math.ceil(raw / 60) * 60);
+}
+
+// ----- Custom metrics sobre spans definidos por el usuario (ADR-027) -----
+
+export type CustomMetricType = "count" | "avg_duration" | "p50_duration" | "p95_duration" | "error_rate";
+export type CustomChartType = "bar" | "pie" | "line" | "area" | "number" | "table";
+
+export interface CustomMetricFilter {
+  attribute: string;
+  values: string[];
+}
+
+/** Definición declarativa de un gráfico custom: nunca SQL, solo estos campos cerrados (ADR-027). */
+export interface CustomMetricDefinition {
+  chartType: CustomChartType;
+  /** `memtrace.step_type` de los spans a incluir (uno o varios) */
+  stepTypes: string[];
+  metric: CustomMetricType;
+  /** restringe el dataset a estos valores de un atributo, antes de agregar */
+  filters: CustomMetricFilter[];
+  /** desglosa el resultado por los valores de este atributo, en vez de por step type */
+  groupByAttribute: string | null;
+}
+
+export interface CustomMetricQuery extends CustomMetricDefinition {
+  fromMs: number;
+  toMs: number;
+  service?: string;
+  /** solo para chartType "line": tamaño del bucket temporal */
+  bucketSeconds?: number;
+}
+
+export interface CustomMetricPoint {
+  label: string;
+  value: number;
+}
+
+export interface CustomMetricBucket {
+  bucketStartMs: number;
+  points: CustomMetricPoint[];
+}
+
+/** `points`: agregado único (bar/pie/number). `timeseries`: solo cuando chartType es "line". */
+export interface CustomMetricResult {
+  points: CustomMetricPoint[];
+  timeseries: CustomMetricBucket[];
+}
+
+export interface StepKindCount {
+  stepType: string;
+  count: number;
+}
+
+export interface AttributeValueCount {
+  value: string;
+  count: number;
+}
+
+/** Clave de atributo vista en `SpanAttributes`, para alimentar el selector de "group by"/"filter by" (ADR-030). */
+export interface AttributeKeyCount {
+  key: string;
+  count: number;
 }
 
 /** Rellena con ceros los buckets sin datos para que el cliente pueda pintar la serie sin huecos. */

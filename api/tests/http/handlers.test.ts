@@ -188,7 +188,7 @@ describe("GET /spans", () => {
     const { repo, handlers } = setup();
     const cursor = { startTimeUs: 1_790_000_000_000_000, spanId: "00f067aa0ba902b7" };
     repo.spanPage = {
-      items: [{ spanId: "00f067aa0ba902b7", traceId: TRACE_ID, parentSpanId: null, conversationId: "c1", name: "tool.search", kind: "tool", serviceName: "svc", startTimeUs: 1_790_000_000_000_000, durationMs: 9, status: "error", model: null, totalTokens: null, inputRaw: '{"a":1}', outputRaw: "TimeoutError", chat: false }],
+      items: [{ spanId: "00f067aa0ba902b7", traceId: TRACE_ID, parentSpanId: null, conversationId: "c1", name: "tool.search", kind: "tool", serviceName: "svc", startTimeUs: 1_790_000_000_000_000, durationMs: 9, status: "error", model: null, totalTokens: null, inputTokens: null, outputTokens: null, inputRaw: '{"a":1}', outputRaw: "TimeoutError", chat: false }],
       nextCursor: cursor,
     };
     const response = await handlers.listSpans(get("/spans?kind=tool&status=error&text=vuelo&service=svc&conversationId=c1&limit=20"));

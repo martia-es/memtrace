@@ -2,9 +2,10 @@ import type { ClickHouseClient } from "@clickhouse/client";
 import { RepositoryUnavailableError } from "@/application/errors";
 import type { ConversationListQuery, SpanListQuery, TraceListQuery, TraceRepository, TraceSpans } from "@/application/ports/trace-repository";
 import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
+import type { ModelPricing } from "@/domain/pricing";
 import { previewOf, type SpanCursor, type SpanRecord } from "@/domain/span-row";
 import type { ChatSpanRecord } from "@/domain/transcript";
-import type { MetricsOverview, MetricsQuery, ServiceUsage } from "@/domain/metrics";
+import type { AttributeKeyCount, AttributeValueCount, CustomMetricQuery, CustomMetricResult, MetricsOverview, MetricsQuery, ServiceUsage, StepKindCount } from "@/domain/metrics";
 import type { Span, StatusCode } from "@/domain/span";
 import { MAX_RANGE_MS, type TimeRange } from "@/domain/time-range";
 import type { Page, TraceSummary } from "@/domain/trace";
@@ -46,6 +47,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
   private readonly spans: string;
   private readonly traceIndex: string;
   private readonly topics: string;
+  private readonly pricing: string;
 
   private readonly limiter: QueryLimiter;
 
@@ -59,6 +61,132 @@ export class ClickHouseTraceRepository implements TraceRepository {
     this.spans = `${database}.otel_traces`;
     this.traceIndex = `${database}.otel_traces_trace_id_ts`;
     this.topics = `${database}.span_topics`;
+    this.pricing = `${database}.model_pricing`;
+  }
+
+  /** Catálogo de precios vigente (ADR-025): `FINAL` fuerza la deduplicación de `ReplacingMergeTree` en la lectura. */
+  async getModelPricing(): Promise<ModelPricing[]> {
+    const rows = await this.rows<{ ModelId: string; Provider: string; InputPricePerToken: number; OutputPricePerToken: number; Source: string; updatedAtMs: number }>(
+      `SELECT ModelId, Provider, InputPricePerToken, OutputPricePerToken, Source, toUnixTimestamp64Milli(UpdatedAt) AS updatedAtMs
+       FROM ${this.pricing} FINAL ORDER BY ModelId`,
+      {},
+    );
+    return rows.map((r) => ({
+      modelId: r.ModelId,
+      provider: r.Provider,
+      inputPricePerToken: num(r.InputPricePerToken),
+      outputPricePerToken: num(r.OutputPricePerToken),
+      source: r.Source,
+      updatedAtMs: num(r.updatedAtMs),
+    }));
+  }
+
+  /** `memtrace.step_type` distintos vistos en el rango, con conteo (ADR-027). */
+  async getStepKinds(query: TimeRange & { service?: string }): Promise<StepKindCount[]> {
+    const { clause, params } = ClickHouseTraceRepository.range(query.fromMs, query.toMs);
+    const svc = query.service ? " AND ServiceName = {service:String}" : "";
+    const p: Params = { ...params, ...(query.service ? { service: query.service } : {}) };
+    const rows = await this.rows<{ stepType: string; count: number }>(
+      `SELECT ${KIND} AS stepType, count() AS count FROM ${this.spans} WHERE ${clause}${svc} GROUP BY stepType ORDER BY count DESC LIMIT 200`,
+      p,
+    );
+    return rows.map((r) => ({ stepType: r.stepType, count: num(r.count) }));
+  }
+
+  /** Valores distintos de un atributo, acotados a los step types dados (ADR-027): alimenta filtro/agrupación dinámicos. */
+  async getAttributeValues(query: TimeRange & { service?: string; stepTypes: string[]; attribute: string }): Promise<AttributeValueCount[]> {
+    const { clause, params } = ClickHouseTraceRepository.range(query.fromMs, query.toMs);
+    const svc = query.service ? " AND ServiceName = {service:String}" : "";
+    const p: Params = {
+      ...params,
+      attribute: query.attribute,
+      stepTypes: query.stepTypes,
+      ...(query.service ? { service: query.service } : {}),
+    };
+    const rows = await this.rows<{ value: string; count: number }>(
+      `SELECT SpanAttributes[{attribute:String}] AS value, count() AS count FROM ${this.spans}
+       WHERE ${clause}${svc} AND ${KIND} IN {stepTypes:Array(String)} AND SpanAttributes[{attribute:String}] != ''
+       GROUP BY value ORDER BY count DESC LIMIT 200`,
+      p,
+    );
+    return rows.map((r) => ({ value: r.value, count: num(r.count) }));
+  }
+
+  /** Claves de `SpanAttributes` vistas en los step types dados, para los selectores de "group by"/"filter by" (ADR-030). */
+  async getAttributeKeys(query: TimeRange & { service?: string; stepTypes: string[] }): Promise<AttributeKeyCount[]> {
+    const { clause, params } = ClickHouseTraceRepository.range(query.fromMs, query.toMs);
+    const svc = query.service ? " AND ServiceName = {service:String}" : "";
+    const p: Params = { ...params, stepTypes: query.stepTypes, ...(query.service ? { service: query.service } : {}) };
+    const rows = await this.rows<{ key: string; count: number }>(
+      `SELECT arrayJoin(mapKeys(SpanAttributes)) AS key, count() AS count FROM ${this.spans}
+       WHERE ${clause}${svc} AND ${KIND} IN {stepTypes:Array(String)}
+       GROUP BY key ORDER BY count DESC LIMIT 200`,
+      p,
+    );
+    return rows.map((r) => ({ key: r.key, count: num(r.count) }));
+  }
+
+  /**
+   * Calcula un gráfico custom (ADR-027/030). `metric`/`chartType` son un enum cerrado elegido por el
+   * servidor; `filters`/`groupByAttribute` son siempre parámetros ligados, nunca concatenados al SQL.
+   */
+  async getCustomMetric(q: CustomMetricQuery): Promise<CustomMetricResult> {
+    const { clause, params } = ClickHouseTraceRepository.range(q.fromMs, q.toMs);
+    const svc = q.service ? " AND ServiceName = {service:String}" : "";
+    const p: Params = { ...params, stepTypes: q.stepTypes, ...(q.service ? { service: q.service } : {}) };
+
+    const filterClauses = q.filters.map((f, i) => {
+      p[`filterAttr${i}`] = f.attribute;
+      p[`filterVals${i}`] = f.values;
+      return ` AND SpanAttributes[{filterAttr${i}:String}] IN {filterVals${i}:Array(String)}`;
+    });
+
+    const metricExpr =
+      q.metric === "avg_duration"
+        ? "avg(Duration) / 1e6"
+        : q.metric === "p50_duration"
+          ? "quantile(0.5)(Duration) / 1e6"
+          : q.metric === "p95_duration"
+            ? "quantile(0.95)(Duration) / 1e6"
+            : q.metric === "error_rate"
+              ? `countIf(StatusCode = ${ERROR}) / count()`
+              : "count()";
+
+    let labelExpr = KIND;
+    let extraWhere = "";
+    if (q.groupByAttribute) {
+      p.groupBy = q.groupByAttribute;
+      labelExpr = "SpanAttributes[{groupBy:String}]";
+      extraWhere = " AND SpanAttributes[{groupBy:String}] != ''";
+    }
+
+    const where = `WHERE ${clause}${svc} AND ${KIND} IN {stepTypes:Array(String)}${filterClauses.join("")}${extraWhere}`;
+
+    if (q.chartType === "line" || q.chartType === "area") {
+      p.bucket = q.bucketSeconds ?? 3600;
+      const rows = await this.rows<{ bucket: number; label: string; value: number }>(
+        `SELECT intDiv(toUnixTimestamp(Timestamp), {bucket:UInt32}) * {bucket:UInt32} AS bucket, ${labelExpr} AS label, ${metricExpr} AS value
+         FROM ${this.spans} ${where} GROUP BY bucket, label ORDER BY bucket, label`,
+        p,
+      );
+      const byBucket = new Map<number, { label: string; value: number }[]>();
+      for (const r of rows) {
+        const bucketMs = num(r.bucket) * 1000;
+        const list = byBucket.get(bucketMs) ?? [];
+        list.push({ label: r.label, value: num(r.value) });
+        byBucket.set(bucketMs, list);
+      }
+      const timeseries = [...byBucket.entries()]
+        .map(([bucketStartMs, points]) => ({ bucketStartMs, points }))
+        .sort((a, b) => a.bucketStartMs - b.bucketStartMs);
+      return { points: [], timeseries };
+    }
+
+    const rows = await this.rows<{ label: string; value: number }>(
+      `SELECT ${labelExpr} AS label, ${metricExpr} AS value FROM ${this.spans} ${where} GROUP BY label ORDER BY value DESC LIMIT 50`,
+      p,
+    );
+    return { points: rows.map((r) => ({ label: r.label, value: num(r.value) })), timeseries: [] };
   }
 
   private async rows<T = Row>(query: string, params: Params): Promise<T[]> {
@@ -159,6 +287,8 @@ export class ClickHouseTraceRepository implements TraceRepository {
       `SELECT SpanId, TraceId, ParentSpanId, ConversationId, SpanName, ServiceName, toUnixTimestamp64Micro(Timestamp) AS startUs,
               Duration, StatusCode, ${KIND} AS kind, ${attr("gen_ai.request.model")} AS model, ${OP} = 'chat' AS isChat,
               if(${OP} = 'chat', ${TOKENS}, 0) AS tokens,
+              if(${OP} = 'chat', ${attrNum("gen_ai.usage.input_tokens")}, 0) AS inputTokens,
+              if(${OP} = 'chat', ${attrNum("gen_ai.usage.output_tokens")}, 0) AS outputTokens,
               ${firstOf(["gen_ai.input.messages", "gen_ai.tool.call.arguments", "memtrace.input"])} AS inputRaw,
               ${firstOf(["gen_ai.output.messages", "gen_ai.tool.call.result", "memtrace.output"])} AS outputRaw
        FROM ${this.spans} WHERE ${where.join(" AND ")}
@@ -180,6 +310,8 @@ export class ClickHouseTraceRepository implements TraceRepository {
       status: toStatus(r.StatusCode),
       model: r.model ? String(r.model) : null,
       totalTokens: r.isChat ? num(r.tokens) : null,
+      inputTokens: r.isChat ? num(r.inputTokens) : null,
+      outputTokens: r.isChat ? num(r.outputTokens) : null,
       inputRaw: r.inputRaw ? String(r.inputRaw) : null,
       outputRaw: r.outputRaw ? String(r.outputRaw) : null,
       chat: Boolean(r.isChat),
@@ -585,6 +717,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
         inputTokens: num(s.inputTokens),
         outputTokens: num(s.outputTokens),
         totalTokens: num(s.totalTokens),
+        costUsd: 0, // el repositorio no conoce precios: TraceQueryService lo sustituye por el coste real (ADR-025)
       },
       latencyMs: { p50: nsToMs(quantiles[0]), p95: nsToMs(quantiles[1]), p99: nsToMs(quantiles[2]) },
       timeseries,
@@ -594,6 +727,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
         inputTokens: num(r.inputTokens),
         outputTokens: num(r.outputTokens),
         p95Ms: nsToMs(r.p95),
+        costUsd: null, // idem: TraceQueryService lo rellena con el catálogo de precios
       })),
       byTool: tools.map((r) => ({
         tool: String(r.tool),

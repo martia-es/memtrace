@@ -32,10 +32,10 @@ async function setup(component: object, api: FakeTraceApi, path: string, props: 
 
 const overview = () => ({
   range: { from: "", to: "", bucketSeconds: 60 },
-  totals: { traces: 10, spans: 124318, conversations: 5906, errorTraces: 2, errorRate: 0.021, inputTokens: 1, outputTokens: 1, totalTokens: 5204 },
+  totals: { traces: 10, spans: 124318, conversations: 5906, errorTraces: 2, errorRate: 0.021, inputTokens: 1, outputTokens: 1, totalTokens: 5204, costUsd: 0 },
   latencyMs: { p50: 100, p95: 4800, p99: 9000 },
   timeseries: [],
-  byModel: [{ model: "sonnet-4-5", calls: 3, inputTokens: 1, outputTokens: 1, p95Ms: 10 }],
+  byModel: [{ model: "sonnet-4-5", calls: 3, inputTokens: 1, outputTokens: 1, p95Ms: 10, costUsd: null }],
   byTool: [],
   byTopic: [],
 });
@@ -130,7 +130,7 @@ describe("TraceDetailPage", () => {
     });
     const tool = node({ spanId: "c2", parentSpanId: "r", name: "tool.add_baggage", kind: "tool", offsetMs: 30, durationMs: 15, status: { code: "error", message: "TimeoutError: 30000 ms" }, content: { toolArguments: { bags: 1 } }, events: [{ name: "exception", time: "2026-09-26T12:00:00.040Z", attributes: { "exception.message": "boom" } }] });
     const root = node({ spanId: "r", name: "raiz", kind: "agent", durationMs: 50, children: [llm, tool] });
-    return { traceId: T, conversationId: "conv-3" as string | null, startTime: "2026-09-26T12:00:00.000Z", durationMs: 50, status: "ok" as const, spanCount: 3, errorCount: 1, totalTokens: 0, truncated: false, framework: null, roots: [root] };
+    return { traceId: T, conversationId: "conv-3" as string | null, startTime: "2026-09-26T12:00:00.000Z", durationMs: 50, status: "ok" as const, spanCount: 3, errorCount: 1, totalTokens: 0, totalCostUsd: 0, truncated: false, framework: null, roots: [root] };
   };
   const open = (path = `/traces/${T}`, tweak: (api: FakeTraceApi) => void = () => {}) => {
     const api = new FakeTraceApi();

@@ -12,6 +12,10 @@
 - The `otel-langchain` extra installs `langchain-core` and, on Python 3.9, `wrapt<2`.
 
 ### Added
+- `eval-judges` extra and `memtrace.eval_judges` module: `Correctness` and `Faithfulness`,
+  LLM-as-judge evaluators built on a new `LLMJudgeEvaluator` base class and `LLMClient` port
+  (`application/eval_ports.py`), plus a default `AnthropicJudgeClient` adapter. Both drop into
+  `run_experiment(evaluators=[...])` alongside `exact_match`/`contains`. See ADR-029.
 - `pii` extra and `memtrace.pii` module: `presidio_redactor()` anonymizes personal data (names, emails,
   phones, cards, IBAN, DNI/NIE…) before export using Microsoft Presidio, and `text_hook()` turns any
   `str -> str` function into a `redact` hook. Optional: nothing is imported unless you use it.

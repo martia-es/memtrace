@@ -8,6 +8,7 @@ export const router = createRouter({
     // nunca se renderiza: beforeEach siempre la resuelve a /e/:id/conversations o /admin
     { path: "/", name: "home", component: { render: () => null } },
     { path: "/admin", name: "admin", component: () => import("./pages/ExperimentsPage.vue"), meta: { title: "Admin", section: "admin" } },
+    { path: "/model-pricing", name: "model-pricing", component: () => import("./pages/ModelPricingPage.vue"), meta: { title: "Model pricing", section: "model-pricing" } },
     {
       path: "/e/:experimentId",
       children: [
@@ -17,6 +18,9 @@ export const router = createRouter({
         { path: "conversations/:conversationId", name: "conversation", component: () => import("./pages/ConversationDetailPage.vue"), props: true, meta: { title: "Conversation", section: "conversations", framed: true } },
         { path: "traces/:traceId", name: "trace", component: () => import("./pages/TraceDetailPage.vue"), props: true, meta: { title: "Trace", section: "conversations", framed: true } },
         { path: "metrics", name: "metrics", component: () => import("./pages/MetricsPage.vue"), meta: { title: "Metrics", section: "metrics" } },
+        { path: "datasets", name: "datasets", component: () => import("./pages/DatasetsPage.vue"), meta: { title: "Evaluation", section: "datasets" } },
+        { path: "datasets/:datasetId", name: "dataset", component: () => import("./pages/DatasetDetailPage.vue"), props: true, meta: { title: "Evaluation", section: "datasets", framed: true } },
+        { path: "datasets/:datasetId/runs/:runId", name: "dataset-run", component: () => import("./pages/DatasetRunDetailPage.vue"), props: true, meta: { title: "Evaluation run", section: "datasets", framed: true } },
       ],
     },
     { path: "/:pathMatch(.*)*", redirect: { name: "home" } },

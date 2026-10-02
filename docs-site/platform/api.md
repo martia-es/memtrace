@@ -19,6 +19,19 @@ All under `/api/v1/experiments/{experimentId}`:
 
 Lists are cursor-paginated: pass the `nextCursor` of a response as `cursor` to get the next page.
 
+## Evaluation (ADR-028)
+
+Also under `/api/v1/experiments/{experimentId}`. Unlike every other endpoint on this page, these also accept an agent API key (`Authorization: Bearer <key>`) instead of a session — `memtrace.eval` (see [Offline evaluation](/library/evaluation)) calls them directly:
+
+| Endpoint | Auth | Description |
+|---|---|---|
+| `GET, POST /datasets` | session | List / create datasets |
+| `GET, POST /datasets/{datasetId}/items` | session or API key | List items, or add items to a dataset |
+| `GET, POST /datasets/{datasetId}/runs` | session or API key | List runs, or submit a finished run (`memtrace.eval.run_experiment`'s default sink posts here) |
+| `GET /datasets/{datasetId}/runs/{runId}` | session | Run detail: metadata plus every item's scores |
+
+An agent API key only resolves items/runs for the experiment it belongs to — the same key used for OTLP ingestion works here, no separate credential.
+
 ## Cross-experiment usage
 
 | Endpoint | Description |

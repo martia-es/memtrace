@@ -31,11 +31,14 @@ export interface SpanCursor {
 }
 
 /** Contenido crudo tal y como lo guarda el almacén. `*Raw` puede ser JSON de mensajes, JSON de una herramienta o texto. */
-export interface SpanRecord extends Omit<SpanRow, "input" | "output"> {
+export interface SpanRecord extends Omit<SpanRow, "input" | "output" | "costUsd"> {
   inputRaw: string | null;
   outputRaw: string | null;
   /** el span guarda mensajes de chat (`gen_ai.*.messages`), no un valor suelto */
   chat: boolean;
+  /** tokens de entrada/salida por separado: el coste puede tener precio distinto para cada uno (ADR-025) */
+  inputTokens: number | null;
+  outputTokens: number | null;
 }
 
 export const PREVIEW_CHARS = 240;
@@ -54,6 +57,11 @@ export function previewOf(raw: string | null, side: "input" | "output", chat: bo
   return text === null ? compact(raw) : compact(text);
 }
 
-export function toSpanRow({ inputRaw, outputRaw, chat, ...row }: SpanRecord): SpanRow {
-  return { ...row, input: previewOf(inputRaw, "input", chat), output: previewOf(outputRaw, "output", chat) };
+export function toSpanRow({ inputRaw, outputRaw, chat, inputTokens, outputTokens, ...row }: SpanRecord, pricing: PricingCatalog = new Map()): SpanRow {
+  return {
+    ...row,
+    input: previewOf(inputRaw, "input", chat),
+    output: previewOf(outputRaw, "output", chat),
+    costUsd: chat ? costOf(row.model, inputTokens ?? 0, outputTokens ?? 0, pricing) : null,
+  };
 }

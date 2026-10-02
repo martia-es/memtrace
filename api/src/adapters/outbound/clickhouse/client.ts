@@ -35,3 +35,18 @@ export function createReadOnlyClient(config: ClickHouseConfig): ClickHouseClient
     clickhouse_settings: { readonly: "2", max_threads: config.maxThreads },
   });
 }
+
+/**
+ * Cliente con permiso de escritura, usado exclusivamente por `ClickHouseScoreRepository` para
+ * insertar en `scores` (ADR-028). No lo uses para nada más: la regla "la API nunca escribe
+ * trazas" sigue vigente — este cliente nunca toca `otel_traces` ni las tablas relacionadas.
+ */
+export function createScoresWriteClient(config: ClickHouseConfig): ClickHouseClient {
+  return createClient({
+    url: config.url,
+    username: config.username,
+    password: config.password,
+    database: config.database,
+    request_timeout: 15_000,
+  });
+}

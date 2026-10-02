@@ -2,9 +2,10 @@
 import type { EChartsCoreOption } from "echarts/core";
 import { computed, ref, watch } from "vue";
 import { chartColors } from "../chart-theme";
-import { formatCount, formatDuration, formatPercent } from "@/domain/format";
+import { formatCostUsd, formatCount, formatDuration, formatPercent } from "@/domain/format";
 import { resolveRange } from "@/domain/time-range";
 import { useQuasar } from "quasar";
+import CustomChartsPanel from "../components/CustomChartsPanel.vue";
 import EChart from "../components/EChart.vue";
 import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
@@ -55,6 +56,7 @@ const reload = () => {
 watch([f.range, f.service], reload, { immediate: true });
 
 const data = computed(() => overview.data.value);
+const customChartsRange = computed(() => resolveRange(f.range.value, Date.now()));
 const empty = computed(() => data.value !== null && data.value.totals.traces === 0 && data.value.totals.spans === 0);
 
 
@@ -71,6 +73,7 @@ const tokenSplit = computed(() => {
   return { input: total ? ((t?.inputTokens ?? 0) / total) * 100 : 0, output: total ? ((t?.outputTokens ?? 0) / total) * 100 : 0 };
 });
 const tokensPerTrace = computed(() => (data.value && data.value.totals.traces ? data.value.totals.totalTokens / data.value.totals.traces : 0));
+const costPerTrace = computed(() => (data.value && data.value.totals.traces ? data.value.totals.costUsd / data.value.totals.traces : 0));
 
 const longRange = computed(() => (data.value ? Date.parse(data.value.range.to) - Date.parse(data.value.range.from) > 2 * 86_400_000 : false));
 const label = (iso: string) =>
@@ -314,6 +317,30 @@ const outputTokensByModelOption = computed<EChartsCoreOption>(() => {
   };
 });
 
+const costByModelOption = computed<EChartsCoreOption>(() => {
+  const d = data.value;
+  const c = chartColors($q.dark.isActive);
+  const a = axisBase();
+  return {
+    backgroundColor: "transparent",
+    textStyle: { color: c.text },
+    animationDuration: 520,
+    grid: { left: 6, right: 6, top: 16, bottom: 6, containLabel: true },
+    tooltip: { ...tooltip(), valueFormatter: (v: unknown) => formatCostUsd(typeof v === "number" ? v : 0) ?? "–" },
+    xAxis: { type: "category", data: d?.byModel.map((m) => m.model.substring(0, 15)) ?? [], ...a, splitLine: { show: false }, axisLine: { lineStyle: { color: c.grid } } },
+    yAxis: { type: "value", ...a, axisLabel: { ...a.axisLabel, formatter: (v: number) => formatCostUsd(v) ?? "–" } },
+    series: [
+      {
+        name: "Cost",
+        type: "bar",
+        barMaxWidth: 40,
+        data: d?.byModel.map((m) => m.costUsd ?? 0) ?? [],
+        itemStyle: { color: c.series[3] ?? c.primary, borderRadius: [6, 6, 0, 0] },
+      },
+    ],
+  };
+});
+
 const topicUsageOption = computed<EChartsCoreOption>(() => {
   const d = data.value;
   const c = chartColors($q.dark.isActive);
@@ -396,6 +423,7 @@ const compareRows = computed(() => {
     { label: "Total tokens", a: formatCount(a.totals.totalTokens), b: formatCount(b.totals.totalTokens) },
     { label: "Input tokens", a: formatCount(a.totals.inputTokens), b: formatCount(b.totals.inputTokens) },
     { label: "Output tokens", a: formatCount(a.totals.outputTokens), b: formatCount(b.totals.outputTokens) },
+    { label: "Total cost", a: formatCostUsd(a.totals.costUsd) ?? "–", b: formatCostUsd(b.totals.costUsd) ?? "–" },
   ];
 });
 
@@ -449,6 +477,8 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
         <LiveControl :seconds="liveRefresh.seconds.value" :updated-at="liveRefresh.updatedAt.value" @update:seconds="setRefreshSeconds" />
       </FilterBar>
     </PageHeader>
+
+    <CustomChartsPanel :experiment-id="experimentId" :range="customChartsRange" />
 
     <section v-if="(experiments.data.value?.length ?? 0) > 1" class="detail-panel agent-cost-panel">
       <div class="panel-header">
@@ -583,6 +613,12 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
           <div class="metric-value" style="color: var(--mt-accent)">{{ formatCount(data.totals.totalTokens) }}</div>
           <div class="metric-detail">{{ formatCount(Math.round(tokensPerTrace)) }} per exec.</div>
         </div>
+
+        <div class="metric-card">
+          <div class="metric-label">TOTAL COST</div>
+          <div class="metric-value" style="color: var(--mt-accent)">{{ formatCostUsd(data.totals.costUsd) }}</div>
+          <div class="metric-detail">{{ formatCostUsd(costPerTrace) }} per exec.</div>
+        </div>
       </div>
 
       <!-- Charts Row - Activity & Tokens -->
@@ -624,11 +660,17 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
         </section>
       </div>
 
-      <!-- Latency Row -->
+      <!-- Latency & Cost Row -->
       <div class="latency-row">
         <section class="chart-panel">
           <h2>Latency by Model</h2>
           <EChart v-if="data.byModel.length" :option="latencyByModelOption" height="300px" label="Latency p95 by model" />
+          <div v-else class="no-data">No LLM calls</div>
+        </section>
+
+        <section class="chart-panel">
+          <h2>Cost by Model</h2>
+          <EChart v-if="data.byModel.length" :option="costByModelOption" height="300px" label="Cost by model" />
           <div v-else class="no-data">No LLM calls</div>
         </section>
       </div>
@@ -656,6 +698,10 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
                 <div class="model-stat-item">
                   <div class="stat-value" style="color: var(--mt-accent)">{{ formatDuration(m.p95Ms) }}</div>
                   <div class="stat-label">latency p95</div>
+                </div>
+                <div class="model-stat-item">
+                  <div class="stat-value" style="color: var(--mt-accent)">{{ formatCostUsd(m.costUsd) || "n/a" }}</div>
+                  <div class="stat-label">cost</div>
                 </div>
               </div>
             </div>
@@ -730,7 +776,7 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
 /* Top Row */
 .top-row {
   display: grid;
-  grid-template-columns: 1.8fr 1fr 1fr 1fr;
+  grid-template-columns: 1.8fr 1fr 1fr 1fr 1fr;
   gap: 16px;
 }
 
@@ -907,7 +953,7 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
 
 .latency-row {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 16px;
 }
 
@@ -1175,7 +1221,7 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
 
 .model-stats-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 10px;
   padding-top: 10px;
   border-top: 1px solid var(--mt-line);
@@ -1285,7 +1331,7 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
 
 @media (max-width: 1400px) {
   .top-row {
-    grid-template-columns: 1.2fr 1fr 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr);
   }
   .tokens-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -1316,7 +1362,8 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
 @media (max-width: 768px) {
   .top-row,
   .details-grid,
-  .tokens-grid {
+  .tokens-grid,
+  .latency-row {
     grid-template-columns: 1fr;
   }
   .status-card {

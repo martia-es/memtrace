@@ -3,6 +3,10 @@ import { randomBytes, createHash } from "node:crypto";
 import type { IdentityRepository } from "@/application/ports/identity-repository";
 import type {
   ApiKey,
+  CustomMetric,
+  Dataset,
+  DatasetItem,
+  DatasetRun,
   Experiment,
   ExperimentAccess,
   ExperimentRole,
@@ -308,9 +312,9 @@ export class PostgresIdentityRepository implements IdentityRepository {
     await this.pool.query(`UPDATE api_keys SET revoked_at = now() WHERE id = $1 AND experiment_id = $2`, [keyId, experimentId]);
   }
 
-  async resolveApiKey(plaintext: string): Promise<{ experimentId: string; serviceName: string } | null> {
-    const { rows } = await this.pool.query<{ id: string; experiment_id: string; service_name: string }>(
-      `SELECT k.id, k.experiment_id, e.service_name
+  async resolveApiKey(plaintext: string): Promise<{ experimentId: string; serviceName: string; createdByUserId: string } | null> {
+    const { rows } = await this.pool.query<{ id: string; experiment_id: string; service_name: string; created_by: string }>(
+      `SELECT k.id, k.experiment_id, e.service_name, k.created_by
          FROM api_keys k
          JOIN experiments e ON e.id = k.experiment_id
         WHERE k.key_hash = $1 AND k.revoked_at IS NULL`,
@@ -320,12 +324,129 @@ export class PostgresIdentityRepository implements IdentityRepository {
     if (!row) return null;
     // no bloqueante: no hace falta esperar a que se confirme para responder al agente
     void this.pool.query(`UPDATE api_keys SET last_used_at = now() WHERE id = $1`, [row.id]);
-    return { experimentId: row.experiment_id, serviceName: row.service_name };
+    return { experimentId: row.experiment_id, serviceName: row.service_name, createdByUserId: row.created_by };
+  }
+
+  async listCustomMetrics(experimentId: string): Promise<CustomMetric[]> {
+    const { rows } = await this.pool.query<{ id: string; experiment_id: string; name: string; definition: unknown; created_at: string }>(
+      `SELECT id, experiment_id, name, definition, created_at
+         FROM custom_metrics
+        WHERE experiment_id = $1
+        ORDER BY created_at DESC`,
+      [experimentId],
+    );
+    return rows.map(toCustomMetric);
+  }
+
+  async createCustomMetric(experimentId: string, createdByUserId: string, name: string, definition: Record<string, unknown>): Promise<CustomMetric> {
+    const { rows } = await this.pool.query<{ id: string; experiment_id: string; name: string; definition: unknown; created_at: string }>(
+      `INSERT INTO custom_metrics (experiment_id, name, definition, created_by)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, experiment_id, name, definition, created_at`,
+      [experimentId, name, JSON.stringify(definition), createdByUserId],
+    );
+    const row = rows[0];
+    if (!row) throw new Error("failed to insert custom metric");
+    return toCustomMetric(row);
+  }
+
+  async deleteCustomMetric(experimentId: string, metricId: string): Promise<void> {
+    await this.pool.query(`DELETE FROM custom_metrics WHERE id = $1 AND experiment_id = $2`, [metricId, experimentId]);
+  }
+
+  async listDatasets(experimentId: string): Promise<Dataset[]> {
+    const { rows } = await this.pool.query<{ id: string; experiment_id: string; name: string; created_at: string }>(
+      `SELECT id, experiment_id, name, created_at FROM datasets WHERE experiment_id = $1 ORDER BY created_at DESC`,
+      [experimentId],
+    );
+    return rows.map(toDataset);
+  }
+
+  async createDataset(experimentId: string, createdByUserId: string, name: string): Promise<Dataset> {
+    const { rows } = await this.pool.query<{ id: string; experiment_id: string; name: string; created_at: string }>(
+      `INSERT INTO datasets (experiment_id, name, created_by) VALUES ($1, $2, $3)
+       RETURNING id, experiment_id, name, created_at`,
+      [experimentId, name, createdByUserId],
+    );
+    const row = rows[0];
+    if (!row) throw new Error("failed to insert dataset");
+    return toDataset(row);
+  }
+
+  async getDataset(datasetId: string): Promise<Dataset | null> {
+    const { rows } = await this.pool.query<{ id: string; experiment_id: string; name: string; created_at: string }>(
+      `SELECT id, experiment_id, name, created_at FROM datasets WHERE id = $1`,
+      [datasetId],
+    );
+    return rows[0] ? toDataset(rows[0]) : null;
+  }
+
+  async addDatasetItems(
+    datasetId: string,
+    items: Array<{ input: unknown; expectedOutput: unknown; metadata: Record<string, unknown> | null }>,
+  ): Promise<DatasetItem[]> {
+    const inserted: DatasetItem[] = [];
+    for (const item of items) {
+      const { rows } = await this.pool.query<{ id: string; dataset_id: string; input: unknown; expected_output: unknown; metadata: unknown }>(
+        `INSERT INTO dataset_items (dataset_id, input, expected_output, metadata) VALUES ($1, $2, $3, $4)
+         RETURNING id, dataset_id, input, expected_output, metadata`,
+        [datasetId, JSON.stringify(item.input), item.expectedOutput === undefined ? null : JSON.stringify(item.expectedOutput), item.metadata ? JSON.stringify(item.metadata) : null],
+      );
+      const row = rows[0];
+      if (!row) throw new Error("failed to insert dataset item");
+      inserted.push(toDatasetItem(row));
+    }
+    return inserted;
+  }
+
+  async listDatasetItems(datasetId: string): Promise<DatasetItem[]> {
+    const { rows } = await this.pool.query<{ id: string; dataset_id: string; input: unknown; expected_output: unknown; metadata: unknown }>(
+      `SELECT id, dataset_id, input, expected_output, metadata FROM dataset_items WHERE dataset_id = $1 ORDER BY created_at ASC`,
+      [datasetId],
+    );
+    return rows.map(toDatasetItem);
+  }
+
+  async createDatasetRun(id: string, datasetId: string, name: string, itemCount: number): Promise<DatasetRun> {
+    const { rows } = await this.pool.query<{ id: string; dataset_id: string; name: string; item_count: number; created_at: string }>(
+      `INSERT INTO dataset_runs (id, dataset_id, name, item_count) VALUES ($1, $2, $3, $4)
+       RETURNING id, dataset_id, name, item_count, created_at`,
+      [id, datasetId, name, itemCount],
+    );
+    const row = rows[0];
+    if (!row) throw new Error("failed to insert dataset run");
+    return toDatasetRun(row);
+  }
+
+  async listDatasetRuns(datasetId: string): Promise<DatasetRun[]> {
+    const { rows } = await this.pool.query<{ id: string; dataset_id: string; name: string; item_count: number; created_at: string }>(
+      `SELECT id, dataset_id, name, item_count, created_at FROM dataset_runs WHERE dataset_id = $1 ORDER BY created_at DESC`,
+      [datasetId],
+    );
+    return rows.map(toDatasetRun);
+  }
+
+  async getDatasetRun(runId: string): Promise<DatasetRun | null> {
+    const { rows } = await this.pool.query<{ id: string; dataset_id: string; name: string; item_count: number; created_at: string }>(
+      `SELECT id, dataset_id, name, item_count, created_at FROM dataset_runs WHERE id = $1`,
+      [runId],
+    );
+    return rows[0] ? toDatasetRun(rows[0]) : null;
   }
 }
 
 function toApiKey(row: { id: string; experiment_id: string; key_prefix: string; created_at: string; last_used_at: string | null }): ApiKey {
   return { id: row.id, experimentId: row.experiment_id, keyPrefix: row.key_prefix, createdAt: row.created_at, lastUsedAt: row.last_used_at };
+}
+
+function toCustomMetric(row: { id: string; experiment_id: string; name: string; definition: unknown; created_at: string }): CustomMetric {
+  return {
+    id: row.id,
+    experimentId: row.experiment_id,
+    name: row.name,
+    definition: (row.definition ?? {}) as Record<string, unknown>,
+    createdAt: row.created_at,
+  };
 }
 
 function toExperiment(row: { id: string; organization_id: string; name: string; service_name: string; org_theme: unknown }): Experiment {
@@ -340,6 +461,24 @@ function toExperiment(row: { id: string; organization_id: string; name: string; 
 
 function toMember(row: { user_id: string; email: string; name: string | null; role: OrgRole | ExperimentRole }): Member {
   return { userId: row.user_id, email: row.email, name: row.name, role: row.role };
+}
+
+function toDataset(row: { id: string; experiment_id: string; name: string; created_at: string }): Dataset {
+  return { id: row.id, experimentId: row.experiment_id, name: row.name, createdAt: row.created_at };
+}
+
+function toDatasetItem(row: { id: string; dataset_id: string; input: unknown; expected_output: unknown; metadata: unknown }): DatasetItem {
+  return {
+    id: row.id,
+    datasetId: row.dataset_id,
+    input: row.input,
+    expectedOutput: row.expected_output,
+    metadata: (row.metadata ?? null) as Record<string, unknown> | null,
+  };
+}
+
+function toDatasetRun(row: { id: string; dataset_id: string; name: string; item_count: number; created_at: string }): DatasetRun {
+  return { id: row.id, datasetId: row.dataset_id, name: row.name, itemCount: row.item_count, createdAt: row.created_at };
 }
 
 function toPendingInvitation(row: {

@@ -74,9 +74,19 @@ La tecnología es el detalle de implementación de cada pieza — intercambiable
 
 Los atributos que la pieza 1 adjunta a cada span (modelo usado, tokens, prompt, completion) deben seguir las [Semantic Conventions for Generative AI](https://opentelemetry.io/docs/specs/semconv/gen-ai/) de OpenTelemetry (prefijo `gen_ai.*`) en vez de inventar nombres propios. Esto evita incompatibilidades futuras con otras herramientas del ecosistema OTel y facilita integrar librerías de terceros que ya emiten estos atributos.
 
+### Instrumentación manual: árboles de pasos custom sobre las Gen AI Conventions
+
+Además de la instrumentación automática (Gen AI Conventions para llamadas a LLM), cada agente puede instrumentar manualmente cualquier paso interno que no sea una llamada a un modelo (reglas, regex, clasificadores clásicos, validaciones...) como un span propio, anidado bajo el nodo que lo contiene (p. ej. los distintos pasos de un guardrail de entrada en un grafo de LangGraph). Estos spans custom viajan por el mismo pipeline OTLP → ClickHouse sin tratamiento especial, y se consultan y visualizan igual que cualquier otro span. Ver [ADR-026](adrs/adr-026-custom-step-trees.md) y la guía de [Tracing steps](../docs-site/library/tracing.md).
+
+### Métricas custom sobre spans definidos por el usuario
+
+Como los pasos custom son spans normales (mismo almacén, mismo `memtrace.step_type` libre en `SpanAttributes`), el usuario puede construir sus propias gráficas en la pantalla de Metrics sobre ellos — p. ej. "cuántas veces saltó el guardrail de entrada" — sin que MemTrace conozca de antemano qué pasos custom existen. Implementado como un *query builder* declarativo (tipo de span + métrica agregada + filtros + agrupación opcional por un atributo, todo elegido mediante selectores alimentados por endpoints de descubrimiento — nunca SQL libre del usuario), con las definiciones de gráfico guardadas en PostgreSQL (no en ClickHouse). Ver [ADR-027](adrs/adr-027-custom-metrics-on-custom-spans.md) y su ampliación, [ADR-030](adrs/adr-030-expand-custom-charts-builder.md).
+
 ### Deliverables Fase 1
 
 - [ ] Librería OpenTelemetry (SDK) para agentes — solo exporta OTLP, sin conocimiento del almacén
+- [x] Instrumentación manual componible: árboles de spans custom (no-LLM) anidados bajo cualquier paso, sin cambios de esquema en el almacén — ver ADR-026
+- [x] Métricas custom en el dashboard sobre spans definidos por el usuario (query builder declarativo) — ver ADR-027/030
 - [ ] Configuración del OTel Collector con pipeline de batching + cola persistente + escritura en ClickHouse
 - [ ] Esquema de datos en ClickHouse, con migraciones versionadas
 - [ ] API de consulta (Next.js) con acceso al almacén encapsulado detrás de un repositorio propio
@@ -144,6 +154,58 @@ Los atributos que la pieza 1 adjunta a cada span (modelo usado, tokens, prompt, 
 - [x] Autenticación por API key para agentes en el OTel Collector — implementada como proxy delante del collector, validando el key antes de reenviar OTLP; el collector en sí no tiene extensión de auth propia
 - [x] ADR de la decisión de arquitectura (segundo almacén + estrategia de auth) — [ADR-013](adrs/adr-013-identity-postgres-and-oauth-rbac.md)
 - [x] Documentación de cómo dar de alta un usuario/agente nuevo — ver [README.md](../README.md#-alta-de-un-usuario-nuevo)
+
+---
+
+## Fase 1.75: Evaluación Offline
+
+**Objetivo**: dar a quien usa la librería MemTrace la capacidad de evaluar la calidad de su propio agente contra un dataset de ejemplos — comparar versiones antes de desplegar, detectar regresiones — sin obligarle a depender del almacén ni de la API de MemTrace para definir su lógica de evaluación. Esta fase cubre solo evaluación **offline** (bajo demanda, contra un dataset curado); la evaluación **online** (muestreo continuo sobre tráfico de producción) queda fuera de alcance y se revisita en una fase futura.
+
+> Nota de nomenclatura: aquí "ejecución de dataset" (`dataset_run`) es el resultado de correr un dataset completo contra una versión del agente. No debe confundirse con "Experimento" (Fase 1.5), que es la unidad multi-tenant de trazas+dashboard de un agente.
+
+### 1. Piezas necesarias
+
+| # | Pieza | Problema que resuelve | Qué NO hace |
+|---|---|---|---|
+| 11 | **Evaluador (`Evaluator`)** | Definir la métrica de calidad: una función que recibe `input`/`output`/`expected_output`/`trace` y devuelve un score | No ejecuta el agente, no decide de dónde vienen los datos ni qué se hace con el resultado |
+| 12 | **Ejecutor de experimentos (`run_experiment`)** | Orquestar: iterar el dataset, invocar la función del agente (`task`) para cada item, correr los evaluadores sobre el resultado y agregar el resultado final | No es un servicio de MemTrace: corre dentro del proceso del propio usuario (script, notebook, job de CI) |
+| 13 | **Fuente de dataset (`DatasetSource`)** | Dar acceso a los ejemplos a evaluar (input + output esperado) | No impone de dónde vienen: MemTrace ofrece un adaptador por defecto contra su propia API, pero el usuario puede pasar sus propios datos sin tocar esa API |
+| 14 | **Sumidero de resultados (`ResultsSink`)** | Decidir qué pasa con los scores generados por una ejecución | No impone subirlos a MemTrace: por defecto los sube a su API, pero el usuario puede quedarse solo con el resultado en memoria o enviarlo a su propio sistema |
+| 15 | **Almacén de datasets** | Persistir `dataset` / `dataset_item` / `dataset_run`: datos curados a mano, pocas filas, con integridad referencial | No es el almacén analítico de trazas (pieza 3) |
+| 16 | **Almacén de scores** | Persistir los resultados de evaluación (un score por evaluador por traza), con el mismo perfil de volumen y escritura que las trazas | No decide qué se muestra (eso es la pieza 5) |
+
+### 2. Arquitectura decidida
+
+- **El ejecutor de experimentos (pieza 12) vive en el proceso del usuario, no es un servicio nuevo de MemTrace.** No hay backend que orqueste la ejecución; es una función de la librería que el usuario invoca desde su propio código (igual que hace la instrumentación de la pieza 1). Esto evita infraestructura nueva para esta fase.
+- **`Evaluator` y `TaskFunction` son protocolos agnósticos de MemTrace.** Solo reciben tipos planos (`input`, `output`, `expected_output`, `trace`), nunca una clase propia de MemTrace. Un evaluador escrito para MemTrace es reutilizable fuera, y viceversa.
+- **`DatasetSource` y `ResultsSink` son puertos con un adaptador HTTP propio como opción por defecto, nunca obligatoria.** El usuario puede pasar una lista de ejemplos local (sin llamar a la API de MemTrace) y puede desactivar la subida de resultados (`upload=False`) y recibir el resultado en memoria. Esto mantiene la librería desacoplada de la herramienta, siguiendo el mismo principio de puertos/adaptadores ya usado en la pieza 4 (`TraceRepository`).
+- **Los scores (pieza 16) van a ClickHouse, no a Postgres.** Crecen al mismo ritmo que las trazas (un score por evaluador por traza), es un patrón de escritura por lotes y consulta agregada — el mismo criterio de volumen que ya separa trazas (ClickHouse) de identidad (Postgres) en ADR-013.
+- **Los datasets (pieza 15) van a Postgres, junto al almacén de identidad de Fase 1.5.** Son datos curados a mano, pocas filas, editados con integridad referencial — mismo criterio que ya se aplicó a usuarios/organizaciones.
+- **La API de consulta (pieza 4) gana endpoints nuevos, pero sigue siendo pasiva.** Expone lectura/escritura de datasets y scores; no orquesta ninguna ejecución. Todos los endpoints nuevos pasan por el mismo middleware de autorización de Fase 1.5.
+
+### 3. Tecnología propuesta (a confirmar con ADR al implementar)
+
+| Pieza | Tecnología candidata | Por qué |
+|---|---|---|
+| 11-14. SDK de evaluación | Python, dentro del paquete `memtrace` existente (`sdk/python/memtrace/application` para los protocolos, `sdk/python/memtrace/adapters/outbound` para el adaptador HTTP por defecto) | Reutiliza la estructura hexagonal ya presente en el SDK (ver ADR-006, ADR-024) |
+| 15. Almacén de datasets | PostgreSQL (misma instancia de la pieza 8, Fase 1.5) | Datos transaccionales de bajo volumen, ya tienes el motor |
+| 16. Almacén de scores | ClickHouse (mismo almacén de la pieza 3) | Mismo perfil de volumen/consulta que las trazas |
+
+### Deliverables Fase 1.75
+
+- [x] Protocolos `Evaluator` y `TaskFunction` en el SDK, agnósticos de MemTrace
+- [x] Función `run_experiment()` con ejecución client-side (sin servicio nuevo)
+- [x] Puertos `DatasetSource` / `ResultsSink` + adaptador HTTP por defecto contra la API de MemTrace, con opción de desactivarlo
+- [x] Evaluadores built-in básicos (ej. `exact_match`, `contains`) como punto de partida
+- [x] Evaluadores LLM-as-judge (`Correctness`, `Faithfulness`) sobre una base `LLMJudgeEvaluator` y un puerto `LLMClient` agnóstico de proveedor — ver [ADR-029](adrs/adr-029-llm-as-judge-evaluators.md)
+- [x] Esquema `dataset` / `dataset_item` / `dataset_run` en PostgreSQL (`migrations/postgres/006_evaluation.sql`)
+- [x] Tabla `scores` en ClickHouse (`migrations/clickhouse/005_scores.sql`)
+- [x] Endpoints en la API de consulta: datasets, dataset_runs, scores — ver [Query API](../docs-site/platform/api.md)
+- [x] Vista de comparación de `dataset_run` en el dashboard (`DatasetsPage.vue`, `DatasetRunDetailPage.vue`)
+- [ ] Anotación humana desde el detalle de traza (feedback manual = score con `source=HUMAN`) — pendiente, no cubierto en este incremento
+- [x] ADR de la decisión de arquitectura — ver [ADR-028](adrs/adr-028-offline-evaluation-decoupled-sdk.md)
+- [x] Documentación y ejemplos de integración — `docs-site/library/evaluation.md`, `examples/06_evaluate_against_memtrace.py`
+- [ ] Fuera de alcance en esta fase: evaluación online (muestreo continuo sobre tráfico de producción)
 
 ---
 

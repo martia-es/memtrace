@@ -18,6 +18,18 @@ Each span is a step: an LLM call, a tool, a retriever or an agent. Spans are col
 
 Totals, latency, a time series, tokens per model and tool usage for the selected time range and experiment. If you have access to more than one agent, a token-usage comparison across all of them is shown at the top of the page; click an agent there (or use the agent selector next to the time range) to switch which one the rest of the page shows.
 
+## Custom charts
+
+Below the overview metrics, the Metrics page has a builder for charts over your own [custom step types](/library/tracing#custom-step-trees-fine-grained-non-llm-steps) (e.g. a guardrail check traced as its own span). It never requires writing a query — everything is picked from what your own traces already contain:
+
+1. **Chart type** — bars, pie, line, area, a single number, or a table.
+2. **Step type(s)** — detected from your traces for the selected time range.
+3. **Metric** — count, average/median (p50)/p95 duration, or error rate.
+4. **Group by attribute** (optional) — a dropdown of attribute keys actually seen on the selected step type(s); picking one breaks the chart down by that attribute's values instead of by step type. For a line/area chart this becomes one line per value.
+5. **Filters** (optional, any number) — each filter picks an attribute and, from the values actually seen, which ones to include, narrowing the dataset before the metric is computed.
+
+The panel shows in plain text what ends up on the X axis and what the series are, before you preview. Once you're happy with a chart, name it and save it — it appears alongside the overview metrics every time you open this page.
+
 ## Theme
 
 The dashboard supports light and dark themes. An `org_admin` can set an accent color and corner style for their organization.

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, useTemplateRef, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { formatCount, formatDateTime, formatDuration, shortId } from "@/domain/format";
+import { formatCostUsd, formatCount, formatDateTime, formatDuration, shortId } from "@/domain/format";
 import { findNode, firstErrorNode } from "@/domain/waterfall";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import SpanInspector from "../components/SpanInspector.vue";
@@ -81,6 +81,7 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
           <span class="mt-pill unset"><q-icon name="account_tree" size="15px" /> {{ `${formatCount(trace.data.value.spanCount)} spans` }}</span>
           <span v-if="trace.data.value.errorCount" class="mt-pill error"><q-icon name="error" size="15px" /> {{ `${trace.data.value.errorCount} with error` }}</span>
           <span v-if="trace.data.value.totalTokens" class="mt-pill unset"><q-icon name="toll" size="15px" /> {{ `${formatCount(trace.data.value.totalTokens)} tokens` }}</span>
+          <span v-if="trace.data.value.totalCostUsd" class="mt-pill unset"><q-icon name="payments" size="15px" /> {{ formatCostUsd(trace.data.value.totalCostUsd) }}</span>
           <button type="button" class="mt-round-btn" aria-label="Copy trace ID" @click="copyId"><q-icon name="content_copy" size="18px" /></button>
         </div>
       </header>

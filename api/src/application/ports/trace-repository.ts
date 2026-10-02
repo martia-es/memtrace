@@ -1,5 +1,6 @@
 import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
-import type { MetricsOverview, MetricsQuery, ServiceUsage } from "@/domain/metrics";
+import type { AttributeKeyCount, AttributeValueCount, CustomMetricQuery, CustomMetricResult, MetricsOverview, MetricsQuery, ServiceUsage, StepKindCount } from "@/domain/metrics";
+import type { ModelPricing } from "@/domain/pricing";
 import type { ChatSpanRecord } from "@/domain/transcript";
 import type { Span } from "@/domain/span";
 import type { SpanCursor, SpanRecord } from "@/domain/span-row";
@@ -71,5 +72,17 @@ export interface TraceRepository {
   getConversationMessages(conversationId: string, range: TimeRange, maxSpans: number): Promise<{ records: ChatSpanRecord[]; truncated: boolean }>;
   /** spans sueltos, los más recientes primero; el contenido llega crudo y el servicio lo resume */
   listSpans(query: SpanListQuery): Promise<Page<SpanRecord, SpanCursor>>;
+  /** catálogo de precios vigente (ADR-025), un modelo por fila */
+  getModelPricing(): Promise<ModelPricing[]>;
+
+  /** `memtrace.step_type` distintos vistos en el rango, con conteo — alimenta el selector de tipo de paso (ADR-027) */
+  getStepKinds(range: TimeRange & { service?: string }): Promise<StepKindCount[]>;
+  /** valores distintos de un atributo, acotados a los step types dados — alimenta filtro/agrupación dinámicos (ADR-027) */
+  getAttributeValues(query: TimeRange & { service?: string; stepTypes: string[]; attribute: string }): Promise<AttributeValueCount[]>;
+  /** claves de atributo vistas en los step types dados — alimenta los selectores de "group by"/"filter by" (ADR-030) */
+  getAttributeKeys(query: TimeRange & { service?: string; stepTypes: string[] }): Promise<AttributeKeyCount[]>;
+  /** calcula un gráfico custom (ADR-027); la forma de la consulta es un enum cerrado, nunca SQL del usuario */
+  getCustomMetric(query: CustomMetricQuery): Promise<CustomMetricResult>;
+
   ping(): Promise<void>;
 }

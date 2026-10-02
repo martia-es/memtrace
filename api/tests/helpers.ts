@@ -2,6 +2,7 @@ import type { ConversationListQuery, SpanListQuery, TraceListQuery, TraceReposit
 import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
 import type { ChatSpanRecord } from "@/domain/transcript";
 import type { MetricsOverview, MetricsQuery, ServiceUsage } from "@/domain/metrics";
+import type { ModelPricing } from "@/domain/pricing";
 import type { Span } from "@/domain/span";
 import type { SpanCursor, SpanRecord } from "@/domain/span-row";
 import type { TimeRange } from "@/domain/time-range";
@@ -28,7 +29,7 @@ export function span(overrides: Partial<Span> = {}): Span {
 
 export const emptyOverview: MetricsOverview = {
   bucketSeconds: 60,
-  totals: { traces: 0, spans: 0, conversations: 0, errorTraces: 0, errorRate: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+  totals: { traces: 0, spans: 0, conversations: 0, errorTraces: 0, errorRate: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0, costUsd: 0 },
   latencyMs: { p50: 0, p95: 0, p99: 0 },
   timeseries: [],
   byModel: [],
@@ -53,6 +54,7 @@ export class FakeTraceRepository implements TraceRepository {
   overview: MetricsOverview = emptyOverview;
   services: string[] = [];
   usageByService: ServiceUsage[] = [];
+  modelPricing: ModelPricing[] = [];
   failWith?: Error;
 
   private check() {
@@ -107,6 +109,26 @@ export class FakeTraceRepository implements TraceRepository {
   async getConversationMessages() {
     this.check();
     return { records: this.chatRecords, truncated: this.chatTruncated };
+  }
+  async getModelPricing() {
+    this.check();
+    return this.modelPricing;
+  }
+  async getStepKinds() {
+    this.check();
+    return [];
+  }
+  async getAttributeValues() {
+    this.check();
+    return [];
+  }
+  async getAttributeKeys() {
+    this.check();
+    return [];
+  }
+  async getCustomMetric() {
+    this.check();
+    return { points: [], timeseries: [] };
   }
   async ping() {
     this.check();

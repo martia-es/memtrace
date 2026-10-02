@@ -3,7 +3,7 @@ import { PREVIEW_CHARS, previewOf, toSpanRow, type SpanRecord } from "@/domain/s
 
 const record = (over: Partial<SpanRecord> = {}): SpanRecord => ({
   spanId: "s1", traceId: "t1", parentSpanId: null, conversationId: "c1", name: "llm.reason", kind: "llm", serviceName: "svc",
-  startTimeUs: 1, durationMs: 5, status: "ok", model: "m", totalTokens: 10, inputRaw: null, outputRaw: null, chat: true, ...over,
+  startTimeUs: 1, durationMs: 5, status: "ok", model: "m", totalTokens: 10, inputTokens: 6, outputTokens: 4, inputRaw: null, outputRaw: null, chat: true, ...over,
 });
 
 describe("previewOf", () => {
