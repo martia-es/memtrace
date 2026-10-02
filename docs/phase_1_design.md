@@ -4,11 +4,11 @@ Este documento complementa a [`roadmap.md`](roadmap.md) detallando las decisione
 
 Decisiones relacionadas:
 
-- [ADR-001](adrs/adr-001-otel-collector-clickhouse.md): OTel Collector + ClickHouse.
-- [ADR-002](adrs/adr-002-local-kubernetes-k3d.md): Kubernetes local con k3d (sustituye a Docker Compose).
-- [ADR-003](adrs/adr-003-clickhouse-schema-and-migrations.md): esquema propio y migraciones versionadas.
+- [ADR-001](adrs/infra/adr-001-otel-collector-clickhouse.md): OTel Collector + ClickHouse.
+- [ADR-002](adrs/infra/adr-002-local-kubernetes-k3d.md): Kubernetes local con k3d (sustituye a Docker Compose).
+- [ADR-003](adrs/storage/adr-003-clickhouse-schema-and-migrations.md): esquema propio y migraciones versionadas.
 - [ADR-004](adrs/adr-004-genai-semconv-and-content-capture.md): atributos GenAI y captura de contenido.
-- [ADR-005](adrs/adr-005-persistent-storage-and-queue.md): persistencia de ClickHouse y cola persistente del Collector.
+- [ADR-005](adrs/infra/adr-005-persistent-storage-and-queue.md): persistencia de ClickHouse y cola persistente del Collector.
 - [ADR-006](adrs/adr-006-kind-and-podman-support.md): Soporte para Kind y Podman en el entorno local de Kubernetes.
 
 ---

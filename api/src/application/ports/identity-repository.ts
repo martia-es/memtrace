@@ -4,11 +4,16 @@ import type {
   Dataset,
   DatasetItem,
   DatasetRun,
+  DatasetRunWithDataset,
+  DatasetVersion,
   Experiment,
   ExperimentAccess,
   ExperimentRole,
   ExperimentSummary,
   Member,
+  MetricReport,
+  MetricReportChartLayout,
+  MetricReportWithCharts,
   Organization,
   OrganizationSummary,
   OrganizationTheme,
@@ -62,17 +67,54 @@ export interface IdentityRepository {
   createCustomMetric(experimentId: string, createdByUserId: string, name: string, definition: Record<string, unknown>): Promise<CustomMetric>;
   deleteCustomMetric(experimentId: string, metricId: string): Promise<void>;
 
-  /** Datasets de evaluación offline del experimento (ADR-028), más recientes primero. */
+  /** Informes guardados del experimento (ADR-033): agrupan varias custom_metrics con layout de grid. */
+  listMetricReports(experimentId: string): Promise<MetricReport[]>;
+  createMetricReport(experimentId: string, createdByUserId: string, name: string): Promise<MetricReport>;
+  /** `null` si no existe o no pertenece a ese experimento. */
+  getMetricReport(experimentId: string, reportId: string): Promise<MetricReportWithCharts | null>;
+  renameMetricReport(experimentId: string, reportId: string, name: string): Promise<void>;
+  deleteMetricReport(experimentId: string, reportId: string): Promise<void>;
+  /** Reemplaza por completo el layout: el editor de grid siempre envía el conjunto entero al guardar. */
+  setMetricReportCharts(experimentId: string, reportId: string, charts: MetricReportChartLayout[]): Promise<void>;
+
+/** Datasets de evaluación offline del experimento (ADR-028), más recientes primero. Crear un
+   * dataset crea también su versión 1.0 (vacía) en la misma transacción (ADR-031). */
   listDatasets(experimentId: string): Promise<Dataset[]>;
   createDataset(experimentId: string, createdByUserId: string, name: string): Promise<Dataset>;
   getDataset(datasetId: string): Promise<Dataset | null>;
-  addDatasetItems(datasetId: string, items: Array<{ input: unknown; expectedOutput: unknown; metadata: Record<string, unknown> | null }>): Promise<DatasetItem[]>;
-  listDatasetItems(datasetId: string): Promise<DatasetItem[]>;
+  deleteDataset(datasetId: string): Promise<void>;
+
+  /** Historial de versiones de un dataset (ADR-032), más recientes primero. Puramente informativo:
+   * nunca se crean a mano, son el resultado de `addDatasetItems`/`updateDatasetItem`/`deleteDatasetItem`. */
+  listDatasetVersions(datasetId: string): Promise<DatasetVersion[]>;
+  getLatestDatasetVersion(datasetId: string): Promise<DatasetVersion | null>;
+
+  /** Items activos (no borrados) de una versión de un dataset (lo único que expone el dashboard
+   * de gestión como "items actuales"). */
+  listDatasetItems(datasetVersionId: string): Promise<DatasetItem[]>;
+  /** Todos los items de una versión concreta, incluidos los tombstones de items borrados ahí
+   * (ADR-032 follow-up) — para inspeccionar el historial, nunca para editar. */
+  listDatasetVersionItemsWithDeleted(datasetVersionId: string): Promise<DatasetItem[]>;
+
+  /** Añade items a un dataset: clona los items activos de la última versión y crea una nueva con
+   * bump MAJOR (cambio estructural), atribuyendo los items nuevos a `createdByUserId` (ADR-032). */
+  addDatasetItems(datasetId: string, createdByUserId: string, items: Array<{ input: unknown; expectedOutput: unknown; metadata: Record<string, unknown> | null }>): Promise<DatasetItem[]>;
+  /** Edita un item de la última versión: clona el resto de items tal cual (preservando su autoría
+   * original) y crea una nueva versión con bump MINOR, marcando `updatedBy`/`updatedAt` en el item editado. */
+  updateDatasetItem(datasetId: string, itemId: string, updatedByUserId: string, patch: { input?: unknown; expectedOutput?: unknown; metadata?: Record<string, unknown> | null }): Promise<DatasetItem | null>;
+  /** Borra un item de la última versión: crea una nueva versión con bump MAJOR en la que el item
+   * borrado sigue existiendo como tombstone (`deletedBy`/`deletedAt` marcados, contenido y autoría
+   * original preservados) — nunca desaparece sin dejar rastro de quién lo borró y cuándo. */
+  deleteDatasetItem(datasetId: string, itemId: string, deletedByUserId: string): Promise<void>;
 
   /** Metadatos de una ejecución (los scores viven en ClickHouse, ver `ScoreRepository`). `id` lo
    * genera el caller (`EvaluationService`) para poder escribir en ClickHouse con el mismo id antes
-   * de crear este registro, y así no dejar un `dataset_run` huérfano si ClickHouse falla. */
-  createDatasetRun(id: string, datasetId: string, name: string, itemCount: number): Promise<DatasetRun>;
+   * de crear este registro, y así no dejar un `dataset_run` huérfano si ClickHouse falla.
+   * `datasetVersionId` lo resuelve el caller como la última versión del dataset en ese momento
+   * (ADR-031) — el SDK solo conoce `datasetId`, nunca una versión explícita. */
+  createDatasetRun(id: string, datasetId: string, datasetVersionId: string, name: string, itemCount: number): Promise<DatasetRun>;
   listDatasetRuns(datasetId: string): Promise<DatasetRun[]>;
   getDatasetRun(runId: string): Promise<DatasetRun | null>;
+  /** Todos los runs del experimento, de cualquier dataset, para la vista global "Runs" del dashboard. */
+  listRunsForExperiment(experimentId: string): Promise<DatasetRunWithDataset[]>;
 }

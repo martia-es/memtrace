@@ -1,7 +1,7 @@
 # analytics/model_pricing
 
 Worker que sincroniza un catálogo de precios por modelo a ClickHouse, para poder convertir
-tokens (`gen_ai.usage.*`) en coste en moneda (ver [ADR-025](../../docs/adrs/adr-025-model-pricing-catalog-sync.md)).
+tokens (`gen_ai.usage.*`) en coste en moneda (ver [ADR-025](../../docs/adrs/pricing/adr-025-model-pricing-catalog-sync.md)).
 
 ## Cómo funciona
 

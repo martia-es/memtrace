@@ -107,6 +107,29 @@ export interface CustomMetric {
   createdAt: string;
 }
 
+/** Informe guardado por experimento: agrupa varias `custom_metrics` en un grid (ADR-033). */
+export interface MetricReport {
+  id: string;
+  experimentId: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Posición/tamaño de un gráfico dentro del grid de 12 columnas de un informe. */
+export interface MetricReportChartLayout {
+  customMetricId: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** Un informe con sus gráficos resueltos (nombre + definición), listo para render o para el email. */
+export interface MetricReportWithCharts extends MetricReport {
+  charts: Array<MetricReportChartLayout & { name: string; definition: Record<string, unknown> }>;
+}
+
 /** Dataset de evaluación offline (ADR-028): una colección curada de ejemplos para un experimento. */
 export interface Dataset {
   id: string;
@@ -115,20 +138,61 @@ export interface Dataset {
   createdAt: string;
 }
 
-/** Una fila de un dataset: qué darle al agente y, opcionalmente, qué esperar de vuelta. */
-export interface DatasetItem {
+/** Una foto fija inmutable de los items de un dataset (ADR-031/ADR-032): se crea automáticamente
+ * en cada alta/edición/borrado de item, nunca a mano. `major` sube al añadir o borrar un item
+ * (cambio estructural); `minor` sube al editar el contenido de uno existente. Un `DatasetRun`
+ * siempre queda fijado a una versión concreta, para seguir siendo reproducible aunque el dataset
+ * siga cambiando después. */
+export interface DatasetVersion {
   id: string;
   datasetId: string;
+  major: number;
+  minor: number;
+  /** Descripción generada del cambio que produjo esta versión (p. ej. "Added item"). */
+  note: string | null;
+  createdBy: string;
+  createdByEmail: string;
+  createdAt: string;
+}
+
+/** Una fila de una versión de dataset: qué darle al agente y, opcionalmente, qué esperar de vuelta.
+ * `createdBy`/`createdAt` son del momento en que el item se dio de alta por primera vez (se
+ * preservan al clonarse a versiones posteriores); `updatedBy`/`updatedAt` reflejan su última
+ * edición de contenido, si la ha tenido (ADR-032). */
+export interface DatasetItem {
+  id: string;
+  datasetVersionId: string;
   input: unknown;
   expectedOutput: unknown;
   metadata: Record<string, unknown> | null;
+  createdBy: string;
+  createdByEmail: string;
+  createdAt: string;
+  updatedBy: string | null;
+  updatedByEmail: string | null;
+  updatedAt: string | null;
+  /** Si no es null, este item es un tombstone (ADR-032 follow-up): vive solo en la versión en la
+   * que se borró, preservando su contenido y autoría original para dejar constancia de quién lo
+   * borró y cuándo. `listDatasetItems` lo filtra de la vista "items actuales". */
+  deletedBy: string | null;
+  deletedByEmail: string | null;
+  deletedAt: string | null;
 }
 
-/** Metadatos de una ejecución de un dataset contra una versión del agente. Los scores viven en ClickHouse. */
+/** Metadatos de una ejecución de una versión de dataset contra una versión del agente. Los scores viven en ClickHouse. */
 export interface DatasetRun {
   id: string;
   datasetId: string;
+  datasetVersionId: string;
+  versionMajor: number;
+  versionMinor: number;
   name: string;
   itemCount: number;
   createdAt: string;
+}
+
+/** Una fila de la vista global de runs (ADR-031): igual que `DatasetRun`, con el nombre del
+ * dataset ya resuelto para no obligar al dashboard a cruzarlo con `listDatasets`. */
+export interface DatasetRunWithDataset extends DatasetRun {
+  datasetName: string;
 }

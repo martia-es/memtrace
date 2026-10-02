@@ -102,7 +102,7 @@ with trace_step_context("conversation_turn", step_type="chain"):
         agent.invoke(...)  # its spans nest under "conversation_turn" too
 ```
 
-Recommended naming: a dotted namespace scoped to the use case (`guardrail.regex_pii`, `guardrail.toxicity_rules`), so the steps group visually and don't collide with the built-in `StepType` values. No schema or dashboard change is needed to introduce a new custom step type — it's stored and queried exactly like any other span. See ADR-026 (`docs/adrs/adr-026-custom-step-trees.md` in the repository) for the full rationale.
+Recommended naming: a dotted namespace scoped to the use case (`guardrail.regex_pii`, `guardrail.toxicity_rules`), so the steps group visually and don't collide with the built-in `StepType` values. No schema or dashboard change is needed to introduce a new custom step type — it's stored and queried exactly like any other span. See ADR-026 (`docs/adrs/observability/adr-026-custom-step-trees.md` in the repository) for the full rationale.
 
 A runnable version of this example is in `examples/03_langchain_agent_manual.py` in the repository.
 

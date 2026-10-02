@@ -76,17 +76,22 @@ Los atributos que la pieza 1 adjunta a cada span (modelo usado, tokens, prompt, 
 
 ### Instrumentación manual: árboles de pasos custom sobre las Gen AI Conventions
 
-Además de la instrumentación automática (Gen AI Conventions para llamadas a LLM), cada agente puede instrumentar manualmente cualquier paso interno que no sea una llamada a un modelo (reglas, regex, clasificadores clásicos, validaciones...) como un span propio, anidado bajo el nodo que lo contiene (p. ej. los distintos pasos de un guardrail de entrada en un grafo de LangGraph). Estos spans custom viajan por el mismo pipeline OTLP → ClickHouse sin tratamiento especial, y se consultan y visualizan igual que cualquier otro span. Ver [ADR-026](adrs/adr-026-custom-step-trees.md) y la guía de [Tracing steps](../docs-site/library/tracing.md).
+Además de la instrumentación automática (Gen AI Conventions para llamadas a LLM), cada agente puede instrumentar manualmente cualquier paso interno que no sea una llamada a un modelo (reglas, regex, clasificadores clásicos, validaciones...) como un span propio, anidado bajo el nodo que lo contiene (p. ej. los distintos pasos de un guardrail de entrada en un grafo de LangGraph). Estos spans custom viajan por el mismo pipeline OTLP → ClickHouse sin tratamiento especial, y se consultan y visualizan igual que cualquier otro span. Ver [ADR-026](adrs/observability/adr-026-custom-step-trees.md) y la guía de [Tracing steps](../docs-site/library/tracing.md).
 
 ### Métricas custom sobre spans definidos por el usuario
 
-Como los pasos custom son spans normales (mismo almacén, mismo `memtrace.step_type` libre en `SpanAttributes`), el usuario puede construir sus propias gráficas en la pantalla de Metrics sobre ellos — p. ej. "cuántas veces saltó el guardrail de entrada" — sin que MemTrace conozca de antemano qué pasos custom existen. Implementado como un *query builder* declarativo (tipo de span + métrica agregada + filtros + agrupación opcional por un atributo, todo elegido mediante selectores alimentados por endpoints de descubrimiento — nunca SQL libre del usuario), con las definiciones de gráfico guardadas en PostgreSQL (no en ClickHouse). Ver [ADR-027](adrs/adr-027-custom-metrics-on-custom-spans.md) y su ampliación, [ADR-030](adrs/adr-030-expand-custom-charts-builder.md).
+Como los pasos custom son spans normales (mismo almacén, mismo `memtrace.step_type` libre en `SpanAttributes`), el usuario puede construir sus propias gráficas en la pantalla de Metrics sobre ellos — p. ej. "cuántas veces saltó el guardrail de entrada" — sin que MemTrace conozca de antemano qué pasos custom existen. Implementado como un *query builder* declarativo (tipo de span + métrica agregada + filtros + agrupación opcional por un atributo, todo elegido mediante selectores alimentados por endpoints de descubrimiento — nunca SQL libre del usuario), con las definiciones de gráfico guardadas en PostgreSQL (no en ClickHouse). Ver [ADR-027](adrs/evaluation/adr-027-custom-metrics-on-custom-spans.md) y su ampliación, [ADR-030](adrs/evaluation/adr-030-expand-custom-charts-builder.md).
+
+### Informes guardados: varias custom charts en un grid, compartidos por experimento
+
+Un usuario puede agrupar varias gráficas custom ya guardadas en un **informe** con nombre propio y layout de grid libre (arrastrar/redimensionar), que aparece como su propia pestaña en Metrics — visible para cualquiera con acceso al experimento, igual que una gráfica guardada hoy. El informe solo referencia las gráficas (no las duplica): editar una gráfica en Custom charts se refleja en todos los informes que la usan. Incluye envío por email de una instantánea en texto (una tabla de valores por gráfico, recalculada al enviar) — sin PDF ni imagen renderizada, eso queda explícitamente para una futura ADR si se prioriza. Ver [ADR-033](adrs/evaluation/adr-033-saved-metric-reports.md).
 
 ### Deliverables Fase 1
 
 - [ ] Librería OpenTelemetry (SDK) para agentes — solo exporta OTLP, sin conocimiento del almacén
 - [x] Instrumentación manual componible: árboles de spans custom (no-LLM) anidados bajo cualquier paso, sin cambios de esquema en el almacén — ver ADR-026
 - [x] Métricas custom en el dashboard sobre spans definidos por el usuario (query builder declarativo) — ver ADR-027/030
+- [x] Informes guardados: grid de varias custom charts por experimento, compartido y enviable por email (sin PDF) — ver ADR-033
 - [ ] Configuración del OTel Collector con pipeline de batching + cola persistente + escritura en ClickHouse
 - [ ] Esquema de datos en ClickHouse, con migraciones versionadas
 - [ ] API de consulta (Next.js) con acceso al almacén encapsulado detrás de un repositorio propio
@@ -118,7 +123,7 @@ Como los pasos custom son spans normales (mismo almacén, mismo `memtrace.step_t
 - **3 roles en total, en 2 niveles distintos:**
   - `org_admin` (nivel organización): tiene admin implícito sobre **todos** los experimentos de su organización, sin necesitar membership explícita en cada uno. Puede crear experimentos nuevos dentro de la organización e invitar usuarios (como `org_admin`, o directamente a un experimento como `admin`/`member`).
   - `admin` (nivel experimento): igual que `member`, más invitar a otros usuarios a ese experimento concreto (como `admin` o `member`). No tiene visibilidad sobre otros experimentos de la organización salvo que se le invite a ellos también.
-  - `member` (nivel experimento): solo lectura sobre ese experimento (trazas, dashboard, métricas), más generar su propia API key para instrumentar el agente (ver [ADR-016](adrs/adr-016-admin-page-visible-to-experiment-members.md)). No puede invitar ni gestionar a nadie.
+  - `member` (nivel experimento): solo lectura sobre ese experimento (trazas, dashboard, métricas), más generar su propia API key para instrumentar el agente (ver [ADR-016](adrs/identity/adr-016-admin-page-visible-to-experiment-members.md)). No puede invitar ni gestionar a nadie.
 - **Regla de autorización**: acceso a un experimento = `org_admin` de su organización **OR** membership directa en ese experimento. La pieza 7 evalúa ambas condiciones en cada petición.
 - **Bootstrap**: cualquier usuario autenticado puede crear una organización nueva y se convierte en su primer `org_admin`. Crear un experimento dentro de una organización requiere ser `org_admin` de esa organización (ya no "cualquier usuario autenticado", como en la versión anterior de este documento).
 
@@ -137,7 +142,7 @@ Como los pasos custom son spans normales (mismo almacén, mismo `memtrace.step_t
 - ~~Registrar aplicaciones OAuth en Google Cloud Console y Microsoft Entra ID~~ — **Resuelto**: en `.env` están `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` y `MICROSOFT_APPLICATION_ID`/`MICROSOFT_TENANT_ID`/`MICROSOFT_CLIENT_SECRET`. Queda pendiente decidir el dominio/HTTPS del redirect URI si se despliega fuera de `localhost`.
 - ~~Gestión de secretos~~ — **Resuelto por ahora**: en `.env` (fuera de git), igual que el resto de configuración local. Se revisita cuando se plantee desplegar en Cloud (entonces sí hará falta un secret manager real).
 - ~~Decidir single-tenant o multi-tenant~~ — **Resuelto**: multi-tenant. `Organización` agrupa N `Experimento`, con un rol `org_admin` adicional a nivel organización. Ver sección 2.
-- Esta fase requiere su propio ADR, dado que introduce una decisión de arquitectura importante: un segundo almacén de datos (PostgreSQL) además de ClickHouse. Ver [ADR-013](adrs/adr-013-identity-postgres-and-oauth-rbac.md).
+- Esta fase requiere su propio ADR, dado que introduce una decisión de arquitectura importante: un segundo almacén de datos (PostgreSQL) además de ClickHouse. Ver [ADR-013](adrs/identity/adr-013-identity-postgres-and-oauth-rbac.md).
 
 ### Deliverables Fase 1.5
 
@@ -152,7 +157,7 @@ Como los pasos custom son spans normales (mismo almacén, mismo `memtrace.step_t
 - [x] Flujo de invitación a experimento: un `admin` (o `org_admin`) invita a otro usuario como `admin`/`member` de ese experimento
 - [x] Middleware de autorización en la API de consulta aplicado a todos los endpoints existentes de Fase 1, evaluando `org_admin` OR membership de experimento
 - [x] Autenticación por API key para agentes en el OTel Collector — implementada como proxy delante del collector, validando el key antes de reenviar OTLP; el collector en sí no tiene extensión de auth propia
-- [x] ADR de la decisión de arquitectura (segundo almacén + estrategia de auth) — [ADR-013](adrs/adr-013-identity-postgres-and-oauth-rbac.md)
+- [x] ADR de la decisión de arquitectura (segundo almacén + estrategia de auth) — [ADR-013](adrs/identity/adr-013-identity-postgres-and-oauth-rbac.md)
 - [x] Documentación de cómo dar de alta un usuario/agente nuevo — ver [README.md](../README.md#-alta-de-un-usuario-nuevo)
 
 ---
@@ -197,13 +202,14 @@ Como los pasos custom son spans normales (mismo almacén, mismo `memtrace.step_t
 - [x] Función `run_experiment()` con ejecución client-side (sin servicio nuevo)
 - [x] Puertos `DatasetSource` / `ResultsSink` + adaptador HTTP por defecto contra la API de MemTrace, con opción de desactivarlo
 - [x] Evaluadores built-in básicos (ej. `exact_match`, `contains`) como punto de partida
-- [x] Evaluadores LLM-as-judge (`Correctness`, `Faithfulness`) sobre una base `LLMJudgeEvaluator` y un puerto `LLMClient` agnóstico de proveedor — ver [ADR-029](adrs/adr-029-llm-as-judge-evaluators.md)
+- [x] Evaluadores LLM-as-judge (`Correctness`, `Faithfulness`) sobre una base `LLMJudgeEvaluator` y un puerto `LLMClient` agnóstico de proveedor — ver [ADR-029](adrs/evaluation/adr-029-llm-as-judge-evaluators.md)
 - [x] Esquema `dataset` / `dataset_item` / `dataset_run` en PostgreSQL (`migrations/postgres/006_evaluation.sql`)
 - [x] Tabla `scores` en ClickHouse (`migrations/clickhouse/005_scores.sql`)
 - [x] Endpoints en la API de consulta: datasets, dataset_runs, scores — ver [Query API](../docs-site/platform/api.md)
-- [x] Vista de comparación de `dataset_run` en el dashboard (`DatasetsPage.vue`, `DatasetRunDetailPage.vue`)
+- [x] Versionado automático de datasets (semver major/minor) con auditoría por item (autor/fecha de alta y de última edición) y gestión de datasets/items desde el dashboard — ver [ADR-031](adrs/datasets/adr-031-dataset-versioning.md) y [ADR-032](adrs/datasets/adr-032-automatic-dataset-versioning-and-item-audit.md)
+- [x] Vista de comparación de `dataset_run` en el dashboard (`DatasetsPage.vue`, `DatasetRunDetailPage.vue`), navegación Datasets/Runs separada (`RunsPage.vue`)
 - [ ] Anotación humana desde el detalle de traza (feedback manual = score con `source=HUMAN`) — pendiente, no cubierto en este incremento
-- [x] ADR de la decisión de arquitectura — ver [ADR-028](adrs/adr-028-offline-evaluation-decoupled-sdk.md)
+- [x] ADR de la decisión de arquitectura — ver [ADR-028](adrs/evaluation/adr-028-offline-evaluation-decoupled-sdk.md)
 - [x] Documentación y ejemplos de integración — `docs-site/library/evaluation.md`, `examples/06_evaluate_against_memtrace.py`
 - [ ] Fuera de alcance en esta fase: evaluación online (muestreo continuo sobre tráfico de producción)
 

@@ -6,13 +6,19 @@ import type {
   ConversationTreeResponse,
   CustomMetricDefinitionDto,
   CustomMetricResultResponse,
+  DatasetDto,
+  DatasetItemDto,
+  DatasetItemsListResponse,
   DatasetRunDetailResponse,
   DatasetRunsListResponse,
   DatasetsListResponse,
+  DatasetVersionDto,
+  DatasetVersionsListResponse,
   ExperimentUsageResponse,
   ModelPricingResponse,
   OverviewResponse,
   ProblemDetails,
+  RunsListResponse,
   ServicesResponse,
   SpanListResponse,
   StepKindsResponse,
@@ -114,8 +120,49 @@ export class HttpTraceApi implements TraceApi {
     return this.get<DatasetsListResponse>(`${this.scopedBase()}/datasets`, {}, signal);
   }
 
+  getDataset(datasetId: string, signal?: AbortSignal) {
+    return this.get<DatasetDto>(`${this.scopedBase()}/datasets/${encodeURIComponent(datasetId)}`, {}, signal);
+  }
+
+  createDataset(name: string, signal?: AbortSignal) {
+    return this.post<DatasetDto>(`${this.scopedBase()}/datasets`, { name }, signal);
+  }
+
+  deleteDataset(datasetId: string, signal?: AbortSignal) {
+    return this.del(`${this.scopedBase()}/datasets/${encodeURIComponent(datasetId)}`, signal);
+  }
+
+  listDatasetVersions(datasetId: string, signal?: AbortSignal) {
+    return this.get<DatasetVersionsListResponse>(`${this.scopedBase()}/datasets/${encodeURIComponent(datasetId)}/versions`, {}, signal);
+  }
+
+  listDatasetVersionItemsWithDeleted(datasetId: string, versionId: string, signal?: AbortSignal) {
+    return this.get<DatasetItemsListResponse>(`${this.scopedBase()}/datasets/${encodeURIComponent(datasetId)}/versions/${encodeURIComponent(versionId)}/items`, {}, signal);
+  }
+
+  listDatasetItems(datasetId: string, signal?: AbortSignal) {
+    return this.get<DatasetItemsListResponse>(`${this.scopedBase()}/datasets/${encodeURIComponent(datasetId)}/items`, {}, signal);
+  }
+
+  async createDatasetItem(datasetId: string, item: { input: unknown; expectedOutput?: unknown; metadata?: Record<string, unknown> | null }, signal?: AbortSignal) {
+    const response = await this.post<DatasetItemsListResponse>(`${this.scopedBase()}/datasets/${encodeURIComponent(datasetId)}/items`, { items: [item] }, signal);
+    return response.items[0]!;
+  }
+
+  updateDatasetItem(datasetId: string, itemId: string, patch: { input?: unknown; expectedOutput?: unknown; metadata?: Record<string, unknown> | null }, signal?: AbortSignal) {
+    return this.put<DatasetItemDto>(`${this.scopedBase()}/datasets/${encodeURIComponent(datasetId)}/items/${encodeURIComponent(itemId)}`, patch, signal);
+  }
+
+  deleteDatasetItem(datasetId: string, itemId: string, signal?: AbortSignal) {
+    return this.del(`${this.scopedBase()}/datasets/${encodeURIComponent(datasetId)}/items/${encodeURIComponent(itemId)}`, signal);
+  }
+
   listDatasetRuns(datasetId: string, signal?: AbortSignal) {
     return this.get<DatasetRunsListResponse>(`${this.scopedBase()}/datasets/${encodeURIComponent(datasetId)}/runs`, {}, signal);
+  }
+
+  listRuns(signal?: AbortSignal) {
+    return this.get<RunsListResponse>(`${this.scopedBase()}/runs`, {}, signal);
   }
 
   getDatasetRun(datasetId: string, runId: string, signal?: AbortSignal) {
@@ -154,6 +201,34 @@ export class HttpTraceApi implements TraceApi {
     }
     if (!response.ok) throw await toApiError(response);
     return (await response.json()) as T;
+  }
+
+  private async put<T>(fullPath: string, body: unknown, signal?: AbortSignal): Promise<T> {
+    let response: Response;
+    try {
+      response = await this.fetchFn(fullPath, {
+        method: "PUT",
+        signal,
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") throw error;
+      throw new ApiError(0, "No connection", "Could not reach the MemTrace API.");
+    }
+    if (!response.ok) throw await toApiError(response);
+    return (await response.json()) as T;
+  }
+
+  private async del(fullPath: string, signal?: AbortSignal): Promise<void> {
+    let response: Response;
+    try {
+      response = await this.fetchFn(fullPath, { method: "DELETE", signal, headers: { Accept: "application/json" } });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") throw error;
+      throw new ApiError(0, "No connection", "Could not reach the MemTrace API.");
+    }
+    if (!response.ok) throw await toApiError(response);
   }
 }
 

@@ -7,7 +7,8 @@ import { IDENTITY_API, TRACE_API } from "@/dependency-container";
 import DatasetsPage from "@/ui/pages/DatasetsPage.vue";
 import DatasetDetailPage from "@/ui/pages/DatasetDetailPage.vue";
 import DatasetRunDetailPage from "@/ui/pages/DatasetRunDetailPage.vue";
-import { FakeIdentityApi, FakeTraceApi, datasetDto, datasetRunItem, datasetRunSummary, scoreAggregate } from "../fakes";
+import RunsPage from "@/ui/pages/RunsPage.vue";
+import { FakeIdentityApi, FakeTraceApi, datasetDto, datasetItemDto, datasetRunItem, datasetRunSummary, datasetVersionDto, runListItem, scoreAggregate } from "../fakes";
 
 async function setup(component: object, api: FakeTraceApi, path: string) {
   const router = createRouter({
@@ -15,6 +16,7 @@ async function setup(component: object, api: FakeTraceApi, path: string) {
     routes: [
       { path: "/datasets", name: "datasets", component: { template: "<div />" } },
       { path: "/datasets/:datasetId", name: "dataset", component: { template: "<div />" } },
+      { path: "/runs", name: "runs", component: { template: "<div />" } },
       { path: "/datasets/:datasetId/runs/:runId", name: "dataset-run", component: { template: "<div />" } },
     ],
   });
@@ -28,16 +30,24 @@ async function setup(component: object, api: FakeTraceApi, path: string) {
   return { wrapper, router };
 }
 
+async function clickTab(wrapper: ReturnType<typeof mount>, label: string) {
+  const tabs = wrapper.findAll('[role="tab"]');
+  const tab = tabs.find((t) => t.text() === label);
+  if (!tab) throw new Error(`tab "${label}" not found`);
+  await tab.trigger("click");
+  await flushPromises();
+}
+
 describe("DatasetsPage", () => {
-  it("renders a table row per dataset, one column per metric, and opens it on click", async () => {
+  it("renders a table row per dataset and opens it on click", async () => {
     const api = new FakeTraceApi();
     api.datasets = { items: [datasetDto()] };
 
     const { wrapper, router } = await setup(DatasetsPage, api, "/datasets");
     const headers = wrapper.findAll("th").map((th) => th.text());
-    expect(headers).toEqual(["Dataset", "exact_match", "Generated"]);
+    expect(headers).toEqual(["Dataset", "Version", "Runs", "Created"]);
     expect(wrapper.find("tbody tr").text()).toContain("toy-agent-smoke-test");
-    expect(wrapper.find("tbody tr .mt-pill").text()).toContain("66 %");
+    expect(wrapper.find("tbody tr").text()).toContain("v1");
 
     await wrapper.find("tbody tr").trigger("click");
     await flushPromises();
@@ -45,14 +55,9 @@ describe("DatasetsPage", () => {
     expect(router.currentRoute.value.params.datasetId).toBe("ds-1");
   });
 
-  it("filters by name and by status", async () => {
+  it("filters by name", async () => {
     const api = new FakeTraceApi();
-    api.datasets = {
-      items: [
-        datasetDto({ id: "ds-1", name: "good-agent", lastRun: { id: "r1", name: "v1", createdAt: "2026-09-30T00:00:00Z", itemCount: 1, aggregates: [scoreAggregate({ passRate: 1 })] } }),
-        datasetDto({ id: "ds-2", name: "bad-agent", lastRun: { id: "r2", name: "v1", createdAt: "2026-09-30T00:00:00Z", itemCount: 1, aggregates: [scoreAggregate({ passRate: 0 })] } }),
-      ],
-    };
+    api.datasets = { items: [datasetDto({ id: "ds-1", name: "good-agent" }), datasetDto({ id: "ds-2", name: "bad-agent" })] };
     const { wrapper } = await setup(DatasetsPage, api, "/datasets");
     expect(wrapper.findAll("tbody tr")).toHaveLength(2);
 
@@ -71,13 +76,26 @@ describe("DatasetsPage", () => {
 });
 
 describe("DatasetDetailPage", () => {
-  it("renders a table row per run with its own metric columns and opens one", async () => {
+  it("shows the dataset name and its latest-version items by default", async () => {
     const api = new FakeTraceApi();
-    api.datasets = { items: [datasetDto()] };
+    api.datasetById = { "ds-1": datasetDto() };
+    api.datasetVersions = { "ds-1": { items: [datasetVersionDto()] } };
+    api.datasetItems = { "ds-1": { items: [datasetItemDto({ input: "2+2?" })] } };
+
+    const { wrapper } = await setup(DatasetDetailPage, api, "/datasets/ds-1");
+    expect(wrapper.text()).toContain("toy-agent-smoke-test");
+    expect(wrapper.text()).toContain("2+2?");
+  });
+
+  it("renders a table row per run in the Runs tab and opens one", async () => {
+    const api = new FakeTraceApi();
+    api.datasetById = { "ds-1": datasetDto() };
+    api.datasetVersions = { "ds-1": { items: [datasetVersionDto()] } };
     api.datasetRuns = { "ds-1": { items: [datasetRunSummary()] } };
 
     const { wrapper, router } = await setup(DatasetDetailPage, api, "/datasets/ds-1");
-    expect(wrapper.text()).toContain("toy-agent-smoke-test"); // título resuelto desde listDatasets
+    await clickTab(wrapper, "Runs");
+
     expect(wrapper.find("tbody tr").text()).toContain("toy-agent-v1");
     expect(wrapper.find("tbody tr .mt-pill").text()).toContain("66 %");
 
@@ -89,8 +107,49 @@ describe("DatasetDetailPage", () => {
 
   it("shows an empty state when the dataset has no runs", async () => {
     const api = new FakeTraceApi();
+    api.datasetById = { "ds-1": datasetDto() };
+    api.datasetVersions = { "ds-1": { items: [datasetVersionDto()] } };
     api.datasetRuns = { "ds-1": { items: [] } };
     const { wrapper } = await setup(DatasetDetailPage, api, "/datasets/ds-1");
+    await clickTab(wrapper, "Runs");
+    expect(wrapper.text()).toContain("No runs yet");
+  });
+});
+
+describe("RunsPage", () => {
+  it("renders a table row per run across all datasets, with the dataset name, and opens one", async () => {
+    const api = new FakeTraceApi();
+    api.runs = { items: [runListItem()] };
+
+    const { wrapper, router } = await setup(RunsPage, api, "/runs");
+    const headers = wrapper.findAll("th").map((th) => th.text());
+    expect(headers).toEqual(["Run", "Dataset", "Version", "exact_match", "Items", "Created"]);
+    expect(wrapper.find("tbody tr").text()).toContain("toy-agent-v1");
+    expect(wrapper.find("tbody tr").text()).toContain("toy-agent-smoke-test");
+    expect(wrapper.find("tbody tr .mt-pill").text()).toContain("66 %");
+
+    await wrapper.find("tbody tr").trigger("click");
+    await flushPromises();
+    expect(router.currentRoute.value.name).toBe("dataset-run");
+    expect(router.currentRoute.value.params).toMatchObject({ datasetId: "ds-1", runId: "run-1" });
+  });
+
+  it("filters by dataset and by run/dataset name", async () => {
+    const api = new FakeTraceApi();
+    api.runs = { items: [runListItem({ id: "run-1", datasetId: "ds-1", datasetName: "good-agent" }), runListItem({ id: "run-2", datasetId: "ds-2", datasetName: "bad-agent" })] };
+    const { wrapper } = await setup(RunsPage, api, "/runs");
+    expect(wrapper.findAll("tbody tr")).toHaveLength(2);
+
+    await wrapper.find("input").setValue("good");
+    await flushPromises();
+    expect(wrapper.findAll("tbody tr")).toHaveLength(1);
+    expect(wrapper.find("tbody tr").text()).toContain("good-agent");
+  });
+
+  it("shows an empty state when there are no runs", async () => {
+    const api = new FakeTraceApi();
+    api.runs = { items: [] };
+    const { wrapper } = await setup(RunsPage, api, "/runs");
     expect(wrapper.text()).toContain("No runs yet");
   });
 });

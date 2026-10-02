@@ -6,6 +6,7 @@ import { formatCostUsd, formatCount, formatDuration, formatPercent } from "@/dom
 import { resolveRange } from "@/domain/time-range";
 import { useQuasar } from "quasar";
 import CustomChartsPanel from "../components/CustomChartsPanel.vue";
+import MetricReportView from "../components/MetricReportView.vue";
 import EChart from "../components/EChart.vue";
 import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
@@ -28,15 +29,10 @@ const router = useRouter();
 const route = useRoute();
 const experimentId = computed(() => route.params.experimentId as string);
 
-// Comparativa de coste (tokens) entre agentes: lista de experimentos accesibles + su uso en el rango actual.
 const experiments = useAsync((signal) => identityApi.listExperiments(signal));
-const usage = useAsync((signal) => api.getUsageByExperiment(resolveRange(f.range.value, Date.now()), signal));
-watch(f.range, () => void usage.run(), { immediate: true });
 void experiments.run();
 
 const agentOptions = computed(() => (experiments.data.value ?? []).map((e) => ({ label: e.name, value: e.id })));
-const usageByExperiment = computed(() => new Map((usage.data.value?.items ?? []).map((i) => [i.experimentId, i])));
-const maxAgentTokens = computed(() => Math.max(1, ...(usage.data.value?.items.map((i) => i.totalTokens) ?? [1])));
 const selectAgent = (id: string) => {
   if (id !== experimentId.value) router.push({ name: "metrics", params: { experimentId: id }, query: { range: f.range.value } });
 };
@@ -386,11 +382,58 @@ const topicUsageOption = computed<EChartsCoreOption>(() => {
 
 const maxModelCalls = computed(() => Math.max(1, ...(data.value?.byModel.map((m) => m.calls) ?? [1])));
 const maxToolCalls = computed(() => Math.max(1, ...(data.value?.byTool.map((t) => t.calls) ?? [1])));
-const pct = (value: number, max: number) => `${Math.max(3, (value / max) * 100)}%`;
 const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.errors / t.calls : 0);
 
+// ---- Pestañas de la página: Overview / Compare / Custom charts / un informe guardado por pestaña ----
+const activeTab = ref<string>("overview");
+
+// ---- Informes guardados (ADR-033): una pestaña dinámica por informe, más "+" para crear uno nuevo ----
+const reports = useAsync((signal) => identityApi.listMetricReports(experimentId.value, signal));
+watch(
+  experimentId,
+  () => {
+    activeTab.value = "overview";
+    void reports.run();
+  },
+  { immediate: true },
+);
+
+const reportTabName = (id: string) => `report:${id}`;
+const reportIdFromTab = (tab: string) => (tab.startsWith("report:") ? tab.slice("report:".length) : null);
+
+const creatingReport = ref(false);
+const newReportName = ref("");
+const creatingReportBusy = ref(false);
+
+function openCreateReport() {
+  newReportName.value = "";
+  creatingReport.value = true;
+}
+
+async function createReport() {
+  if (!newReportName.value.trim()) return;
+  creatingReportBusy.value = true;
+  try {
+    const created = await identityApi.createMetricReport(experimentId.value, newReportName.value.trim());
+    await reports.run();
+    activeTab.value = reportTabName(created.id);
+    creatingReport.value = false;
+  } finally {
+    creatingReportBusy.value = false;
+  }
+}
+
+function onReportRenamed(reportId: string, name: string) {
+  const item = reports.data.value?.find((r) => r.id === reportId);
+  if (item) item.name = name;
+}
+
+function onReportDeleted() {
+  activeTab.value = "overview";
+  void reports.run();
+}
+
 // ---- Comparativa entre 2 agentes (superpuesta sobre el mismo rango) ----
-const compareMode = ref(false);
 const compareAgentId = ref<string | null>(null);
 const compareOptions = computed(() => agentOptions.value.filter((o) => o.value !== experimentId.value));
 const agentAName = computed(() => experiments.data.value?.find((e) => e.id === experimentId.value)?.name ?? "This agent");
@@ -398,15 +441,14 @@ const agentBName = computed(() => experiments.data.value?.find((e) => e.id === c
 
 const compareB = useAsync((signal) => api.getOverviewForExperiment(compareAgentId.value as string, resolveRange(f.range.value, Date.now()), signal));
 function loadCompare() {
-  if (compareMode.value && compareAgentId.value) void compareB.run();
+  if (activeTab.value === "compare" && compareAgentId.value) void compareB.run();
 }
-watch([f.range, compareAgentId, compareMode], loadCompare);
+watch([f.range, compareAgentId, activeTab], loadCompare);
 const compareData = computed(() => compareB.data.value);
 
-const toggleCompare = () => {
-  compareMode.value = !compareMode.value;
-  if (compareMode.value && !compareAgentId.value) compareAgentId.value = compareOptions.value[0]?.value ?? null;
-};
+watch(activeTab, (tab) => {
+  if (tab === "compare" && !compareAgentId.value) compareAgentId.value = compareOptions.value[0]?.value ?? null;
+});
 
 const compareRows = computed(() => {
   const a = data.value;
@@ -464,260 +506,276 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
         <div class="agent-select">
           <Select :model-value="experimentId" :options="agentOptions" :loading="experiments.loading.value" placeholder="Select agent" @update:model-value="selectAgent" />
         </div>
-        <q-btn
-          outline
-          no-caps
-          dense
-          :color="compareMode ? 'primary' : undefined"
-          icon="compare_arrows"
-          label="Compare"
-          :disable="(experiments.data.value?.length ?? 0) < 2"
-          @click="toggleCompare"
-        />
         <LiveControl :seconds="liveRefresh.seconds.value" :updated-at="liveRefresh.updatedAt.value" @update:seconds="setRefreshSeconds" />
       </FilterBar>
     </PageHeader>
 
-    <CustomChartsPanel :experiment-id="experimentId" :range="customChartsRange" />
-
-    <section v-if="(experiments.data.value?.length ?? 0) > 1" class="detail-panel agent-cost-panel">
-      <div class="panel-header">
-        <h3>Tokens by agent</h3>
-        <span class="panel-count">{{ experiments.data.value?.length }}</span>
-      </div>
-      <div v-if="usage.loading.value && !usage.data.value" class="loading-box">
-        <q-spinner size="24px" color="primary" />
-      </div>
-      <div v-else class="agent-cost-list">
-        <button
-          v-for="e in experiments.data.value"
-          :key="e.id"
-          class="agent-cost-row"
-          :class="{ active: e.id === experimentId }"
-          type="button"
-          @click="selectAgent(e.id)"
-        >
-          <span class="agent-cost-name">{{ e.name }}</span>
-          <div class="agent-cost-bar-track">
-            <div class="agent-cost-bar" :style="{ width: pct(usageByExperiment.get(e.id)?.totalTokens ?? 0, maxAgentTokens) }" />
-          </div>
-          <span class="agent-cost-tokens">{{ formatCount(usageByExperiment.get(e.id)?.totalTokens ?? 0) }} tokens</span>
-        </button>
-      </div>
-    </section>
-
-    <section v-if="compareMode" class="detail-panel compare-panel">
-      <div class="panel-header">
-        <h3>Compare agents</h3>
-        <div class="compare-agent-select">
-          <Select :model-value="compareAgentId" :options="compareOptions" placeholder="Select agent to compare" @update:model-value="(id) => (compareAgentId = id)" />
-        </div>
-      </div>
-
-      <EmptyState v-if="!compareAgentId" icon="compare_arrows" title="Pick an agent to compare">Choose a second agent above to compare it against {{ agentAName }}.</EmptyState>
-      <ErrorBanner v-else-if="compareB.error.value" :error="compareB.error.value" @retry="loadCompare" />
-      <div v-else-if="compareB.loading.value && !compareData" class="loading-box">
-        <q-spinner size="32px" color="primary" />
-      </div>
-      <template v-else-if="compareData">
-        <table class="compare-table">
-          <thead>
-            <tr>
-              <th></th>
-              <th>{{ agentAName }}</th>
-              <th>{{ agentBName }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in compareRows" :key="row.label">
-              <td class="compare-row-label">{{ row.label }}</td>
-              <td>{{ row.a }}</td>
-              <td>{{ row.b }}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div class="compare-charts">
-          <div class="compare-chart-box">
-            <div class="compare-chart-title">Executions</div>
-            <EChart :option="compareActivityOption" height="220px" label="Executions comparison" />
-          </div>
-          <div class="compare-chart-box">
-            <div class="compare-chart-title">Total tokens</div>
-            <EChart :option="compareTokensOption" height="220px" label="Tokens comparison" />
-          </div>
-          <div class="compare-chart-box">
-            <div class="compare-chart-title">Latency p95</div>
-            <EChart :option="compareLatencyOption" height="220px" label="Latency comparison" />
-          </div>
-        </div>
-      </template>
-    </section>
-
-    <ErrorBanner v-if="overview.error.value" :error="overview.error.value" @retry="reload" />
-    <div v-else-if="overview.loading.value && !data" class="loading-box">
-      <q-spinner size="32px" color="primary" />
+    <div class="metrics-tabs-row">
+      <q-tabs v-model="activeTab" class="metrics-tabs" active-color="primary" indicator-color="primary" align="left" no-caps dense>
+        <q-tab name="overview" label="Overview" />
+        <q-tab name="compare" label="Compare" :disable="(experiments.data.value?.length ?? 0) < 2" />
+        <q-tab name="custom" label="Custom charts" />
+        <q-tab v-for="r in reports.data.value ?? []" :key="r.id" :name="reportTabName(r.id)" :label="r.name" />
+      </q-tabs>
+      <button type="button" class="add-report-btn" title="New report" @click="openCreateReport">+ New report</button>
     </div>
 
-    <EmptyState v-else-if="empty" icon="insights" title="No data in this range">Run an instrumented agent or extend the time range.</EmptyState>
+    <q-dialog v-model="creatingReport">
+      <q-card class="create-report-card">
+        <q-card-section>
+          <div class="create-report-title">New report</div>
+          <input v-model="newReportName" class="text-input" placeholder="Report name" @keyup.enter="createReport" />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat no-caps label="Cancel" @click="creatingReport = false" />
+          <q-btn unelevated no-caps color="primary" label="Create" :disable="!newReportName.trim()" :loading="creatingReportBusy" @click="createReport" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
 
-    <template v-else-if="data">
-      <!-- Summary Overview -->
-      <div class="summary-overview">
-        <div class="summary-tile">
-          <div class="summary-number">{{ formatCount(data.totals.traces) }}</div>
-          <div class="summary-text">Executions</div>
-        </div>
-        <div class="summary-tile">
-          <div class="summary-number">{{ formatCount(data.totals.conversations) }}</div>
-          <div class="summary-text">Conversations</div>
-        </div>
-        <div class="summary-tile">
-          <div class="summary-number">{{ formatCount(data.totals.spans) }}</div>
-          <div class="summary-text">Operations</div>
-        </div>
-      </div>
-
-      <!-- Top Row: Status + Key Metrics -->
-      <div class="top-row">
-        <div class="status-card" :class="health.key">
-          <div class="status-icon"><i /></div>
-          <div class="status-body">
-            <div class="status-label">STATUS</div>
-            <div class="status-value">{{ formatPercent(successRate) }}</div>
-            <div class="status-text">{{ health.text }}</div>
-          </div>
-          <div class="spark-box">
-            <EChart :option="traceSpark" height="72px" label="Trend" />
-          </div>
+    <q-tab-panels v-model="activeTab" animated keep-alive class="metrics-tab-panels">
+      <q-tab-panel name="overview" class="metrics-tab-panel">
+        <ErrorBanner v-if="overview.error.value" :error="overview.error.value" @retry="reload" />
+        <div v-else-if="overview.loading.value && !data" class="loading-box">
+          <q-spinner size="32px" color="primary" />
         </div>
 
-        <div class="metric-card" :class="{ alert: data.totals.errorTraces > 0 }">
-          <div class="metric-label">ERRORS</div>
-          <div class="metric-value-with-icon">
-            <q-icon v-if="data.totals.errorTraces > 0" name="error" size="20px" color="var(--mt-err-ink)" />
-            <div :style="{ color: data.totals.errorTraces > 0 ? 'var(--mt-err-ink)' : 'var(--mt-accent)' }">{{ formatCount(data.totals.errorTraces) }}</div>
-          </div>
-          <div class="metric-detail">{{ formatPercent(data.totals.errorRate) }}</div>
-          <a v-if="data.totals.errorTraces > 0" class="error-link" @click="goToErrors">View traces →</a>
-        </div>
+        <EmptyState v-else-if="empty" icon="insights" title="No data in this range">Run an instrumented agent or extend the time range.</EmptyState>
 
-        <div class="metric-card">
-          <div class="metric-label">LATENCY P95</div>
-          <div class="metric-value" style="color: var(--mt-accent)">{{ formatDuration(data.latencyMs.p95) }}</div>
-          <div class="metric-detail">{{ formatDuration(data.latencyMs.p50) }} median</div>
-        </div>
-
-        <div class="metric-card">
-          <div class="metric-label">TOTAL TOKENS</div>
-          <div class="metric-value" style="color: var(--mt-accent)">{{ formatCount(data.totals.totalTokens) }}</div>
-          <div class="metric-detail">{{ formatCount(Math.round(tokensPerTrace)) }} per exec.</div>
-        </div>
-
-        <div class="metric-card">
-          <div class="metric-label">TOTAL COST</div>
-          <div class="metric-value" style="color: var(--mt-accent)">{{ formatCostUsd(data.totals.costUsd) }}</div>
-          <div class="metric-detail">{{ formatCostUsd(costPerTrace) }} per exec.</div>
-        </div>
-      </div>
-
-      <!-- Charts Row - Activity & Tokens -->
-      <div class="charts-grid">
-        <section class="chart-panel">
-          <h2>Activity and Performance</h2>
-          <EChart :option="activityOption" height="400px" label="Executions, errors, and latency" />
-        </section>
-
-        <section class="chart-panel">
-          <h2>Tool Distribution</h2>
-          <EChart v-if="data.byTool.length" :option="toolUsageOption" height="400px" label="Tool usage" />
-          <div v-else class="no-data">No tools executed</div>
-        </section>
-      </div>
-
-      <!-- Tokens Row -->
-      <div class="tokens-grid">
-        <section class="chart-panel">
-          <h2>Input Tokens (Timeseries)</h2>
-          <EChart :option="inputTokensOption" height="300px" label="Input tokens" />
-        </section>
-
-        <section class="chart-panel">
-          <h2>Output Tokens (Timeseries)</h2>
-          <EChart :option="outputTokensOption" height="300px" label="Output tokens" />
-        </section>
-
-        <section class="chart-panel">
-          <h2>Input by Model</h2>
-          <EChart v-if="data.byModel.length" :option="inputTokensByModelOption" height="300px" label="Input tokens by model" />
-          <div v-else class="no-data">No LLM calls</div>
-        </section>
-
-        <section class="chart-panel">
-          <h2>Output by Model</h2>
-          <EChart v-if="data.byModel.length" :option="outputTokensByModelOption" height="300px" label="Output tokens by model" />
-          <div v-else class="no-data">No LLM calls</div>
-        </section>
-      </div>
-
-      <!-- Latency & Cost Row -->
-      <div class="latency-row">
-        <section class="chart-panel">
-          <h2>Latency by Model</h2>
-          <EChart v-if="data.byModel.length" :option="latencyByModelOption" height="300px" label="Latency p95 by model" />
-          <div v-else class="no-data">No LLM calls</div>
-        </section>
-
-        <section class="chart-panel">
-          <h2>Cost by Model</h2>
-          <EChart v-if="data.byModel.length" :option="costByModelOption" height="300px" label="Cost by model" />
-          <div v-else class="no-data">No LLM calls</div>
-        </section>
-      </div>
-
-      <!-- Details Row -->
-      <div class="details-grid">
-        <section class="detail-panel">
-          <div class="panel-header">
-            <h3>AI Models</h3>
-            <span class="panel-count">{{ data.byModel.length }}</span>
-          </div>
-          <div v-if="!data.byModel.length" class="empty-state">No LLM calls</div>
-          <div v-else class="model-grid">
-            <div v-for="m in data.byModel" :key="m.model" class="model-card">
-              <div class="model-title">{{ m.model }}</div>
-              <div class="model-stat-main">
-                <div class="model-number">{{ formatCount(m.calls) }}</div>
-                <div class="model-label">calls</div>
-              </div>
-              <div class="model-stats-row">
-                <div class="model-stat-item">
-                  <div class="stat-value">{{ formatCount(m.inputTokens + m.outputTokens) }}</div>
-                  <div class="stat-label">tokens</div>
-                </div>
-                <div class="model-stat-item">
-                  <div class="stat-value" style="color: var(--mt-accent)">{{ formatDuration(m.p95Ms) }}</div>
-                  <div class="stat-label">latency p95</div>
-                </div>
-                <div class="model-stat-item">
-                  <div class="stat-value" style="color: var(--mt-accent)">{{ formatCostUsd(m.costUsd) || "n/a" }}</div>
-                  <div class="stat-label">cost</div>
-                </div>
-              </div>
+        <template v-else-if="data">
+          <!-- Summary Overview -->
+          <div class="summary-overview">
+            <div class="summary-tile">
+              <div class="summary-number">{{ formatCount(data.totals.traces) }}</div>
+              <div class="summary-text">Executions</div>
+            </div>
+            <div class="summary-tile">
+              <div class="summary-number">{{ formatCount(data.totals.conversations) }}</div>
+              <div class="summary-text">Conversations</div>
+            </div>
+            <div class="summary-tile">
+              <div class="summary-number">{{ formatCount(data.totals.spans) }}</div>
+              <div class="summary-text">Operations</div>
             </div>
           </div>
-        </section>
 
-        <section class="detail-panel">
-          <div class="panel-header">
-            <h3>Response Topics</h3>
-            <span class="panel-count">{{ data.byTopic.length }}</span>
+          <!-- Top Row: Status + Key Metrics -->
+          <div class="top-row">
+            <div class="status-card" :class="health.key">
+              <div class="status-icon"><i /></div>
+              <div class="status-body">
+                <div class="status-label">STATUS</div>
+                <div class="status-value">{{ formatPercent(successRate) }}</div>
+                <div class="status-text">{{ health.text }}</div>
+              </div>
+              <div class="spark-box">
+                <EChart :option="traceSpark" height="72px" label="Trend" />
+              </div>
+            </div>
+
+            <div class="metric-card" :class="{ alert: data.totals.errorTraces > 0 }">
+              <div class="metric-label">ERRORS</div>
+              <div class="metric-value-with-icon">
+                <q-icon v-if="data.totals.errorTraces > 0" name="error" size="20px" color="var(--mt-err-ink)" />
+                <div :style="{ color: data.totals.errorTraces > 0 ? 'var(--mt-err-ink)' : 'var(--mt-accent)' }">{{ formatCount(data.totals.errorTraces) }}</div>
+              </div>
+              <div class="metric-detail">{{ formatPercent(data.totals.errorRate) }}</div>
+              <a v-if="data.totals.errorTraces > 0" class="error-link" @click="goToErrors">View traces →</a>
+            </div>
+
+            <div class="metric-card">
+              <div class="metric-label">LATENCY P95</div>
+              <div class="metric-value" style="color: var(--mt-accent)">{{ formatDuration(data.latencyMs.p95) }}</div>
+              <div class="metric-detail">{{ formatDuration(data.latencyMs.p50) }} median</div>
+            </div>
+
+            <div class="metric-card">
+              <div class="metric-label">TOTAL TOKENS</div>
+              <div class="metric-value" style="color: var(--mt-accent)">{{ formatCount(data.totals.totalTokens) }}</div>
+              <div class="metric-detail">{{ formatCount(Math.round(tokensPerTrace)) }} per exec.</div>
+            </div>
+
+            <div class="metric-card">
+              <div class="metric-label">TOTAL COST</div>
+              <div class="metric-value" style="color: var(--mt-accent)">{{ formatCostUsd(data.totals.costUsd) }}</div>
+              <div class="metric-detail">{{ formatCostUsd(costPerTrace) }} per exec.</div>
+            </div>
           </div>
-          <div v-if="!data.byTopic.length" class="empty-state">No topics extracted yet for this range</div>
-          <EChart v-else :option="topicUsageOption" height="320px" label="Response topics" />
+
+          <!-- Charts Row - Activity & Tokens -->
+          <div class="charts-grid">
+            <section class="chart-panel">
+              <h2>Activity and Performance</h2>
+              <EChart :option="activityOption" height="400px" label="Executions, errors, and latency" />
+            </section>
+
+            <section class="chart-panel">
+              <h2>Tool Distribution</h2>
+              <EChart v-if="data.byTool.length" :option="toolUsageOption" height="400px" label="Tool usage" />
+              <div v-else class="no-data">No tools executed</div>
+            </section>
+          </div>
+
+          <!-- Tokens Row -->
+          <div class="tokens-grid">
+            <section class="chart-panel">
+              <h2>Input Tokens (Timeseries)</h2>
+              <EChart :option="inputTokensOption" height="300px" label="Input tokens" />
+            </section>
+
+            <section class="chart-panel">
+              <h2>Output Tokens (Timeseries)</h2>
+              <EChart :option="outputTokensOption" height="300px" label="Output tokens" />
+            </section>
+
+            <section class="chart-panel">
+              <h2>Input by Model</h2>
+              <EChart v-if="data.byModel.length" :option="inputTokensByModelOption" height="300px" label="Input tokens by model" />
+              <div v-else class="no-data">No LLM calls</div>
+            </section>
+
+            <section class="chart-panel">
+              <h2>Output by Model</h2>
+              <EChart v-if="data.byModel.length" :option="outputTokensByModelOption" height="300px" label="Output tokens by model" />
+              <div v-else class="no-data">No LLM calls</div>
+            </section>
+          </div>
+
+          <!-- Latency & Cost Row -->
+          <div class="latency-row">
+            <section class="chart-panel">
+              <h2>Latency by Model</h2>
+              <EChart v-if="data.byModel.length" :option="latencyByModelOption" height="300px" label="Latency p95 by model" />
+              <div v-else class="no-data">No LLM calls</div>
+            </section>
+
+            <section class="chart-panel">
+              <h2>Cost by Model</h2>
+              <EChart v-if="data.byModel.length" :option="costByModelOption" height="300px" label="Cost by model" />
+              <div v-else class="no-data">No LLM calls</div>
+            </section>
+          </div>
+
+          <!-- Details Row -->
+          <div class="details-grid">
+            <section class="detail-panel">
+              <div class="panel-header">
+                <h3>AI Models</h3>
+                <span class="panel-count">{{ data.byModel.length }}</span>
+              </div>
+              <div v-if="!data.byModel.length" class="empty-state">No LLM calls</div>
+              <div v-else class="model-grid">
+                <div v-for="m in data.byModel" :key="m.model" class="model-card">
+                  <div class="model-title">{{ m.model }}</div>
+                  <div class="model-stat-main">
+                    <div class="model-number">{{ formatCount(m.calls) }}</div>
+                    <div class="model-label">calls</div>
+                  </div>
+                  <div class="model-stats-row">
+                    <div class="model-stat-item">
+                      <div class="stat-value">{{ formatCount(m.inputTokens + m.outputTokens) }}</div>
+                      <div class="stat-label">tokens</div>
+                    </div>
+                    <div class="model-stat-item">
+                      <div class="stat-value" style="color: var(--mt-accent)">{{ formatDuration(m.p95Ms) }}</div>
+                      <div class="stat-label">latency p95</div>
+                    </div>
+                    <div class="model-stat-item">
+                      <div class="stat-value" style="color: var(--mt-accent)">{{ formatCostUsd(m.costUsd) || "n/a" }}</div>
+                      <div class="stat-label">cost</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="detail-panel">
+              <div class="panel-header">
+                <h3>Response Topics</h3>
+                <span class="panel-count">{{ data.byTopic.length }}</span>
+              </div>
+              <div v-if="!data.byTopic.length" class="empty-state">No topics extracted yet for this range</div>
+              <EChart v-else :option="topicUsageOption" height="320px" label="Response topics" />
+            </section>
+          </div>
+        </template>
+      </q-tab-panel>
+
+      <q-tab-panel name="compare" class="metrics-tab-panel">
+        <section class="detail-panel compare-panel">
+          <div class="panel-header">
+            <h3>Compare agents</h3>
+          </div>
+
+          <div class="compare-selectors">
+            <div class="compare-slot">
+              <label>Agent A</label>
+              <div class="compare-slot-fixed">{{ agentAName }}</div>
+              <span class="compare-slot-hint">Set via the agent selector above</span>
+            </div>
+            <div class="compare-vs">vs</div>
+            <div class="compare-slot">
+              <label>Agent B</label>
+              <Select :model-value="compareAgentId" :options="compareOptions" placeholder="Choose an agent to compare" @update:model-value="(id) => (compareAgentId = id)" />
+            </div>
+          </div>
+
+          <EmptyState v-if="!compareAgentId" icon="compare_arrows" title="Pick an agent to compare">Choose Agent B above to compare it against {{ agentAName }}.</EmptyState>
+          <ErrorBanner v-else-if="compareB.error.value" :error="compareB.error.value" @retry="loadCompare" />
+          <div v-else-if="compareB.loading.value && !compareData" class="loading-box">
+            <q-spinner size="32px" color="primary" />
+          </div>
+          <template v-else-if="compareData">
+            <table class="compare-table">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>{{ agentAName }}</th>
+                  <th>{{ agentBName }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in compareRows" :key="row.label">
+                  <td class="compare-row-label">{{ row.label }}</td>
+                  <td>{{ row.a }}</td>
+                  <td>{{ row.b }}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="compare-charts">
+              <div class="compare-chart-box">
+                <div class="compare-chart-title">Executions</div>
+                <EChart :option="compareActivityOption" height="220px" label="Executions comparison" />
+              </div>
+              <div class="compare-chart-box">
+                <div class="compare-chart-title">Total tokens</div>
+                <EChart :option="compareTokensOption" height="220px" label="Tokens comparison" />
+              </div>
+              <div class="compare-chart-box">
+                <div class="compare-chart-title">Latency p95</div>
+                <EChart :option="compareLatencyOption" height="220px" label="Latency comparison" />
+              </div>
+            </div>
+          </template>
         </section>
-      </div>
-    </template>
+      </q-tab-panel>
+
+      <q-tab-panel name="custom" class="metrics-tab-panel">
+        <CustomChartsPanel :experiment-id="experimentId" :range="customChartsRange" />
+      </q-tab-panel>
+
+      <q-tab-panel v-for="r in reports.data.value ?? []" :key="r.id" :name="reportTabName(r.id)" class="metrics-tab-panel">
+        <MetricReportView
+          v-if="reportIdFromTab(activeTab) === r.id"
+          :experiment-id="experimentId"
+          :report-id="r.id"
+          :range="customChartsRange"
+          @renamed="(name) => onReportRenamed(r.id, name)"
+          @deleted="onReportDeleted"
+        />
+      </q-tab-panel>
+    </q-tab-panels>
   </q-page>
 </template>
 
@@ -737,6 +795,115 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
   justify-content: center;
   align-items: center;
   min-height: 240px;
+}
+
+.metrics-tabs-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--mt-line);
+}
+
+.metrics-tabs {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 44px;
+  border-bottom: none;
+}
+
+.add-report-btn {
+  flex-shrink: 0;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--mt-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 10px 4px;
+  white-space: nowrap;
+}
+
+.add-report-btn:hover {
+  color: var(--mt-accent);
+}
+
+.create-report-card {
+  padding: 8px;
+  min-width: 360px;
+}
+
+.create-report-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--mt-ink);
+  margin-bottom: 8px;
+}
+
+.text-input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: var(--mt-radius-sm, 8px);
+  border: 1px solid var(--mt-line);
+  background: var(--mt-card);
+  font: inherit;
+  font-size: 13px;
+  color: var(--mt-ink);
+}
+
+.text-input:focus {
+  outline: 2px solid var(--mt-accent);
+  outline-offset: -1px;
+}
+
+.metrics-tabs :deep(.q-tab) {
+  min-height: 44px;
+  padding: 0 4px;
+  margin-right: 28px;
+}
+
+.metrics-tabs :deep(.q-tab:last-child) {
+  margin-right: 0;
+}
+
+.metrics-tabs :deep(.q-tab__content) {
+  min-width: 0;
+}
+
+.metrics-tabs :deep(.q-tab__label) {
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--mt-muted);
+}
+
+.metrics-tabs :deep(.q-tab--active .q-tab__label) {
+  color: var(--mt-ink);
+}
+
+.metrics-tabs :deep(.q-tab--disable) {
+  opacity: 0.45;
+}
+
+.metrics-tabs :deep(.q-tabs__content) {
+  gap: 0;
+}
+
+.metrics-tabs :deep(.q-tab__indicator) {
+  height: 2px;
+}
+
+.metrics-tab-panels {
+  background: transparent;
+}
+
+.metrics-tab-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px 0 0;
 }
 
 /* Summary Overview */
@@ -1028,69 +1195,6 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
   width: 200px;
 }
 
-.agent-cost-panel {
-  margin-bottom: 16px;
-}
-
-.agent-cost-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.agent-cost-row {
-  display: grid;
-  grid-template-columns: 160px 1fr auto;
-  align-items: center;
-  gap: 14px;
-  width: 100%;
-  padding: 8px 10px;
-  background: none;
-  border: 1px solid transparent;
-  border-radius: var(--mt-radius-sm);
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.15s ease, border-color 0.15s ease;
-}
-
-.agent-cost-row:hover {
-  background: var(--mt-soft);
-}
-
-.agent-cost-row.active {
-  border-color: var(--mt-accent);
-  background: var(--mt-soft);
-}
-
-.agent-cost-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--mt-ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-cost-bar-track {
-  height: 8px;
-  border-radius: 4px;
-  background: var(--mt-soft);
-  overflow: hidden;
-}
-
-.agent-cost-bar {
-  height: 100%;
-  border-radius: 4px;
-  background: var(--mt-accent);
-}
-
-.agent-cost-tokens {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--mt-muted);
-  white-space: nowrap;
-}
-
 .compare-panel {
   margin-bottom: 16px;
 }
@@ -1099,8 +1203,57 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
   flex-wrap: wrap;
 }
 
-.compare-agent-select {
-  width: 240px;
+.compare-selectors {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  border-radius: var(--mt-radius-lg);
+  background: var(--mt-soft);
+}
+
+.compare-slot {
+  flex: 1 1 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.compare-slot label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--mt-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.compare-slot-fixed {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: var(--mt-radius-sm, 8px);
+  border: 1px solid var(--mt-line);
+  background: var(--mt-card);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--mt-ink);
+}
+
+.compare-slot-hint {
+  font-size: 11px;
+  color: var(--mt-muted);
+}
+
+.compare-vs {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--mt-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 18px;
 }
 
 .compare-table {

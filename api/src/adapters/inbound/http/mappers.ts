@@ -1,6 +1,6 @@
 import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
 import type { AttributeKeyCount, AttributeValueCount, CustomMetricResult, MetricsOverview, ServiceUsage, StepKindCount } from "@/domain/metrics";
-import type { CustomMetric, Dataset, DatasetItem, DatasetRun } from "@/domain/identity";
+import type { CustomMetric, Dataset, DatasetItem, DatasetRun, DatasetRunWithDataset, DatasetVersion, MetricReport, MetricReportWithCharts } from "@/domain/identity";
 import type { DatasetRunItemResult, ScoreAggregate } from "@/domain/evaluation";
 import type { ModelPricing } from "@/domain/pricing";
 import type { SpanCursor, SpanRow } from "@/domain/span-row";
@@ -25,8 +25,15 @@ import type {
   DatasetRunSummaryDto,
   DatasetRunsListResponse,
   DatasetsListResponse,
+  DatasetVersionDto,
+  DatasetVersionsListResponse,
+  RunListItemDto,
+  RunsListResponse,
   ScoreAggregateDto,
   ExperimentUsageResponse,
+  MetricReportDto,
+  MetricReportsListResponse,
+  MetricReportSummaryDto,
   ModelPricingResponse,
   OverviewResponse,
   SavedCustomMetricDto,
@@ -226,14 +233,57 @@ export function toCustomMetricsListResponse(items: CustomMetric[]): CustomMetric
   return { items: items.map(toSavedCustomMetricDto) };
 }
 
+export function toMetricReportSummaryDto(r: MetricReport): MetricReportSummaryDto {
+  return { id: r.id, name: r.name, createdAt: r.createdAt, updatedAt: r.updatedAt };
+}
+
+export function toMetricReportsListResponse(items: MetricReport[]): MetricReportsListResponse {
+  return { items: items.map(toMetricReportSummaryDto) };
+}
+
+export function toMetricReportDto(r: MetricReportWithCharts): MetricReportDto {
+  return {
+    ...toMetricReportSummaryDto(r),
+    charts: r.charts.map((c) => ({
+      customMetricId: c.customMetricId,
+      name: c.name,
+      definition: toCustomMetricDefinitionDto(c.definition),
+      x: c.x,
+      y: c.y,
+      w: c.w,
+      h: c.h,
+    })),
+  };
+}
+
 /** Evaluación offline (ADR-028). */
 
-function toDatasetItemDto(item: DatasetItem): DatasetItemDto {
-  return { id: item.id, input: item.input, expectedOutput: item.expectedOutput, metadata: item.metadata };
+export function toDatasetItemDto(item: DatasetItem): DatasetItemDto {
+  return {
+    id: item.id,
+    datasetVersionId: item.datasetVersionId,
+    input: item.input,
+    expectedOutput: item.expectedOutput,
+    metadata: item.metadata,
+    createdByEmail: item.createdByEmail,
+    createdAt: item.createdAt,
+    updatedByEmail: item.updatedByEmail,
+    updatedAt: item.updatedAt,
+    deletedByEmail: item.deletedByEmail,
+    deletedAt: item.deletedAt,
+  };
 }
 
 export function toDatasetItemsListResponse(items: DatasetItem[]): DatasetItemsListResponse {
   return { items: items.map(toDatasetItemDto) };
+}
+
+function toDatasetVersionDto(version: DatasetVersion, itemCount: number): DatasetVersionDto {
+  return { id: version.id, major: version.major, minor: version.minor, note: version.note, createdByEmail: version.createdByEmail, createdAt: version.createdAt, itemCount };
+}
+
+export function toDatasetVersionsListResponse(versions: Array<{ version: DatasetVersion; itemCount: number }>): DatasetVersionsListResponse {
+  return { items: versions.map((v) => toDatasetVersionDto(v.version, v.itemCount)) };
 }
 
 export function toScoreAggregateDto(a: ScoreAggregate): ScoreAggregateDto {
@@ -253,19 +303,38 @@ export function groupAggregatesByRun(aggregates: ScoreAggregate[]): Map<string, 
 }
 
 export function toDatasetRunSummaryDto(run: DatasetRun, aggregates: ScoreAggregateDto[] = []): DatasetRunSummaryDto {
-  return { id: run.id, name: run.name, itemCount: run.itemCount, createdAt: run.createdAt, aggregates };
+  return { id: run.id, name: run.name, versionMajor: run.versionMajor, versionMinor: run.versionMinor, itemCount: run.itemCount, createdAt: run.createdAt, aggregates };
 }
 
 export function toDatasetRunsListResponse(runs: DatasetRun[], aggregatesByRun: Map<string, ScoreAggregateDto[]>): DatasetRunsListResponse {
   return { items: runs.map((r) => toDatasetRunSummaryDto(r, aggregatesByRun.get(r.id) ?? [])) };
 }
 
-export function toDatasetDto(dataset: Dataset, runCount: number, lastRun: DatasetRun | null, lastRunAggregates: ScoreAggregateDto[] = []): DatasetDto {
+export function toRunListItemDto(run: DatasetRunWithDataset, aggregates: ScoreAggregateDto[] = []): RunListItemDto {
+  return { ...toDatasetRunSummaryDto(run, aggregates), datasetId: run.datasetId, datasetName: run.datasetName };
+}
+
+export function toRunsListResponse(runs: DatasetRunWithDataset[], aggregatesByRun: Map<string, ScoreAggregateDto[]>): RunsListResponse {
+  return { items: runs.map((r) => toRunListItemDto(r, aggregatesByRun.get(r.id) ?? [])) };
+}
+
+export function toDatasetDto(
+  dataset: Dataset,
+  runCount: number,
+  versionCount: number,
+  latestVersionMajor: number,
+  latestVersionMinor: number,
+  lastRun: DatasetRun | null,
+  lastRunAggregates: ScoreAggregateDto[] = [],
+): DatasetDto {
   return {
     id: dataset.id,
     name: dataset.name,
     createdAt: dataset.createdAt,
     runCount,
+    versionCount,
+    latestVersionMajor,
+    latestVersionMinor,
     lastRun: lastRun ? { id: lastRun.id, name: lastRun.name, createdAt: lastRun.createdAt, itemCount: lastRun.itemCount, aggregates: lastRunAggregates } : null,
   };
 }
@@ -273,12 +342,15 @@ export function toDatasetDto(dataset: Dataset, runCount: number, lastRun: Datase
 export interface DatasetListEntry {
   dataset: Dataset;
   runCount: number;
+  versionCount: number;
+  latestVersionMajor: number;
+  latestVersionMinor: number;
   lastRun: DatasetRun | null;
   lastRunAggregates: ScoreAggregateDto[];
 }
 
 export function toDatasetsListResponse(entries: DatasetListEntry[]): DatasetsListResponse {
-  return { items: entries.map((e) => toDatasetDto(e.dataset, e.runCount, e.lastRun, e.lastRunAggregates)) };
+  return { items: entries.map((e) => toDatasetDto(e.dataset, e.runCount, e.versionCount, e.latestVersionMajor, e.latestVersionMinor, e.lastRun, e.lastRunAggregates)) };
 }
 
 function toDatasetRunItemResultDto(item: DatasetRunItemResult): DatasetRunItemResultDto {

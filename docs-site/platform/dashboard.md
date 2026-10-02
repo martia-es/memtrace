@@ -14,13 +14,21 @@ One trace is one run of your agent. The list shows root span, service, duration,
 
 Each span is a step: an LLM call, a tool, a retriever or an agent. Spans are color-coded by kind, and an LLM span shows model, provider, token counts, finish reason and, if captured, the messages. Errors show the status message.
 
-## Overview metrics
+## Metrics
 
-Totals, latency, a time series, tokens per model and tool usage for the selected time range and experiment. If you have access to more than one agent, a token-usage comparison across all of them is shown at the top of the page; click an agent there (or use the agent selector next to the time range) to switch which one the rest of the page shows.
+The Metrics page is organized into tabs: **Overview**, **Compare**, **Custom charts**, and one more tab per saved report. The agent selector next to the time range applies to all of them, and switching it reloads whichever tab is open.
 
-## Custom charts
+### Overview
 
-Below the overview metrics, the Metrics page has a builder for charts over your own [custom step types](/library/tracing#custom-step-trees-fine-grained-non-llm-steps) (e.g. a guardrail check traced as its own span). It never requires writing a query — everything is picked from what your own traces already contain:
+Totals, latency, a time series, tokens per model and tool usage for the selected time range and experiment.
+
+### Compare
+
+Side by side comparison of the selected agent against a second agent of your choice, over the same time range: a table (executions, conversations, operations, error rate, latency percentiles, tokens, cost) plus overlaid charts for executions, tokens and latency p95. Requires access to at least 2 agents.
+
+### Custom charts
+
+A builder for charts over your own [custom step types](/library/tracing#custom-step-trees-fine-grained-non-llm-steps) (e.g. a guardrail check traced as its own span). It never requires writing a query — everything is picked from what your own traces already contain:
 
 1. **Chart type** — bars, pie, line, area, a single number, or a table.
 2. **Step type(s)** — detected from your traces for the selected time range.
@@ -28,7 +36,15 @@ Below the overview metrics, the Metrics page has a builder for charts over your 
 4. **Group by attribute** (optional) — a dropdown of attribute keys actually seen on the selected step type(s); picking one breaks the chart down by that attribute's values instead of by step type. For a line/area chart this becomes one line per value.
 5. **Filters** (optional, any number) — each filter picks an attribute and, from the values actually seen, which ones to include, narrowing the dataset before the metric is computed.
 
-The panel shows in plain text what ends up on the X axis and what the series are, before you preview. Once you're happy with a chart, name it and save it — it appears alongside the overview metrics every time you open this page.
+The panel shows in plain text what ends up on the X axis and what the series are, before you preview. Once you're happy with a chart, name it and save it — it appears in this tab every time you open the page, and can then be added to a report (below).
+
+### Reports
+
+A report groups several of your saved custom charts into one named view, laid out on a free grid — you choose where each chart sits and how big it is. Click **+ New report** next to the tabs to create one; it then gets its own tab, which any teammate with access to this experiment also sees (same visibility as a saved chart).
+
+Click **Edit layout** on a report's tab to drag and resize its charts, or add more from your already-saved charts — nothing is duplicated, a report only arranges charts you saved in Custom charts, so editing a chart there updates it everywhere it's used. **Save layout** commits the arrangement; **Cancel** discards it.
+
+**Send by email** sends everyone you list a text summary of the report — one table of values per chart, recomputed at send time — directly to their inbox. There's no PDF or image attachment yet; it's a quick way to share current numbers without opening the dashboard.
 
 ## Theme
 

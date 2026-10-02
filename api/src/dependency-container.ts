@@ -15,6 +15,7 @@ import { NoopEmailSender, ResendEmailSender } from "@/adapters/outbound/email/re
 // En `next dev` los módulos se recargan: el contenedor se cachea en globalThis para no abrir conexiones nuevas
 const globalForContainer = globalThis as unknown as {
   __memtraceHandlers?: Handlers;
+  __memtraceTraceQueryService?: TraceQueryService;
   __memtraceIdentity?: { identityRepository: IdentityRepository; authorizationService: AuthorizationService; emailSender: EmailSender };
   __memtraceEvaluation?: EvaluationService;
   __memtraceScoreRepository?: ClickHouseScoreRepository;
@@ -28,11 +29,19 @@ function getScoreRepository(): ClickHouseScoreRepository {
   return globalForContainer.__memtraceScoreRepository;
 }
 
-export function getHandlers(): Handlers {
-  if (!globalForContainer.__memtraceHandlers) {
+/** Compartido por `getHandlers` y por los sitios que necesitan llamar al servicio directamente (p.ej. el envío por email de un informe, ADR-033). */
+export function getTraceQueryService(): TraceQueryService {
+  if (!globalForContainer.__memtraceTraceQueryService) {
     const config = configFromEnv();
     const repository = new ClickHouseTraceRepository(createReadOnlyClient(config), config.database, config.maxConcurrentQueries);
-    globalForContainer.__memtraceHandlers = createHandlers(new TraceQueryService(repository));
+    globalForContainer.__memtraceTraceQueryService = new TraceQueryService(repository);
+  }
+  return globalForContainer.__memtraceTraceQueryService;
+}
+
+export function getHandlers(): Handlers {
+  if (!globalForContainer.__memtraceHandlers) {
+    globalForContainer.__memtraceHandlers = createHandlers(getTraceQueryService());
   }
   return globalForContainer.__memtraceHandlers;
 }

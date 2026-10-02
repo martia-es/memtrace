@@ -33,6 +33,10 @@ configMapGenerator:
       - migrations/postgres/004_organization_theme.sql
       - migrations/postgres/005_custom_metrics.sql
       - migrations/postgres/006_evaluation.sql
+      - migrations/postgres/007_dataset_versioning.sql
+      - migrations/postgres/008_dataset_item_audit_and_semver.sql
+      - migrations/postgres/009_metric_reports.sql
+      - migrations/postgres/010_dataset_item_deletion_audit.sql
     options:
       disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
   - name: clickhouse-config

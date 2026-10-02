@@ -7,7 +7,7 @@ Por cada código que vayas a implementar tienes que:
 
 
 Además:
-- Cada vez que hagas una funcionalidad que requiera tomar / modificar una decisión de diseño, debes crear un ADR en docs/adrs, con el titulo en ingles, por ejemplo: docs/adrs/adr-001-use-fastapi.md. Este ADR debe ser sencillo y no debe contener más de 500 líneas. No debes hacer un ADR por cada nuevo desarrollo, solo por decisiones que impliquen cambios de arquitectura importantes.
+- Cada vez que hagas una funcionalidad que requiera tomar / modificar una decisión de diseño, debes crear un ADR en docs/adrs, con el titulo en ingles, por ejemplo: docs/adrs/sdk/adr-001-use-fastapi.md. Los ADRs están organizados en subcarpetas por temática (infra, storage, sdk, api, identity, ui, observability, evaluation, datasets, pricing) — coloca cada ADR nuevo en la subcarpeta que corresponda, o crea una nueva si ninguna encaja. Este ADR debe ser sencillo y no debe contener más de 500 líneas. No debes hacer un ADR por cada nuevo desarrollo, solo por decisiones que impliquen cambios de arquitectura importantes.
 
 - El Readme.md debe quedarse limpio, debe ser una guia básica para entender la estructura de este proyecto y los comandos básicos para levantarlo. Actualizalo solo cuando sea necesario.
 

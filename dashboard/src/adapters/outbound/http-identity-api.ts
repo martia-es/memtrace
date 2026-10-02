@@ -1,6 +1,17 @@
 import type { CustomMetricDefinitionDto } from "@contract";
 import { ApiError } from "@/application/trace-api";
-import type { ApiKeyDto, CurrentUser, ExperimentDto, IdentityApi, MembersResponseDto, OrganizationDto, OrganizationThemeDto, SavedCustomMetricDto } from "@/application/identity-api";
+import type {
+  ApiKeyDto,
+  CurrentUser,
+  ExperimentDto,
+  IdentityApi,
+  MembersResponseDto,
+  MetricReportDto,
+  MetricReportSummaryDto,
+  OrganizationDto,
+  OrganizationThemeDto,
+  SavedCustomMetricDto,
+} from "@/application/identity-api";
 
 type Fetch = typeof fetch;
 
@@ -91,6 +102,45 @@ export class HttpIdentityApi implements IdentityApi {
     if (!response.ok) throw await toApiError(response);
   }
 
+  async listMetricReports(experimentId: string, signal?: AbortSignal): Promise<MetricReportSummaryDto[]> {
+    const { items } = await this.get<{ items: MetricReportSummaryDto[] }>(`/experiments/${encodeURIComponent(experimentId)}/reports`, signal);
+    return items;
+  }
+
+  createMetricReport(experimentId: string, name: string, signal?: AbortSignal): Promise<MetricReportSummaryDto> {
+    return this.post(`/experiments/${encodeURIComponent(experimentId)}/reports`, { name }, signal);
+  }
+
+  getMetricReport(experimentId: string, reportId: string, signal?: AbortSignal): Promise<MetricReportDto> {
+    return this.get(`/experiments/${encodeURIComponent(experimentId)}/reports/${encodeURIComponent(reportId)}`, signal);
+  }
+
+  renameMetricReport(experimentId: string, reportId: string, name: string, signal?: AbortSignal): Promise<MetricReportDto> {
+    return this.patch(`/experiments/${encodeURIComponent(experimentId)}/reports/${encodeURIComponent(reportId)}`, { name }, signal);
+  }
+
+  async deleteMetricReport(experimentId: string, reportId: string, signal?: AbortSignal): Promise<void> {
+    const response = await this.fetchFn(`${this.baseUrl}/experiments/${encodeURIComponent(experimentId)}/reports/${encodeURIComponent(reportId)}`, {
+      method: "DELETE",
+      signal,
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) throw await toApiError(response);
+  }
+
+  setMetricReportCharts(
+    experimentId: string,
+    reportId: string,
+    charts: Array<{ customMetricId: string; x: number; y: number; w: number; h: number }>,
+    signal?: AbortSignal,
+  ): Promise<MetricReportDto> {
+    return this.put(`/experiments/${encodeURIComponent(experimentId)}/reports/${encodeURIComponent(reportId)}/charts`, { charts }, signal);
+  }
+
+  async sendMetricReportEmail(experimentId: string, reportId: string, toEmails: string[], signal?: AbortSignal): Promise<void> {
+    await this.post(`/experiments/${encodeURIComponent(experimentId)}/reports/${encodeURIComponent(reportId)}/send`, { toEmails }, signal);
+  }
+
   private async get<T>(path: string, signal?: AbortSignal): Promise<T> {
     const response = await this.fetchFn(`${this.baseUrl}${path}`, { signal, headers: { Accept: "application/json" } });
     if (!response.ok) throw await toApiError(response);
@@ -111,6 +161,17 @@ export class HttpIdentityApi implements IdentityApi {
   private async patch<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
     const response = await this.fetchFn(`${this.baseUrl}${path}`, {
       method: "PATCH",
+      signal,
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) throw await toApiError(response);
+    return (await response.json()) as T;
+  }
+
+  private async put<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
+    const response = await this.fetchFn(`${this.baseUrl}${path}`, {
+      method: "PUT",
       signal,
       headers: { Accept: "application/json", "Content-Type": "application/json" },
       body: JSON.stringify(body),

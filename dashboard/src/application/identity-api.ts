@@ -68,6 +68,28 @@ export interface SavedCustomMetricDto {
   createdAt: string;
 }
 
+/** Informe guardado (ADR-033): varios gráficos ya guardados, posicionados en un grid de 12 columnas. */
+export interface MetricReportChartDto {
+  customMetricId: string;
+  name: string;
+  definition: CustomMetricDefinitionDto;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface MetricReportSummaryDto {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MetricReportDto extends MetricReportSummaryDto {
+  charts: MetricReportChartDto[];
+}
+
 export interface IdentityApi {
   /** `null` si no hay sesión (401) — nunca lanza para ese caso, es la forma normal de comprobar el login. */
   getMe(signal?: AbortSignal): Promise<CurrentUser | null>;
@@ -89,4 +111,13 @@ export interface IdentityApi {
   listCustomMetrics(experimentId: string, signal?: AbortSignal): Promise<SavedCustomMetricDto[]>;
   createCustomMetric(experimentId: string, name: string, definition: CustomMetricDefinitionDto, signal?: AbortSignal): Promise<SavedCustomMetricDto>;
   deleteCustomMetric(experimentId: string, metricId: string, signal?: AbortSignal): Promise<void>;
+
+  /** Informes guardados del experimento (ADR-033): agrupan varios gráficos ya guardados en un grid. */
+  listMetricReports(experimentId: string, signal?: AbortSignal): Promise<MetricReportSummaryDto[]>;
+  createMetricReport(experimentId: string, name: string, signal?: AbortSignal): Promise<MetricReportSummaryDto>;
+  getMetricReport(experimentId: string, reportId: string, signal?: AbortSignal): Promise<MetricReportDto>;
+  renameMetricReport(experimentId: string, reportId: string, name: string, signal?: AbortSignal): Promise<MetricReportDto>;
+  deleteMetricReport(experimentId: string, reportId: string, signal?: AbortSignal): Promise<void>;
+  setMetricReportCharts(experimentId: string, reportId: string, charts: Array<{ customMetricId: string; x: number; y: number; w: number; h: number }>, signal?: AbortSignal): Promise<MetricReportDto>;
+  sendMetricReportEmail(experimentId: string, reportId: string, toEmails: string[], signal?: AbortSignal): Promise<void>;
 }

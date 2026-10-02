@@ -22,16 +22,28 @@ export async function GET(request: Request, context: { params: Promise<{ experim
     const { identityRepository } = getIdentity();
     const datasets = await identityRepository.listDatasets(experimentId);
 
-    // por dataset: sus runs (para runCount + el más reciente); un único round-trip a ClickHouse
-    // agrega los "últimos run" de todos los datasets a la vez, no uno por dataset.
-    const runsByDataset = await Promise.all(datasets.map((d) => identityRepository.listDatasetRuns(d.id)));
+    // por dataset: sus runs (para runCount + el más reciente) y sus versiones (ADR-031); un único
+    // round-trip a ClickHouse agrega los "últimos run" de todos los datasets a la vez, no uno por dataset.
+    const [runsByDataset, versionsByDataset] = await Promise.all([
+      Promise.all(datasets.map((d) => identityRepository.listDatasetRuns(d.id))),
+      Promise.all(datasets.map((d) => identityRepository.listDatasetVersions(d.id))),
+    ]);
     const lastRunIds = runsByDataset.map((runs) => runs[0]?.id).filter((id): id is string => id !== undefined);
     const aggregatesByRun = groupAggregatesByRun(await getScores().aggregateForRuns(access.serviceName, lastRunIds));
 
     const entries: DatasetListEntry[] = datasets.map((dataset, i) => {
       const runs = runsByDataset[i]!;
+      const versions = versionsByDataset[i]!;
       const lastRun = runs[0] ?? null;
-      return { dataset, runCount: runs.length, lastRun, lastRunAggregates: lastRun ? (aggregatesByRun.get(lastRun.id) ?? []) : [] };
+      return {
+        dataset,
+        runCount: runs.length,
+        versionCount: versions.length,
+        latestVersionMajor: versions[0]?.major ?? 1,
+        latestVersionMinor: versions[0]?.minor ?? 0,
+        lastRun,
+        lastRunAggregates: lastRun ? (aggregatesByRun.get(lastRun.id) ?? []) : [],
+      };
     });
     return json(toDatasetsListResponse(entries));
   });
@@ -47,6 +59,6 @@ export async function POST(request: Request, context: { params: Promise<{ experi
     const { name } = await parseJsonOrThrow(createDatasetBody, request);
     const { identityRepository } = getIdentity();
     const dataset = await identityRepository.createDataset(experimentId, access.createdByUserId, name);
-    return json(toDatasetDto(dataset, 0, null), 201);
+    return json(toDatasetDto(dataset, 0, 1, 1, 0, null), 201);
   });
 }

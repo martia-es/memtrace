@@ -7,11 +7,16 @@ import type {
   Dataset,
   DatasetItem,
   DatasetRun,
+  DatasetRunWithDataset,
+  DatasetVersion,
   Experiment,
   ExperimentAccess,
   ExperimentRole,
   ExperimentSummary,
   Member,
+  MetricReport,
+  MetricReportChartLayout,
+  MetricReportWithCharts,
   OrgRole,
   Organization,
   OrganizationSummary,
@@ -24,6 +29,31 @@ import type {
 
 const API_KEY_PREFIX = "mtk_";
 const RADIUS_PRESETS = new Set<RadiusPreset>(["sharp", "soft", "round"]);
+
+/** Columnas + joins de autoría/edición/borrado comunes a toda lectura de `dataset_items` (ADR-032). */
+const DATASET_ITEM_SELECT = `
+  i.id, i.dataset_version_id, i.input, i.expected_output, i.metadata,
+  i.created_by, cu.email AS created_by_email, i.created_at,
+  i.updated_by, uu.email AS updated_by_email, i.updated_at,
+  i.deleted_by, du.email AS deleted_by_email, i.deleted_at
+`;
+
+interface DatasetItemRow {
+  id: string;
+  dataset_version_id: string;
+  input: unknown;
+  expected_output: unknown;
+  metadata: unknown;
+  created_by: string;
+  created_by_email: string;
+  created_at: string;
+  updated_by: string | null;
+  updated_by_email: string | null;
+  updated_at: string | null;
+  deleted_by: string | null;
+  deleted_by_email: string | null;
+  deleted_at: string | null;
+}
 
 function hashApiKey(plaintext: string): string {
   return createHash("sha256").update(plaintext).digest("hex");
@@ -354,6 +384,102 @@ export class PostgresIdentityRepository implements IdentityRepository {
     await this.pool.query(`DELETE FROM custom_metrics WHERE id = $1 AND experiment_id = $2`, [metricId, experimentId]);
   }
 
+  async listMetricReports(experimentId: string): Promise<MetricReport[]> {
+    const { rows } = await this.pool.query<{ id: string; experiment_id: string; name: string; created_at: string; updated_at: string }>(
+      `SELECT id, experiment_id, name, created_at, updated_at
+         FROM metric_reports
+        WHERE experiment_id = $1
+        ORDER BY created_at ASC`,
+      [experimentId],
+    );
+    return rows.map(toMetricReport);
+  }
+
+  async createMetricReport(experimentId: string, createdByUserId: string, name: string): Promise<MetricReport> {
+    const { rows } = await this.pool.query<{ id: string; experiment_id: string; name: string; created_at: string; updated_at: string }>(
+      `INSERT INTO metric_reports (experiment_id, name, created_by)
+       VALUES ($1, $2, $3)
+       RETURNING id, experiment_id, name, created_at, updated_at`,
+      [experimentId, name, createdByUserId],
+    );
+    const row = rows[0];
+    if (!row) throw new Error("failed to insert metric report");
+    return toMetricReport(row);
+  }
+
+  async getMetricReport(experimentId: string, reportId: string): Promise<MetricReportWithCharts | null> {
+    const { rows: reportRows } = await this.pool.query<{ id: string; experiment_id: string; name: string; created_at: string; updated_at: string }>(
+      `SELECT id, experiment_id, name, created_at, updated_at FROM metric_reports WHERE id = $1 AND experiment_id = $2`,
+      [reportId, experimentId],
+    );
+    const reportRow = reportRows[0];
+    if (!reportRow) return null;
+
+    const { rows: chartRows } = await this.pool.query<{
+      custom_metric_id: string;
+      name: string;
+      definition: unknown;
+      grid_x: number;
+      grid_y: number;
+      grid_w: number;
+      grid_h: number;
+    }>(
+      `SELECT rc.custom_metric_id, cm.name, cm.definition, rc.grid_x, rc.grid_y, rc.grid_w, rc.grid_h
+         FROM metric_report_charts rc
+         JOIN custom_metrics cm ON cm.id = rc.custom_metric_id
+        WHERE rc.report_id = $1
+        ORDER BY rc.grid_y, rc.grid_x`,
+      [reportId],
+    );
+
+    return {
+      ...toMetricReport(reportRow),
+      charts: chartRows.map((r) => ({
+        customMetricId: r.custom_metric_id,
+        name: r.name,
+        definition: r.definition as Record<string, unknown>,
+        x: r.grid_x,
+        y: r.grid_y,
+        w: r.grid_w,
+        h: r.grid_h,
+      })),
+    };
+  }
+
+  async renameMetricReport(experimentId: string, reportId: string, name: string): Promise<void> {
+    await this.pool.query(`UPDATE metric_reports SET name = $1, updated_at = now() WHERE id = $2 AND experiment_id = $3`, [name, reportId, experimentId]);
+  }
+
+  async deleteMetricReport(experimentId: string, reportId: string): Promise<void> {
+    await this.pool.query(`DELETE FROM metric_reports WHERE id = $1 AND experiment_id = $2`, [reportId, experimentId]);
+  }
+
+  async setMetricReportCharts(experimentId: string, reportId: string, charts: MetricReportChartLayout[]): Promise<void> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      // el report tiene que pertenecer al experimento del caller antes de tocar nada
+      const { rows } = await client.query(`SELECT 1 FROM metric_reports WHERE id = $1 AND experiment_id = $2`, [reportId, experimentId]);
+      if (!rows[0]) throw new Error("metric report not found for this experiment");
+
+      await client.query(`DELETE FROM metric_report_charts WHERE report_id = $1`, [reportId]);
+      for (const c of charts) {
+        await client.query(
+          `INSERT INTO metric_report_charts (report_id, custom_metric_id, grid_x, grid_y, grid_w, grid_h)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [reportId, c.customMetricId, c.x, c.y, c.w, c.h],
+        );
+      }
+      await client.query(`UPDATE metric_reports SET updated_at = now() WHERE id = $1`, [reportId]);
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
   async listDatasets(experimentId: string): Promise<Dataset[]> {
     const { rows } = await this.pool.query<{ id: string; experiment_id: string; name: string; created_at: string }>(
       `SELECT id, experiment_id, name, created_at FROM datasets WHERE experiment_id = $1 ORDER BY created_at DESC`,
@@ -363,14 +489,26 @@ export class PostgresIdentityRepository implements IdentityRepository {
   }
 
   async createDataset(experimentId: string, createdByUserId: string, name: string): Promise<Dataset> {
-    const { rows } = await this.pool.query<{ id: string; experiment_id: string; name: string; created_at: string }>(
-      `INSERT INTO datasets (experiment_id, name, created_by) VALUES ($1, $2, $3)
-       RETURNING id, experiment_id, name, created_at`,
-      [experimentId, name, createdByUserId],
-    );
-    const row = rows[0];
-    if (!row) throw new Error("failed to insert dataset");
-    return toDataset(row);
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const { rows } = await client.query<{ id: string; experiment_id: string; name: string; created_at: string }>(
+        `INSERT INTO datasets (experiment_id, name, created_by) VALUES ($1, $2, $3)
+         RETURNING id, experiment_id, name, created_at`,
+        [experimentId, name, createdByUserId],
+      );
+      const row = rows[0];
+      if (!row) throw new Error("failed to insert dataset");
+      // todo dataset nace con una versión 1.0 vacía (ADR-031/032): así `getLatestDatasetVersion` siempre tiene a qué apuntar.
+      await client.query(`INSERT INTO dataset_versions (dataset_id, major, minor, created_by) VALUES ($1, 1, 0, $2)`, [row.id, createdByUserId]);
+      await client.query("COMMIT");
+      return toDataset(row);
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   async getDataset(datasetId: string): Promise<Dataset | null> {
@@ -381,37 +519,234 @@ export class PostgresIdentityRepository implements IdentityRepository {
     return rows[0] ? toDataset(rows[0]) : null;
   }
 
-  async addDatasetItems(
-    datasetId: string,
-    items: Array<{ input: unknown; expectedOutput: unknown; metadata: Record<string, unknown> | null }>,
-  ): Promise<DatasetItem[]> {
-    const inserted: DatasetItem[] = [];
-    for (const item of items) {
-      const { rows } = await this.pool.query<{ id: string; dataset_id: string; input: unknown; expected_output: unknown; metadata: unknown }>(
-        `INSERT INTO dataset_items (dataset_id, input, expected_output, metadata) VALUES ($1, $2, $3, $4)
-         RETURNING id, dataset_id, input, expected_output, metadata`,
-        [datasetId, JSON.stringify(item.input), item.expectedOutput === undefined ? null : JSON.stringify(item.expectedOutput), item.metadata ? JSON.stringify(item.metadata) : null],
-      );
-      const row = rows[0];
-      if (!row) throw new Error("failed to insert dataset item");
-      inserted.push(toDatasetItem(row));
-    }
-    return inserted;
+  async deleteDataset(datasetId: string): Promise<void> {
+    await this.pool.query(`DELETE FROM datasets WHERE id = $1`, [datasetId]);
   }
 
-  async listDatasetItems(datasetId: string): Promise<DatasetItem[]> {
-    const { rows } = await this.pool.query<{ id: string; dataset_id: string; input: unknown; expected_output: unknown; metadata: unknown }>(
-      `SELECT id, dataset_id, input, expected_output, metadata FROM dataset_items WHERE dataset_id = $1 ORDER BY created_at ASC`,
+  async listDatasetVersions(datasetId: string): Promise<DatasetVersion[]> {
+    const { rows } = await this.pool.query<{ id: string; dataset_id: string; major: number; minor: number; note: string | null; created_by: string; created_by_email: string; created_at: string }>(
+      `SELECT v.id, v.dataset_id, v.major, v.minor, v.note, v.created_by, u.email AS created_by_email, v.created_at
+         FROM dataset_versions v JOIN users u ON u.id = v.created_by
+        WHERE v.dataset_id = $1
+        ORDER BY v.major DESC, v.minor DESC`,
       [datasetId],
+    );
+    return rows.map(toDatasetVersion);
+  }
+
+  async getLatestDatasetVersion(datasetId: string): Promise<DatasetVersion | null> {
+    const { rows } = await this.pool.query<{ id: string; dataset_id: string; major: number; minor: number; note: string | null; created_by: string; created_by_email: string; created_at: string }>(
+      `SELECT v.id, v.dataset_id, v.major, v.minor, v.note, v.created_by, u.email AS created_by_email, v.created_at
+         FROM dataset_versions v JOIN users u ON u.id = v.created_by
+        WHERE v.dataset_id = $1
+        ORDER BY v.major DESC, v.minor DESC LIMIT 1`,
+      [datasetId],
+    );
+    return rows[0] ? toDatasetVersion(rows[0]) : null;
+  }
+
+  /** Clona los items ACTIVOS (`deleted_at IS NULL`) de la última versión a una nueva (bump MAJOR
+   * o MINOR, ADR-032), aplicando `editItem` o `deleteItem` sobre la fila correspondiente si se da.
+   * Un tombstone de una versión anterior nunca se re-clona hacia adelante: solo vive en la
+   * versión donde se registró el borrado. Usado por
+   * `addDatasetItems`/`updateDatasetItem`/`deleteDatasetItem` — nunca se llama a mano. */
+  private async createNextVersion(
+    client: import("pg").PoolClient,
+    datasetId: string,
+    versionCreatedByUserId: string,
+    note: string,
+    bump: "major" | "minor",
+    options: {
+      editItem?: { itemId: string; updatedByUserId: string; patch: { input?: unknown; expectedOutput?: unknown; metadata?: Record<string, unknown> | null } };
+      deleteItem?: { itemId: string; deletedByUserId: string };
+    } = {},
+  ): Promise<{ id: string; major: number; minor: number }> {
+    const { rows: latestRows } = await client.query<{ id: string; major: number; minor: number }>(
+      `SELECT id, major, minor FROM dataset_versions WHERE dataset_id = $1 ORDER BY major DESC, minor DESC LIMIT 1`,
+      [datasetId],
+    );
+    const latest = latestRows[0];
+    const nextMajor = bump === "major" ? (latest?.major ?? 0) + 1 : latest?.major ?? 1;
+    const nextMinor = bump === "major" ? 0 : (latest?.minor ?? 0) + 1;
+    const { rows } = await client.query<{ id: string; major: number; minor: number }>(
+      `INSERT INTO dataset_versions (dataset_id, major, minor, note, created_by) VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, major, minor`,
+      [datasetId, nextMajor, nextMinor, note, versionCreatedByUserId],
+    );
+    const version = rows[0];
+    if (!version) throw new Error("failed to insert dataset version");
+    if (latest) {
+      if (options.editItem) {
+        const { itemId, updatedByUserId, patch } = options.editItem;
+        await client.query(
+          `INSERT INTO dataset_items (dataset_version_id, input, expected_output, metadata, created_by, created_at, updated_by, updated_at)
+           SELECT $1, CASE WHEN id = $3 THEN COALESCE($4::jsonb, input) ELSE input END,
+                      CASE WHEN id = $3 THEN COALESCE($5::jsonb, expected_output) ELSE expected_output END,
+                      CASE WHEN id = $3 THEN COALESCE($6::jsonb, metadata) ELSE metadata END,
+                      created_by, created_at,
+                      CASE WHEN id = $3 THEN $7::uuid ELSE updated_by END,
+                      CASE WHEN id = $3 THEN now() ELSE updated_at END
+             FROM dataset_items WHERE dataset_version_id = $2 AND deleted_at IS NULL`,
+          [
+            version.id,
+            latest.id,
+            itemId,
+            patch.input === undefined ? null : JSON.stringify(patch.input),
+            patch.expectedOutput === undefined ? null : JSON.stringify(patch.expectedOutput),
+            patch.metadata === undefined ? null : JSON.stringify(patch.metadata),
+            updatedByUserId,
+          ],
+        );
+      } else if (options.deleteItem) {
+        const { itemId, deletedByUserId } = options.deleteItem;
+        // los items que sobreviven, tal cual (nunca se re-clona un tombstone ya existente)
+        await client.query(
+          `INSERT INTO dataset_items (dataset_version_id, input, expected_output, metadata, created_by, created_at, updated_by, updated_at)
+           SELECT $1, input, expected_output, metadata, created_by, created_at, updated_by, updated_at
+             FROM dataset_items WHERE dataset_version_id = $2 AND deleted_at IS NULL AND id != $3`,
+          [version.id, latest.id, itemId],
+        );
+        // el item borrado: mismo contenido y autoría original, pero marcado como tombstone aquí.
+        await client.query(
+          `INSERT INTO dataset_items (dataset_version_id, input, expected_output, metadata, created_by, created_at, deleted_by, deleted_at)
+           SELECT $1, input, expected_output, metadata, created_by, created_at, $3, now()
+             FROM dataset_items WHERE id = $2`,
+          [version.id, itemId, deletedByUserId],
+        );
+      } else {
+        await client.query(
+          `INSERT INTO dataset_items (dataset_version_id, input, expected_output, metadata, created_by, created_at, updated_by, updated_at)
+           SELECT $1, input, expected_output, metadata, created_by, created_at, updated_by, updated_at
+             FROM dataset_items WHERE dataset_version_id = $2 AND deleted_at IS NULL`,
+          [version.id, latest.id],
+        );
+      }
+    }
+    return version;
+  }
+
+  async addDatasetItems(
+    datasetId: string,
+    createdByUserId: string,
+    items: Array<{ input: unknown; expectedOutput: unknown; metadata: Record<string, unknown> | null }>,
+  ): Promise<DatasetItem[]> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const note = items.length === 1 ? "Added item" : `Added ${items.length} items`;
+      const version = await this.createNextVersion(client, datasetId, createdByUserId, note, "major");
+      const inserted: DatasetItem[] = [];
+      for (const item of items) {
+        const { rows } = await client.query<{ id: string }>(
+          `INSERT INTO dataset_items (dataset_version_id, input, expected_output, metadata, created_by)
+           VALUES ($1, $2, $3, $4, $5)
+           RETURNING id`,
+          [version.id, JSON.stringify(item.input), item.expectedOutput === undefined ? null : JSON.stringify(item.expectedOutput), item.metadata ? JSON.stringify(item.metadata) : null, createdByUserId],
+        );
+        const row = rows[0];
+        if (!row) throw new Error("failed to insert dataset item");
+        const insertedItem = await this.getDatasetItemWithEmails(client, row.id);
+        if (!insertedItem) throw new Error("failed to read back inserted dataset item");
+        inserted.push(insertedItem);
+      }
+      await client.query("COMMIT");
+      return inserted;
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  private async getDatasetItemWithEmails(client: import("pg").PoolClient | Pool, itemId: string): Promise<DatasetItem | null> {
+    const { rows } = await client.query<DatasetItemRow>(
+      `SELECT ${DATASET_ITEM_SELECT} FROM dataset_items i
+         JOIN users cu ON cu.id = i.created_by
+         LEFT JOIN users uu ON uu.id = i.updated_by
+         LEFT JOIN users du ON du.id = i.deleted_by
+        WHERE i.id = $1`,
+      [itemId],
+    );
+    return rows[0] ? toDatasetItem(rows[0]) : null;
+  }
+
+  /** Items activos de una versión — lo que ve el dashboard como "items actuales" (ADR-032). */
+  async listDatasetItems(datasetVersionId: string): Promise<DatasetItem[]> {
+    const { rows } = await this.pool.query<DatasetItemRow>(
+      `SELECT ${DATASET_ITEM_SELECT} FROM dataset_items i
+         JOIN users cu ON cu.id = i.created_by
+         LEFT JOIN users uu ON uu.id = i.updated_by
+         LEFT JOIN users du ON du.id = i.deleted_by
+        WHERE i.dataset_version_id = $1 AND i.deleted_at IS NULL
+        ORDER BY i.created_at ASC`,
+      [datasetVersionId],
     );
     return rows.map(toDatasetItem);
   }
 
-  async createDatasetRun(id: string, datasetId: string, name: string, itemCount: number): Promise<DatasetRun> {
-    const { rows } = await this.pool.query<{ id: string; dataset_id: string; name: string; item_count: number; created_at: string }>(
-      `INSERT INTO dataset_runs (id, dataset_id, name, item_count) VALUES ($1, $2, $3, $4)
-       RETURNING id, dataset_id, name, item_count, created_at`,
-      [id, datasetId, name, itemCount],
+  /** Todos los items de una versión, incluidos los tombstones de items borrados en ella — para
+   * inspeccionar el historial (ADR-032 follow-up), nunca para editar. */
+  async listDatasetVersionItemsWithDeleted(datasetVersionId: string): Promise<DatasetItem[]> {
+    const { rows } = await this.pool.query<DatasetItemRow>(
+      `SELECT ${DATASET_ITEM_SELECT} FROM dataset_items i
+         JOIN users cu ON cu.id = i.created_by
+         LEFT JOIN users uu ON uu.id = i.updated_by
+         LEFT JOIN users du ON du.id = i.deleted_by
+        WHERE i.dataset_version_id = $1
+        ORDER BY i.created_at ASC`,
+      [datasetVersionId],
+    );
+    return rows.map(toDatasetItem);
+  }
+
+  async updateDatasetItem(
+    datasetId: string,
+    itemId: string,
+    updatedByUserId: string,
+    patch: { input?: unknown; expectedOutput?: unknown; metadata?: Record<string, unknown> | null },
+  ): Promise<DatasetItem | null> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const version = await this.createNextVersion(client, datasetId, updatedByUserId, "Edited item", "minor", { editItem: { itemId, updatedByUserId, patch } });
+      const { rows } = await client.query<{ id: string }>(
+        `SELECT id FROM dataset_items WHERE dataset_version_id = $1 AND updated_by = $2 ORDER BY updated_at DESC LIMIT 1`,
+        [version.id, updatedByUserId],
+      );
+      const row = rows[0];
+      const result = row ? await this.getDatasetItemWithEmails(client, row.id) : null;
+      await client.query("COMMIT");
+      return result;
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async deleteDatasetItem(datasetId: string, itemId: string, deletedByUserId: string): Promise<void> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await this.createNextVersion(client, datasetId, deletedByUserId, "Deleted item", "major", { deleteItem: { itemId, deletedByUserId } });
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async createDatasetRun(id: string, datasetId: string, datasetVersionId: string, name: string, itemCount: number): Promise<DatasetRun> {
+    const { rows } = await this.pool.query<{ id: string; dataset_id: string; dataset_version_id: string; major: number; minor: number; name: string; item_count: number; created_at: string }>(
+      `INSERT INTO dataset_runs (id, dataset_id, dataset_version_id, name, item_count) VALUES ($1, $2, $3, $4, $5)
+       RETURNING dataset_runs.id, dataset_runs.dataset_id, dataset_runs.dataset_version_id, dataset_runs.name, dataset_runs.item_count, dataset_runs.created_at,
+                 (SELECT major FROM dataset_versions WHERE id = $3) AS major,
+                 (SELECT minor FROM dataset_versions WHERE id = $3) AS minor`,
+      [id, datasetId, datasetVersionId, name, itemCount],
     );
     const row = rows[0];
     if (!row) throw new Error("failed to insert dataset run");
@@ -419,19 +754,47 @@ export class PostgresIdentityRepository implements IdentityRepository {
   }
 
   async listDatasetRuns(datasetId: string): Promise<DatasetRun[]> {
-    const { rows } = await this.pool.query<{ id: string; dataset_id: string; name: string; item_count: number; created_at: string }>(
-      `SELECT id, dataset_id, name, item_count, created_at FROM dataset_runs WHERE dataset_id = $1 ORDER BY created_at DESC`,
+    const { rows } = await this.pool.query<{ id: string; dataset_id: string; dataset_version_id: string; major: number; minor: number; name: string; item_count: number; created_at: string }>(
+      `SELECT r.id, r.dataset_id, r.dataset_version_id, v.major, v.minor, r.name, r.item_count, r.created_at
+         FROM dataset_runs r JOIN dataset_versions v ON v.id = r.dataset_version_id
+        WHERE r.dataset_id = $1
+        ORDER BY r.created_at DESC`,
       [datasetId],
     );
     return rows.map(toDatasetRun);
   }
 
   async getDatasetRun(runId: string): Promise<DatasetRun | null> {
-    const { rows } = await this.pool.query<{ id: string; dataset_id: string; name: string; item_count: number; created_at: string }>(
-      `SELECT id, dataset_id, name, item_count, created_at FROM dataset_runs WHERE id = $1`,
+    const { rows } = await this.pool.query<{ id: string; dataset_id: string; dataset_version_id: string; major: number; minor: number; name: string; item_count: number; created_at: string }>(
+      `SELECT r.id, r.dataset_id, r.dataset_version_id, v.major, v.minor, r.name, r.item_count, r.created_at
+         FROM dataset_runs r JOIN dataset_versions v ON v.id = r.dataset_version_id
+        WHERE r.id = $1`,
       [runId],
     );
     return rows[0] ? toDatasetRun(rows[0]) : null;
+  }
+
+  async listRunsForExperiment(experimentId: string): Promise<DatasetRunWithDataset[]> {
+    const { rows } = await this.pool.query<{
+      id: string;
+      dataset_id: string;
+      dataset_version_id: string;
+      major: number;
+      minor: number;
+      name: string;
+      item_count: number;
+      created_at: string;
+      dataset_name: string;
+    }>(
+      `SELECT r.id, r.dataset_id, r.dataset_version_id, v.major, v.minor, r.name, r.item_count, r.created_at, d.name AS dataset_name
+         FROM dataset_runs r
+         JOIN dataset_versions v ON v.id = r.dataset_version_id
+         JOIN datasets d ON d.id = r.dataset_id
+        WHERE d.experiment_id = $1
+        ORDER BY r.created_at DESC`,
+      [experimentId],
+    );
+    return rows.map((row) => ({ ...toDatasetRun(row), datasetName: row.dataset_name }));
   }
 }
 
@@ -447,6 +810,10 @@ function toCustomMetric(row: { id: string; experiment_id: string; name: string; 
     definition: (row.definition ?? {}) as Record<string, unknown>,
     createdAt: row.created_at,
   };
+}
+
+function toMetricReport(row: { id: string; experiment_id: string; name: string; created_at: string; updated_at: string }): MetricReport {
+  return { id: row.id, experimentId: row.experiment_id, name: row.name, createdAt: row.created_at, updatedAt: row.updated_at };
 }
 
 function toExperiment(row: { id: string; organization_id: string; name: string; service_name: string; org_theme: unknown }): Experiment {
@@ -467,18 +834,58 @@ function toDataset(row: { id: string; experiment_id: string; name: string; creat
   return { id: row.id, experimentId: row.experiment_id, name: row.name, createdAt: row.created_at };
 }
 
-function toDatasetItem(row: { id: string; dataset_id: string; input: unknown; expected_output: unknown; metadata: unknown }): DatasetItem {
+function toDatasetVersion(row: {
+  id: string;
+  dataset_id: string;
+  major: number;
+  minor: number;
+  note: string | null;
+  created_by: string;
+  created_by_email: string;
+  created_at: string;
+}): DatasetVersion {
   return {
     id: row.id,
     datasetId: row.dataset_id,
-    input: row.input,
-    expectedOutput: row.expected_output,
-    metadata: (row.metadata ?? null) as Record<string, unknown> | null,
+    major: row.major,
+    minor: row.minor,
+    note: row.note,
+    createdBy: row.created_by,
+    createdByEmail: row.created_by_email,
+    createdAt: row.created_at,
   };
 }
 
-function toDatasetRun(row: { id: string; dataset_id: string; name: string; item_count: number; created_at: string }): DatasetRun {
-  return { id: row.id, datasetId: row.dataset_id, name: row.name, itemCount: row.item_count, createdAt: row.created_at };
+function toDatasetItem(row: DatasetItemRow): DatasetItem {
+  return {
+    id: row.id,
+    datasetVersionId: row.dataset_version_id,
+    input: row.input,
+    expectedOutput: row.expected_output,
+    metadata: (row.metadata ?? null) as Record<string, unknown> | null,
+    createdBy: row.created_by,
+    createdByEmail: row.created_by_email,
+    createdAt: row.created_at,
+    updatedBy: row.updated_by,
+    updatedByEmail: row.updated_by_email,
+    updatedAt: row.updated_at,
+    deletedBy: row.deleted_by,
+    deletedByEmail: row.deleted_by_email,
+    deletedAt: row.deleted_at,
+  };
+}
+
+function toDatasetRun(row: { id: string; dataset_id: string; dataset_version_id: string; major: number; minor: number; name: string; item_count: number; created_at: string }): DatasetRun {
+  return {
+    id: row.id,
+    datasetId: row.dataset_id,
+    datasetVersionId: row.dataset_version_id,
+    versionMajor: row.major,
+    versionMinor: row.minor,
+    name: row.name,
+    itemCount: row.item_count,
+    createdAt: row.created_at,
+  };
 }
 
 function toPendingInvitation(row: {

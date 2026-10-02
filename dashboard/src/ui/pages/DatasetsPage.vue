@@ -1,116 +1,109 @@
 <script setup lang="ts">
-import type { DatasetDto, ScoreAggregateDto } from "@contract";
-import { computed, ref, watch } from "vue";
+import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
+import { useQuasar } from "quasar";
 import { formatDateTime } from "@/domain/format";
-import { aggregateTone, aggregateValueLabel } from "@/domain/evaluation";
 import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
-import FilterPill from "../components/FilterPill.vue";
+import Modal from "../components/Modal.vue";
 import PageHeader from "../components/PageHeader.vue";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
 
-const PAGE_SIZE = 20;
-const STATUS_OPTIONS = [
-  { label: "Passing", value: "passing" },
-  { label: "Needs attention", value: "failing" },
-];
-
 const api = useTraceApi();
 const router = useRouter();
+const $q = useQuasar();
 
 const datasets = useAsync((signal) => api.listDatasets(signal));
 void datasets.run();
 
 const search = ref("");
-const status = ref<string | undefined>(undefined);
-const page = ref(1);
-watch([search, status], () => (page.value = 1));
-
-// columnas dinámicas: una por cada nombre de evaluador visto en algún dataset (p.ej. exact_match, contains)
-const metricNames = computed(() => {
-  const names = new Set<string>();
-  for (const d of datasets.data.value?.items ?? []) for (const a of d.lastRun?.aggregates ?? []) names.add(a.name);
-  return [...names].sort();
-});
-
-function datasetStatus(d: DatasetDto): "passing" | "failing" | "unknown" {
-  const aggregates = d.lastRun?.aggregates ?? [];
-  if (aggregates.length === 0) return "unknown";
-  if (aggregates.some((a) => aggregateTone(a) === "negative")) return "failing";
-  if (aggregates.every((a) => aggregateTone(a) === "positive")) return "passing";
-  return "unknown";
-}
-
 const filtered = computed(() => {
-  const all = datasets.data.value?.items ?? [];
   const q = search.value.trim().toLowerCase();
-  return all.filter((d) => (!q || d.name.toLowerCase().includes(q)) && (!status.value || datasetStatus(d) === status.value));
+  const all = datasets.data.value?.items ?? [];
+  return !q ? all : all.filter((d) => d.name.toLowerCase().includes(q));
 });
-
-const pageCount = computed(() => Math.max(1, Math.ceil(filtered.value.length / PAGE_SIZE)));
-const items = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
-
-function metricCell(d: DatasetDto, metric: string): ScoreAggregateDto | null {
-  return d.lastRun?.aggregates.find((a) => a.name === metric) ?? null;
-}
 
 function openDataset(datasetId: string) {
   router.push({ name: "dataset", params: { datasetId } });
+}
+
+function notifyError(action: string, error: unknown) {
+  const detail = error instanceof Error ? error.message : "Unknown error";
+  $q.notify({ message: `${action}: ${detail}`, color: "negative", timeout: 4000 });
+}
+
+// ---- create dataset ----
+const showCreateModal = ref(false);
+const newDatasetName = ref("");
+const creating = ref(false);
+async function createDataset() {
+  if (!newDatasetName.value.trim()) return;
+  creating.value = true;
+  try {
+    const dataset = await api.createDataset(newDatasetName.value.trim());
+    newDatasetName.value = "";
+    showCreateModal.value = false;
+    await datasets.run();
+    router.push({ name: "dataset", params: { datasetId: dataset.id } });
+  } catch (error) {
+    notifyError("Could not create dataset", error);
+  } finally {
+    creating.value = false;
+  }
 }
 </script>
 
 <template>
   <div class="page">
-    <PageHeader :crumbs="[{ label: 'Evaluation' }]" icon="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" title="Evaluation">
+    <PageHeader :crumbs="[{ label: 'Datasets' }]" icon="M4 6a2 2 0 0 1 2-2h3l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" title="Datasets">
       <div class="actions">
-        <FilterPill label="Status" :model-value="status" :options="STATUS_OPTIONS" all-label="All" @update:model-value="status = $event" />
-        <q-input v-model="search" dense outlined placeholder="Filter by dataset name…" class="search" clearable>
+        <q-input v-model="search" dense outlined placeholder="Filter by name…" class="search" clearable>
           <template #prepend><q-icon name="search" size="18px" /></template>
         </q-input>
+        <button type="button" class="primary-btn" @click="showCreateModal = true">New dataset</button>
       </div>
     </PageHeader>
+
+    <p class="hint muted">
+      Un dataset agrupa ejemplos curados para evaluar tu agente. Cada cambio en sus items crea una nueva <strong>versión</strong> (ver pestaña Versions
+      dentro de cada dataset): los runs pasados siguen apuntando a la versión exacta con la que se ejecutaron.
+    </p>
 
     <ErrorBanner v-if="datasets.error.value" :error="datasets.error.value" @retry="datasets.run()" />
     <div v-else-if="datasets.loading.value && !datasets.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
     <EmptyState v-else-if="(datasets.data.value?.items.length ?? 0) === 0" icon="science" title="No datasets yet">
-      Sube un dataset desde <code>memtrace.eval.run_experiment(data="…")</code> y aparecerá aquí.
+      Crea uno con el botón "New dataset", o sube uno desde <code>memtrace.eval.run_experiment(data="…")</code>.
     </EmptyState>
-    <EmptyState v-else-if="items.length === 0" icon="search_off" title="No matches">Try a different search or status.</EmptyState>
+    <EmptyState v-else-if="filtered.length === 0" icon="search_off" title="No matches">Try a different search.</EmptyState>
 
     <div v-else class="mt-card table-card">
       <table class="datasets">
         <thead>
           <tr>
             <th>Dataset</th>
-            <th v-for="m in metricNames" :key="m" class="num">{{ m }}</th>
-            <th>Generated</th>
+            <th class="num">Version</th>
+            <th class="num">Runs</th>
+            <th>Created</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="d in items" :key="d.id" class="row" tabindex="0" @click="openDataset(d.id)" @keydown.enter="openDataset(d.id)">
+          <tr v-for="d in filtered" :key="d.id" class="row" tabindex="0" @click="openDataset(d.id)" @keydown.enter="openDataset(d.id)">
             <td class="name">{{ d.name }}</td>
-            <td v-for="m in metricNames" :key="m" class="num">
-              <span v-if="metricCell(d, m)" class="mt-pill" :class="{ ok: aggregateTone(metricCell(d, m)!) === 'positive', warn: aggregateTone(metricCell(d, m)!) === 'warning', error: aggregateTone(metricCell(d, m)!) === 'negative', unset: aggregateTone(metricCell(d, m)!) === 'default' }">
-                {{ aggregateValueLabel(metricCell(d, m)!) }}
-              </span>
-              <span v-else class="muted">–</span>
-            </td>
+            <td class="num mono">v{{ d.latestVersionMajor }}.{{ d.latestVersionMinor }}</td>
+            <td class="num mono">{{ d.runCount }}</td>
             <td class="muted mono">{{ formatDateTime(d.createdAt) }}</td>
           </tr>
         </tbody>
       </table>
     </div>
 
-    <div v-if="items.length > 0" class="pager">
-      <span class="muted">{{ filtered.length }} dataset{{ filtered.length === 1 ? "" : "s" }}</span>
-      <div class="pager-controls">
-        <button type="button" class="page-btn" :disabled="page <= 1" @click="page -= 1">Prev</button>
-        <span class="muted mono">Page {{ page }} / {{ pageCount }}</span>
-        <button type="button" class="page-btn" :disabled="page >= pageCount" @click="page += 1">Next</button>
-      </div>
-    </div>
+    <Modal v-if="showCreateModal" title="New dataset" @close="showCreateModal = false">
+      <form class="modal-form" @submit.prevent="createDataset">
+        <input v-model="newDatasetName" class="text-input" placeholder="Dataset name" autofocus />
+        <button type="submit" class="primary-btn" :disabled="creating || !newDatasetName.trim()">Create</button>
+      </form>
+    </Modal>
   </div>
 </template>
 
@@ -130,6 +123,10 @@ function openDataset(datasetId: string) {
 }
 .search {
   width: 260px;
+}
+.hint {
+  margin: 0;
+  font-size: 12.5px;
 }
 .muted {
   color: var(--mt-muted);
@@ -182,34 +179,50 @@ td {
   background: var(--mt-soft-2);
   outline: none;
 }
-.pager {
+
+/* ---- modal ---- */
+.modal-form {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-shrink: 0;
-  font-size: 12.5px;
+  flex-direction: column;
+  gap: 12px;
 }
-.pager-controls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.page-btn {
-  height: 30px;
-  padding: 0 12px;
+.text-input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: var(--mt-radius-lg);
   border: 1px solid var(--mt-line);
-  border-radius: var(--mt-radius-sm);
   background: var(--mt-card);
-  color: var(--mt-ink);
   font: inherit;
+  font-size: 13px;
+  color: var(--mt-ink);
+}
+.text-input:focus {
+  outline: 2px solid var(--mt-accent);
+  outline-offset: -1px;
+}
+.primary-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 20px;
+  border-radius: var(--mt-radius-lg);
+  border: none;
+  background: var(--mt-accent);
+  color: var(--mt-accent-ink);
+  font: inherit;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+  transition: opacity 0.15s ease;
 }
-.page-btn:hover:not(:disabled) {
-  background: var(--mt-soft);
-}
-.page-btn:disabled {
-  opacity: 0.4;
+.primary-btn:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
+}
+.primary-btn:not(:disabled):hover {
+  opacity: 0.9;
 }
 </style>

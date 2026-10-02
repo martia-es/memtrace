@@ -23,7 +23,8 @@ const OTLP_ENDPOINT = import.meta.env.VITE_OTLP_ENDPOINT ?? "http://localhost:43
 const NAV = [
   { name: "conversations", label: "Conversations", icon: "M4 5h16v11H9l-5 4z" },
   { name: "metrics", label: "Metrics", icon: "M3 13h4v8H3zM10 3h4v18h-4zM17 9h4v12h-4z" },
-  { name: "datasets", label: "Evaluation", icon: "M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" },
+  { name: "datasets", label: "Datasets", icon: "M4 6a2 2 0 0 1 2-2h3l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" },
+  { name: "runs", label: "Runs", icon: "M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" },
 ] as const;
 // gestión de organizaciones/experimentos/API keys (ADR-013): no cuelga de :experimentId
 const ADMIN_ICON = "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 13a7.4 7.4 0 0 0 .1-1 7.4 7.4 0 0 0-.1-1l2-1.6-2-3.4-2.4 1a7.6 7.6 0 0 0-1.7-1L15 3h-4l-.3 2.6a7.6 7.6 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.4 7.4 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.6 7.6 0 0 0 1.7 1L11 21h4l.3-2.6a7.6 7.6 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6z";

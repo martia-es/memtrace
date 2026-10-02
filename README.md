@@ -37,14 +37,14 @@ graph LR
 * **OpenTelemetry Collector:** Recibe trazas vía OTLP (puertos `4317` gRPC / `4318` HTTP), agrupadamente con cola persistente en disco.
 * **ClickHouse Server:** Base de datos columnar optimizada para analítica de trazas de alto rendimiento.
 * **ClickHouse Migrations Job:** Orquestador declarativo que aplica migraciones SQL versionadas (`migrations/clickhouse/*.sql`).
-* **PostgreSQL:** Almacén de identidad transaccional (usuarios, organizaciones, experimentos, memberships y sesiones), independiente de ClickHouse — ver [ADR-013](docs/adrs/adr-013-identity-postgres-and-oauth-rbac.md).
+* **PostgreSQL:** Almacén de identidad transaccional (usuarios, organizaciones, experimentos, memberships y sesiones), independiente de ClickHouse — ver [ADR-013](docs/adrs/identity/adr-013-identity-postgres-and-oauth-rbac.md).
 * **Postgres Migrations Job:** Aplica migraciones SQL versionadas del esquema de identidad (`migrations/postgres/*.sql`).
 * **API de Consulta:** Next.js + Auth.js; único punto de acceso a ClickHouse y PostgreSQL, gestiona login OIDC (Google/Microsoft) y autorización RBAC de 2 niveles (organización/experimento).
 * **Kustomize & Kubernetes:** Definición declarativa de infraestructura en [`k8s/`](k8s/) y [`kustomization.yaml`](kustomization.yaml).
 
 ### Modelo de Datos de Identidad (PostgreSQL)
 
-Almacén transaccional independiente de ClickHouse, con integridad referencial (ver [ADR-013](docs/adrs/adr-013-identity-postgres-and-oauth-rbac.md)):
+Almacén transaccional independiente de ClickHouse, con integridad referencial (ver [ADR-013](docs/adrs/identity/adr-013-identity-postgres-and-oauth-rbac.md)):
 
 * **`users` / `accounts` / `sessions` / `verification_token`:** tablas estándar del adaptador de Auth.js (login federado, sin contraseñas propias).
 * **`organizations`:** unidad de aislamiento multi-tenant; agrupa cualquier número de experimentos.

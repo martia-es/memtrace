@@ -1,6 +1,6 @@
 # memtrace-api
 
-API de consulta de MemTrace (pieza 4 del roadmap). Es el **único** punto de acceso a ClickHouse: el dashboard solo conoce su contrato HTTP/JSON. Diseño y contrato: [ADR-009](../docs/adrs/adr-009-query-api-contract.md).
+API de consulta de MemTrace (pieza 4 del roadmap). Es el **único** punto de acceso a ClickHouse: el dashboard solo conoce su contrato HTTP/JSON. Diseño y contrato: [ADR-009](../docs/adrs/api/adr-009-query-api-contract.md).
 
 ## Arrancar
 
@@ -59,4 +59,4 @@ npm run typecheck
 | `CLICKHOUSE_QUERY_MAX_THREADS` | `2` | hilos por consulta |
 | `CLICKHOUSE_MAX_CONCURRENT_QUERIES` | `3` | consultas simultáneas por proceso |
 
-> El ClickHouse local tiene un margen de hilos limitado (kind fija 307 PIDs por contenedor): ver [ADR-010](../docs/adrs/adr-010-clickhouse-thread-footprint-in-kind.md). Por eso la API limita hilos por consulta y concurrencia.
+> El ClickHouse local tiene un margen de hilos limitado (kind fija 307 PIDs por contenedor): ver [ADR-010](../docs/adrs/storage/adr-010-clickhouse-thread-footprint-in-kind.md). Por eso la API limita hilos por consulta y concurrencia.

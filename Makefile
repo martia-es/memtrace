@@ -7,7 +7,7 @@ DASH_IMAGE ?= docker.io/memtrace/dashboard:dev
 DOCS_IMAGE ?= docker.io/memtrace/docs:dev
 
 .DEFAULT_GOAL := help
-.PHONY: help check up images status forward logs query migrate down reset dev-data docs
+.PHONY: help check up images status forward logs query migrate migrate-postgres down reset dev-data docs
 
 help: ## Muestra esta ayuda
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-10s %s\n", $$1, $$2}'
@@ -88,6 +88,11 @@ migrate: ## Relanza las migraciones de ClickHouse
 	kubectl delete job clickhouse-migrate -n $(NS) --ignore-not-found
 	kubectl apply -k .
 	kubectl wait --for=condition=complete job/clickhouse-migrate -n $(NS) --timeout=300s
+
+migrate-postgres: ## Relanza las migraciones de Postgres (necesario tras añadir un archivo en migrations/postgres/)
+	kubectl delete job postgres-migrate -n $(NS) --ignore-not-found
+	kubectl apply -k .
+	kubectl wait --for=condition=complete job/postgres-migrate -n $(NS) --timeout=300s
 
 down: ## Para el clúster conservando los datos (reanuda con 'make up')
 	@pkill -f "kubectl port-forward" 2>/dev/null || true

@@ -1,6 +1,6 @@
 # analytics/topic_extraction
 
-Worker que asigna una temática a cada respuesta del agente, sin llamar a ningún LLM (ver [ADR-022](../docs/adrs/adr-022-topic-extraction-bertopic.md)).
+Worker que asigna una temática a cada respuesta del agente, sin llamar a ningún LLM (ver [ADR-022](../docs/adrs/observability/adr-022-topic-extraction-bertopic.md)).
 
 ## Cómo funciona
 

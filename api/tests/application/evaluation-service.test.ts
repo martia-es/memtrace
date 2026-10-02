@@ -3,12 +3,14 @@ import { EvaluationService } from "@/application/evaluation-service";
 import type { IdentityRepository } from "@/application/ports/identity-repository";
 import type { ScoreRepository } from "@/application/ports/score-repository";
 import type { DatasetRunItemSubmission } from "@/domain/evaluation";
-import type { DatasetRun } from "@/domain/identity";
+import type { DatasetRun, DatasetVersion } from "@/domain/identity";
+
+const LATEST_VERSION: DatasetVersion = { id: "ver-1", datasetId: "ds-1", major: 1, minor: 0, note: null, createdBy: "user-1", createdByEmail: "user@example.com", createdAt: "2026-09-30T00:00:00Z" };
 
 // Solo implementa lo que EvaluationService realmente llama: no tiene sentido escribir un fake
 // completo de un puerto de 20 métodos para probar un caso de uso que usa uno solo.
 function fakeIdentity(createDatasetRun: IdentityRepository["createDatasetRun"]): IdentityRepository {
-  return { createDatasetRun } as unknown as IdentityRepository;
+  return { createDatasetRun, getLatestDatasetVersion: async () => LATEST_VERSION } as unknown as IdentityRepository;
 }
 
 function fakeScores(insertScores: ScoreRepository["insertScores"]): ScoreRepository {
@@ -25,10 +27,10 @@ describe("EvaluationService.submitDatasetRun", () => {
     let insertedRunId: string | undefined;
     let createdWithId: string | undefined;
 
-    const identity = fakeIdentity(async (id, datasetId, name, itemCount) => {
+    const identity = fakeIdentity(async (id, datasetId, datasetVersionId, name, itemCount) => {
       calls.push("createDatasetRun");
       createdWithId = id;
-      return { id, datasetId, name, itemCount, createdAt: "2026-09-30T00:00:00Z" } satisfies DatasetRun;
+      return { id, datasetId, datasetVersionId, versionMajor: 1, versionMinor: 0, name, itemCount, createdAt: "2026-09-30T00:00:00Z" } satisfies DatasetRun;
     });
     const scores = fakeScores(async (_serviceName, datasetRunId) => {
       calls.push("insertScores");
@@ -46,9 +48,9 @@ describe("EvaluationService.submitDatasetRun", () => {
 
   it("never creates the Postgres run record if the ClickHouse insert fails", async () => {
     let created = false;
-    const identity = fakeIdentity(async (id, datasetId, name, itemCount) => {
+    const identity = fakeIdentity(async (id, datasetId, datasetVersionId, name, itemCount) => {
       created = true;
-      return { id, datasetId, name, itemCount, createdAt: "2026-09-30T00:00:00Z" };
+      return { id, datasetId, datasetVersionId, versionMajor: 1, versionMinor: 0, name, itemCount, createdAt: "2026-09-30T00:00:00Z" };
     });
     const scores = fakeScores(async () => {
       throw new Error("clickhouse is down");

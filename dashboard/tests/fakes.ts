@@ -8,11 +8,17 @@ import type {
   CustomMetricDefinitionDto,
   CustomMetricResultResponse,
   DatasetDto,
+  DatasetItemDto,
+  DatasetItemsListResponse,
   DatasetRunDetailResponse,
   DatasetRunItemResultDto,
   DatasetRunSummaryDto,
   DatasetRunsListResponse,
   DatasetsListResponse,
+  DatasetVersionDto,
+  DatasetVersionsListResponse,
+  RunListItemDto,
+  RunsListResponse,
   ScoreAggregateDto,
   ExperimentUsageResponse,
   ModelPricingResponse,
@@ -28,7 +34,18 @@ import type {
   TranscriptResponse,
 } from "@contract";
 import type { ListConversationsParams, ListSpansParams, ListTracesParams, RangeParams, TraceApi } from "@/application/trace-api";
-import type { ApiKeyDto, CurrentUser, ExperimentDto, IdentityApi, MembersResponseDto, OrganizationDto, OrganizationThemeDto, SavedCustomMetricDto } from "@/application/identity-api";
+import type {
+  ApiKeyDto,
+  CurrentUser,
+  ExperimentDto,
+  IdentityApi,
+  MembersResponseDto,
+  MetricReportDto,
+  MetricReportSummaryDto,
+  OrganizationDto,
+  OrganizationThemeDto,
+  SavedCustomMetricDto,
+} from "@/application/identity-api";
 
 const NO_THEME: OrganizationThemeDto = { accentColor: null, radiusPreset: null };
 
@@ -74,6 +91,23 @@ export class FakeIdentityApi implements IdentityApi {
     return { id: "metric-1", name, definition, createdAt: new Date().toISOString() };
   }
   async deleteCustomMetric(): Promise<void> {}
+  async listMetricReports(): Promise<MetricReportSummaryDto[]> {
+    return [];
+  }
+  async createMetricReport(experimentId: string, name: string): Promise<MetricReportSummaryDto> {
+    return { id: "report-1", name, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+  }
+  async getMetricReport(experimentId: string, reportId: string): Promise<MetricReportDto> {
+    return { id: reportId, name: "report", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), charts: [] };
+  }
+  async renameMetricReport(experimentId: string, reportId: string, name: string): Promise<MetricReportDto> {
+    return { id: reportId, name, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), charts: [] };
+  }
+  async deleteMetricReport(): Promise<void> {}
+  async setMetricReportCharts(experimentId: string, reportId: string): Promise<MetricReportDto> {
+    return { id: reportId, name: "report", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), charts: [] };
+  }
+  async sendMetricReportEmail(): Promise<void> {}
 }
 
 export function summary(overrides: Partial<TraceSummaryDto> = {}): TraceSummaryDto {
@@ -181,13 +215,41 @@ export function datasetDto(overrides: Partial<DatasetDto> = {}): DatasetDto {
     name: "toy-agent-smoke-test",
     createdAt: "2026-09-30T22:45:54Z",
     runCount: 1,
+    versionCount: 1,
+    latestVersionMajor: 1,
+    latestVersionMinor: 0,
     lastRun: { id: "run-1", name: "toy-agent-v1", createdAt: "2026-09-30T22:45:54Z", itemCount: 3, aggregates: [scoreAggregate()] },
     ...overrides,
   };
 }
 
+export function datasetVersionDto(overrides: Partial<DatasetVersionDto> = {}): DatasetVersionDto {
+  return { id: "ver-1", major: 1, minor: 0, note: null, createdByEmail: "maria@example.com", createdAt: "2026-09-30T22:45:54Z", itemCount: 3, ...overrides };
+}
+
+export function datasetItemDto(overrides: Partial<DatasetItemDto> = {}): DatasetItemDto {
+  return {
+    id: "item-1",
+    datasetVersionId: "ver-1",
+    input: "2+2?",
+    expectedOutput: "4",
+    metadata: null,
+    createdByEmail: "maria@example.com",
+    createdAt: "2026-09-30T22:45:54Z",
+    updatedByEmail: null,
+    updatedAt: null,
+    deletedByEmail: null,
+    deletedAt: null,
+    ...overrides,
+  };
+}
+
 export function datasetRunSummary(overrides: Partial<DatasetRunSummaryDto> = {}): DatasetRunSummaryDto {
-  return { id: "run-1", name: "toy-agent-v1", itemCount: 3, createdAt: "2026-09-30T22:45:54Z", aggregates: [scoreAggregate()], ...overrides };
+  return { id: "run-1", name: "toy-agent-v1", versionMajor: 1, versionMinor: 0, itemCount: 3, createdAt: "2026-09-30T22:45:54Z", aggregates: [scoreAggregate()], ...overrides };
+}
+
+export function runListItem(overrides: Partial<RunListItemDto> = {}): RunListItemDto {
+  return { ...datasetRunSummary(), datasetId: "ds-1", datasetName: "toy-agent-smoke-test", ...overrides };
 }
 
 export function datasetRunItem(overrides: Partial<DatasetRunItemResultDto> = {}): DatasetRunItemResultDto {
@@ -300,9 +362,60 @@ export class FakeTraceApi implements TraceApi {
   async listDatasets(): Promise<DatasetsListResponse> {
     return this.datasets;
   }
+  datasetById: Record<string, DatasetDto> = {};
+  async getDataset(datasetId: string): Promise<DatasetDto> {
+    const found = this.datasetById[datasetId];
+    if (!found) throw new Error(`no dataset configured for ${datasetId}`);
+    return found;
+  }
+  createDatasetCalls: string[] = [];
+  createdDataset: DatasetDto = datasetDto();
+  async createDataset(name: string): Promise<DatasetDto> {
+    this.createDatasetCalls.push(name);
+    return this.createdDataset;
+  }
+  deleteDatasetCalls: string[] = [];
+  async deleteDataset(datasetId: string): Promise<void> {
+    this.deleteDatasetCalls.push(datasetId);
+  }
+
+  datasetVersions: Record<string, DatasetVersionsListResponse> = {};
+  async listDatasetVersions(datasetId: string): Promise<DatasetVersionsListResponse> {
+    return this.datasetVersions[datasetId] ?? { items: [] };
+  }
+  datasetVersionItemsWithDeleted: Record<string, DatasetItemsListResponse> = {};
+  async listDatasetVersionItemsWithDeleted(_datasetId: string, versionId: string): Promise<DatasetItemsListResponse> {
+    return this.datasetVersionItemsWithDeleted[versionId] ?? { items: [] };
+  }
+
+  datasetItems: Record<string, DatasetItemsListResponse> = {};
+  async listDatasetItems(datasetId: string): Promise<DatasetItemsListResponse> {
+    return this.datasetItems[datasetId] ?? { items: [] };
+  }
+  createDatasetItemCalls: { datasetId: string; item: unknown }[] = [];
+  createdDatasetItem: DatasetItemDto = datasetItemDto();
+  async createDatasetItem(datasetId: string, item: unknown): Promise<DatasetItemDto> {
+    this.createDatasetItemCalls.push({ datasetId, item });
+    return this.createdDatasetItem;
+  }
+  updateDatasetItemCalls: { datasetId: string; itemId: string; patch: unknown }[] = [];
+  updatedDatasetItem: DatasetItemDto = datasetItemDto();
+  async updateDatasetItem(datasetId: string, itemId: string, patch: unknown): Promise<DatasetItemDto> {
+    this.updateDatasetItemCalls.push({ datasetId, itemId, patch });
+    return this.updatedDatasetItem;
+  }
+  deleteDatasetItemCalls: { datasetId: string; itemId: string }[] = [];
+  async deleteDatasetItem(datasetId: string, itemId: string): Promise<void> {
+    this.deleteDatasetItemCalls.push({ datasetId, itemId });
+  }
+
   datasetRuns: Record<string, DatasetRunsListResponse> = {};
   async listDatasetRuns(datasetId: string): Promise<DatasetRunsListResponse> {
     return this.datasetRuns[datasetId] ?? { items: [] };
+  }
+  runs: RunsListResponse = { items: [] };
+  async listRuns(): Promise<RunsListResponse> {
+    return this.runs;
   }
   datasetRunDetail: DatasetRunDetailResponse | Error | null = null;
   async getDatasetRun(): Promise<DatasetRunDetailResponse> {

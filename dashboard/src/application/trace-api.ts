@@ -6,12 +6,18 @@ import type {
   ConversationTreeResponse,
   CustomMetricDefinitionDto,
   CustomMetricResultResponse,
+  DatasetDto,
+  DatasetItemDto,
+  DatasetItemsListResponse,
   DatasetRunDetailResponse,
   DatasetRunsListResponse,
   DatasetsListResponse,
+  DatasetVersionDto,
+  DatasetVersionsListResponse,
   ExperimentUsageResponse,
   ModelPricingResponse,
   OverviewResponse,
+  RunsListResponse,
   ServicesResponse,
   SpanListResponse,
   StepKindsResponse,
@@ -87,8 +93,28 @@ export interface TraceApi {
 
   /** datasets de evaluación offline del experimento (ADR-028) */
   listDatasets(signal?: AbortSignal): Promise<DatasetsListResponse>;
+  getDataset(datasetId: string, signal?: AbortSignal): Promise<DatasetDto>;
+  createDataset(name: string, signal?: AbortSignal): Promise<DatasetDto>;
+  deleteDataset(datasetId: string, signal?: AbortSignal): Promise<void>;
+
+  /** historial de versiones de un dataset (ADR-032), más recientes primero. Puramente
+   * informativo: no hay forma de crear una a mano, son el resultado de editar items. */
+  listDatasetVersions(datasetId: string, signal?: AbortSignal): Promise<DatasetVersionsListResponse>;
+  /** items de una versión concreta, incluidos los tombstones de items borrados ahí — para ver
+   * quién borró qué y cuándo (ADR-032 follow-up). Solo lectura, nunca para editar. */
+  listDatasetVersionItemsWithDeleted(datasetId: string, versionId: string, signal?: AbortSignal): Promise<DatasetItemsListResponse>;
+
+  /** items de la última versión del dataset. Cada mutación crea su propia versión sola (ADR-032):
+   * añadir/borrar sube major, editar sube minor — nunca hay un paso "new version" aparte. */
+  listDatasetItems(datasetId: string, signal?: AbortSignal): Promise<DatasetItemsListResponse>;
+  createDatasetItem(datasetId: string, item: { input: unknown; expectedOutput?: unknown; metadata?: Record<string, unknown> | null }, signal?: AbortSignal): Promise<DatasetItemDto>;
+  updateDatasetItem(datasetId: string, itemId: string, patch: { input?: unknown; expectedOutput?: unknown; metadata?: Record<string, unknown> | null }, signal?: AbortSignal): Promise<DatasetItemDto>;
+  deleteDatasetItem(datasetId: string, itemId: string, signal?: AbortSignal): Promise<void>;
+
   /** ejecuciones guardadas de un dataset, más recientes primero */
   listDatasetRuns(datasetId: string, signal?: AbortSignal): Promise<DatasetRunsListResponse>;
+  /** todas las ejecuciones del experimento, de cualquier dataset (ADR-031) */
+  listRuns(signal?: AbortSignal): Promise<RunsListResponse>;
   /** detalle de una ejecución: metadatos + items con sus scores */
   getDatasetRun(datasetId: string, runId: string, signal?: AbortSignal): Promise<DatasetRunDetailResponse>;
 }

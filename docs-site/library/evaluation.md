@@ -52,7 +52,9 @@ Two built-ins are included to get started: `memtrace.eval.exact_match` and `memt
 
 - **A list you already have** — `[{"input": ..., "expected_output": ...}, ...]`, or a list of `EvalItem`. No MemTrace dependency.
 - **Your own `DatasetSource`** — anything with a `.fetch() -> Iterable[EvalItem]` method, if you want to pull examples from your own store.
-- **A dataset id string** — fetched from MemTrace's query API (needs `pip install "memtrace-ai[eval]"` and a MemTrace deployment). Create the dataset first with `POST /experiments/{experimentId}/datasets` and its items with `POST /experiments/{experimentId}/datasets/{datasetId}/items` (see the [Query API](/platform/api#evaluation-adr-028)) — the dashboard has no "create dataset" screen yet.
+- **A dataset id string** — fetched from MemTrace's query API (needs `pip install "memtrace-ai[eval]"` and a MemTrace deployment). Create the dataset and its items either from the dashboard (**Datasets** → New dataset → Items tab), or via the API: `POST /experiments/{experimentId}/datasets` and `POST /experiments/{experimentId}/datasets/{datasetId}/items` (see the [Query API](/platform/api#evaluation-adr-028)).
+
+  Datasets are versioned automatically: every item you add, edit, or delete from the dashboard creates its own new version (adding/removing bumps the major number, editing content bumps minor) rather than mutating in place, so a run submitted yesterday always stays reproducible even if you edit the dataset today. There is no manual "create version" step — it's a side effect of editing items, and every item records who added or last changed it, and when. `run_experiment(data=dataset_id)` always fetches items from the dataset's **latest** version at the moment it runs; the dashboard's Versions tab is a read-only history of what changed.
 
 ## Where the results go
 
@@ -62,7 +64,7 @@ By default, results upload back to MemTrace **only when `data` was a dataset id*
 run_experiment(data=my_local_data, task=my_agent, evaluators=[...], name="v2", sink=None)
 ```
 
-When `data` is a dataset id, the run appears in the dashboard under **Evaluation** for that experiment. Set `MEMTRACE_API_URL` to include the experiment id (e.g. `http://localhost:3001/api/v1/experiments/<experimentId>`) and `MEMTRACE_API_KEY` to an agent key created from the dashboard (Experiment → API keys) — the same key already used for tracing. See [`examples/06_evaluate_against_memtrace.py`](https://github.com/martia-es/memtrace/blob/main/examples/06_evaluate_against_memtrace.py) for a full script.
+When `data` is a dataset id, the run appears in the dashboard under **Runs** (and under that dataset's own Runs tab, in **Datasets**) for that experiment. Set `MEMTRACE_API_URL` to include the experiment id (e.g. `http://localhost:3001/api/v1/experiments/<experimentId>`) and `MEMTRACE_API_KEY` to an agent key created from the dashboard (Experiment → API keys) — the same key already used for tracing. See [`examples/06_evaluate_against_memtrace.py`](https://github.com/martia-es/memtrace/blob/main/examples/06_evaluate_against_memtrace.py) for a full script.
 
 ## LLM-as-judge evaluators
 
@@ -91,7 +93,7 @@ result = run_experiment(
 
 Both are plain `Evaluator`s (`Score(source="llm_judge")`), so they drop into `evaluators=[...]` alongside `exact_match`/`contains`, and the dashboard shows their verdicts the same way. Expect judged runs to cost money and take longer — each item makes a real LLM call, parallelized the same way `run_experiment`'s `max_workers` already parallelizes `task`.
 
-`AnthropicJudgeClient` is a default, optional client — write your own against the `LLMClient` protocol (`complete(*, system, prompt, model=None) -> str`) to use a different provider. See ADR-029 (`docs/adrs/adr-029-llm-as-judge-evaluators.md` in the repository) for the design.
+`AnthropicJudgeClient` is a default, optional client — write your own against the `LLMClient` protocol (`complete(*, system, prompt, model=None) -> str`) to use a different provider. See ADR-029 (`docs/adrs/evaluation/adr-029-llm-as-judge-evaluators.md` in the repository) for the design.
 
 ## Install
 

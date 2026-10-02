@@ -3,7 +3,7 @@ import type { CustomMetricDefinitionDto, CustomMetricPointDto } from "@contract"
 import type { EChartsCoreOption } from "echarts/core";
 import { computed, reactive, ref, watch } from "vue";
 import { useQuasar } from "quasar";
-import { chartColors } from "../chart-theme";
+import { customMetricChartOption } from "../custom-metric-chart-option";
 import EChart from "./EChart.vue";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTraceApi } from "../composables/useTraceApi";
@@ -149,66 +149,9 @@ function resetBuilder() {
   previewError.value = null;
 }
 
-// ---- opciones de ECharts a partir del resultado ----
+// ---- opciones de ECharts a partir del resultado (compartido con MetricReportView, ADR-033) ----
 function optionFor(result: { points: CustomMetricPointDto[]; timeseries: { bucketStart: string; points: CustomMetricPointDto[] }[] }, type: CustomMetricDefinitionDto["chartType"]): EChartsCoreOption {
-  const c = chartColors($q.dark.isActive);
-  const colors = c.series;
-
-  if (type === "line" || type === "area") {
-    const labels = [...new Set(result.timeseries.flatMap((b) => b.points.map((p) => p.label)))];
-    const xData = result.timeseries.map((b) => new Date(b.bucketStart).toLocaleString());
-    return {
-      backgroundColor: "transparent",
-      textStyle: { color: c.text },
-      grid: { left: 6, right: 6, top: 28, bottom: 6, containLabel: true },
-      legend: { top: 0, textStyle: { color: c.text, fontSize: 11 } },
-      tooltip: { trigger: "axis" },
-      xAxis: { type: "category", data: xData, axisLabel: { color: c.muted, fontSize: 11 }, axisLine: { lineStyle: { color: c.grid } } },
-      yAxis: { type: "value", axisLabel: { color: c.muted, fontSize: 11 }, splitLine: { lineStyle: { color: c.grid, type: "dashed" } } },
-      series: labels.map((label, i) => ({
-        name: label,
-        type: "line",
-        smooth: 0.3,
-        showSymbol: false,
-        areaStyle: type === "area" ? { opacity: 0.18, color: colors[i % colors.length] } : undefined,
-        lineStyle: { width: 2.5, color: colors[i % colors.length] },
-        data: result.timeseries.map((b) => b.points.find((p) => p.label === label)?.value ?? 0),
-      })),
-    };
-  }
-
-  if (type === "pie") {
-    return {
-      backgroundColor: "transparent",
-      textStyle: { color: c.text },
-      tooltip: { trigger: "item" },
-      series: [
-        {
-          type: "pie",
-          radius: ["40%", "70%"],
-          data: result.points.map((p, i) => ({ name: p.label, value: p.value, itemStyle: { color: colors[i % colors.length] } })),
-          label: { color: c.text, fontSize: 12, fontWeight: 600 },
-        },
-      ],
-    };
-  }
-
-  // bar (default)
-  return {
-    backgroundColor: "transparent",
-    textStyle: { color: c.text },
-    grid: { left: 6, right: 6, top: 16, bottom: 6, containLabel: true },
-    tooltip: { trigger: "axis" },
-    xAxis: { type: "category", data: result.points.map((p) => p.label), axisLabel: { color: c.muted, fontSize: 11 }, axisLine: { lineStyle: { color: c.grid } } },
-    yAxis: { type: "value", axisLabel: { color: c.muted, fontSize: 11 }, splitLine: { lineStyle: { color: c.grid, type: "dashed" } } },
-    series: [
-      {
-        type: "bar",
-        barMaxWidth: 44,
-        data: result.points.map((p, i) => ({ value: p.value, itemStyle: { color: colors[i % colors.length], borderRadius: [4, 4, 0, 0] } })),
-      },
-    ],
-  };
+  return customMetricChartOption(result, type, $q.dark.isActive);
 }
 
 const previewOption = computed(() => (previewResult.value && chartType.value !== "table" && chartType.value !== "number" ? optionFor(previewResult.value, chartType.value) : null));
@@ -280,14 +223,19 @@ const METRICS: { value: CustomMetricDefinitionDto["metric"]; label: string }[] =
 <template>
   <section class="detail-panel custom-charts">
     <div class="panel-header">
-      <h3>Custom charts</h3>
-      <span class="panel-hint">Built from your own instrumented spans — see ADR-027/030</span>
+      <div>
+        <h3>Custom charts</h3>
+        <span class="panel-hint">Build a chart from your own instrumented spans — no query language required.</span>
+      </div>
     </div>
 
     <div class="builder">
-      <div class="row">
-        <div class="field full">
-          <label>Chart type</label>
+      <div class="builder-step">
+        <div class="step-head">
+          <span class="step-num">1</span>
+          <div class="step-title">Chart type</div>
+        </div>
+        <div class="step-body">
           <div class="type-row">
             <button v-for="t in CHART_TYPES" :key="t.value" type="button" class="type-btn" :class="{ on: chartType === t.value }" @click="chartType = t.value; previewResult = null">
               {{ t.label }}
@@ -296,9 +244,13 @@ const METRICS: { value: CustomMetricDefinitionDto["metric"]; label: string }[] =
         </div>
       </div>
 
-      <div class="row">
-        <div class="field full">
-          <label>Step type(s) — detected from your traces</label>
+      <div class="builder-step">
+        <div class="step-head">
+          <span class="step-num">2</span>
+          <div class="step-title">Step type(s)</div>
+          <span class="step-caption">Detected from your traces</span>
+        </div>
+        <div class="step-body">
           <div class="chip-select">
             <span v-if="stepKindsLoading" class="hint">Loading…</span>
             <span v-else-if="!stepKinds.length" class="hint">No spans in this range yet.</span>
@@ -316,31 +268,42 @@ const METRICS: { value: CustomMetricDefinitionDto["metric"]; label: string }[] =
         </div>
       </div>
 
-      <div class="row">
-        <div class="field">
-          <label>Metric</label>
-          <select v-model="metric" class="text-input" @change="previewResult = null">
-            <option v-for="m in METRICS" :key="m.value" :value="m.value">{{ m.label }}</option>
-          </select>
+      <div class="builder-step">
+        <div class="step-head">
+          <span class="step-num">3</span>
+          <div class="step-title">Metric &amp; grouping</div>
         </div>
-        <div class="field">
-          <label>Group by attribute (optional)</label>
-          <select v-model="groupByAttribute" class="text-input" :disabled="selectedStepTypes.size === 0" @change="previewResult = null">
-            <option value="">— don't group, break down by step type —</option>
-            <option v-for="k in attributeKeys" :key="k.key" :value="k.key">{{ k.key }} ({{ k.count }})</option>
-          </select>
-          <span v-if="attributeKeysLoading" class="hint">Loading attributes…</span>
-          <span v-else-if="selectedStepTypes.size > 0 && !attributeKeys.length" class="hint">No attributes found on the selected step type(s).</span>
+        <div class="step-body">
+          <div class="row">
+            <div class="field">
+              <label>Metric</label>
+              <select v-model="metric" class="text-input" @change="previewResult = null">
+                <option v-for="m in METRICS" :key="m.value" :value="m.value">{{ m.label }}</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Group by attribute (optional)</label>
+              <select v-model="groupByAttribute" class="text-input" :disabled="selectedStepTypes.size === 0" @change="previewResult = null">
+                <option value="">— don't group, break down by step type —</option>
+                <option v-for="k in attributeKeys" :key="k.key" :value="k.key">{{ k.key }} ({{ k.count }})</option>
+              </select>
+              <span v-if="attributeKeysLoading" class="hint">Loading attributes…</span>
+              <span v-else-if="selectedStepTypes.size > 0 && !attributeKeys.length" class="hint">No attributes found on the selected step type(s).</span>
+            </div>
+          </div>
+          <p class="hint axis-summary">
+            X axis: <strong>{{ axisSummary.xAxis }}</strong><template v-if="axisSummary.series"> · Series: <strong>{{ axisSummary.series }}</strong></template>
+          </p>
         </div>
       </div>
 
-      <p class="hint axis-summary">
-        X axis: {{ axisSummary.xAxis }}<template v-if="axisSummary.series"> · Series: {{ axisSummary.series }}</template>
-      </p>
-
-      <div class="row">
-        <div class="field full">
-          <label>Filters (optional) — narrows the dataset before computing the metric</label>
+      <div class="builder-step">
+        <div class="step-head">
+          <span class="step-num">4</span>
+          <div class="step-title">Filters</div>
+          <span class="step-caption">Optional — narrows the dataset before computing the metric</span>
+        </div>
+        <div class="step-body">
           <div v-for="(row, i) in filterRows" :key="i" class="filter-block">
             <div class="filter-row">
               <select v-model="row.attribute" class="text-input" :disabled="selectedStepTypes.size === 0" @change="loadFilterRowValues(row)">
@@ -376,11 +339,15 @@ const METRICS: { value: CustomMetricDefinitionDto["metric"]; label: string }[] =
       <div class="actions">
         <q-btn unelevated no-caps color="primary" label="Preview" :disable="selectedStepTypes.size === 0" :loading="previewLoading" @click="runPreview" />
         <q-btn outline no-caps label="Clear" @click="resetBuilder" />
-        <div class="save-row">
-          <input v-model="newChartName" class="text-input" placeholder="Name this chart to save it" :disabled="!previewResult" />
+        <div class="save-row" :class="{ highlight: previewResult && !newChartName.trim() }">
+          <div class="save-field">
+            <label>Chart name (required to save)</label>
+            <input v-model="newChartName" class="text-input" placeholder="e.g. Guardrail blocks per day" :disabled="!previewResult" />
+          </div>
           <q-btn outline no-caps color="primary" label="Save to Metrics" :disable="!previewResult || !newChartName.trim()" :loading="saving" @click="saveChart" />
         </div>
       </div>
+      <p v-if="previewResult && !newChartName.trim()" class="hint save-hint">↑ Type a name above to enable "Save to Metrics"</p>
 
       <p v-if="previewError" class="error-text">{{ previewError }}</p>
 
@@ -395,21 +362,27 @@ const METRICS: { value: CustomMetricDefinitionDto["metric"]; label: string }[] =
       </div>
     </div>
 
-    <div v-if="saved.length || savedLoading" class="saved-list">
-      <div v-for="m in saved" :key="m.id" class="saved-card">
-        <div class="saved-head">
-          <span class="name">{{ m.name }}</span>
-          <q-btn flat dense no-caps size="sm" icon="close" @click="removeSaved(m.id)" />
-        </div>
-        <div v-if="savedResults[m.id]" class="saved-chart">
-          <div v-if="m.definition.chartType === 'number'" class="number-tile small">
-            {{ (savedResults[m.id]?.points.reduce((s, p) => s + p.value, 0) ?? 0).toLocaleString() }}
+    <div v-if="saved.length || savedLoading" class="saved-section">
+      <div class="saved-section-head">
+        <h4>Saved charts</h4>
+        <span class="panel-count">{{ saved.length }}</span>
+      </div>
+      <div class="saved-list">
+        <div v-for="m in saved" :key="m.id" class="saved-card">
+          <div class="saved-head">
+            <span class="name">{{ m.name }}</span>
+            <q-btn flat dense no-caps size="sm" icon="close" @click="removeSaved(m.id)" />
           </div>
-          <table v-else-if="m.definition.chartType === 'table'" class="result-table">
-            <thead><tr><th>{{ m.definition.groupByAttribute || "Step type" }}</th><th>{{ METRICS.find((x) => x.value === m.definition.metric)?.label }}</th></tr></thead>
-            <tbody><tr v-for="p in savedResults[m.id]!.points" :key="p.label"><td>{{ p.label }}</td><td>{{ p.value.toLocaleString() }}</td></tr></tbody>
-          </table>
-          <EChart v-else :option="optionFor(savedResults[m.id]!, m.definition.chartType)" height="180px" :label="m.name" />
+          <div v-if="savedResults[m.id]" class="saved-chart">
+            <div v-if="m.definition.chartType === 'number'" class="number-tile small">
+              {{ (savedResults[m.id]?.points.reduce((s, p) => s + p.value, 0) ?? 0).toLocaleString() }}
+            </div>
+            <table v-else-if="m.definition.chartType === 'table'" class="result-table">
+              <thead><tr><th>{{ m.definition.groupByAttribute || "Step type" }}</th><th>{{ METRICS.find((x) => x.value === m.definition.metric)?.label }}</th></tr></thead>
+              <tbody><tr v-for="p in savedResults[m.id]!.points" :key="p.label"><td>{{ p.label }}</td><td>{{ p.value.toLocaleString() }}</td></tr></tbody>
+            </table>
+            <EChart v-else :option="optionFor(savedResults[m.id]!, m.definition.chartType)" height="180px" :label="m.name" />
+          </div>
         </div>
       </div>
     </div>
@@ -425,33 +398,81 @@ const METRICS: { value: CustomMetricDefinitionDto["metric"]; label: string }[] =
 }
 .panel-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 20px;
-  padding-bottom: 16px;
-  border-bottom: 2px solid var(--mt-soft);
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--mt-line);
 }
 .panel-header h3 {
-  margin: 0;
-  font-size: 17px;
+  margin: 0 0 4px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--mt-ink);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 .custom-charts {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
 }
 .panel-hint {
-  font-size: 11.5px;
+  display: block;
+  font-size: 12.5px;
   color: var(--mt-muted);
 }
 .builder {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 0;
+}
+.builder-step {
+  display: flex;
+  gap: 20px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--mt-line-2);
+}
+.builder-step:first-child {
+  padding-top: 0;
+}
+.step-head {
+  flex: 0 0 200px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.step-num {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--mt-soft);
+  color: var(--mt-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+.step-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--mt-ink);
+  letter-spacing: -0.01em;
+}
+.step-caption {
+  display: block;
+  font-size: 11.5px;
+  color: var(--mt-muted);
+  margin-top: 2px;
+}
+.step-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 .row {
   display: flex;
@@ -468,9 +489,11 @@ const METRICS: { value: CustomMetricDefinitionDto["metric"]; label: string }[] =
   flex: 1 1 100%;
 }
 .field label {
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--mt-muted);
-  font-weight: 500;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 .text-input {
   width: 100%;
@@ -483,10 +506,15 @@ const METRICS: { value: CustomMetricDefinitionDto["metric"]; label: string }[] =
   font: inherit;
   font-size: 13px;
   color: var(--mt-ink);
+  transition: border-color 0.15s ease;
+}
+.text-input:hover {
+  border-color: var(--mt-muted);
 }
 .text-input:focus {
   outline: 2px solid var(--mt-accent);
   outline-offset: -1px;
+  border-color: var(--mt-accent);
 }
 select.text-input {
   cursor: pointer;
@@ -505,19 +533,23 @@ select.text-input {
   font-family: inherit;
   cursor: pointer;
   border: 1px solid var(--mt-line);
-  background: var(--mt-soft);
-  color: var(--mt-muted);
+  background: var(--mt-card);
+  color: var(--mt-ink);
   border-radius: var(--mt-radius-sm, 8px);
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 .type-btn {
-  padding: 8px 13px;
+  padding: 8px 14px;
   font-size: 12.5px;
   font-weight: 600;
 }
+.type-btn:hover {
+  border-color: var(--mt-muted);
+}
 .type-btn.on {
-  background: color-mix(in srgb, var(--mt-accent) 16%, var(--mt-card));
+  background: var(--mt-accent);
   border-color: var(--mt-accent);
-  color: var(--mt-accent);
+  color: var(--mt-accent-ink, #fff);
 }
 .chip-select {
   display: flex;
@@ -525,17 +557,21 @@ select.text-input {
   gap: 6px;
   border: 1px solid var(--mt-line);
   border-radius: var(--mt-radius-sm, 8px);
-  padding: 8px;
+  padding: 10px;
   min-height: 40px;
-  background: var(--mt-soft);
+  background: var(--mt-card);
 }
 .chip {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   font-size: 12.5px;
+  font-weight: 500;
   padding: 4px 9px 4px 6px;
-  background: var(--mt-card);
+  background: var(--mt-soft);
+}
+.chip:hover {
+  border-color: var(--mt-muted);
 }
 .chip .n {
   color: var(--mt-muted);
@@ -543,9 +579,13 @@ select.text-input {
   font-variant-numeric: tabular-nums;
 }
 .chip.on {
-  background: color-mix(in srgb, var(--mt-accent) 16%, var(--mt-card));
+  background: var(--mt-accent);
   border-color: var(--mt-accent);
-  color: var(--mt-accent);
+  color: var(--mt-accent-ink, #fff);
+}
+.chip.on .n {
+  color: inherit;
+  opacity: 0.8;
 }
 .filter-row {
   display: flex;
@@ -556,15 +596,22 @@ select.text-input {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding-bottom: 10px;
+  padding-bottom: 14px;
   margin-bottom: 4px;
   border-bottom: 1px dashed var(--mt-line-2);
+}
+.filter-block:last-of-type {
+  border-bottom: none;
+  padding-bottom: 6px;
 }
 .filter-block .filter-row select {
   flex: 1;
 }
 .axis-summary {
-  margin: -4px 0 0;
+  margin: 2px 0 0;
+  padding: 8px 12px;
+  background: var(--mt-soft);
+  border-radius: var(--mt-radius-sm, 8px);
 }
 .result-table {
   width: 100%;
@@ -585,7 +632,7 @@ select.text-input {
   letter-spacing: 0.02em;
 }
 .value-box {
-  border: 1px dashed var(--mt-line);
+  border: 1px solid var(--mt-line-2);
   border-radius: var(--mt-radius-sm, 8px);
   padding: 10px 12px;
   display: flex;
@@ -597,17 +644,40 @@ select.text-input {
   gap: 10px;
   align-items: center;
   flex-wrap: wrap;
-  border-top: 1px solid var(--mt-line-2);
-  padding-top: 14px;
+  padding-top: 20px;
 }
 .save-row {
   display: flex;
   gap: 8px;
-  align-items: center;
+  align-items: flex-end;
   margin-left: auto;
+  padding: 6px 10px;
+  border-radius: var(--mt-radius-sm, 8px);
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+.save-row.highlight {
+  background: color-mix(in srgb, var(--mt-accent) 10%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mt-accent) 35%, transparent);
+}
+.save-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.save-field label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--mt-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 .save-row .text-input {
-  width: 220px;
+  width: 240px;
+}
+.save-hint {
+  margin: -4px 0 0;
+  color: var(--mt-accent);
+  font-weight: 600;
 }
 .error-text {
   font-size: 12.5px;
@@ -615,8 +685,11 @@ select.text-input {
   margin: 0;
 }
 .preview {
-  border-top: 1px solid var(--mt-line-2);
-  padding-top: 14px;
+  margin-top: 4px;
+  padding: 20px;
+  border: 1px solid var(--mt-line);
+  border-radius: var(--mt-radius-lg, 10px);
+  background: var(--mt-soft);
 }
 .number-tile {
   font-size: 44px;
@@ -624,24 +697,54 @@ select.text-input {
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
   padding: 10px 4px;
+  color: var(--mt-accent);
 }
 .number-tile.small {
   font-size: 28px;
   padding: 4px;
 }
+.saved-section {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid var(--mt-line);
+}
+.saved-section-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.saved-section-head h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--mt-ink);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.saved-section-head .panel-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--mt-muted);
+}
 .saved-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
+  gap: 14px;
 }
 .saved-card {
   background: var(--mt-card);
   border: 1px solid var(--mt-line);
   border-radius: var(--mt-radius-lg, 10px);
-  padding: 12px 14px 14px;
+  padding: 14px 16px 16px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.saved-card:hover {
+  border-color: var(--mt-muted);
+  box-shadow: var(--mt-shadow);
 }
 .saved-head {
   display: flex;
@@ -651,5 +754,6 @@ select.text-input {
 .saved-head .name {
   font-size: 13px;
   font-weight: 600;
+  color: var(--mt-ink);
 }
 </style>

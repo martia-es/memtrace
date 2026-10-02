@@ -98,6 +98,21 @@ export const saveCustomMetricBody = z.object({
   definition: customMetricDefinitionBody,
 });
 
+/** Informes guardados (ADR-033): nombre + grid de charts ya guardados. */
+export const createMetricReportBody = z.object({ name: z.string().trim().min(1).max(200) });
+export const renameMetricReportBody = z.object({ name: z.string().trim().min(1).max(200) });
+
+const metricReportChartBody = z.object({
+  customMetricId: z.string().uuid(),
+  x: z.number().int().min(0).max(11),
+  y: z.number().int().min(0),
+  w: z.number().int().min(1).max(12),
+  h: z.number().int().min(1).max(50),
+});
+export const setMetricReportChartsBody = z.object({ charts: z.array(metricReportChartBody).max(50) });
+
+export const sendMetricReportEmailBody = z.object({ toEmails: z.array(z.string().email()).min(1).max(20) });
+
 /** Evaluación offline (ADR-028). */
 
 export const createDatasetBody = z.object({
@@ -112,6 +127,12 @@ const datasetItemBody = z.object({
 
 export const addDatasetItemsBody = z.object({
   items: z.array(datasetItemBody).min(1).max(1000),
+});
+
+export const updateDatasetItemBody = z.object({
+  input: z.unknown().optional(),
+  expectedOutput: z.unknown().optional(),
+  metadata: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 const scoreBody = z.object({

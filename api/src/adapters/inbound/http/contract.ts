@@ -289,6 +289,32 @@ export interface CustomMetricsListResponse {
   items: SavedCustomMetricDto[];
 }
 
+/** Informe guardado (ADR-033): varias custom_metrics en un grid de 12 columnas. */
+export interface MetricReportChartDto {
+  customMetricId: string;
+  name: string;
+  definition: CustomMetricDefinitionDto;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface MetricReportSummaryDto {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MetricReportDto extends MetricReportSummaryDto {
+  charts: MetricReportChartDto[];
+}
+
+export interface MetricReportsListResponse {
+  items: MetricReportSummaryDto[];
+}
+
 /** Evaluación offline (ADR-028). */
 
 export interface ScoreAggregateDto {
@@ -314,6 +340,9 @@ export interface DatasetDto {
   name: string;
   createdAt: string;
   runCount: number;
+  versionCount: number;
+  latestVersionMajor: number;
+  latestVersionMinor: number;
   lastRun: DatasetLastRunDto | null;
 }
 
@@ -321,15 +350,45 @@ export interface DatasetsListResponse {
   items: DatasetDto[];
 }
 
+/** Una foto fija de items de un dataset (ADR-031/ADR-032): se crea sola en cada cambio de item,
+ * nunca a mano — `note` describe automáticamente qué cambió y quién (ver `createdByEmail`). */
+export interface DatasetVersionDto {
+  id: string;
+  major: number;
+  minor: number;
+  note: string | null;
+  createdByEmail: string;
+  createdAt: string;
+  itemCount: number;
+}
+
+export interface DatasetVersionsListResponse {
+  items: DatasetVersionDto[];
+}
+
 export interface DatasetItemDto {
   id: string;
+  datasetVersionId: string;
   input: unknown;
   expectedOutput: unknown;
   metadata: Record<string, unknown> | null;
+  createdByEmail: string;
+  createdAt: string;
+  updatedByEmail: string | null;
+  updatedAt: string | null;
+  /** Si no es null, este item es un tombstone: se borró en esta versión (ADR-032 follow-up). */
+  deletedByEmail: string | null;
+  deletedAt: string | null;
 }
 
 export interface DatasetItemsListResponse {
   items: DatasetItemDto[];
+}
+
+export interface UpdateDatasetItemBody {
+  input?: unknown;
+  expectedOutput?: unknown;
+  metadata?: Record<string, unknown> | null;
 }
 
 export type ScoreDataTypeDto = "numeric" | "boolean" | "categorical";
@@ -361,6 +420,8 @@ export interface SubmitDatasetRunBody {
 export interface DatasetRunSummaryDto {
   id: string;
   name: string;
+  versionMajor: number;
+  versionMinor: number;
   itemCount: number;
   createdAt: string;
   aggregates: ScoreAggregateDto[];
@@ -368,6 +429,16 @@ export interface DatasetRunSummaryDto {
 
 export interface DatasetRunsListResponse {
   items: DatasetRunSummaryDto[];
+}
+
+/** Una fila de la vista global "Runs" (ADR-031): un run de cualquier dataset del experimento. */
+export interface RunListItemDto extends DatasetRunSummaryDto {
+  datasetId: string;
+  datasetName: string;
+}
+
+export interface RunsListResponse {
+  items: RunListItemDto[];
 }
 
 export interface DatasetRunItemResultDto extends DatasetRunItemSubmissionDto {
