@@ -1,20 +1,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { ApiError } from "@/application/trace-api";
+import { describeApiError } from "@/application/describe-api-error";
 
 const props = defineProps<{ error: Error }>();
 defineEmits<{ retry: [] }>();
 
-const message = computed(() => {
-  const e = props.error;
-  if (e instanceof ApiError) {
-    if (e.status === 0) return "Could not reach the API. Is it running (`npm run dev` in api/) and does the proxy point to it?";
-    if (e.status === 503) return "The trace store (ClickHouse) is not responding. Check `make status`.";
-    if (e.status === 404) return "Not found. If it's a trace, it may be outside the retention period (30 days).";
-    return e.detail ?? e.title;
-  }
-  return e.message;
-});
+const message = computed(() => describeApiError(props.error));
 </script>
 
 <template>

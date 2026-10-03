@@ -7,6 +7,7 @@ from opentelemetry.trace import Status
 
 from memtrace.domain import semconv as sc
 from memtrace.domain.attributes import infer_step_type
+from memtrace.application.span_normalization import active_span_normalizers
 from memtrace.domain.redaction import Redactor
 
 logger = logging.getLogger("memtrace")
@@ -19,6 +20,7 @@ class SanitizingSpanExporter(SpanExporter):
     the LangChain handler, Pydantic AI, any auto-instrumented library):
 
     * redacts secrets in attributes, event attributes (exceptions included) and the status message;
+    * fills standard `gen_ai.*` attributes from registered normalizers (before redaction);
     * fills `memtrace.step_type` on spans that lack it, from their standard GenAI attributes.
 
     If sanitizing a span fails, it is exported without attributes or events rather than raw.
@@ -40,7 +42,10 @@ class SanitizingSpanExporter(SpanExporter):
     def _sanitize(self, span: ReadableSpan) -> ReadableSpan:
         try:
             redact = self._redactor.attribute
-            attributes = {k: redact(k, v) for k, v in (span.attributes or {}).items()}
+            raw = dict(span.attributes or {})
+            for normalizer in active_span_normalizers():
+                raw.update(normalizer.normalize(raw))
+            attributes = {k: redact(k, v) for k, v in raw.items()}
             if sc.MEMTRACE_STEP_TYPE not in attributes:
                 inferred = infer_step_type(attributes)
                 if inferred:

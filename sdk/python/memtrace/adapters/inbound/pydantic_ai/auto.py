@@ -7,6 +7,8 @@ import logging
 from typing import Optional
 
 from memtrace.adapters.inbound.auto_instrumentation import resolve_tracer_provider
+from memtrace.adapters.inbound.pydantic_ai.normalization import PydanticAiSpanNormalizer
+from memtrace.application.span_normalization import register_span_normalizer
 from memtrace.application.tracing_service import TracingService
 
 logger = logging.getLogger("memtrace")
@@ -31,6 +33,7 @@ def enable_pydantic_ai_instrumentation(service: Optional[TracingService] = None)
     if provider is None:
         return
 
+    register_span_normalizer(PydanticAiSpanNormalizer())
     Agent.instrument_all(
         InstrumentationSettings(tracer_provider=provider, include_content=service.captures_content)
     )

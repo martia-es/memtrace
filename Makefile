@@ -7,7 +7,7 @@ DASH_IMAGE ?= docker.io/memtrace/dashboard:dev
 DOCS_IMAGE ?= docker.io/memtrace/docs:dev
 
 .DEFAULT_GOAL := help
-.PHONY: help check up images status forward logs query migrate migrate-postgres down reset dev-data docs
+.PHONY: help check up images status forward logs query migrate migrate-postgres down reset db-reset dev-data docs weather
 
 help: ## Muestra esta ayuda
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-10s %s\n", $$1, $$2}'
@@ -107,10 +107,25 @@ reset: ## BORRA el clúster y TODOS los datos (pide confirmación)
 		echo "Cancelado"; \
 	fi
 
+db-reset: ## BORRA las tablas de Postgres y ClickHouse (conserva el clúster) y relanza las migraciones (pide confirmación)
+	@read -p "Esto borra TODAS las tablas de Postgres y ClickHouse (trazas, datasets, usuarios...). ¿Seguro? [y/N] " ans; \
+	if [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]; then \
+		kubectl exec statefulset/postgres -n $(NS) -- sh -c 'psql -U memtrace -d memtrace_identity -v ON_ERROR_STOP=1 -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"' && \
+		kubectl exec statefulset/clickhouse -n $(NS) -- sh -c 'clickhouse-client --password "$$CLICKHOUSE_PASSWORD" --query "DROP DATABASE IF EXISTS memtrace SYNC"' && \
+		$(MAKE) --no-print-directory migrate migrate-postgres && \
+		kubectl rollout restart deployment/api deployment/otel-collector -n $(NS) && \
+		echo "Bases de datos reseteadas y migraciones aplicadas"; \
+	else \
+		echo "Cancelado"; \
+	fi
+
 dev-data: ## Genera trazas de ejemplo (agente simulado) para probar el dashboard
 	@$(PYTHON) -c "import opentelemetry.sdk" 2>/dev/null || { echo "Falta el SDK de Python: pip install -e sdk/python"; exit 1; }
 	MEMTRACE_CAPTURE_CONTENT=true MEMTRACE_BATCH_SCHEDULE_DELAY_MS=500 $(PYTHON) examples/02_multi_step_agent.py
 
+weather: ## Arranca el asistente del tiempo (API + UI en http://localhost:8000). Ctrl+C para parar
+	@command -v uv >/dev/null 2>&1 || { echo "Falta 'uv': instálalo antes de continuar"; exit 1; }
+	cd weather_assistant && uv sync --all-groups && uv run uvicorn app.main:app --reload --port 8000
 
 diagrams:
 	cd docs/architecture && env -u GEMINI_API_KEY npx likec4@1.59.2 serve

@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Asistente meteorológico</title>
+  <style>
+    /* Paleta neutra propia (no corresponde a ninguna marca real). */
+    :root {
+      --ink: #14303a; --ink-soft: #3d5560; --muted: #6f8089;
+      --canvas: #ffffff; --side: #f4f7f7; --line: #dfe6e9; --soft: #f5f8f8; --hover: #e9f0f1;
+      --accent: #1f4e5f; --accent-ink: #ffffff; --accent-soft: #e3eef1;
+      --leaf: #5cc05a;
+      --danger: #b3261e; --danger-soft: #fbeceb;
+      --radius: 6px; --focus: 0 0 0 3px rgba(31,78,95,.25);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --ink: #e8f0f2; --ink-soft: #afc3c9; --muted: #7d9399;
+        --canvas: #0d171b; --side: #09131a; --line: #22363e; --soft: #132128; --hover: #1a2c33;
+        --accent: #7cc3cb; --accent-ink: #0d171b; --accent-soft: #1c3840;
+        --leaf: #6fcf6b; --danger: #f08a82; --danger-soft: #2a1716;
+      }
+    }
+    :root[data-theme="dark"] {
+      --ink: #e8f0f2; --ink-soft: #afc3c9; --muted: #7d9399;
+      --canvas: #0d171b; --side: #09131a; --line: #22363e; --soft: #132128; --hover: #1a2c33;
+      --accent: #7cc3cb; --accent-ink: #0d171b; --accent-soft: #1c3840;
+      --leaf: #6fcf6b; --danger: #f08a82; --danger-soft: #2a1716;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; background: var(--canvas); color: var(--ink);
+      font: 15px/1.6 "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      display: flex; overflow: hidden;
+    }
+    button, input { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible, a:focus-visible { outline: none; box-shadow: var(--focus); }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+    /* ---------- Barra lateral ---------- */
+    .side {
+      flex: none; width: 260px; background: var(--side); border-right: 1px solid var(--line);
+      display: flex; flex-direction: column; padding: 14px; gap: 14px; min-height: 0;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; padding: 6px 6px 0; }
+    .brand-mark { width: 26px; height: 26px; flex: none; }
+    .brand-name { font-weight: 700; font-size: 15px; color: var(--accent); white-space: nowrap; }
+    .btn {
+      border-radius: var(--radius); border: 1px solid var(--accent); padding: 9px 14px; font-weight: 600; font-size: 14px;
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; background: transparent; color: var(--accent);
+    }
+    .btn-primary { background: var(--accent); color: var(--accent-ink); }
+    .btn-primary:hover:not(:disabled) { filter: brightness(1.1); }
+    .btn-primary:disabled { opacity: .45; cursor: default; }
+    .btn:hover { background: var(--hover); }
+    .btn-primary:hover { background: var(--accent); }
+    .btn svg { width: 16px; height: 16px; }
+    .side-label { font-size: 12px; font-weight: 600; color: var(--muted); padding: 8px 8px 0; text-transform: uppercase; letter-spacing: .04em; }
+    .history { display: flex; flex-direction: column; gap: 2px; }
+    .history button {
+      background: transparent; border: none; text-align: left; padding: 8px 10px; border-radius: var(--radius);
+      color: var(--ink-soft); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .history button:hover { background: var(--hover); }
+    .history button.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+    .side-foot { margin-top: auto; border-top: 1px solid var(--line); padding-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-soft); padding: 0 6px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--leaf); flex: none; }
+    .dot.off { background: var(--danger); }
+    .side-foot .btn { justify-content: flex-start; }
+
+    /* ---------- Área de chat ---------- */
+    .main { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+    .topbar {
+      flex: none; height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px;
+      border-bottom: 1px solid var(--line);
+    }
+    .topbar-title { font-weight: 600; font-size: 15px; }
+    .topbar-title span { font-weight: 400; color: var(--muted); font-size: 13px; margin-left: 8px; }
+    .topbar .btn { border-color: var(--line); color: var(--ink-soft); background: transparent; padding: 6px 12px; font-size: 13px; }
+
+    .thread { flex: 1; min-height: 0; overflow-y: auto; }
+    .thread-inner { max-width: 768px; margin: 0 auto; padding: 32px 24px; display: flex; flex-direction: column; gap: 24px; min-height: 100%; }
+    .welcome { margin: auto; text-align: center; max-width: 520px; }
+    .welcome h2 { margin: 0 0 8px; font-size: 26px; font-weight: 700; letter-spacing: -.01em; }
+    .welcome p { margin: 0; color: var(--muted); }
+    .chips { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 28px; text-align: left; }
+    .chip {
+      background: var(--canvas); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px;
+      font-size: 14px; color: var(--ink-soft); text-align: left;
+    }
+    .chip:hover { background: var(--soft); color: var(--ink); }
+
+    .msg { display: flex; gap: 14px; align-items: flex-start; }
+    .msg.user { flex-direction: row-reverse; }
+    .avatar {
+      width: 30px; height: 30px; flex: none; border-radius: 4px; display: grid; place-items: center; font-size: 12px; font-weight: 700;
+    }
+    .msg.bot .avatar { background: var(--accent); color: var(--accent-ink); }
+    .msg.user .avatar { background: var(--hover); color: var(--ink-soft); }
+    .content { min-width: 0; max-width: 85%; display: flex; flex-direction: column; gap: 4px; }
+    .msg.user .content { align-items: flex-end; }
+    .author { font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+    .bubble { white-space: pre-wrap; word-wrap: break-word; font-size: 15px; }
+    .msg.user .bubble { background: var(--soft); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; }
+    .msg.error .bubble {
+      background: var(--danger-soft); color: var(--danger); border-radius: var(--radius); padding: 10px 14px;
+      display: flex; align-items: center; gap: 12px; justify-content: space-between;
+    }
+    .retry {
+      background: transparent; border: 1px solid currentColor; color: var(--danger);
+      border-radius: var(--radius); padding: 3px 10px; font-size: 13px; white-space: nowrap;
+    }
+    .typing { display: inline-flex; gap: 5px; padding: 8px 0; }
+    .typing span {
+      width: 6px; height: 6px; border-radius: 50%; background: var(--muted); opacity: .35;
+      animation: pulse 1.2s infinite ease-in-out;
+    }
+    .typing span:nth-child(2) { animation-delay: .2s; }
+    .typing span:nth-child(3) { animation-delay: .4s; }
+    @keyframes pulse { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+
+    /* ---------- Composer ---------- */
+    .composer-wrap { flex: none; padding: 0 24px 18px; }
+    .composer-box { max-width: 768px; margin: 0 auto; }
+    .composer {
+      border: 1px solid var(--line); border-radius: 10px; background: var(--canvas); padding: 6px 6px 6px 16px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .composer:focus-within { border-color: var(--accent); box-shadow: var(--focus); }
+    .composer input {
+      flex: 1; min-width: 0; border: none; background: transparent; padding: 10px 0; font-size: 15px; color: var(--ink);
+    }
+    .composer input:focus-visible { box-shadow: none; }
+    .composer input::placeholder { color: var(--muted); }
+    .send { padding: 8px 14px; }
+    .foot { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--muted); padding: 8px 4px 0; }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 780px) {
+      .side { display: none; }
+      .thread-inner { padding: 24px 16px; }
+      .composer-wrap { padding: 0 12px 12px; }
+      .chips { grid-template-columns: 1fr; }
+      .content { max-width: 92%; }
+      .foot span:last-child { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <aside class="side">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true">
+        <path d="M20 4 L36 14 L20 20 Z" fill="#5cc05a"/>
+        <path d="M20 20 L36 14 L36 30 Z" fill="#1f4e5f"/>
+        <path d="M20 20 L36 30 L20 36 Z" fill="#7cc3cb"/>
+        <path d="M4 14 L20 4 L20 20 Z" fill="#1f4e5f"/>
+        <path d="M4 14 L20 20 L4 26 Z" fill="#5cc05a"/>
+      </svg>
+      <span class="brand-name">Asistente meteorológico</span>
+    </div>
+
+    <button class="btn btn-primary" id="reset" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      Nueva conversación
+    </button>
+
+    <div class="side-label">Consulta actual</div>
+    <div class="history">
+      <button class="active" type="button" id="session-label">Conversación nueva</button>
+    </div>
+
+    <div class="side-foot">
+      <div class="status" role="status"><span class="dot" id="status-dot"></span><span id="status-text">Servicio disponible</span></div>
+      <button class="btn" id="theme" type="button">Cambiar tema</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div class="topbar-title">Consulta del tiempo<span>Open-Meteo</span></div>
+    </div>
+
+    <section class="thread" id="thread" aria-live="polite">
+      <div class="thread-inner">
+        <div class="welcome" id="welcome">
+          <h2>¿Qué tiempo hace hoy?</h2>
+          <p>Pregunte por la previsión de cualquier localidad, en lenguaje natural.</p>
+          <div class="chips">
+            <button class="chip" type="button" data-prompt="¿Qué tiempo hace en Madrid?">¿Qué tiempo hace en Madrid?</button>
+            <button class="chip" type="button" data-prompt="¿Va a llover mañana en Sevilla?">¿Va a llover mañana en Sevilla?</button>
+            <button class="chip" type="button" data-prompt="Temperatura actual en Málaga">Temperatura actual en Málaga</button>
+            <button class="chip" type="button" data-prompt="Previsión para el fin de semana en Valencia">Previsión para el fin de semana en Valencia</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="composer-wrap">
+      <div class="composer-box">
+        <form class="composer" id="form" autocomplete="off">
+          <label class="sr-only" for="input">Escriba su consulta</label>
+          <input id="input" type="text" placeholder="Pregunte por el tiempo de una localidad…" maxlength="4000" required>
+          <button class="btn btn-primary send" id="send" type="submit">Enviar</button>
+        </form>
+        <div class="foot">
+          <span>Las previsiones son orientativas. Consulte los avisos oficiales para decisiones importantes.</span>
+          <span id="counter">0 / 4000</span>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const thread = $("thread");
+    const form = $("form");
+    const input = $("input");
+    const send = $("send");
+    const reset = $("reset");
+    const counter = $("counter");
+    const sessionLabel = $("session-label");
+    const statusDot = $("status-dot");
+    const statusText = $("status-text");
+    const themeBtn = $("theme");
+
+    const SESSION_KEY = "weather-assistant-session";
+    const THEME_KEY = "weather-assistant-theme";
+
+    // Persistencia por navegador (conveniencia): si falla, la sesión simplemente no se recuerda.
+    const storage = {
+      get(key) { try { return localStorage.getItem(key); } catch { return null; } },
+      set(key, v) { try { localStorage.setItem(key, v); } catch {} },
+      remove(key) { try { localStorage.removeItem(key); } catch {} },
+    };
+    let sessionId = storage.get(SESSION_KEY);
+
+    function now() {
+      return new Date().toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function removeWelcome() { const w = $("welcome"); if (w) w.remove(); }
+    function scrollToEnd() { thread.scrollTop = thread.scrollHeight; }
+    function refreshLabel() { sessionLabel.textContent = sessionId ? "Conversación activa" : "Conversación nueva"; }
+
+    const AVATAR = { user: "Tú", bot: "AI" };
+
+    // Todo el contenido se inserta con textContent: la respuesta del modelo nunca se interpreta como HTML.
+    function buildMessage(kind) {
+      const msg = document.createElement("div");
+      msg.className = "msg " + kind;
+      const avatar = document.createElement("div");
+      avatar.className = "avatar";
+      avatar.textContent = AVATAR[kind] || "AI";
+      const content = document.createElement("div");
+      content.className = "content";
+      const author = document.createElement("div");
+      author.className = "author";
+      author.textContent = (kind === "user" ? "Usted" : "Asistente") + " · " + now();
+      content.appendChild(author);
+      msg.append(avatar, content);
+      return { msg, content };
+    }
+
+    function addMessage(text, kind) {
+      removeWelcome();
+      const { msg, content } = buildMessage(kind);
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      bubble.textContent = text;
+      content.appendChild(bubble);
+      thread.querySelector(".thread-inner").appendChild(msg);
+      scrollToEnd();
+      return msg;
+    }
+
+    function addError(text, retryMessage) {
+      removeWelcome();
+      const { msg, content } = buildMessage("bot");
+      msg.classList.add("error");
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      const span = document.createElement("span");
+      span.textContent = text;
+      bubble.appendChild(span);
+      if (retryMessage) {
+        const retry = document.createElement("button");
+        retry.type = "button";
+        retry.className = "retry";
+        retry.textContent = "Reintentar";
+        retry.addEventListener("click", () => { msg.remove(); ask(retryMessage); });
+        bubble.appendChild(retry);
+      }
+      content.appendChild(bubble);
+      thread.querySelector(".thread-inner").appendChild(msg);
+      scrollToEnd();
+    }
+
+    function showTyping() {
+      const { msg, content } = buildMessage("bot");
+      msg.id = "typing";
+      const dots = document.createElement("div");
+      dots.className = "typing";
+      dots.setAttribute("aria-label", "El asistente está escribiendo");
+      dots.innerHTML = "<span></span><span></span><span></span>";
+      content.appendChild(dots);
+      thread.querySelector(".thread-inner").appendChild(msg);
+      scrollToEnd();
+    }
+    function hideTyping() { const t = $("typing"); if (t) t.remove(); }
+
+    function setBusy(busy) {
+      send.disabled = busy;
+      input.disabled = busy;
+      if (busy) showTyping(); else hideTyping();
+    }
+
+    function setServiceStatus(ok) {
+      statusDot.classList.toggle("off", !ok);
+      statusText.textContent = ok ? "Servicio disponible" : "Servicio no disponible";
+    }
+
+    async function ask(message) {
+      addMessage(message, "user");
+      setBusy(true);
+      try {
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: sessionId, message }),
+        });
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        const data = await response.json();
+        sessionId = data.session_id;
+        storage.set(SESSION_KEY, sessionId);
+        refreshLabel();
+        setServiceStatus(true);
+        hideTyping();
+        addMessage(data.reply, "bot");
+      } catch (error) {
+        setServiceStatus(false);
+        hideTyping();
+        addError("No hemos podido obtener respuesta en este momento. Inténtelo de nuevo.", message);
+      } finally {
+        setBusy(false);
+        input.focus();
+      }
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const message = input.value.trim();
+      if (!message) return;
+      input.value = "";
+      updateCounter();
+      ask(message);
+    });
+
+    function updateCounter() { counter.textContent = input.value.length + " / 4000"; }
+    input.addEventListener("input", updateCounter);
+
+    thread.addEventListener("click", (event) => {
+      const chipBtn = event.target.closest("[data-prompt]");
+      if (chipBtn) ask(chipBtn.dataset.prompt);
+    });
+
+    reset.addEventListener("click", async () => {
+      if (sessionId) {
+        try { await fetch("/api/sessions/" + encodeURIComponent(sessionId), { method: "DELETE" }); } catch {}
+      }
+      sessionId = null;
+      storage.remove(SESSION_KEY);
+      location.reload();
+    });
+
+    themeBtn.addEventListener("click", () => {
+      const root = document.documentElement;
+      const current = root.getAttribute("data-theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      const next = current === "dark" ? "light" : "dark";
+      root.setAttribute("data-theme", next);
+      storage.set(THEME_KEY, next);
+    });
+
+    const savedTheme = storage.get(THEME_KEY);
+    if (savedTheme) document.documentElement.setAttribute("data-theme", savedTheme);
+    refreshLabel();
+    updateCounter();
+  </script>
+</body>
+</html>
