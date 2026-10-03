@@ -61,3 +61,16 @@ def test_run_experiment_feeds_each_items_chunks_to_retrieval_evaluators():
 
     by_item = [{s.name: s.value for s in r.scores} for r in result.items]
     assert by_item == [{"recall_at_2": 1.0, "mrr": 0.5}, {"recall_at_2": 0.0, "mrr": 0.0}, {}]
+
+
+def test_eval_items_do_not_open_a_conversation():
+    from memtrace.application.context import get_session_id
+
+    seen = []
+
+    def task(*, item):
+        seen.append(get_session_id())
+        return "x"
+
+    run_experiment(data=[{"input": "a"}, {"input": "b"}], task=task, evaluators=[], name="no-conversation", sink=None)
+    assert seen == [None, None]
