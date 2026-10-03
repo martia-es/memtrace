@@ -1,4 +1,13 @@
 import type {
+  AddQueueItemsResponse,
+  InterAnnotatorAgreementResponse,
+  JudgeHumanAgreementResponse,
+  AnnotationQueueDetailResponse,
+  AnnotationQueueDto,
+  AnnotationQueuesListResponse,
+  NextQueueItemResponse,
+  QueueItemDto,
+  QueueItemsResponse,
   AttributeKeysResponse,
   AttributeValuesResponse,
   ConversationDetailResponse,
@@ -7,15 +16,18 @@ import type {
   CustomMetricDefinitionDto,
   CustomMetricResultResponse,
   DatasetDto,
+  CommitDatasetChangesBody,
   DatasetItemDto,
   DatasetItemsListResponse,
   DatasetRunDetailResponse,
   DatasetRunsListResponse,
   DatasetsListResponse,
+  DatasetVersionDiffResponse,
   DatasetVersionDto,
   DatasetVersionsListResponse,
   ExperimentUsageResponse,
   ModelPricingResponse,
+  TraceAnnotationsResponse,
   OverviewResponse,
   RunsListResponse,
   ServicesResponse,
@@ -60,12 +72,79 @@ export interface ListConversationsParams extends RangeParams {
   cursor?: string;
 }
 
+export interface SaveAnnotationBody {
+  configId: string;
+  value: string | number | boolean;
+  comment?: string | null;
+  spanId?: string | null;
+}
+
+/** Muestra aleatoria al poblar una cola (ADR-040). Sin `seed`, el servidor la genera y la devuelve. */
+export interface QueueSampleBody {
+  size: number;
+  seed?: string;
+}
+
+/** Qué añadir a una cola (ADR-039): exactamente una de las cuatro formas. En un filtro, `limit` y `sample` son excluyentes. */
+export type AddQueueItemsBody =
+  | { traceIds: string[] }
+  | { fromFilter: { from?: string; to?: string; status?: "ok" | "error"; hasErrors?: boolean; minDurationMs?: number } & ({ limit: number; sample?: undefined } | { sample: QueueSampleBody; limit?: undefined }) }
+  | { fromRun: { datasetRunId: string; sample?: QueueSampleBody } }
+  | { runItems: Array<{ datasetRunId: string; itemIndex: number }> };
+
+export interface NewAnnotationQueueBody {
+  name: string;
+  instructions?: string | null;
+  requiredAnnotations: number;
+  rubric: Array<{ configId: string; required: boolean }>;
+}
+
+export interface AnnotationQueuePatchBody {
+  name?: string;
+  instructions?: string | null;
+  requiredAnnotations?: number;
+  rubric?: Array<{ configId: string; required: boolean }>;
+  archived?: boolean;
+}
+
+/** Alcance del acuerdo juez-humano: un run o una cola, nunca el experimento entero. */
+export type AgreementScope = { datasetRunId: string } | { queueId: string };
+
+export interface QueueLabelBody {
+  configId: string;
+  value: string | number | boolean;
+  comment?: string | null;
+}
+
 /** Puerto de salida: lo que el dashboard necesita del backend. Es el único acceso a datos (roadmap, pieza 5). */
 export interface TraceApi {
   listTraces(params: ListTracesParams, signal?: AbortSignal): Promise<TraceListResponse>;
   /** spans sueltos (más recientes primero) con una vista previa de su entrada y salida */
   listSpans(params: ListSpansParams, signal?: AbortSignal): Promise<SpanListResponse>;
   getTrace(traceId: string, signal?: AbortSignal): Promise<TraceDetailResponse>;
+  /** Anotaciones humanas de la traza (de todos los anotadores) + sus scores automáticos (ADR-037). */
+  listTraceAnnotations(traceId: string, signal?: AbortSignal): Promise<TraceAnnotationsResponse>;
+  /** Crea o edita MI anotación para (traza, span, config); devuelve la vista completa ya actualizada. */
+  saveTraceAnnotation(traceId: string, body: SaveAnnotationBody, signal?: AbortSignal): Promise<TraceAnnotationsResponse>;
+  /** Retira mi anotación (o, siendo admin, la de `annotatorId`). Idempotente. */
+  retractTraceAnnotation(traceId: string, configId: string, options?: { spanId?: string | null; annotatorId?: string }, signal?: AbortSignal): Promise<void>;
+  /** Colas de anotación del experimento con su progreso (ADR-039). */
+  listAnnotationQueues(includeArchived?: boolean, signal?: AbortSignal): Promise<AnnotationQueuesListResponse>;
+  createAnnotationQueue(body: NewAnnotationQueueBody, signal?: AbortSignal): Promise<AnnotationQueueDto>;
+  getAnnotationQueue(queueId: string, signal?: AbortSignal): Promise<AnnotationQueueDetailResponse>;
+  updateAnnotationQueue(queueId: string, patch: AnnotationQueuePatchBody, signal?: AbortSignal): Promise<AnnotationQueueDetailResponse>;
+  listAnnotationQueueItems(queueId: string, status?: QueueItemDto["status"], signal?: AbortSignal): Promise<QueueItemsResponse>;
+  addAnnotationQueueItems(queueId: string, body: AddQueueItemsBody, signal?: AbortSignal): Promise<AddQueueItemsResponse>;
+  /** Reclama el siguiente item para mí (o el que ya tenía abierto); `item: null` si no queda ninguno. */
+  nextAnnotationQueueItem(queueId: string, signal?: AbortSignal): Promise<NextQueueItemResponse>;
+  completeAnnotationQueueItem(queueId: string, itemId: string, labels: QueueLabelBody[], signal?: AbortSignal): Promise<QueueItemDto>;
+  skipAnnotationQueueItem(queueId: string, itemId: string, signal?: AbortSignal): Promise<QueueItemDto>;
+  /** Solo admin: el item deja de repartirse. */
+  markAnnotationQueueItemUnreviewable(queueId: string, itemId: string, signal?: AbortSignal): Promise<QueueItemDto>;
+  /** Acuerdo del juez LLM con las etiquetas humanas sobre un run o una cola (ADR-040). `name` limita a un evaluador. */
+  getJudgeHumanAgreement(scope: AgreementScope, name?: string, signal?: AbortSignal): Promise<JudgeHumanAgreementResponse>;
+  /** Acuerdo entre quienes etiquetaron los items de una cola (ADR-040). */
+  getInterAnnotatorAgreement(queueId: string, name?: string, signal?: AbortSignal): Promise<InterAnnotatorAgreementResponse>;
   getOverview(params: RangeParams & { service?: string }, signal?: AbortSignal): Promise<OverviewResponse>;
   /** igual que getOverview pero para un experimento explícito, sin depender del scoping por setExperimentId (comparativa entre agentes) */
   getOverviewForExperiment(experimentId: string, params: RangeParams & { service?: string }, signal?: AbortSignal): Promise<OverviewResponse>;
@@ -103,6 +182,8 @@ export interface TraceApi {
   /** items de una versión concreta, incluidos los tombstones de items borrados ahí — para ver
    * quién borró qué y cuándo (ADR-032 follow-up). Solo lectura, nunca para editar. */
   listDatasetVersionItemsWithDeleted(datasetId: string, versionId: string, signal?: AbortSignal): Promise<DatasetItemsListResponse>;
+  /** Diff de una versión contra `againstVersionId` (cualquiera); sin él, contra la inmediatamente anterior (ADR-033). */
+  getDatasetVersionDiff(datasetId: string, versionId: string, againstVersionId?: string, signal?: AbortSignal): Promise<DatasetVersionDiffResponse>;
 
   /** items de la última versión del dataset. Cada mutación crea su propia versión sola (ADR-032):
    * añadir/borrar sube major, editar sube minor — nunca hay un paso "new version" aparte. */
@@ -110,6 +191,8 @@ export interface TraceApi {
   createDatasetItem(datasetId: string, item: { input: unknown; expectedOutput?: unknown; metadata?: Record<string, unknown> | null }, signal?: AbortSignal): Promise<DatasetItemDto>;
   updateDatasetItem(datasetId: string, itemId: string, patch: { input?: unknown; expectedOutput?: unknown; metadata?: Record<string, unknown> | null }, signal?: AbortSignal): Promise<DatasetItemDto>;
   deleteDatasetItem(datasetId: string, itemId: string, signal?: AbortSignal): Promise<void>;
+  /** Publica una sesión de edición (altas+ediciones+bajas) como UNA sola versión (ADR-041). */
+  commitDatasetChanges(datasetId: string, changes: CommitDatasetChangesBody, signal?: AbortSignal): Promise<DatasetItemsListResponse>;
 
   /** ejecuciones guardadas de un dataset, más recientes primero */
   listDatasetRuns(datasetId: string, signal?: AbortSignal): Promise<DatasetRunsListResponse>;

@@ -24,6 +24,11 @@ class AnthropicJudgeClient:
         self._client = anthropic.Anthropic(api_key=api_key or os.environ.get("ANTHROPIC_API_KEY"))
         self._model = model
 
+    @property
+    def model(self) -> str:
+        """Default model used when `complete` is called without `model` (recorded on judge scores, ADR-043)."""
+        return self._model
+
     def complete(self, *, system: str, prompt: str, model: Optional[str] = None) -> str:
         response = self._client.messages.create(
             model=model or self._model,

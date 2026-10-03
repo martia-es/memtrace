@@ -37,11 +37,13 @@ export function createReadOnlyClient(config: ClickHouseConfig): ClickHouseClient
 }
 
 /**
- * Cliente con permiso de escritura, usado exclusivamente por `ClickHouseScoreRepository` para
- * insertar en `scores` (ADR-028). No lo uses para nada más: la regla "la API nunca escribe
- * trazas" sigue vigente — este cliente nunca toca `otel_traces` ni las tablas relacionadas.
+ * Cliente con permiso de escritura para las tablas de evaluación: `scores` (ADR-028) y `annotations`
+ * (ADR-037), usado por `ClickHouseScoreRepository` y `ClickHouseAnnotationRepository`. No lo uses para
+ * nada más: la regla "la API nunca escribe trazas" sigue vigente — ningún repositorio que lo reciba toca
+ * `otel_traces` ni las tablas relacionadas. El acotado es por convención; endurecerlo con un usuario de
+ * ClickHouse con `GRANT INSERT` solo sobre esas dos tablas queda como mejora futura.
  */
-export function createScoresWriteClient(config: ClickHouseConfig): ClickHouseClient {
+export function createEvaluationWriteClient(config: ClickHouseConfig): ClickHouseClient {
   return createClient({
     url: config.url,
     username: config.username,

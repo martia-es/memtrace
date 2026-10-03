@@ -1,4 +1,4 @@
-import type { CustomMetricDefinitionDto } from "@contract";
+import type { CustomMetricDefinitionDto, ScoreConfigDto } from "@contract";
 import { ApiError } from "@/application/trace-api";
 import type {
   ApiKeyDto,
@@ -8,9 +8,11 @@ import type {
   MembersResponseDto,
   MetricReportDto,
   MetricReportSummaryDto,
+  NewScoreConfigInput,
   OrganizationDto,
   OrganizationThemeDto,
   SavedCustomMetricDto,
+  ScoreConfigPatchInput,
 } from "@/application/identity-api";
 
 type Fetch = typeof fetch;
@@ -100,6 +102,27 @@ export class HttpIdentityApi implements IdentityApi {
       { method: "DELETE", signal, headers: { Accept: "application/json" } },
     );
     if (!response.ok) throw await toApiError(response);
+  }
+
+  async listScoreConfigs(experimentId: string, includeArchived = false, signal?: AbortSignal): Promise<ScoreConfigDto[]> {
+    const { items } = await this.get<{ items: ScoreConfigDto[] }>(`/experiments/${encodeURIComponent(experimentId)}/score-configs?includeArchived=${includeArchived}`, signal);
+    return items;
+  }
+
+  createScoreConfig(experimentId: string, input: NewScoreConfigInput, signal?: AbortSignal): Promise<ScoreConfigDto> {
+    return this.post(`/experiments/${encodeURIComponent(experimentId)}/score-configs`, input, signal);
+  }
+
+  updateScoreConfig(experimentId: string, configId: string, patch: ScoreConfigPatchInput, signal?: AbortSignal): Promise<ScoreConfigDto> {
+    return this.patch(`/experiments/${encodeURIComponent(experimentId)}/score-configs/${encodeURIComponent(configId)}`, patch, signal);
+  }
+
+  archiveScoreConfig(experimentId: string, configId: string, signal?: AbortSignal): Promise<ScoreConfigDto> {
+    return this.post(`/experiments/${encodeURIComponent(experimentId)}/score-configs/${encodeURIComponent(configId)}/archive`, {}, signal);
+  }
+
+  unarchiveScoreConfig(experimentId: string, configId: string, signal?: AbortSignal): Promise<ScoreConfigDto> {
+    return this.post(`/experiments/${encodeURIComponent(experimentId)}/score-configs/${encodeURIComponent(configId)}/unarchive`, {}, signal);
   }
 
   async listMetricReports(experimentId: string, signal?: AbortSignal): Promise<MetricReportSummaryDto[]> {

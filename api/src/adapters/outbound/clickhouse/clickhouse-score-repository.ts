@@ -1,7 +1,8 @@
 import type { ClickHouseClient } from "@clickhouse/client";
 import { RepositoryUnavailableError } from "@/application/errors";
-import type { ScoreRepository } from "@/application/ports/score-repository";
-import type { DatasetRunItemResult, DatasetRunItemSubmission, Score, ScoreAggregate } from "@/domain/evaluation";
+import type { JudgeScoreRow, ScoreRepository } from "@/application/ports/score-repository";
+import type { TraceScore } from "@/domain/annotation";
+import type { DatasetRunItemResult, DatasetRunItemSubmission, Score, ScoreAggregate, ScoreDataType } from "@/domain/evaluation";
 
 interface ScoreRow {
   ServiceName: string;
@@ -13,6 +14,8 @@ interface ScoreRow {
   DataType: string;
   Source: string;
   Comment: string | null;
+  JudgeModel: string | null;
+  JudgePromptHash: string | null;
   Input: string;
   Output: string | null;
   ExpectedOutput: string | null;
@@ -21,7 +24,7 @@ interface ScoreRow {
 }
 
 /** Implementación del puerto sobre la tabla `scores` (ADR-028). El cliente de escritura está
- * acotado exclusivamente a esta tabla (ver `client.ts::createScoresWriteClient`). */
+ * acotado exclusivamente a esta tabla (ver `client.ts::createEvaluationWriteClient`). */
 export class ClickHouseScoreRepository implements ScoreRepository {
   constructor(
     private readonly writeClient: ClickHouseClient,
@@ -29,7 +32,7 @@ export class ClickHouseScoreRepository implements ScoreRepository {
     private readonly database: string,
   ) {}
 
-  async insertScores(serviceName: string, datasetRunId: string, items: DatasetRunItemSubmission[]): Promise<void> {
+  async insertScores(serviceName: string, datasetRunId: string, items: DatasetRunItemSubmission[], startIndex = 0): Promise<void> {
     // DateTime64 en JSONEachRow espera "YYYY-MM-DD HH:MM:SS.mmm", no el "T"/"Z" de toISOString()
     const now = new Date().toISOString().replace("T", " ").replace("Z", "");
     const rows: ScoreRow[] = items.flatMap((item, itemIndex) =>
@@ -37,13 +40,15 @@ export class ClickHouseScoreRepository implements ScoreRepository {
       (item.scores.length > 0 ? item.scores : [placeholderScore(item)]).map((score) => ({
         ServiceName: serviceName,
         DatasetRunId: datasetRunId,
-        ItemIndex: itemIndex,
+        ItemIndex: item.itemIndex ?? startIndex + itemIndex,
         TraceId: item.traceId,
         Name: score.name,
         Value: score.value,
         DataType: score.dataType,
         Source: score.source,
         Comment: score.comment,
+        JudgeModel: score.judgeModel ?? null,
+        JudgePromptHash: score.judgePromptHash ?? null,
         Input: JSON.stringify(item.input),
         Output: item.output === undefined ? null : JSON.stringify(item.output),
         ExpectedOutput: item.expectedOutput === undefined ? null : JSON.stringify(item.expectedOutput),
@@ -79,6 +84,66 @@ export class ClickHouseScoreRepository implements ScoreRepository {
     return groupByItem(rows);
   }
 
+  async listScoresByTrace(serviceName: string, traceId: string): Promise<TraceScore[]> {
+    try {
+      // `scores` no tiene índice por TraceId (su clave empieza por DatasetRunId): es un escaneo acotado por ServiceName.
+      // Si resultara lento, añadir un índice de salto bloom_filter en TraceId (ADR-037) en lugar de remodelar la tabla.
+      const result = await this.readClient.query({
+        query: `SELECT DatasetRunId, ItemIndex, Name, Value, DataType, Source, Comment
+                  FROM ${this.database}.scores FINAL
+                 WHERE ServiceName = {serviceName:String} AND TraceId = {traceId:String} AND Name != '_no_score'
+                 ORDER BY CreatedAt ASC, Name ASC
+                 LIMIT 500`,
+        query_params: { serviceName, traceId },
+        format: "JSONEachRow",
+      });
+      const rows = await result.json<{ DatasetRunId: string; ItemIndex: number; Name: string; Value: string; DataType: string; Source: string; Comment: string | null }>();
+      return rows.map((r) => ({
+        datasetRunId: r.DatasetRunId,
+        itemIndex: r.ItemIndex,
+        name: r.Name,
+        value: r.Value,
+        dataType: r.DataType as TraceScore["dataType"],
+        source: r.Source,
+        comment: r.Comment,
+      }));
+    } catch (error) {
+      console.error("[memtrace-api] ClickHouse query (scores by trace) failed:", error);
+      throw new RepositoryUnavailableError(error);
+    }
+  }
+
+  async listJudgeScoresForRuns(serviceName: string, datasetRunIds: string[], name?: string): Promise<JudgeScoreRow[]> {
+    if (datasetRunIds.length === 0) return [];
+    try {
+      const result = await this.readClient.query({
+        query: `SELECT DatasetRunId, ItemIndex, Name, Value, DataType, JudgeModel, JudgePromptHash
+                  FROM ${this.database}.scores FINAL
+                 WHERE ServiceName = {serviceName:String}
+                   AND DatasetRunId IN {datasetRunIds:Array(String)}
+                   AND Source = 'llm_judge'
+                   AND Name != '_no_score'
+                   ${name === undefined ? "" : "AND Name = {name:String}"}
+                 LIMIT 50000`,
+        query_params: { serviceName, datasetRunIds, ...(name === undefined ? {} : { name }) },
+        format: "JSONEachRow",
+      });
+      const rows = await result.json<{ DatasetRunId: string; ItemIndex: number; Name: string; Value: string; DataType: string; JudgeModel: string | null; JudgePromptHash: string | null }>();
+      return rows.map((r) => ({
+        datasetRunId: r.DatasetRunId,
+        itemIndex: r.ItemIndex,
+        name: r.Name,
+        value: r.Value,
+        dataType: r.DataType as ScoreDataType,
+        judgeModel: r.JudgeModel,
+        judgePromptHash: r.JudgePromptHash,
+      }));
+    } catch (error) {
+      console.error("[memtrace-api] ClickHouse query (judge scores) failed:", error);
+      throw new RepositoryUnavailableError(error);
+    }
+  }
+
   async aggregateForRuns(serviceName: string, datasetRunIds: string[]): Promise<ScoreAggregate[]> {
     if (datasetRunIds.length === 0) return [];
     let rows: AggregateRow[];
@@ -89,7 +154,8 @@ export class ClickHouseScoreRepository implements ScoreRepository {
                    count() AS total,
                    countIf(DataType = 'boolean') AS boolCount,
                    countIf(DataType = 'boolean' AND Value = 'true') AS trueCount,
-                   avgIf(toFloat64OrNull(Value), DataType = 'numeric') AS avgValue
+                   avgIf(toFloat64OrNull(Value), DataType = 'numeric') AS avgValue,
+                   groupUniqArrayIf((JudgeModel, JudgePromptHash), Source = 'llm_judge') AS judges
                  FROM ${this.database}.scores FINAL
                  WHERE ServiceName = {serviceName:String}
                    AND DatasetRunId IN {datasetRunIds:Array(String)}
@@ -116,6 +182,8 @@ interface AggregateRow {
   boolCount: string;
   trueCount: string;
   avgValue: number | null;
+  // tupla (Nullable(String), Nullable(String)) llega como array de 2 elementos en JSONEachRow
+  judges: Array<[string | null, string | null]>;
 }
 
 function toScoreAggregate(row: AggregateRow): ScoreAggregate {
@@ -131,6 +199,7 @@ function toScoreAggregate(row: AggregateRow): ScoreAggregate {
     passRate: dataType === "boolean" && boolCount > 0 ? trueCount / boolCount : null,
     average: dataType === "numeric" ? row.avgValue : null,
     count: total,
+    judges: row.judges.map(([model, promptHash]) => ({ model, promptHash })),
   };
 }
 
@@ -156,7 +225,15 @@ function groupByItem(rows: ScoreRow[]): DatasetRunItemResult[] {
       byIndex.set(row.ItemIndex, item);
     }
     if (row.Name !== "_no_score") {
-      item.scores.push({ name: row.Name, value: row.Value, dataType: row.DataType as Score["dataType"], source: row.Source as Score["source"], comment: row.Comment });
+      item.scores.push({
+        name: row.Name,
+        value: row.Value,
+        dataType: row.DataType as Score["dataType"],
+        source: row.Source as Score["source"],
+        comment: row.Comment,
+        judgeModel: row.JudgeModel,
+        judgePromptHash: row.JudgePromptHash,
+      });
     }
   }
   return [...byIndex.values()].sort((a, b) => a.itemIndex - b.itemIndex);

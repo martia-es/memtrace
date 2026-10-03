@@ -4,6 +4,7 @@ import type {
   Dataset,
   DatasetItem,
   DatasetRun,
+  DatasetRunStatus,
   DatasetRunWithDataset,
   DatasetVersion,
   Experiment,
@@ -25,6 +26,8 @@ import type {
 /** Puerto hacia el almacén de identidad (PostgreSQL, ver ADR-013). Auth.js gestiona users/accounts/sessions aparte. */
 export interface IdentityRepository {
   getUserByEmail(email: string): Promise<User | null>;
+  /** Usuarios por id en una sola consulta (nombres de anotadores, ADR-037). Los ids desconocidos simplemente no aparecen. */
+  getUsersByIds(userIds: string[]): Promise<User[]>;
 
   createOrganization(name: string, ownerUserId: string): Promise<Organization>;
   getOrganization(organizationId: string): Promise<Organization | null>;
@@ -95,6 +98,8 @@ export interface IdentityRepository {
   /** Todos los items de una versión concreta, incluidos los tombstones de items borrados ahí
    * (ADR-032 follow-up) — para inspeccionar el historial, nunca para editar. */
   listDatasetVersionItemsWithDeleted(datasetVersionId: string): Promise<DatasetItem[]>;
+  /** Igual que el anterior pero para todas las versiones del dataset a la vez (ADR-033). */
+  listAllDatasetItemsWithDeleted(datasetId: string): Promise<DatasetItem[]>;
 
   /** Añade items a un dataset: clona los items activos de la última versión y crea una nueva con
    * bump MAJOR (cambio estructural), atribuyendo los items nuevos a `createdByUserId` (ADR-032). */
@@ -107,12 +112,26 @@ export interface IdentityRepository {
    * original preservados) — nunca desaparece sin dejar rastro de quién lo borró y cuándo. */
   deleteDatasetItem(datasetId: string, itemId: string, deletedByUserId: string): Promise<void>;
 
+  /** Aplica altas, ediciones y bajas como UNA sola versión nueva (ADR-041): MAJOR si hay altas o bajas, MINOR si solo ediciones;
+   * la nota se genera sola. `update[].id`/`remove[]` son ids de fila de la última versión; si alguno ya no existe lanza `ValidationError` y no se escribe nada. */
+  commitDatasetChanges(
+    datasetId: string,
+    userId: string,
+    changes: {
+      add: Array<{ input: unknown; expectedOutput: unknown; metadata: Record<string, unknown> | null }>;
+      update: Array<{ id: string; patch: { input?: unknown; expectedOutput?: unknown; metadata?: Record<string, unknown> | null } }>;
+      remove: string[];
+    },
+  ): Promise<DatasetVersion>;
+
   /** Metadatos de una ejecución (los scores viven en ClickHouse, ver `ScoreRepository`). `id` lo
    * genera el caller (`EvaluationService`) para poder escribir en ClickHouse con el mismo id antes
    * de crear este registro, y así no dejar un `dataset_run` huérfano si ClickHouse falla.
-   * `datasetVersionId` lo resuelve el caller como la última versión del dataset en ese momento
-   * (ADR-031) — el SDK solo conoce `datasetId`, nunca una versión explícita. */
-  createDatasetRun(id: string, datasetId: string, datasetVersionId: string, name: string, itemCount: number): Promise<DatasetRun>;
+   * `datasetVersionId` es la versión de la que salieron los items, que declara siempre el SDK (ADR-034). */
+  createDatasetRun(id: string, datasetId: string, datasetVersionId: string, name: string, itemCount: number, status: DatasetRunStatus): Promise<DatasetRun>;
+  /** Sube `itemCount` al tamaño total conocido del run (nunca lo reduce: un lote reenviado es idempotente)
+   * y, si `completed`, lo marca como completado. Devuelve null si el run no existe. */
+  updateDatasetRunProgress(runId: string, itemCount: number, completed: boolean): Promise<DatasetRun | null>;
   listDatasetRuns(datasetId: string): Promise<DatasetRun[]>;
   getDatasetRun(runId: string): Promise<DatasetRun | null>;
   /** Todos los runs del experimento, de cualquier dataset, para la vista global "Runs" del dashboard. */

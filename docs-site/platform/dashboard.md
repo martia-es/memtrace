@@ -46,6 +46,10 @@ Click **Edit layout** on a report's tab to drag and resize its charts, or add mo
 
 **Send by email** sends everyone you list a text summary of the report — one table of values per chart, recomputed at send time — directly to their inbox. There's no PDF or image attachment yet; it's a quick way to share current numbers without opening the dashboard.
 
+## Review
+
+Review queues turn "someone should look at these traces" into a process: a batch of traces, a rubric and a progress bar. The **Review** page lists the experiment's queues; **Review** opens one trace at a time next to the rubric, and **Details** shows progress per reviewer. Experiment admins create and archive queues; any member can add traces and review. See [Reviewing traces with a queue](/library/evaluation#reviewing-traces-with-a-queue). A queue's **Details** also show how much its reviewers agree, and a run's page shows how well the LLM judge agrees with human labels (see [Can you trust the judge?](/library/evaluation#can-you-trust-the-judge-agreement-with-human-labels)).
+
 ## Theme
 
 The dashboard supports light and dark themes. An `org_admin` can set an accent color and corner style for their organization.

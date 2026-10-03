@@ -1,4 +1,4 @@
-# ADR-033: Saved metric reports (grid of custom charts, emailed as a snapshot)
+# ADR-035: Saved metric reports (grid of custom charts, emailed as a snapshot)
 
 ## Status
 

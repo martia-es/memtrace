@@ -81,3 +81,46 @@ def test_faithfulness_raises_without_context_in_metadata():
 
     with pytest.raises(ValueError, match="context"):
         judge(input="q", output="a", expected_output=None, metadata=None)
+
+
+def test_judge_score_records_explicit_model_and_prompt_hash():
+    client = FakeLLMClient(json.dumps({"score": True, "reasoning": "ok"}))
+    judge = Correctness(client=client, model="judge-model-x")
+
+    score = judge(input="q", output="a", expected_output="a", metadata=None)
+
+    assert score.judge_model == "judge-model-x"
+    assert score.judge_prompt_hash == judge.prompt_hash()
+    assert len(score.judge_prompt_hash) == 16
+
+
+def test_judge_model_falls_back_to_client_default_then_none():
+    class ModelledClient(FakeLLMClient):
+        model = "client-default"
+
+    reply = json.dumps({"score": True})
+    with_default = Correctness(client=ModelledClient(reply))(input="q", output="a", expected_output="a", metadata=None)
+    without = Correctness(client=FakeLLMClient(reply))(input="q", output="a", expected_output="a", metadata=None)
+
+    assert with_default.judge_model == "client-default"
+    assert without.judge_model is None
+
+
+def test_prompt_hash_is_stable_across_items_and_differs_between_rubrics():
+    client = FakeLLMClient(json.dumps({"score": True}))
+    correctness, faithfulness = Correctness(client=client), Faithfulness(client=client)
+
+    first = correctness(input="q1", output="a1", expected_output="e1", metadata=None)
+    second = correctness(input="q2", output="a2", expected_output="e2", metadata=None)
+
+    assert first.judge_prompt_hash == second.judge_prompt_hash
+    assert faithfulness.prompt_hash() != correctness.prompt_hash()
+
+
+def test_prompt_hash_changes_when_system_prompt_changes():
+    class Strict(Correctness):
+        def system_prompt(self):
+            return "You are extremely harsh."
+
+    client = FakeLLMClient("{}")
+    assert Strict(client=client).prompt_hash() != Correctness(client=client).prompt_hash()

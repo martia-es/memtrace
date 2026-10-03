@@ -16,29 +16,47 @@ so nothing here requires MemTrace's API:
         name="smoke-test",
         sink=None,  # keep the result in memory; don't touch MemTrace at all
     )
+    print(result.dataset_version, result.summary())  # per-evaluator pass rate / average, computed locally
 
-Pass `data="<dataset_id>"` instead of a local list to pull items from MemTrace's query API
-(needs the `eval` extra: `pip install 'memtrace-ai[eval]'`) — in that case results are
-uploaded back to that same dataset automatically unless you pass your own `sink`.
+Other ways to give it data:
+  - `data=Path("examples.jsonl")` (or `.json`): a local file, one `{"input", "expected_output"?,
+    "metadata"?}` row per line / list element. No MemTrace involved.
+  - `data="<dataset_id>"`: pull items from MemTrace's query API (needs the `eval` extra:
+    `pip install 'memtrace-ai[eval]'`), latest version by default; add `dataset_version="2.1"` to
+    pin one exact version. Results are uploaded back to that same dataset while the experiment runs,
+    recorded against the exact version that was read, unless you pass your own `sink`.
 """
+from pathlib import Path
 from typing import Any, Iterable, Mapping, Optional, Sequence, Union
 
-from memtrace.application.eval_ports import DatasetSource, Evaluator, ResultsSink, TaskFunction
+from memtrace.application.eval_ports import (
+    DatasetSource,
+    Evaluator,
+    IncrementalResultsSink,
+    LocalFileDatasetSource,
+    ResultsSink,
+    TaskFunction,
+)
+from memtrace.application.experiment_runner import ResultsUploadError
 from memtrace.application.experiment_runner import run_experiment as _execute_experiment
-from memtrace.domain.evaluation import EvalItem, EvalItemResult, ExperimentResult, Score
+from memtrace.domain.evaluation import EvalItem, EvalItemResult, ExperimentResult, Score, ScoreSummary
 
 __all__ = [
     "run_experiment",
     "exact_match",
     "contains",
     "DatasetSource",
+    "LocalFileDatasetSource",
     "Evaluator",
+    "IncrementalResultsSink",
     "ResultsSink",
+    "ResultsUploadError",
     "TaskFunction",
     "EvalItem",
     "EvalItemResult",
     "ExperimentResult",
     "Score",
+    "ScoreSummary",
 ]
 
 _AUTO = object()
@@ -46,10 +64,11 @@ _AUTO = object()
 
 def run_experiment(
     *,
-    data: Union[str, DatasetSource, Iterable[Union[Mapping[str, Any], EvalItem]]],
+    data: Union[str, Path, DatasetSource, Iterable[Union[Mapping[str, Any], EvalItem]]],
     task: TaskFunction,
     evaluators: Sequence[Evaluator],
     name: str,
+    dataset_version: Optional[str] = None,
     sink: Any = _AUTO,
     max_workers: int = 4,
     base_url: Optional[str] = None,
@@ -57,22 +76,31 @@ def run_experiment(
 ) -> ExperimentResult:
     """Runs `task` against every item of `data` and scores each output with `evaluators`.
 
-    `data`: a dataset id (`str`, fetched from MemTrace's query API), a `DatasetSource`, or a
-    plain iterable of `{"input", "expected_output"?, "metadata"?}` dicts / `EvalItem`s — no
-    MemTrace dependency in the last two cases.
+    `data`: a dataset id (`str`, fetched from MemTrace's query API), a `pathlib.Path` to a local
+    `.json`/`.jsonl` file, a `DatasetSource`, or a plain iterable of
+    `{"input", "expected_output"?, "metadata"?}` dicts / `EvalItem`s — no MemTrace dependency
+    except in the dataset-id case.
+
+    `dataset_version`: "major.minor" (e.g. `"2.1"`) of the MemTrace dataset to read; only valid
+    when `data` is a dataset id. Omitted, the latest version is used.
 
     `sink`: where results go. Left at its default, results upload automatically only when
     `data` was a dataset id (to that same dataset's runs) — MemTrace never guesses a
-    destination for data it didn't hand you. Pass your own `ResultsSink` to upload elsewhere,
-    or `sink=None` to keep the result only in memory.
+    destination for data it didn't hand you. Pass your own `ResultsSink` (or `IncrementalResultsSink`,
+    which receives items as they finish) to upload elsewhere, or `sink=None` to keep the result only
+    in memory. If saving fails after the items ran, `ResultsUploadError.result` still holds everything.
     """
     resolved_sink: Optional[ResultsSink] = None if sink is _AUTO else sink
+    if dataset_version is not None and not isinstance(data, str):
+        raise ValueError("dataset_version only applies when `data` is a MemTrace dataset id")
     if isinstance(data, str):
         from memtrace.adapters.outbound.http.eval_api_client import MemTraceDatasetSource, MemTraceResultsSink
 
-        source: Union[DatasetSource, Iterable[Any]] = MemTraceDatasetSource(data, base_url=base_url, api_key=api_key)
+        source: Union[DatasetSource, Iterable[Any]] = MemTraceDatasetSource(data, version=dataset_version, base_url=base_url, api_key=api_key)
         if sink is _AUTO:
-            resolved_sink = MemTraceResultsSink(data, base_url=base_url, api_key=api_key)
+            resolved_sink = MemTraceResultsSink(data, version=dataset_version, base_url=base_url, api_key=api_key)
+    elif isinstance(data, Path):
+        source = LocalFileDatasetSource(data)
     else:
         source = data
 

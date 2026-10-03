@@ -1,5 +1,7 @@
 import type { Pool } from "pg";
-import { randomBytes, createHash } from "node:crypto";
+import { randomBytes, randomUUID, createHash } from "node:crypto";
+import { bumpForChanges, describeChanges } from "@/domain/dataset-version";
+import { ValidationError } from "@/domain/errors";
 import type { IdentityRepository } from "@/application/ports/identity-repository";
 import type {
   ApiKey,
@@ -7,6 +9,7 @@ import type {
   Dataset,
   DatasetItem,
   DatasetRun,
+  DatasetRunStatus,
   DatasetRunWithDataset,
   DatasetVersion,
   Experiment,
@@ -32,7 +35,7 @@ const RADIUS_PRESETS = new Set<RadiusPreset>(["sharp", "soft", "round"]);
 
 /** Columnas + joins de autoría/edición/borrado comunes a toda lectura de `dataset_items` (ADR-032). */
 const DATASET_ITEM_SELECT = `
-  i.id, i.dataset_version_id, i.input, i.expected_output, i.metadata,
+  i.id, i.origin_item_id, i.dataset_version_id, i.input, i.expected_output, i.metadata,
   i.created_by, cu.email AS created_by_email, i.created_at,
   i.updated_by, uu.email AS updated_by_email, i.updated_at,
   i.deleted_by, du.email AS deleted_by_email, i.deleted_at
@@ -40,6 +43,7 @@ const DATASET_ITEM_SELECT = `
 
 interface DatasetItemRow {
   id: string;
+  origin_item_id: string;
   dataset_version_id: string;
   input: unknown;
   expected_output: unknown;
@@ -76,6 +80,15 @@ export class PostgresIdentityRepository implements IdentityRepository {
       [email],
     );
     return rows[0] ?? null;
+  }
+
+  async getUsersByIds(userIds: string[]): Promise<User[]> {
+    if (userIds.length === 0) return [];
+    const { rows } = await this.pool.query<{ id: string; email: string; name: string | null; image: string | null }>(
+      `SELECT id, email, name, image FROM users WHERE id = ANY($1::uuid[])`,
+      [userIds],
+    );
+    return rows;
   }
 
   async createOrganization(name: string, ownerUserId: string): Promise<Organization> {
@@ -559,6 +572,8 @@ export class PostgresIdentityRepository implements IdentityRepository {
     options: {
       editItem?: { itemId: string; updatedByUserId: string; patch: { input?: unknown; expectedOutput?: unknown; metadata?: Record<string, unknown> | null } };
       deleteItem?: { itemId: string; deletedByUserId: string };
+      /** El caller clona los items él mismo (`commitDatasetChanges`, ADR-041). */
+      skipClone?: boolean;
     } = {},
   ): Promise<{ id: string; major: number; minor: number }> {
     const { rows: latestRows } = await client.query<{ id: string; major: number; minor: number }>(
@@ -575,12 +590,12 @@ export class PostgresIdentityRepository implements IdentityRepository {
     );
     const version = rows[0];
     if (!version) throw new Error("failed to insert dataset version");
-    if (latest) {
+    if (latest && !options.skipClone) {
       if (options.editItem) {
         const { itemId, updatedByUserId, patch } = options.editItem;
         await client.query(
-          `INSERT INTO dataset_items (dataset_version_id, input, expected_output, metadata, created_by, created_at, updated_by, updated_at)
-           SELECT $1, CASE WHEN id = $3 THEN COALESCE($4::jsonb, input) ELSE input END,
+          `INSERT INTO dataset_items (dataset_version_id, origin_item_id, input, expected_output, metadata, created_by, created_at, updated_by, updated_at)
+           SELECT $1, origin_item_id, CASE WHEN id = $3 THEN COALESCE($4::jsonb, input) ELSE input END,
                       CASE WHEN id = $3 THEN COALESCE($5::jsonb, expected_output) ELSE expected_output END,
                       CASE WHEN id = $3 THEN COALESCE($6::jsonb, metadata) ELSE metadata END,
                       created_by, created_at,
@@ -601,22 +616,22 @@ export class PostgresIdentityRepository implements IdentityRepository {
         const { itemId, deletedByUserId } = options.deleteItem;
         // los items que sobreviven, tal cual (nunca se re-clona un tombstone ya existente)
         await client.query(
-          `INSERT INTO dataset_items (dataset_version_id, input, expected_output, metadata, created_by, created_at, updated_by, updated_at)
-           SELECT $1, input, expected_output, metadata, created_by, created_at, updated_by, updated_at
+          `INSERT INTO dataset_items (dataset_version_id, origin_item_id, input, expected_output, metadata, created_by, created_at, updated_by, updated_at)
+           SELECT $1, origin_item_id, input, expected_output, metadata, created_by, created_at, updated_by, updated_at
              FROM dataset_items WHERE dataset_version_id = $2 AND deleted_at IS NULL AND id != $3`,
           [version.id, latest.id, itemId],
         );
         // el item borrado: mismo contenido y autoría original, pero marcado como tombstone aquí.
         await client.query(
-          `INSERT INTO dataset_items (dataset_version_id, input, expected_output, metadata, created_by, created_at, deleted_by, deleted_at)
-           SELECT $1, input, expected_output, metadata, created_by, created_at, $3, now()
+          `INSERT INTO dataset_items (dataset_version_id, origin_item_id, input, expected_output, metadata, created_by, created_at, deleted_by, deleted_at)
+           SELECT $1, origin_item_id, input, expected_output, metadata, created_by, created_at, $3, now()
              FROM dataset_items WHERE id = $2`,
           [version.id, itemId, deletedByUserId],
         );
       } else {
         await client.query(
-          `INSERT INTO dataset_items (dataset_version_id, input, expected_output, metadata, created_by, created_at, updated_by, updated_at)
-           SELECT $1, input, expected_output, metadata, created_by, created_at, updated_by, updated_at
+          `INSERT INTO dataset_items (dataset_version_id, origin_item_id, input, expected_output, metadata, created_by, created_at, updated_by, updated_at)
+           SELECT $1, origin_item_id, input, expected_output, metadata, created_by, created_at, updated_by, updated_at
              FROM dataset_items WHERE dataset_version_id = $2 AND deleted_at IS NULL`,
           [version.id, latest.id],
         );
@@ -637,11 +652,13 @@ export class PostgresIdentityRepository implements IdentityRepository {
       const version = await this.createNextVersion(client, datasetId, createdByUserId, note, "major");
       const inserted: DatasetItem[] = [];
       for (const item of items) {
+        // un item nuevo es su propio origen (ADR-033): `id` y `origin_item_id` coinciden en su primera versión.
+        const itemId = randomUUID();
         const { rows } = await client.query<{ id: string }>(
-          `INSERT INTO dataset_items (dataset_version_id, input, expected_output, metadata, created_by)
-           VALUES ($1, $2, $3, $4, $5)
+          `INSERT INTO dataset_items (id, origin_item_id, dataset_version_id, input, expected_output, metadata, created_by)
+           VALUES ($1, $1, $2, $3, $4, $5, $6)
            RETURNING id`,
-          [version.id, JSON.stringify(item.input), item.expectedOutput === undefined ? null : JSON.stringify(item.expectedOutput), item.metadata ? JSON.stringify(item.metadata) : null, createdByUserId],
+          [itemId, version.id, JSON.stringify(item.input), item.expectedOutput === undefined ? null : JSON.stringify(item.expectedOutput), item.metadata ? JSON.stringify(item.metadata) : null, createdByUserId],
         );
         const row = rows[0];
         if (!row) throw new Error("failed to insert dataset item");
@@ -687,6 +704,22 @@ export class PostgresIdentityRepository implements IdentityRepository {
 
   /** Todos los items de una versión, incluidos los tombstones de items borrados en ella — para
    * inspeccionar el historial (ADR-032 follow-up), nunca para editar. */
+  /** Todos los items (tombstones incluidos) de todas las versiones de un dataset, para calcular el
+   * diff de cada versión contra su anterior sin una consulta por versión (ADR-033). */
+  async listAllDatasetItemsWithDeleted(datasetId: string): Promise<DatasetItem[]> {
+    const { rows } = await this.pool.query<DatasetItemRow>(
+      `SELECT ${DATASET_ITEM_SELECT} FROM dataset_items i
+         JOIN dataset_versions v ON v.id = i.dataset_version_id
+         JOIN users cu ON cu.id = i.created_by
+         LEFT JOIN users uu ON uu.id = i.updated_by
+         LEFT JOIN users du ON du.id = i.deleted_by
+        WHERE v.dataset_id = $1
+        ORDER BY i.created_at ASC`,
+      [datasetId],
+    );
+    return rows.map(toDatasetItem);
+  }
+
   async listDatasetVersionItemsWithDeleted(datasetVersionId: string): Promise<DatasetItem[]> {
     const { rows } = await this.pool.query<DatasetItemRow>(
       `SELECT ${DATASET_ITEM_SELECT} FROM dataset_items i
@@ -740,22 +773,128 @@ export class PostgresIdentityRepository implements IdentityRepository {
     }
   }
 
-  async createDatasetRun(id: string, datasetId: string, datasetVersionId: string, name: string, itemCount: number): Promise<DatasetRun> {
-    const { rows } = await this.pool.query<{ id: string; dataset_id: string; dataset_version_id: string; major: number; minor: number; name: string; item_count: number; created_at: string }>(
-      `INSERT INTO dataset_runs (id, dataset_id, dataset_version_id, name, item_count) VALUES ($1, $2, $3, $4, $5)
-       RETURNING dataset_runs.id, dataset_runs.dataset_id, dataset_runs.dataset_version_id, dataset_runs.name, dataset_runs.item_count, dataset_runs.created_at,
+  /** Publica una sesión de edición como UNA versión (ADR-041): clona los items activos, aplica
+   * ediciones, convierte las bajas en tombstones y añade las altas, todo en una transacción. */
+  async commitDatasetChanges(
+    datasetId: string,
+    userId: string,
+    changes: {
+      add: Array<{ input: unknown; expectedOutput: unknown; metadata: Record<string, unknown> | null }>;
+      update: Array<{ id: string; patch: { input?: unknown; expectedOutput?: unknown; metadata?: Record<string, unknown> | null } }>;
+      remove: string[];
+    },
+  ): Promise<DatasetVersion> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      // serializa commits concurrentes del mismo dataset: el segundo ve la versión que dejó el primero
+      await client.query(`SELECT 1 FROM datasets WHERE id = $1 FOR UPDATE`, [datasetId]);
+      const { rows: latestRows } = await client.query<{ id: string }>(
+        `SELECT id FROM dataset_versions WHERE dataset_id = $1 ORDER BY major DESC, minor DESC LIMIT 1`,
+        [datasetId],
+      );
+      const latest = latestRows[0];
+      if (!latest) throw new ValidationError("dataset has no versions");
+
+      const removed = new Set(changes.remove);
+      const updates = changes.update.filter((u) => !removed.has(u.id));
+      const touched = [...new Set([...changes.remove, ...updates.map((u) => u.id)])];
+      if (touched.length > 0) {
+        const { rows } = await client.query<{ id: string }>(
+          `SELECT id FROM dataset_items WHERE dataset_version_id = $1 AND deleted_at IS NULL AND id = ANY($2::uuid[])`,
+          [latest.id, touched],
+        );
+        if (rows.length !== touched.length) {
+          throw new ValidationError("some items changed since you loaded them — reload and retry", { items: "stale item id" });
+        }
+      }
+
+      const counts = { added: changes.add.length, edited: updates.length, removed: removed.size };
+      const version = await this.createNextVersion(client, datasetId, userId, describeChanges(counts), bumpForChanges(counts), {
+        skipClone: true,
+      });
+      const removedIds = [...removed];
+      // supervivientes tal cual (los borrados salen como tombstone más abajo)
+      await client.query(
+        `INSERT INTO dataset_items (dataset_version_id, origin_item_id, input, expected_output, metadata, created_by, created_at, updated_by, updated_at)
+         SELECT $1, origin_item_id, input, expected_output, metadata, created_by, created_at, updated_by, updated_at
+           FROM dataset_items WHERE dataset_version_id = $2 AND deleted_at IS NULL AND NOT (id = ANY($3::uuid[]))`,
+        [version.id, latest.id, removedIds],
+      );
+      if (removedIds.length > 0) {
+        await client.query(
+          `INSERT INTO dataset_items (dataset_version_id, origin_item_id, input, expected_output, metadata, created_by, created_at, deleted_by, deleted_at)
+           SELECT $1, origin_item_id, input, expected_output, metadata, created_by, created_at, $3, now()
+             FROM dataset_items WHERE id = ANY($2::uuid[])`,
+          [version.id, removedIds, userId],
+        );
+      }
+      for (const { id, patch } of updates) {
+        await client.query(
+          `UPDATE dataset_items SET
+              input = CASE WHEN $3::boolean THEN $4::jsonb ELSE input END,
+              expected_output = CASE WHEN $5::boolean THEN $6::jsonb ELSE expected_output END,
+              metadata = CASE WHEN $7::boolean THEN $8::jsonb ELSE metadata END,
+              updated_by = $9, updated_at = now()
+            WHERE dataset_version_id = $1 AND deleted_at IS NULL
+              AND origin_item_id = (SELECT origin_item_id FROM dataset_items WHERE id = $2)`,
+          [
+            version.id,
+            id,
+            patch.input !== undefined,
+            JSON.stringify(patch.input ?? null),
+            patch.expectedOutput !== undefined,
+            JSON.stringify(patch.expectedOutput ?? null),
+            patch.metadata !== undefined,
+            patch.metadata == null ? null : JSON.stringify(patch.metadata),
+            userId,
+          ],
+        );
+      }
+      for (const item of changes.add) {
+        const itemId = randomUUID();
+        await client.query(
+          `INSERT INTO dataset_items (id, origin_item_id, dataset_version_id, input, expected_output, metadata, created_by, created_at)
+           VALUES ($1, $1, $2, $3, $4, $5, $6, clock_timestamp())`,
+          [itemId, version.id, JSON.stringify(item.input), item.expectedOutput === undefined ? null : JSON.stringify(item.expectedOutput), item.metadata ? JSON.stringify(item.metadata) : null, userId],
+        );
+      }
+      await client.query("COMMIT");
+      const created = await this.getLatestDatasetVersion(datasetId);
+      if (!created) throw new Error("failed to read back dataset version");
+      return created;
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async createDatasetRun(id: string, datasetId: string, datasetVersionId: string, name: string, itemCount: number, status: DatasetRunStatus): Promise<DatasetRun> {
+    const { rows } = await this.pool.query<{ id: string; dataset_id: string; dataset_version_id: string; major: number; minor: number; name: string; item_count: number; status: DatasetRunStatus; created_at: string }>(
+      `INSERT INTO dataset_runs (id, dataset_id, dataset_version_id, name, item_count, status) VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING dataset_runs.id, dataset_runs.dataset_id, dataset_runs.dataset_version_id, dataset_runs.name, dataset_runs.item_count, dataset_runs.status, dataset_runs.created_at,
                  (SELECT major FROM dataset_versions WHERE id = $3) AS major,
                  (SELECT minor FROM dataset_versions WHERE id = $3) AS minor`,
-      [id, datasetId, datasetVersionId, name, itemCount],
+      [id, datasetId, datasetVersionId, name, itemCount, status],
     );
     const row = rows[0];
     if (!row) throw new Error("failed to insert dataset run");
     return toDatasetRun(row);
   }
 
+  async updateDatasetRunProgress(runId: string, itemCount: number, completed: boolean): Promise<DatasetRun | null> {
+    const { rowCount } = await this.pool.query(
+      `UPDATE dataset_runs SET item_count = GREATEST(item_count, $2), status = CASE WHEN $3 THEN 'completed' ELSE status END WHERE id = $1`,
+      [runId, itemCount, completed],
+    );
+    return rowCount ? this.getDatasetRun(runId) : null;
+  }
+
   async listDatasetRuns(datasetId: string): Promise<DatasetRun[]> {
-    const { rows } = await this.pool.query<{ id: string; dataset_id: string; dataset_version_id: string; major: number; minor: number; name: string; item_count: number; created_at: string }>(
-      `SELECT r.id, r.dataset_id, r.dataset_version_id, v.major, v.minor, r.name, r.item_count, r.created_at
+    const { rows } = await this.pool.query<{ id: string; dataset_id: string; dataset_version_id: string; major: number; minor: number; name: string; item_count: number; status: DatasetRunStatus; created_at: string }>(
+      `SELECT r.id, r.dataset_id, r.dataset_version_id, v.major, v.minor, r.name, r.item_count, r.status, r.created_at
          FROM dataset_runs r JOIN dataset_versions v ON v.id = r.dataset_version_id
         WHERE r.dataset_id = $1
         ORDER BY r.created_at DESC`,
@@ -765,8 +904,8 @@ export class PostgresIdentityRepository implements IdentityRepository {
   }
 
   async getDatasetRun(runId: string): Promise<DatasetRun | null> {
-    const { rows } = await this.pool.query<{ id: string; dataset_id: string; dataset_version_id: string; major: number; minor: number; name: string; item_count: number; created_at: string }>(
-      `SELECT r.id, r.dataset_id, r.dataset_version_id, v.major, v.minor, r.name, r.item_count, r.created_at
+    const { rows } = await this.pool.query<{ id: string; dataset_id: string; dataset_version_id: string; major: number; minor: number; name: string; item_count: number; status: DatasetRunStatus; created_at: string }>(
+      `SELECT r.id, r.dataset_id, r.dataset_version_id, v.major, v.minor, r.name, r.item_count, r.status, r.created_at
          FROM dataset_runs r JOIN dataset_versions v ON v.id = r.dataset_version_id
         WHERE r.id = $1`,
       [runId],
@@ -783,10 +922,11 @@ export class PostgresIdentityRepository implements IdentityRepository {
       minor: number;
       name: string;
       item_count: number;
+      status: DatasetRunStatus;
       created_at: string;
       dataset_name: string;
     }>(
-      `SELECT r.id, r.dataset_id, r.dataset_version_id, v.major, v.minor, r.name, r.item_count, r.created_at, d.name AS dataset_name
+      `SELECT r.id, r.dataset_id, r.dataset_version_id, v.major, v.minor, r.name, r.item_count, r.status, r.created_at, d.name AS dataset_name
          FROM dataset_runs r
          JOIN dataset_versions v ON v.id = r.dataset_version_id
          JOIN datasets d ON d.id = r.dataset_id
@@ -859,6 +999,7 @@ function toDatasetVersion(row: {
 function toDatasetItem(row: DatasetItemRow): DatasetItem {
   return {
     id: row.id,
+    originItemId: row.origin_item_id,
     datasetVersionId: row.dataset_version_id,
     input: row.input,
     expectedOutput: row.expected_output,
@@ -875,7 +1016,7 @@ function toDatasetItem(row: DatasetItemRow): DatasetItem {
   };
 }
 
-function toDatasetRun(row: { id: string; dataset_id: string; dataset_version_id: string; major: number; minor: number; name: string; item_count: number; created_at: string }): DatasetRun {
+function toDatasetRun(row: { id: string; dataset_id: string; dataset_version_id: string; major: number; minor: number; name: string; item_count: number; status: DatasetRunStatus; created_at: string }): DatasetRun {
   return {
     id: row.id,
     datasetId: row.dataset_id,
@@ -884,6 +1025,7 @@ function toDatasetRun(row: { id: string; dataset_id: string; dataset_version_id:
     versionMinor: row.minor,
     name: row.name,
     itemCount: row.item_count,
+    status: row.status,
     createdAt: row.created_at,
   };
 }

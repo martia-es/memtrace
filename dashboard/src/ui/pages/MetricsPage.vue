@@ -6,6 +6,7 @@ import { formatCostUsd, formatCount, formatDuration, formatPercent } from "@/dom
 import { resolveRange } from "@/domain/time-range";
 import { useQuasar } from "quasar";
 import CustomChartsPanel from "../components/CustomChartsPanel.vue";
+import OfflineEvalPanel from "../components/OfflineEvalPanel.vue";
 import MetricReportView from "../components/MetricReportView.vue";
 import EChart from "../components/EChart.vue";
 import EmptyState from "../components/EmptyState.vue";
@@ -387,7 +388,7 @@ const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.err
 // ---- Pestañas de la página: Overview / Compare / Custom charts / un informe guardado por pestaña ----
 const activeTab = ref<string>("overview");
 
-// ---- Informes guardados (ADR-033): una pestaña dinámica por informe, más "+" para crear uno nuevo ----
+// ---- Informes guardados (ADR-035): una pestaña dinámica por informe, más "+" para crear uno nuevo ----
 const reports = useAsync((signal) => identityApi.listMetricReports(experimentId.value, signal));
 watch(
   experimentId,
@@ -515,6 +516,7 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
         <q-tab name="overview" label="Overview" />
         <q-tab name="compare" label="Compare" :disable="(experiments.data.value?.length ?? 0) < 2" />
         <q-tab name="custom" label="Custom charts" />
+        <q-tab name="offline" label="Offline evals" />
         <q-tab v-for="r in reports.data.value ?? []" :key="r.id" :name="reportTabName(r.id)" :label="r.name" />
       </q-tabs>
       <button type="button" class="add-report-btn" title="New report" @click="openCreateReport">+ New report</button>
@@ -763,6 +765,10 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
 
       <q-tab-panel name="custom" class="metrics-tab-panel">
         <CustomChartsPanel :experiment-id="experimentId" :range="customChartsRange" />
+      </q-tab-panel>
+
+      <q-tab-panel name="offline" class="metrics-tab-panel">
+        <OfflineEvalPanel v-if="activeTab === 'offline'" :range="customChartsRange" />
       </q-tab-panel>
 
       <q-tab-panel v-for="r in reports.data.value ?? []" :key="r.id" :name="reportTabName(r.id)" class="metrics-tab-panel">

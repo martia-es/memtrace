@@ -149,7 +149,7 @@ function resetBuilder() {
   previewError.value = null;
 }
 
-// ---- opciones de ECharts a partir del resultado (compartido con MetricReportView, ADR-033) ----
+// ---- opciones de ECharts a partir del resultado (compartido con MetricReportView, ADR-035) ----
 function optionFor(result: { points: CustomMetricPointDto[]; timeseries: { bucketStart: string; points: CustomMetricPointDto[] }[] }, type: CustomMetricDefinitionDto["chartType"]): EChartsCoreOption {
   return customMetricChartOption(result, type, $q.dark.isActive);
 }

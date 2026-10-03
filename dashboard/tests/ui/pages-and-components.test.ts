@@ -149,6 +149,16 @@ describe("TraceDetailPage", () => {
     expect(inspector).toContain("TimeoutError: 30000 ms"); // el error encabeza la salida
   });
 
+  it("opens the annotation panel (ADR-037) from the Annotate button, scoped to the selected span", async () => {
+    const { wrapper } = await open(`/traces/${T}?span=c1`);
+    expect(document.body.querySelector('[data-testid="annotations-panel"]')).toBeNull();
+    await wrapper.get('[data-testid="annotate-btn"]').trigger("click");
+    await flushPromises();
+    const panel = document.body.querySelector('[data-testid="annotations-panel"]');
+    expect(panel).not.toBeNull();
+    expect(panel!.textContent).toContain("llm.reason"); // the span selected in the tree is offered as the annotation target
+  });
+
   it("selects a span from the URL or by clicking, showing an LLM's messages and metadata", async () => {
     const { wrapper, router } = await open(`/traces/${T}?span=c1`);
     expect(wrapper.find('[aria-selected="true"]').text()).toContain("llm.reason");

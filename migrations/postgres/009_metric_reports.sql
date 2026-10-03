@@ -1,5 +1,5 @@
 -- Informes guardados por experimento: agrupan varias custom_metrics con un layout de grid libre
--- (ADR-033). No duplican la definición del gráfico — solo referencian custom_metrics y dicen dónde
+-- (ADR-035). No duplican la definición del gráfico — solo referencian custom_metrics y dicen dónde
 -- y con qué tamaño aparece cada uno.
 
 CREATE TABLE IF NOT EXISTS metric_reports (

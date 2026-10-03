@@ -90,7 +90,7 @@ function openRun(run: RunListItemDto) {
           <tr v-for="r in items" :key="r.id" class="row" tabindex="0" @click="openRun(r)" @keydown.enter="openRun(r)">
             <td class="name">{{ r.name }}</td>
             <td class="muted">{{ r.datasetName }}</td>
-            <td class="num mono">v{{ r.versionMajor }}.{{ r.versionMinor }}</td>
+            <td class="num mono">v{{ r.versionMajor }}.{{ r.versionMinor }} <span v-if="r.status === 'running'" class="mt-pill warn" title="Still receiving results, or the process stopped before finishing">running</span></td>
             <td v-for="m in metricNames" :key="m" class="num">
               <span v-if="metricCell(r, m)" class="mt-pill" :class="{ ok: aggregateTone(metricCell(r, m)!) === 'positive', warn: aggregateTone(metricCell(r, m)!) === 'warning', error: aggregateTone(metricCell(r, m)!) === 'negative', unset: aggregateTone(metricCell(r, m)!) === 'default' }">
                 {{ aggregateValueLabel(metricCell(r, m)!) }}

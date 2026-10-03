@@ -1,4 +1,13 @@
 import type {
+  AddQueueItemsResponse,
+  InterAnnotatorAgreementResponse,
+  JudgeHumanAgreementResponse,
+  AnnotationQueueDetailResponse,
+  AnnotationQueueDto,
+  AnnotationQueuesListResponse,
+  NextQueueItemResponse,
+  QueueItemDto,
+  QueueItemsResponse,
   AttributeKeysResponse,
   AttributeValuesResponse,
   ConversationDetailResponse,
@@ -7,15 +16,18 @@ import type {
   CustomMetricDefinitionDto,
   CustomMetricResultResponse,
   DatasetDto,
+  CommitDatasetChangesBody,
   DatasetItemDto,
   DatasetItemsListResponse,
   DatasetRunDetailResponse,
   DatasetRunsListResponse,
   DatasetsListResponse,
+  DatasetVersionDiffResponse,
   DatasetVersionDto,
   DatasetVersionsListResponse,
   ExperimentUsageResponse,
   ModelPricingResponse,
+  TraceAnnotationsResponse,
   OverviewResponse,
   ProblemDetails,
   RunsListResponse,
@@ -26,7 +38,7 @@ import type {
   TraceListResponse,
   TranscriptResponse,
 } from "@contract";
-import { ApiError, type ListConversationsParams, type ListSpansParams, type ListTracesParams, type RangeParams, type TraceApi } from "@/application/trace-api";
+import { ApiError, type ListConversationsParams, type ListSpansParams, type ListTracesParams, type RangeParams, type SaveAnnotationBody, type TraceApi, type AddQueueItemsBody, type AnnotationQueuePatchBody, type NewAnnotationQueueBody, type QueueLabelBody, type AgreementScope } from "@/application/trace-api";
 
 type Fetch = typeof fetch;
 type QueryValue = string | number | boolean | undefined;
@@ -60,6 +72,74 @@ export class HttpTraceApi implements TraceApi {
 
   getTrace(traceId: string, signal?: AbortSignal) {
     return this.get<TraceDetailResponse>(`${this.scopedBase()}/traces/${encodeURIComponent(traceId)}`, {}, signal);
+  }
+
+  listTraceAnnotations(traceId: string, signal?: AbortSignal) {
+    return this.get<TraceAnnotationsResponse>(`${this.scopedBase()}/traces/${encodeURIComponent(traceId)}/annotations`, {}, signal);
+  }
+
+  saveTraceAnnotation(traceId: string, body: SaveAnnotationBody, signal?: AbortSignal) {
+    return this.post<TraceAnnotationsResponse>(`${this.scopedBase()}/traces/${encodeURIComponent(traceId)}/annotations`, body, signal);
+  }
+
+  retractTraceAnnotation(traceId: string, configId: string, options: { spanId?: string | null; annotatorId?: string } = {}, signal?: AbortSignal) {
+    const search = new URLSearchParams();
+    if (options.spanId) search.set("spanId", options.spanId);
+    if (options.annotatorId) search.set("annotatorId", options.annotatorId);
+    const qs = search.toString();
+    return this.del(`${this.scopedBase()}/traces/${encodeURIComponent(traceId)}/annotations/${encodeURIComponent(configId)}${qs ? `?${qs}` : ""}`, signal);
+  }
+
+  private queueBase(queueId?: string) {
+    return `${this.scopedBase()}/annotation-queues${queueId ? `/${encodeURIComponent(queueId)}` : ""}`;
+  }
+
+  listAnnotationQueues(includeArchived = false, signal?: AbortSignal) {
+    return this.get<AnnotationQueuesListResponse>(this.queueBase(), { includeArchived }, signal);
+  }
+
+  createAnnotationQueue(body: NewAnnotationQueueBody, signal?: AbortSignal) {
+    return this.post<AnnotationQueueDto>(this.queueBase(), body, signal);
+  }
+
+  getAnnotationQueue(queueId: string, signal?: AbortSignal) {
+    return this.get<AnnotationQueueDetailResponse>(this.queueBase(queueId), {}, signal);
+  }
+
+  updateAnnotationQueue(queueId: string, patch: AnnotationQueuePatchBody, signal?: AbortSignal) {
+    return this.patch<AnnotationQueueDetailResponse>(this.queueBase(queueId), patch, signal);
+  }
+
+  listAnnotationQueueItems(queueId: string, status?: QueueItemDto["status"], signal?: AbortSignal) {
+    return this.get<QueueItemsResponse>(`${this.queueBase(queueId)}/items`, { status }, signal);
+  }
+
+  addAnnotationQueueItems(queueId: string, body: AddQueueItemsBody, signal?: AbortSignal) {
+    return this.post<AddQueueItemsResponse>(`${this.queueBase(queueId)}/items`, body, signal);
+  }
+
+  getJudgeHumanAgreement(scope: AgreementScope, name?: string, signal?: AbortSignal) {
+    return this.get<JudgeHumanAgreementResponse>(`${this.scopedBase()}/agreement/judge-human`, { ...scope, name }, signal);
+  }
+
+  getInterAnnotatorAgreement(queueId: string, name?: string, signal?: AbortSignal) {
+    return this.get<InterAnnotatorAgreementResponse>(`${this.scopedBase()}/agreement/inter-annotator`, { queueId, name }, signal);
+  }
+
+  nextAnnotationQueueItem(queueId: string, signal?: AbortSignal) {
+    return this.post<NextQueueItemResponse>(`${this.queueBase(queueId)}/next`, {}, signal);
+  }
+
+  async completeAnnotationQueueItem(queueId: string, itemId: string, labels: QueueLabelBody[], signal?: AbortSignal) {
+    return (await this.post<{ item: QueueItemDto }>(`${this.queueBase(queueId)}/items/${encodeURIComponent(itemId)}/complete`, { labels }, signal)).item;
+  }
+
+  async skipAnnotationQueueItem(queueId: string, itemId: string, signal?: AbortSignal) {
+    return (await this.post<{ item: QueueItemDto }>(`${this.queueBase(queueId)}/items/${encodeURIComponent(itemId)}/skip`, {}, signal)).item;
+  }
+
+  async markAnnotationQueueItemUnreviewable(queueId: string, itemId: string, signal?: AbortSignal) {
+    return (await this.post<{ item: QueueItemDto }>(`${this.queueBase(queueId)}/items/${encodeURIComponent(itemId)}/unreviewable`, {}, signal)).item;
   }
 
   getOverview(params: RangeParams & { service?: string }, signal?: AbortSignal) {
@@ -140,6 +220,14 @@ export class HttpTraceApi implements TraceApi {
     return this.get<DatasetItemsListResponse>(`${this.scopedBase()}/datasets/${encodeURIComponent(datasetId)}/versions/${encodeURIComponent(versionId)}/items`, {}, signal);
   }
 
+  getDatasetVersionDiff(datasetId: string, versionId: string, againstVersionId?: string, signal?: AbortSignal) {
+    return this.get<DatasetVersionDiffResponse>(
+      `${this.scopedBase()}/datasets/${encodeURIComponent(datasetId)}/versions/${encodeURIComponent(versionId)}/diff`,
+      againstVersionId ? { against: againstVersionId } : {},
+      signal,
+    );
+  }
+
   listDatasetItems(datasetId: string, signal?: AbortSignal) {
     return this.get<DatasetItemsListResponse>(`${this.scopedBase()}/datasets/${encodeURIComponent(datasetId)}/items`, {}, signal);
   }
@@ -155,6 +243,10 @@ export class HttpTraceApi implements TraceApi {
 
   deleteDatasetItem(datasetId: string, itemId: string, signal?: AbortSignal) {
     return this.del(`${this.scopedBase()}/datasets/${encodeURIComponent(datasetId)}/items/${encodeURIComponent(itemId)}`, signal);
+  }
+
+  commitDatasetChanges(datasetId: string, changes: CommitDatasetChangesBody, signal?: AbortSignal) {
+    return this.post<DatasetItemsListResponse>(`${this.scopedBase()}/datasets/${encodeURIComponent(datasetId)}/changes`, changes, signal);
   }
 
   listDatasetRuns(datasetId: string, signal?: AbortSignal) {
@@ -191,6 +283,23 @@ export class HttpTraceApi implements TraceApi {
     try {
       response = await this.fetchFn(fullPath, {
         method: "POST",
+        signal,
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") throw error;
+      throw new ApiError(0, "No connection", "Could not reach the MemTrace API.");
+    }
+    if (!response.ok) throw await toApiError(response);
+    return (await response.json()) as T;
+  }
+
+  private async patch<T>(fullPath: string, body: unknown, signal?: AbortSignal): Promise<T> {
+    let response: Response;
+    try {
+      response = await this.fetchFn(fullPath, {
+        method: "PATCH",
         signal,
         headers: { Accept: "application/json", "Content-Type": "application/json" },
         body: JSON.stringify(body),

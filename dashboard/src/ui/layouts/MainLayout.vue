@@ -23,6 +23,7 @@ const OTLP_ENDPOINT = import.meta.env.VITE_OTLP_ENDPOINT ?? "http://localhost:43
 const NAV = [
   { name: "conversations", label: "Conversations", icon: "M4 5h16v11H9l-5 4z" },
   { name: "metrics", label: "Metrics", icon: "M3 13h4v8H3zM10 3h4v18h-4zM17 9h4v12h-4z" },
+  { name: "annotation-queues", label: "Review", icon: "M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2zM9 14l2 2 4-4" },
   { name: "datasets", label: "Datasets", icon: "M4 6a2 2 0 0 1 2-2h3l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" },
   { name: "runs", label: "Runs", icon: "M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" },
 ] as const;

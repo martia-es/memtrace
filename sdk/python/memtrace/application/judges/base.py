@@ -7,9 +7,10 @@ turning its answer into a `Score` is shared here. `LLMClient` is a plain protoco
 (`application/eval_ports.py`), so the LLM implementation used is never mandated by MemTrace —
 see `adapters/outbound/llm` for a default one.
 """
+import hashlib
 import json
 from abc import ABC, abstractmethod
-from typing import Any, Mapping, Optional
+from typing import Any, Iterator, Mapping, Optional
 
 from memtrace.application.eval_ports import LLMClient
 from memtrace.domain.evaluation import Score
@@ -18,6 +19,22 @@ _RESPONSE_INSTRUCTIONS = (
     'Respond with a single JSON object and nothing else, of the shape '
     '{"score": true or false, "reasoning": "<one sentence>"}.'
 )
+
+
+class _Placeholders(Mapping[str, Any]):
+    """Stand-in for `metadata` when fingerprinting a prompt template: any key resolves to `"{key}"`."""
+
+    def __getitem__(self, key: str) -> str:
+        return "{" + str(key) + "}"
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(())
+
+    def __len__(self) -> int:
+        return 1  # truthy, so `if metadata` guards in build_prompt behave as with real metadata
+
+    def __contains__(self, key: object) -> bool:
+        return True
 
 
 class LLMJudgeEvaluator(ABC):
@@ -47,6 +64,26 @@ class LLMJudgeEvaluator(ABC):
         """Returns the rubric-specific user prompt asking the LLM to judge `output`."""
         ...
 
+    def judge_model(self) -> Optional[str]:
+        """Model that judges: the explicit `model=` if given, else the client's default (`client.model`), else None."""
+        return self._model or getattr(self._client, "model", None)
+
+    def prompt_hash(self) -> str:
+        """Short, stable fingerprint of this judge's rubric (ADR-043).
+
+        Hashes the system prompt plus `build_prompt` rendered with placeholders instead of real
+        values, so it is identical across items and changes only when the rubric text does.
+        A subclass whose `build_prompt` cannot render placeholders falls back to its class name.
+        """
+        try:
+            skeleton = self.build_prompt(
+                input="{input}", output="{output}", expected_output="{expected_output}", metadata=_Placeholders()
+            )
+        except Exception:
+            skeleton = f"<{type(self).__module__}.{type(self).__qualname__}>"
+        digest = hashlib.sha256(f"{self.system_prompt()}\x00{skeleton}".encode("utf-8")).hexdigest()
+        return digest[:16]
+
     def system_prompt(self) -> str:
         """Override to change the judge's persona; keep the JSON response contract unless
         `__call__` is also overridden to parse something else."""
@@ -70,6 +107,8 @@ class LLMJudgeEvaluator(ABC):
             data_type="boolean",
             source="llm_judge",
             comment=parsed.get("reasoning"),
+            judge_model=self.judge_model(),
+            judge_prompt_hash=self.prompt_hash(),
         )
 
 

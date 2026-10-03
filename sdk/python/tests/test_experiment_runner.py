@@ -1,6 +1,9 @@
 from memtrace.application.experiment_runner import run_experiment
 from memtrace.domain.evaluation import EvalItem, Score
-from tests.fakes import FakeDatasetSource, FakeResultsSink
+import pytest
+
+from memtrace.application.experiment_runner import ResultsUploadError
+from tests.fakes import FakeDatasetSource, FakeIncrementalSink, FakeResultsSink
 
 ITEMS = [
     EvalItem(input="2+2?", expected_output="4"),
@@ -98,3 +101,151 @@ def test_evaluator_only_receives_the_keyword_arguments_it_declares():
 
     run_experiment(data=ITEMS[:1], task=_echo_task, evaluators=[MinimalEvaluator()], name="minimal")
     assert seen == {"output": "4"}
+
+
+def test_run_experiment_reads_local_jsonl_and_json_files(tmp_path):
+    from memtrace.eval import exact_match, run_experiment
+
+    jsonl = tmp_path / "d.jsonl"
+    jsonl.write_text('{"input": "a", "expected_output": "a"}\n\n{"input": "b", "expected_output": "x"}\n')
+    as_json = tmp_path / "d.json"
+    as_json.write_text('[{"input": "a", "expected_output": "a"}]')
+
+    for path, expected_items in ((jsonl, 2), (as_json, 1)):
+        result = run_experiment(data=path, task=lambda *, item: item.input, evaluators=[exact_match], name="local", sink=None)
+        assert len(result.items) == expected_items
+
+
+def test_run_experiment_rejects_dataset_version_without_dataset_id():
+    import pytest
+
+    from memtrace.eval import exact_match, run_experiment
+
+    with pytest.raises(ValueError, match="dataset_version"):
+        run_experiment(data=[{"input": "a"}], task=lambda *, item: "a", evaluators=[exact_match], name="x", dataset_version="1.0", sink=None)
+
+
+def test_incremental_sink_gets_start_then_each_item_with_its_index_then_finish():
+    sink = FakeIncrementalSink()
+    result = run_experiment(data=ITEMS, task=_echo_task, evaluators=[_ExactMatch()], name="inc", sink=sink, max_workers=2)
+
+    assert sink.events[0] == "start" and sink.events[-1] == "finish" and sink.events.count("add") == 2
+    assert {index: r.item.input for index, r in sink.added} == {i: item.input for i, item in enumerate(ITEMS)}
+    assert sink.finished == result
+    assert [r.item.input for r in result.items] == [i.input for i in ITEMS]  # result stays in dataset order
+
+
+def test_a_slow_item_does_not_hold_back_the_upload_of_the_others():
+    import threading
+
+    release_slow = threading.Event()
+    uploaded_while_slow_blocked = []
+
+    def task(*, item):
+        if item.input == "2+2?":  # first item of the dataset
+            release_slow.wait(timeout=5)
+        return item.expected_output
+
+    class Sink(FakeIncrementalSink):
+        def add(self, index, item_result):
+            super().add(index, item_result)
+            if index != 0:
+                uploaded_while_slow_blocked.append(index)
+                release_slow.set()  # only now let the slow item finish
+
+    result = run_experiment(data=ITEMS, task=task, evaluators=[], name="slow", sink=Sink(), max_workers=2)
+
+    assert uploaded_while_slow_blocked == [1]  # item 1 was uploaded before item 0 finished
+    assert [r.item.input for r in result.items] == [i.input for i in ITEMS]
+
+
+def test_incremental_start_failure_aborts_before_any_agent_call():
+    calls = []
+
+    def task(*, item):
+        calls.append(item)
+        return item.expected_output
+
+    with pytest.raises(RuntimeError, match="api down"):
+        run_experiment(data=ITEMS, task=task, evaluators=[], name="x", sink=FakeIncrementalSink(fail_start=True))
+    assert calls == []
+
+
+def test_incremental_add_failure_does_not_stop_the_experiment():
+    result = run_experiment(data=ITEMS, task=_echo_task, evaluators=[_ExactMatch()], name="x", sink=FakeIncrementalSink(fail_add=True))
+    assert len(result.items) == 2
+
+
+@pytest.mark.parametrize("sink", [FakeIncrementalSink(fail_finish=True)])
+def test_a_failed_upload_raises_but_keeps_the_computed_result(sink):
+    with pytest.raises(ResultsUploadError) as exc_info:
+        run_experiment(data=ITEMS, task=_echo_task, evaluators=[_ExactMatch()], name="x", sink=sink)
+    assert len(exc_info.value.result.items) == 2
+
+
+def test_result_records_the_version_exposed_by_the_source():
+    class VersionedSource(FakeDatasetSource):
+        version = "2.1"
+
+    result = run_experiment(data=VersionedSource(ITEMS), task=_echo_task, evaluators=[], name="v")
+    assert result.dataset_version == "2.1"
+    assert run_experiment(data=ITEMS, task=_echo_task, evaluators=[], name="v").dataset_version is None
+
+
+def test_local_file_version_is_a_content_fingerprint(tmp_path):
+    from memtrace.eval import run_experiment as facade_run
+
+    path = tmp_path / "d.jsonl"
+    path.write_text('{"input": "a"}\n')
+    first = facade_run(data=path, task=lambda *, item: "a", evaluators=[], name="x", sink=None).dataset_version
+    again = facade_run(data=path, task=lambda *, item: "a", evaluators=[], name="x", sink=None).dataset_version
+    path.write_text('{"input": "b"}\n')
+    edited = facade_run(data=path, task=lambda *, item: "a", evaluators=[], name="x", sink=None).dataset_version
+
+    assert first.startswith("sha256:") and first == again and first != edited
+
+
+def test_summary_aggregates_per_evaluator_locally():
+    class Half:
+        name = "half"
+
+        def __call__(self, *, input):
+            return Score(name=self.name, value=input == "2+2?", data_type="boolean")
+
+    class Length:
+        name = "length"
+
+        def __call__(self, *, output):
+            return Score(name=self.name, value=float(len(output)), data_type="numeric")
+
+    result = run_experiment(data=ITEMS, task=_echo_task, evaluators=[Half(), Length()], name="s")
+    by_name = {s.name: s for s in result.summary()}
+
+    assert by_name["half"].pass_rate == 0.5 and by_name["half"].average is None and by_name["half"].count == 2
+    assert by_name["length"].average == (1 + 5) / 2 and by_name["length"].pass_rate is None
+
+
+def test_error_count_counts_items_whose_task_raised():
+    def flaky(*, item):
+        raise RuntimeError("boom")
+
+    assert run_experiment(data=ITEMS, task=flaky, evaluators=[], name="e").error_count == 2
+
+
+def test_offline_path_needs_neither_httpx_nor_the_http_adapter():
+    """Local data + sink=None must never import the HTTP adapter or httpx (SDK decoupled from the API)."""
+    import subprocess
+    import sys
+    import textwrap
+
+    code = textwrap.dedent(
+        """
+        import sys
+        sys.modules["httpx"] = None  # importing it would raise ImportError
+        from memtrace.eval import run_experiment, exact_match
+        r = run_experiment(data=[{"input": "a", "expected_output": "a"}], task=lambda *, item: item.input, evaluators=[exact_match], name="x", sink=None)
+        assert r.summary()[0].pass_rate == 1.0
+        assert "memtrace.adapters.outbound.http.eval_api_client" not in sys.modules
+        """
+    )
+    subprocess.run([sys.executable, "-c", code], check=True)

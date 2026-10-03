@@ -21,3 +21,78 @@ export class TraceNotFoundError extends Error {
     this.name = "TraceNotFoundError";
   }
 }
+
+/** La config pedida no existe en ese experimento (ADR-036). */
+export class ScoreConfigNotFoundError extends Error {
+  constructor(readonly configId: string) {
+    super(`Score config ${configId} not found`);
+    this.name = "ScoreConfigNotFoundError";
+  }
+}
+
+/** Cambio que violaría una invariante de las score configs (tipo inmutable, solo ampliar, nombre ocupado...). HTTP 409. */
+export class ScoreConfigInvariantError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ScoreConfigInvariantError";
+  }
+}
+
+/** La config no tiene una forma válida para su `dataType` (rango invertido, categorías duplicadas...). HTTP 422. */
+export class ScoreConfigShapeError extends Error {
+  constructor(
+    message: string,
+    readonly fields: Record<string, string> = {},
+  ) {
+    super(message);
+    this.name = "ScoreConfigShapeError";
+  }
+}
+
+/** El valor de una anotación no encaja con la score config (fuera de rango, no booleano, categoría desconocida). HTTP 422 (ADR-037). */
+export class AnnotationValueError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AnnotationValueError";
+  }
+}
+
+/** El span indicado no pertenece a la traza que se quiere anotar. */
+export class SpanNotFoundError extends Error {
+  constructor(readonly spanId: string) {
+    super(`Span ${spanId} not found in this trace`);
+    this.name = "SpanNotFoundError";
+  }
+}
+
+/** Quien intenta retirar una anotación ajena no es admin del experimento. */
+export class AnnotationForbiddenError extends Error {
+  constructor(message = "Only the author or an experiment admin can retract this annotation") {
+    super(message);
+    this.name = "AnnotationForbiddenError";
+  }
+}
+
+/** La cola (o uno de sus items) no existe en ese experimento (ADR-039). HTTP 404. */
+export class AnnotationQueueNotFoundError extends Error {
+  constructor(readonly queueId: string, readonly itemId?: string) {
+    super(itemId ? `Item ${itemId} not found in annotation queue ${queueId}` : `Annotation queue ${queueId} not found`);
+    this.name = "AnnotationQueueNotFoundError";
+  }
+}
+
+/** Operación incompatible con el estado de la cola (archivada, nombre ocupado, quitar config de una cola iniciada, sin claim...). HTTP 409. */
+export class AnnotationQueueInvariantError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AnnotationQueueInvariantError";
+  }
+}
+
+/** El run pedido no existe en ese experimento (ADR-040). HTTP 404. */
+export class DatasetRunNotFoundError extends Error {
+  constructor(readonly datasetRunId: string) {
+    super(`Dataset run ${datasetRunId} not found`);
+    this.name = "DatasetRunNotFoundError";
+  }
+}

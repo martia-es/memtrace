@@ -73,3 +73,32 @@ class FakeResultsSink:
 
     def save(self, result: ExperimentResult) -> None:
         self.saved.append(result)
+
+
+class FakeIncrementalSink:
+    """Records the lifecycle an `IncrementalResultsSink` sees; can fail `add`/`finish` on demand."""
+
+    def __init__(self, fail_add=False, fail_finish=False, fail_start=False):
+        self.events: List[str] = []
+        self.started_with = None
+        self.added: List[Any] = []
+        self.finished: Optional[ExperimentResult] = None
+        self._fail = {"add": fail_add, "finish": fail_finish, "start": fail_start}
+
+    def start(self, *, name, dataset_version):
+        if self._fail["start"]:
+            raise RuntimeError("api down")
+        self.events.append("start")
+        self.started_with = (name, dataset_version)
+
+    def add(self, index, item_result):
+        self.events.append("add")
+        if self._fail["add"]:
+            raise RuntimeError("add failed")
+        self.added.append((index, item_result))
+
+    def finish(self, result):
+        self.events.append("finish")
+        if self._fail["finish"]:
+            raise RuntimeError("finish failed")
+        self.finished = result

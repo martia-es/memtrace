@@ -3,7 +3,7 @@ import type { EChartsCoreOption } from "echarts/core";
 import { chartColors } from "./chart-theme";
 
 /** Opciones de ECharts a partir del resultado de un custom chart (ADR-027/030). Compartido entre el
- * builder (CustomChartsPanel) y la vista de un informe guardado (MetricReportView, ADR-033). */
+ * builder (CustomChartsPanel) y la vista de un informe guardado (MetricReportView, ADR-035). */
 export function customMetricChartOption(
   result: { points: CustomMetricPointDto[]; timeseries: { bucketStart: string; points: CustomMetricPointDto[] }[] },
   type: CustomMetricDefinitionDto["chartType"],

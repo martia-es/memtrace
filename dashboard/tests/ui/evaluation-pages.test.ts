@@ -84,7 +84,7 @@ describe("DatasetDetailPage", () => {
 
     const { wrapper } = await setup(DatasetDetailPage, api, "/datasets/ds-1");
     expect(wrapper.text()).toContain("toy-agent-smoke-test");
-    expect(wrapper.text()).toContain("2+2?");
+    expect((wrapper.find('textarea[aria-label="Input of row 1"]').element as HTMLTextAreaElement).value).toBe("2+2?");
   });
 
   it("renders a table row per run in the Runs tab and opens one", async () => {
@@ -103,6 +103,64 @@ describe("DatasetDetailPage", () => {
     await flushPromises();
     expect(router.currentRoute.value.name).toBe("dataset-run");
     expect(router.currentRoute.value.params).toMatchObject({ datasetId: "ds-1", runId: "run-1" });
+  });
+
+  it("lists versions in a flat table with real change counts and opens a diff modal against the previous one", async () => {
+    const api = new FakeTraceApi();
+    api.datasetById = { "ds-1": datasetDto() };
+    api.datasetVersions = {
+      "ds-1": {
+        items: [
+          datasetVersionDto({ id: "v3", major: 1, minor: 2, note: "Edited item", modifiedCount: 1 }),
+          datasetVersionDto({ id: "v2", major: 1, minor: 1, note: "Added item", addedCount: 1 }),
+          datasetVersionDto({ id: "v1", major: 1, minor: 0, note: null }),
+        ],
+      },
+    };
+    api.datasetVersionDiffs = {
+      "v3:v2": {
+        base: { id: "v2", major: 1, minor: 1 },
+        target: { id: "v3", major: 1, minor: 2 },
+        unchangedCount: 2,
+        changes: [
+          {
+            originItemId: "a",
+            kind: "modified",
+            before: datasetItemDto({ input: "2+2?", expectedOutput: "4" }),
+            after: datasetItemDto({ input: "2+2?", expectedOutput: "four", updatedByEmail: "luis@example.com", updatedAt: "2026-10-02T10:00:00Z" }),
+          },
+        ],
+      },
+    };
+
+    const { wrapper } = await setup(DatasetDetailPage, api, "/datasets/ds-1");
+    await clickTab(wrapper, "Versions");
+
+    const rows = wrapper.findAll("tbody tr");
+    expect(rows).toHaveLength(3);
+    expect(rows[0]!.text()).toContain("~1");
+    expect(rows[1]!.text()).toContain("+1");
+    expect(rows[2]!.text()).not.toMatch(/[+~−]\d/);
+
+    await rows[0]!.find("button").trigger("click");
+    await flushPromises();
+    expect(api.datasetVersionDiffCalls).toEqual([{ versionId: "v3", againstVersionId: "v2" }]);
+    const modal = document.body;
+    expect(modal.textContent).toContain("luis@example.com");
+    expect(modal.textContent).toContain("2 unchanged items");
+    expect(modal.textContent).toContain("Changes from v1.1 to v1.2");
+    expect(modal.textContent).toContain("Modified since v1.1");
+    expect(modal.querySelectorAll(".line.del")).toHaveLength(1);
+    expect(modal.querySelector(".line.add")?.textContent).toContain("four");
+
+    // comparar con una versión no adyacente
+    const select = modal.querySelector<HTMLSelectElement>("#compare-with")!;
+    expect([...select.options].map((o) => o.value)).toEqual(["v2", "v1"]);
+    select.value = "v1";
+    select.dispatchEvent(new Event("change"));
+    await flushPromises();
+    expect(api.datasetVersionDiffCalls.at(-1)).toEqual({ versionId: "v3", againstVersionId: "v1" });
+    wrapper.unmount();
   });
 
   it("shows an empty state when the dataset has no runs", async () => {
@@ -193,5 +251,51 @@ describe("DatasetRunDetailPage", () => {
     };
     const { wrapper } = await setup(DatasetRunDetailPage, api, "/datasets/ds-1/runs/run-1");
     expect(wrapper.text()).toContain("error: boom");
+  });
+});
+
+describe("DatasetDetailPage — spreadsheet editing (ADR-041)", () => {
+  async function openEditor() {
+    const api = new FakeTraceApi();
+    api.datasetById = { "ds-1": datasetDto() };
+    api.datasetVersions = { "ds-1": { items: [datasetVersionDto({ major: 2, minor: 1 })] } };
+    api.datasetItems = { "ds-1": { items: [datasetItemDto({ id: "i1", input: "2+2?", expectedOutput: "4" })] } };
+    const ctx = await setup(DatasetDetailPage, api, "/datasets/ds-1");
+    return { api, ...ctx };
+  }
+
+  it("publishes several edits as a single commit and predicts the version", async () => {
+    const { api, wrapper } = await openEditor();
+    expect(wrapper.find(".publish-bar").exists()).toBe(false);
+
+    const expected = wrapper.find('textarea[aria-label="Expected output of row 1"]');
+    await expected.setValue("four");
+    const blank = wrapper.findAll("textarea.cell-input").filter((t) => t.attributes("aria-label")?.startsWith("Input of row 2"))[0]!;
+    await blank.setValue("3+3?");
+
+    const bar = wrapper.find(".publish-bar");
+    expect(bar.text()).toContain("2 unpublished changes");
+    expect(bar.text()).toContain("v3.0");
+
+    await bar.find(".primary-btn").trigger("click");
+    await flushPromises();
+    expect(api.commitDatasetChangesCalls).toHaveLength(1);
+    expect(api.commitDatasetChangesCalls[0]!.changes).toEqual({
+      add: [{ input: "3+3?", expectedOutput: null, metadata: null }],
+      update: [{ id: "i1", expectedOutput: "four" }],
+      remove: [],
+    });
+  });
+
+  it("deleting only marks the row until published, and Discard restores it", async () => {
+    const { api, wrapper } = await openEditor();
+    await wrapper.find('button[aria-label="Delete"]').trigger("click");
+    expect(wrapper.find(".publish-bar").text()).toContain("1 deleted");
+    expect(api.deleteDatasetItemCalls).toHaveLength(0);
+
+    const discard = wrapper.findAll(".publish-bar button").find((b) => b.text() === "Discard")!;
+    await discard.trigger("click");
+    expect(wrapper.find(".publish-bar").exists()).toBe(false);
+    expect(api.commitDatasetChangesCalls).toHaveLength(0);
   });
 });

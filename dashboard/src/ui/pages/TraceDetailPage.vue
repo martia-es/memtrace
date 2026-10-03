@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { computed, useTemplateRef, watch } from "vue";
+import { computed, ref, useTemplateRef, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { formatCostUsd, formatCount, formatDateTime, formatDuration, shortId } from "@/domain/format";
 import { findNode, firstErrorNode } from "@/domain/waterfall";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import SpanInspector from "../components/SpanInspector.vue";
 import SpanTree from "../components/SpanTree.vue";
+import Modal from "../components/Modal.vue";
+import AddToQueueModal from "../components/AddToQueueModal.vue";
+import TraceAnnotationsPanel from "../components/TraceAnnotationsPanel.vue";
 import StatusBadge from "../components/StatusBadge.vue";
 import { useAsync } from "../composables/useAsync";
 import { useFilters } from "../composables/useFilters";
@@ -42,6 +45,10 @@ const selectedNode = computed(() => {
   return (wanted ? findNode(roots.value, wanted) : null) ?? firstErrorNode(roots.value) ?? roots.value[0] ?? null;
 });
 const select = (spanId: string) => void router.replace({ query: { ...route.query, span: spanId } });
+
+// ---- human annotation (ADR-037) ----
+const annotating = ref(false);
+const addingToQueue = ref(false);
 
 const hint = "This span has no content saved. Enable MEMTRACE_CAPTURE_CONTENT=true on the agent to see it here (it's saved as-is: check privacy).";
 
@@ -82,6 +89,8 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
           <span v-if="trace.data.value.errorCount" class="mt-pill error"><q-icon name="error" size="15px" /> {{ `${trace.data.value.errorCount} with error` }}</span>
           <span v-if="trace.data.value.totalTokens" class="mt-pill unset"><q-icon name="toll" size="15px" /> {{ `${formatCount(trace.data.value.totalTokens)} tokens` }}</span>
           <span v-if="trace.data.value.totalCostUsd" class="mt-pill unset"><q-icon name="payments" size="15px" /> {{ formatCostUsd(trace.data.value.totalCostUsd) }}</span>
+          <button type="button" class="mt-pill unset annotate-btn" data-testid="annotate-btn" @click="annotating = true"><q-icon name="rate_review" size="15px" /> Annotate</button>
+          <button type="button" class="mt-pill unset annotate-btn" data-testid="add-to-queue-btn" @click="addingToQueue = true"><q-icon name="playlist_add" size="15px" /> Add to queue</button>
           <button type="button" class="mt-round-btn" aria-label="Copy trace ID" @click="copyId"><q-icon name="content_copy" size="18px" /></button>
         </div>
       </header>
@@ -109,6 +118,12 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
         <SpanInspector v-if="selectedNode" :node="selectedNode" :empty-hint="hint" />
         <section v-else class="mt-card empty-card">Esta traza no tiene spans que mostrar.</section>
       </div>
+
+      <AddToQueueModal v-if="addingToQueue" :trace-id="traceId" @close="addingToQueue = false" />
+
+      <Modal v-if="annotating" title="Annotate trace" wide @close="annotating = false">
+        <TraceAnnotationsPanel :trace-id="traceId" :experiment-id="experimentId" :span="selectedNode ? { spanId: selectedNode.spanId, name: selectedNode.name } : null" />
+      </Modal>
     </template>
   </div>
 </template>
@@ -184,6 +199,11 @@ h2 {
   min-width: 0;
   padding-left: 10px;
   border-left: 1px solid var(--mt-line);
+}
+.annotate-btn {
+  border: 0;
+  cursor: pointer;
+  font: inherit;
 }
 .sub {
   font-size: 12px;

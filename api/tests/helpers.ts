@@ -7,6 +7,25 @@ import type { Span } from "@/domain/span";
 import type { SpanCursor, SpanRecord } from "@/domain/span-row";
 import type { TimeRange } from "@/domain/time-range";
 import type { Page, TraceSummary } from "@/domain/trace";
+import type { AnnotationRepository } from "@/application/ports/annotation-repository";
+import type { Annotation } from "@/domain/annotation";
+import type { AnnotationQueueRepository } from "@/application/ports/annotation-queue-repository";
+import {
+  assertRubricOnlyGrows,
+  deriveItemStatus,
+  type AnnotationQueue,
+  type AnnotationQueuePatch,
+  type NewAnnotationQueue,
+  type QueueItem,
+  type QueueItemStatus,
+  type QueueProgress,
+  type QueueProvenance,
+  type QueueTarget,
+  type ReviewerProgress,
+} from "@/domain/annotation-queue";
+import type { ScoreConfigRepository } from "@/application/ports/score-config-repository";
+import { AnnotationQueueInvariantError, ScoreConfigInvariantError } from "@/domain/errors";
+import type { NewScoreConfig, ScoreConfig, ScoreConfigChanges } from "@/domain/score-config";
 
 let counter = 0;
 
@@ -132,5 +151,214 @@ export class FakeTraceRepository implements TraceRepository {
   }
   async ping() {
     this.check();
+  }
+}
+
+/** Repositorio de score configs en memoria; reproduce la unicidad de nombre entre configs activas del índice parcial. */
+export class FakeScoreConfigRepository implements ScoreConfigRepository {
+  configs: ScoreConfig[] = [];
+  private seq = 0;
+
+  private nameTaken(experimentId: string, name: string, exceptId?: string) {
+    return this.configs.some((c) => c.experimentId === experimentId && c.name === name && !c.archivedAt && c.id !== exceptId);
+  }
+  async list(experimentId: string, includeArchived: boolean) {
+    return this.configs.filter((c) => c.experimentId === experimentId && (includeArchived || !c.archivedAt));
+  }
+  async get(experimentId: string, configId: string) {
+    return this.configs.find((c) => c.experimentId === experimentId && c.id === configId) ?? null;
+  }
+  async create(experimentId: string, createdByUserId: string, input: NewScoreConfig) {
+    if (this.nameTaken(experimentId, input.name)) throw new ScoreConfigInvariantError(`name "${input.name}" taken`);
+    this.seq += 1;
+    const now = "2026-10-03T00:00:00.000Z";
+    const config: ScoreConfig = { ...input, id: `cfg-${this.seq}`, experimentId, createdBy: createdByUserId, createdAt: now, updatedAt: now, archivedAt: null };
+    this.configs.push(config);
+    return config;
+  }
+  async update(experimentId: string, configId: string, changes: ScoreConfigChanges) {
+    const config = await this.get(experimentId, configId);
+    if (!config) return null;
+    Object.assign(config, changes);
+    return config;
+  }
+  async setArchived(experimentId: string, configId: string, archived: boolean) {
+    const config = await this.get(experimentId, configId);
+    if (!config) return null;
+    if (!archived && this.nameTaken(experimentId, config.name, config.id)) throw new ScoreConfigInvariantError(`name "${config.name}" taken`);
+    config.archivedAt = archived ? "2026-10-03T00:00:00.000Z" : null;
+    return config;
+  }
+}
+
+/** Anotaciones en memoria con la misma semántica de clave que la tabla: (traza, span, config, anotador), la última escritura gana. */
+export class FakeAnnotationRepository implements AnnotationRepository {
+  rows: Array<{ serviceName: string; annotation: Annotation; isDeleted: boolean }> = [];
+
+  private sameKey(a: Annotation, b: Annotation) {
+    return a.traceId === b.traceId && (a.datasetRunId ?? null) === (b.datasetRunId ?? null) && (a.itemIndex ?? null) === (b.itemIndex ?? null) && a.spanId === b.spanId && a.configId === b.configId && a.annotatorId === b.annotatorId;
+  }
+  private put(serviceName: string, annotation: Annotation, isDeleted: boolean) {
+    this.rows = this.rows.filter((r) => !(r.serviceName === serviceName && this.sameKey(r.annotation, annotation)));
+    this.rows.push({ serviceName, annotation, isDeleted });
+  }
+  async upsert(serviceName: string, annotation: Annotation) {
+    this.put(serviceName, annotation, false);
+  }
+  async retract(serviceName: string, annotation: Annotation) {
+    this.put(serviceName, annotation, true);
+  }
+  async listForTrace(serviceName: string, traceId: string) {
+    return this.rows.filter((r) => r.serviceName === serviceName && r.annotation.traceId === traceId && !r.annotation.datasetRunId && !r.isDeleted).map((r) => r.annotation);
+  }
+  async listForRuns(serviceName: string, datasetRunIds: string[], configName?: string) {
+    return this.rows
+      .filter((r) => r.serviceName === serviceName && !r.isDeleted && !!r.annotation.datasetRunId && datasetRunIds.includes(r.annotation.datasetRunId) && (configName === undefined || r.annotation.configName === configName))
+      .map((r) => r.annotation);
+  }
+  async listForTraces(serviceName: string, traceIds: string[], configName?: string) {
+    return this.rows
+      .filter((r) => r.serviceName === serviceName && !r.isDeleted && !r.annotation.datasetRunId && r.annotation.spanId === null && traceIds.includes(r.annotation.traceId) && (configName === undefined || r.annotation.configName === configName))
+      .map((r) => r.annotation);
+  }
+}
+
+/** Cola de anotación en memoria: reproduce claims por revisor y el estado derivado, sin concurrencia ni lease (eso lo prueba la integración con Postgres). */
+export class FakeAnnotationQueueRepository implements AnnotationQueueRepository {
+  queues: AnnotationQueue[] = [];
+  items: QueueItem[] = [];
+  claims: Array<{ itemId: string; userId: string; completed: boolean; skipped: boolean }> = [];
+  failCompleteWith?: Error;
+  private seq = 0;
+
+  private id(prefix: string) {
+    this.seq += 1;
+    return `${prefix}-${this.seq}`;
+  }
+  private recompute(queue: AnnotationQueue, item: QueueItem) {
+    const done = this.claims.filter((c) => c.itemId === item.id && c.completed).length;
+    item.status = deriveItemStatus(item.status, done, queue.requiredAnnotations);
+    item.completedAt = item.status === "completed" ? (item.completedAt ?? "2026-10-03T00:00:00.000Z") : null;
+  }
+
+  async list(experimentId: string, includeArchived: boolean) {
+    const queues = this.queues.filter((q) => q.experimentId === experimentId && (includeArchived || !q.archivedAt));
+    return Promise.all(queues.map(async (queue) => ({ queue, progress: await this.progress(queue.id) })));
+  }
+  async get(experimentId: string, queueId: string) {
+    return this.queues.find((q) => q.experimentId === experimentId && q.id === queueId) ?? null;
+  }
+  async progress(queueId: string): Promise<QueueProgress> {
+    const items = this.items.filter((i) => i.queueId === queueId);
+    return { pending: items.filter((i) => i.status === "pending").length, completed: items.filter((i) => i.status === "completed").length, skipped: items.filter((i) => i.status === "skipped").length };
+  }
+  async reviewers(queueId: string): Promise<ReviewerProgress[]> {
+    const ids = new Set(this.items.filter((i) => i.queueId === queueId).map((i) => i.id));
+    const mine = this.claims.filter((c) => ids.has(c.itemId));
+    return [...new Set(mine.map((c) => c.userId))].map((userId) => ({
+      userId,
+      completed: mine.filter((c) => c.userId === userId && c.completed).length,
+      skipped: mine.filter((c) => c.userId === userId && c.skipped && !c.completed).length,
+      inProgress: mine.filter((c) => c.userId === userId && !c.completed && !c.skipped).length,
+    }));
+  }
+  async create(experimentId: string, createdByUserId: string, input: NewAnnotationQueue) {
+    if (this.queues.some((q) => q.experimentId === experimentId && q.name === input.name && !q.archivedAt)) throw new AnnotationQueueInvariantError(`name "${input.name}" taken`);
+    const queue: AnnotationQueue = {
+      id: this.id("q"),
+      experimentId,
+      name: input.name,
+      instructions: input.instructions,
+      requiredAnnotations: input.requiredAnnotations,
+      rubric: input.rubric.map((r, position) => ({ ...r, position })),
+      createdBy: createdByUserId,
+      createdAt: "2026-10-03T00:00:00.000Z",
+      archivedAt: null,
+    };
+    this.queues.push(queue);
+    return queue;
+  }
+  async update(experimentId: string, queueId: string, patch: AnnotationQueuePatch) {
+    const queue = await this.get(experimentId, queueId);
+    if (!queue) return null;
+    if (patch.rubric) {
+      if (this.items.some((i) => i.queueId === queueId)) assertRubricOnlyGrows(queue.rubric, patch.rubric);
+      queue.rubric = patch.rubric.map((r, position) => ({ ...r, position }));
+    }
+    if (patch.name !== undefined) queue.name = patch.name;
+    if (patch.instructions !== undefined) queue.instructions = patch.instructions;
+    if (patch.archived !== undefined) queue.archivedAt = patch.archived ? "2026-10-03T00:00:00.000Z" : null;
+    if (patch.requiredAnnotations !== undefined && patch.requiredAnnotations !== queue.requiredAnnotations) {
+      queue.requiredAnnotations = patch.requiredAnnotations;
+      for (const item of this.items.filter((i) => i.queueId === queueId)) this.recompute(queue, item);
+    }
+    return queue;
+  }
+  async addItems(queueId: string, addedBy: string, targets: QueueTarget[], provenance: QueueProvenance = { population: "manual", seed: null }) {
+    let added = 0;
+    for (const t of targets) {
+      const item: QueueItem = {
+        id: this.id("i"),
+        queueId,
+        targetType: t.targetType,
+        traceId: t.targetType === "trace" ? t.traceId : null,
+        datasetRunId: t.targetType === "run_item" ? t.datasetRunId : null,
+        itemIndex: t.targetType === "run_item" ? t.itemIndex : null,
+        status: "pending",
+        population: provenance.population,
+        sampleSeed: provenance.seed,
+        addedBy,
+        addedAt: `2026-10-03T00:00:${String(this.items.length).padStart(2, "0")}.000Z`,
+        completedAt: null,
+      };
+      const dup = this.items.some((i) => i.queueId === queueId && i.traceId === item.traceId && i.datasetRunId === item.datasetRunId && i.itemIndex === item.itemIndex);
+      if (!dup) {
+        this.items.push(item);
+        added += 1;
+      }
+    }
+    return { added, duplicates: targets.length - added };
+  }
+  async listItems(queueId: string, status: QueueItemStatus | undefined, limit: number) {
+    return this.items.filter((i) => i.queueId === queueId && (!status || i.status === status)).slice(0, limit);
+  }
+  async getItem(queueId: string, itemId: string) {
+    return this.items.find((i) => i.queueId === queueId && i.id === itemId) ?? null;
+  }
+  async claimNext(queue: AnnotationQueue, userId: string) {
+    const open = this.claims.find((c) => c.userId === userId && !c.completed && !c.skipped && this.items.find((i) => i.id === c.itemId)?.queueId === queue.id);
+    if (open) return this.items.find((i) => i.id === open.itemId)!;
+    const item = this.items.find(
+      (i) =>
+        i.queueId === queue.id &&
+        i.status === "pending" &&
+        !this.claims.some((c) => c.itemId === i.id && c.userId === userId) &&
+        this.claims.filter((c) => c.itemId === i.id && !c.skipped).length < queue.requiredAnnotations,
+    );
+    if (!item) return null;
+    this.claims.push({ itemId: item.id, userId, completed: false, skipped: false });
+    return item;
+  }
+  async hasClaim(itemId: string, userId: string) {
+    return this.claims.some((c) => c.itemId === itemId && c.userId === userId);
+  }
+  async completeClaim(queue: AnnotationQueue, itemId: string, userId: string) {
+    if (this.failCompleteWith) throw this.failCompleteWith;
+    const claim = this.claims.find((c) => c.itemId === itemId && c.userId === userId);
+    if (claim) Object.assign(claim, { completed: true, skipped: false });
+    else this.claims.push({ itemId, userId, completed: true, skipped: false });
+    const item = this.items.find((i) => i.id === itemId)!;
+    this.recompute(queue, item);
+    return item;
+  }
+  async skipClaim(_queue: AnnotationQueue, itemId: string, userId: string) {
+    const claim = this.claims.find((c) => c.itemId === itemId && c.userId === userId);
+    if (claim && !claim.completed) claim.skipped = true;
+    return this.items.find((i) => i.id === itemId)!;
+  }
+  async markUnreviewable(queueId: string, itemId: string) {
+    const item = await this.getItem(queueId, itemId);
+    if (item) item.status = "skipped";
+    return item;
   }
 }

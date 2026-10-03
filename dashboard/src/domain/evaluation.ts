@@ -17,3 +17,18 @@ export function aggregateValueLabel(a: ScoreAggregateDto): string {
   if (a.average !== null) return a.average.toFixed(2);
   return "–";
 }
+
+/** Huella legible del juez que produjo un agregado (ADR-043), o `null` si no es `llm_judge`.
+ * Varias identidades (un run que mezcla jueces, o scores anteriores a ADR-043) se unen con " + ". */
+export function judgeSignature(a: ScoreAggregateDto): string | null {
+  if (!a.judges?.length) return null;
+  return [...new Set(a.judges.map((j) => `${j.model ?? "unknown model"} · rubric ${j.promptHash ?? "n/a"}`))].sort().join(" + ");
+}
+
+/** `true` si ambos agregados vienen de un juez y no es el mismo: sus porcentajes no son comparables directamente. */
+export function judgeChanged(before: ScoreAggregateDto | undefined, after: ScoreAggregateDto | undefined): boolean {
+  if (!before || !after) return false;
+  const a = judgeSignature(before);
+  const b = judgeSignature(after);
+  return a !== null && b !== null && a !== b;
+}

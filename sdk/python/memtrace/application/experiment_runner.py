@@ -9,7 +9,7 @@ adapters on top of this.
 import inspect
 import logging
 import uuid
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Iterable, Mapping, Optional, Sequence, Union
 
 from memtrace.application.context import get_current_run_id, session
@@ -17,12 +17,21 @@ from memtrace.application.eval_ports import (
     DatasetSource,
     Evaluator,
     InMemoryDatasetSource,
+    IncrementalResultsSink,
     ResultsSink,
     TaskFunction,
 )
 from memtrace.domain.evaluation import EvalItem, EvalItemResult, ExperimentResult, Score
 
 logger = logging.getLogger("memtrace")
+
+
+class ResultsUploadError(RuntimeError):
+    """The sink failed to persist the results. The experiment itself finished: `result` has everything."""
+
+    def __init__(self, message: str, result: ExperimentResult):
+        super().__init__(message)
+        self.result = result
 
 
 def _resolve_source(data: Union[DatasetSource, Iterable[Union[Mapping[str, Any], EvalItem]]]) -> DatasetSource:
@@ -81,17 +90,38 @@ def run_experiment(
     """Runs `task` against every item of `data` and scores each output with `evaluators`.
 
     A `task` exception fails only that item (`EvalItemResult.error`, no scores computed);
-    an `Evaluator` exception fails only that evaluator's score for that item. `sink.save()`
-    is called once at the end with the full result if `sink` is not None; the result is
-    always returned regardless.
+    an `Evaluator` exception fails only that evaluator's score for that item.
+
+    With an `IncrementalResultsSink`, results are pushed item by item as they finish (in completion
+    order, each with its dataset position); with a plain `ResultsSink`, `save()` is called once at the end. If persisting fails
+    after the items ran, `ResultsUploadError` is raised carrying the full `result`.
     """
     source = _resolve_source(data)
     items = list(source.fetch())
+    dataset_version: Optional[str] = getattr(source, "version", None)
 
+    incremental = sink if isinstance(sink, IncrementalResultsSink) else None
+    if incremental is not None:
+        incremental.start(name=name, dataset_version=dataset_version)
+
+    results: list = [None] * len(items)
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        results = list(pool.map(lambda item: _run_item(item, task, evaluators), items))
+        futures = {pool.submit(_run_item, item, task, evaluators): index for index, item in enumerate(items)}
+        for future in as_completed(futures):
+            index = futures[future]
+            results[index] = future.result()
+            if incremental is not None:
+                try:
+                    incremental.add(index, results[index])
+                except Exception as exc:
+                    logger.warning("[MemTrace] sink.add raised, continuing the experiment: %s", exc)
 
-    result = ExperimentResult(name=name, items=results)
-    if sink is not None:
-        sink.save(result)
+    result = ExperimentResult(name=name, items=results, dataset_version=dataset_version)
+    try:
+        if incremental is not None:
+            incremental.finish(result)
+        elif sink is not None:
+            sink.save(result)
+    except Exception as exc:
+        raise ResultsUploadError(f"experiment {name!r} finished but its results could not be saved: {exc}", result) from exc
     return result

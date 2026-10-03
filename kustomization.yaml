@@ -23,6 +23,8 @@ configMapGenerator:
       - migrations/clickhouse/003_span_topics.sql
       - migrations/clickhouse/004_model_pricing.sql
       - migrations/clickhouse/005_scores.sql
+      - migrations/clickhouse/006_score_judge_identity.sql
+      - migrations/clickhouse/007_annotations.sql
     options:
       disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
   - name: postgres-migrations
@@ -37,6 +39,11 @@ configMapGenerator:
       - migrations/postgres/008_dataset_item_audit_and_semver.sql
       - migrations/postgres/009_metric_reports.sql
       - migrations/postgres/010_dataset_item_deletion_audit.sql
+      - migrations/postgres/011_dataset_item_origin.sql
+      - migrations/postgres/012_dataset_run_status.sql
+      - migrations/postgres/013_score_configs.sql
+      - migrations/postgres/014_annotation_queues.sql
+      - migrations/postgres/015_queue_item_population.sql
     options:
       disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
   - name: clickhouse-config

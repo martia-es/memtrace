@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import type { DatasetItemDto, DatasetRunSummaryDto, ScoreAggregateDto } from "@contract";
+import type { DatasetRunSummaryDto, DatasetVersionDto, ScoreAggregateDto } from "@contract";
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useQuasar } from "quasar";
 import { formatDateTime } from "@/domain/format";
 import { aggregateTone, aggregateValueLabel } from "@/domain/evaluation";
+import DatasetVersionDiffModal from "../components/DatasetVersionDiffModal.vue";
 import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
-import Modal from "../components/Modal.vue";
+import DatasetItemsEditor from "../components/DatasetItemsEditor.vue";
 import PageHeader from "../components/PageHeader.vue";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
@@ -43,83 +44,12 @@ async function afterItemMutation() {
 
 // qué cambió exactamente en una versión del historial: incluye los tombstones de items borrados
 // ahí (quién, cuándo) — la respuesta directa a "¿cómo sé que se borró un item?" (ADR-032 follow-up).
-const expandedVersionId = ref<string | null>(null);
-const versionItems = useAsync((signal) => {
-  if (!expandedVersionId.value) return Promise.resolve({ items: [] });
-  return api.listDatasetVersionItemsWithDeleted(datasetId.value, expandedVersionId.value, signal);
-});
-function toggleVersionDetail(versionId: string) {
-  expandedVersionId.value = expandedVersionId.value === versionId ? null : versionId;
-  if (expandedVersionId.value) void versionItems.run();
-}
+// versión abierta en el modal de detalle/comparación (ADR-033)
+const inspectedVersion = ref<DatasetVersionDto | null>(null);
 
 // ---- items (siempre la última versión) ----
 const items = useAsync((signal) => api.listDatasetItems(datasetId.value, signal));
 void items.run();
-
-const showItemModal = ref(false);
-const editingItem = ref<DatasetItemDto | null>(null);
-const itemInput = ref("");
-const itemExpectedOutput = ref("");
-const itemMetadata = ref("");
-const savingItem = ref(false);
-
-function openNewItemModal() {
-  editingItem.value = null;
-  itemInput.value = "";
-  itemExpectedOutput.value = "";
-  itemMetadata.value = "";
-  showItemModal.value = true;
-}
-
-function openEditItemModal(item: DatasetItemDto) {
-  editingItem.value = item;
-  itemInput.value = typeof item.input === "string" ? item.input : JSON.stringify(item.input, null, 2);
-  itemExpectedOutput.value = item.expectedOutput == null ? "" : typeof item.expectedOutput === "string" ? item.expectedOutput : JSON.stringify(item.expectedOutput, null, 2);
-  itemMetadata.value = item.metadata ? JSON.stringify(item.metadata, null, 2) : "";
-  showItemModal.value = true;
-}
-
-function parseField(raw: string): unknown {
-  if (!raw.trim()) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return raw;
-  }
-}
-
-async function saveItem() {
-  if (!itemInput.value.trim()) return;
-  savingItem.value = true;
-  try {
-    const payload = {
-      input: parseField(itemInput.value),
-      expectedOutput: itemExpectedOutput.value.trim() ? parseField(itemExpectedOutput.value) : null,
-      metadata: itemMetadata.value.trim() ? (parseField(itemMetadata.value) as Record<string, unknown>) : null,
-    };
-    if (editingItem.value) {
-      await api.updateDatasetItem(datasetId.value, editingItem.value.id, payload);
-    } else {
-      await api.createDatasetItem(datasetId.value, payload);
-    }
-    showItemModal.value = false;
-    await afterItemMutation();
-  } catch (error) {
-    notifyError("Could not save item", error);
-  } finally {
-    savingItem.value = false;
-  }
-}
-
-async function deleteItem(item: DatasetItemDto) {
-  try {
-    await api.deleteDatasetItem(datasetId.value, item.id);
-    await afterItemMutation();
-  } catch (error) {
-    notifyError("Could not delete item", error);
-  }
-}
 
 // ---- runs ----
 const runs = useAsync((signal) => api.listDatasetRuns(datasetId.value, signal));
@@ -164,117 +94,64 @@ function openRun(runId: string) {
         <q-tab name="runs" label="Runs" />
       </q-tabs>
 
-      <q-tab-panels v-model="activeTab" animated class="tab-panels">
+      <q-tab-panels v-model="activeTab" animated keep-alive class="tab-panels">
         <!-- Items -->
         <q-tab-panel name="items" class="tab-panel">
-          <div class="items-toolbar">
-            <span class="muted">Current version: v{{ latestVersion?.major ?? 1 }}.{{ latestVersion?.minor ?? 0 }} — editar aquí crea la siguiente versión sola (ver pestaña Versions).</span>
-            <button type="button" class="ghost-btn" @click="openNewItemModal">Add item</button>
-          </div>
+          <p class="hint muted">Current version: v{{ latestVersion?.major ?? 1 }}.{{ latestVersion?.minor ?? 0 }} — edita directamente en la tabla; al pulsar Publish todos tus cambios se guardan como <b>una sola versión</b>.</p>
           <ErrorBanner v-if="items.error.value" :error="items.error.value" @retry="items.run()" />
           <div v-else-if="items.loading.value && !items.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
-          <EmptyState v-else-if="(items.data.value?.items.length ?? 0) === 0" icon="list_alt" title="No items yet">
-            Add one manually, or upload items via <code>memtrace.eval</code>.
-          </EmptyState>
-          <div v-else class="mt-card table-card">
-            <table class="items">
-              <thead>
-                <tr>
-                  <th>Input</th>
-                  <th>Expected output</th>
-                  <th>Added by</th>
-                  <th>Last edited</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="item in items.data.value!.items" :key="item.id">
-                  <td class="cell">{{ typeof item.input === "string" ? item.input : JSON.stringify(item.input) }}</td>
-                  <td class="cell muted">{{ item.expectedOutput == null ? "–" : typeof item.expectedOutput === "string" ? item.expectedOutput : JSON.stringify(item.expectedOutput) }}</td>
-                  <td class="muted">
-                    {{ item.createdByEmail }}
-                    <span class="mono">· {{ formatDateTime(item.createdAt) }}</span>
-                  </td>
-                  <td class="muted">
-                    <template v-if="item.updatedByEmail">{{ item.updatedByEmail }} <span class="mono">· {{ formatDateTime(item.updatedAt!) }}</span></template>
-                    <span v-else>–</span>
-                  </td>
-                  <td class="row-actions">
-                    <button type="button" class="icon-btn" title="Edit" @click="openEditItemModal(item)">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
-                    </button>
-                    <button type="button" class="icon-btn danger" title="Delete" @click="deleteItem(item)">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6" /></svg>
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <DatasetItemsEditor v-else :dataset-id="datasetId" :items="items.data.value?.items ?? []" :version="latestVersion" @published="afterItemMutation" />
         </q-tab-panel>
 
         <!-- Versions: historial de solo lectura, generado automáticamente (ADR-032) -->
         <q-tab-panel name="versions" class="tab-panel">
-          <p class="hint muted">Cada cambio en Items crea su propia versión sola — añadir/borrar un item sube la versión major, editar uno sube la minor. Despliega una fila para ver sus items, incluidos los borrados ahí (quién y cuándo).</p>
+          <p class="hint muted">Cada vez que publicas cambios en Items se crea una versión sola — si añades o borras items sube la major, si solo editas contenido sube la minor. Pulsa ⓘ para ver qué cambió y compararla con cualquier versión anterior.</p>
           <ErrorBanner v-if="versions.error.value" :error="versions.error.value" @retry="versions.run()" />
           <div v-else-if="versions.loading.value && !versions.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
           <div v-else class="mt-card table-card">
             <table class="items">
               <thead>
                 <tr>
-                  <th></th>
                   <th>Version</th>
                   <th>Change</th>
+                  <th>Diff</th>
                   <th class="num">Items</th>
                   <th>By</th>
                   <th>When</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
-                <template v-for="v in versions.data.value?.items ?? []" :key="v.id">
-                  <tr class="row" tabindex="0" @click="toggleVersionDetail(v.id)" @keydown.enter="toggleVersionDetail(v.id)">
-                    <td class="chevron-cell">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" :style="{ transform: expandedVersionId === v.id ? 'rotate(90deg)' : 'none' }"><path d="M9 6l6 6-6 6" /></svg>
-                    </td>
-                    <td class="name">v{{ v.major }}.{{ v.minor }}</td>
-                    <td class="muted">{{ v.note ?? "–" }}</td>
-                    <td class="num mono">{{ v.itemCount }}</td>
-                    <td class="muted">{{ v.createdByEmail }}</td>
-                    <td class="muted mono">{{ formatDateTime(v.createdAt) }}</td>
-                  </tr>
-                  <tr v-if="expandedVersionId === v.id">
-                    <td colspan="6" class="version-detail">
-                      <div v-if="versionItems.loading.value" class="loading small"><q-spinner size="20px" color="primary" /></div>
-                      <table v-else class="items nested">
-                        <thead>
-                          <tr>
-                            <th>Input</th>
-                            <th>Status</th>
-                            <th>Detail</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr v-for="item in versionItems.data.value?.items ?? []" :key="item.id" :class="{ deleted: item.deletedByEmail }">
-                            <td class="cell">{{ typeof item.input === "string" ? item.input : JSON.stringify(item.input) }}</td>
-                            <td>
-                              <span v-if="item.deletedByEmail" class="mt-pill error">Deleted</span>
-                              <span v-else-if="item.updatedByEmail" class="mt-pill warn">Edited</span>
-                              <span v-else class="mt-pill ok">Added</span>
-                            </td>
-                            <td class="muted">
-                              <template v-if="item.deletedByEmail">by {{ item.deletedByEmail }} · {{ formatDateTime(item.deletedAt!) }}</template>
-                              <template v-else-if="item.updatedByEmail">by {{ item.updatedByEmail }} · {{ formatDateTime(item.updatedAt!) }}</template>
-                              <template v-else>by {{ item.createdByEmail }} · {{ formatDateTime(item.createdAt) }}</template>
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </td>
-                  </tr>
-                </template>
+                <tr v-for="v in versions.data.value?.items ?? []" :key="v.id">
+                  <td class="name">v{{ v.major }}.{{ v.minor }}</td>
+                  <td class="muted">{{ v.note ?? "–" }}</td>
+                  <td class="mono diff-counts">
+                    <span v-if="v.addedCount + v.modifiedCount + v.removedCount === 0" class="muted">–</span>
+                    <template v-else>
+                      <span v-if="v.addedCount" class="added">+{{ v.addedCount }}</span>
+                      <span v-if="v.modifiedCount" class="modified">~{{ v.modifiedCount }}</span>
+                      <span v-if="v.removedCount" class="removed">−{{ v.removedCount }}</span>
+                    </template>
+                  </td>
+                  <td class="num mono">{{ v.itemCount }}</td>
+                  <td class="muted">{{ v.createdByEmail }}</td>
+                  <td class="muted mono">{{ formatDateTime(v.createdAt) }}</td>
+                  <td class="info-cell">
+                    <button class="info-btn" type="button" :aria-label="`Details of v${v.major}.${v.minor}`" @click="inspectedVersion = v">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
+                    </button>
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
+          <DatasetVersionDiffModal
+            v-if="inspectedVersion"
+            :dataset-id="datasetId"
+            :version="inspectedVersion"
+            :versions="versions.data.value?.items ?? []"
+            @close="inspectedVersion = null"
+          />
         </q-tab-panel>
 
         <!-- Runs -->
@@ -302,7 +179,7 @@ function openRun(runId: string) {
               <tbody>
                 <tr v-for="r in pagedRuns" :key="r.id" class="row" tabindex="0" @click="openRun(r.id)" @keydown.enter="openRun(r.id)">
                   <td class="name">{{ r.name }}</td>
-                  <td class="num mono">v{{ r.versionMajor }}.{{ r.versionMinor }}</td>
+                  <td class="num mono">v{{ r.versionMajor }}.{{ r.versionMinor }} <span v-if="r.status === 'running'" class="mt-pill warn" title="Still receiving results, or the process stopped before finishing">running</span></td>
                   <td v-for="m in runMetricNames" :key="m" class="num">
                     <span v-if="runMetricCell(r, m)" class="mt-pill" :class="{ ok: aggregateTone(runMetricCell(r, m)!) === 'positive', warn: aggregateTone(runMetricCell(r, m)!) === 'warning', error: aggregateTone(runMetricCell(r, m)!) === 'negative', unset: aggregateTone(runMetricCell(r, m)!) === 'default' }">
                       {{ aggregateValueLabel(runMetricCell(r, m)!) }}
@@ -327,17 +204,6 @@ function openRun(runId: string) {
       </q-tab-panels>
     </template>
 
-    <Modal v-if="showItemModal" :title="editingItem ? 'Edit item' : 'New item'" @close="showItemModal = false">
-      <form class="modal-form" @submit.prevent="saveItem">
-        <label class="field-label">Input</label>
-        <textarea v-model="itemInput" class="text-area" rows="3" placeholder="Plain text or JSON" autofocus></textarea>
-        <label class="field-label">Expected output (optional)</label>
-        <textarea v-model="itemExpectedOutput" class="text-area" rows="2" placeholder="Plain text or JSON"></textarea>
-        <label class="field-label">Metadata (optional JSON)</label>
-        <textarea v-model="itemMetadata" class="text-area" rows="2" placeholder='{"source": "manual"}'></textarea>
-        <button type="submit" class="primary-btn" :disabled="savingItem || !itemInput.trim()">{{ editingItem ? "Save" : "Add" }}</button>
-      </form>
-    </Modal>
   </div>
 </template>
 
@@ -372,13 +238,6 @@ function openRun(runId: string) {
   flex-direction: column;
   gap: 10px;
   padding: 10px 0;
-}
-.items-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 12.5px;
 }
 .search {
   width: 260px;
@@ -435,36 +294,33 @@ td {
 .row.selected {
   background: var(--mt-soft);
 }
-.chevron-cell {
-  width: 24px;
-  color: var(--mt-muted);
-}
-.chevron-cell svg {
-  transition: transform 0.15s ease;
-}
-.version-detail {
-  padding: 10px 12px 14px 36px;
-  background: var(--mt-soft-2);
-}
-.items.nested {
-  font-size: 12.5px;
-}
-.items.nested th {
-  position: static;
-  background: transparent;
-  padding: 4px 10px;
-}
-.items.nested td {
-  padding: 4px 10px;
-  border-bottom: none;
-}
-.items.nested tr.deleted {
-  opacity: 0.75;
-}
-.loading.small {
+.diff-counts {
   display: flex;
-  justify-content: center;
-  padding: 10px;
+  gap: 8px;
+}
+.diff-counts .added {
+  color: var(--mt-ok-ink);
+}
+.diff-counts .modified {
+  color: var(--mt-warn-ink);
+}
+.diff-counts .removed {
+  color: var(--mt-err-ink);
+}
+.info-cell {
+  width: 40px;
+  text-align: right;
+}
+.info-btn {
+  display: inline-flex;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: var(--mt-muted);
+  cursor: pointer;
+}
+.info-btn:hover {
+  color: var(--mt-ink);
 }
 .row-actions {
   display: flex;
@@ -523,88 +379,4 @@ td {
   cursor: not-allowed;
 }
 
-.ghost-btn {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 13px;
-  border-radius: var(--mt-radius-lg);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  color: var(--mt-muted);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease;
-}
-.ghost-btn:hover:not(:disabled) {
-  color: var(--mt-ink);
-  border-color: var(--mt-accent);
-}
-.ghost-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.ghost-btn.small {
-  height: 26px;
-  padding: 0 10px;
-  font-size: 11.5px;
-}
-
-/* ---- modal ---- */
-.modal-form {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.field-label {
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--mt-muted);
-}
-.text-area {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 10px 12px;
-  border-radius: var(--mt-radius-lg);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  font: inherit;
-  font-size: 13px;
-  color: var(--mt-ink);
-  resize: vertical;
-}
-.text-area:focus {
-  outline: 2px solid var(--mt-accent);
-  outline-offset: -1px;
-}
-.primary-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 40px;
-  padding: 0 20px;
-  border-radius: var(--mt-radius-lg);
-  border: none;
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.15s ease;
-  margin-top: 4px;
-}
-.primary-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.primary-btn:not(:disabled):hover {
-  opacity: 0.9;
-}
 </style>

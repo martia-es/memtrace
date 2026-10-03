@@ -84,14 +84,14 @@ Como los pasos custom son spans normales (mismo almacén, mismo `memtrace.step_t
 
 ### Informes guardados: varias custom charts en un grid, compartidos por experimento
 
-Un usuario puede agrupar varias gráficas custom ya guardadas en un **informe** con nombre propio y layout de grid libre (arrastrar/redimensionar), que aparece como su propia pestaña en Metrics — visible para cualquiera con acceso al experimento, igual que una gráfica guardada hoy. El informe solo referencia las gráficas (no las duplica): editar una gráfica en Custom charts se refleja en todos los informes que la usan. Incluye envío por email de una instantánea en texto (una tabla de valores por gráfico, recalculada al enviar) — sin PDF ni imagen renderizada, eso queda explícitamente para una futura ADR si se prioriza. Ver [ADR-033](adrs/evaluation/adr-033-saved-metric-reports.md).
+Un usuario puede agrupar varias gráficas custom ya guardadas en un **informe** con nombre propio y layout de grid libre (arrastrar/redimensionar), que aparece como su propia pestaña en Metrics — visible para cualquiera con acceso al experimento, igual que una gráfica guardada hoy. El informe solo referencia las gráficas (no las duplica): editar una gráfica en Custom charts se refleja en todos los informes que la usan. Incluye envío por email de una instantánea en texto (una tabla de valores por gráfico, recalculada al enviar) — sin PDF ni imagen renderizada, eso queda explícitamente para una futura ADR si se prioriza. Ver [ADR-035](adrs/evaluation/adr-035-saved-metric-reports.md).
 
 ### Deliverables Fase 1
 
 - [ ] Librería OpenTelemetry (SDK) para agentes — solo exporta OTLP, sin conocimiento del almacén
 - [x] Instrumentación manual componible: árboles de spans custom (no-LLM) anidados bajo cualquier paso, sin cambios de esquema en el almacén — ver ADR-026
 - [x] Métricas custom en el dashboard sobre spans definidos por el usuario (query builder declarativo) — ver ADR-027/030
-- [x] Informes guardados: grid de varias custom charts por experimento, compartido y enviable por email (sin PDF) — ver ADR-033
+- [x] Informes guardados: grid de varias custom charts por experimento, compartido y enviable por email (sin PDF) — ver ADR-035
 - [ ] Configuración del OTel Collector con pipeline de batching + cola persistente + escritura en ClickHouse
 - [ ] Esquema de datos en ClickHouse, con migraciones versionadas
 - [ ] API de consulta (Next.js) con acceso al almacén encapsulado detrás de un repositorio propio
@@ -123,7 +123,7 @@ Un usuario puede agrupar varias gráficas custom ya guardadas en un **informe** 
 - **3 roles en total, en 2 niveles distintos:**
   - `org_admin` (nivel organización): tiene admin implícito sobre **todos** los experimentos de su organización, sin necesitar membership explícita en cada uno. Puede crear experimentos nuevos dentro de la organización e invitar usuarios (como `org_admin`, o directamente a un experimento como `admin`/`member`).
   - `admin` (nivel experimento): igual que `member`, más invitar a otros usuarios a ese experimento concreto (como `admin` o `member`). No tiene visibilidad sobre otros experimentos de la organización salvo que se le invite a ellos también.
-  - `member` (nivel experimento): solo lectura sobre ese experimento (trazas, dashboard, métricas), más generar su propia API key para instrumentar el agente (ver [ADR-016](adrs/identity/adr-016-admin-page-visible-to-experiment-members.md)). No puede invitar ni gestionar a nadie.
+  - `member` (nivel experimento): lectura sobre ese experimento (trazas, dashboard, métricas), generar su propia API key para instrumentar el agente (ver [ADR-016](adrs/identity/adr-016-admin-page-visible-to-experiment-members.md)) y **anotar trazas** (etiquetas humanas, [ADR-037](adrs/evaluation/adr-037-human-annotations-storage-and-api.md)) y revisar colas de anotación ([ADR-039](adrs/evaluation/adr-039-annotation-queues.md)). No puede invitar ni gestionar a nadie, ni crear/editar rúbricas o colas.
 - **Regla de autorización**: acceso a un experimento = `org_admin` de su organización **OR** membership directa en ese experimento. La pieza 7 evalúa ambas condiciones en cada petición.
 - **Bootstrap**: cualquier usuario autenticado puede crear una organización nueva y se convierte en su primer `org_admin`. Crear un experimento dentro de una organización requiere ser `org_admin` de esa organización (ya no "cualquier usuario autenticado", como en la versión anterior de este documento).
 
@@ -206,11 +206,19 @@ Un usuario puede agrupar varias gráficas custom ya guardadas en un **informe** 
 - [x] Esquema `dataset` / `dataset_item` / `dataset_run` en PostgreSQL (`migrations/postgres/006_evaluation.sql`)
 - [x] Tabla `scores` en ClickHouse (`migrations/clickhouse/005_scores.sql`)
 - [x] Endpoints en la API de consulta: datasets, dataset_runs, scores — ver [Query API](../docs-site/platform/api.md)
-- [x] Versionado automático de datasets (semver major/minor) con auditoría por item (autor/fecha de alta y de última edición) y gestión de datasets/items desde el dashboard — ver [ADR-031](adrs/datasets/adr-031-dataset-versioning.md) y [ADR-032](adrs/datasets/adr-032-automatic-dataset-versioning-and-item-audit.md)
+- [x] Versionado automático de datasets (semver major/minor) con auditoría por item (autor/fecha de alta y de última edición) y gestión de datasets/items desde el dashboard — ver [ADR-031](adrs/datasets/adr-031-dataset-versioning.md) y [ADR-032](adrs/datasets/adr-032-automatic-dataset-versioning-and-item-audit.md); historial con diff real entre versiones (cualquiera contra cualquiera) en [ADR-033](adrs/datasets/adr-033-stable-item-identity-and-version-diff.md); el SDK puede fijar una versión concreta (`dataset_version="2.1"`) y leer datasets locales `.json`/`.jsonl`
+- [x] Edición de items estilo hoja de cálculo en el dashboard con borrador local y **una versión por sesión publicada** (`POST .../changes`, nota y bump automáticos; pegar desde Excel, selección múltiple, búsqueda) — ver [ADR-041](adrs/datasets/adr-041-spreadsheet-editing-with-publish-per-session.md)
 - [x] Vista de comparación de `dataset_run` en el dashboard (`DatasetsPage.vue`, `DatasetRunDetailPage.vue`), navegación Datasets/Runs separada (`RunsPage.vue`)
-- [ ] Anotación humana desde el detalle de traza (feedback manual = score con `source=HUMAN`) — pendiente, no cubierto en este incremento
+- [x] Runs que registran siempre la versión exacta del dataset leída, subida incremental por lotes (run `running`/`completed`) y agregados locales en `ExperimentResult.summary()` — ver [ADR-034](adrs/evaluation/adr-034-run-records-dataset-version-and-uploads-incrementally.md)
+- [x] Identidad del juez (modelo + huella de la rúbrica) guardada en cada score `llm_judge` — ver [ADR-043](adrs/evaluation/adr-043-record-judge-identity-on-scores.md)
+- [x] Pestaña **Metrics → Offline evals** en el dashboard: tendencia por evaluador, vista de una run, comparación de dos runs (incluye cambios del dataset entre versiones) y latencia cuando hay trazas enlazadas. Construida sobre el modelo actual; sus límites (sin latencia/tokens/chunks RAG por item, texto duplicado por evaluador, `Value` como String) están en [ADR-042](adrs/evaluation/adr-042-offline-evaluation-storage-model-limitations.md) (propuesto, pendiente de migración)
+- [x] Score configs (rúbricas de anotación por experimento, tipo inmutable, rango solo ampliable, archivado) en la API y en Admin → experimento → Score configs — fase A, primera mitad: [ADR-036](adrs/evaluation/adr-036-score-configs-annotation-rubrics.md)
+- [x] Anotación humana desde el detalle de traza: etiquetas por persona sobre la traza o un span, validadas contra las score configs, editables y retirables, junto a los scores automáticos de la misma traza (tabla `annotations` en ClickHouse) — fase A, segunda mitad: [ADR-037](adrs/evaluation/adr-037-human-annotations-storage-and-api.md)
+- [x] Colas de anotación: lotes de trazas (o items de run) a revisar con una rúbrica de score configs, reparto *pull* con lease de 15 min, varias anotaciones independientes por item, progreso por revisor y pantalla de revisión en el dashboard (estado en PostgreSQL, etiquetas en ClickHouse) — fase C: [ADR-039](adrs/evaluation/adr-039-annotation-queues.md)
+- [x] Acuerdo juez-humano e inter-anotador de solo lectura (kappa de Cohen, matriz de confusión, MAE/Pearson/Spearman, lista de desacuerdos) sobre un run o una cola, en la página del run y en el detalle de la cola — fase D: [ADR-040](adrs/evaluation/adr-040-judge-human-agreement.md). Incluye el muestreo aleatorio reproducible al poblar una cola y la procedencia de cada item (enmienda de [ADR-039](adrs/evaluation/adr-039-annotation-queues.md))
+- [ ] Resto de la anotación humana (pendiente, ADR propuesto, sin implementar): promoción de traza a item de dataset ([ADR-038](adrs/datasets/adr-038-promote-trace-to-dataset-item.md)) — fase B
 - [x] ADR de la decisión de arquitectura — ver [ADR-028](adrs/evaluation/adr-028-offline-evaluation-decoupled-sdk.md)
-- [x] Documentación y ejemplos de integración — `docs-site/library/evaluation.md`, `examples/06_evaluate_against_memtrace.py`
+- [x] Documentación y ejemplos de integración — `docs-site/library/evaluation.md`, `examples/05_eval_dataset_source_memtrace.py`
 - [ ] Fuera de alcance en esta fase: evaluación online (muestreo continuo sobre tráfico de producción)
 
 ---

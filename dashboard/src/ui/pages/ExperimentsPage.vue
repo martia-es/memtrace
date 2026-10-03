@@ -10,6 +10,7 @@ import PageHeader from "../components/PageHeader.vue";
 import EmptyState from "../components/EmptyState.vue";
 import Select from "../components/Select.vue";
 import Modal from "../components/Modal.vue";
+import ScoreConfigsPanel from "../components/ScoreConfigsPanel.vue";
 
 const api = useIdentityApi();
 const $q = useQuasar();
@@ -303,6 +304,12 @@ function expPendingCount(experimentId: string): number {
   return membersByExperiment[experimentId]?.pendingInvitations.length ?? 0;
 }
 
+// ---- score configs (ADR-036): visible to every member, editable only by admins ----
+const expandedScoreConfigsId = ref<string | null>(null);
+function toggleScoreConfigs(experimentId: string) {
+  expandedScoreConfigsId.value = expandedScoreConfigsId.value === experimentId ? null : experimentId;
+}
+
 // ---- API keys (ADR-013, piece 9) ----
 const expandedId = ref<string | null>(null);
 const apiKeysByExperiment = reactive<Record<string, ApiKeyDto[]>>({});
@@ -517,6 +524,10 @@ function formatDate(iso: string | null): string {
                   Invite
                 </button>
               </template>
+              <button class="chevron-btn" type="button" :class="{ open: expandedScoreConfigsId === e.id }" :aria-expanded="expandedScoreConfigsId === e.id" @click="toggleScoreConfigs(e.id)">
+                <svg class="chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+                Score configs
+              </button>
               <button class="chevron-btn" type="button" :class="{ open: expandedId === e.id }" :aria-expanded="expandedId === e.id" @click="toggleApiKeys(e.id)">
                 <svg class="chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
                 API key
@@ -551,6 +562,10 @@ function formatDate(iso: string | null): string {
                   </li>
                 </ul>
               </template>
+            </div>
+
+            <div v-if="expandedScoreConfigsId === e.id" class="members-panel nested">
+              <ScoreConfigsPanel :experiment-id="e.id" :can-manage="canManageExperiment(e)" />
             </div>
 
             <div v-if="expandedId === e.id" class="members-panel nested">

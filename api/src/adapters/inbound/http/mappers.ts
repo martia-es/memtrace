@@ -1,7 +1,14 @@
 import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
 import type { AttributeKeyCount, AttributeValueCount, CustomMetricResult, MetricsOverview, ServiceUsage, StepKindCount } from "@/domain/metrics";
+import type { DatasetVersionDiff } from "@/domain/dataset-diff";
 import type { CustomMetric, Dataset, DatasetItem, DatasetRun, DatasetRunWithDataset, DatasetVersion, MetricReport, MetricReportWithCharts } from "@/domain/identity";
 import type { DatasetRunItemResult, ScoreAggregate } from "@/domain/evaluation";
+import type { ScoreConfig } from "@/domain/score-config";
+import type { AnnotationQueue, QueueItem } from "@/domain/annotation-queue";
+import type { QueueDetail } from "@/application/annotation-queue-service";
+import type { InterAnnotatorResult, JudgeHumanResult } from "@/application/agreement-service";
+import type { QueueWithProgress } from "@/application/ports/annotation-queue-repository";
+import type { TraceJudgments } from "@/application/annotation-service";
 import type { ModelPricing } from "@/domain/pricing";
 import type { SpanCursor, SpanRow } from "@/domain/span-row";
 import type { Transcript } from "@/domain/transcript";
@@ -25,7 +32,9 @@ import type {
   DatasetRunSummaryDto,
   DatasetRunsListResponse,
   DatasetsListResponse,
+  DatasetVersionDiffResponse,
   DatasetVersionDto,
+  DatasetVersionRefDto,
   DatasetVersionsListResponse,
   RunListItemDto,
   RunsListResponse,
@@ -37,6 +46,15 @@ import type {
   ModelPricingResponse,
   OverviewResponse,
   SavedCustomMetricDto,
+  ScoreConfigDto,
+  AnnotationQueueDetailResponse,
+  InterAnnotatorAgreementResponse,
+  JudgeHumanAgreementResponse,
+  AnnotationQueueDto,
+  AnnotationQueuesListResponse,
+  QueueItemDto,
+  ScoreConfigsListResponse,
+  TraceAnnotationsResponse,
   SpanListResponse,
   SpanNodeDto,
   StepKindsResponse,
@@ -274,20 +292,53 @@ export function toDatasetItemDto(item: DatasetItem): DatasetItemDto {
   };
 }
 
-export function toDatasetItemsListResponse(items: DatasetItem[]): DatasetItemsListResponse {
-  return { items: items.map(toDatasetItemDto) };
+export function toDatasetItemsListResponse(items: DatasetItem[], version?: DatasetVersion): DatasetItemsListResponse {
+  return { items: items.map(toDatasetItemDto), ...(version && { version: toVersionRefDto(version) }) };
 }
 
-function toDatasetVersionDto(version: DatasetVersion, itemCount: number): DatasetVersionDto {
-  return { id: version.id, major: version.major, minor: version.minor, note: version.note, createdByEmail: version.createdByEmail, createdAt: version.createdAt, itemCount };
+export interface DatasetVersionSummary {
+  version: DatasetVersion;
+  itemCount: number;
+  addedCount: number;
+  modifiedCount: number;
+  removedCount: number;
 }
 
-export function toDatasetVersionsListResponse(versions: Array<{ version: DatasetVersion; itemCount: number }>): DatasetVersionsListResponse {
-  return { items: versions.map((v) => toDatasetVersionDto(v.version, v.itemCount)) };
+function toDatasetVersionDto(v: DatasetVersionSummary): DatasetVersionDto {
+  const { version } = v;
+  return {
+    id: version.id,
+    major: version.major,
+    minor: version.minor,
+    note: version.note,
+    createdByEmail: version.createdByEmail,
+    createdAt: version.createdAt,
+    itemCount: v.itemCount,
+    addedCount: v.addedCount,
+    modifiedCount: v.modifiedCount,
+    removedCount: v.removedCount,
+  };
+}
+
+export function toDatasetVersionsListResponse(versions: DatasetVersionSummary[]): DatasetVersionsListResponse {
+  return { items: versions.map(toDatasetVersionDto) };
+}
+
+function toVersionRefDto(version: DatasetVersion): DatasetVersionRefDto {
+  return { id: version.id, major: version.major, minor: version.minor };
+}
+
+export function toDatasetVersionDiffResponse(base: DatasetVersion | null, target: DatasetVersion, diff: DatasetVersionDiff): DatasetVersionDiffResponse {
+  return {
+    base: base ? toVersionRefDto(base) : null,
+    target: toVersionRefDto(target),
+    unchangedCount: diff.unchangedCount,
+    changes: diff.changes.map((c) => ({ originItemId: c.originItemId, kind: c.kind, before: c.before && toDatasetItemDto(c.before), after: c.after && toDatasetItemDto(c.after) })),
+  };
 }
 
 export function toScoreAggregateDto(a: ScoreAggregate): ScoreAggregateDto {
-  return { name: a.name, dataType: a.dataType, passRate: a.passRate, average: a.average, count: a.count };
+  return { name: a.name, dataType: a.dataType, passRate: a.passRate, average: a.average, count: a.count, judges: a.judges };
 }
 
 /** Agrupa un `ScoreAggregate[]` plano (una fila por run x evaluador) por `datasetRunId`, para
@@ -303,7 +354,7 @@ export function groupAggregatesByRun(aggregates: ScoreAggregate[]): Map<string, 
 }
 
 export function toDatasetRunSummaryDto(run: DatasetRun, aggregates: ScoreAggregateDto[] = []): DatasetRunSummaryDto {
-  return { id: run.id, name: run.name, versionMajor: run.versionMajor, versionMinor: run.versionMinor, itemCount: run.itemCount, createdAt: run.createdAt, aggregates };
+  return { id: run.id, name: run.name, versionMajor: run.versionMajor, versionMinor: run.versionMinor, itemCount: run.itemCount, status: run.status, createdAt: run.createdAt, aggregates };
 }
 
 export function toDatasetRunsListResponse(runs: DatasetRun[], aggregatesByRun: Map<string, ScoreAggregateDto[]>): DatasetRunsListResponse {
@@ -381,4 +432,87 @@ export function toModelPricingResponse(items: ModelPricing[]): ModelPricingRespo
       updatedAt: isoFromMs(p.updatedAtMs),
     })),
   };
+}
+
+export function toScoreConfigDto(c: ScoreConfig): ScoreConfigDto {
+  return {
+    id: c.id,
+    name: c.name,
+    dataType: c.dataType,
+    minValue: c.minValue,
+    maxValue: c.maxValue,
+    categories: c.categories,
+    description: c.description,
+    createdAt: c.createdAt,
+    updatedAt: c.updatedAt,
+    archivedAt: c.archivedAt,
+  };
+}
+
+export function toScoreConfigsListResponse(items: ScoreConfig[]): ScoreConfigsListResponse {
+  return { items: items.map(toScoreConfigDto) };
+}
+
+export function toTraceAnnotationsResponse(judgments: TraceJudgments): TraceAnnotationsResponse {
+  return {
+    annotations: judgments.annotations.map((a) => ({
+      configId: a.configId,
+      configName: a.configName,
+      dataType: a.dataType,
+      value: a.value,
+      comment: a.comment,
+      spanId: a.spanId,
+      annotator: { id: a.annotatorId, name: a.annotatorName },
+      createdAt: a.createdAt,
+    })),
+    scores: judgments.scores,
+  };
+}
+
+export function toAnnotationQueueDto(q: AnnotationQueue): AnnotationQueueDto {
+  return {
+    id: q.id,
+    name: q.name,
+    instructions: q.instructions,
+    requiredAnnotations: q.requiredAnnotations,
+    rubric: q.rubric.map((r) => ({ configId: r.configId, required: r.required })),
+    createdAt: q.createdAt,
+    archivedAt: q.archivedAt,
+  };
+}
+
+export function toAnnotationQueuesListResponse(items: QueueWithProgress[]): AnnotationQueuesListResponse {
+  return { items: items.map(({ queue, progress }) => ({ ...toAnnotationQueueDto(queue), progress })) };
+}
+
+export function toAnnotationQueueDetailResponse(detail: QueueDetail): AnnotationQueueDetailResponse {
+  return {
+    ...toAnnotationQueueDto(detail.queue),
+    progress: detail.progress,
+    configs: detail.configs.map(toScoreConfigDto),
+    reviewers: detail.reviewers,
+  };
+}
+
+export function toQueueItemDto(i: QueueItem): QueueItemDto {
+  return {
+    id: i.id,
+    targetType: i.targetType,
+    traceId: i.traceId,
+    datasetRunId: i.datasetRunId,
+    itemIndex: i.itemIndex,
+    status: i.status,
+    population: i.population,
+    addedAt: i.addedAt,
+    completedAt: i.completedAt,
+  };
+}
+
+/** El resultado del servicio ya tiene la forma del contrato; el tipo de retorno hace que el compilador avise si divergen. */
+export function toJudgeHumanAgreementResponse(result: JudgeHumanResult): JudgeHumanAgreementResponse {
+  return result;
+}
+
+export function toInterAnnotatorAgreementResponse(result: InterAnnotatorResult): InterAnnotatorAgreementResponse {
+  return result;
 }

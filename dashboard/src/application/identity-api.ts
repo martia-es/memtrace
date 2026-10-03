@@ -1,4 +1,4 @@
-import type { CustomMetricDefinitionDto } from "@contract";
+import type { CustomMetricDefinitionDto, ScoreConfigDto } from "@contract";
 
 /** Puerto de salida: identidad y RBAC (ADR-013). Separado de TraceApi: es otro dominio, otro almacén. */
 
@@ -60,6 +60,22 @@ export interface MembersResponseDto {
   pendingInvitations: PendingInvitationDto[];
 }
 
+export interface NewScoreConfigInput {
+  name: string;
+  dataType: ScoreConfigDto["dataType"];
+  minValue?: number | null;
+  maxValue?: number | null;
+  categories?: Array<{ label: string; value: number | null }> | null;
+  description?: string | null;
+}
+
+export interface ScoreConfigPatchInput {
+  description?: string | null;
+  minValue?: number;
+  maxValue?: number;
+  categories?: Array<{ label: string; value: number | null }>;
+}
+
 /** Gráfico custom guardado por el usuario (ADR-027); su definición usa la misma forma que el query de ClickHouse. */
 export interface SavedCustomMetricDto {
   id: string;
@@ -68,7 +84,7 @@ export interface SavedCustomMetricDto {
   createdAt: string;
 }
 
-/** Informe guardado (ADR-033): varios gráficos ya guardados, posicionados en un grid de 12 columnas. */
+/** Informe guardado (ADR-035): varios gráficos ya guardados, posicionados en un grid de 12 columnas. */
 export interface MetricReportChartDto {
   customMetricId: string;
   name: string;
@@ -112,7 +128,14 @@ export interface IdentityApi {
   createCustomMetric(experimentId: string, name: string, definition: CustomMetricDefinitionDto, signal?: AbortSignal): Promise<SavedCustomMetricDto>;
   deleteCustomMetric(experimentId: string, metricId: string, signal?: AbortSignal): Promise<void>;
 
-  /** Informes guardados del experimento (ADR-033): agrupan varios gráficos ya guardados en un grid. */
+  /** Score configs (ADR-036): rúbricas de anotación. Crear/editar/archivar exige admin del experimento. */
+  listScoreConfigs(experimentId: string, includeArchived?: boolean, signal?: AbortSignal): Promise<ScoreConfigDto[]>;
+  createScoreConfig(experimentId: string, input: NewScoreConfigInput, signal?: AbortSignal): Promise<ScoreConfigDto>;
+  updateScoreConfig(experimentId: string, configId: string, patch: ScoreConfigPatchInput, signal?: AbortSignal): Promise<ScoreConfigDto>;
+  archiveScoreConfig(experimentId: string, configId: string, signal?: AbortSignal): Promise<ScoreConfigDto>;
+  unarchiveScoreConfig(experimentId: string, configId: string, signal?: AbortSignal): Promise<ScoreConfigDto>;
+
+  /** Informes guardados del experimento (ADR-035): agrupan varios gráficos ya guardados en un grid. */
   listMetricReports(experimentId: string, signal?: AbortSignal): Promise<MetricReportSummaryDto[]>;
   createMetricReport(experimentId: string, name: string, signal?: AbortSignal): Promise<MetricReportSummaryDto>;
   getMetricReport(experimentId: string, reportId: string, signal?: AbortSignal): Promise<MetricReportDto>;

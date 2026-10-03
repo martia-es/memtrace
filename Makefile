@@ -61,9 +61,6 @@ images: ## Construye las imágenes de la API, el dashboard y la documentación y
 	done; rm -f $$tmp
 	@kubectl rollout restart deployment/api deployment/dashboard deployment/docs -n $(NS) 2>/dev/null || true
 
-docs: ## Docs en modo desarrollo con recarga en caliente (en el clúster ya está en :8081): http://localhost:5174
-	cd docs-site && npm install && npm run dev -- --port 5174
-
 status: ## Estado de pods, volúmenes y migraciones
 	kubectl get pods,pvc,job -n $(NS)
 

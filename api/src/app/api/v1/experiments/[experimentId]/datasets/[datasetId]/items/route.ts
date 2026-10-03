@@ -4,15 +4,18 @@ import { parseJsonOrThrow } from "@/adapters/inbound/http/identity-schemas";
 import { toDatasetItemsListResponse } from "@/adapters/inbound/http/mappers";
 import { json, problem } from "@/adapters/inbound/http/problem";
 import { addDatasetItemsBody } from "@/adapters/inbound/http/schemas";
+import { parseDatasetVersionSpec } from "@/domain/dataset-version";
 import { getIdentity } from "@/dependency-container";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Lista/añade items a la ÚLTIMA versión de un dataset. Llamado tanto por el dashboard (sesión)
+ * Lista/añade items a la ÚLTIMA versión de un dataset (el GET acepta `?version=major.minor` para leer
+ * una versión concreta y así reproducir una ejecución anterior; el POST siempre escribe en la última).
+ * Llamado tanto por el dashboard (sesión)
  * como por `memtrace.eval.MemTraceDatasetSource` y el propio script que crea el dataset (API key
- * de agente) — ver ADR-028. El SDK solo conoce un `dataset_id` plano, sin versión: esta ruta
- * resuelve "última versión" server-side (ADR-031).
+ * de agente) — ver ADR-028. Si no se pide versión, esta ruta resuelve "última" server-side (ADR-031)
+ * y devuelve cuál era en `version`, para que el SDK registre el run contra esa misma versión (ADR-034).
  *
  * Añadir items crea automáticamente una nueva versión con bump MAJOR (ADR-032) — nunca hay que
  * crear una versión a mano. Para editar/borrar un item concreto, ver `items/[itemId]`.
@@ -26,10 +29,19 @@ export async function GET(request: Request, context: { params: Promise<{ experim
     const { identityRepository } = getIdentity();
     const dataset = await identityRepository.getDataset(datasetId);
     if (!dataset || dataset.experimentId !== experimentId) return problem(404, "Not Found", "Dataset not found");
-    const latestVersion = await identityRepository.getLatestDatasetVersion(datasetId);
-    if (!latestVersion) return problem(404, "Not Found", "Dataset has no versions");
 
-    return json(toDatasetItemsListResponse(await identityRepository.listDatasetItems(latestVersion.id)));
+    const requested = new URL(request.url).searchParams.get("version");
+    let version;
+    if (requested === null) {
+      version = await identityRepository.getLatestDatasetVersion(datasetId);
+      if (!version) return problem(404, "Not Found", "Dataset has no versions");
+    } else {
+      const { major, minor } = parseDatasetVersionSpec(requested);
+      version = (await identityRepository.listDatasetVersions(datasetId)).find((v) => v.major === major && v.minor === minor);
+      if (!version) return problem(404, "Not Found", `Dataset has no version ${requested}`);
+    }
+
+    return json(toDatasetItemsListResponse(await identityRepository.listDatasetItems(version.id), version));
   });
 }
 

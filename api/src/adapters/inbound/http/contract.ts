@@ -317,6 +317,12 @@ export interface MetricReportsListResponse {
 
 /** Evaluación offline (ADR-028). */
 
+/** Identidad de un juez `llm_judge` (ADR-043); `null` = no registrada (score anterior o cliente sin modelo). */
+export interface ScoreJudgeDto {
+  model: string | null;
+  promptHash: string | null;
+}
+
 export interface ScoreAggregateDto {
   name: string;
   dataType: ScoreDataTypeDto;
@@ -325,6 +331,8 @@ export interface ScoreAggregateDto {
   /** solo si `dataType === "numeric"`: media del valor */
   average: number | null;
   count: number;
+  /** Jueces distintos que produjeron este agregado (ADR-043); vacío si no es `llm_judge`. Más de uno = mezcla. */
+  judges: ScoreJudgeDto[];
 }
 
 export interface DatasetLastRunDto {
@@ -360,6 +368,10 @@ export interface DatasetVersionDto {
   createdByEmail: string;
   createdAt: string;
   itemCount: number;
+  /** Cambios reales frente a la versión inmediatamente anterior (ADR-033); 0/0/0 en la primera. */
+  addedCount: number;
+  modifiedCount: number;
+  removedCount: number;
 }
 
 export interface DatasetVersionsListResponse {
@@ -381,14 +393,47 @@ export interface DatasetItemDto {
   deletedAt: string | null;
 }
 
+export type DatasetItemChangeKindDto = "added" | "modified" | "removed";
+
+/** `removed.after` es el tombstone si el borrado ocurrió en la versión comparada (trae quién/cuándo). */
+export interface DatasetItemChangeDto {
+  originItemId: string;
+  kind: DatasetItemChangeKindDto;
+  before: DatasetItemDto | null;
+  after: DatasetItemDto | null;
+}
+
+export interface DatasetVersionRefDto {
+  id: string;
+  major: number;
+  minor: number;
+}
+
+/** Diff de `base` (la versión de referencia, o null si no hay anterior) a `target` (ADR-033). */
+export interface DatasetVersionDiffResponse {
+  base: DatasetVersionRefDto | null;
+  target: DatasetVersionRefDto;
+  unchangedCount: number;
+  changes: DatasetItemChangeDto[];
+}
+
 export interface DatasetItemsListResponse {
   items: DatasetItemDto[];
+  /** La versión de la que salen `items` (resuelta server-side si se pidió la última): el SDK la registra en el run (ADR-034). */
+  version?: DatasetVersionRefDto;
 }
 
 export interface UpdateDatasetItemBody {
   input?: unknown;
   expectedOutput?: unknown;
   metadata?: Record<string, unknown> | null;
+}
+
+/** Sesión de edición publicada de golpe: una sola versión nueva (ADR-041). `update[].id` / `remove[]` son ids de fila de la última versión. */
+export interface CommitDatasetChangesBody {
+  add?: Array<{ input: unknown; expectedOutput?: unknown; metadata?: Record<string, unknown> | null }>;
+  update?: Array<UpdateDatasetItemBody & { id: string }>;
+  remove?: string[];
 }
 
 export type ScoreDataTypeDto = "numeric" | "boolean" | "categorical";
@@ -400,6 +445,9 @@ export interface ScoreDto {
   dataType: ScoreDataTypeDto;
   source: ScoreSourceDto;
   comment: string | null;
+  /** Solo en `llm_judge` (ADR-043): modelo que juzgó y huella de la rúbrica. */
+  judgeModel?: string | null;
+  judgePromptHash?: string | null;
 }
 
 /** Una fila tal como la sube el SDK (`memtrace.eval`, ver `eval_api_client.py`). */
@@ -423,6 +471,8 @@ export interface DatasetRunSummaryDto {
   versionMajor: number;
   versionMinor: number;
   itemCount: number;
+  /** `running` mientras el SDK sigue subiendo lotes (o si el proceso murió a medias), ADR-034. */
+  status: "running" | "completed";
   createdAt: string;
   aggregates: ScoreAggregateDto[];
 }
@@ -449,6 +499,169 @@ export interface DatasetRunDetailResponse {
   dataset: { id: string; name: string };
   run: DatasetRunSummaryDto;
   items: DatasetRunItemResultDto[];
+}
+
+/** Score config (ADR-036): rúbrica de un experimento. `minValue`/`maxValue` solo en numeric; `categories` solo en categorical. */
+export interface ScoreConfigCategoryDto {
+  label: string;
+  value: number | null;
+}
+
+export interface ScoreConfigDto {
+  id: string;
+  name: string;
+  dataType: "numeric" | "boolean" | "categorical";
+  minValue: number | null;
+  maxValue: number | null;
+  categories: ScoreConfigCategoryDto[] | null;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt: string | null;
+}
+
+export interface ScoreConfigsListResponse {
+  items: ScoreConfigDto[];
+}
+
+/** Anotación humana sobre una traza (ADR-037). `annotator.name` es null si el usuario ya no existe ("former member"). */
+export interface AnnotationDto {
+  configId: string;
+  configName: string;
+  dataType: "numeric" | "boolean" | "categorical";
+  value: string;
+  comment: string | null;
+  /** null = la traza entera */
+  spanId: string | null;
+  annotator: { id: string; name: string | null };
+  createdAt: string;
+}
+
+/** Score automático (`code`/`llm_judge`) de la misma traza, mostrado junto a las anotaciones. */
+export interface TraceScoreDto {
+  datasetRunId: string;
+  itemIndex: number;
+  name: string;
+  value: string;
+  dataType: "numeric" | "boolean" | "categorical";
+  source: string;
+  comment: string | null;
+}
+
+export interface TraceAnnotationsResponse {
+  annotations: AnnotationDto[];
+  scores: TraceScoreDto[];
+}
+
+/** Cola de anotación (ADR-039). `rubric` referencia score configs por id; el detalle trae además sus definiciones. */
+export interface AnnotationQueueDto {
+  id: string;
+  name: string;
+  instructions: string | null;
+  requiredAnnotations: number;
+  rubric: Array<{ configId: string; required: boolean }>;
+  createdAt: string;
+  archivedAt: string | null;
+}
+
+export interface QueueProgressDto {
+  pending: number;
+  completed: number;
+  skipped: number;
+}
+
+export interface AnnotationQueueSummaryDto extends AnnotationQueueDto {
+  progress: QueueProgressDto;
+}
+
+export interface AnnotationQueuesListResponse {
+  items: AnnotationQueueSummaryDto[];
+}
+
+export interface AnnotationQueueDetailResponse extends AnnotationQueueSummaryDto {
+  configs: ScoreConfigDto[];
+  reviewers: Array<{ userId: string; name: string | null; completed: number; skipped: number; inProgress: number }>;
+}
+
+export interface QueueItemDto {
+  id: string;
+  targetType: "trace" | "run_item";
+  traceId: string | null;
+  datasetRunId: string | null;
+  itemIndex: number | null;
+  status: "pending" | "completed" | "skipped";
+  /** Cómo se eligió el item (ADR-040): a mano, por filtro/run completo o por muestreo aleatorio. */
+  population: "manual" | "filter" | "random_sample";
+  addedAt: string;
+  completedAt: string | null;
+}
+
+export interface QueueItemsResponse {
+  items: QueueItemDto[];
+}
+
+export interface AddQueueItemsResponse {
+  added: number;
+  duplicates: number;
+  /** Solo con muestreo: la semilla usada (para reproducir la muestra) y de cuántos candidatos se eligió. */
+  sample?: { seed: string; size: number; poolSize: number; /** había más candidatos que el tope; la muestra sale solo de los más recientes */ truncated: boolean };
+}
+
+/** `item` es null cuando no queda nada para este revisor. */
+export interface NextQueueItemResponse {
+  item: QueueItemDto | null;
+}
+
+/** Acuerdo juez-humano (ADR-040). `target` de un desacuerdo es `run:<datasetRunId>:<itemIndex>`. */
+export interface JudgeHumanMetricDto {
+  name: string;
+  dataType: "numeric" | "boolean" | "categorical";
+  status: "ok" | "incomparable" | "mixed_judges";
+  reason?: string;
+  /** Identidad del juez; `null` si no se registró o si hay varias (`status: "mixed_judges"`). */
+  judge: { model: string | null; promptHash: string | null } | null;
+  judges: Array<{ model: string | null; promptHash: string | null }>;
+  n: number;
+  excluded: { ties: number; noHuman: number; noJudge: number; invalid: number };
+  percentAgreement: number | null;
+  kappa: number | null;
+  kappaReason?: "no_variance";
+  binary?: { tp: number; fp: number; fn: number; tn: number };
+  confusion?: { labels: string[]; matrix: number[][] };
+  mae?: number | null;
+  pearson?: number | null;
+  spearman?: number | null;
+  withinOne?: number | null;
+  lowSample: boolean;
+  disagreements: Array<{ target: string; judge: string; human: string }>;
+}
+
+export interface JudgeHumanAgreementResponse {
+  scope: {
+    type: "run" | "queue";
+    id: string;
+    traceTargets: number;
+    /** Solo en colas: cómo se eligieron los items de run de la cola (ADR-040), para juzgar cuán representativa es la muestra. */
+    population?: { manual: number; filter: number; randomSample: number };
+  };
+  metrics: JudgeHumanMetricDto[];
+  unmatched: { judgeOnly: string[]; humanOnly: string[] };
+}
+
+export interface InterAnnotatorMetricDto {
+  name: string;
+  dataType: "numeric" | "boolean" | "categorical";
+  annotators: number;
+  n: number;
+  pairs: number;
+  meanPairwiseKappa?: number | null;
+  meanPairwiseSpearman?: number | null;
+  lowSample: boolean;
+}
+
+export interface InterAnnotatorAgreementResponse {
+  scope: { type: "queue"; id: string };
+  metrics: InterAnnotatorMetricDto[];
 }
 
 export interface ProblemDetails {

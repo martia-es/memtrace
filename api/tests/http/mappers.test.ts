@@ -9,6 +9,7 @@ const aggregate = (overrides: Partial<ScoreAggregate> = {}): ScoreAggregate => (
   passRate: null,
   average: null,
   count: 1,
+  judges: [],
   ...overrides,
 });
 
@@ -21,10 +22,17 @@ describe("groupAggregatesByRun", () => {
     ]);
 
     expect(grouped.get("run-1")).toEqual([
-      { name: "exact_match", dataType: "boolean", passRate: 0.66, average: null, count: 1 },
-      { name: "contains", dataType: "boolean", passRate: 1, average: null, count: 1 },
+      { name: "exact_match", dataType: "boolean", passRate: 0.66, average: null, count: 1, judges: [] },
+      { name: "contains", dataType: "boolean", passRate: 1, average: null, count: 1, judges: [] },
     ]);
-    expect(grouped.get("run-2")).toEqual([{ name: "exact_match", dataType: "boolean", passRate: 0, average: null, count: 1 }]);
+    expect(grouped.get("run-2")).toEqual([{ name: "exact_match", dataType: "boolean", passRate: 0, average: null, count: 1, judges: [] }]);
+  });
+
+  it("keeps the judge identities of an aggregate so the dashboard can flag a changed judge", () => {
+    const judges = [{ model: "m1", promptHash: "h1" }, { model: null, promptHash: null }];
+    expect(groupAggregatesByRun([aggregate({ name: "correctness", judges })]).get("run-1")).toEqual([
+      { name: "correctness", dataType: "boolean", passRate: null, average: null, count: 1, judges },
+    ]);
   });
 
   it("returns an empty map for no rows", () => {

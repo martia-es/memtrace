@@ -43,7 +43,7 @@ async function loadReport() {
     report.value = await identityApi.getMetricReport(props.experimentId, props.reportId);
     syncLayoutFromReport();
     // Un informe recién creado no tiene charts: entra directo en modo edición para que el usuario
-    // vea el selector de "añadir gráfico guardado" sin un paso extra (feedback de usuario, ADR-033).
+    // vea el selector de "añadir gráfico guardado" sin un paso extra (feedback de usuario, ADR-035).
     if (!layout.value.length) await enterEdit();
   } catch (err) {
     loadError.value = err instanceof Error ? err : new Error("Could not load the report");
@@ -74,7 +74,7 @@ function optionFor(result: ChartResult, type: CustomMetricDefinitionDto["chartTy
   return customMetricChartOption(result, type, $q.dark.isActive);
 }
 
-// ---- modo edición: añadir/quitar charts ya guardados y mover/redimensionar el grid (ADR-033) ----
+// ---- modo edición: añadir/quitar charts ya guardados y mover/redimensionar el grid (ADR-035) ----
 const editMode = ref(false);
 const availableCharts = ref<SavedCustomMetricDto[]>([]);
 const savingLayout = ref(false);
@@ -140,7 +140,7 @@ async function confirmDelete() {
   emit("deleted");
 }
 
-// ---- enviar por email (ADR-033): instantánea en texto, sin PDF ----
+// ---- enviar por email (ADR-035): instantánea en texto, sin PDF ----
 const sendDialogOpen = ref(false);
 const sendEmails = ref("");
 const sending = ref(false);

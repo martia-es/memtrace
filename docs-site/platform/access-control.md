@@ -7,8 +7,8 @@ MemTrace is multi-tenant. An **organization** contains any number of **experimen
 | Role | Level | Can |
 |---|---|---|
 | `org_admin` | Organization | Admin of **all** experiments in the organization. Creates experiments, invites people as `org_admin` or directly to an experiment |
-| `admin` | Experiment | Everything `member` can, plus invite others to that experiment |
-| `member` | Experiment | Read traces, dashboard and metrics; create their own API key to instrument the agent |
+| `admin` | Experiment | Everything `member` can, plus invite others to that experiment and manage score configs and review queues |
+| `member` | Experiment | Read traces, dashboard and metrics; create their own API key to instrument the agent; annotate traces and review [queues](/library/evaluation#reviewing-traces-with-a-queue) |
 
 Access to an experiment = `org_admin` of its organization **or** a direct membership in it.
 

@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import type { ScoreDto } from "@contract";
-import { computed } from "vue";
+import { computed, nextTick, ref } from "vue";
 import { useRoute } from "vue-router";
 import { formatDateTime } from "@/domain/format";
 import { aggregateTone, aggregateValueLabel } from "@/domain/evaluation";
+import AddToQueueModal from "../components/AddToQueueModal.vue";
 import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
+import JudgeHumanAgreement from "../components/JudgeHumanAgreement.vue";
 import KpiCard from "../components/KpiCard.vue";
 import PageHeader from "../components/PageHeader.vue";
 import { useAsync } from "../composables/useAsync";
@@ -19,6 +21,16 @@ const runId = computed(() => route.params.runId as string);
 const run = useAsync((signal) => api.getDatasetRun(datasetId.value, runId.value, signal));
 void run.run();
 
+const addingToQueue = ref(false);
+const highlighted = ref<number | null>(null);
+
+/** Lleva a un item citado por el panel de acuerdo y lo resalta un momento. */
+async function showItem(itemIndex: number) {
+  highlighted.value = itemIndex;
+  await nextTick();
+  document.getElementById(`item-${itemIndex}`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+}
+
 const hasAnyTraceId = computed(() => run.data.value?.items.some((i) => i.traceId) ?? false);
 
 function preview(value: unknown): string {
@@ -29,6 +41,12 @@ function preview(value: unknown): string {
 function scorePillClass(s: ScoreDto) {
   if (s.dataType !== "boolean") return "unset";
   return s.value === "true" ? "ok" : s.value === "false" ? "error" : "unset";
+}
+
+/** Tooltip de un score: razonamiento del juez y, si lo hay, qué modelo y rúbrica lo emitieron (ADR-043). */
+function scoreTitle(s: ScoreDto): string | undefined {
+  const judge = s.judgeModel || s.judgePromptHash ? `Judge: ${s.judgeModel ?? "unknown model"}${s.judgePromptHash ? ` · rubric ${s.judgePromptHash}` : ""}` : null;
+  return [s.comment, judge].filter(Boolean).join("\n") || undefined;
 }
 
 function sourceSuffix(s: ScoreDto): string | null {
@@ -49,6 +67,7 @@ function sourceSuffix(s: ScoreDto): string | null {
         <span class="artifact">Dataset: <router-link :to="{ name: 'dataset', params: { datasetId } }">{{ run.data.value!.dataset.name }}</router-link></span>
         <span class="artifact">Agent version: <strong>{{ run.data.value!.run.name }}</strong></span>
         <span class="artifact">{{ run.data.value!.run.itemCount }} items</span>
+        <span v-if="run.data.value!.run.status === 'running'" class="artifact mt-pill warn" title="Still receiving results, or the process stopped before finishing">running</span>
         <span class="artifact">{{ formatDateTime(run.data.value!.run.createdAt) }}</span>
       </div>
 
@@ -61,6 +80,15 @@ function sourceSuffix(s: ScoreDto): string | null {
           :tone="aggregateTone(a)"
         />
       </div>
+
+      <JudgeHumanAgreement :scope="{ datasetRunId: runId }" @select-item="showItem">
+        <template #actions>
+          <button v-if="run.data.value!.items.length > 0" type="button" class="small-btn" data-testid="add-run-items-to-queue" @click="addingToQueue = true">
+            Send items to a review queue
+          </button>
+        </template>
+      </JudgeHumanAgreement>
+      <AddToQueueModal v-if="addingToQueue" :run="{ datasetRunId: runId, itemCount: run.data.value!.run.itemCount }" @close="addingToQueue = false" />
 
       <EmptyState v-if="run.data.value!.items.length === 0" icon="playlist_add_check" title="No items">This run has no items.</EmptyState>
 
@@ -76,14 +104,14 @@ function sourceSuffix(s: ScoreDto): string | null {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in run.data.value!.items" :key="item.itemIndex" class="row" :class="{ error: item.error }">
+            <tr v-for="item in run.data.value!.items" :id="`item-${item.itemIndex}`" :key="item.itemIndex" class="row" :class="{ error: item.error, highlighted: highlighted === item.itemIndex }">
               <td class="preview" :title="preview(item.input)">{{ preview(item.input) }}</td>
               <td class="preview" :title="preview(item.expectedOutput)">{{ preview(item.expectedOutput) }}</td>
               <td class="preview" :title="item.error ?? preview(item.output)">{{ item.error ? `error: ${item.error}` : preview(item.output) }}</td>
               <td>
                 <div class="scores">
                   <span v-if="item.scores.length === 0" class="muted">–</span>
-                  <span v-for="s in item.scores" :key="s.name" class="mt-pill" :class="scorePillClass(s)" :title="s.comment ?? undefined">
+                  <span v-for="s in item.scores" :key="s.name" class="mt-pill" :class="scorePillClass(s)" :title="scoreTitle(s)">
                     {{ s.name }}={{ s.value }}<span v-if="sourceSuffix(s)" class="source"> · {{ sourceSuffix(s) }}</span>
                   </span>
                 </div>
@@ -181,6 +209,19 @@ td {
 }
 .preview {
   overflow-wrap: break-word;
+}
+.row.highlighted td {
+  background: var(--mt-warn-bg, rgba(245, 158, 11, 0.14));
+}
+.small-btn {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--mt-line);
+  border-radius: var(--mt-radius-lg);
+  background: var(--mt-card, #fff);
+  color: var(--mt-ink);
+  font-size: 12.5px;
+  cursor: pointer;
 }
 .row.error .preview {
   color: var(--mt-err-ink);

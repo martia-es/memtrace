@@ -161,6 +161,8 @@ export interface DatasetVersion {
  * edición de contenido, si la ha tenido (ADR-032). */
 export interface DatasetItem {
   id: string;
+  /** Identidad estable del item entre versiones (ADR-033): `id` de la fila con la que nació. */
+  originItemId: string;
   datasetVersionId: string;
   input: unknown;
   expectedOutput: unknown;
@@ -180,6 +182,8 @@ export interface DatasetItem {
 }
 
 /** Metadatos de una ejecución de una versión de dataset contra una versión del agente. Los scores viven en ClickHouse. */
+export type DatasetRunStatus = "running" | "completed";
+
 export interface DatasetRun {
   id: string;
   datasetId: string;
@@ -188,6 +192,8 @@ export interface DatasetRun {
   versionMinor: number;
   name: string;
   itemCount: number;
+  /** `running` mientras el SDK sigue subiendo items por lotes (o si el proceso murió a medias), ADR-034. */
+  status: DatasetRunStatus;
   createdAt: string;
 }
 

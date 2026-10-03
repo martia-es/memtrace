@@ -2,6 +2,7 @@ import { requireUser } from "@/adapters/inbound/http/auth-context";
 import { identityGuard } from "@/adapters/inbound/http/identity-guard";
 import { toDatasetVersionsListResponse } from "@/adapters/inbound/http/mappers";
 import { json, problem } from "@/adapters/inbound/http/problem";
+import { countChangesPerVersion } from "@/domain/dataset-diff";
 import { getIdentity } from "@/dependency-container";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,7 @@ export const dynamic = "force-dynamic";
  * Historial de versiones de un dataset, más reciente primero (dashboard, sesión únicamente).
  * Puramente informativo (ADR-032): no hay POST — una versión nunca se crea a mano, siempre es
  * el resultado automático de añadir, editar o borrar un item (ver `datasets/[datasetId]/items`).
+ * Cada versión trae los cambios reales (añadidos/modificados/borrados) frente a la anterior (ADR-033).
  */
 export async function GET(_request: Request, context: { params: Promise<{ experimentId: string; datasetId: string }> }) {
   return identityGuard(async () => {
@@ -25,7 +27,7 @@ export async function GET(_request: Request, context: { params: Promise<{ experi
     if (!dataset || dataset.experimentId !== experimentId) return problem(404, "Not Found", "Dataset not found");
 
     const versions = await identityRepository.listDatasetVersions(datasetId);
-    const withCounts = await Promise.all(versions.map(async (version) => ({ version, itemCount: (await identityRepository.listDatasetItems(version.id)).length })));
-    return json(toDatasetVersionsListResponse(withCounts));
+    const counts = countChangesPerVersion(versions, await identityRepository.listAllDatasetItemsWithDeleted(datasetId));
+    return json(toDatasetVersionsListResponse(versions.map((version) => ({ version, ...counts.get(version.id)! }))));
   });
 }

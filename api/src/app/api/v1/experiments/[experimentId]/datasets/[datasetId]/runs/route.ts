@@ -31,7 +31,8 @@ export async function GET(_request: Request, context: { params: Promise<{ experi
 
 /**
  * Sube el resultado de una ejecución (`memtrace.eval.MemTraceResultsSink.save()`, ADR-028):
- * inserta los scores en ClickHouse y crea el registro de metadatos en PostgreSQL.
+ * inserta los scores en ClickHouse y crea el registro de metadatos en PostgreSQL. Con `complete: false`
+ * el run queda abierto para recibir más lotes en `runs/{runId}/items` (ADR-034).
  */
 export async function POST(request: Request, context: { params: Promise<{ experimentId: string; datasetId: string }> }) {
   return identityGuard(async () => {
@@ -43,7 +44,7 @@ export async function POST(request: Request, context: { params: Promise<{ experi
     const dataset = await identityRepository.getDataset(datasetId);
     if (!dataset || dataset.experimentId !== experimentId) return problem(404, "Not Found", "Dataset not found");
 
-    const { name, items } = await parseJsonOrThrow(submitDatasetRunBody, request);
+    const { name, items, datasetVersion, complete } = await parseJsonOrThrow(submitDatasetRunBody, request);
     const run = await getEvaluation().submitDatasetRun(
       access.serviceName,
       datasetId,
@@ -56,6 +57,8 @@ export async function POST(request: Request, context: { params: Promise<{ experi
         error: i.error ?? null,
         scores: i.scores,
       })),
+      datasetVersion,
+      complete,
     );
     return json(toDatasetRunSummaryDto(run), 201);
   });

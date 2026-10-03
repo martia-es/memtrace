@@ -135,15 +135,28 @@ export const updateDatasetItemBody = z.object({
   metadata: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
+/** Una sesión de edición del dashboard: altas, ediciones y bajas que se publican juntas como UNA versión (ADR-041). */
+export const commitDatasetChangesBody = z
+  .object({
+    add: z.array(datasetItemBody).max(1000).default([]),
+    update: z.array(updateDatasetItemBody.extend({ id: z.string().min(1) })).max(1000).default([]),
+    remove: z.array(z.string().min(1)).max(1000).default([]),
+  })
+  .refine((b) => b.add.length + b.update.length + b.remove.length > 0, { message: "at least one change is required" });
+
 const scoreBody = z.object({
   name: z.string().min(1).max(200),
   value: z.string(),
   dataType: z.enum(["numeric", "boolean", "categorical"]),
   source: z.enum(["human", "code", "llm_judge"]),
   comment: z.string().nullable().optional().default(null),
+  judgeModel: z.string().max(200).nullable().optional().default(null),
+  judgePromptHash: z.string().max(64).nullable().optional().default(null),
 });
 
 const datasetRunItemBody = z.object({
+  /** Posición del item en el run (ADR-034): permite subir los items en cuanto terminan, en cualquier orden. */
+  itemIndex: z.number().int().min(0).optional(),
   input: z.unknown(),
   expectedOutput: z.unknown().optional(),
   output: z.unknown().optional(),
@@ -152,9 +165,23 @@ const datasetRunItemBody = z.object({
   scores: z.array(scoreBody).default([]),
 });
 
-export const submitDatasetRunBody = z.object({
-  name: z.string().trim().min(1).max(200),
-  items: z.array(datasetRunItemBody).min(1).max(1000),
+/** Crea un run (ADR-034). `datasetVersion` es obligatoria: el run declara siempre de qué versión salieron sus items.
+ * `complete: false` lo deja `running` para seguir añadiendo lotes (y entonces `items` puede ir vacío). */
+export const submitDatasetRunBody = z
+  .object({
+    name: z.string().trim().min(1).max(200),
+    datasetVersion: z.string().trim().min(1),
+    items: z.array(datasetRunItemBody).max(1000),
+    complete: z.boolean().default(true),
+  })
+  .refine((b) => b.items.length > 0 || !b.complete, { message: "items must not be empty for a completed run", path: ["items"] });
+
+/** Añade un lote a un run `running`. Cada item lleva su `itemIndex`; `startIndex` (posición del primer item
+ * del lote) solo se usa para los items que no lo traen. */
+export const appendDatasetRunItemsBody = z.object({
+  startIndex: z.number().int().min(0).default(0),
+  items: z.array(datasetRunItemBody).max(1000),
+  complete: z.boolean().default(false),
 });
 export const servicesQuery = z.object({ ...timeRangeShape });
 export const usageQuery = z.object({ ...timeRangeShape });
@@ -226,3 +253,100 @@ export function decodeSpanCursor(raw: string): SpanCursor {
     throw new ValidationError("Invalid request", { cursor: "invalid or expired cursor" });
   }
 }
+
+/** Score configs (ADR-036). Aquí solo se valida la forma del JSON; las reglas por `dataType` e invariantes viven en el dominio. */
+const scoreConfigCategoryBody = z.object({ label: z.string().max(200), value: z.number().nullable().optional().default(null) });
+
+export const createScoreConfigBody = z.object({
+  name: z.string().max(200),
+  dataType: z.enum(["numeric", "boolean", "categorical"]),
+  minValue: z.number().nullable().optional().default(null),
+  maxValue: z.number().nullable().optional().default(null),
+  categories: z.array(scoreConfigCategoryBody).max(100).nullable().optional().default(null),
+  description: z.string().max(2000).nullable().optional().default(null),
+});
+
+export const updateScoreConfigBody = z.object({
+  description: z.string().max(2000).nullable().optional(),
+  minValue: z.number().optional(),
+  maxValue: z.number().optional(),
+  categories: z.array(scoreConfigCategoryBody).max(100).optional(),
+});
+
+/** Anotaciones (ADR-037). `value` acepta número/booleano además de string; el dominio lo valida contra la config. */
+export const saveAnnotationBody = z.object({
+  configId: z.string().uuid(),
+  value: z.union([z.string().max(2000), z.number(), z.boolean()]),
+  comment: z.string().max(5000).nullable().optional(),
+  spanId: z.string().regex(/^[0-9a-f]{16}$/i, "Must be a 16-character hex span id").nullable().optional(),
+});
+
+export const retractAnnotationQuery = z.object({
+  spanId: z.string().regex(/^[0-9a-f]{16}$/i).optional(),
+  annotatorId: z.string().uuid().optional(),
+});
+
+/** Colas de anotación (ADR-039). Aquí solo la forma del JSON; las reglas (rúbrica, límites) viven en el dominio/servicio. */
+const queueRubricEntryBody = z.object({ configId: z.string().uuid(), required: z.boolean().optional().default(true) });
+
+export const createAnnotationQueueBody = z.object({
+  name: z.string().max(200),
+  instructions: z.string().max(5000).nullable().optional().default(null),
+  requiredAnnotations: z.number().int().optional().default(1),
+  rubric: z.array(queueRubricEntryBody).max(50),
+});
+
+export const updateAnnotationQueueBody = z.object({
+  name: z.string().max(200).optional(),
+  instructions: z.string().max(5000).nullable().optional(),
+  requiredAnnotations: z.number().int().optional(),
+  rubric: z.array(queueRubricEntryBody).max(50).optional(),
+  archived: z.boolean().optional(),
+});
+
+/** Muestreo aleatorio al poblar una cola (ADR-040): `size` elementos al azar; sin `seed` la genera el servidor y la devuelve. */
+const queueSample = z.strictObject({ size: z.number().int().min(1).max(500), seed: z.string().min(1).max(64).optional() });
+
+/** Exactamente una forma: ids explícitos, instantánea de un filtro de trazas, un run (entero o muestreado) o items de un run (ADR-039). */
+export const addQueueItemsBody = z.union([
+  z.strictObject({ traceIds: z.array(z.string().min(1).max(64)).max(500) }),
+  z.strictObject({
+    fromFilter: z
+      .strictObject({
+        from: isoDate.optional(),
+        to: isoDate.optional(),
+        status: z.enum(["ok", "error"]).optional(),
+        hasErrors: z.boolean().optional(),
+        minDurationMs: z.number().min(0).optional(),
+        conversationId: z.string().min(1).max(200).optional(),
+        limit: z.number().int().min(1).max(500).optional(),
+        sample: queueSample.optional(),
+      })
+      .refine((f) => (f.limit === undefined) !== (f.sample === undefined), { message: "exactly one of limit or sample is required" }),
+  }),
+  z.strictObject({ fromRun: z.strictObject({ datasetRunId: z.string().uuid(), sample: queueSample.optional() }) }),
+  z.strictObject({ runItems: z.array(z.strictObject({ datasetRunId: z.string().uuid(), itemIndex: z.number().int().min(0) })).max(500) }),
+]);
+
+export const completeQueueItemBody = z.object({
+  labels: z.array(z.object({ configId: z.string().uuid(), value: z.union([z.string().max(2000), z.number(), z.boolean()]), comment: z.string().max(5000).nullable().optional() })).max(50),
+});
+
+export const listQueueItemsQuery = z.object({
+  status: z.enum(["pending", "completed", "skipped"]).optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional(),
+});
+
+/** Alcance del acuerdo juez-humano (ADR-040): exactamente un run o una cola, nunca el experimento entero. */
+export const judgeHumanAgreementQuery = z
+  .object({
+    datasetRunId: z.string().uuid().optional(),
+    queueId: z.string().uuid().optional(),
+    name: z.string().min(1).max(200).optional(),
+  })
+  .refine((q) => (q.datasetRunId === undefined) !== (q.queueId === undefined), { message: "exactly one of datasetRunId or queueId is required" });
+
+export const interAnnotatorAgreementQuery = z.object({
+  queueId: z.string().uuid(),
+  name: z.string().min(1).max(200).optional(),
+});
