@@ -59,7 +59,8 @@ def create_dataset_with_two_versions() -> str:
     return dataset_id
 
 
-memtrace.init_tracer(service_name="toy-agent")  # must match the API key's experiment
+# The service name must be your experiment's (Experiment > Settings), or its traces land in another experiment.
+memtrace.init_tracer(service_name=os.environ.get("MEMTRACE_SERVICE_NAME", "toy-agent"))
 
 
 @memtrace.trace_step(name="toy_agent", step_type="agent")

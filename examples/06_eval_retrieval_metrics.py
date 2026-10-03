@@ -70,7 +70,8 @@ def create_dataset() -> str:
     return dataset_id
 
 
-memtrace.init_tracer(service_name="toy-rag-agent")  # must match the API key's experiment
+# The service name must be your experiment's (Experiment > Settings), or its traces land in another experiment.
+memtrace.init_tracer(service_name=os.environ.get("MEMTRACE_SERVICE_NAME", "toy-rag-agent"))
 
 
 @memtrace.trace_step(name="retrieve", step_type="retriever")
