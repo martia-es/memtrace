@@ -2,9 +2,16 @@
 import type { RunListItemDto } from "@contract";
 import { computed } from "vue";
 import { useQuasar } from "quasar";
-import { formatDateTime } from "@/domain/format";
-import { aggregateTone, aggregateValueLabel, judgeChanged } from "@/domain/evaluation";
-import { buildOfflineSeries, judgeChangeNotices, offlineEvalChartOption, offlineRunLabel } from "../offline-eval-chart-option";
+import { formatDateTime, formatPercent } from "@/domain/format";
+import {
+  buildOfflineSeries,
+  judgeChangeNotices,
+  offlineEvalChartOption,
+  offlineRunLabel,
+  summarizeEvaluators,
+  type EvaluatorStatus,
+  type EvaluatorSummary,
+} from "../offline-eval-chart-option";
 import EChart from "./EChart.vue";
 
 const props = defineProps<{ runs: RunListItemDto[] }>();
@@ -12,109 +19,180 @@ const emit = defineEmits<{ "open-run": [run: RunListItemDto] }>();
 
 const $q = useQuasar();
 
-const selected = computed(() => props.runs);
-const passRateSeries = computed(() => buildOfflineSeries(selected.value, "passRate"));
-const averageSeries = computed(() => buildOfflineSeries(selected.value, "average"));
-const passRateOption = computed(() => offlineEvalChartOption(selected.value, passRateSeries.value, "passRate", $q.dark.isActive));
-const averageOption = computed(() => offlineEvalChartOption(selected.value, averageSeries.value, "average", $q.dark.isActive));
+const passRateSeries = computed(() => buildOfflineSeries(props.runs, "passRate"));
+const averageSeries = computed(() => buildOfflineSeries(props.runs, "average"));
+const passRateOption = computed(() => offlineEvalChartOption(props.runs, passRateSeries.value, "passRate", $q.dark.isActive));
+const averageOption = computed(() => offlineEvalChartOption(props.runs, averageSeries.value, "average", $q.dark.isActive));
 
-/** Último run de cada evaluador frente al anterior: la lectura rápida de "¿he empeorado?". */
-const latest = computed(() => selected.value[selected.value.length - 1] ?? null);
-const previous = computed(() => selected.value[selected.value.length - 2] ?? null);
+const summary = computed(() => summarizeEvaluators(props.runs));
+const judgeNotices = computed(() => judgeChangeNotices(props.runs));
+const newestFirst = computed(() => [...props.runs].reverse());
 
-const judgeNotices = computed(() => judgeChangeNotices(selected.value));
+const STATUS: Record<EvaluatorStatus, { label: string; hint: string }> = {
+  improving: { label: "Improving", hint: "Higher than the previous run" },
+  regressing: { label: "Regressing", hint: "Lower than the previous run" },
+  stable: { label: "Stable", hint: "Within noise of the previous run" },
+  "judge-changed": { label: "Judge changed", hint: "The judge or rubric differs, so the change is not comparable" },
+  "first-run": { label: "Baseline", hint: "Only one run has this evaluator" },
+};
 
-/** El último run usó otro juez que el anterior para este evaluador: la diferencia no mide al agente. */
-function judgeChangedSinceLast(name: string): boolean {
-  return judgeChanged(previous.value?.aggregates.find((x) => x.name === name), latest.value?.aggregates.find((x) => x.name === name));
+function fmt(v: number | null, kind: EvaluatorSummary["kind"]): string {
+  if (v === null) return "–";
+  return kind === "passRate" ? formatPercent(v) : v.toFixed(2);
 }
 
-function delta(name: string): string | null {
-  const a = latest.value?.aggregates.find((x) => x.name === name);
-  const b = previous.value?.aggregates.find((x) => x.name === name);
-  if (!a || !b) return null;
-  const [x, y, pct] = a.passRate !== null && b.passRate !== null ? [a.passRate, b.passRate, true] : [a.average, b.average, false];
-  if (x === null || y === null) return null;
-  const d = x - y;
-  const sign = d > 0 ? "+" : "";
-  return pct ? `${sign}${(d * 100).toFixed(1)} pp` : `${sign}${d.toFixed(2)}`;
+function deltaLabel(s: EvaluatorSummary): string {
+  if (s.delta === null) return "–";
+  const sign = s.delta > 0 ? "+" : "";
+  return s.kind === "passRate" ? `${sign}${(s.delta * 100).toFixed(1)} pp` : `${sign}${s.delta.toFixed(2)}`;
 }
 
+function deltaTone(s: EvaluatorSummary): string {
+  if (s.status === "improving") return "up";
+  if (s.status === "regressing") return "down";
+  return "";
+}
+
+/** Un punto de las gráficas corresponde al run con ese índice (mismo orden que `runs`). */
+function openAt(index: number) {
+  const run = props.runs[index];
+  if (run) emit("open-run", run);
+}
 </script>
 
 <template>
-  <div class="offline">
-    <template v-if="selected.length">
-      <section v-if="latest" class="latest">
-        <h3>Latest run · {{ offlineRunLabel(latest) }}</h3>
-        <div class="kpis">
-          <div v-for="a in latest.aggregates.filter((x) => x.passRate !== null || x.average !== null)" :key="a.name" class="kpi" :class="`tone-${aggregateTone(a)}`">
-            <span class="kpi-name">{{ a.name }}</span>
-            <span class="kpi-value">{{ aggregateValueLabel(a) }}</span>
-            <span v-if="judgeChangedSinceLast(a.name)" class="kpi-delta judge-changed" title="The judge model or rubric differs from the previous run, so the change is not comparable">⚠ judge changed</span>
-            <span v-else-if="delta(a.name)" class="kpi-delta">{{ delta(a.name) }} vs. previous</span>
-          </div>
+  <div class="trend">
+    <section class="card">
+      <header class="card-head">
+        <div>
+          <h3>Evaluators</h3>
+          <p class="sub">Latest completed run against the one before it.</p>
         </div>
-      </section>
+        <span class="meta">{{ summary.length }} evaluators · {{ runs.length }} runs in range</span>
+      </header>
 
-      <section v-if="judgeNotices.length" class="judge-notice" role="alert">
-        <strong>The judge changed between runs</strong>
-        <p>Pass rates before and after are not directly comparable. Marked with a diamond in the charts.</p>
-        <ul>
-          <li v-for="n in judgeNotices" :key="`${n.evaluator}-${n.toRun}`">
-            <code>{{ n.evaluator }}</code>: {{ n.fromRun }} → {{ n.toRun }} ({{ n.from }} → {{ n.to }})
-          </li>
-        </ul>
-      </section>
-
-      <section v-if="passRateSeries.length" class="chart-card">
-        <h3>Pass rate per evaluator</h3>
-        <EChart :option="passRateOption" label="Pass rate per evaluator across offline runs" height="300px" />
-      </section>
-
-      <section v-if="averageSeries.length" class="chart-card">
-        <h3>Average per evaluator</h3>
-        <EChart :option="averageOption" label="Average score per evaluator across offline runs" height="300px" />
-      </section>
-
-      <section class="chart-card">
-        <h3>Runs</h3>
-        <table class="runs-table">
+      <div v-if="summary.length" class="table-wrap">
+        <table class="tbl">
           <thead>
-            <tr><th>Run</th><th>Dataset</th><th>Version</th><th>Items</th><th>Date</th></tr>
+            <tr>
+              <th>Evaluator</th>
+              <th>Metric</th>
+              <th class="num">Latest</th>
+              <th class="num">Δ vs previous</th>
+              <th>Status</th>
+            </tr>
           </thead>
           <tbody>
-            <tr v-for="r in [...selected].reverse()" :key="r.id" @click="emit('open-run', r)">
-              <td>{{ r.name }}</td>
-              <td>{{ r.datasetName }}</td>
-              <td>v{{ r.versionMajor }}.{{ r.versionMinor }}</td>
-              <td>{{ r.itemCount }}</td>
-              <td>{{ formatDateTime(r.createdAt) }}</td>
+            <tr v-for="s in summary" :key="s.name">
+              <td class="strong">{{ s.name }}</td>
+              <td class="muted">{{ s.kind === "passRate" ? "Pass rate" : "Average score" }}</td>
+              <td class="num strong">{{ fmt(s.latest, s.kind) }}</td>
+              <td class="num" :class="deltaTone(s)">{{ deltaLabel(s) }}</td>
+              <td><span class="status" :class="s.status" :title="STATUS[s.status].hint">{{ STATUS[s.status].label }}</span></td>
             </tr>
           </tbody>
         </table>
+      </div>
+      <p v-else class="sub">No evaluator produced numeric or boolean results in this range.</p>
+    </section>
+
+    <div v-if="judgeNotices.length" class="notice" role="alert">
+      <strong>The judge changed between runs</strong>
+      <p>Pass rates before and after are not directly comparable. Changed points are marked with a red diamond.</p>
+      <ul>
+        <li v-for="n in judgeNotices" :key="`${n.evaluator}-${n.toRun}`">
+          <code>{{ n.evaluator }}</code>: {{ n.fromRun }} → {{ n.toRun }}
+        </li>
+      </ul>
+    </div>
+
+    <div class="charts">
+      <section v-if="passRateSeries.length" class="card">
+        <header class="card-head">
+          <div>
+            <h3>Pass rate over runs</h3>
+            <p class="sub">Share of items passing each boolean evaluator. Click a point to open its run.</p>
+          </div>
+        </header>
+        <EChart :option="passRateOption" height="280px" label="Pass rate per evaluator across offline runs" @click="openAt" />
       </section>
-    </template>
+
+      <section v-if="averageSeries.length" class="card">
+        <header class="card-head">
+          <div>
+            <h3>Average score over runs</h3>
+            <p class="sub">Mean of each numeric evaluator. Click a point to open its run.</p>
+          </div>
+        </header>
+        <EChart :option="averageOption" height="280px" label="Average score per evaluator across offline runs" @click="openAt" />
+      </section>
+    </div>
+
+    <section class="card">
+      <header class="card-head">
+        <div>
+          <h3>Runs</h3>
+          <p class="sub">Select a run to inspect its items, or compare two of them.</p>
+        </div>
+      </header>
+      <div class="table-wrap">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>Run</th>
+              <th>Dataset</th>
+              <th>Version</th>
+              <th class="num">Items</th>
+              <th>Created</th>
+              <th><span class="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="r in newestFirst" :key="r.id" class="clickable" @click="emit('open-run', r)">
+              <td class="strong">{{ offlineRunLabel(r) }}</td>
+              <td>{{ r.datasetName }}</td>
+              <td class="muted">v{{ r.versionMajor }}.{{ r.versionMinor }}</td>
+              <td class="num">{{ r.itemCount }}</td>
+              <td class="muted">{{ formatDateTime(r.createdAt) }}</td>
+              <td class="actions"><button type="button" class="open" @click.stop="emit('open-run', r)">Open</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
   </div>
 </template>
 
 <style scoped>
-.offline { display: flex; flex-direction: column; gap: 16px; }
-.hint { margin: 0; font-size: 12px; opacity: 0.7; }
-h3 { margin: 0 0 10px; font-size: 13px; font-weight: 600; }
-.chart-card, .latest { border: 1px solid var(--mt-border, rgba(128, 128, 128, 0.25)); border-radius: 8px; padding: 14px 16px; }
-.kpis { display: flex; flex-wrap: wrap; gap: 12px; }
-.kpi { display: flex; flex-direction: column; min-width: 140px; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--mt-border, rgba(128, 128, 128, 0.25)); }
-.kpi-name { font-size: 11px; opacity: 0.7; }
-.kpi-value { font-size: 20px; font-weight: 600; }
-.kpi-delta { font-size: 11px; opacity: 0.7; }
-.judge-changed { color: var(--q-negative, #b3261e); opacity: 1; }
-.judge-notice { border: 1px solid var(--q-negative, #b3261e); border-radius: 8px; padding: 10px 14px; font-size: 12px; }
-.judge-notice p { margin: 4px 0; }
-.judge-notice ul { margin: 4px 0 0; padding-left: 18px; }
-.tone-negative .kpi-value { color: var(--q-negative, #b3261e); }
-.runs-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.runs-table th, .runs-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--mt-border, rgba(128, 128, 128, 0.2)); }
-.runs-table tbody tr { cursor: pointer; }
-.runs-table tbody tr:hover { background: rgba(128, 128, 128, 0.08); }
+.trend { display: flex; flex-direction: column; gap: 16px; font-family: var(--mt-sans); }
+.card { background: var(--mt-card); border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); padding: 18px 20px; min-width: 0; }
+.card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+h3 { margin: 0; font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+.sub { margin: 4px 0 0; color: var(--mt-muted); font-size: 12.5px; }
+.meta { color: var(--mt-muted); font-size: 12px; white-space: nowrap; }
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px; }
+.table-wrap { overflow-x: auto; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tbl th { text-align: left; padding: 8px 10px; color: var(--mt-muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--mt-line); white-space: nowrap; }
+.tbl td { padding: 10px; border-bottom: 1px solid var(--mt-line); color: var(--mt-ink); }
+.tbl tbody tr:last-child td { border-bottom: 0; }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+.strong { font-weight: 600; }
+.muted { color: var(--mt-muted); }
+.up { color: var(--mt-ok-ink); font-weight: 600; }
+.down { color: var(--mt-err-ink); font-weight: 600; }
+.clickable { cursor: pointer; }
+.clickable:hover td { background: var(--mt-soft); }
+.status { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid var(--mt-line); white-space: nowrap; }
+.status.improving { color: var(--mt-ok-ink); }
+.status.regressing { color: var(--mt-err-ink); }
+.status.judge-changed { color: var(--mt-err-ink); border-style: dashed; }
+.status.stable, .status.first-run { color: var(--mt-muted); }
+.actions { text-align: right; width: 1%; }
+.open { height: 28px; padding: 0 12px; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); background: transparent; color: var(--mt-ink); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.open:hover { border-color: var(--mt-accent); color: var(--mt-accent); }
+.notice { border: 1px solid var(--mt-err-ink); border-radius: var(--mt-radius-lg); padding: 12px 16px; font-size: 13px; color: var(--mt-ink); }
+.notice p { margin: 4px 0; color: var(--mt-muted); }
+.notice ul { margin: 4px 0 0; padding-left: 18px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 </style>

@@ -22,6 +22,17 @@ export function kappaTone(kappa: number | null): "positive" | "warning" | "negat
   return "negative";
 }
 
+/**
+ * Lectura para quien valora respuestas (ADR-046 de colas): mismos umbrales que `kappaTone`, en lenguaje llano.
+ * Solo texto; no decide nada por sí solo.
+ */
+export function judgeVerdict(kappa: number | null): { tone: ReturnType<typeof kappaTone>; text: string } {
+  if (kappa === null) return { tone: "default", text: "Not enough labels yet to compare." };
+  if (kappa >= 0.6) return { tone: "positive", text: "Matches your reviewers: the judge can be trusted for this score." };
+  if (kappa >= 0.4) return { tone: "warning", text: "Partly matches: check the judge's rubric and the disagreements." };
+  return { tone: "negative", text: "Does not match your reviewers: do not use this judge score." };
+}
+
 export function formatKappa(kappa: number | null | undefined): string {
   return kappa === null || kappa === undefined ? "–" : kappa.toFixed(2);
 }

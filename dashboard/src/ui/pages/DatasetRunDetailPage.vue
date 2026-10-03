@@ -104,7 +104,7 @@ function sourceSuffix(s: ScoreDto): string | null {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in run.data.value!.items" :id="`item-${item.itemIndex}`" :key="item.itemIndex" class="row" :class="{ error: item.error, highlighted: highlighted === item.itemIndex }">
+            <tr v-for="item in run.data.value!.items" :id="`item-${item.itemIndex}`" :key="item.itemIndex" class="item-row" :class="{ error: item.error, highlighted: highlighted === item.itemIndex }">
               <td class="preview" :title="preview(item.input)">{{ preview(item.input) }}</td>
               <td class="preview" :title="preview(item.expectedOutput)">{{ preview(item.expectedOutput) }}</td>
               <td class="preview" :title="item.error ?? preview(item.output)">{{ item.error ? `error: ${item.error}` : preview(item.output) }}</td>
@@ -210,7 +210,7 @@ td {
 .preview {
   overflow-wrap: break-word;
 }
-.row.highlighted td {
+.item-row.highlighted td {
   background: var(--mt-warn-bg, rgba(245, 158, 11, 0.14));
 }
 .small-btn {
@@ -223,7 +223,7 @@ td {
   font-size: 12.5px;
   cursor: pointer;
 }
-.row.error .preview {
+.item-row.error .preview {
   color: var(--mt-err-ink);
 }
 .muted {

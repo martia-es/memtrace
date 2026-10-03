@@ -112,8 +112,8 @@ function switchExperiment(experimentId: string | null) {
         <router-link
           :to="{ name: 'admin' }"
           class="nav-item"
-          :class="{ active: route.name === 'admin' }"
-          :aria-current="route.name === 'admin' ? 'page' : undefined"
+          :class="{ active: route.meta.section === 'admin' }"
+          :aria-current="route.meta.section === 'admin' ? 'page' : undefined"
           :title="isCollapsed ? 'Admin' : undefined"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="ADMIN_ICON" /></svg>

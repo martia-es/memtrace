@@ -7,7 +7,12 @@ export const router = createRouter({
     { path: "/login", name: "login", component: () => import("./pages/LoginPage.vue"), meta: { title: "Login", bare: true, public: true } },
     // nunca se renderiza: beforeEach siempre la resuelve a /e/:id/conversations o /admin
     { path: "/", name: "home", component: { render: () => null } },
-    { path: "/admin", name: "admin", component: () => import("./pages/ExperimentsPage.vue"), meta: { title: "Admin", section: "admin" } },
+    // área de administración (ADR-037): organización → experimento, con una pestaña por paso de configuración
+    { path: "/admin", name: "admin", component: () => import("./pages/admin/AdminHomePage.vue"), meta: { title: "Admin", section: "admin" } },
+    { path: "/admin/members", name: "admin-members", component: () => import("./pages/admin/AdminMembersPage.vue"), meta: { title: "Members", section: "admin" } },
+    { path: "/admin/organizations/:organizationId", name: "admin-organization", component: () => import("./pages/admin/AdminOrganizationPage.vue"), props: true, meta: { title: "Organization", section: "admin" } },
+    // el parámetro no se llama :experimentId a propósito: el guard de abajo fija el experimento "activo" para :experimentId
+    { path: "/admin/experiments/:expId", name: "admin-experiment", component: () => import("./pages/admin/AdminExperimentPage.vue"), props: (route) => ({ experimentId: route.params.expId }), meta: { title: "Experiment", section: "admin" } },
     { path: "/model-pricing", name: "model-pricing", component: () => import("./pages/ModelPricingPage.vue"), meta: { title: "Model pricing", section: "model-pricing" } },
     {
       path: "/e/:experimentId",

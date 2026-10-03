@@ -36,7 +36,11 @@ function notifyError(action: string, error: unknown) {
 }
 
 const total = (q: AnnotationQueueSummaryDto) => q.progress.pending + q.progress.completed + q.progress.skipped;
-const percent = (q: AnnotationQueueSummaryDto) => (total(q) ? Math.round((q.progress.completed / total(q)) * 100) : 0);
+
+// Colas con trabajo pendiente primero, para que el reviewer vea de un vistazo dónde tiene que ir.
+const sortedQueues = computed(() =>
+  [...(queues.data.value?.items ?? [])].sort((a, b) => Number(b.progress.pending > 0) - Number(a.progress.pending > 0)),
+);
 
 const review = (queueId: string) => void router.push({ name: "annotation-queue-review", params: { experimentId: experimentId.value, queueId } });
 
@@ -138,28 +142,37 @@ async function addByFilter() {
       {{ canManage ? 'Create one with "New queue" (you need at least one score config first).' : "Ask an experiment admin to create one." }}
     </EmptyState>
 
-    <div v-else class="mt-card table-card">
+    <div v-if="queues.data.value?.items.length" class="mt-card table-card">
       <table>
         <thead>
           <tr>
             <th>Queue</th>
-            <th>Progress</th>
-            <th class="num">Pending</th>
+            <th>Pending</th>
             <th class="num">Reviews / item</th>
             <th />
           </tr>
         </thead>
         <tbody>
-          <tr v-for="q in queues.data.value!.items" :key="q.id" data-testid="queue-row">
+          <tr
+            v-for="q in sortedQueues"
+            :key="q.id"
+            data-testid="queue-row"
+            :class="{ 'has-work': q.progress.pending > 0 }"
+          >
             <td class="name">{{ q.name }}</td>
-            <td class="progress-cell">
-              <div class="bar"><div class="fill" :style="{ width: `${percent(q)}%` }" /></div>
-              <span class="muted mono">{{ q.progress.completed }}/{{ total(q) }}</span>
+            <td>
+              <span v-if="q.progress.pending > 0" class="notice work" data-testid="queue-pending">
+                <span class="notice-dot" aria-hidden="true" />
+                {{ q.progress.pending }} de {{ total(q) }} por revisar
+              </span>
+              <span v-else class="notice done" data-testid="queue-pending">
+                <span class="notice-dot" aria-hidden="true" />
+                Al día · {{ total(q) }} revisadas
+              </span>
             </td>
-            <td class="num mono">{{ q.progress.pending }}</td>
             <td class="num mono">{{ q.requiredAnnotations }}</td>
             <td class="actions">
-              <button type="button" class="small-btn accent" :disabled="q.progress.pending === 0" @click="review(q.id)">Review</button>
+              <button type="button" class="small-btn" :class="{ accent: q.progress.pending > 0 }" :disabled="q.progress.pending === 0" @click="review(q.id)">Review</button>
               <button type="button" class="small-btn" @click="addTo = q">Add traces</button>
               <button type="button" class="small-btn" @click="detailQueueId = q.id">Details</button>
               <button v-if="canManage" type="button" class="small-btn" @click="archive(q)">Archive</button>
@@ -234,6 +247,33 @@ async function addByFilter() {
   justify-content: center;
   padding: 60px;
 }
+.notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.notice-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.notice.work {
+  background: #fef3c7;
+  color: #92400e;
+}
+.notice.done {
+  background: #dcfce7;
+  color: #166534;
+}
+tr.has-work td:first-child {
+  box-shadow: inset 2px 0 0 #f59e0b;
+}
 .table-card {
   flex: 1;
   min-height: 0;
@@ -267,23 +307,6 @@ td {
 }
 .name {
   font-weight: 600;
-}
-.progress-cell {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 180px;
-}
-.bar {
-  flex: 1;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--mt-soft);
-  overflow: hidden;
-}
-.fill {
-  height: 100%;
-  background: var(--mt-accent);
 }
 .actions {
   display: flex;

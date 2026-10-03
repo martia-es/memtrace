@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import { useQuasar } from "quasar";
 import type { QueueItemDto } from "@contract";
 import { shortId } from "@/domain/format";
+import { judgeVerdict } from "@/domain/agreement";
 import { describeScale } from "../score-config-form";
 import ErrorBanner from "./ErrorBanner.vue";
 import InterAnnotatorAgreement from "./InterAnnotatorAgreement.vue";
@@ -25,6 +26,9 @@ void detail.run();
 void items.run();
 
 const hasRunItems = computed(() => items.data.value?.items.some((i) => i.targetType === "run_item") ?? false);
+const judgeAgreement = useAsync((signal) => api.getJudgeHumanAgreement({ queueId: props.queueId }, undefined, signal));
+void judgeAgreement.run();
+const judgeMetrics = computed(() => judgeAgreement.data.value?.metrics ?? []);
 const required = ref<number | null>(null);
 const total = computed(() => {
   const p = detail.data.value?.progress;
@@ -124,9 +128,19 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
         <InterAnnotatorAgreement :queue-id="queueId" />
       </section>
 
+      <section v-if="hasRunItems && judgeMetrics.length" data-testid="queue-verdict">
+        <h3>Judge verdict</h3>
+        <ul class="plain">
+          <li v-for="m in judgeMetrics" :key="m.name">
+            <strong>{{ m.name }}</strong>
+            <span class="pill" :class="judgeVerdict(m.kappa).tone">{{ judgeVerdict(m.kappa).text }}</span>
+          </li>
+        </ul>
+      </section>
+
       <JudgeHumanAgreement v-if="hasRunItems" :scope="{ queueId }" />
 
-      <PromoteQueueToDataset v-if="items.data.value" :items="items.data.value.items" :configs="detail.data.value.configs" />
+      <PromoteQueueToDataset v-if="canManage && items.data.value" :items="items.data.value.items" :configs="detail.data.value.configs" />
 
       <section>
         <h3>Items</h3>
@@ -225,8 +239,15 @@ h3 {
   color: var(--mt-ok-ink, var(--mt-accent));
 }
 .pill.warn,
-.pill.skipped {
+.pill.skipped,
+.pill.negative {
   color: var(--mt-err-ink);
+}
+.pill.positive {
+  color: var(--mt-ok-ink, var(--mt-accent));
+}
+.pill.warning {
+  color: #92400e;
 }
 .text-input {
   box-sizing: border-box;

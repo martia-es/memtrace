@@ -9,6 +9,7 @@ import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 echarts.use([BarChart, LineChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
 
 const props = withDefaults(defineProps<{ option: EChartsCoreOption; height?: string; label: string }>(), { height: "260px" });
+const emit = defineEmits<{ click: [dataIndex: number] }>();
 
 const el = ref<HTMLDivElement | null>(null);
 let chart: echarts.ECharts | null = null;
@@ -18,6 +19,9 @@ onMounted(() => {
   if (!el.value) return;
   chart = echarts.init(el.value);
   chart.setOption(props.option);
+  chart.on("click", (params) => {
+    if (typeof params.dataIndex === "number") emit("click", params.dataIndex);
+  });
   observer = new ResizeObserver(() => chart?.resize());
   observer.observe(el.value);
 });

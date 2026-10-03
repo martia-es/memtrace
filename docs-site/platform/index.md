@@ -10,4 +10,4 @@ The MemTrace platform stores the traces your agents emit and lets you explore th
 | **PostgreSQL** | Identity store: users, organizations, experiments, roles |
 | **Dashboard** | Vue 3 SPA that only talks to the query API |
 
-Start with [Run it locally](./getting-started), then see the [Dashboard](./dashboard) and [Organizations & roles](./access-control).
+Start with [Run it locally](./getting-started), then see the [Dashboard](./dashboard), [Organizations & roles](./access-control), [Datasets & offline evals](./evaluation) and [Annotations & review](./annotations).

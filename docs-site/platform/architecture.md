@@ -14,6 +14,15 @@ Each piece exposes a stable contract to its neighbor and hides its own technolog
 - The **query API owns all storage knowledge** (SQL, hierarchy reconstruction). Swapping the analytical store means rewriting it internally, not changing the contract.
 - **Identity lives in PostgreSQL**, separate from ClickHouse: users and roles are transactional data, traces are high-volume analytics.
 
+## Where data is stored
+
+| Store | What it holds | Personal data from your agents? |
+|---|---|---|
+| ClickHouse | Traces, automatic scores, human annotations, and the per-item results of evaluation runs | **Yes**, if content capture is on. Anonymize in the SDK, see [Anonymizing personal data](/library/pii) |
+| PostgreSQL | Users, organizations, roles, hashed API keys, datasets and their versions, score configs, review queues | Dataset items are long-lived and are written by people, so keep personal data out of them too |
+
+Retention: traces are kept for 30 days, and the text of evaluation run items for 180 days. Details are in [Datasets & offline evals](/platform/evaluation#retention).
+
 Trace attributes follow the OpenTelemetry [GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/), so traces from other libraries that emit `gen_ai.*` attributes work too.
 
 ## Topic extraction (analytics enrichment)

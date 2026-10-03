@@ -188,6 +188,14 @@ defineExpose({ dirty });
 
     <div class="mt-card table-card">
       <table class="items">
+        <colgroup>
+          <col class="col-check" />
+          <col class="col-idx" />
+          <col class="col-text" />
+          <col class="col-text" />
+          <col class="col-meta" />
+          <col class="col-actions" />
+        </colgroup>
         <thead>
           <tr>
             <th class="check"><input type="checkbox" aria-label="Select all" :checked="allSelected" @change="toggleAll" /></th>
@@ -219,10 +227,12 @@ defineExpose({ dirty });
               ></textarea>
             </td>
             <td class="muted last-edit">
-              <span v-if="row.id === null && rowState(row) !== 'empty'" class="badge new">new</span>
-              <span v-else-if="rowState(row) === 'modified'" class="badge modified">edited</span>
-              <span v-else-if="row.removed" class="badge removed">will be deleted</span>
-              <template v-else>{{ lastEdit(row) }}</template>
+              <div class="meta-line">
+                <span v-if="row.id === null && rowState(row) !== 'empty'" class="badge new">new</span>
+                <span v-else-if="rowState(row) === 'modified'" class="badge modified">edited</span>
+                <span v-else-if="row.removed" class="badge removed">will be deleted</span>
+                <span v-else>{{ lastEdit(row) }}</span>
+              </div>
               <div v-if="rowProblem(row)" class="problem-text">{{ rowProblem(row) }}</div>
             </td>
             <td class="row-actions">
@@ -317,7 +327,23 @@ defineExpose({ dirty });
 .items {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
   font-size: 13px;
+}
+.col-check {
+  width: 36px;
+}
+.col-idx {
+  width: 48px;
+}
+.col-text {
+  width: 36%;
+}
+.col-meta {
+  width: 190px;
+}
+.col-actions {
+  width: 150px;
 }
 th {
   position: sticky;
@@ -347,7 +373,8 @@ td {
   padding-top: 9px;
 }
 .edit-cell {
-  width: 34%;
+  vertical-align: top;
+  white-space: normal;
 }
 .cell-input {
   display: block;
@@ -390,9 +417,15 @@ td {
   box-shadow: inset 3px 0 0 var(--mt-err-ink, #c0392b);
 }
 .last-edit {
-  min-width: 170px;
   padding-top: 9px;
   font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.meta-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 .badge {
   display: inline-block;

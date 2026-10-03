@@ -1,0 +1,94 @@
+import { flushPromises, mount } from "@vue/test-utils";
+import { Dark, Notify, QLayout, QPageContainer, Quasar } from "quasar";
+import { defineComponent, h } from "vue";
+import { describe, expect, it } from "vitest";
+import { createMemoryHistory, createRouter } from "vue-router";
+import { IDENTITY_API, TRACE_API } from "@/dependency-container";
+import type { ExperimentDto, OrganizationDto } from "@/application/identity-api";
+import AdminHomePage from "@/ui/pages/admin/AdminHomePage.vue";
+import AdminOrganizationPage from "@/ui/pages/admin/AdminOrganizationPage.vue";
+import AdminExperimentPage from "@/ui/pages/admin/AdminExperimentPage.vue";
+import { FakeIdentityApi, FakeTraceApi } from "../fakes";
+
+const THEME = { accentColor: null, radiusPreset: null };
+
+class AdminFakeIdentityApi extends FakeIdentityApi {
+  constructor(
+    private orgs: OrganizationDto[],
+    private exps: ExperimentDto[],
+  ) {
+    super();
+  }
+  override async listOrganizations() {
+    return this.orgs;
+  }
+  override async listExperiments() {
+    return this.exps;
+  }
+}
+
+const org: OrganizationDto = { id: "org-1", name: "Acme", myRole: "org_admin", theme: THEME };
+const exp: ExperimentDto = { id: "exp-1", organizationId: "org-1", name: "Support bot", serviceName: "support-bot", myRole: "org_admin", organizationTheme: THEME };
+
+async function setup(component: object, path: string, identity: FakeIdentityApi) {
+  const routes = [
+    { path: "/admin", name: "admin", component: { template: "<div />" } },
+    { path: "/admin/members", name: "admin-members", component: { template: "<div />" } },
+    { path: "/admin/organizations/:organizationId", name: "admin-organization", component: { template: "<div />" }, props: true },
+    { path: "/admin/experiments/:expId", name: "admin-experiment", component: { template: "<div />" }, props: (r: { params: Record<string, unknown> }) => ({ experimentId: r.params.expId }) },
+    { path: "/e/:experimentId/conversations", name: "conversations", component: { template: "<div />" } },
+  ];
+  const router = createRouter({ history: createMemoryHistory(), routes });
+  await router.push(path);
+  await router.isReady();
+  const Host = defineComponent({ setup: () => () => h(QLayout, () => h(QPageContainer, () => h(component, { experimentId: exp.id, organizationId: org.id }))) });
+  const wrapper = mount(Host, {
+    attachTo: document.body,
+    global: {
+      plugins: [[Quasar, { plugins: { Dark, Notify } }], router],
+      provide: { [TRACE_API as symbol]: new FakeTraceApi(), [IDENTITY_API as symbol]: identity },
+    },
+  });
+  await flushPromises();
+  return { wrapper, router };
+}
+
+describe("admin pages", () => {
+  it("home lists organizations and links to the organization level", async () => {
+    const identity = new AdminFakeIdentityApi([org], [exp]);
+    const { wrapper, router } = await setup(AdminHomePage, "/admin", identity);
+    expect(wrapper.text()).toContain("Acme");
+    expect(wrapper.text()).toContain("1 experiment(s)");
+
+    await wrapper.get("a.org-card").trigger("click");
+    await flushPromises();
+    expect(router.currentRoute.value.name).toBe("admin-organization");
+    expect(router.currentRoute.value.params.organizationId).toBe("org-1");
+  });
+
+  it("experiment page opens on Connect with the env snippet for its service name", async () => {
+    const identity = new AdminFakeIdentityApi([org], [exp]);
+    const { wrapper } = await setup(AdminExperimentPage, "/admin/experiments/exp-1", identity);
+    expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toContain("Connect");
+    expect(wrapper.text()).toContain('MEMTRACE_SERVICE_NAME="support-bot"');
+    expect(wrapper.text()).toContain("<your-api-key>");
+  });
+
+  it("hides admin-only tabs from a plain member of the experiment", async () => {
+    const memberExp = { ...exp, myRole: "member" as const };
+    const identity = new AdminFakeIdentityApi([{ ...org, myRole: null }], [memberExp]);
+    const { wrapper } = await setup(AdminExperimentPage, "/admin/experiments/exp-1", identity);
+    // "API keys" lleva el contador pegado (0): se compara sin él
+    const labels = wrapper.findAll('[role="tab"]').map((t) => t.text().replace(/\d+$/, "").trim());
+    expect(labels).toEqual(["Connect", "API keys", "Score configs"]);
+  });
+
+  it("organization page keeps members and appearance for org_admin only", async () => {
+    const memberOrg = { ...org, myRole: null };
+    const identity = new AdminFakeIdentityApi([memberOrg], [exp]);
+    const { wrapper } = await setup(AdminOrganizationPage, "/admin/organizations/org-1", identity);
+    const tabs = wrapper.findAll('[role="tab"]');
+    expect(tabs).toHaveLength(1);
+    expect(tabs[0]!.text()).toContain("Experiments");
+  });
+});

@@ -35,6 +35,8 @@ export default defineConfig({
             { text: "Overview", link: "/platform/" },
             { text: "Run it locally", link: "/platform/getting-started" },
             { text: "Dashboard", link: "/platform/dashboard" },
+            { text: "Datasets & offline evals", link: "/platform/evaluation" },
+            { text: "Annotations & review", link: "/platform/annotations" },
             { text: "Organizations & roles", link: "/platform/access-control" },
             { text: "Query API", link: "/platform/api" },
             { text: "Architecture", link: "/platform/architecture" },

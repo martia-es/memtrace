@@ -46,9 +46,13 @@ Click **Edit layout** on a report's tab to drag and resize its charts, or add mo
 
 **Send by email** sends everyone you list a text summary of the report — one table of values per chart, recomputed at send time — directly to their inbox. There's no PDF or image attachment yet; it's a quick way to share current numbers without opening the dashboard.
 
+## Datasets & offline evals
+
+**Datasets** holds the versioned sets of examples your experiments run against. **Runs** lists every run uploaded by the SDK, and **Metrics → Offline evals** compares them over time. See [Datasets & offline evals](/platform/evaluation).
+
 ## Review
 
-Review queues turn "someone should look at these traces" into a process: a batch of traces, a rubric and a progress bar. The **Review** page lists the experiment's queues; **Review** opens one trace at a time next to the rubric, and **Details** shows progress per reviewer. Experiment admins create and archive queues; any member can add traces and review. See [Reviewing traces with a queue](/library/evaluation#reviewing-traces-with-a-queue). A queue's **Details** also show how much its reviewers agree, and a run's page shows how well the LLM judge agrees with human labels (see [Can you trust the judge?](/library/evaluation#can-you-trust-the-judge-agreement-with-human-labels)).
+The **Review** page lists the experiment's review queues: batches of traces to label against a rubric. Open one to review traces one at a time. Labels can also be added to any trace from its **Annotate** panel. See [Annotations & review](/platform/annotations).
 
 ## Theme
 

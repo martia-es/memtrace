@@ -87,7 +87,7 @@ function openRun(run: RunListItemDto) {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="r in items" :key="r.id" class="row" tabindex="0" @click="openRun(r)" @keydown.enter="openRun(r)">
+          <tr v-for="r in items" :key="r.id" class="run-row" tabindex="0" @click="openRun(r)" @keydown.enter="openRun(r)">
             <td class="name">{{ r.name }}</td>
             <td class="muted">{{ r.datasetName }}</td>
             <td class="num mono">v{{ r.versionMajor }}.{{ r.versionMinor }} <span v-if="r.status === 'running'" class="mt-pill warn" title="Still receiving results, or the process stopped before finishing">running</span></td>
@@ -179,11 +179,11 @@ td {
 .name {
   font-weight: 600;
 }
-.row {
+.run-row {
   cursor: pointer;
 }
-.row:hover,
-.row:focus-visible {
+.run-row:hover,
+.run-row:focus-visible {
   background: var(--mt-soft-2);
   outline: none;
 }

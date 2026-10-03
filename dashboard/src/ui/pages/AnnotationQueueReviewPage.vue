@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, reactive, ref, shallowRef, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useQuasar } from "quasar";
 import type { AnnotationQueueDetailResponse, QueueItemDto, ScoreConfigDto } from "@contract";
 import { ApiError } from "@/application/trace-api";
 import { shortId } from "@/domain/format";
+import { spanIo, type IoBlock } from "@/domain/span-io";
 import { findNode, firstErrorNode } from "@/domain/waterfall";
 import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
@@ -50,6 +51,35 @@ const rubric = computed(() => {
 });
 const ready = computed(() => rubric.value.every((r) => !r.required || (drafts[r.configId]?.value ?? "") !== ""));
 
+// ---- business view: the conversation as turns, the agent's answer last; the span tree is one click away ----
+const showTrace = ref(false);
+const openNotes = reactive<Record<string, boolean>>({});
+const thread = computed<IoBlock[]>(() => {
+  const root = roots.value[0];
+  if (!root) return [];
+  const io = spanIo(root);
+  return [...io.input, ...io.output];
+});
+const isAnswer = (block: IoBlock) => block.role === "assistant" || block.role === "other";
+const firstUnanswered = computed(() => rubric.value.find((r) => (drafts[r.configId]?.value ?? "") === ""));
+
+function pickByKey(key: string) {
+  const target = firstUnanswered.value;
+  if (!target) return;
+  const options = choices(target.config) ?? [];
+  const option = options[Number(key) - 1];
+  if (option) drafts[target.configId]!.value = option.value;
+}
+
+function onKey(event: KeyboardEvent) {
+  const tag = (event.target as HTMLElement | null)?.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA") return;
+  if (/^[1-9]$/.test(event.key)) pickByKey(event.key);
+  if (event.key === "Enter" && ready.value && !busy.value) void submit();
+}
+onMounted(() => window.addEventListener("keydown", onKey));
+onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
+
 function resetDrafts() {
   for (const key of Object.keys(drafts)) delete drafts[key];
   for (const r of rubric.value) drafts[r.configId] = { value: "", comment: "" };
@@ -66,6 +96,8 @@ async function loadNext() {
     item.value = next.item;
     finished.value = next.item === null;
     selectedSpan.value = null;
+    showTrace.value = false;
+    for (const key of Object.keys(openNotes)) delete openNotes[key];
     resetDrafts();
     if (next.item?.targetType === "trace" && next.item.traceId) void trace.run();
   } catch (error) {
@@ -139,10 +171,23 @@ const progress = computed(() => queue.value?.progress);
             This trace is no longer available (it may have been deleted by retention). Skip it; an admin can mark it unreviewable.
           </p>
           <div v-else-if="!trace.data.value" class="loading"><q-spinner size="28px" color="primary" /></div>
-          <div v-else class="trace-cols">
-            <SpanTree :roots="roots" :total-ms="trace.data.value.durationMs" :selected-id="selectedNode?.spanId ?? null" @select="(id: string) => (selectedSpan = id)" />
-            <SpanInspector v-if="selectedNode" :node="selectedNode" empty-hint="This span has no content saved." />
-          </div>
+          <template v-else>
+            <div class="thread" data-testid="thread">
+              <div v-for="(block, i) in thread" :key="i" class="turn" :class="{ answer: isAnswer(block) }">
+                <span class="who">{{ isAnswer(block) ? "Assistant" : block.role === "user" ? "User" : block.label }}</span>
+                <p>{{ block.text }}</p>
+              </div>
+              <p v-if="!thread.length" class="gone">This trace has no content saved. Skip it or check the technical view.</p>
+            </div>
+
+            <button type="button" class="link" :aria-expanded="showTrace" data-testid="trace-toggle" @click="showTrace = !showTrace">
+              {{ showTrace ? "Hide technical trace" : "Show technical trace" }}
+            </button>
+            <div v-if="showTrace" class="trace-cols" data-testid="technical-trace">
+              <SpanTree :roots="roots" :total-ms="trace.data.value.durationMs" :selected-id="selectedNode?.spanId ?? null" @select="(id: string) => (selectedSpan = id)" />
+              <SpanInspector v-if="selectedNode" :node="selectedNode" empty-hint="This span has no content saved." />
+            </div>
+          </template>
         </template>
         <p v-else class="gone">
           Run item #{{ item.itemIndex }} of run <span class="mono">{{ shortId(item.datasetRunId ?? "") }}</span>. Review its input and output in the run's detail.
@@ -151,19 +196,19 @@ const progress = computed(() => queue.value?.progress);
 
       <aside class="mt-card rubric" aria-label="Rubric" data-testid="rubric">
         <p v-if="queue.instructions" class="instructions">{{ queue.instructions }}</p>
-        <section v-for="r in rubric" :key="r.configId" class="config" data-testid="rubric-config">
-          <div class="config-name">{{ r.config.name }} <span v-if="r.required" class="req">required</span></div>
-          <p v-if="r.config.description" class="muted">{{ r.config.description }}</p>
-          <div v-if="choices(r.config)" class="choice-row">
+        <section v-for="r in rubric" :key="r.configId" class="criterion" data-testid="rubric-config">
+          <h3>{{ r.config.name }} <span v-if="r.required" class="req">required</span></h3>
+          <p v-if="r.config.description" class="help">{{ r.config.description }}</p>
+          <div v-if="choices(r.config)" class="choices">
             <button
-              v-for="c in choices(r.config)"
+              v-for="(c, idx) in choices(r.config)"
               :key="c.value"
               type="button"
-              class="choice-btn"
-              :class="{ active: drafts[r.configId]?.value === c.value }"
+              class="choice"
+              :class="{ on: drafts[r.configId]?.value === c.value }"
               @click="drafts[r.configId]!.value = c.value"
             >
-              {{ c.label }}
+              {{ c.label }}<kbd v-if="firstUnanswered?.configId === r.configId && idx < 9">{{ idx + 1 }}</kbd>
             </button>
           </div>
           <input
@@ -176,12 +221,22 @@ const progress = computed(() => queue.value?.progress);
             :max="r.config.maxValue ?? undefined"
             :aria-label="`${r.config.name} value`"
           />
-          <input v-if="drafts[r.configId]" v-model="drafts[r.configId]!.comment" class="text-input" placeholder="Comment (optional)" maxlength="5000" :aria-label="`${r.config.name} comment`" />
+          <button v-if="!openNotes[r.configId]" type="button" class="note-toggle" @click="openNotes[r.configId] = true">+ Add note</button>
+          <textarea
+            v-if="openNotes[r.configId] && drafts[r.configId]"
+            v-model="drafts[r.configId]!.comment"
+            class="note"
+            rows="2"
+            maxlength="5000"
+            placeholder="Optional note for this criterion"
+            :aria-label="`${r.config.name} note`"
+          />
         </section>
         <div class="buttons">
           <button type="button" class="small-btn" :disabled="busy" data-testid="skip" @click="skip">Skip</button>
           <button type="button" class="primary-btn" :disabled="busy || !ready" data-testid="submit" @click="submit">Submit &amp; next</button>
         </div>
+        <p class="hint">Keys 1–9 pick an answer for the first open criterion · Enter submits</p>
       </aside>
     </div>
   </div>
@@ -240,6 +295,123 @@ const progress = computed(() => queue.value?.progress);
   min-height: 0;
   overflow: auto;
   padding: 12px;
+}
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.turn {
+  padding: 10px 12px;
+  border-radius: var(--mt-radius-lg);
+  background: var(--mt-soft);
+  color: var(--mt-muted);
+  font-size: 13px;
+}
+.turn p {
+  margin: 2px 0 0;
+  white-space: pre-wrap;
+  color: var(--mt-ink);
+}
+.turn.answer {
+  background: var(--mt-card);
+  border: 1px solid var(--mt-line);
+}
+.turn.answer p {
+  font-size: 15px;
+}
+.who {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.link {
+  margin-top: 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--mt-accent);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.criterion {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0;
+  border-top: 1px solid var(--mt-line);
+}
+.criterion:first-of-type {
+  padding-top: 0;
+  border-top: 0;
+}
+.criterion h3 {
+  margin: 0;
+  font-size: 14px;
+}
+.help {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--mt-muted);
+}
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.choice {
+  flex: 1 1 auto;
+  min-width: 64px;
+  padding: 10px 12px;
+  border-radius: var(--mt-radius-lg);
+  border: 1px solid var(--mt-line);
+  background: var(--mt-card);
+  color: var(--mt-ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.choice.on {
+  border-color: var(--mt-accent);
+  background: color-mix(in srgb, var(--mt-accent) 12%, transparent);
+  color: var(--mt-accent);
+  font-weight: 600;
+}
+.choice kbd {
+  display: block;
+  font: inherit;
+  font-size: 11px;
+  color: var(--mt-muted);
+}
+.note-toggle {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--mt-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.note {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px;
+  border-radius: var(--mt-radius-lg);
+  border: 1px solid var(--mt-line);
+  background: var(--mt-card);
+  color: var(--mt-ink);
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+.hint {
+  margin: 0;
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--mt-muted);
 }
 .trace-cols {
   display: grid;

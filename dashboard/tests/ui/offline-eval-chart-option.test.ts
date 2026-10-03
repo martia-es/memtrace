@@ -1,6 +1,6 @@
 import type { RunListItemDto } from "@contract";
 import { describe, expect, it } from "vitest";
-import { buildOfflineSeries, judgeChangeNotices, selectOfflineRuns } from "@/ui/offline-eval-chart-option";
+import { buildOfflineSeries, judgeChangeNotices, selectOfflineRuns, summarizeEvaluators } from "@/ui/offline-eval-chart-option";
 
 function run(id: string, createdAt: string, over: Partial<RunListItemDto> = {}): RunListItemDto {
   return { id, name: id, versionMajor: 1, versionMinor: 0, itemCount: 2, status: "completed", createdAt, aggregates: [], datasetId: "d1", datasetName: "D1", ...over };
@@ -70,5 +70,21 @@ describe("judge change detection (ADR-043)", () => {
       run("c", "2026-03-03T00:00:00Z", { aggregates: [agg([{ model: "m2", promptHash: "h1" }])] }),
     ];
     expect(judgeChangeNotices(withGap).map((n) => n.fromRun)).toEqual(["a · v1.0"]);
+  });
+});
+
+describe("summarizeEvaluators", () => {
+  const agg = (name: string, passRate: number, judges: string[] = ["gpt"]) => ({ name, dataType: "boolean" as const, passRate, average: null, count: 2, judges: judges.map((model) => ({ model, promptHash: "r" })) });
+  it("compares the latest value with the previous run and flags judge changes", () => {
+    const runs = [
+      run("a", "2026-03-01T00:00:00Z", { aggregates: [agg("exact", 0.5), agg("tone", 0.9)] }),
+      run("b", "2026-03-02T00:00:00Z", { aggregates: [agg("exact", 0.8), agg("tone", 0.9, ["claude"])] }),
+      run("c", "2026-03-03T00:00:00Z", { aggregates: [agg("exact", 0.7)] }),
+      run("d", "2026-03-04T00:00:00Z", { aggregates: [agg("solo", 1)] }),
+    ];
+    const byName = Object.fromEntries(summarizeEvaluators(runs).map((s) => [s.name, s]));
+    expect(byName.exact).toMatchObject({ latest: 0.7, previous: 0.8, status: "regressing" });
+    expect(byName.tone).toMatchObject({ latest: 0.9, status: "judge-changed" });
+    expect(byName.solo).toMatchObject({ latest: 1, previous: null, status: "first-run" });
   });
 });

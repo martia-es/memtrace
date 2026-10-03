@@ -1,6 +1,6 @@
 # Offline evaluation
 
-Run your agent against a dataset of examples and score its output — to compare two versions before deploying, or to catch a regression. This runs entirely in your own process (a script, a notebook, a CI job): MemTrace does not host or schedule this, nothing here requires a MemTrace deployment.
+Run your agent against a dataset of examples and score its output, to compare two versions before deploying or to catch a regression. The `memtrace.eval` module runs entirely in your own process (a script, a notebook, a CI job). It works without a MemTrace deployment; the platform is needed only if you want to read datasets from it or upload results to it.
 
 ::: tip Online evaluation is not covered here
 This page is about running an experiment on demand against a dataset you control. Continuously sampling and scoring live production traffic is a separate, not-yet-available feature.
@@ -19,14 +19,14 @@ result = run_experiment(
     task=my_agent,
     evaluators=[exact_match],
     name="smoke-test",
-    sink=None,  # keep the result in memory; never touches MemTrace
+    sink=None,  # keep the result in memory
 )
 
 for item_result in result.items:
     print(item_result.output, [(s.name, s.value) for s in item_result.scores])
 ```
 
-For each item in `data`, `run_experiment` calls `task`, then runs every evaluator in `evaluators` on `(input, output, expected_output)`, and returns an `ExperimentResult` with one row per item. Nothing about `data`, `task` or `evaluators` requires MemTrace — this is a standalone evaluation harness you can use with data you already have.
+For each item in `data`, `run_experiment` calls `task`, then runs every evaluator in `evaluators` on `(input, output, expected_output)`, and returns an `ExperimentResult` with one row per item.
 
 ## Writing an evaluator
 
@@ -42,32 +42,42 @@ class ExactMatch:
         return Score(name=self.name, value=output == expected_output, data_type="boolean")
 ```
 
-Declare only the arguments you need — `input`, `output`, `expected_output`, `trace_id` are all available, but `run_experiment` passes only the ones your `__call__` declares (or all of them if it takes `**kwargs`). Return one `Score`, or a list of `Score`s if one evaluator computes several metrics.
+Declare only the arguments you need: `input`, `output`, `expected_output` and `trace_id` are all available, but `run_experiment` passes only the ones your `__call__` declares (or all of them if it takes `**kwargs`). Return one `Score`, or a list of `Score`s if one evaluator computes several metrics.
 
 Two built-ins are included to get started: `memtrace.eval.exact_match` and `memtrace.eval.contains`.
 
 ## Where the data comes from
 
-`data` accepts, with no priority given to any of them:
+`data` accepts:
 
-- **A list you already have** — `[{"input": ..., "expected_output": ...}, ...]`, or a list of `EvalItem`. No MemTrace dependency.
-- **A local file** — `data=Path("examples.jsonl")` (one `{"input", "expected_output"?, "metadata"?}` JSON object per line) or a `.json` file holding a list of them. No MemTrace dependency. Note it must be a `pathlib.Path`: a plain string is always treated as a dataset id. The result's `dataset_version` is a content fingerprint (`sha256:...`), so two runs over an edited file are told apart.
-- **Your own `DatasetSource`** — anything with a `.fetch() -> Iterable[EvalItem]` method, if you want to pull examples from your own store.
-- **A dataset id string** — fetched from MemTrace's query API (needs `pip install "memtrace-ai[eval]"` and a MemTrace deployment). Create the dataset and its items either from the dashboard (**Datasets** → New dataset → Items tab), or via the API: `POST /experiments/{experimentId}/datasets` and `POST /experiments/{experimentId}/datasets/{datasetId}/items` (see the [Query API](/platform/api#evaluation-adr-028)).
+- **A list you already have**: `[{"input": ..., "expected_output": ...}, ...]`, or a list of `EvalItem`.
+- **A local file**: `data=Path("examples.jsonl")`, one `{"input", "expected_output"?, "metadata"?}` JSON object per line, or a `.json` file holding a list of them. It must be a `pathlib.Path`: a plain string is always treated as a dataset id. The result's `dataset_version` is a content fingerprint (`sha256:...`), so two runs over an edited file are told apart.
+- **Your own `DatasetSource`**: anything with a `.fetch() -> Iterable[EvalItem]` method, if you want to pull examples from your own store.
+- **A dataset id string**: fetched from the MemTrace query API. Needs `pip install "memtrace-ai[eval]"`, `MEMTRACE_API_URL` and `MEMTRACE_API_KEY` (see [Sending results to MemTrace](#sending-results-to-memtrace)). Datasets are created and edited in the platform.
 
-  Datasets are versioned automatically: every time you publish changes from the dashboard a new version is created (if you added or deleted items it bumps the major number, if you only edited content it bumps minor) rather than mutating in place, so a run submitted yesterday always stays reproducible even if you edit the dataset today. In the dashboard's Items tab you edit directly in the table like a spreadsheet (Enter moves down, Shift+Enter adds a line break, you can paste rows copied from Excel/Sheets, and the blank last row adds items); nothing is saved until you press **Publish**, and everything you changed in that session becomes **one** version with an automatic summary (e.g. "Added 3 · Edited 2 · Removed 1"). There is no manual "create version" step, and every item records who added or last changed it, and when. `run_experiment(data=dataset_id)` fetches items from the dataset's **latest** version at the moment it runs, unless you pin one with `dataset_version="2.1"` (the same `major.minor` the dashboard shows) — the run is then recorded against that version, so you can re-run exactly what you ran before even after the dataset changed. An unknown version raises an HTTP 404 error; `dataset_version` is only valid together with a dataset id; the dashboard's Versions tab is a read-only history: one row per version with how many items were added (`+`), modified (`~`) or removed (`−`) versus the previous one. Click ⓘ on a row to see who changed what and a side-by-side diff (old on the left, new on the right, removed in red and added in green), and use **Compare with** to diff it against any earlier version, not just the previous one.
+### Dataset versions
 
-### Local vs. MemTrace, side by side
+Datasets in MemTrace are versioned, and each version is identified by `major.minor`. A version is created when the dataset changes, so a run recorded yesterday stays reproducible even if the dataset is edited today.
+
+`run_experiment(data=dataset_id)` reads the **latest** version at the moment it runs. To re-run exactly what you ran before, pin a version:
+
+```python
+run_experiment(data="<dataset_id>", dataset_version="2.1", task=my_agent, evaluators=[exact_match])
+```
+
+`dataset_version` is only valid together with a dataset id. An unknown version raises an HTTP 404 error. The run is recorded against the version the server actually served, even if someone edits the dataset while the experiment runs.
+
+## Local vs. MemTrace, side by side
 
 Two runnable scripts show the same toy agent fed from each source:
 
 | | [`examples/07_dataset_source_local.py`](https://github.com/martia-es/memtrace/blob/main/examples/07_dataset_source_local.py) | [`examples/07_dataset_source_memtrace.py`](https://github.com/martia-es/memtrace/blob/main/examples/07_dataset_source_memtrace.py) |
 |---|---|---|
-| Data lives in | a `.jsonl` file next to your code | MemTrace (Postgres), editable from the dashboard |
+| Data lives in | a `.jsonl` file next to your code | MemTrace, edited from the platform |
 | Call | `run_experiment(data=Path("toy_dataset.jsonl"), ..., sink=None)` | `run_experiment(data="<dataset_id>", dataset_version="2.0", ...)` |
 | Needs | nothing (no stack, no network) | a MemTrace deployment, `memtrace-ai[eval]`, an agent API key |
-| Versions | you manage them (e.g. git) | automatic; read the latest or pin an exact `major.minor` |
-| Results | in memory, or your own `sink` | uploaded to the dashboard, recorded against the version used |
+| Versions | you manage them (e.g. git) | assigned by MemTrace; read the latest or pin a `major.minor` |
+| Results | in memory, or your own `sink` | uploaded to MemTrace, recorded against the version used |
 
 ## Reading the results locally
 
@@ -80,33 +90,38 @@ for s in result.summary():      # one entry per evaluator
     print(s.name, s.pass_rate, s.average, s.count)
 ```
 
-`pass_rate` is the share of `True` for boolean evaluators, `average` the mean for numeric ones (categorical ones have neither) — the same numbers the dashboard shows for an uploaded run.
+`pass_rate` is the share of `True` for boolean evaluators, and `average` the mean for numeric ones. Categorical evaluators have neither.
 
-## Where the results go
+## Sending results to MemTrace
 
-By default, results upload back to MemTrace **only when `data` was a dataset id** — MemTrace never guesses a destination for data it didn't hand you. In every other case, pass your own `sink` (anything with a `.save(result)` method) or `sink=None` to keep the result only in memory:
+By default, results upload back to MemTrace **only when `data` was a dataset id**. In every other case, pass your own `sink` (anything with a `.save(result)` method) or `sink=None` to keep the result only in memory:
 
 ```python
 run_experiment(data=my_local_data, task=my_agent, evaluators=[...], name="v2", sink=None)
 ```
 
-Uploading happens **while the experiment runs**, in batches, each item as soon as it finishes (a slow item never holds the others back): if the process dies midway, the items already computed are in MemTrace and the run shows as `running` instead of being lost. A failed batch is retried with the next one; if something is still unsent at the end, `run_experiment` raises `ResultsUploadError`, whose `.result` holds the complete result. A custom sink can opt in to the same behavior by implementing `start(name=, dataset_version=)`, `add(index, item_result)` and `finish(result)` (`IncrementalResultsSink`); a plain `.save(result)` sink is called once at the end.
+When `data` is a dataset id, uploading happens **while the experiment runs**, in batches, each item as soon as it finishes, so a slow item never holds the others back. If the process dies midway, the items already computed are kept in MemTrace and the run stays incomplete. A failed batch is retried with the next one. If something is still unsent at the end, `run_experiment` raises `ResultsUploadError`, whose `.result` holds the complete result.
 
-Every uploaded run records **the exact dataset version it read** (the one the server actually served, even if someone edits the dataset while the experiment runs). A run whose version isn't known — e.g. local data uploaded to a MemTrace dataset — is refused rather than attributed to "latest"; pass `MemTraceResultsSink(dataset_id, version="2.1")` to state it.
+A custom sink can opt in to the same behavior by implementing `start(name=, dataset_version=)`, `add(index, item_result)` and `finish(result)` (`IncrementalResultsSink`). A plain `.save(result)` sink is called once at the end.
 
-When `data` is a dataset id, the run appears in the dashboard under **Runs** (and under that dataset's own Runs tab, in **Datasets**) for that experiment. Set `MEMTRACE_API_URL` to include the experiment id (e.g. `http://localhost:3001/api/v1/experiments/<experimentId>`) and `MEMTRACE_API_KEY` to an agent key created from the dashboard (Experiment → API keys) — the same key already used for tracing. See [`examples/05_eval_dataset_source_memtrace.py`](https://github.com/martia-es/memtrace/blob/main/examples/05_eval_dataset_source_memtrace.py) for a full script (and [`05_eval_dataset_source_local.py`](https://github.com/martia-es/memtrace/blob/main/examples/05_eval_dataset_source_local.py) for the no-MemTrace path).
+A run whose version isn't known, for example local data uploaded to a MemTrace dataset, is refused rather than attributed to "latest". Pass `MemTraceResultsSink(dataset_id, version="2.1")` to state it.
 
-**Metrics → Offline evals** has three views over your completed runs (runs still `running` are left out, so a partial upload never looks like a regression):
+To upload, set these variables. The API key is the same agent key used for tracing:
 
-- **Trend** — pass rate (boolean) and average (numeric) per evaluator across runs, filterable by dataset and time range, with the latest run compared against the previous one. A diamond marks where an LLM judge's model or rubric changed, since those points are not directly comparable.
-- **Run** — one run: its metrics, latency (p50 / p95 / max) and the items that errored or failed a boolean evaluator.
-- **Compare** — pick a baseline (A) and a candidate (B): per-evaluator deltas, which items regressed or improved (items are matched by identical input), and **what changed in the dataset** between their versions (added / modified / removed items, and which regressions touch a changed item). If both runs used the same dataset version, it says so: the difference does not come from the data.
+| Variable | Value |
+|---|---|
+| `MEMTRACE_API_URL` | Includes the experiment id, e.g. `http://localhost:3001/api/v1/experiments/<experimentId>` |
+| `MEMTRACE_API_KEY` | An agent API key created in the platform |
 
-Latency, tokens and cost are read from the trace of each item, not stored with it. Call `memtrace.init_tracer()` before `run_experiment`: every item then runs inside its own trace (an `eval.item` span) whose id is saved with the result, and the Run and Compare views show p50 / p95 / max latency, tokens and cost from it (cost needs a model with a known price). Without a tracer, or once the trace has expired (traces are kept 30 days), those figures are simply absent. `run_experiment` never initialises the tracer for you.
+See [`examples/05_eval_dataset_source_memtrace.py`](https://github.com/martia-es/memtrace/blob/main/examples/05_eval_dataset_source_memtrace.py) for a full script, and [`05_eval_dataset_source_local.py`](https://github.com/martia-es/memtrace/blob/main/examples/05_eval_dataset_source_local.py) for the no-MemTrace path.
 
-For RAG agents, the chunks a retriever returned are recorded on its span as `memtrace.retriever.chunks` (rank order, with `text`, and `id` / `source` / `score` when known) and are visible in that item's trace. LangChain retrievers do it automatically; otherwise call `memtrace.record_retrieved_chunks(documents)` inside a `retriever` step. The text is only exported when content capture is enabled.
+## Latency, tokens and cost
 
-### Retrieval metrics (recall@k, MRR)
+Call `memtrace.init_tracer()` before `run_experiment`. Every item then runs inside its own trace (an `eval.item` span), and the trace id is saved with the result. The platform reads latency, tokens and cost from that trace. Cost needs a model with a known price.
+
+`run_experiment` never initialises the tracer for you. Without a tracer, these figures are simply absent.
+
+## Retrieval metrics (recall@k, MRR)
 
 Label which documents a good retrieval must return, in the item's metadata, and add the evaluators:
 
@@ -117,15 +132,19 @@ data = [{"input": "refund policy?", "metadata": {"relevant_docs": ["policy-12", 
 run_experiment(data=data, task=my_rag_agent, evaluators=[RecallAtK(5), MRR(), HitRate()], name="rag-v3")
 ```
 
-A retrieved chunk counts as relevant when its `id` or `source` is in `relevant_docs`. `RecallAtK(k)` is the share of the relevant documents found in the top *k* (`recall_at_5`), `MRR()` is the reciprocal rank of the first relevant chunk (`mrr`; its average over the run is the Mean Reciprocal Rank) and `HitRate()` says whether at least one was retrieved. Items without `relevant_docs` get no score instead of a misleading zero. The chunks are read from your retriever calls while the item runs (LangChain retrievers and `record_retrieved_chunks`), with or without content capture. They appear in Metrics → Offline evals like any other numeric evaluator.
+A retrieved chunk counts as relevant when its `id` or `source` is in `relevant_docs`:
 
-### How long results are kept
+- `RecallAtK(k)`: the share of the relevant documents found in the top *k* (`recall_at_5`).
+- `MRR()`: the reciprocal rank of the first relevant chunk (`mrr`).
+- `HitRate()`: whether at least one relevant chunk was retrieved.
 
-The scores, trends and per-run summaries are kept. The **text** of each item (input, output, expected output, error) is dropped after 180 days; older runs still show their metrics, but their items appear without text.
+Items without `relevant_docs` get no score instead of a misleading zero.
+
+The chunks are read from your retriever calls while the item runs: LangChain retrievers do this automatically, and otherwise call `memtrace.record_retrieved_chunks(documents)` inside a `retriever` step. They are recorded on the span as `memtrace.retriever.chunks`, in rank order, with `text`, and `id` / `source` / `score` when known. The text is exported only when [content capture](./configuration#privacy-and-content-capture) is on. The metrics work with or without it.
 
 ## LLM-as-judge evaluators
 
-`exact_match`/`contains` only work when the expected output matches the actual output as a string. For open-ended agent output, `memtrace.eval_judges` ships evaluators that ask an LLM to judge the result instead:
+`exact_match` and `contains` only work when the expected output matches the actual output as a string. For open-ended agent output, `memtrace.eval_judges` ships evaluators that ask an LLM to judge the result instead:
 
 ```python
 from memtrace.eval import run_experiment
@@ -148,93 +167,23 @@ result = run_experiment(
   {"input": "When was it founded?", "expected_output": None, "metadata": {"context": "Founded in 1999."}}
   ```
 
-Both are plain `Evaluator`s (`Score(source="llm_judge")`), so they drop into `evaluators=[...]` alongside `exact_match`/`contains`, and the dashboard shows their verdicts the same way. Expect judged runs to cost money and take longer — each item makes a real LLM call, parallelized the same way `run_experiment`'s `max_workers` already parallelizes `task`.
+Both are plain `Evaluator`s (`Score(source="llm_judge")`), so they go in `evaluators=[...]` alongside `exact_match` and `contains`. Each item makes a real LLM call, parallelized the same way `max_workers` parallelizes `task`, so judged runs cost money and take longer.
 
-Every judge score records **which judge produced it**: the model (`judge_model`) and a short fingerprint of the rubric (`judge_prompt_hash`: the system prompt plus the prompt template, not the per-item text). The run detail page shows both when you hover a score. The model comes from `Correctness(client=..., model="...")` or, if you don't pass one, from the client's `model` attribute (`AnthropicJudgeClient` has one); a custom `LLMClient` without it leaves `judge_model` empty. If the client returns `memtrace.eval_judges.LLMReply(text, model=...)` instead of a plain string, the model it reports (what the provider actually served, e.g. the dated snapshot behind a floating alias) is what gets recorded, so a silent provider-side change also shows up as a judge change. Change the model or edit a judge's prompt and the hash changes, so you can tell which runs are comparable. **Metrics → Offline evals** uses it to warn you: when an evaluator's judge differs from the previous run's, the affected chart points become red diamonds, an alert lists the change, and the latest-run card shows "judge changed" instead of the delta, because that difference doesn't measure your agent. Scores uploaded before this feature have no judge identity.
+### Which judge produced a score
 
-`AnthropicJudgeClient` is a default, optional client — write your own against the `LLMClient` protocol (`complete(*, system, prompt, model=None) -> str`) to use a different provider. See ADR-029 (`docs/adrs/evaluation/adr-029-llm-as-judge-evaluators.md` in the repository) for the design.
+Every judge score records the model (`judge_model`) and a short fingerprint of the rubric (`judge_prompt_hash`: the system prompt plus the prompt template, not the per-item text). The model comes from `Correctness(client=..., model="...")` or, if you don't pass one, from the client's `model` attribute. A custom `LLMClient` without it leaves `judge_model` empty.
 
-## Score configs: rubrics for human labels
+If the client returns `memtrace.eval_judges.LLMReply(text, model=...)` instead of a plain string, the model it reports is what gets recorded. A provider-side change of model then shows up as a judge change too.
 
-Automatic evaluators are versioned code, so a free-text score name is fine for them. Human labels are not: two people who both type `tone` may mean a 1-5 scale and a `formal`/`casual` choice, and their values can't be compared. A **score config** fixes that by declaring, per experiment, what can be scored and how.
+Changing the model or editing a judge's prompt changes the hash, so you can tell which runs are comparable.
 
-Each config has a `name`, a type that matches the scores you already know (`numeric` with a min/max range, `boolean`, or `categorical` with at least two labels, each optionally carrying a number for ordinal scales like `bad=0, ok=1, good=2`) and an optional guideline for whoever annotates. Admins manage them from **Admin → experiment → Score configs**, or with **New score config** in a trace's Annotate panel when there is none yet; every member can read them.
-
-Because human labels are long-lived, a rubric can never silently reinterpret old labels: the type is fixed, a numeric range can only widen, categories can only be added, and "deleting" archives the config (it stays readable, but takes no new annotations). To start over, archive it and create a new one — the old name is free to reuse.
-
-Give a config the same `name` and type as one of your evaluators (say `correctness`) to line human and judge scores up. If the types differ, they're reported as not comparable instead of mixed. See ADR-036 (`docs/adrs/evaluation/adr-036-score-configs-annotation-rubrics.md` in the repository), and the [Query API](/platform/api) for the endpoints.
-
-### Annotating a trace
-
-Open any trace and press **Annotate**. Every score config of the experiment appears with its guideline and the right control (buttons for yes/no, categories and short numeric scales; a number field for wide ranges). Pick a value, add an optional comment and **Save**. You can score the whole trace or, with **Selected span**, the span highlighted in the tree (say, one wrong tool call).
-
-- Your label is yours: saving again edits it, **Retract** removes it. Other people's labels are listed with their author, and several people can label the same trace and config.
-- Experiment admins can retract anyone's label (moderation).
-- **Automatic scores** from evaluation runs that reference the trace are shown below the human labels, tagged with their source (`code` / `llm_judge`), so you see machine and human judgments in one place.
-- Labels are kept even if trace retention later removes the trace, and archiving a config never hides the labels already made with it. See ADR-037 (`docs/adrs/evaluation/adr-037-human-annotations-storage-and-api.md` in the repository).
-
-### Reviewing traces with a queue
-
-Annotating one trace you happen to be looking at doesn't scale into a review process. A **review queue** is a batch of traces for your team to work through with a rubric, so nothing is reviewed twice or forgotten. Open **Review** in the sidebar.
-
-1. **Create a queue** (experiment admins): a name, optional instructions for reviewers, which score configs to use as the rubric (each can be required or optional) and how many independent reviews each trace needs (1–10).
-2. **Add traces** (any member): **Add traces** on a queue adds the traces matching a filter *right now* (time window, status, failed spans, minimum duration, up to 500). The queue keeps their ids; it does not follow new traffic. Tick **Pick them at random** to draw the traces at random from all matches (up to the 5,000 most recent) instead of taking the first ones. From any trace, **Add to queue** adds that one trace.
-3. **Review**: **Review** shows a trace next to the rubric. **Submit & next** saves your labels and brings the next one; **Skip** hands the trace back to the others. Nobody gets the same trace twice, and with several reviewers per trace each one labels it independently. Refreshing the page returns the trace you had open.
-4. **Follow progress**: **Details** shows completed / pending counts, what each reviewer has done, the rubric and every item.
-
-- Your labels are ordinary annotations (see above): they show up in the trace's **Annotate** panel with your name.
-- A trace you started but never submitted goes back to the pool after 15 minutes, so a closed tab never blocks the queue.
-- If a trace is gone by the time you open it (retention), press **Skip**; an admin can mark it **unreviewable** in Details so it stops being handed out.
-- Changing "reviews required per item" on a running queue reopens items that no longer have enough reviews (or completes the ones that now do). A rubric can grow once the queue has items, but a score config can't be removed from it.
-- Admins can archive a queue. Archived queues stay readable but no longer hand out items.
-
-See ADR-039 (`docs/adrs/evaluation/adr-039-annotation-queues.md` in the repository), and the [Query API](/platform/api#annotation-queues-adr-039) for the endpoints.
-
-### Turning a bad trace into a test case
-
-Found a trace where the agent got it wrong? Open it and press **Add to dataset**: pick a dataset, check the **Input** (copied from the trace), type the **Expected output** (the correct answer) and add it. From then on the case runs with every experiment against that dataset.
-
-- The item is a **copy**. It keeps working if retention later deletes the trace. Remove personal data from the input in the form before adding: the item is long-lived.
-- What the agent answered is stored as context in the item's metadata (`promotedFrom.observedOutput`), never as the expected output. A thumbs-down says what is wrong, not what is right, so you type the right answer. Without one, only evaluators that need no reference (such as LLM-as-judge) can score the item.
-- Each add creates **one new major version** of the dataset, as any other item addition does. Adding the same trace twice is refused (`already_promoted`).
-- The trace needs saved content (`MEMTRACE_CAPTURE_CONTENT=true` on the agent). Otherwise the input is empty and you have to type it.
-- Editing the item's metadata later never removes `promotedFrom`, so the diff view still shows where each item came from.
-
-To promote many at once, open a queue (**Annotation queues → Details**) and use **Promote to dataset**: it sends every reviewed trace of the queue to the dataset you pick, optionally taking the expected output from one of the queue's categorical labels (traces whose reviewers disagree, that are already in the dataset or have no saved input are skipped and counted in the notice). Each batch of 100 traces is one new dataset version. The API also accepts several traces in one call (one version for all of them) and can take the expected output from a categorical label made with a score config: see [Query API](/platform/api#evaluation-adr-028-adr-031-adr-032). ADR-038 (`docs/adrs/datasets/adr-038-promote-trace-to-dataset-item.md` in the repository).
-
-## Can you trust the judge? Agreement with human labels
-
-An LLM judge that says "92 % pass" is only useful if people would have agreed with it. Label a sample by hand and MemTrace measures how often they do. Open a run (**Evaluation → dataset → run**): the **Agreement with human labels** card compares each judge evaluator with the human labels of the same items.
-
-1. **Name your human rubric like your evaluator.** Create a [score config](#score-configs-rubrics-for-human-labels) with the same name and type as the evaluator (`correctness`, boolean). Names are matched exactly; the card lists names that exist on only one side so you can see why something is missing.
-2. **Send a random sample to a review queue.** **Send items to a review queue** on the run page asks for a *random sample* of N of the run's items (50 by default; you can also send them all if the run has 500 or fewer) and puts them in a queue that uses that rubric. Review them as usual (see above). The sample is drawn on the server, so it works for runs of any size, and its seed is shown in the confirmation so it can be reproduced.
-3. **Read the card.** Per evaluator you get:
-   - **Cohen's kappa** for yes/no and categorical scores: agreement beyond what chance would give. Around 0.6 or more is solid; below 0.4 means the judge is not tracking human opinion. It is shown next to the plain **exact agreement** because the plain number misleads on skewed data: if 95 % of items pass, a judge that always says "pass" agrees 95 % of the time and has a kappa of 0.
-   - A **confusion matrix** (rows: human, columns: judge).
-   - For numeric scores: mean absolute error, Spearman ρ, Pearson r and the share within ±1.
-   - **Where they differ**: the items where judge and human disagree, each one a link to the row. This is the most useful part: read those items and fix the judge's prompt.
-
-Things to keep in mind:
-
-- **Sample size.** With fewer than 20 compared items the card still shows numbers but warns they are noise.
-- **Sampling.** If reviewers only label the items the judge failed, agreement says nothing about the rest. That is why sending a random sample is the default. A queue's judge-vs-human card states how its items were chosen (randomly sampled, chosen by a filter or whole run, or picked by hand) and warns when the sample is not purely random.
-- **Several reviewers on one item.** For yes/no and categories the majority label is used (items with a tie are left out and counted); for numbers, the average.
-- **Kappa "–"** means it is undefined: judge and humans gave a single label to every item.
-- **Mixed judges.** If one run's scores for an evaluator come from different judge versions (see above), no number is shown for it, since it would average two different instruments.
-- **Queues.** A queue's details also show how much the *reviewers* agree with each other (mean kappa, or Spearman for numbers). That is the ceiling for any judge: low agreement between people usually means the rubric is ambiguous. If the queue holds run items, the same judge-vs-human card appears there too; traces in it are not compared, since only run items have judge scores.
-
-See ADR-040 (`docs/adrs/evaluation/adr-040-judge-human-agreement.md` in the repository), and the [Query API](/platform/api#agreement-adr-040) for the endpoints.
+`AnthropicJudgeClient` is a default, optional client. To use another provider, write your own against the `LLMClient` protocol: `complete(*, system, prompt, model=None) -> str`.
 
 ## Install
 
-The default MemTrace-backed adapters need the `eval` extra:
-
 ```bash
-pip install "memtrace-ai[eval]"
+pip install "memtrace-ai[eval]"         # MemTrace dataset source and results sink
+pip install "memtrace-ai[eval-judges]"  # bundled AnthropicJudgeClient
 ```
 
-Not needed if you only use local data and `sink=None`. The bundled `AnthropicJudgeClient` needs its own extra:
-
-```bash
-pip install "memtrace-ai[eval-judges]"
-```
+Neither is needed if you only use local data and `sink=None`, and `eval-judges` is not needed if you pass your own `LLMClient`.

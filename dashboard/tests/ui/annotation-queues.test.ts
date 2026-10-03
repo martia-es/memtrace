@@ -50,7 +50,7 @@ describe("AnnotationQueuesPage", () => {
     const { wrapper, router } = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues");
     const row = wrapper.get('[data-testid="queue-row"]');
     expect(row.text()).toContain("Chatbot answers");
-    expect(row.text()).toContain("1/4");
+    expect(row.text()).toContain("3 de 4 por revisar");
 
     await row.findAll("button").find((b) => b.text() === "Review")!.trigger("click");
     await flushPromises();
@@ -147,6 +147,9 @@ describe("AnnotationQueueReviewPage", () => {
 
   it("shows the trace next to the rubric and instructions", async () => {
     const { wrapper } = await open();
+    expect(wrapper.find('[data-testid="thread"]').exists()).toBe(true);
+    expect(wrapper.find('[role="treeitem"]').exists()).toBe(false);
+    await wrapper.get('[data-testid="trace-toggle"]').trigger("click");
     expect(wrapper.find('[role="treeitem"]').text()).toContain("agent.run");
     expect(wrapper.get('[data-testid="rubric"]').text()).toContain("Be strict");
     expect(wrapper.get('[data-testid="rubric-config"]').text()).toContain("tone");
@@ -157,9 +160,10 @@ describe("AnnotationQueueReviewPage", () => {
     const submit = wrapper.get('[data-testid="submit"]');
     expect(submit.attributes("disabled")).toBeDefined();
 
-    await wrapper.findAll(".choice-btn").find((b) => b.text() === "4")!.trigger("click");
+    await wrapper.findAll(".choice").find((b) => b.text().startsWith("4"))!.trigger("click");
     expect(submit.attributes("disabled")).toBeUndefined();
-    await wrapper.get('input[aria-label="tone comment"]').setValue("good");
+    await wrapper.findAll("button").find((b) => b.text() === "+ Add note")!.trigger("click");
+    await wrapper.get('textarea[aria-label="tone note"]').setValue("good");
     await submit.trigger("click");
     await flushPromises();
 

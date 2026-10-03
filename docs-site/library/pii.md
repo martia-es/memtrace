@@ -2,14 +2,9 @@
 
 MemTrace masks **secrets** (API keys, passwords, tokens) on its own. **Personal data** (names, emails, phone numbers, national IDs, card numbers) has no fixed shape, so it is anonymized only if you turn it on. This page shows how, so that nothing personal reaches the platform's storage.
 
-## Where personal data can end up
+## Why anonymize in the SDK
 
-| Store | What it holds | Personal data from your agents? |
-|---|---|---|
-| ClickHouse | Traces: prompts, completions, tool arguments and results | **Yes**, if content capture is on |
-| PostgreSQL | Users, organizations, roles, hashed API keys | No. It only stores who signs in to the dashboard, never anything from a trace |
-
-So anonymizing in the SDK, before spans are exported, is what keeps personal data out of the platform. The data never leaves your process in clear text, and nothing downstream has to be trusted to clean it.
+With content capture on, prompts, completions and tool arguments are stored as trace data. Anonymizing in the SDK, before spans are exported, means personal data never leaves your process in clear text, so nothing downstream has to be trusted to clean it.
 
 Your options, from strongest to most flexible:
 

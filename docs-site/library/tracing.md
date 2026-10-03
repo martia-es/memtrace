@@ -34,8 +34,6 @@ Works on functions and methods, sync or `async`. `name` defaults to the function
 | `embedding` | Embeddings call |
 | `chain` | Anything else (default) |
 
-The dashboard uses the type to color and filter spans.
-
 Inside a `retriever` step, `memtrace.record_retrieved_chunks(documents)` records what the retrieval returned (strings, dicts with `text` / `id` / `source` / `score`, or LangChain documents; list order is the rank). The count is always recorded; the chunk text only when content capture is enabled. LangChain retrievers do this automatically.
 
 ## `trace_step_context`
@@ -104,10 +102,6 @@ with trace_step_context("conversation_turn", step_type="chain"):
         agent.invoke(...)  # its spans nest under "conversation_turn" too
 ```
 
-Recommended naming: a dotted namespace scoped to the use case (`guardrail.regex_pii`, `guardrail.toxicity_rules`), so the steps group visually and don't collide with the built-in `StepType` values. No schema or dashboard change is needed to introduce a new custom step type — it's stored and queried exactly like any other span. See ADR-026 (`docs/adrs/observability/adr-026-custom-step-trees.md` in the repository) for the full rationale.
+Recommended naming: a dotted namespace scoped to the use case (`guardrail.regex_pii`, `guardrail.toxicity_rules`), so the steps group visually and don't collide with the built-in `StepType` values. Any string works, so you don't need to declare custom step types in advance.
 
 A runnable version of this example is in `examples/03_langchain_agent_manual.py` in the repository.
-
-### Your spans become your metrics
-
-Because a custom step is stored exactly like a built-in one (same table, same attribute-based storage — see ADR-027), anything you can name as a span, you can turn into a metric: how often a guardrail blocks, which check blocks most, how long a rules-based check takes compared to an LLM call. You don't need MemTrace to know your step types in advance — tracing them is what makes them queryable later. See [Custom charts](/platform/dashboard#custom-charts) for the dashboard builder that turns these spans into charts without writing a query.

@@ -115,3 +115,44 @@ export function offlineEvalChartOption(runs: RunListItemDto[], series: OfflineSe
     })),
   };
 }
+
+export type EvaluatorStatus = "improving" | "regressing" | "stable" | "judge-changed" | "first-run";
+
+export interface EvaluatorSummary {
+  name: string;
+  kind: OfflineMetricKind;
+  latest: number | null;
+  /** Valor del run anterior que tenía este evaluador; `null` si es el primero. */
+  previous: number | null;
+  delta: number | null;
+  status: EvaluatorStatus;
+}
+
+/** Diferencias menores que esto se consideran ruido, no movimiento. */
+const STABLE_EPSILON = 0.005;
+
+/** Resumen por evaluador: el último valor frente al anterior. Pensado para la tabla de cabecera, no para gráficas. */
+export function summarizeEvaluators(runs: RunListItemDto[]): EvaluatorSummary[] {
+  const names = new Set<string>();
+  for (const r of runs) for (const a of r.aggregates) names.add(a.name);
+  const out: EvaluatorSummary[] = [];
+  for (const name of [...names].sort()) {
+    const withEvaluator = runs.flatMap((r) => r.aggregates.filter((a) => a.name === name));
+    const kind: OfflineMetricKind = withEvaluator.some((a) => a.passRate !== null) ? "passRate" : "average";
+    const value = (a: RunListItemDto["aggregates"][number] | undefined) => (a ? (kind === "passRate" ? a.passRate : a.average) : null);
+    const valued = withEvaluator.filter((a) => value(a) !== null);
+    const latestAgg = valued[valued.length - 1];
+    const prevAgg = valued[valued.length - 2];
+    if (!latestAgg) continue;
+    const latest = value(latestAgg);
+    const previous = prevAgg ? value(prevAgg) : null;
+    const delta = latest !== null && previous !== null ? latest - previous : null;
+    let status: EvaluatorStatus;
+    if (!prevAgg) status = "first-run";
+    else if (judgeChanged(prevAgg, latestAgg)) status = "judge-changed";
+    else if (delta === null || Math.abs(delta) < STABLE_EPSILON) status = "stable";
+    else status = delta > 0 ? "improving" : "regressing";
+    out.push({ name, kind, latest, previous, delta, status });
+  }
+  return out;
+}

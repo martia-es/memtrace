@@ -15,3 +15,5 @@ pip install memtrace-ai
 | `otel-langchain` | `pip install "memtrace-ai[otel-langchain]"` | Automatic LangChain instrumentation |
 | `pydantic-ai` | `pip install "memtrace-ai[pydantic-ai]"` | Automatic Pydantic AI instrumentation (or install `pydantic-ai` yourself) |
 | `pii` | `pip install "memtrace-ai[pii]"` | [Anonymization of personal data](./pii) with Presidio (also needs a spaCy model) |
+| `eval` | `pip install "memtrace-ai[eval]"` | [Offline evaluation](./evaluation) against MemTrace datasets, and uploading results |
+| `eval-judges` | `pip install "memtrace-ai[eval-judges]"` | Bundled `AnthropicJudgeClient` for [LLM-as-judge evaluators](./evaluation#llm-as-judge-evaluators) |

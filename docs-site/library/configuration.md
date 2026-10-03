@@ -19,12 +19,14 @@ Settings can be passed to `init_tracer` or set as environment variables.
 | `MEMTRACE_BATCH_MAX_QUEUE_SIZE` | `2048` | Batch queue size |
 | `MEMTRACE_BATCH_SCHEDULE_DELAY_MS` | `5000` | Batch flush interval |
 | `MEMTRACE_BATCH_MAX_EXPORT_SIZE` | `512` | Spans per export |
+| `MEMTRACE_API_URL` | none | Query API base URL, including the experiment id; used by [offline evaluation](./evaluation#sending-results-to-memtrace) |
+| `MEMTRACE_API_KEY` | none | Agent API key for the query API (the same key used for tracing) |
 
 For a self-signed TLS certificate, use an `https://` endpoint and the standard `OTEL_EXPORTER_OTLP_CERTIFICATE` variable.
 
 ## Privacy and content capture
 
-By default MemTrace records **metadata only**: names, timings, models, token counts, errors. Prompts, completions and function arguments are stored only with `MEMTRACE_CAPTURE_CONTENT=true`, truncated to `MEMTRACE_MAX_CONTENT_LENGTH`. Conversation transcripts in the dashboard require it.
+By default MemTrace records **metadata only**: names, timings, models, token counts, errors. Prompts, completions and function arguments are stored only with `MEMTRACE_CAPTURE_CONTENT=true`, truncated to `MEMTRACE_MAX_CONTENT_LENGTH`. Without it there is no prompt or completion to show in conversation transcripts.
 
 The automatic [Pydantic AI and LangChain integrations](./integrations) follow the same switch: they record no prompts or completions unless it is `true`.
 

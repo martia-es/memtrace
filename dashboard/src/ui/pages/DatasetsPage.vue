@@ -88,7 +88,7 @@ async function createDataset() {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="d in filtered" :key="d.id" class="row" tabindex="0" @click="openDataset(d.id)" @keydown.enter="openDataset(d.id)">
+          <tr v-for="d in filtered" :key="d.id" class="dataset-row" tabindex="0" @click="openDataset(d.id)" @keydown.enter="openDataset(d.id)">
             <td class="name">{{ d.name }}</td>
             <td class="num mono">v{{ d.latestVersionMajor }}.{{ d.latestVersionMinor }}</td>
             <td class="num mono">{{ d.runCount }}</td>
@@ -171,11 +171,11 @@ td {
 .name {
   font-weight: 600;
 }
-.row {
+.dataset-row {
   cursor: pointer;
 }
-.row:hover,
-.row:focus-visible {
+.dataset-row:hover,
+.dataset-row:focus-visible {
   background: var(--mt-soft-2);
   outline: none;
 }
