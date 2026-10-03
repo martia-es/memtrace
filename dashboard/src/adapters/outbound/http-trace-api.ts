@@ -17,6 +17,8 @@ import type {
   CustomMetricResultResponse,
   DatasetDto,
   CommitDatasetChangesBody,
+  PromoteTracesBody,
+  PromoteTracesResponse,
   DatasetItemDto,
   DatasetItemsListResponse,
   DatasetRunDetailResponse,
@@ -235,6 +237,10 @@ export class HttpTraceApi implements TraceApi {
   async createDatasetItem(datasetId: string, item: { input: unknown; expectedOutput?: unknown; metadata?: Record<string, unknown> | null }, signal?: AbortSignal) {
     const response = await this.post<DatasetItemsListResponse>(`${this.scopedBase()}/datasets/${encodeURIComponent(datasetId)}/items`, { items: [item] }, signal);
     return response.items[0]!;
+  }
+
+  promoteTracesToDataset(datasetId: string, body: PromoteTracesBody, signal?: AbortSignal) {
+    return this.post<PromoteTracesResponse>(`${this.scopedBase()}/datasets/${encodeURIComponent(datasetId)}/items/from-traces`, body, signal);
   }
 
   updateDatasetItem(datasetId: string, itemId: string, patch: { input?: unknown; expectedOutput?: unknown; metadata?: Record<string, unknown> | null }, signal?: AbortSignal) {

@@ -173,6 +173,18 @@ Annotating one trace you happen to be looking at doesn't scale into a review pro
 
 See ADR-039 (`docs/adrs/evaluation/adr-039-annotation-queues.md` in the repository), and the [Query API](/platform/api#annotation-queues-adr-039) for the endpoints.
 
+### Turning a bad trace into a test case
+
+Found a trace where the agent got it wrong? Open it and press **Add to dataset**: pick a dataset, check the **Input** (copied from the trace), type the **Expected output** (the correct answer) and add it. From then on the case runs with every experiment against that dataset.
+
+- The item is a **copy**. It keeps working if retention later deletes the trace. Remove personal data from the input in the form before adding: the item is long-lived.
+- What the agent answered is stored as context in the item's metadata (`promotedFrom.observedOutput`), never as the expected output. A thumbs-down says what is wrong, not what is right, so you type the right answer. Without one, only evaluators that need no reference (such as LLM-as-judge) can score the item.
+- Each add creates **one new major version** of the dataset, as any other item addition does. Adding the same trace twice is refused (`already_promoted`).
+- The trace needs saved content (`MEMTRACE_CAPTURE_CONTENT=true` on the agent). Otherwise the input is empty and you have to type it.
+- Editing the item's metadata later never removes `promotedFrom`, so the diff view still shows where each item came from.
+
+The API also accepts several traces in one call (one version for all of them) and can take the expected output from a categorical label made with a score config: see [Query API](/platform/api#evaluation-adr-028-adr-031-adr-032). ADR-038 (`docs/adrs/datasets/adr-038-promote-trace-to-dataset-item.md` in the repository).
+
 ## Can you trust the judge? Agreement with human labels
 
 An LLM judge that says "92 % pass" is only useful if people would have agreed with it. Label a sample by hand and MemTrace measures how often they do. Open a run (**Evaluation → dataset → run**): the **Agreement with human labels** card compares each judge evaluator with the human labels of the same items.

@@ -7,6 +7,7 @@ import ErrorBanner from "../components/ErrorBanner.vue";
 import SpanInspector from "../components/SpanInspector.vue";
 import SpanTree from "../components/SpanTree.vue";
 import Modal from "../components/Modal.vue";
+import AddToDatasetModal from "../components/AddToDatasetModal.vue";
 import AddToQueueModal from "../components/AddToQueueModal.vue";
 import TraceAnnotationsPanel from "../components/TraceAnnotationsPanel.vue";
 import StatusBadge from "../components/StatusBadge.vue";
@@ -49,6 +50,7 @@ const select = (spanId: string) => void router.replace({ query: { ...route.query
 // ---- human annotation (ADR-037) ----
 const annotating = ref(false);
 const addingToQueue = ref(false);
+const addingToDataset = ref(false);
 
 const hint = "This span has no content saved. Enable MEMTRACE_CAPTURE_CONTENT=true on the agent to see it here (it's saved as-is: check privacy).";
 
@@ -91,6 +93,7 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
           <span v-if="trace.data.value.totalCostUsd" class="mt-pill unset"><q-icon name="payments" size="15px" /> {{ formatCostUsd(trace.data.value.totalCostUsd) }}</span>
           <button type="button" class="mt-pill unset annotate-btn" data-testid="annotate-btn" @click="annotating = true"><q-icon name="rate_review" size="15px" /> Annotate</button>
           <button type="button" class="mt-pill unset annotate-btn" data-testid="add-to-queue-btn" @click="addingToQueue = true"><q-icon name="playlist_add" size="15px" /> Add to queue</button>
+          <button type="button" class="mt-pill unset annotate-btn" data-testid="add-to-dataset-btn" @click="addingToDataset = true"><q-icon name="dataset" size="15px" /> Add to dataset</button>
           <button type="button" class="mt-round-btn" aria-label="Copy trace ID" @click="copyId"><q-icon name="content_copy" size="18px" /></button>
         </div>
       </header>
@@ -119,6 +122,7 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
         <section v-else class="mt-card empty-card">Esta traza no tiene spans que mostrar.</section>
       </div>
 
+      <AddToDatasetModal v-if="addingToDataset" :trace-id="traceId" :roots="roots" @close="addingToDataset = false" />
       <AddToQueueModal v-if="addingToQueue" :trace-id="traceId" @close="addingToQueue = false" />
 
       <Modal v-if="annotating" title="Annotate trace" wide @close="annotating = false">

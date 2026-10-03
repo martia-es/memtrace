@@ -10,6 +10,7 @@ import { AnnotationQueueService } from "@/application/annotation-queue-service";
 import { PostgresAnnotationQueueRepository } from "@/adapters/outbound/postgres/postgres-annotation-queue-repository";
 import { AgreementService } from "@/application/agreement-service";
 import { AnnotationService } from "@/application/annotation-service";
+import { DatasetPromotionService } from "@/application/dataset-promotion-service";
 import { EvaluationService } from "@/application/evaluation-service";
 import type { IdentityRepository } from "@/application/ports/identity-repository";
 import { PostgresScoreConfigRepository } from "@/adapters/outbound/postgres/postgres-score-config-repository";
@@ -31,6 +32,7 @@ const globalForContainer = globalThis as unknown as {
   __memtraceAnnotation?: AnnotationService;
   __memtraceAnnotationQueue?: AnnotationQueueService;
   __memtraceAgreement?: AgreementService;
+  __memtracePromotion?: DatasetPromotionService;
 };
 
 /** Un único pool de Postgres compartido por identidad y score configs. */
@@ -137,4 +139,17 @@ export function getAgreement(): AgreementService {
     );
   }
   return globalForContainer.__memtraceAgreement;
+}
+
+/** Promoción de trazas a items de dataset (ADR-038). Lee trazas y anotaciones de ClickHouse y escribe solo en PostgreSQL. */
+export function getDatasetPromotion(): DatasetPromotionService {
+  if (!globalForContainer.__memtracePromotion) {
+    const config = configFromEnv();
+    globalForContainer.__memtracePromotion = new DatasetPromotionService(
+      getIdentity().identityRepository,
+      getTraceRepository(),
+      new ClickHouseAnnotationRepository(createEvaluationWriteClient(config), createReadOnlyClient(config), config.database, config.maxConcurrentQueries),
+    );
+  }
+  return globalForContainer.__memtracePromotion;
 }

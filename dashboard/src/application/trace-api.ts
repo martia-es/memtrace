@@ -17,6 +17,8 @@ import type {
   CustomMetricResultResponse,
   DatasetDto,
   CommitDatasetChangesBody,
+  PromoteTracesBody,
+  PromoteTracesResponse,
   DatasetItemDto,
   DatasetItemsListResponse,
   DatasetRunDetailResponse,
@@ -191,6 +193,8 @@ export interface TraceApi {
   createDatasetItem(datasetId: string, item: { input: unknown; expectedOutput?: unknown; metadata?: Record<string, unknown> | null }, signal?: AbortSignal): Promise<DatasetItemDto>;
   updateDatasetItem(datasetId: string, itemId: string, patch: { input?: unknown; expectedOutput?: unknown; metadata?: Record<string, unknown> | null }, signal?: AbortSignal): Promise<DatasetItemDto>;
   deleteDatasetItem(datasetId: string, itemId: string, signal?: AbortSignal): Promise<void>;
+  /** Promueve trazas a items del dataset: UNA versión MAJOR por llamada (ADR-038). */
+  promoteTracesToDataset(datasetId: string, body: PromoteTracesBody, signal?: AbortSignal): Promise<PromoteTracesResponse>;
   /** Publica una sesión de edición (altas+ediciones+bajas) como UNA sola versión (ADR-041). */
   commitDatasetChanges(datasetId: string, changes: CommitDatasetChangesBody, signal?: AbortSignal): Promise<DatasetItemsListResponse>;
 

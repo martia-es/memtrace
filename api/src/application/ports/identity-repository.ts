@@ -104,6 +104,14 @@ export interface IdentityRepository {
   /** Añade items a un dataset: clona los items activos de la última versión y crea una nueva con
    * bump MAJOR (cambio estructural), atribuyendo los items nuevos a `createdByUserId` (ADR-032). */
   addDatasetItems(datasetId: string, createdByUserId: string, items: Array<{ input: unknown; expectedOutput: unknown; metadata: Record<string, unknown> | null }>): Promise<DatasetItem[]>;
+  /** Como `addDatasetItems` para items promovidos desde trazas (ADR-038): UNA versión MAJOR para todo el lote. Descarta
+   * (`alreadyPromoted`) los `traceId` que ya estén en un item vivo de la última versión; la comprobación y el alta van
+   * en la misma transacción bajo un lock por dataset. Si no queda nada que añadir no crea versión (`version: null`). */
+  addPromotedDatasetItems(
+    datasetId: string,
+    createdByUserId: string,
+    items: Array<{ traceId: string; input: unknown; expectedOutput: unknown; metadata: Record<string, unknown> }>,
+  ): Promise<{ added: DatasetItem[]; alreadyPromoted: string[]; version: DatasetVersion | null }>;
   /** Edita un item de la última versión: clona el resto de items tal cual (preservando su autoría
    * original) y crea una nueva versión con bump MINOR, marcando `updatedBy`/`updatedAt` en el item editado. */
   updateDatasetItem(datasetId: string, itemId: string, updatedByUserId: string, patch: { input?: unknown; expectedOutput?: unknown; metadata?: Record<string, unknown> | null }): Promise<DatasetItem | null>;

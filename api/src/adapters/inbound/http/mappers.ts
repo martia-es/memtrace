@@ -9,6 +9,7 @@ import type { QueueDetail } from "@/application/annotation-queue-service";
 import type { InterAnnotatorResult, JudgeHumanResult } from "@/application/agreement-service";
 import type { QueueWithProgress } from "@/application/ports/annotation-queue-repository";
 import type { TraceJudgments } from "@/application/annotation-service";
+import type { PromotionResult } from "@/application/dataset-promotion-service";
 import type { ModelPricing } from "@/domain/pricing";
 import type { SpanCursor, SpanRow } from "@/domain/span-row";
 import type { Transcript } from "@/domain/transcript";
@@ -27,6 +28,7 @@ import type {
   DatasetDto,
   DatasetItemDto,
   DatasetItemsListResponse,
+  PromoteTracesResponse,
   DatasetRunDetailResponse,
   DatasetRunItemResultDto,
   DatasetRunSummaryDto,
@@ -294,6 +296,10 @@ export function toDatasetItemDto(item: DatasetItem): DatasetItemDto {
 
 export function toDatasetItemsListResponse(items: DatasetItem[], version?: DatasetVersion): DatasetItemsListResponse {
   return { items: items.map(toDatasetItemDto), ...(version && { version: toVersionRefDto(version) }) };
+}
+
+export function toPromoteTracesResponse(result: PromotionResult): PromoteTracesResponse {
+  return { added: result.added.map(toDatasetItemDto), skipped: result.skipped, version: result.version && toVersionRefDto(result.version) };
 }
 
 export interface DatasetVersionSummary {

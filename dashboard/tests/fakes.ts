@@ -21,6 +21,8 @@ import type {
   CustomMetricResultResponse,
   DatasetDto,
   CommitDatasetChangesBody,
+  PromoteTracesBody,
+  PromoteTracesResponse,
   DatasetItemDto,
   DatasetItemsListResponse,
   DatasetRunDetailResponse,
@@ -515,6 +517,12 @@ export class FakeTraceApi implements TraceApi {
   }
   async listDatasetItems(datasetId: string): Promise<DatasetItemsListResponse> {
     return this.datasetItems[datasetId] ?? { items: [] };
+  }
+  promoteCalls: { datasetId: string; body: PromoteTracesBody }[] = [];
+  promoteResult: PromoteTracesResponse = { added: [], skipped: [], version: null };
+  async promoteTracesToDataset(datasetId: string, body: PromoteTracesBody): Promise<PromoteTracesResponse> {
+    this.promoteCalls.push({ datasetId, body });
+    return this.promoteResult;
   }
   createDatasetItemCalls: { datasetId: string; item: unknown }[] = [];
   createdDatasetItem: DatasetItemDto = datasetItemDto();

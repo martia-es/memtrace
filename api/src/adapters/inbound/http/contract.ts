@@ -423,6 +423,20 @@ export interface DatasetItemsListResponse {
   version?: DatasetVersionRefDto;
 }
 
+/** ADR-038. `input` (opcional) sustituye al extraído de la traza. `expectedOutput` explícito gana sobre `fromConfigId` (etiqueta categórica de las anotaciones de la traza). */
+export interface PromoteTracesBody {
+  items: Array<{ traceId: string; input?: unknown; expectedOutput?: unknown; fromConfigId?: string }>;
+}
+
+export type PromotionSkipReasonDto = "already_promoted" | "no_content" | "not_found" | "ambiguous_label" | "unsupported_label";
+
+export interface PromoteTracesResponse {
+  added: DatasetItemDto[];
+  skipped: Array<{ traceId: string; reason: PromotionSkipReasonDto }>;
+  /** La versión creada; null si no se añadió ningún item (no se crea versión). */
+  version: DatasetVersionRefDto | null;
+}
+
 export interface UpdateDatasetItemBody {
   input?: unknown;
   expectedOutput?: unknown;

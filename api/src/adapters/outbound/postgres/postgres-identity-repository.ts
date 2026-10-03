@@ -71,6 +71,14 @@ function toOrganizationTheme(raw: unknown): OrganizationTheme {
   return { accentColor, radiusPreset };
 }
 
+/** Expresión SQL: el `metadata` nuevo, conservando la clave reservada `promotedFrom` (ADR-038) del anterior si la había.
+ * Editar el resto del metadata de un item promovido nunca debe borrar de dónde salió. */
+function keepPromotedFrom(next: string, current: string): string {
+  return `CASE WHEN jsonb_exists(${current}, 'promotedFrom')
+            THEN COALESCE(CASE WHEN jsonb_typeof(${next}) = 'object' THEN ${next} END, '{}'::jsonb) || jsonb_build_object('promotedFrom', ${current}->'promotedFrom')
+            ELSE ${next} END`;
+}
+
 export class PostgresIdentityRepository implements IdentityRepository {
   constructor(private readonly pool: Pool) {}
 
@@ -597,7 +605,7 @@ export class PostgresIdentityRepository implements IdentityRepository {
           `INSERT INTO dataset_items (dataset_version_id, origin_item_id, input, expected_output, metadata, created_by, created_at, updated_by, updated_at)
            SELECT $1, origin_item_id, CASE WHEN id = $3 THEN COALESCE($4::jsonb, input) ELSE input END,
                       CASE WHEN id = $3 THEN COALESCE($5::jsonb, expected_output) ELSE expected_output END,
-                      CASE WHEN id = $3 THEN COALESCE($6::jsonb, metadata) ELSE metadata END,
+                      CASE WHEN id = $3 AND $6::jsonb IS NOT NULL THEN ${keepPromotedFrom("$6::jsonb", "metadata")} ELSE metadata END,
                       created_by, created_at,
                       CASE WHEN id = $3 THEN $7::uuid ELSE updated_by END,
                       CASE WHEN id = $3 THEN now() ELSE updated_at END
@@ -650,22 +658,7 @@ export class PostgresIdentityRepository implements IdentityRepository {
       await client.query("BEGIN");
       const note = items.length === 1 ? "Added item" : `Added ${items.length} items`;
       const version = await this.createNextVersion(client, datasetId, createdByUserId, note, "major");
-      const inserted: DatasetItem[] = [];
-      for (const item of items) {
-        // un item nuevo es su propio origen (ADR-033): `id` y `origin_item_id` coinciden en su primera versión.
-        const itemId = randomUUID();
-        const { rows } = await client.query<{ id: string }>(
-          `INSERT INTO dataset_items (id, origin_item_id, dataset_version_id, input, expected_output, metadata, created_by)
-           VALUES ($1, $1, $2, $3, $4, $5, $6)
-           RETURNING id`,
-          [itemId, version.id, JSON.stringify(item.input), item.expectedOutput === undefined ? null : JSON.stringify(item.expectedOutput), item.metadata ? JSON.stringify(item.metadata) : null, createdByUserId],
-        );
-        const row = rows[0];
-        if (!row) throw new Error("failed to insert dataset item");
-        const insertedItem = await this.getDatasetItemWithEmails(client, row.id);
-        if (!insertedItem) throw new Error("failed to read back inserted dataset item");
-        inserted.push(insertedItem);
-      }
+      const inserted = await this.insertNewItems(client, version.id, createdByUserId, items);
       await client.query("COMMIT");
       return inserted;
     } catch (err) {
@@ -674,6 +667,69 @@ export class PostgresIdentityRepository implements IdentityRepository {
     } finally {
       client.release();
     }
+  }
+
+  async addPromotedDatasetItems(
+    datasetId: string,
+    createdByUserId: string,
+    items: Array<{ traceId: string; input: unknown; expectedOutput: unknown; metadata: Record<string, unknown> }>,
+  ): Promise<{ added: DatasetItem[]; alreadyPromoted: string[]; version: DatasetVersion | null }> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      // Serializa a los escritores del dataset: sin esto dos promociones concurrentes del mismo traceId pasan ambas la comprobación (ADR-038).
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [datasetId]);
+      const { rows } = await client.query<{ trace_id: string }>(
+        `SELECT DISTINCT i.metadata->'promotedFrom'->>'traceId' AS trace_id
+           FROM dataset_items i
+          WHERE i.deleted_at IS NULL
+            AND i.dataset_version_id = (SELECT id FROM dataset_versions WHERE dataset_id = $1 ORDER BY major DESC, minor DESC LIMIT 1)
+            AND i.metadata->'promotedFrom'->>'traceId' = ANY($2::text[])`,
+        [datasetId, items.map((i) => i.traceId)],
+      );
+      const existing = new Set(rows.map((r) => r.trace_id));
+      const fresh = items.filter((i) => !existing.has(i.traceId));
+      const alreadyPromoted = items.filter((i) => existing.has(i.traceId)).map((i) => i.traceId);
+      if (fresh.length === 0) {
+        await client.query("ROLLBACK");
+        return { added: [], alreadyPromoted, version: null };
+      }
+      const note = fresh.length === 1 ? "Added item from trace" : `Added ${fresh.length} items from traces`;
+      const version = await this.createNextVersion(client, datasetId, createdByUserId, note, "major");
+      const added = await this.insertNewItems(client, version.id, createdByUserId, fresh);
+      await client.query("COMMIT");
+      return { added, alreadyPromoted, version: await this.getLatestDatasetVersion(datasetId) };
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  /** Un item nuevo es su propio origen (ADR-033): `id` y `origin_item_id` coinciden en su primera versión. */
+  private async insertNewItems(
+    client: import("pg").PoolClient,
+    versionId: string,
+    createdByUserId: string,
+    items: Array<{ input: unknown; expectedOutput: unknown; metadata: Record<string, unknown> | null }>,
+  ): Promise<DatasetItem[]> {
+    const inserted: DatasetItem[] = [];
+    for (const item of items) {
+      const itemId = randomUUID();
+      const { rows } = await client.query<{ id: string }>(
+        `INSERT INTO dataset_items (id, origin_item_id, dataset_version_id, input, expected_output, metadata, created_by)
+         VALUES ($1, $1, $2, $3, $4, $5, $6)
+         RETURNING id`,
+        [itemId, versionId, JSON.stringify(item.input), item.expectedOutput === undefined ? null : JSON.stringify(item.expectedOutput), item.metadata ? JSON.stringify(item.metadata) : null, createdByUserId],
+      );
+      const row = rows[0];
+      if (!row) throw new Error("failed to insert dataset item");
+      const insertedItem = await this.getDatasetItemWithEmails(client, row.id);
+      if (!insertedItem) throw new Error("failed to read back inserted dataset item");
+      inserted.push(insertedItem);
+    }
+    return inserted;
   }
 
   private async getDatasetItemWithEmails(client: import("pg").PoolClient | Pool, itemId: string): Promise<DatasetItem | null> {
@@ -834,7 +890,7 @@ export class PostgresIdentityRepository implements IdentityRepository {
           `UPDATE dataset_items SET
               input = CASE WHEN $3::boolean THEN $4::jsonb ELSE input END,
               expected_output = CASE WHEN $5::boolean THEN $6::jsonb ELSE expected_output END,
-              metadata = CASE WHEN $7::boolean THEN $8::jsonb ELSE metadata END,
+              metadata = CASE WHEN $7::boolean THEN ${keepPromotedFrom("$8::jsonb", "metadata")} ELSE metadata END,
               updated_by = $9, updated_at = now()
             WHERE dataset_version_id = $1 AND deleted_at IS NULL
               AND origin_item_id = (SELECT origin_item_id FROM dataset_items WHERE id = $2)`,

@@ -129,6 +129,14 @@ export const addDatasetItemsBody = z.object({
   items: z.array(datasetItemBody).min(1).max(1000),
 });
 
+/** Promoción de trazas a items de dataset: una llamada = una versión (ADR-038). */
+export const promoteTracesBody = z.object({
+  items: z
+    .array(z.object({ traceId: z.string().min(1), input: z.unknown().optional(), expectedOutput: z.unknown().optional(), fromConfigId: z.string().min(1).optional() }))
+    .min(1)
+    .max(100),
+});
+
 export const updateDatasetItemBody = z.object({
   input: z.unknown().optional(),
   expectedOutput: z.unknown().optional(),
