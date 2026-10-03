@@ -93,6 +93,7 @@ Cuando termine, abre el dashboard en **http://localhost:8080**.
 Una vez ejecutado `make up`, tendrás acceso directo a:
 
 * 📊 **Dashboard:** [http://localhost:8080](http://localhost:8080) (nginx sirve la app y reenvía `/api` a la API; ADR-014)
+* 🔌 **API de consulta:** `http://localhost:3001` (la usan el SDK y los `examples/` a través de `MEMTRACE_API_URL`)
 * 📖 **Documentación pública:** [http://localhost:8081](http://localhost:8081) (`docs-site/`; ADR-020)
 * 🌐 **UI Web de ClickHouse (Play):** [http://localhost:8123/play](http://localhost:8123/play)
   * **Usuario:** `default`

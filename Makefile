@@ -42,10 +42,12 @@ up: check ## Levanta todo en 1 solo comando (clúster, despliegue, migraciones y
 	@nohup kubectl port-forward svc/dashboard 8080:8080 -n $(NS) >/dev/null 2>&1 &
 	@nohup kubectl port-forward svc/postgres 5432:5432 -n $(NS) >/dev/null 2>&1 &
 	@nohup kubectl port-forward svc/docs 8081:8080 -n $(NS) >/dev/null 2>&1 &
+	@nohup kubectl port-forward svc/api 3001:3001 -n $(NS) >/dev/null 2>&1 &
 	@echo ""
 	@echo "✨ ¡Todo listo en 1 solo comando!"
 	@echo "  • Dashboard:         http://localhost:8080"
 	@echo "  • Documentación:     http://localhost:8081"
+	@echo "  • API (SDK/ejemplos): http://localhost:3001"
 	@echo "  • UI de ClickHouse:  http://localhost:8123/play (Usuario: default | Pass: memtrace-dev-only)"
 	@echo "  • OTel Collector:    localhost:4317 (gRPC) / localhost:4318 (HTTP)"
 	@echo "  • Postgres:          localhost:5432 (Usuario: memtrace | DB: memtrace_identity | Pass: memtrace-dev-only)"
@@ -65,13 +67,14 @@ status: ## Estado de pods, volúmenes y migraciones
 	kubectl get pods,pvc,job -n $(NS)
 
 forward: ## Re-ejecuta la redirección de puertos en primer plano (Ctrl+C para parar)
-	@echo "Exponiendo OTel Collector (4317, 4318), ClickHouse UI (8123), Postgres (5432) el dashboard (http://localhost:8080) y la documentación (http://localhost:8081)..."
+	@echo "Exponiendo OTel Collector (4317, 4318), ClickHouse UI (8123), Postgres (5432), la API (3001) el dashboard (http://localhost:8080) y la documentación (http://localhost:8081)..."
 	@trap 'kill 0' EXIT; \
 	kubectl port-forward svc/otel-collector 4317:4317 4318:4318 -n $(NS) & \
 	kubectl port-forward svc/clickhouse 8123:8123 -n $(NS) & \
 	kubectl port-forward svc/dashboard 8080:8080 -n $(NS) & \
 	kubectl port-forward svc/postgres 5432:5432 -n $(NS) & \
 	kubectl port-forward svc/docs 8081:8080 -n $(NS) & \
+	kubectl port-forward svc/api 3001:3001 -n $(NS) & \
 	wait
 
 logs: ## Logs del Collector (útil para ver errores de inserción)
