@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { DatasetRunClosedError, EvaluationService } from "@/application/evaluation-service";
 import type { IdentityRepository } from "@/application/ports/identity-repository";
 import type { ScoreRepository } from "@/application/ports/score-repository";
@@ -24,8 +24,8 @@ function fakeIdentity(overrides: Partial<IdentityRepository> = {}): IdentityRepo
   return { ...defaults, ...overrides } as unknown as IdentityRepository;
 }
 
-function fakeScores(insertScores: ScoreRepository["insertScores"]): ScoreRepository {
-  return { insertScores, listScoresByRun: async () => [], aggregateForRuns: async () => [], listScoresByTrace: async () => [], listJudgeScoresForRuns: async () => [] };
+function fakeScores(insertScores: ScoreRepository["insertScores"], materializeRunSummary: ScoreRepository["materializeRunSummary"] = async () => {}): ScoreRepository {
+  return { insertScores, materializeRunSummary, listScoresByRun: async () => [], aggregateForRuns: async () => [], listScoresByTrace: async () => [], listJudgeScoresForRuns: async () => [] };
 }
 
 const ITEMS: DatasetRunItemSubmission[] = [
@@ -130,5 +130,23 @@ describe("EvaluationService.appendToDatasetRun", () => {
     const service = new EvaluationService(fakeIdentity({ getDatasetRun: async () => run({ status: "completed" }) }), fakeScores(async () => { inserted = true; }));
     await expect(service.appendToDatasetRun("my-agent", "ds-1", "run-1", 0, ITEMS, false)).rejects.toBeInstanceOf(DatasetRunClosedError);
     expect(inserted).toBe(false);
+  });
+});
+
+describe("EvaluationService run summaries (ADR-045)", () => {
+  it("stores the summary only when the run is completed", async () => {
+    const summarized: string[] = [];
+    const scores = fakeScores(async () => {}, async (_s, runId) => void summarized.push(runId));
+    const service = new EvaluationService(fakeIdentity(), scores);
+    await service.submitDatasetRun("my-agent", "ds-1", "run-1", ITEMS, "1.0", false);
+    expect(summarized).toEqual([]);
+    await service.submitDatasetRun("my-agent", "ds-1", "run-1", ITEMS, "1.0", true);
+    expect(summarized).toHaveLength(1);
+  });
+
+  it("does not fail the upload when the summary cannot be written", async () => {
+    const scores = fakeScores(async () => {}, async () => { throw new Error("clickhouse is down"); });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(new EvaluationService(fakeIdentity(), scores).submitDatasetRun("my-agent", "ds-1", "run-1", ITEMS, "1.0")).resolves.toBeDefined();
   });
 });

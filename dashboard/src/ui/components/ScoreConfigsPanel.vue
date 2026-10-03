@@ -5,7 +5,7 @@ import type { ScoreConfigDto } from "@contract";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { formatCategories, describeScale, parseCategories } from "../score-config-form";
 import Modal from "./Modal.vue";
-import Select from "./Select.vue";
+import NewScoreConfigModal from "./NewScoreConfigModal.vue";
 
 /**
  * Rúbricas de anotación de un experimento (ADR-036). Cualquier miembro las ve; solo un admin puede
@@ -42,49 +42,10 @@ function toggleArchived() {
   void load();
 }
 
-const TYPE_OPTIONS = [
-  { label: "Numeric (range)", value: "numeric" as const },
-  { label: "Boolean (yes / no)", value: "boolean" as const },
-  { label: "Categorical (labels)", value: "categorical" as const },
-];
 const TYPE_LABEL: Record<ScoreConfigDto["dataType"], string> = { numeric: "numeric", boolean: "boolean", categorical: "categorical" };
 
-// ---- create ----
 const showCreate = ref(false);
 const saving = ref(false);
-const form = reactive({ name: "", dataType: "numeric" as ScoreConfigDto["dataType"], min: "1", max: "5", categories: "", description: "" });
-
-function openCreate() {
-  Object.assign(form, { name: "", dataType: "numeric", min: "1", max: "5", categories: "", description: "" });
-  showCreate.value = true;
-}
-
-const canCreate = computed(() => {
-  if (!form.name.trim()) return false;
-  if (form.dataType === "numeric") return form.min.trim() !== "" && form.max.trim() !== "" && Number(form.min) < Number(form.max);
-  if (form.dataType === "categorical") return parseCategories(form.categories).length >= 2;
-  return true;
-});
-
-async function create() {
-  saving.value = true;
-  try {
-    await api.createScoreConfig(props.experimentId, {
-      name: form.name.trim(),
-      dataType: form.dataType,
-      minValue: form.dataType === "numeric" ? Number(form.min) : null,
-      maxValue: form.dataType === "numeric" ? Number(form.max) : null,
-      categories: form.dataType === "categorical" ? parseCategories(form.categories) : null,
-      description: form.description.trim() || null,
-    });
-    showCreate.value = false;
-    await load();
-  } catch (error) {
-    notifyError("Could not create score config", error);
-  } finally {
-    saving.value = false;
-  }
-}
 
 // ---- edit: only what the invariants allow (description, widen range, add categories) ----
 const editing = ref<ScoreConfigDto | null>(null);
@@ -158,26 +119,11 @@ async function setArchived(config: ScoreConfigDto, archived: boolean) {
     </p>
 
     <div class="config-actions">
-      <button v-if="canManage" class="primary-btn" type="button" @click="openCreate">New score config</button>
+      <button v-if="canManage" class="primary-btn" type="button" @click="showCreate = true">New score config</button>
       <button class="link-btn" type="button" @click="toggleArchived">{{ showArchived ? "Hide archived" : "Show archived" }}</button>
     </div>
 
-    <Modal v-if="showCreate" title="New score config" @close="showCreate = false">
-      <form class="modal-form" @submit.prevent="create">
-        <input v-model="form.name" class="text-input" placeholder="Name (e.g. tone)" autofocus />
-        <Select v-model="form.dataType" :options="TYPE_OPTIONS" />
-        <div v-if="form.dataType === 'numeric'" class="range-row">
-          <input v-model="form.min" class="text-input" type="number" step="any" placeholder="Min" />
-          <input v-model="form.max" class="text-input" type="number" step="any" placeholder="Max" />
-        </div>
-        <template v-if="form.dataType === 'categorical'">
-          <textarea v-model="form.categories" class="text-input area" rows="4" placeholder="One category per line (at least 2)&#10;bad=0&#10;ok=1&#10;good=2" />
-          <p class="hint">Optional <code>=number</code> after a label gives it a value, used for correlation with judge scores.</p>
-        </template>
-        <textarea v-model="form.description" class="text-input area" rows="2" placeholder="Guideline shown to the annotator (optional)" />
-        <button type="submit" class="primary-btn" :disabled="saving || !canCreate">Create</button>
-      </form>
-    </Modal>
+    <NewScoreConfigModal v-if="showCreate" :experiment-id="experimentId" @close="showCreate = false" @created="load" />
 
     <Modal v-if="editing" :title="`Edit ${editing.name}`" @close="editing = null">
       <form class="modal-form" @submit.prevent="saveEdit">

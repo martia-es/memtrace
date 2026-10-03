@@ -25,6 +25,9 @@ spec:
         env:
         - name: CLICKHOUSE_USER
           value: "default"
+        # Permite al Job de migraciones crear el usuario de escritura de la API (ADR-045)
+        - name: CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT
+          value: "1"
         - name: CLICKHOUSE_PASSWORD
           valueFrom:
             secretKeyRef:

@@ -106,6 +106,23 @@ Latency, tokens and cost are read from the trace of each item, not stored with i
 
 For RAG agents, the chunks a retriever returned are recorded on its span as `memtrace.retriever.chunks` (rank order, with `text`, and `id` / `source` / `score` when known) and are visible in that item's trace. LangChain retrievers do it automatically; otherwise call `memtrace.record_retrieved_chunks(documents)` inside a `retriever` step. The text is only exported when content capture is enabled.
 
+### Retrieval metrics (recall@k, MRR)
+
+Label which documents a good retrieval must return, in the item's metadata, and add the evaluators:
+
+```python
+from memtrace.eval import run_experiment, RecallAtK, MRR, HitRate
+
+data = [{"input": "refund policy?", "metadata": {"relevant_docs": ["policy-12", "kb/refunds.md"]}}]
+run_experiment(data=data, task=my_rag_agent, evaluators=[RecallAtK(5), MRR(), HitRate()], name="rag-v3")
+```
+
+A retrieved chunk counts as relevant when its `id` or `source` is in `relevant_docs`. `RecallAtK(k)` is the share of the relevant documents found in the top *k* (`recall_at_5`), `MRR()` is the reciprocal rank of the first relevant chunk (`mrr`; its average over the run is the Mean Reciprocal Rank) and `HitRate()` says whether at least one was retrieved. Items without `relevant_docs` get no score instead of a misleading zero. The chunks are read from your retriever calls while the item runs (LangChain retrievers and `record_retrieved_chunks`), with or without content capture. They appear in Metrics → Offline evals like any other numeric evaluator.
+
+### How long results are kept
+
+The scores, trends and per-run summaries are kept. The **text** of each item (input, output, expected output, error) is dropped after 180 days; older runs still show their metrics, but their items appear without text.
+
 ## LLM-as-judge evaluators
 
 `exact_match`/`contains` only work when the expected output matches the actual output as a string. For open-ended agent output, `memtrace.eval_judges` ships evaluators that ask an LLM to judge the result instead:
@@ -133,7 +150,7 @@ result = run_experiment(
 
 Both are plain `Evaluator`s (`Score(source="llm_judge")`), so they drop into `evaluators=[...]` alongside `exact_match`/`contains`, and the dashboard shows their verdicts the same way. Expect judged runs to cost money and take longer — each item makes a real LLM call, parallelized the same way `run_experiment`'s `max_workers` already parallelizes `task`.
 
-Every judge score records **which judge produced it**: the model (`judge_model`) and a short fingerprint of the rubric (`judge_prompt_hash`: the system prompt plus the prompt template, not the per-item text). The run detail page shows both when you hover a score. The model comes from `Correctness(client=..., model="...")` or, if you don't pass one, from the client's `model` attribute (`AnthropicJudgeClient` has one); a custom `LLMClient` without it leaves `judge_model` empty. Change the model or edit a judge's prompt and the hash changes, so you can tell which runs are comparable. **Metrics → Offline evals** uses it to warn you: when an evaluator's judge differs from the previous run's, the affected chart points become red diamonds, an alert lists the change, and the latest-run card shows "judge changed" instead of the delta, because that difference doesn't measure your agent. Scores uploaded before this feature have no judge identity.
+Every judge score records **which judge produced it**: the model (`judge_model`) and a short fingerprint of the rubric (`judge_prompt_hash`: the system prompt plus the prompt template, not the per-item text). The run detail page shows both when you hover a score. The model comes from `Correctness(client=..., model="...")` or, if you don't pass one, from the client's `model` attribute (`AnthropicJudgeClient` has one); a custom `LLMClient` without it leaves `judge_model` empty. If the client returns `memtrace.eval_judges.LLMReply(text, model=...)` instead of a plain string, the model it reports (what the provider actually served, e.g. the dated snapshot behind a floating alias) is what gets recorded, so a silent provider-side change also shows up as a judge change. Change the model or edit a judge's prompt and the hash changes, so you can tell which runs are comparable. **Metrics → Offline evals** uses it to warn you: when an evaluator's judge differs from the previous run's, the affected chart points become red diamonds, an alert lists the change, and the latest-run card shows "judge changed" instead of the delta, because that difference doesn't measure your agent. Scores uploaded before this feature have no judge identity.
 
 `AnthropicJudgeClient` is a default, optional client — write your own against the `LLMClient` protocol (`complete(*, system, prompt, model=None) -> str`) to use a different provider. See ADR-029 (`docs/adrs/evaluation/adr-029-llm-as-judge-evaluators.md` in the repository) for the design.
 
@@ -141,7 +158,7 @@ Every judge score records **which judge produced it**: the model (`judge_model`)
 
 Automatic evaluators are versioned code, so a free-text score name is fine for them. Human labels are not: two people who both type `tone` may mean a 1-5 scale and a `formal`/`casual` choice, and their values can't be compared. A **score config** fixes that by declaring, per experiment, what can be scored and how.
 
-Each config has a `name`, a type that matches the scores you already know (`numeric` with a min/max range, `boolean`, or `categorical` with at least two labels, each optionally carrying a number for ordinal scales like `bad=0, ok=1, good=2`) and an optional guideline for whoever annotates. Admins manage them from **Admin → experiment → Score configs**; every member can read them.
+Each config has a `name`, a type that matches the scores you already know (`numeric` with a min/max range, `boolean`, or `categorical` with at least two labels, each optionally carrying a number for ordinal scales like `bad=0, ok=1, good=2`) and an optional guideline for whoever annotates. Admins manage them from **Admin → experiment → Score configs**, or with **New score config** in a trace's Annotate panel when there is none yet; every member can read them.
 
 Because human labels are long-lived, a rubric can never silently reinterpret old labels: the type is fixed, a numeric range can only widen, categories can only be added, and "deleting" archives the config (it stays readable, but takes no new annotations). To start over, archive it and create a new one — the old name is free to reuse.
 
@@ -183,7 +200,7 @@ Found a trace where the agent got it wrong? Open it and press **Add to dataset**
 - The trace needs saved content (`MEMTRACE_CAPTURE_CONTENT=true` on the agent). Otherwise the input is empty and you have to type it.
 - Editing the item's metadata later never removes `promotedFrom`, so the diff view still shows where each item came from.
 
-The API also accepts several traces in one call (one version for all of them) and can take the expected output from a categorical label made with a score config: see [Query API](/platform/api#evaluation-adr-028-adr-031-adr-032). ADR-038 (`docs/adrs/datasets/adr-038-promote-trace-to-dataset-item.md` in the repository).
+To promote many at once, open a queue (**Annotation queues → Details**) and use **Promote to dataset**: it sends every reviewed trace of the queue to the dataset you pick, optionally taking the expected output from one of the queue's categorical labels (traces whose reviewers disagree, that are already in the dataset or have no saved input are skipped and counted in the notice). Each batch of 100 traces is one new dataset version. The API also accepts several traces in one call (one version for all of them) and can take the expected output from a categorical label made with a score config: see [Query API](/platform/api#evaluation-adr-028-adr-031-adr-032). ADR-038 (`docs/adrs/datasets/adr-038-promote-trace-to-dataset-item.md` in the repository).
 
 ## Can you trust the judge? Agreement with human labels
 

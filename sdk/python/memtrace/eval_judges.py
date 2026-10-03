@@ -15,7 +15,7 @@ so they drop straight into `run_experiment(evaluators=[...])` alongside `exact_m
 Requires the `eval-judges` extra for the bundled Anthropic client: `pip install
 "memtrace-ai[eval-judges]"` — not needed if you bring your own `LLMClient`.
 """
-from memtrace.application.eval_ports import LLMClient
+from memtrace.application.eval_ports import LLMClient, LLMReply
 from memtrace.application.judges import Correctness, Faithfulness, LLMJudgeEvaluator
 
-__all__ = ["LLMClient", "LLMJudgeEvaluator", "Correctness", "Faithfulness"]
+__all__ = ["LLMClient", "LLMReply", "LLMJudgeEvaluator", "Correctness", "Faithfulness"]

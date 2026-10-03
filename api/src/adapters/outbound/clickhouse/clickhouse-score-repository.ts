@@ -183,28 +183,72 @@ export class ClickHouseScoreRepository implements ScoreRepository {
 
   async aggregateForRuns(serviceName: string, datasetRunIds: string[]): Promise<ScoreAggregate[]> {
     if (datasetRunIds.length === 0) return [];
-    let rows: AggregateRow[];
     try {
-      // ValueNum es la columna tipada (ADR-044): ya no hay que parsear `Value` en cada agregación.
-      const result = await this.readClient.query({
-        query: `SELECT
-                   DatasetRunId, Name, DataType,
-                   count() AS total,
-                   avgIf(ValueNum, DataType IN ('boolean', 'numeric')) AS avgValue,
-                   groupUniqArrayIf((JudgeModel, JudgePromptHash), Source = 'llm_judge') AS judges
-                 FROM ${this.database}.eval_scores FINAL
-                 WHERE ServiceName = {serviceName:String}
-                   AND DatasetRunId IN {datasetRunIds:Array(String)}
-                 GROUP BY DatasetRunId, Name, DataType`,
-        query_params: { serviceName, datasetRunIds },
-        format: "JSONEachRow",
-      });
-      rows = await result.json<AggregateRow>();
+      // Los runs completos ya tienen su resumen (ADR-045); solo el resto (en curso, o cerrados antes del resumen) se calcula sobre eval_scores.
+      const summaries = await this.readSummaries(serviceName, datasetRunIds);
+      const summarized = new Set(summaries.map((a) => a.datasetRunId));
+      const pending = datasetRunIds.filter((id) => !summarized.has(id));
+      return [...summaries, ...(await this.computeAggregates(serviceName, pending))];
     } catch (error) {
       console.error("[memtrace-api] ClickHouse query (score aggregates) failed:", error);
       throw new RepositoryUnavailableError(error);
     }
-    return rows.map(toScoreAggregate);
+  }
+
+  async materializeRunSummary(serviceName: string, datasetRunId: string): Promise<void> {
+    const now = new Date().toISOString().replace("T", " ").replace("Z", "");
+    try {
+      // Se lee con el cliente de lectura y se inserta con el de escritura: `api_writer` solo puede INSERT (ADR-045).
+      const aggregates = await this.computeAggregates(serviceName, [datasetRunId]);
+      if (aggregates.length === 0) return;
+      await this.writeClient.insert({
+        table: `${this.database}.eval_run_summaries`,
+        values: aggregates.map((a) => ({
+          ServiceName: serviceName,
+          DatasetRunId: a.datasetRunId,
+          Name: a.name,
+          DataType: a.dataType,
+          Total: a.count,
+          AvgValue: a.dataType === "boolean" ? a.passRate : a.average,
+          Judges: a.judges.map((j) => [j.model, j.promptHash]),
+          CreatedAt: now,
+        })),
+        format: "JSONEachRow",
+      });
+    } catch (error) {
+      console.error("[memtrace-api] ClickHouse write (run summary) failed:", error);
+      throw new RepositoryUnavailableError(error);
+    }
+  }
+
+  private async readSummaries(serviceName: string, datasetRunIds: string[]): Promise<ScoreAggregate[]> {
+    const result = await this.readClient.query({
+      query: `SELECT DatasetRunId, Name, DataType, Total AS total, AvgValue AS avgValue, Judges AS judges
+                FROM ${this.database}.eval_run_summaries FINAL
+               WHERE ServiceName = {serviceName:String} AND DatasetRunId IN {datasetRunIds:Array(String)}`,
+      query_params: { serviceName, datasetRunIds },
+      format: "JSONEachRow",
+    });
+    return (await result.json<AggregateRow>()).map(toScoreAggregate);
+  }
+
+  private async computeAggregates(serviceName: string, datasetRunIds: string[]): Promise<ScoreAggregate[]> {
+    if (datasetRunIds.length === 0) return [];
+    // ValueNum es la columna tipada (ADR-044): ya no hay que parsear `Value` en cada agregación.
+    const result = await this.readClient.query({
+      query: `SELECT
+                 DatasetRunId, Name, DataType,
+                 count() AS total,
+                 avgIf(ValueNum, DataType IN ('boolean', 'numeric')) AS avgValue,
+                 groupUniqArrayIf((JudgeModel, JudgePromptHash), Source = 'llm_judge') AS judges
+               FROM ${this.database}.eval_scores FINAL
+               WHERE ServiceName = {serviceName:String}
+                 AND DatasetRunId IN {datasetRunIds:Array(String)}
+               GROUP BY DatasetRunId, Name, DataType`,
+      query_params: { serviceName, datasetRunIds },
+      format: "JSONEachRow",
+    });
+    return (await result.json<AggregateRow>()).map(toScoreAggregate);
   }
 }
 

@@ -29,7 +29,7 @@ A `Score(source="llm_judge")` stored only `name`, `value`, `dataType`, `source` 
 ## Consequences
 
 * **Positive**: runs are attributable to a judge; comparability can be checked (same model + hash); ADR-040 can lift its single-run restriction.
-* **Negative**: the hash does not capture sampling parameters (temperature, max tokens) because `LLMClient.complete` does not take them, nor model-side drift behind an unchanged alias (e.g. a floating model name). Recording the provider's resolved model id from the response would need a richer return type than `str`; deferred.
+* **Negative**: the hash does not capture sampling parameters (temperature, max tokens) because `LLMClient.complete` does not take them, nor model-side drift behind an unchanged alias (e.g. a floating model name). Recording the provider's resolved model id from the response would need a richer return type than `str`; delivered in [ADR-045](adr-045-evaluation-follow-ups-retrieval-metrics-summaries-retention-and-writer-user.md) as an `LLMReply` `str` subclass carrying `.model`.
 * Historical scores stay anonymous; no backfill.
 
 ## Follow-up: judge-change warning in Metrics -> Offline evals (2026-10-03)

@@ -76,6 +76,23 @@ class IncrementalResultsSink(Protocol):
         ...
 
 
+class LLMReply(str):
+    """A model's text reply that also carries the model id the provider actually served (ADR-043 follow-up, ADR-045).
+
+    A plain `str` subclass, so any code (and any `LLMClient` returning `str`) keeps working unchanged. A client
+    that knows the resolved model — e.g. `response.model` for a floating alias — returns `LLMReply(text, model=...)`
+    and the judge records that snapshot instead of the requested name, which makes silent provider-side drift
+    visible as a judge change in the dashboard.
+    """
+
+    model: Optional[str]
+
+    def __new__(cls, text: str, model: Optional[str] = None) -> "LLMReply":
+        reply = super().__new__(cls, text)
+        reply.model = model
+        return reply
+
+
 class LLMClient(Protocol):
     """What an LLM-as-judge evaluator needs to ask a model something (see ADR-029).
 
@@ -85,10 +102,13 @@ class LLMClient(Protocol):
     A client may optionally expose a `model: str` attribute with the model it uses by default;
     judges record it on their `Score` (ADR-043). Without it, the score's `judge_model` is None
     unless the judge was given an explicit `model=`.
+
+    `complete` may return an `LLMReply` to report the model the provider actually resolved; it then wins over
+    the requested name on the `Score`.
     """
 
     def complete(self, *, system: str, prompt: str, model: Optional[str] = None) -> str:
-        """Sends one request and returns the model's raw text reply."""
+        """Sends one request and returns the model's raw text reply (optionally an `LLMReply`)."""
         ...
 
 

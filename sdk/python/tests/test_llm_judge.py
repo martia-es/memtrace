@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from memtrace.eval_judges import Correctness, Faithfulness
+from memtrace.eval_judges import Correctness, Faithfulness, LLMReply
 
 
 class FakeLLMClient:
@@ -124,3 +124,19 @@ def test_prompt_hash_changes_when_system_prompt_changes():
 
     client = FakeLLMClient("{}")
     assert Strict(client=client).prompt_hash() != Correctness(client=client).prompt_hash()
+
+
+def test_judge_records_the_model_the_provider_resolved_over_the_requested_one():
+    reply = LLMReply(json.dumps({"score": True}), model="judge-model-2026-09-01")
+    judge = Correctness(client=FakeLLMClient(reply), model="judge-model-latest")
+
+    score = judge(input="q", output="a", expected_output="a", metadata=None)
+
+    assert score.judge_model == "judge-model-2026-09-01"
+    assert score.value is True
+
+
+def test_llm_reply_without_a_model_falls_back_to_the_requested_one():
+    judge = Correctness(client=FakeLLMClient(LLMReply(json.dumps({"score": True}))), model="judge-model-x")
+
+    assert judge(input="q", output="a", expected_output="a", metadata=None).judge_model == "judge-model-x"

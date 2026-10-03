@@ -15,3 +15,13 @@ describe("postgres migrations", () => {
     expect(missing).toEqual([]);
   });
 });
+
+describe("clickhouse migrations", () => {
+  it("are all registered in kustomization.yaml", () => {
+    const kustomization = readFileSync(resolve(root, "kustomization.yaml"), "utf8");
+    const missing = readdirSync(resolve(root, "migrations/clickhouse"))
+      .filter((file) => file.endsWith(".sql"))
+      .filter((file) => !kustomization.includes(`migrations/clickhouse/${file}`));
+    expect(missing).toEqual([]);
+  });
+});

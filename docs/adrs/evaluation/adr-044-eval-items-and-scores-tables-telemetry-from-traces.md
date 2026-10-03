@@ -73,4 +73,4 @@ The LangChain callback fills it automatically; for manual instrumentation `memtr
 
 * Positive: item text is stored once; numeric analytics use a typed column; latency, tokens and cost work with no extra SDK contract and no per-item trace fetches; the trace id is now actually captured.
 * Negative: the first deployment wipes previous evaluation runs and their run-item labels; telemetry requires the user to call `init_tracer()` and depends on trace retention; a run-detail read now issues two queries on the evaluation tables plus one on traces.
-* Still open: partitioning/TTL and materialised aggregates (ADR-042 limits 6 and 7), and retrieval metrics.
+* Still open: nothing from this list. Partitioning/TTL, stored run summaries and retrieval metrics were delivered in [ADR-045](adr-045-evaluation-follow-ups-retrieval-metrics-summaries-retention-and-writer-user.md).

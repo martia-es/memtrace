@@ -7,6 +7,8 @@ imported when a caller actually instantiates `AnthropicJudgeClient` — nothing 
 import os
 from typing import Optional
 
+from memtrace.application.eval_ports import LLMReply
+
 _DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 
 
@@ -36,4 +38,6 @@ class AnthropicJudgeClient:
             system=system,
             messages=[{"role": "user", "content": prompt}],
         )
-        return "".join(block.text for block in response.content if block.type == "text")
+        text = "".join(block.text for block in response.content if block.type == "text")
+        # `response.model` is the id the API actually served (a snapshot when `model` was an alias)
+        return LLMReply(text, model=getattr(response, "model", None))

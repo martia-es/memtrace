@@ -236,6 +236,11 @@ export class PostgresAnnotationQueueRepository implements AnnotationQueueReposit
 
   private async tryClaim(queue: AnnotationQueue, userId: string): Promise<{ item: QueueItem | null; contended: boolean }> {
     return this.transaction(async (client) => {
+      // `FOR UPDATE SKIP LOCKED` bloquea la fila del item, pero el recuento de claims vive en otra tabla y no se
+      // reevalúa si otra transacción confirma entre la lectura y el bloqueo: dos revisores podían llevarse el mismo
+      // item cuando `required_annotations` ya estaba cubierto. El lock por cola serializa el reparto (transacciones
+      // de milisegundos) y cada sentencia posterior ya ve los claims confirmados.
+      await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`annotation-queue-claim:${queue.id}`]);
       // reanudar: refrescar el claim no gasta otro item
       const resumed = await client.query<ItemRow>(
         `SELECT ${prefixed("i", ITEM_COLUMNS)} FROM annotation_queue_items i

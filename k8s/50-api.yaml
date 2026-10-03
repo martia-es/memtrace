@@ -31,6 +31,14 @@ spec:
               key: password
         - name: CLICKHOUSE_DATABASE
           value: memtrace
+        # Escrituras de evaluación con un usuario que solo puede INSERT en esas tablas (ADR-045)
+        - name: CLICKHOUSE_WRITE_USER
+          value: api_writer
+        - name: CLICKHOUSE_WRITE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: clickhouse-credentials
+              key: writer-password
         # Gateway de ingesta autenticado por API key (ADR-013, pieza 9)
         - name: OTEL_COLLECTOR_HTTP_URL
           value: http://otel-collector:4318

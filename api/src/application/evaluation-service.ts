@@ -46,7 +46,18 @@ export class EvaluationService {
     if (!version) throw new ValidationError(`dataset ${datasetId} has no version ${datasetVersion}`, { datasetVersion: "unknown version" });
     const runId = randomUUID();
     await this.scoreRepository.insertScores(serviceName, runId, items, 0);
-    return this.identityRepository.createDatasetRun(runId, datasetId, version.id, name, items.length, complete ? "completed" : "running");
+    const run = await this.identityRepository.createDatasetRun(runId, datasetId, version.id, name, items.length, complete ? "completed" : "running");
+    if (complete) await this.summarize(serviceName, runId);
+    return run;
+  }
+
+  /** Congela el agregado de un run recién completado (ADR-045). Si falla no se pierde nada: las lecturas lo recalculan al vuelo. */
+  private async summarize(serviceName: string, runId: string): Promise<void> {
+    try {
+      await this.scoreRepository.materializeRunSummary(serviceName, runId);
+    } catch (error) {
+      console.error(`[memtrace-api] could not store the summary of run ${runId}; it will be computed on read:`, error);
+    }
   }
 
   /** Añade un lote a un run abierto. Los índices (`itemIndex` o `startIndex`) hacen idempotente el reenvío; los items pueden llegar en cualquier orden. Devuelve null si el run no existe. */
@@ -63,6 +74,8 @@ export class EvaluationService {
     if (run.status === "completed") throw new DatasetRunClosedError(runId);
     await this.scoreRepository.insertScores(serviceName, runId, items, startIndex);
     const total = items.length === 0 ? startIndex : Math.max(...items.map((item, i) => item.itemIndex ?? startIndex + i)) + 1;
-    return this.identityRepository.updateDatasetRunProgress(runId, total, complete);
+    const updated = await this.identityRepository.updateDatasetRunProgress(runId, total, complete);
+    if (complete) await this.summarize(serviceName, runId);
+    return updated;
   }
 }

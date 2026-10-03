@@ -19,6 +19,11 @@ spec:
             secretKeyRef:
               name: clickhouse-credentials
               key: password
+        - name: CLICKHOUSE_WRITER_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: clickhouse-credentials
+              key: writer-password
         command: ["/bin/sh", "-c"]
         args:
         - |
@@ -37,6 +42,13 @@ spec:
             else
               echo "skipping $v (already applied)"
             fi
+          done
+          # Usuario de escritura de la API (ADR-045): INSERT solo en las tablas de evaluación, sin SELECT ni acceso a otel_*.
+          # Idempotente: CREATE + ALTER dejan la contraseña del secreto aunque el usuario ya existiera.
+          $CH --query "CREATE USER IF NOT EXISTS api_writer IDENTIFIED WITH sha256_password BY '$CLICKHOUSE_WRITER_PASSWORD'"
+          $CH --query "ALTER USER api_writer IDENTIFIED WITH sha256_password BY '$CLICKHOUSE_WRITER_PASSWORD'"
+          for t in eval_items eval_scores eval_run_summaries annotations; do
+            $CH --query "GRANT INSERT ON memtrace.$t TO api_writer"
           done
         volumeMounts:
         - name: migrations

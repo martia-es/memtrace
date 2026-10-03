@@ -10,6 +10,8 @@ export interface ScoreRepository {
   listScoresByRun(serviceName: string, datasetRunId: string): Promise<DatasetRunItemResult[]>;
   /** Una fila por (run, nombre de evaluador) entre los runs pedidos. Un solo round-trip para N runs. */
   aggregateForRuns(serviceName: string, datasetRunIds: string[]): Promise<ScoreAggregate[]>;
+  /** Guarda el agregado por evaluador de un run YA completo (ADR-045). Después `aggregateForRuns` lo lee de ahí en vez de recalcularlo; un run sin resumen se sigue calculando al vuelo. */
+  materializeRunSummary(serviceName: string, datasetRunId: string): Promise<void>;
   /** Scores automáticos ligados a una traza (`scores.TraceId`), para mostrarlos junto a las anotaciones humanas (ADR-037). */
   listScoresByTrace(serviceName: string, traceId: string): Promise<TraceScore[]>;
   /** Scores `llm_judge` de esos runs (con la identidad del juez), para medir su acuerdo con las etiquetas humanas (ADR-040). `name` filtra por evaluador. */

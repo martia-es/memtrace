@@ -7,6 +7,7 @@ import { shortId } from "@/domain/format";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import { numericChoices } from "../score-config-form";
+import NewScoreConfigModal from "./NewScoreConfigModal.vue";
 
 /**
  * Anotación humana de una traza (ADR-037): una persona puntúa la traza (o un span) con las rúbricas del
@@ -26,6 +27,7 @@ const judgments = ref<TraceAnnotationsResponse>({ annotations: [], scores: [] })
 const myUserId = ref<string | null>(null);
 const loading = ref(true);
 const savingId = ref<string | null>(null);
+const showNewConfig = ref(false);
 
 function notifyError(action: string, error: unknown) {
   const detail = error instanceof Error ? error.message : String(error);
@@ -136,8 +138,10 @@ const scopeOf = (annotation: AnnotationDto) => (annotation.spanId ? `span ${shor
 
       <p v-if="!configs.length" class="hint" data-testid="no-configs">
         There are no score configs yet — they define what you can score.
-        {{ canModerate ? "Create one in Admin → your experiment → Score configs." : "Ask an experiment admin to create them." }}
+        <template v-if="!canModerate">Ask an experiment admin to create them.</template>
       </p>
+      <button v-if="canModerate" type="button" class="scope-btn" data-testid="new-config" @click="showNewConfig = true">New score config</button>
+      <NewScoreConfigModal v-if="showNewConfig" :experiment-id="experimentId" @close="showNewConfig = false" @created="load" />
 
       <section v-for="config in configs" :key="config.id" class="config" data-testid="annotation-config">
         <div class="config-head">

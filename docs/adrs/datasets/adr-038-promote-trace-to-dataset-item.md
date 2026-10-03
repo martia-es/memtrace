@@ -45,7 +45,7 @@ body: {
 
 Implemented as a new `DatasetPromotionService.promoteTraces` (see Implementation notes), which (a) loads each trace, (b) builds the item payloads, (c) calls `IdentityRepository.addPromotedDatasetItems` **once** with the whole list. Result: **one new MAJOR** per call regardless of N, with the automatic note "Added N items" (ADR-032 point 4) — extended to mention the provenance ("from traces") only if cheap, otherwise unchanged.
 
-Dashboard: "Add to dataset" from `TraceDetailPage` (single) and, later, from a queue ([ADR-039](../evaluation/adr-039-annotation-queues.md)) in bulk. The single-trace UI must show a preview of `input` / `expected_output` and let the user edit them **before** committing.
+Dashboard: "Add to dataset" from `TraceDetailPage` (single) and from a queue ([ADR-039](../evaluation/adr-039-annotation-queues.md)) in bulk (queue detail → Promote to dataset, [ADR-045](../evaluation/adr-045-evaluation-follow-ups-retrieval-metrics-summaries-retention-and-writer-user.md)). The single-trace UI must show a preview of `input` / `expected_output` and let the user edit them **before** committing.
 
 ### What is extracted from a trace
 

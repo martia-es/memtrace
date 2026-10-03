@@ -14,6 +14,7 @@ from contextlib import nullcontext
 from typing import Any, Callable, ContextManager, Iterable, Mapping, Optional, Sequence, Union
 
 from memtrace.application.context import session
+from memtrace.application.retrieval_capture import retrieval_scope
 from memtrace.application.eval_ports import (
     DatasetSource,
     Evaluator,
@@ -56,7 +57,7 @@ def _call_evaluator(evaluator: Evaluator, **available: Any) -> Any:
 def _run_item(item: EvalItem, task: TaskFunction, evaluators: Sequence[Evaluator], item_scope: Optional[ItemScope] = None) -> EvalItemResult:
     trace_id: Optional[str] = None
     try:
-        with session(str(uuid.uuid4())):
+        with session(str(uuid.uuid4())), retrieval_scope() as retrieved:
             with item_scope(item) if item_scope is not None else nullcontext() as scope_trace_id:
                 trace_id = scope_trace_id
                 output = task(item=item)
@@ -74,6 +75,7 @@ def _run_item(item: EvalItem, task: TaskFunction, evaluators: Sequence[Evaluator
                 expected_output=item.expected_output,
                 metadata=item.metadata,
                 trace_id=trace_id,
+                retrieved_chunks=retrieved,
             )
             scores.extend(result if isinstance(result, list) else [result])
         except Exception as exc:

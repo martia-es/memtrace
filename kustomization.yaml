@@ -26,6 +26,7 @@ configMapGenerator:
       - migrations/clickhouse/006_score_judge_identity.sql
       - migrations/clickhouse/007_annotations.sql
       - migrations/clickhouse/008_eval_items_and_scores.sql
+      - migrations/clickhouse/009_eval_partitions_ttl_and_run_summaries.sql
     options:
       disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
   - name: postgres-migrations

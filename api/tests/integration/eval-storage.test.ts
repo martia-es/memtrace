@@ -1,7 +1,7 @@
 /**
  * Contra el ClickHouse real (`make up`). Opt-in: `npm run test:integration`.
  * Modelo eval_items / eval_scores (ADR-044) y latencia/tokens leídos de la traza enlazada.
- * Usa un servicio único y borra sus filas al terminar. Requiere las migraciones 001–008.
+ * Usa un servicio único y borra sus filas al terminar. Requiere las migraciones 001–009. Con `CLICKHOUSE_WRITE_USER`/`CLICKHOUSE_WRITE_PASSWORD` la escritura va con `api_writer` (ADR-045).
  */
 import { createClient, type ClickHouseClient } from "@clickhouse/client";
 import { randomBytes } from "node:crypto";
@@ -12,7 +12,8 @@ import { configFromEnv, createEvaluationWriteClient, createReadOnlyClient } from
 import type { DatasetRunItemSubmission, Score } from "@/domain/evaluation";
 
 const enabled = Boolean(process.env.CLICKHOUSE_INTEGRATION);
-const config = { ...configFromEnv(), password: process.env.CLICKHOUSE_PASSWORD ?? "memtrace-dev-only" };
+const base = configFromEnv();
+const config = { ...base, password: process.env.CLICKHOUSE_PASSWORD ?? "memtrace-dev-only", writePassword: process.env.CLICKHOUSE_WRITE_USER ? base.writePassword : (process.env.CLICKHOUSE_PASSWORD ?? "memtrace-dev-only") };
 const SERVICE = `it-eval-${randomBytes(4).toString("hex")}`;
 const RUN = "run-1";
 const TRACE = randomBytes(16).toString("hex");
@@ -53,7 +54,7 @@ describe.skipIf(!enabled)("eval storage (integration)", () => {
   });
 
   afterAll(async () => {
-    for (const table of ["eval_items", "eval_scores", "otel_traces"]) {
+    for (const table of ["eval_items", "eval_scores", "eval_run_summaries", "otel_traces"]) {
       await admin.command({ query: `ALTER TABLE ${config.database}.${table} DELETE WHERE ServiceName = {s:String}`, query_params: { s: SERVICE } });
     }
     await admin.close();
@@ -103,5 +104,27 @@ describe.skipIf(!enabled)("eval storage (integration)", () => {
     const stats = await traces.getTraceStatsForTraces([TRACE, randomBytes(16).toString("hex")]);
     expect(stats.size).toBe(1);
     expect(stats.get(TRACE)).toMatchObject({ traceId: TRACE, durationMs: 1500, byModel: [{ model: "gpt-x", inputTokens: 150, outputTokens: 50 }] });
+  });
+
+  it("materializes a completed run's aggregates once and reads them back instead of recomputing (ADR-045)", async () => {
+    const run = "run-summary";
+    await scores.insertScores(SERVICE, run, [item("q0", [bool("exact_match", true), judge]), item("q1", [bool("exact_match", false), num("similarity", 0.5)])]);
+    const live = await scores.aggregateForRuns(SERVICE, [run]);
+
+    await scores.materializeRunSummary(SERVICE, run);
+    await scores.materializeRunSummary(SERVICE, run); // idempotente: ReplacingMergeTree por (run, evaluador)
+    const stored = await admin.query({ query: `SELECT count() AS n FROM ${config.database}.eval_run_summaries FINAL WHERE ServiceName = {s:String} AND DatasetRunId = {r:String}`, query_params: { s: SERVICE, r: run }, format: "JSONEachRow" });
+    expect(Number(((await stored.json<{ n: string }>())[0])!.n)).toBe(3);
+
+    const sorted = (a: typeof live) => [...a].sort((x, y) => x.name.localeCompare(y.name));
+    expect(sorted(await scores.aggregateForRuns(SERVICE, [run]))).toEqual(sorted(live));
+    expect(live.find((a) => a.name === "exact_match")).toMatchObject({ passRate: 0.5, count: 2 });
+    expect(live.find((a) => a.name === "correctness")!.judges).toEqual([{ model: "judge-x", promptHash: "abc" }]);
+  });
+
+  it("falls back to the live computation for runs without a stored summary", async () => {
+    const run = "run-open";
+    await scores.insertScores(SERVICE, run, [item("q0", [num("similarity", 0.25)])]);
+    expect(await scores.aggregateForRuns(SERVICE, [run])).toEqual([expect.objectContaining({ name: "similarity", average: 0.25, count: 1 })]);
   });
 });

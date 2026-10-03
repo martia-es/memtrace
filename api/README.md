@@ -55,6 +55,7 @@ npm run typecheck
 |---|---|---|
 | `CLICKHOUSE_URL` | `http://localhost:8123` | |
 | `CLICKHOUSE_USER` / `CLICKHOUSE_PASSWORD` | `default` / — | contraseña de desarrollo en el README raíz |
+| `CLICKHOUSE_WRITE_USER` / `CLICKHOUSE_WRITE_PASSWORD` | las de lectura | usuario con solo `INSERT` en `eval_items`, `eval_scores` y `annotations` (en k8s: `api_writer`, ADR-045) |
 | `CLICKHOUSE_DATABASE` | `memtrace` | |
 | `CLICKHOUSE_QUERY_MAX_THREADS` | `2` | hilos por consulta |
 | `CLICKHOUSE_MAX_CONCURRENT_QUERIES` | `3` | consultas simultáneas por proceso |

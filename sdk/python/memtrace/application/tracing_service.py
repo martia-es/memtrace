@@ -11,6 +11,7 @@ from memtrace.application.ports import SpanPort
 from memtrace.application.run_lifecycle import RunLifecycleGuard
 from memtrace.application.run_registry import RunRegistry
 from memtrace.domain import semconv as sc
+from memtrace.application.retrieval_capture import note_retrieved
 from memtrace.domain.attributes import llm_attributes, retrieved_chunks, step_start_attributes
 from memtrace.domain.model import CapturePolicy, LlmCall, StepType
 
@@ -195,6 +196,7 @@ class TracingService:
         if handle is None:
             return
         chunks = retrieved_chunks(documents)
+        note_retrieved(chunks)
         handle.set_attributes({sc.MEMTRACE_RETRIEVER_DOCUMENTS: len(chunks), sc.MEMTRACE_RETRIEVER_CHUNKS: self.capture(chunks)})
 
     # ----- maintenance -----

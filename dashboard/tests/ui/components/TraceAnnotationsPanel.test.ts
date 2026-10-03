@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { Dark, Notify, Quasar } from "quasar";
 import type { AnnotationDto, ScoreConfigDto } from "@contract";
-import { IDENTITY_API, TRACE_API } from "@/dependency-container";
+import { CURRENT_EXPERIMENT, IDENTITY_API, TRACE_API } from "@/dependency-container";
 import TraceAnnotationsPanel from "@/ui/components/TraceAnnotationsPanel.vue";
 import { FakeIdentityApi, FakeTraceApi } from "../../fakes";
 
@@ -38,21 +38,40 @@ class Identity extends FakeIdentityApi {
   }
 }
 
-async function mountPanel(configs: ScoreConfigDto[], annotations: AnnotationDto[] = [], span: { spanId: string; name: string } | null = null) {
+async function mountPanel(configs: ScoreConfigDto[], annotations: AnnotationDto[] = [], span: { spanId: string; name: string } | null = null, myRole: string = "member") {
   const identity = new Identity();
   identity.scoreConfigs = configs;
   const trace = new FakeTraceApi();
   trace.annotations = { annotations, scores: [] };
   const wrapper = mount(TraceAnnotationsPanel, {
     props: { traceId: "t1", experimentId: "e1", span },
-    global: { plugins: [[Quasar, { plugins: { Dark, Notify } }]], provide: { [IDENTITY_API as symbol]: identity, [TRACE_API as symbol]: trace } },
+    global: { plugins: [[Quasar, { plugins: { Dark, Notify } }]], provide: { [IDENTITY_API as symbol]: identity, [TRACE_API as symbol]: trace, [CURRENT_EXPERIMENT as symbol]: { value: { myRole } } } },
     attachTo: document.body,
   });
   await flushPromises();
-  return { wrapper, trace };
+  return { wrapper, trace, identity };
 }
 
 describe("TraceAnnotationsPanel", () => {
+  it("lets an experiment admin create a score config inline and reloads the rubric", async () => {
+    const { wrapper, identity } = await mountPanel([], [], null, "admin");
+    await wrapper.get('[data-testid="new-config"]').trigger("click");
+    const body = document.body;
+    (body.querySelector('input[placeholder^="Name"]') as HTMLInputElement).value = "tone";
+    body.querySelector('input[placeholder^="Name"]')!.dispatchEvent(new Event("input"));
+    await flushPromises();
+    body.querySelector("form")!.dispatchEvent(new Event("submit", { cancelable: true }));
+    await flushPromises();
+    expect(identity.scoreConfigs.map((c) => c.name)).toContain("tone");
+    expect(wrapper.findAll('[data-testid="annotation-config"]')).toHaveLength(1);
+  });
+
+  it("does not offer inline creation to plain members", async () => {
+    const { wrapper } = await mountPanel([]);
+    expect(wrapper.find('[data-testid="new-config"]').exists()).toBe(false);
+    expect(wrapper.get('[data-testid="no-configs"]').text()).toContain("Ask an experiment admin");
+  });
+
   it("explains that score configs are needed when there are none", async () => {
     const { wrapper } = await mountPanel([]);
     expect(wrapper.get('[data-testid="no-configs"]').text()).toContain("no score configs");

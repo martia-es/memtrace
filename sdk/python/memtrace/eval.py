@@ -38,6 +38,7 @@ from memtrace.application.eval_ports import (
     ResultsSink,
     TaskFunction,
 )
+from memtrace.application.retrieval_metrics import MRR, HitRate, RecallAtK
 from memtrace.application.experiment_runner import ResultsUploadError
 from memtrace.application.experiment_runner import run_experiment as _execute_experiment
 from memtrace.domain.model import StepType
@@ -47,6 +48,9 @@ __all__ = [
     "run_experiment",
     "exact_match",
     "contains",
+    "RecallAtK",
+    "MRR",
+    "HitRate",
     "DatasetSource",
     "LocalFileDatasetSource",
     "Evaluator",

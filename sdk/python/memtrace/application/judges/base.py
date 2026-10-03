@@ -107,7 +107,7 @@ class LLMJudgeEvaluator(ABC):
             data_type="boolean",
             source="llm_judge",
             comment=parsed.get("reasoning"),
-            judge_model=self.judge_model(),
+            judge_model=getattr(raw, "model", None) or self.judge_model(),
             judge_prompt_hash=self.prompt_hash(),
         )
 

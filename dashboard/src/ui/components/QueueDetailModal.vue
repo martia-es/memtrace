@@ -8,6 +8,7 @@ import ErrorBanner from "./ErrorBanner.vue";
 import InterAnnotatorAgreement from "./InterAnnotatorAgreement.vue";
 import JudgeHumanAgreement from "./JudgeHumanAgreement.vue";
 import Modal from "./Modal.vue";
+import PromoteQueueToDataset from "./PromoteQueueToDataset.vue";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
 
@@ -124,6 +125,8 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
       </section>
 
       <JudgeHumanAgreement v-if="hasRunItems" :scope="{ queueId }" />
+
+      <PromoteQueueToDataset v-if="items.data.value" :items="items.data.value.items" :configs="detail.data.value.configs" />
 
       <section>
         <h3>Items</h3>
