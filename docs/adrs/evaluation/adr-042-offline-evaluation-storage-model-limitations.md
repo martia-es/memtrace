@@ -1,9 +1,11 @@
 # ADR-042: Offline Evaluation Storage Model — Known Limitations and Target Direction
 
-* **Status**: Proposed — documents limitations, nothing here is implemented
+* **Status**: Partially superseded by [ADR-044](adr-044-eval-items-and-scores-tables-telemetry-from-traces.md) — limitations 1, 2, 3, 4, 5 and 10 are resolved there; 6, 7 (materialised aggregates, partitioning/TTL) and 8–9 remain as described
 * **Date**: 2026-10-03
 * **Deciders**: MemTrace Core Team
 * **Relates to**: [ADR-028](adr-028-offline-evaluation-decoupled-sdk.md) (original model), [ADR-034](adr-034-run-records-dataset-version-and-uploads-incrementally.md) (incremental uploads), [ADR-043](adr-043-record-judge-identity-on-scores.md) (judge identity)
+
+> **Update (ADR-044):** the table `scores` described below was replaced by `eval_items` + `eval_scores`; latency, tokens and cost are read from the linked trace and retrieved chunks from retriever spans. The text below records the original analysis.
 
 ## Context and Problem Statement
 

@@ -26,8 +26,9 @@ Other ways to give it data:
     pin one exact version. Results are uploaded back to that same dataset while the experiment runs,
     recorded against the exact version that was read, unless you pass your own `sink`.
 """
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Optional, Sequence, Union
+from typing import Any, Iterable, Iterator, Mapping, Optional, Sequence, Union
 
 from memtrace.application.eval_ports import (
     DatasetSource,
@@ -39,6 +40,7 @@ from memtrace.application.eval_ports import (
 )
 from memtrace.application.experiment_runner import ResultsUploadError
 from memtrace.application.experiment_runner import run_experiment as _execute_experiment
+from memtrace.domain.model import StepType
 from memtrace.domain.evaluation import EvalItem, EvalItemResult, ExperimentResult, Score, ScoreSummary
 
 __all__ = [
@@ -60,6 +62,23 @@ __all__ = [
 ]
 
 _AUTO = object()
+
+
+def _tracing_item_scope() -> Optional[Any]:
+    """One root span (`eval.item`) per item, only when `init_tracer()` already ran: the item's trace id is
+    what links the run to its latency, tokens and cost. Nothing is initialized as a side effect."""
+    from memtrace.dependency_container import active_service
+
+    service = active_service()
+    if service is None:
+        return None
+
+    @contextmanager
+    def scope(item: EvalItem) -> Iterator[Optional[str]]:
+        with service.step("eval.item", StepType.CHAIN):
+            yield service.current_trace_id()
+
+    return scope
 
 
 def run_experiment(
@@ -89,6 +108,10 @@ def run_experiment(
     destination for data it didn't hand you. Pass your own `ResultsSink` (or `IncrementalResultsSink`,
     which receives items as they finish) to upload elsewhere, or `sink=None` to keep the result only
     in memory. If saving fails after the items ran, `ResultsUploadError.result` still holds everything.
+
+    If `init_tracer()` was called before, each item runs inside its own trace (`eval.item` span) and its
+    id is stored with the result: the dashboard reads latency, tokens and cost of every item from it.
+    Without a tracer those columns stay empty.
     """
     resolved_sink: Optional[ResultsSink] = None if sink is _AUTO else sink
     if dataset_version is not None and not isinstance(data, str):
@@ -111,6 +134,7 @@ def run_experiment(
         name=name,
         sink=resolved_sink,
         max_workers=max_workers,
+        item_scope=_tracing_item_scope(),
     )
 
 

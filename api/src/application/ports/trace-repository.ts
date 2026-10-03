@@ -4,7 +4,7 @@ import type { ModelPricing } from "@/domain/pricing";
 import type { ChatSpanRecord } from "@/domain/transcript";
 import type { Span } from "@/domain/span";
 import type { SpanCursor, SpanRecord } from "@/domain/span-row";
-import type { Page, PageCursor, TraceSummary } from "@/domain/trace";
+import type { Page, PageCursor, TraceStats, TraceSummary } from "@/domain/trace";
 import type { TimeRange } from "@/domain/time-range";
 
 export interface TraceListQuery extends TimeRange {
@@ -59,6 +59,8 @@ export interface TraceRepository {
   getTraceSpans(traceId: string, maxSpans: number): Promise<TraceSpans | null>;
   /** spans de varias trazas en una sola consulta, agrupados por traceId; cada grupo se trunca a `maxSpansPerTrace` */
   getTraceSpansForTraces(traceIds: string[], maxSpansPerTrace: number): Promise<Map<string, TraceSpans>>;
+  /** latencia y tokens por modelo de varias trazas en una sola consulta; las trazas que no existen (aún, o ya expiradas) no aparecen */
+  getTraceStatsForTraces(traceIds: string[]): Promise<Map<string, TraceStats>>;
   /** serie temporal *dispersa* (solo buckets con datos); el servicio la rellena */
   getOverview(query: MetricsQuery): Promise<MetricsOverview>;
   listServices(range: TimeRange): Promise<string[]>;

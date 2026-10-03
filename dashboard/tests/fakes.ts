@@ -313,6 +313,7 @@ export function datasetRunItem(overrides: Partial<DatasetRunItemResultDto> = {})
     traceId: "abc123",
     error: null,
     scores: [{ name: "exact_match", value: "true", dataType: "boolean", source: "code", comment: null }],
+    telemetry: null,
     ...overrides,
   };
 }

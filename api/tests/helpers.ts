@@ -6,7 +6,7 @@ import type { ModelPricing } from "@/domain/pricing";
 import type { Span } from "@/domain/span";
 import type { SpanCursor, SpanRecord } from "@/domain/span-row";
 import type { TimeRange } from "@/domain/time-range";
-import type { Page, TraceSummary } from "@/domain/trace";
+import type { Page, TraceStats, TraceSummary } from "@/domain/trace";
 import type { AnnotationRepository } from "@/application/ports/annotation-repository";
 import type { Annotation } from "@/domain/annotation";
 import type { AnnotationQueueRepository } from "@/application/ports/annotation-queue-repository";
@@ -96,6 +96,11 @@ export class FakeTraceRepository implements TraceRepository {
       if (found) result.set(id, found);
     }
     return result;
+  }
+  traceStats = new Map<string, TraceStats>();
+  async getTraceStatsForTraces(traceIds: string[]) {
+    this.check();
+    return new Map(traceIds.flatMap((id) => (this.traceStats.has(id) ? [[id, this.traceStats.get(id)!] as const] : [])));
   }
   async getOverview(query: MetricsQuery) {
     this.check();

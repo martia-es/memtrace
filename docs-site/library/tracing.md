@@ -36,6 +36,8 @@ Works on functions and methods, sync or `async`. `name` defaults to the function
 
 The dashboard uses the type to color and filter spans.
 
+Inside a `retriever` step, `memtrace.record_retrieved_chunks(documents)` records what the retrieval returned (strings, dicts with `text` / `id` / `source` / `score`, or LangChain documents; list order is the rank). The count is always recorded; the chunk text only when content capture is enabled. LangChain retrievers do this automatically.
+
 ## `trace_step_context`
 
 The same thing for a block instead of a function:

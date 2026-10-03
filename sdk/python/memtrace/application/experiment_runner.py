@@ -10,9 +10,10 @@ import inspect
 import logging
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Iterable, Mapping, Optional, Sequence, Union
+from contextlib import nullcontext
+from typing import Any, Callable, ContextManager, Iterable, Mapping, Optional, Sequence, Union
 
-from memtrace.application.context import get_current_run_id, session
+from memtrace.application.context import session
 from memtrace.application.eval_ports import (
     DatasetSource,
     Evaluator,
@@ -24,6 +25,10 @@ from memtrace.application.eval_ports import (
 from memtrace.domain.evaluation import EvalItem, EvalItemResult, ExperimentResult, Score
 
 logger = logging.getLogger("memtrace")
+
+# Opens the scope in which one item's `task` runs and yields the trace id of that scope (or None). Lets the
+# caller put each item in its own trace without this module knowing about any tracing backend.
+ItemScope = Callable[[EvalItem], ContextManager[Optional[str]]]
 
 
 class ResultsUploadError(RuntimeError):
@@ -48,15 +53,16 @@ def _call_evaluator(evaluator: Evaluator, **available: Any) -> Any:
     return evaluator(**{k: v for k, v in available.items() if k in params})
 
 
-def _run_item(item: EvalItem, task: TaskFunction, evaluators: Sequence[Evaluator]) -> EvalItemResult:
+def _run_item(item: EvalItem, task: TaskFunction, evaluators: Sequence[Evaluator], item_scope: Optional[ItemScope] = None) -> EvalItemResult:
+    trace_id: Optional[str] = None
     try:
         with session(str(uuid.uuid4())):
-            output = task(item=item)
-            run_id = get_current_run_id()
-            trace_id = str(run_id) if run_id is not None else None
+            with item_scope(item) if item_scope is not None else nullcontext() as scope_trace_id:
+                trace_id = scope_trace_id
+                output = task(item=item)
     except Exception as exc:
         logger.warning("[MemTrace] task raised for item, skipping evaluators: %s", exc)
-        return EvalItemResult(item=item, error=str(exc))
+        return EvalItemResult(item=item, error=str(exc), trace_id=trace_id)
 
     scores = []
     for evaluator in evaluators:
@@ -86,6 +92,7 @@ def run_experiment(
     name: str,
     sink: Optional[ResultsSink] = None,
     max_workers: int = 4,
+    item_scope: Optional[ItemScope] = None,
 ) -> ExperimentResult:
     """Runs `task` against every item of `data` and scores each output with `evaluators`.
 
@@ -95,6 +102,9 @@ def run_experiment(
     With an `IncrementalResultsSink`, results are pushed item by item as they finish (in completion
     order, each with its dataset position); with a plain `ResultsSink`, `save()` is called once at the end. If persisting fails
     after the items ran, `ResultsUploadError` is raised carrying the full `result`.
+
+    `item_scope` (optional) wraps each `task` call and yields the trace id the item's spans belong to; it is
+    recorded on the result so the dashboard can read latency, tokens and cost from that trace (ADR-044).
     """
     source = _resolve_source(data)
     items = list(source.fetch())
@@ -106,7 +116,7 @@ def run_experiment(
 
     results: list = [None] * len(items)
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futures = {pool.submit(_run_item, item, task, evaluators): index for index, item in enumerate(items)}
+        futures = {pool.submit(_run_item, item, task, evaluators, item_scope): index for index, item in enumerate(items)}
         for future in as_completed(futures):
             index = futures[future]
             results[index] = future.result()

@@ -99,3 +99,30 @@ def llm_attributes(
         sc.GEN_AI_INPUT_MESSAGES: input_messages,
         sc.GEN_AI_OUTPUT_MESSAGES: output_messages,
     }
+
+
+def retrieved_chunks(documents: Any) -> list:
+    """Normalizes retrieved documents into `{"text", "id"?, "source"?, "score"?}` dicts (ADR-044).
+
+    Accepts plain strings, mappings (`text`/`content`/`page_content`, `id`, `source`, `score`) and
+    document-like objects with `page_content` and `metadata` (LangChain `Document`). Rank is the list position.
+    """
+    chunks = []
+    for doc in documents or []:
+        if isinstance(doc, str):
+            chunks.append({"text": doc})
+            continue
+        if isinstance(doc, Mapping):
+            text = doc.get("text", doc.get("content", doc.get("page_content")))
+            meta: Mapping[str, Any] = {**(doc.get("metadata") or {}), **doc}
+            doc_id = doc.get("id")
+        else:
+            text = getattr(doc, "page_content", None)
+            meta = getattr(doc, "metadata", None) or {}
+            doc_id = getattr(doc, "id", None) or meta.get("id")
+        chunk = {"text": text if isinstance(text, str) else ("" if text is None else str(text))}
+        for key, value in (("id", doc_id), ("source", meta.get("source")), ("score", meta.get("score"))):
+            if value is not None:
+                chunk[key] = value
+        chunks.append(chunk)
+    return chunks

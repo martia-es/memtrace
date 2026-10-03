@@ -2,7 +2,8 @@ import { requireUser } from "@/adapters/inbound/http/auth-context";
 import { identityGuard } from "@/adapters/inbound/http/identity-guard";
 import { toDatasetRunDetailResponse, toScoreAggregateDto } from "@/adapters/inbound/http/mappers";
 import { json, problem } from "@/adapters/inbound/http/problem";
-import { getIdentity, getScores } from "@/dependency-container";
+import type { DatasetRunItemResult } from "@/domain/evaluation";
+import { getIdentity, getScores, getTraceQueryService } from "@/dependency-container";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,18 @@ export async function GET(_request: Request, context: { params: Promise<{ experi
       getScores().listScoresByRun(experiment.serviceName, runId),
       getScores().aggregateForRuns(experiment.serviceName, [runId]),
     ]);
-    return json(toDatasetRunDetailResponse(dataset, run, items, aggregates.map(toScoreAggregateDto)));
+    return json(toDatasetRunDetailResponse(dataset, run, await withTelemetry(items), aggregates.map(toScoreAggregateDto)));
   });
+}
+
+/** Latencia, tokens y coste salen de la traza enlazada (ADR-044). Si el almacén de trazas falla, el detalle se sirve igualmente sin esas cifras. */
+async function withTelemetry(items: DatasetRunItemResult[]): Promise<DatasetRunItemResult[]> {
+  const traceIds = items.flatMap((i) => (i.traceId ? [i.traceId] : []));
+  try {
+    const telemetry = await getTraceQueryService().getItemTelemetry(traceIds);
+    return items.map((i) => ({ ...i, telemetry: i.traceId ? (telemetry.get(i.traceId) ?? null) : null }));
+  } catch (error) {
+    console.error("[memtrace-api] item telemetry unavailable:", error);
+    return items;
+  }
 }

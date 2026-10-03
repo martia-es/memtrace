@@ -1,5 +1,5 @@
 from memtrace._version import __version__
-from memtrace.adapters.inbound.manual import trace_llm_call, trace_step, trace_step_context
+from memtrace.adapters.inbound.manual import record_retrieved_chunks, trace_llm_call, trace_step, trace_step_context
 from memtrace.application.context import get_current_run_id, session
 from memtrace.dependency_container import flush, init_tracer, shutdown
 from memtrace.langchain import MemTraceCallbackHandler, enable_langchain_instrumentation
@@ -14,6 +14,7 @@ __all__ = [
     "trace_step",
     "trace_step_context",
     "trace_llm_call",
+    "record_retrieved_chunks",
     "get_current_run_id",
     "MemTraceCallbackHandler",
     "enable_langchain_instrumentation",

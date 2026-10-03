@@ -17,6 +17,7 @@ import { buildTranscript, type Transcript } from "@/domain/transcript";
 import type { Page, PageCursor, TraceDetail, TraceSummary } from "@/domain/trace";
 import { buildTraceDetail } from "@/domain/tree";
 import { costOf, toPricingCatalog, type ModelPricing, type PricingCatalog } from "@/domain/pricing";
+import { telemetryOf, type ItemTelemetry } from "@/domain/evaluation";
 import type { TraceRepository } from "./ports/trace-repository";
 
 export const DEFAULT_PAGE_SIZE = 50;
@@ -183,6 +184,14 @@ export class TraceQueryService {
       .filter(({ found }) => found && found.spans.length > 0)
       .map(({ traceId, found }) => buildTraceDetail(traceId, found!.spans, found!.truncated, pricing));
     return { items, nextCursor: turns.nextCursor };
+  }
+
+  /** Latencia, tokens y coste de las trazas dadas (items de una run de evaluación, ADR-044). Las que no existen (aún o ya expiradas) no aparecen. */
+  async getItemTelemetry(traceIds: string[]): Promise<Map<string, ItemTelemetry>> {
+    const unique = [...new Set(traceIds)];
+    if (unique.length === 0) return new Map();
+    const [stats, pricing] = await Promise.all([this.repository.getTraceStatsForTraces(unique), this.pricingCatalog()]);
+    return new Map([...stats].map(([traceId, s]) => [traceId, telemetryOf(s, pricing)]));
   }
 
   async getOverview(input: { from?: Date; to?: Date; service?: string }): Promise<MetricsOverview & { fromMs: number; toMs: number }> {

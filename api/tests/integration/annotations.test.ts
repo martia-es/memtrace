@@ -40,7 +40,7 @@ describe.skipIf(!enabled)("ClickHouseAnnotationRepository (integration)", () => 
   });
 
   afterAll(async () => {
-    for (const table of ["annotations", "scores"]) {
+    for (const table of ["annotations", "eval_items", "eval_scores"]) {
       await admin.command({ query: `ALTER TABLE ${config.database}.${table} DELETE WHERE ServiceName = {s:String}`, query_params: { s: SERVICE } });
     }
     await admin.close();
@@ -71,7 +71,7 @@ describe.skipIf(!enabled)("ClickHouseAnnotationRepository (integration)", () => 
     expect(await repo.listForTrace(`${SERVICE}-other`, TRACE)).toEqual([]);
   });
 
-  it("lists the automatic scores linked to the trace, without the _no_score placeholder", async () => {
+  it("lists the automatic scores linked to the trace, (an item with no scores contributes nothing)", async () => {
     await scores.insertScores(
       SERVICE,
       "run-1",

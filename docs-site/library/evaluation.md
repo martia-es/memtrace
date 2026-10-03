@@ -102,7 +102,9 @@ When `data` is a dataset id, the run appears in the dashboard under **Runs** (an
 - **Run** — one run: its metrics, latency (p50 / p95 / max) and the items that errored or failed a boolean evaluator.
 - **Compare** — pick a baseline (A) and a candidate (B): per-evaluator deltas, which items regressed or improved (items are matched by identical input), and **what changed in the dataset** between their versions (added / modified / removed items, and which regressions touch a changed item). If both runs used the same dataset version, it says so: the difference does not come from the data.
 
-Latency is read from the traces linked to each item (`TraceId`), so it only appears for items where your agent was traced during `task`; otherwise the view says it is not recorded. Native per-item latency, tokens and retrieved RAG chunks are not stored yet.
+Latency, tokens and cost are read from the trace of each item, not stored with it. Call `memtrace.init_tracer()` before `run_experiment`: every item then runs inside its own trace (an `eval.item` span) whose id is saved with the result, and the Run and Compare views show p50 / p95 / max latency, tokens and cost from it (cost needs a model with a known price). Without a tracer, or once the trace has expired (traces are kept 30 days), those figures are simply absent. `run_experiment` never initialises the tracer for you.
+
+For RAG agents, the chunks a retriever returned are recorded on its span as `memtrace.retriever.chunks` (rank order, with `text`, and `id` / `source` / `score` when known) and are visible in that item's trace. LangChain retrievers do it automatically; otherwise call `memtrace.record_retrieved_chunks(documents)` inside a `retriever` step. The text is only exported when content capture is enabled.
 
 ## LLM-as-judge evaluators
 

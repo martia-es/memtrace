@@ -1,3 +1,6 @@
+import { costOf, type PricingCatalog } from "./pricing";
+import type { TraceStats } from "./trace";
+
 /** Resultado de evaluación offline (ADR-028): vive en ClickHouse, no en PostgreSQL (ver `scores` table). */
 
 export type ScoreDataType = "numeric" | "boolean" | "categorical";
@@ -26,9 +29,20 @@ export interface DatasetRunItemSubmission {
   scores: Score[];
 }
 
+/** Latencia, tokens y coste de un item, leídos de su traza al consultar (ADR-044): no se guardan con el item. */
+export interface ItemTelemetry {
+  latencyMs: number;
+  inputTokens: number;
+  outputTokens: number;
+  /** null si ningún modelo de la traza tiene precio conocido (ADR-025) */
+  costUsd: number | null;
+}
+
 /** Una fila leída de vuelta de ClickHouse para mostrar el detalle de una ejecución. */
 export interface DatasetRunItemResult extends DatasetRunItemSubmission {
   itemIndex: number;
+  /** null si el item no tiene traza, o su traza no está (aún) en el almacén o ya expiró */
+  telemetry?: ItemTelemetry | null;
 }
 
 /** Resumen de un evaluador sobre un run entero: cuenta como "aprobado" el `passRate` de un
@@ -50,4 +64,15 @@ export interface ScoreAggregate {
   /** Identidades distintas de juez entre los scores `llm_judge` de este (run, evaluador); vacío si no hay ninguno.
    * Más de una = el run mezcla jueces (p. ej. un reenvío con el juez cambiado) o scores anteriores a ADR-043. */
   judges: ScoreJudge[];
+}
+
+/** Pone precio a las cifras de una traza (ADR-025). El coste suma solo los modelos con precio conocido; null si no hay ninguno. */
+export function telemetryOf(stats: TraceStats, pricing: PricingCatalog): ItemTelemetry {
+  const costs = stats.byModel.map((m) => costOf(m.model, m.inputTokens, m.outputTokens, pricing)).filter((c): c is number => c !== null);
+  return {
+    latencyMs: stats.durationMs,
+    inputTokens: stats.byModel.reduce((sum, m) => sum + m.inputTokens, 0),
+    outputTokens: stats.byModel.reduce((sum, m) => sum + m.outputTokens, 0),
+    costUsd: costs.length === 0 ? null : costs.reduce((sum, c) => sum + c, 0),
+  };
 }

@@ -8,7 +8,7 @@ import type { ChatSpanRecord } from "@/domain/transcript";
 import type { AttributeKeyCount, AttributeValueCount, CustomMetricQuery, CustomMetricResult, MetricsOverview, MetricsQuery, ServiceUsage, StepKindCount } from "@/domain/metrics";
 import type { Span, StatusCode } from "@/domain/span";
 import { MAX_RANGE_MS, type TimeRange } from "@/domain/time-range";
-import type { Page, TraceSummary } from "@/domain/trace";
+import type { Page, TraceStats, TraceSummary } from "@/domain/trace";
 import { QueryLimiter } from "./query-limiter";
 
 /** Los hijos de un span raíz pueden empezar después de que el rango termine: ventana de agregación. */
@@ -570,6 +570,44 @@ export class ClickHouseTraceRepository implements TraceRepository {
       };
     });
     return { spans, truncated: rows.length > maxSpans };
+  }
+
+  /** Latencia (span raíz) y tokens de LLM por modelo de varias trazas, en una sola consulta acotada por la ventana temporal de esas trazas. */
+  async getTraceStatsForTraces(traceIds: string[]): Promise<Map<string, TraceStats>> {
+    const result = new Map<string, TraceStats>();
+    if (traceIds.length === 0) return result;
+
+    const [bounds] = await this.rows(
+      `SELECT toUnixTimestamp64Micro(min(Start)) AS startUs, toUnixTimestamp64Micro(max(End)) AS endUs
+       FROM ${this.traceIndex} WHERE TraceId IN {ids:Array(String)}`,
+      { ids: traceIds },
+    );
+    if (!bounds || bounds.startUs == null) return result;
+
+    const rows = await this.rows(
+      `SELECT TraceId,
+              ${attr("gen_ai.request.model")} AS model,
+              maxIf(Duration, ParentSpanId = '') AS rootNs,
+              sumIf(${attrNum("gen_ai.usage.input_tokens")}, ${OP} = 'chat') AS inputTokens,
+              sumIf(${attrNum("gen_ai.usage.output_tokens")}, ${OP} = 'chat') AS outputTokens,
+              countIf(${OP} = 'chat') AS chatCalls
+       FROM ${this.spans}
+       WHERE TraceId IN {ids:Array(String)}
+         AND Timestamp >= fromUnixTimestamp64Micro({startUs:Int64}) AND Timestamp <= fromUnixTimestamp64Micro({endUs:Int64})
+       GROUP BY TraceId, model`,
+      { ids: traceIds, startUs: num(bounds.startUs), endUs: num(bounds.endUs) },
+    );
+
+    for (const r of rows) {
+      const traceId = String(r.TraceId);
+      const stats = result.get(traceId) ?? { traceId, durationMs: 0, byModel: [] };
+      stats.durationMs = Math.max(stats.durationMs, nsToMs(r.rootNs));
+      if (num(r.chatCalls) > 0) {
+        stats.byModel.push({ model: r.model ? String(r.model) : null, inputTokens: num(r.inputTokens), outputTokens: num(r.outputTokens) });
+      }
+      result.set(traceId, stats);
+    }
+    return result;
   }
 
   /** Igual que `getTraceSpans` pero para varias trazas en una sola consulta (vista de árbol de conversación). */

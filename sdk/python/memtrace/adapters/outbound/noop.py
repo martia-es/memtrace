@@ -5,6 +5,8 @@ from memtrace.application.ports import SpanHandle
 
 
 class NoopSpanHandle:
+    trace_id: Optional[str] = None
+
     def set_attributes(self, attributes: Mapping[str, Any]) -> None:
         pass
 

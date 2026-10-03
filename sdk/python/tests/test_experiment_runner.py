@@ -249,3 +249,26 @@ def test_offline_path_needs_neither_httpx_nor_the_http_adapter():
         """
     )
     subprocess.run([sys.executable, "-c", code], check=True)
+
+
+def test_item_scope_trace_id_is_recorded_even_when_task_fails():
+    from contextlib import contextmanager
+
+    @contextmanager
+    def scope(item):
+        yield f"trace-{item.input}"
+
+    def flaky_task(*, item: EvalItem):
+        if item.input == "2+2?":
+            raise RuntimeError("boom")
+        return item.expected_output
+
+    result = run_experiment(data=ITEMS, task=flaky_task, evaluators=[_ExactMatch()], name="scoped", item_scope=scope)
+
+    assert [r.trace_id for r in result.items] == ["trace-2+2?", "trace-capital of France?"]
+    assert result.items[0].error == "boom"
+
+
+def test_without_item_scope_trace_id_is_none():
+    result = run_experiment(data=ITEMS, task=_echo_task, evaluators=[_ExactMatch()], name="plain")
+    assert all(r.trace_id is None for r in result.items)

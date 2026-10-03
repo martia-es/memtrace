@@ -7,7 +7,9 @@ What this shows that the local example can't:
   2. `run_experiment(data=dataset_id)` reads the LATEST version;
   3. `run_experiment(data=dataset_id, dataset_version="2.0")` re-runs against an exact older
      version, even after the dataset has changed — and the run is recorded against that version;
-  4. results show up in the dashboard (Datasets > this dataset > Runs, with the version used).
+  4. results show up in the dashboard (Datasets > this dataset > Runs, with the version used);
+  5. because `init_tracer()` runs before `run_experiment`, every item runs in its own trace (`eval.item`)
+     and its id is saved with the result: the run view shows latency, tokens and cost read from it (ADR-044).
 
 Needs a running MemTrace stack and an agent API key (dashboard: Experiment > API keys).
 `MEMTRACE_API_URL` must include the experiment id (ADR-013), like `MEMTRACE_OTLP_ENDPOINT`.
@@ -79,4 +81,6 @@ if __name__ == "__main__":
     # `dataset_version` is the version the server actually served, and the one the run is recorded against.
     print(f"latest version ({latest.dataset_version}): {len(latest.items)} items, exact_match pass rate {latest.summary()[0].pass_rate:.2f}")
     print(f"pinned version ({pinned.dataset_version}): {len(pinned.items)} items, exact_match pass rate {pinned.summary()[0].pass_rate:.2f}  <- before 'Spain' was added")
+    traced = sum(1 for r in latest.items if r.trace_id)
+    print(f"items linked to a trace (latency/tokens/cost in the dashboard): {traced}/{len(latest.items)}")
     print(f"\nSee both runs, with the version each used: {DASHBOARD_URL}/e/{EXPERIMENT_ID}/datasets/{dataset_id}")

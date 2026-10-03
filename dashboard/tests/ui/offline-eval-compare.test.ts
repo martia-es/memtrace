@@ -1,9 +1,9 @@
 import type { DatasetItemChangeDto, DatasetRunItemResultDto, DatasetRunSummaryDto, ScoreDto } from "@contract";
 import { describe, expect, it } from "vitest";
-import { datasetChangeFor, evaluatorDeltas, itemFlips, loadItemLatencies, pairItems, percentile, summarizeLatency } from "@/ui/offline-eval-compare";
+import { datasetChangeFor, evaluatorDeltas, itemFlips, pairItems, percentile, summarizeTelemetry } from "@/ui/offline-eval-compare";
 
 const bool = (name: string, value: boolean): ScoreDto => ({ name, value: String(value), dataType: "boolean", source: "code", comment: null });
-const item = (itemIndex: number, input: unknown, scores: ScoreDto[] = [], traceId: string | null = null): DatasetRunItemResultDto => ({ itemIndex, input, expectedOutput: null, output: null, traceId, error: null, scores });
+const item = (itemIndex: number, input: unknown, scores: ScoreDto[] = [], traceId: string | null = null): DatasetRunItemResultDto => ({ itemIndex, input, expectedOutput: null, output: null, traceId, error: null, scores, telemetry: null });
 const summary = (aggregates: DatasetRunSummaryDto["aggregates"]): DatasetRunSummaryDto => ({ id: "r", name: "r", versionMajor: 1, versionMinor: 0, itemCount: 1, status: "completed", createdAt: "2026-01-01T00:00:00Z", aggregates });
 
 describe("pairItems", () => {
@@ -49,17 +49,17 @@ describe("datasetChangeFor", () => {
   });
 });
 
-describe("latency", () => {
+describe("telemetry", () => {
   it("computes percentiles", () => {
     expect(percentile([1, 2, 3, 4], 0.5)).toBe(2);
-    expect(summarizeLatency([400, 100, 200, 300], 4, 5)).toMatchObject({ p50: 200, p95: 400, max: 400, count: 4, total: 5 });
   });
-  it("skips items without a trace and tolerates failing lookups", async () => {
-    const items = [item(0, "a", [], "t1"), item(1, "b"), item(2, "c", [], "bad")];
-    const { summary: s } = await loadItemLatencies(items, async (id) => {
-      if (id === "bad") throw new Error("gone");
-      return 120;
-    });
-    expect(s).toMatchObject({ count: 1, covered: 2, total: 3, p50: 120 });
+  it("summarizes only the items whose trace was found", () => {
+    const withT = (i: number, latencyMs: number, costUsd: number | null) => ({ ...item(i, "x", [], `t${i}`), telemetry: { latencyMs, inputTokens: 10, outputTokens: 5, costUsd } });
+    const items = [withT(0, 400, 0.01), withT(1, 100, null), withT(2, 200, 0.02), item(3, "no trace")];
+    expect(summarizeTelemetry(items)).toMatchObject({ count: 3, total: 4, p50: 200, p95: 400, max: 400, inputTokens: 30, outputTokens: 15 });
+    expect(summarizeTelemetry(items).costUsd).toBeCloseTo(0.03);
+  });
+  it("has no cost when no model is priced and no latency without telemetry", () => {
+    expect(summarizeTelemetry([item(0, "a")])).toMatchObject({ count: 0, p50: null, costUsd: null, inputTokens: 0 });
   });
 });

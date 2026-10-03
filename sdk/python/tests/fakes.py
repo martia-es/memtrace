@@ -1,3 +1,4 @@
+import uuid
 from contextlib import contextmanager
 from typing import Any, Iterable, List, Mapping, Optional
 
@@ -9,6 +10,7 @@ class FakeHandle:
         self.name, self.parent = name, parent
         self.attributes = dict(attributes)
         self.ended = False
+        self.trace_id = (parent.trace_id if parent is not None else uuid.uuid4().hex)
         self.error: Optional[BaseException] = None
 
     def set_attributes(self, attributes: Mapping[str, Any]) -> None:

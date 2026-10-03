@@ -3,7 +3,7 @@ import type { DatasetItemChangeDto, DatasetVersionDiffResponse, RunListItemDto }
 import { computed, ref, watch } from "vue";
 import { formatDateTime, formatDuration, formatPercent } from "@/domain/format";
 import { offlineRunLabel } from "../offline-eval-chart-option";
-import { datasetChangeFor, evaluatorDeltas, itemFlips, loadItemLatencies, pairItems, type LatencySummary } from "../offline-eval-compare";
+import { datasetChangeFor, evaluatorDeltas, itemFlips, pairItems, summarizeTelemetry, type TelemetrySummary } from "../offline-eval-compare";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
 import ErrorBanner from "./ErrorBanner.vue";
@@ -34,8 +34,8 @@ const deltas = computed(() => (runA.value && runB.value ? evaluatorDeltas(runA.v
 
 interface Loaded {
   pairing: ReturnType<typeof pairItems>;
-  latA: LatencySummary;
-  latB: LatencySummary;
+  latA: TelemetrySummary;
+  latB: TelemetrySummary;
   diff: DatasetVersionDiffResponse | null;
 }
 
@@ -44,8 +44,6 @@ const loaded = useAsync<Loaded | null>(async (signal) => {
   const b = runB.value;
   if (!a || !b || a.id === b.id) return null;
   const [da, db] = await Promise.all([api.getDatasetRun(a.datasetId, a.id, signal), api.getDatasetRun(b.datasetId, b.id, signal)]);
-  const trace = async (id: string) => (await api.getTrace(id)).durationMs;
-  const [la, lb] = await Promise.all([loadItemLatencies(da.items, trace), loadItemLatencies(db.items, trace)]);
   let diff: DatasetVersionDiffResponse | null = null;
   if (sameDataset.value && !sameVersion.value) {
     const versions = (await api.listDatasetVersions(a.datasetId, signal)).items;
@@ -57,7 +55,7 @@ const loaded = useAsync<Loaded | null>(async (signal) => {
       diff = await api.getDatasetVersionDiff(a.datasetId, newer.id, older.id, signal);
     }
   }
-  return { pairing: pairItems(da.items, db.items), latA: la.summary, latB: lb.summary, diff };
+  return { pairing: pairItems(da.items, db.items), latA: summarizeTelemetry(da.items), latB: summarizeTelemetry(db.items), diff };
 });
 watch([idA, idB], () => void loaded.run(), { immediate: true });
 
@@ -87,8 +85,11 @@ function preview(value: unknown): string {
   if (value === null || value === undefined) return "–";
   return typeof value === "string" ? value : JSON.stringify(value);
 }
-function latencyCell(s: LatencySummary | undefined, key: "p50" | "p95"): string {
+function latencyCell(s: TelemetrySummary | undefined, key: "p50" | "p95"): string {
   return s && s[key] !== null ? formatDuration(s[key]!) : "–";
+}
+function costCell(s: TelemetrySummary): string {
+  return s.costUsd === null ? "–" : `$${s.costUsd.toFixed(4)}`;
 }
 const hasLatency = computed(() => !!loaded.data.value && (loaded.data.value.latA.count > 0 || loaded.data.value.latB.count > 0));
 const SHOWN = 20;
@@ -177,10 +178,12 @@ const SHOWN = 20;
             <tbody>
               <tr><td>p50</td><td>{{ latencyCell(loaded.data.value.latA, "p50") }}</td><td>{{ latencyCell(loaded.data.value.latB, "p50") }}</td></tr>
               <tr><td>p95</td><td>{{ latencyCell(loaded.data.value.latA, "p95") }}</td><td>{{ latencyCell(loaded.data.value.latB, "p95") }}</td></tr>
+              <tr><td>tokens in / out</td><td>{{ loaded.data.value.latA.inputTokens }} / {{ loaded.data.value.latA.outputTokens }}</td><td>{{ loaded.data.value.latB.inputTokens }} / {{ loaded.data.value.latB.outputTokens }}</td></tr>
+              <tr><td>cost</td><td>{{ costCell(loaded.data.value.latA) }}</td><td>{{ costCell(loaded.data.value.latB) }}</td></tr>
               <tr><td>items with trace</td><td>{{ loaded.data.value.latA.count }} / {{ loaded.data.value.latA.total }}</td><td>{{ loaded.data.value.latB.count }} / {{ loaded.data.value.latB.total }}</td></tr>
             </tbody>
           </table>
-          <p v-else class="hint">Latency is not recorded for these runs: no item has a linked trace (ADR-042).</p>
+          <p v-else class="hint">Latency is not recorded for these runs: no item has a linked trace (ADR-044). Call <code>memtrace.init_tracer()</code> before <code>run_experiment</code>.</p>
         </section>
       </template>
     </template>

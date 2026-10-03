@@ -125,6 +125,11 @@ def init_tracer(
         return _service
 
 
+def active_service() -> Optional[TracingService]:
+    """The tracer only if `init_tracer` already ran: never initializes anything as a side effect."""
+    return _service
+
+
 def get_service() -> TracingService:
     """The active service, initializing it from the environment if `init_tracer` was not called."""
     return _service or init_tracer()

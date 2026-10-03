@@ -491,8 +491,19 @@ export interface RunsListResponse {
   items: RunListItemDto[];
 }
 
+/** Latencia, tokens y coste de un item, leídos de su traza al consultar (ADR-044); no se guardan con el item. */
+export interface ItemTelemetryDto {
+  latencyMs: number;
+  inputTokens: number;
+  outputTokens: number;
+  /** null si ningún modelo de la traza tiene precio conocido */
+  costUsd: number | null;
+}
+
 export interface DatasetRunItemResultDto extends DatasetRunItemSubmissionDto {
   itemIndex: number;
+  /** null si el item no tiene traza, o su traza no está (aún) en el almacén o ya expiró */
+  telemetry: ItemTelemetryDto | null;
 }
 
 export interface DatasetRunDetailResponse {

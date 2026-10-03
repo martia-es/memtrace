@@ -13,7 +13,7 @@ from memtrace.adapters.inbound.langchain.mapping import (
 from memtrace.application.tracing_service import TracingService
 from memtrace.dependency_container import get_service
 from memtrace.domain import semconv as sc
-from memtrace.domain.attributes import llm_attributes
+from memtrace.domain.attributes import llm_attributes, retrieved_chunks
 from memtrace.domain.model import StepType
 from memtrace.domain.serialization import to_json
 
@@ -98,7 +98,10 @@ class MemTraceCallbackHandler(BaseCallbackHandler):
                     {sc.MEMTRACE_INPUT: self._service.capture(query)})
 
     def on_retriever_end(self, documents, *, run_id, parent_run_id=None, **kwargs) -> Any:
-        self._end(run_id, {sc.MEMTRACE_RETRIEVER_DOCUMENTS: len(documents or [])})
+        self._end(run_id, {
+            sc.MEMTRACE_RETRIEVER_DOCUMENTS: len(documents or []),
+            sc.MEMTRACE_RETRIEVER_CHUNKS: self._service.capture(retrieved_chunks(documents)),
+        })
 
     def on_retriever_error(self, error, *, run_id, parent_run_id=None, **kwargs) -> Any:
         self._end(run_id, error=error)

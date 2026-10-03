@@ -10,7 +10,8 @@ from memtrace.application.context import current_run_id, get_session_id
 from memtrace.application.ports import SpanPort
 from memtrace.application.run_lifecycle import RunLifecycleGuard
 from memtrace.application.run_registry import RunRegistry
-from memtrace.domain.attributes import llm_attributes, step_start_attributes
+from memtrace.domain import semconv as sc
+from memtrace.domain.attributes import llm_attributes, retrieved_chunks, step_start_attributes
 from memtrace.domain.model import CapturePolicy, LlmCall, StepType
 
 logger = logging.getLogger("memtrace")
@@ -113,6 +114,12 @@ class TracingService:
         if handle is not None:
             handle.set_attributes(attributes)
 
+    @_failsafe()
+    def current_trace_id(self) -> Optional[str]:
+        """Trace id of the current span (None when there is none or tracing is off)."""
+        handle = self._port.current()
+        return handle.trace_id if handle is not None else None
+
     @contextmanager
     def step(
         self,
@@ -177,6 +184,18 @@ class TracingService:
         attrs = llm_attributes(call, self.capture(input_messages), self.capture(output_messages))
         attrs.update(extra_attributes or {})
         handle.set_attributes(attrs)
+
+    @_failsafe()
+    def record_retrieved_chunks(self, documents: Sequence[Any]) -> None:
+        """Annotates the current (retriever) span with the chunks it returned (ADR-044).
+
+        The count is always recorded; the chunk text only when content capture is enabled (it is content).
+        """
+        handle = self._port.current()
+        if handle is None:
+            return
+        chunks = retrieved_chunks(documents)
+        handle.set_attributes({sc.MEMTRACE_RETRIEVER_DOCUMENTS: len(chunks), sc.MEMTRACE_RETRIEVER_CHUNKS: self.capture(chunks)})
 
     # ----- maintenance -----
 

@@ -413,6 +413,7 @@ function toDatasetRunItemResultDto(item: DatasetRunItemResult): DatasetRunItemRe
     traceId: item.traceId,
     error: item.error,
     scores: item.scores,
+    telemetry: item.telemetry ?? null,
   };
 }
 

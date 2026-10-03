@@ -108,3 +108,42 @@ def test_reaper_stops_on_shutdown(port):
     svc.shutdown()
     thread.join(timeout=2)
     assert not thread.is_alive()
+
+
+def test_current_trace_id_is_the_one_of_the_current_span_and_none_outside():
+    from memtrace.application.tracing_service import TracingService
+    from tests.fakes import FakeSpanPort
+
+    service = TracingService(FakeSpanPort())
+    assert service.current_trace_id() is None
+    with service.step("root"):
+        inside = service.current_trace_id()
+        with service.step("child"):
+            assert service.current_trace_id() == inside
+    assert inside is not None and len(inside) == 32
+
+
+def test_record_retrieved_chunks_exports_the_text_only_when_content_capture_is_enabled():
+    import json
+
+    from memtrace.application.tracing_service import TracingService
+    from memtrace.domain.model import CapturePolicy, StepType
+    from tests.fakes import FakeSpanPort
+
+    class Doc:
+        page_content = "Paris is the capital of France"
+        metadata = {"source": "geo.md", "score": 0.91}
+
+    for enabled in (True, False):
+        port = FakeSpanPort()
+        service = TracingService(port, capture=CapturePolicy(enabled=enabled))
+        with service.step("search", StepType.RETRIEVER):
+            service.record_retrieved_chunks([Doc(), {"text": "Rome", "id": "c2"}, "plain"])
+        attrs = port.spans[0].attributes
+        assert attrs["memtrace.retriever.documents"] == 3
+        if enabled:
+            chunks = json.loads(attrs["memtrace.retriever.chunks"])
+            assert chunks[0] == {"text": "Paris is the capital of France", "source": "geo.md", "score": 0.91}
+            assert chunks[1] == {"text": "Rome", "id": "c2"} and chunks[2] == {"text": "plain"}
+        else:
+            assert attrs.get("memtrace.retriever.chunks") is None

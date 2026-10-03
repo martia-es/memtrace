@@ -4,18 +4,11 @@ import type { JudgeScoreRow, ScoreRepository } from "@/application/ports/score-r
 import type { TraceScore } from "@/domain/annotation";
 import type { DatasetRunItemResult, DatasetRunItemSubmission, Score, ScoreAggregate, ScoreDataType } from "@/domain/evaluation";
 
-interface ScoreRow {
+interface ItemRow {
   ServiceName: string;
   DatasetRunId: string;
   ItemIndex: number;
   TraceId: string | null;
-  Name: string;
-  Value: string;
-  DataType: string;
-  Source: string;
-  Comment: string | null;
-  JudgeModel: string | null;
-  JudgePromptHash: string | null;
   Input: string;
   Output: string | null;
   ExpectedOutput: string | null;
@@ -23,8 +16,33 @@ interface ScoreRow {
   CreatedAt: string;
 }
 
-/** Implementación del puerto sobre la tabla `scores` (ADR-028). El cliente de escritura está
- * acotado exclusivamente a esta tabla (ver `client.ts::createEvaluationWriteClient`). */
+interface ScoreRow {
+  ServiceName: string;
+  DatasetRunId: string;
+  ItemIndex: number;
+  Name: string;
+  Value: string;
+  ValueNum: number | null;
+  DataType: string;
+  Source: string;
+  Comment: string | null;
+  JudgeModel: string | null;
+  JudgePromptHash: string | null;
+  CreatedAt: string;
+}
+
+/** Valor tipado de un score: el número de un `numeric`, 1/0 de un `boolean`, null en un `categorical` (o si no es un número finito). */
+export function numericValueOf(score: Pick<Score, "value" | "dataType">): number | null {
+  if (score.dataType === "boolean") return score.value === "true" ? 1 : score.value === "false" ? 0 : null;
+  if (score.dataType === "numeric") {
+    const n = Number(score.value);
+    return score.value.trim() !== "" && Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+/** Implementación del puerto sobre `eval_items` + `eval_scores` (ADR-044). El cliente de escritura está
+ * acotado exclusivamente a las tablas de evaluación (ver `client.ts::createEvaluationWriteClient`). */
 export class ClickHouseScoreRepository implements ScoreRepository {
   constructor(
     private readonly writeClient: ClickHouseClient,
@@ -35,64 +53,84 @@ export class ClickHouseScoreRepository implements ScoreRepository {
   async insertScores(serviceName: string, datasetRunId: string, items: DatasetRunItemSubmission[], startIndex = 0): Promise<void> {
     // DateTime64 en JSONEachRow espera "YYYY-MM-DD HH:MM:SS.mmm", no el "T"/"Z" de toISOString()
     const now = new Date().toISOString().replace("T", " ").replace("Z", "");
-    const rows: ScoreRow[] = items.flatMap((item, itemIndex) =>
-      // un item sin scores (p.ej. porque `task` lanzó una excepción) deja constancia de todos modos
-      (item.scores.length > 0 ? item.scores : [placeholderScore(item)]).map((score) => ({
+    const indexed = items.map((item, position) => ({ item, itemIndex: item.itemIndex ?? startIndex + position }));
+    // un item sin scores (p.ej. porque `task` lanzó una excepción) queda igualmente en eval_items
+    const itemRows: ItemRow[] = indexed.map(({ item, itemIndex }) => ({
+      ServiceName: serviceName,
+      DatasetRunId: datasetRunId,
+      ItemIndex: itemIndex,
+      TraceId: item.traceId,
+      Input: JSON.stringify(item.input),
+      Output: item.output === undefined ? null : JSON.stringify(item.output),
+      ExpectedOutput: item.expectedOutput === undefined ? null : JSON.stringify(item.expectedOutput),
+      Error: item.error,
+      CreatedAt: now,
+    }));
+    const scoreRows: ScoreRow[] = indexed.flatMap(({ item, itemIndex }) =>
+      item.scores.map((score) => ({
         ServiceName: serviceName,
         DatasetRunId: datasetRunId,
-        ItemIndex: item.itemIndex ?? startIndex + itemIndex,
-        TraceId: item.traceId,
+        ItemIndex: itemIndex,
         Name: score.name,
         Value: score.value,
+        ValueNum: numericValueOf(score),
         DataType: score.dataType,
         Source: score.source,
         Comment: score.comment,
         JudgeModel: score.judgeModel ?? null,
         JudgePromptHash: score.judgePromptHash ?? null,
-        Input: JSON.stringify(item.input),
-        Output: item.output === undefined ? null : JSON.stringify(item.output),
-        ExpectedOutput: item.expectedOutput === undefined ? null : JSON.stringify(item.expectedOutput),
-        Error: item.error,
         CreatedAt: now,
       })),
     );
-    if (rows.length === 0) return;
+    if (itemRows.length === 0) return;
 
     try {
-      await this.writeClient.insert({ table: `${this.database}.scores`, values: rows, format: "JSONEachRow" });
+      await this.writeClient.insert({ table: `${this.database}.eval_items`, values: itemRows, format: "JSONEachRow" });
+      if (scoreRows.length > 0) await this.writeClient.insert({ table: `${this.database}.eval_scores`, values: scoreRows, format: "JSONEachRow" });
     } catch (error) {
-      console.error("[memtrace-api] ClickHouse insert (scores) failed:", error);
+      console.error("[memtrace-api] ClickHouse insert (eval items/scores) failed:", error);
       throw new RepositoryUnavailableError(error);
     }
   }
 
   async listScoresByRun(serviceName: string, datasetRunId: string): Promise<DatasetRunItemResult[]> {
-    let rows: ScoreRow[];
     try {
-      const result = await this.readClient.query({
-        query: `SELECT * FROM ${this.database}.scores FINAL
-                 WHERE ServiceName = {serviceName:String} AND DatasetRunId = {datasetRunId:String}
-                 ORDER BY ItemIndex ASC, Name ASC`,
-        query_params: { serviceName, datasetRunId },
-        format: "JSONEachRow",
-      });
-      rows = await result.json<ScoreRow>();
+      const params = { serviceName, datasetRunId };
+      const [items, scores] = await Promise.all([
+        this.readClient.query({
+          query: `SELECT * FROM ${this.database}.eval_items FINAL
+                   WHERE ServiceName = {serviceName:String} AND DatasetRunId = {datasetRunId:String}
+                   ORDER BY ItemIndex ASC`,
+          query_params: params,
+          format: "JSONEachRow",
+        }),
+        this.readClient.query({
+          query: `SELECT * FROM ${this.database}.eval_scores FINAL
+                   WHERE ServiceName = {serviceName:String} AND DatasetRunId = {datasetRunId:String}
+                   ORDER BY ItemIndex ASC, Name ASC`,
+          query_params: params,
+          format: "JSONEachRow",
+        }),
+      ]);
+      return joinItems(await items.json<ItemRow>(), await scores.json<ScoreRow>());
     } catch (error) {
-      console.error("[memtrace-api] ClickHouse query (scores) failed:", error);
+      console.error("[memtrace-api] ClickHouse query (eval items/scores) failed:", error);
       throw new RepositoryUnavailableError(error);
     }
-    return groupByItem(rows);
   }
 
   async listScoresByTrace(serviceName: string, traceId: string): Promise<TraceScore[]> {
     try {
-      // `scores` no tiene índice por TraceId (su clave empieza por DatasetRunId): es un escaneo acotado por ServiceName.
-      // Si resultara lento, añadir un índice de salto bloom_filter en TraceId (ADR-037) en lugar de remodelar la tabla.
+      // eval_items tiene un índice de salto bloom_filter en TraceId; los scores se buscan por (run, item) de esos items.
       const result = await this.readClient.query({
-        query: `SELECT DatasetRunId, ItemIndex, Name, Value, DataType, Source, Comment
-                  FROM ${this.database}.scores FINAL
-                 WHERE ServiceName = {serviceName:String} AND TraceId = {traceId:String} AND Name != '_no_score'
-                 ORDER BY CreatedAt ASC, Name ASC
+        query: `SELECT s.DatasetRunId AS DatasetRunId, s.ItemIndex AS ItemIndex, s.Name AS Name, s.Value AS Value, s.DataType AS DataType, s.Source AS Source, s.Comment AS Comment
+                  FROM ${this.database}.eval_scores AS s FINAL
+                 INNER JOIN (
+                   SELECT DatasetRunId, ItemIndex FROM ${this.database}.eval_items FINAL
+                    WHERE ServiceName = {serviceName:String} AND TraceId = {traceId:String}
+                 ) AS i ON s.DatasetRunId = i.DatasetRunId AND s.ItemIndex = i.ItemIndex
+                 WHERE s.ServiceName = {serviceName:String}
+                 ORDER BY s.CreatedAt ASC, s.Name ASC
                  LIMIT 500`,
         query_params: { serviceName, traceId },
         format: "JSONEachRow",
@@ -118,11 +156,10 @@ export class ClickHouseScoreRepository implements ScoreRepository {
     try {
       const result = await this.readClient.query({
         query: `SELECT DatasetRunId, ItemIndex, Name, Value, DataType, JudgeModel, JudgePromptHash
-                  FROM ${this.database}.scores FINAL
+                  FROM ${this.database}.eval_scores FINAL
                  WHERE ServiceName = {serviceName:String}
                    AND DatasetRunId IN {datasetRunIds:Array(String)}
                    AND Source = 'llm_judge'
-                   AND Name != '_no_score'
                    ${name === undefined ? "" : "AND Name = {name:String}"}
                  LIMIT 50000`,
         query_params: { serviceName, datasetRunIds, ...(name === undefined ? {} : { name }) },
@@ -148,18 +185,16 @@ export class ClickHouseScoreRepository implements ScoreRepository {
     if (datasetRunIds.length === 0) return [];
     let rows: AggregateRow[];
     try {
+      // ValueNum es la columna tipada (ADR-044): ya no hay que parsear `Value` en cada agregación.
       const result = await this.readClient.query({
         query: `SELECT
                    DatasetRunId, Name, DataType,
                    count() AS total,
-                   countIf(DataType = 'boolean') AS boolCount,
-                   countIf(DataType = 'boolean' AND Value = 'true') AS trueCount,
-                   avgIf(toFloat64OrNull(Value), DataType = 'numeric') AS avgValue,
+                   avgIf(ValueNum, DataType IN ('boolean', 'numeric')) AS avgValue,
                    groupUniqArrayIf((JudgeModel, JudgePromptHash), Source = 'llm_judge') AS judges
-                 FROM ${this.database}.scores FINAL
+                 FROM ${this.database}.eval_scores FINAL
                  WHERE ServiceName = {serviceName:String}
                    AND DatasetRunId IN {datasetRunIds:Array(String)}
-                   AND Name != '_no_score'
                  GROUP BY DatasetRunId, Name, DataType`,
         query_params: { serviceName, datasetRunIds },
         format: "JSONEachRow",
@@ -179,8 +214,7 @@ interface AggregateRow {
   DataType: string;
   // UInt64 llega como string en JSONEachRow, no como number
   total: string;
-  boolCount: string;
-  trueCount: string;
+  // media de ValueNum: para un boolean es la tasa de aprobados (1/0); null si no hay valores numéricos
   avgValue: number | null;
   // tupla (Nullable(String), Nullable(String)) llega como array de 2 elementos en JSONEachRow
   judges: Array<[string | null, string | null]>;
@@ -188,55 +222,44 @@ interface AggregateRow {
 
 function toScoreAggregate(row: AggregateRow): ScoreAggregate {
   const dataType = row.DataType as ScoreAggregate["dataType"];
-  // UInt64 (count()/countIf()) llega como string en JSONEachRow para no perder precisión
-  const total = Number(row.total);
-  const boolCount = Number(row.boolCount);
-  const trueCount = Number(row.trueCount);
   return {
     datasetRunId: row.DatasetRunId,
     name: row.Name,
     dataType,
-    passRate: dataType === "boolean" && boolCount > 0 ? trueCount / boolCount : null,
+    passRate: dataType === "boolean" ? row.avgValue : null,
     average: dataType === "numeric" ? row.avgValue : null,
-    count: total,
+    count: Number(row.total),
     judges: row.judges.map(([model, promptHash]) => ({ model, promptHash })),
   };
 }
 
-/** Deja constancia de un item sin ningún evaluador aplicado (p. ej. `task` falló) con un score vacío. */
-function placeholderScore(item: DatasetRunItemSubmission): Score {
-  return { name: "_no_score", value: "", dataType: "categorical", source: "code", comment: item.error };
-}
-
-function groupByItem(rows: ScoreRow[]): DatasetRunItemResult[] {
-  const byIndex = new Map<number, DatasetRunItemResult>();
-  for (const row of rows) {
-    let item = byIndex.get(row.ItemIndex);
-    if (!item) {
-      item = {
-        itemIndex: row.ItemIndex,
-        input: safeParse(row.Input),
-        output: row.Output === null ? null : safeParse(row.Output),
-        expectedOutput: row.ExpectedOutput === null ? null : safeParse(row.ExpectedOutput),
-        traceId: row.TraceId,
-        error: row.Error,
-        scores: [],
-      };
-      byIndex.set(row.ItemIndex, item);
-    }
-    if (row.Name !== "_no_score") {
-      item.scores.push({
-        name: row.Name,
-        value: row.Value,
-        dataType: row.DataType as Score["dataType"],
-        source: row.Source as Score["source"],
-        comment: row.Comment,
-        judgeModel: row.JudgeModel,
-        judgePromptHash: row.JudgePromptHash,
-      });
-    }
+/** Une los items de un run con sus scores. Un item sin scores (p. ej. `task` falló) sale con `scores: []`. */
+function joinItems(items: ItemRow[], scores: ScoreRow[]): DatasetRunItemResult[] {
+  const scoresByIndex = new Map<number, Score[]>();
+  for (const row of scores) {
+    const list = scoresByIndex.get(row.ItemIndex) ?? [];
+    list.push({
+      name: row.Name,
+      value: row.Value,
+      dataType: row.DataType as Score["dataType"],
+      source: row.Source as Score["source"],
+      comment: row.Comment,
+      judgeModel: row.JudgeModel,
+      judgePromptHash: row.JudgePromptHash,
+    });
+    scoresByIndex.set(row.ItemIndex, list);
   }
-  return [...byIndex.values()].sort((a, b) => a.itemIndex - b.itemIndex);
+  return items
+    .map((row) => ({
+      itemIndex: row.ItemIndex,
+      input: safeParse(row.Input),
+      output: row.Output === null ? null : safeParse(row.Output),
+      expectedOutput: row.ExpectedOutput === null ? null : safeParse(row.ExpectedOutput),
+      traceId: row.TraceId,
+      error: row.Error,
+      scores: scoresByIndex.get(row.ItemIndex) ?? [],
+    }))
+    .sort((a, b) => a.itemIndex - b.itemIndex);
 }
 
 function safeParse(value: string): unknown {

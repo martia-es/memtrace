@@ -71,4 +71,23 @@ describe("TraceQueryService", () => {
     expect(overview.timeseries).toHaveLength(60);
     expect(overview.toMs).toBe(NOW);
   });
+
+  it("prices each trace's tokens per model and leaves cost null when no model has a price (ADR-044)", async () => {
+    const { repo, service } = setup();
+    repo.modelPricing = [{ modelId: "gpt-x", provider: "openai", inputPricePerToken: 0.001, outputPricePerToken: 0.002, source: "litellm", updatedAtMs: 0 }];
+    repo.traceStats.set("priced", { traceId: "priced", durationMs: 1500, byModel: [{ model: "gpt-x", inputTokens: 100, outputTokens: 50 }, { model: "unknown", inputTokens: 10, outputTokens: 5 }] });
+    repo.traceStats.set("unpriced", { traceId: "unpriced", durationMs: 200, byModel: [{ model: "unknown", inputTokens: 10, outputTokens: 5 }] });
+
+    const telemetry = await service.getItemTelemetry(["priced", "unpriced", "priced", "missing"]);
+
+    expect(telemetry.get("priced")).toEqual({ latencyMs: 1500, inputTokens: 110, outputTokens: 55, costUsd: 0.2 });
+    expect(telemetry.get("unpriced")).toMatchObject({ latencyMs: 200, costUsd: null });
+    expect(telemetry.has("missing")).toBe(false);
+  });
+
+  it("does not query the store when there are no trace ids", async () => {
+    const { repo, service } = setup();
+    repo.failWith = new Error("must not be called");
+    expect((await service.getItemTelemetry([])).size).toBe(0);
+  });
 });

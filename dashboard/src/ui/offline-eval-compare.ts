@@ -120,41 +120,32 @@ export function percentile(sorted: number[], p: number): number | null {
   return sorted[idx]!;
 }
 
-export interface LatencySummary {
+/** Latencia, tokens y coste de un run, agregados sobre los items cuya traza se encontró (ADR-044). */
+export interface TelemetrySummary {
+  /** Items con telemetría (traza enlazada y presente en el almacén). */
   count: number;
-  /** Items con `traceId` sobre el total: la latencia solo se conoce para estos (ADR-042, limitación 3). */
-  covered: number;
   total: number;
   p50: number | null;
   p95: number | null;
   max: number | null;
+  inputTokens: number;
+  outputTokens: number;
+  /** null si ningún item tiene un modelo con precio conocido. */
+  costUsd: number | null;
 }
 
-export function summarizeLatency(durationsMs: number[], covered: number, total: number): LatencySummary {
-  const sorted = [...durationsMs].sort((x, y) => x - y);
-  return { count: sorted.length, covered, total, p50: percentile(sorted, 0.5), p95: percentile(sorted, 0.95), max: sorted[sorted.length - 1] ?? null };
-}
-
-export const LATENCY_ITEM_CAP = 100;
-const LATENCY_CONCURRENCY = 6;
-
-/** Duración de la traza de cada item con `traceId` (hasta `LATENCY_ITEM_CAP`), con concurrencia acotada. No hay endpoint por lotes. */
-export async function loadItemLatencies(
-  items: DatasetRunItemResultDto[],
-  getTraceDuration: (traceId: string) => Promise<number>,
-): Promise<{ byIndex: Map<number, number>; summary: LatencySummary }> {
-  const traced = items.filter((i) => i.traceId);
-  const queue = traced.slice(0, LATENCY_ITEM_CAP);
-  const byIndex = new Map<number, number>();
-  async function worker() {
-    for (let item = queue.shift(); item; item = queue.shift()) {
-      try {
-        byIndex.set(item.itemIndex, await getTraceDuration(item.traceId!));
-      } catch {
-        // una traza no disponible (expirada, otro servicio) no invalida el resto
-      }
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(LATENCY_CONCURRENCY, queue.length) }, worker));
-  return { byIndex, summary: summarizeLatency([...byIndex.values()], traced.length, items.length) };
+export function summarizeTelemetry(items: DatasetRunItemResultDto[]): TelemetrySummary {
+  const withTelemetry = items.flatMap((i) => (i.telemetry ? [i.telemetry] : []));
+  const sorted = withTelemetry.map((t) => t.latencyMs).sort((x, y) => x - y);
+  const priced = withTelemetry.flatMap((t) => (t.costUsd === null ? [] : [t.costUsd]));
+  return {
+    count: withTelemetry.length,
+    total: items.length,
+    p50: percentile(sorted, 0.5),
+    p95: percentile(sorted, 0.95),
+    max: sorted[sorted.length - 1] ?? null,
+    inputTokens: withTelemetry.reduce((sum, t) => sum + t.inputTokens, 0),
+    outputTokens: withTelemetry.reduce((sum, t) => sum + t.outputTokens, 0),
+    costUsd: priced.length === 0 ? null : priced.reduce((sum, c) => sum + c, 0),
+  };
 }

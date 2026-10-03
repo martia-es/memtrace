@@ -3,6 +3,10 @@ from typing import Any, ContextManager, Mapping, Optional, Protocol
 
 
 class SpanHandle(Protocol):
+    @property
+    def trace_id(self) -> Optional[str]:
+        """Backend trace id of this span as 32 lowercase hex chars (the id the dashboard and the query API use), or None."""
+
     def set_attributes(self, attributes: Mapping[str, Any]) -> None: ...
 
     def end(self, error: Optional[BaseException] = None) -> None:

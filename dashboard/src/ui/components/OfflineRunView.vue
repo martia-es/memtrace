@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import type { DatasetRunItemResultDto, RunListItemDto } from "@contract";
-import { computed, ref, watch } from "vue";
+import { computed, watch } from "vue";
 import { useRouter } from "vue-router";
 import { aggregateTone, aggregateValueLabel } from "@/domain/evaluation";
 import { formatDuration, formatDateTime } from "@/domain/format";
 import { offlineRunLabel } from "../offline-eval-chart-option";
-import { loadItemLatencies, type LatencySummary } from "../offline-eval-compare";
+import { summarizeTelemetry } from "../offline-eval-compare";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
 import ErrorBanner from "./ErrorBanner.vue";
@@ -22,19 +22,9 @@ const runOptions = computed(() => [...props.runs].reverse().map((r) => ({ label:
 const current = computed(() => props.runs.find((r) => r.id === props.runId) ?? props.runs[props.runs.length - 1] ?? null);
 
 const detail = useAsync((signal) => api.getDatasetRun(current.value!.datasetId, current.value!.id, signal));
-const latency = ref<LatencySummary | null>(null);
+const latency = computed(() => (detail.data.value ? summarizeTelemetry(detail.data.value.items) : null));
 
-watch(
-  current,
-  async (run) => {
-    latency.value = null;
-    if (!run) return;
-    const d = await detail.run();
-    if (!d) return;
-    latency.value = (await loadItemLatencies(d.items, async (id) => (await api.getTrace(id)).durationMs)).summary;
-  },
-  { immediate: true },
-);
+watch(current, (run) => void (run && detail.run()), { immediate: true });
 
 function failed(item: DatasetRunItemResultDto): boolean {
   return !!item.error || item.scores.some((s) => s.dataType === "boolean" && s.value !== "true");
@@ -73,16 +63,18 @@ function openFull() {
 
     <section class="card">
       <h3>Latency</h3>
-      <div v-if="detail.loading.value || (detail.data.value && !latency)" class="hint">Reading linked traces…</div>
+      <div v-if="detail.loading.value" class="hint">Reading linked traces…</div>
       <template v-else-if="latency && latency.count > 0">
         <div class="kpi-row">
           <KpiCard label="p50" :value="formatDuration(latency.p50!)" />
           <KpiCard label="p95" :value="formatDuration(latency.p95!)" />
           <KpiCard label="max" :value="formatDuration(latency.max!)" />
+          <KpiCard label="tokens in / out" :value="`${latency.inputTokens} / ${latency.outputTokens}`" />
+          <KpiCard v-if="latency.costUsd !== null" label="cost" :value="`$${latency.costUsd.toFixed(4)}`" />
         </div>
-        <p class="hint">Measured from the traces linked to {{ latency.count }} of {{ latency.total }} items (first 100 traced items at most).</p>
+        <p class="hint">Read from the traces linked to {{ latency.count }} of {{ latency.total }} items.</p>
       </template>
-      <p v-else class="hint">Latency is not recorded for this run: no item has a linked trace. Trace the agent inside <code>task</code> to get it for now; native per-item latency is tracked in ADR-042.</p>
+      <p v-else class="hint">Latency, tokens and cost come from each item's trace. None found for this run: call <code>memtrace.init_tracer()</code> before <code>run_experiment</code> so every item is traced.</p>
     </section>
 
     <section class="card">

@@ -13,6 +13,11 @@ class OtelSpanHandle:
     def __init__(self, span: Any) -> None:
         self.span = span
 
+    @property
+    def trace_id(self) -> Optional[str]:
+        context = self.span.get_span_context()
+        return format(context.trace_id, "032x") if context.is_valid else None
+
     def set_attributes(self, attributes: Mapping[str, Any]) -> None:
         self.span.set_attributes(sanitize(attributes))
 

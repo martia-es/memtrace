@@ -36,6 +36,15 @@ export interface TraceDetail {
   roots: SpanNode[];
 }
 
+/** Cifras de una traza leídas del almacén, sin precios: lo que necesita una run de evaluación para mostrar latencia, tokens y coste (ADR-044). */
+export interface TraceStats {
+  traceId: string;
+  /** duración del span raíz */
+  durationMs: number;
+  /** solo spans de LLM (`gen_ai.operation.name = chat`), desglosados por modelo para poder ponerles precio */
+  byModel: { model: string | null; inputTokens: number; outputTokens: number }[];
+}
+
 /** Posición en el listado (keyset): estable ante inserciones concurrentes. */
 export interface PageCursor {
   startTimeUs: number;
