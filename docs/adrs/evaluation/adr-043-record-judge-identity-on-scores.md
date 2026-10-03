@@ -3,7 +3,9 @@
 * **Status**: Accepted
 * **Date**: 2026-10-03
 * **Deciders**: MemTrace Core Team
-* **Amends**: [ADR-029](adr-029-llm-as-judge-evaluators.md) (which stated "no schema change needed on the ClickHouse `scores` table"). Unblocks cross-run comparison in [ADR-040](adr-040-judge-human-agreement.md).
+* **Amends**: [ADR-029](adr-029-llm-as-judge-evaluators.md) (which stated "no schema change needed on the ClickHouse `scores` table"). Unblocks cross-run comparison in [ADR-040](adr-040-judge-human-agreement.md). Storage later reshaped by [ADR-044](adr-044-eval-items-and-scores-tables-telemetry-from-traces.md).
+
+> **Update ([ADR-044](adr-044-eval-items-and-scores-tables-telemetry-from-traces.md)):** the table `memtrace.scores` named below was replaced by `eval_items` + `eval_scores`. `JudgeModel` and `JudgePromptHash` carry over unchanged to `eval_scores` (migration 008); the SDK/API contract (`judgeModel` / `judgePromptHash`) and the decisions here still hold. The text below records the original decision.
 
 ## Context and Problem Statement
 
