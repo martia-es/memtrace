@@ -9,13 +9,13 @@ import Select from "../Select.vue";
 const props = defineProps<{
   title: string;
   help: string;
-  roleOptions?: { label: string; value: "admin" | "member" }[];
+  roleOptions?: { label: string; value: string }[];
   sending?: boolean;
 }>();
-const emit = defineEmits<{ invite: [payload: { email: string; role: "admin" | "member" }] }>();
+const emit = defineEmits<{ invite: [payload: { email: string; role: string }] }>();
 
 const email = ref("");
-const role = ref<"admin" | "member">("member");
+const role = ref<string>(props.roleOptions?.[0]?.value ?? "technical");
 
 function submit() {
   if (!email.value.trim()) return;

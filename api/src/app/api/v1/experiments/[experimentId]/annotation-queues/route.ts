@@ -1,4 +1,4 @@
-import { requireExperimentAdmin, requireExperimentMember } from "@/adapters/inbound/http/auth-context";
+import { requirePermission } from "@/adapters/inbound/http/auth-context";
 import { identityGuard } from "@/adapters/inbound/http/identity-guard";
 import { parseJsonOrThrow } from "@/adapters/inbound/http/identity-schemas";
 import { toAnnotationQueueDto, toAnnotationQueuesListResponse } from "@/adapters/inbound/http/mappers";
@@ -14,10 +14,10 @@ type Params = { params: Promise<{ experimentId: string }> };
 export async function GET(request: Request, context: Params) {
   return identityGuard(async () => {
     const { experimentId } = await context.params;
-    const ctx = await requireExperimentMember(experimentId);
+    const ctx = await requirePermission(experimentId, "experiment:read");
     if (ctx instanceof Response) return ctx;
     const includeArchived = new URL(request.url).searchParams.get("includeArchived") === "true";
-    return json(toAnnotationQueuesListResponse(await getAnnotationQueues().list(experimentId, includeArchived)));
+    return json(toAnnotationQueuesListResponse(await getAnnotationQueues().list(experimentId, ctx.user.id, includeArchived)));
   });
 }
 
@@ -25,7 +25,7 @@ export async function GET(request: Request, context: Params) {
 export async function POST(request: Request, context: Params) {
   return identityGuard(async () => {
     const { experimentId } = await context.params;
-    const ctx = await requireExperimentAdmin(experimentId);
+    const ctx = await requirePermission(experimentId, "queue:manage");
     if (ctx instanceof Response) return ctx;
     const body = await parseJsonOrThrow(createAnnotationQueueBody, request);
     return json(toAnnotationQueueDto(await getAnnotationQueues().create(experimentId, ctx.user.id, body)), 201);

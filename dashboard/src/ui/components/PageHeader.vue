@@ -49,14 +49,14 @@ withDefaults(
   text-decoration: none;
 }
 .crumb.link:hover {
-  color: var(--mt-ink);
+  color: var(--mt-accent-text);
   text-decoration: underline;
 }
 .crumb.current {
   color: var(--mt-muted);
 }
 .sep {
-  color: var(--mt-line);
+  color: var(--mt-faint);
 }
 .title-row {
   display: flex;
@@ -73,13 +73,13 @@ withDefaults(
 }
 .icon {
   flex-shrink: 0;
-  color: var(--mt-ink);
+  color: var(--mt-accent);
 }
 .title-main h1 {
   margin: 0;
   font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 .title-actions {
   display: flex;

@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import { useRoute } from "vue-router";
 import { computed, ref } from "vue";
 import { useQuasar } from "quasar";
-import type { QueueItemDto } from "@contract";
+import type { QueueItemDto, ReviewerCandidatesResponse } from "@contract";
 import { shortId } from "@/domain/format";
 import { judgeVerdict } from "@/domain/agreement";
 import { describeScale } from "../score-config-form";
@@ -9,16 +10,18 @@ import ErrorBanner from "./ErrorBanner.vue";
 import InterAnnotatorAgreement from "./InterAnnotatorAgreement.vue";
 import JudgeHumanAgreement from "./JudgeHumanAgreement.vue";
 import Modal from "./Modal.vue";
-import PromoteQueueToDataset from "./PromoteQueueToDataset.vue";
+import QueueResults from "./QueueResults.vue";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
 
 /** Progreso, trabajo por revisor, rúbrica y items de una cola (ADR-039). Los admins pueden cambiar `requiredAnnotations` y retirar items del reparto. */
-const props = defineProps<{ queueId: string; canManage: boolean }>();
+const props = defineProps<{ queueId: string; canManage: boolean; initialTab?: "summary" | "results" | "settings" }>();
 const emit = defineEmits<{ close: []; changed: [] }>();
 
 const api = useTraceApi();
+const route = useRoute();
 const $q = useQuasar();
+const experimentId = computed(() => route.params.experimentId as string);
 
 const detail = useAsync((signal) => api.getAnnotationQueue(props.queueId, signal));
 const items = useAsync((signal) => api.listAnnotationQueueItems(props.queueId, undefined, signal));
@@ -30,6 +33,26 @@ const judgeAgreement = useAsync((signal) => api.getJudgeHumanAgreement({ queueId
 void judgeAgreement.run();
 const judgeMetrics = computed(() => judgeAgreement.data.value?.metrics ?? []);
 const required = ref<number | null>(null);
+// el perfil técnico (admin) trabaja por pestañas (ADR-050); quien solo revisa ve el resumen de siempre
+type Tab = "summary" | "results" | "settings";
+const TABS: Array<{ id: Tab; label: string }> = [{ id: "summary", label: "Summary" }, { id: "results", label: "Results" }, { id: "settings", label: "Settings" }];
+const tab = ref<Tab>(props.initialTab ?? "summary");
+const showSummary = computed(() => !props.canManage || tab.value === "summary");
+const showSettings = computed(() => !props.canManage || tab.value === "settings");
+// quién puede anotar (ADR-051): solo los admins ven y editan la lista
+const members = ref<ReviewerCandidatesResponse["candidates"]>([]);
+const assigned = ref<string[] | null>(null);
+if (props.canManage) {
+  api
+    .listReviewerCandidates()
+    .then((r) => (members.value = r.candidates))
+    .catch((error) => notifyError("Could not load members", error));
+}
+const currentReviewers = computed(() => assigned.value ?? detail.data.value?.reviewerIds ?? []);
+const reviewersChanged = computed(() => {
+  const saved = detail.data.value?.reviewerIds ?? [];
+  return assigned.value !== null && (assigned.value.length !== saved.length || assigned.value.some((id) => !saved.includes(id)));
+});
 const total = computed(() => {
   const p = detail.data.value?.progress;
   return p ? p.pending + p.completed + p.skipped : 0;
@@ -43,6 +66,17 @@ function notifyError(action: string, error: unknown) {
 async function reload() {
   await Promise.all([detail.run(), items.run()]);
   emit("changed");
+}
+
+async function saveReviewers() {
+  if (assigned.value === null) return;
+  try {
+    await api.updateAnnotationQueue(props.queueId, { reviewerIds: assigned.value });
+    assigned.value = null;
+    await reload();
+  } catch (error) {
+    notifyError("Could not update the reviewers", error);
+  }
 }
 
 async function saveRequired() {
@@ -76,32 +110,39 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
     <div v-else class="detail" data-testid="queue-detail">
       <p v-if="detail.data.value.instructions" class="instructions">{{ detail.data.value.instructions }}</p>
 
-      <section>
+      <nav v-if="canManage" class="tabs" role="tablist" aria-label="Queue sections">
+        <button v-for="t in TABS" :key="t.id" type="button" role="tab" class="tab" :class="{ on: tab === t.id }" :aria-selected="tab === t.id" :data-testid="`tab-${t.id}`" @click="tab = t.id">{{ t.label }}</button>
+      </nav>
+
+      <QueueResults v-if="canManage && tab === 'results'" :queue-id="queueId" @close="emit('close')" />
+
+      <section v-if="showSummary">
         <h3>Progress</h3>
         <div class="bar" role="progressbar" :aria-valuenow="percent" aria-valuemin="0" aria-valuemax="100"><div class="fill" :style="{ width: `${percent}%` }" /></div>
         <p class="muted">
           {{ detail.data.value.progress.completed }} completed · {{ detail.data.value.progress.pending }} pending · {{ detail.data.value.progress.skipped }} unreviewable
         </p>
-        <div class="req-row">
-          <span class="muted">Reviews required per item:</span>
-          <template v-if="canManage">
-            <input
-              :value="required ?? detail.data.value.requiredAnnotations"
-              class="text-input num"
-              type="number"
-              min="1"
-              max="10"
-              aria-label="Reviews required per item"
-              @input="required = Number(($event.target as HTMLInputElement).value)"
-            />
-            <button type="button" class="small-btn" :disabled="required === null || required === detail.data.value.requiredAnnotations" @click="saveRequired">Apply</button>
-          </template>
-          <strong v-else>{{ detail.data.value.requiredAnnotations }}</strong>
-        </div>
-        <p v-if="canManage" class="muted">Raising it reopens items that were already completed; lowering it can complete them.</p>
+        <p v-if="!canManage" class="muted">Reviews required per item: <strong>{{ detail.data.value.requiredAnnotations }}</strong></p>
       </section>
 
-      <section>
+      <section v-if="canManage && showSettings">
+        <h3>Reviews required per item</h3>
+        <div class="req-row">
+          <input
+            :value="required ?? detail.data.value.requiredAnnotations"
+            class="text-input num"
+            type="number"
+            min="1"
+            max="10"
+            aria-label="Reviews required per item"
+            @input="required = Number(($event.target as HTMLInputElement).value)"
+          />
+          <button type="button" class="small-btn" :disabled="required === null || required === detail.data.value.requiredAnnotations" @click="saveRequired">Apply</button>
+        </div>
+        <p class="muted">Raising it reopens items that were already completed; lowering it can complete them.</p>
+      </section>
+
+      <section v-if="showSettings">
         <h3>Rubric</h3>
         <ul class="plain">
           <li v-for="c in detail.data.value.configs" :key="c.id">
@@ -112,8 +153,19 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
         </ul>
       </section>
 
-      <section>
-        <h3>Reviewers</h3>
+      <section v-if="canManage && showSettings">
+        <h3>Who can annotate</h3>
+        <p class="muted">Only these people can pull and label items. Removing someone keeps what they already labeled.</p>
+        <label v-for="m in members" :key="m.userId" class="req-row">
+          <input v-model="assigned" type="checkbox" :value="m.userId" :checked="currentReviewers.includes(m.userId)" @change="assigned = assigned ?? [...currentReviewers]" />
+          {{ m.name ?? m.email }} <span class="muted">{{ m.email }}</span>
+        </label>
+        <button type="button" class="small-btn" :disabled="!reviewersChanged || !currentReviewers.length" @click="saveReviewers">Apply</button>
+        <p v-if="currentReviewers.length < detail.data.value.requiredAnnotations" class="muted">At least {{ detail.data.value.requiredAnnotations }} reviewers are needed.</p>
+      </section>
+
+      <section v-if="showSummary">
+        <h3>Progress by reviewer</h3>
         <p v-if="!detail.data.value.reviewers.length" class="muted">Nobody has started reviewing yet.</p>
         <ul v-else class="plain">
           <li v-for="r in detail.data.value.reviewers" :key="r.userId" data-testid="reviewer-row">
@@ -123,12 +175,12 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
         </ul>
       </section>
 
-      <section>
+      <section v-if="showSummary">
         <h3>Agreement between reviewers</h3>
         <InterAnnotatorAgreement :queue-id="queueId" />
       </section>
 
-      <section v-if="hasRunItems && judgeMetrics.length" data-testid="queue-verdict">
+      <section v-if="showSummary && hasRunItems && judgeMetrics.length" data-testid="queue-verdict">
         <h3>Judge verdict</h3>
         <ul class="plain">
           <li v-for="m in judgeMetrics" :key="m.name">
@@ -138,16 +190,30 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
         </ul>
       </section>
 
-      <JudgeHumanAgreement v-if="hasRunItems" :scope="{ queueId }" />
+      <JudgeHumanAgreement v-if="showSummary && hasRunItems" :scope="{ queueId }" />
 
-      <PromoteQueueToDataset v-if="canManage && items.data.value" :items="items.data.value.items" :configs="detail.data.value.configs" />
-
-      <section>
+      <section v-if="showSettings">
         <h3>Items</h3>
         <p v-if="!(items.data.value?.items.length ?? 0)" class="muted">The queue is empty. Add traces from this page or from a trace's detail.</p>
         <ul v-else class="plain items">
           <li v-for="item in items.data.value!.items" :key="item.id" data-testid="queue-item-row">
-            <span class="mono">{{ label(item) }}</span>
+            <router-link
+              v-if="item.targetType === 'trace' && item.traceId"
+              :to="{ name: 'trace', params: { experimentId, traceId: item.traceId } }"
+              class="item-link mono"
+              @click="emit('close')"
+            >
+              Trace {{ shortId(item.traceId) }}
+            </router-link>
+            <router-link
+              v-else-if="item.targetType === 'run_item' && item.datasetRunId"
+              :to="{ name: 'runs', params: { experimentId } }"
+              class="item-link mono"
+              @click="emit('close')"
+            >
+              Run {{ shortId(item.datasetRunId) }} · item {{ item.itemIndex }}
+            </router-link>
+            <span v-else class="mono">{{ label(item) }}</span>
             <span class="pill" :class="item.status">{{ item.status === "skipped" ? "unreviewable" : item.status }}</span>
             <button v-if="canManage && item.status !== 'skipped'" type="button" class="small-btn" @click="markUnreviewable(item)">Mark unreviewable</button>
           </li>
@@ -158,6 +224,26 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
 </template>
 
 <style scoped>
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--mt-line);
+}
+.tab {
+  padding: 6px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--mt-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tab.on {
+  border-bottom-color: var(--mt-accent);
+  color: var(--mt-ink);
+}
 .loading {
   display: flex;
   justify-content: center;

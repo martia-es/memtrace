@@ -16,6 +16,22 @@ export interface ConversationSummary {
   activeMs: number;
 }
 
+/** Lo que el repositorio lee para dar título y coste a una conversación; el precio lo aplica el servicio (ADR-025). */
+export interface ConversationUsage {
+  /** JSON crudo de los mensajes de entrada del primer LLM de la conversación, `null` si no se capturó contenido */
+  firstInput: string | null;
+  /** tokens por modelo en las llamadas de chat */
+  models: { model: string | null; inputTokens: number; outputTokens: number }[];
+}
+
+/** Resumen listo para mostrar: las cifras del repositorio más un título legible y el coste. */
+export interface ConversationListItem extends ConversationSummary {
+  /** el primer mensaje del usuario (≤ 120 caracteres); `null` si el agente no capturó contenido */
+  title: string | null;
+  /** `null` si ningún modelo de la conversación tiene precio conocido */
+  costUsd: number | null;
+}
+
 /** Posición en el listado de conversaciones (keyset): última actividad dentro del rango + id. */
 export interface ConversationCursor {
   lastActivityUs: number;

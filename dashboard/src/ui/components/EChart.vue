@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { BarChart, LineChart, PieChart } from "echarts/charts";
-import { GridComponent, LegendComponent, TooltipComponent } from "echarts/components";
+import { GridComponent, LegendComponent, MarkLineComponent, TooltipComponent } from "echarts/components";
 import * as echarts from "echarts/core";
 import type { EChartsCoreOption } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 
-echarts.use([BarChart, LineChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
+echarts.use([BarChart, LineChart, PieChart, GridComponent, LegendComponent, MarkLineComponent, TooltipComponent, CanvasRenderer]);
 
 const props = withDefaults(defineProps<{ option: EChartsCoreOption; height?: string; label: string }>(), { height: "260px" });
 const emit = defineEmits<{ click: [dataIndex: number] }>();

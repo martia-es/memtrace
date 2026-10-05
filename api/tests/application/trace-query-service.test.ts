@@ -47,8 +47,8 @@ describe("TraceQueryService", () => {
     });
     repo.page = {
       items: [
-        { traceId: "t1", rootSpanName: "turno 1", serviceName: "svc", startTimeUs: 1, durationMs: 5, status: "ok", spanCount: 1, errorCount: 0, totalTokens: 0, input: null, output: null, conversationId: "c1" },
-        { traceId: "t2", rootSpanName: "turno 2", serviceName: "svc", startTimeUs: 2, durationMs: 5, status: "ok", spanCount: 1, errorCount: 0, totalTokens: 0, input: null, output: null, conversationId: "c1" },
+        { traceId: "t1", rootSpanName: "turno 1", serviceName: "svc", startTimeUs: 1, durationMs: 5, status: "ok", spanCount: 1, errorCount: 0, totalTokens: 0, input: null, output: null, error: null, conversationId: "c1" },
+        { traceId: "t2", rootSpanName: "turno 2", serviceName: "svc", startTimeUs: 2, durationMs: 5, status: "ok", spanCount: 1, errorCount: 0, totalTokens: 0, input: null, output: null, error: null, conversationId: "c1" },
       ],
       nextCursor: null,
     };

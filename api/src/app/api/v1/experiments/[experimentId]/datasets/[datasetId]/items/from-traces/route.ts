@@ -1,4 +1,4 @@
-import { requireExperimentMember } from "@/adapters/inbound/http/auth-context";
+import { requirePermission } from "@/adapters/inbound/http/auth-context";
 import { identityGuard } from "@/adapters/inbound/http/identity-guard";
 import { parseJsonOrThrow } from "@/adapters/inbound/http/identity-schemas";
 import { toPromoteTracesResponse } from "@/adapters/inbound/http/mappers";
@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request, context: { params: Promise<{ experimentId: string; datasetId: string }> }) {
   return identityGuard(async () => {
     const { experimentId, datasetId } = await context.params;
-    const ctx = await requireExperimentMember(experimentId);
+    const ctx = await requirePermission(experimentId, "queue:curate");
     if (ctx instanceof Response) return ctx;
 
     const dataset = await getIdentity().identityRepository.getDataset(datasetId);

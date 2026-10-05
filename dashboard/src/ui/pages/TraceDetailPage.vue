@@ -2,7 +2,10 @@
 import { computed, ref, useTemplateRef, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { formatCostUsd, formatCount, formatDateTime, formatDuration, shortId } from "@/domain/format";
+import { conversationTurns } from "@/domain/review-thread";
+import { traceThread } from "@/domain/trace-thread";
 import { findNode, firstErrorNode } from "@/domain/waterfall";
+import ConversationThread from "../components/ConversationThread.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import SpanInspector from "../components/SpanInspector.vue";
 import SpanTree from "../components/SpanTree.vue";
@@ -11,6 +14,7 @@ import AddToDatasetModal from "../components/AddToDatasetModal.vue";
 import AddToQueueModal from "../components/AddToQueueModal.vue";
 import TraceAnnotationsPanel from "../components/TraceAnnotationsPanel.vue";
 import StatusBadge from "../components/StatusBadge.vue";
+import { usePermissions } from "../composables/usePermissions";
 import { useAsync } from "../composables/useAsync";
 import { useFilters } from "../composables/useFilters";
 import { useLiveRefresh } from "../composables/useLiveRefresh";
@@ -47,6 +51,13 @@ const selectedNode = computed(() => {
 });
 const select = (spanId: string) => void router.replace({ query: { ...route.query, span: spanId } });
 
+// ---- tabs (ADR-048): the technical trace by default, the conversation read like a chat on the other tab ----
+const { can } = usePermissions();
+const canTechnical = computed(() => can("trace:read_technical"));
+const tab = computed<"conversation" | "trace">(() => (!canTechnical.value || route.query.tab === "conversation" ? "conversation" : "trace"));
+const setTab = (value: "conversation" | "trace") => void router.replace({ query: { ...route.query, tab: value === "trace" ? undefined : value } });
+const turns = computed(() => conversationTurns(traceThread(roots.value)));
+
 // ---- human annotation (ADR-037) ----
 const annotating = ref(false);
 const addingToQueue = ref(false);
@@ -72,31 +83,43 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
 
     <template v-if="trace.data.value">
       <header class="head mt-card">
-      <nav class="crumbs" aria-label="Breadcrumbs">
-        <button type="button" class="crumb" @click="goList">Conversations</button>
-        <template v-if="conversationId">
+        <nav class="crumbs" aria-label="Breadcrumbs">
+          <button type="button" class="crumb" @click="goList">Conversations</button>
+          <template v-if="conversationId">
+            <q-icon name="chevron_right" size="16px" />
+            <button type="button" class="crumb mono" @click="goConversation">{{ conversationId }}</button>
+          </template>
           <q-icon name="chevron_right" size="16px" />
-          <button type="button" class="crumb mono" @click="goConversation">{{ conversationId }}</button>
-        </template>
-        <q-icon name="chevron_right" size="16px" />
-        <span class="mono current">{{ shortId(traceId) }}</span>
-      </nav>
-        <h1 class="leading-none" :title="rootName">{{ rootName }}</h1>
-        <div class="pills">
-          <span class="muted sub">{{ formatDateTime(trace.data.value.startTime) }}</span>
+          <span class="mono current">{{ shortId(traceId) }}</span>
+        </nav>
+        <div class="title-row">
+          <h1 :title="rootName">{{ rootName }}</h1>
           <StatusBadge :status="trace.data.value.status" show-label />
-          <span v-if="trace.data.value.framework" class="mt-pill unset"><q-icon name="hub" size="15px" /> {{ trace.data.value.framework }}</span>
-          <span class="mt-pill unset"><q-icon name="schedule" size="15px" /> {{ formatDuration(trace.data.value.durationMs) }}</span>
-          <span class="mt-pill unset"><q-icon name="account_tree" size="15px" /> {{ `${formatCount(trace.data.value.spanCount)} spans` }}</span>
-          <span v-if="trace.data.value.errorCount" class="mt-pill error"><q-icon name="error" size="15px" /> {{ `${trace.data.value.errorCount} with error` }}</span>
-          <span v-if="trace.data.value.totalTokens" class="mt-pill unset"><q-icon name="toll" size="15px" /> {{ `${formatCount(trace.data.value.totalTokens)} tokens` }}</span>
-          <span v-if="trace.data.value.totalCostUsd" class="mt-pill unset"><q-icon name="payments" size="15px" /> {{ formatCostUsd(trace.data.value.totalCostUsd) }}</span>
-          <button type="button" class="mt-pill unset annotate-btn" data-testid="annotate-btn" @click="annotating = true"><q-icon name="rate_review" size="15px" /> Annotate</button>
-          <button type="button" class="mt-pill unset annotate-btn" data-testid="add-to-queue-btn" @click="addingToQueue = true"><q-icon name="playlist_add" size="15px" /> Add to queue</button>
-          <button type="button" class="mt-pill unset annotate-btn" data-testid="add-to-dataset-btn" @click="addingToDataset = true"><q-icon name="dataset" size="15px" /> Add to dataset</button>
-          <button type="button" class="mt-round-btn" aria-label="Copy trace ID" @click="copyId"><q-icon name="content_copy" size="18px" /></button>
+          <span v-if="trace.data.value.framework" class="mt-pill unset">{{ trace.data.value.framework }}</span>
+          <div class="actions">
+            <button type="button" class="btn" aria-label="Copy trace ID" @click="copyId">Copy ID</button>
+            <button type="button" class="btn" data-testid="add-to-dataset-btn" @click="addingToDataset = true">Add to dataset</button>
+            <button type="button" class="btn" data-testid="add-to-queue-btn" @click="addingToQueue = true">Add to queue</button>
+            <button type="button" class="btn primary" data-testid="annotate-btn" @click="annotating = true">Annotate</button>
+          </div>
+        </div>
+        <div class="meta-line">
+          <span>Started <b>{{ formatDateTime(trace.data.value.startTime) }}</b></span>
+          <span>Duration <b class="mono">{{ formatDuration(trace.data.value.durationMs) }}</b></span>
+          <span>Spans <b class="mono">{{ formatCount(trace.data.value.spanCount) }}</b></span>
+          <span v-if="trace.data.value.errorCount" class="bad">Failed <b class="mono">{{ trace.data.value.errorCount }}</b></span>
+          <span v-if="trace.data.value.totalTokens">Tokens <b class="mono">{{ formatCount(trace.data.value.totalTokens) }}</b></span>
+          <span v-if="trace.data.value.totalCostUsd">Cost <b class="mono">{{ formatCostUsd(trace.data.value.totalCostUsd) }}</b></span>
         </div>
       </header>
+
+      <div class="tabs" role="tablist" aria-label="Trace views">
+        <button type="button" role="tab" class="tab" :class="{ active: tab === 'conversation' }" :aria-selected="tab === 'conversation'" data-testid="tab-conversation" @click="setTab('conversation')">Conversation</button>
+        <button v-if="canTechnical" type="button" role="tab" class="tab" :class="{ active: tab === 'trace' }" :aria-selected="tab === 'trace'" data-testid="tab-trace" @click="setTab('trace')">
+          Technical trace<span class="tab-count mono">{{ formatCount(trace.data.value.spanCount) }}</span>
+        </button>
+        <span class="tabs-hint">{{ tab === "trace" ? "Select a span to see its input, output and metadata" : "The messages exchanged, without ids or raw JSON" }}</span>
+      </div>
 
       <div v-if="trace.data.value.truncated" class="banner warn">Trace has more than 5000 spans: only showing the first ones.</div>
       <div v-if="hasOrphans" class="banner warn">
@@ -104,7 +127,12 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
         <template v-else>Some spans have no parent in the trace (lost or not yet exported) and are shown as roots.</template>
       </div>
 
-      <div class="cols">
+      <section v-if="tab === 'conversation'" class="mt-card thread-card" aria-label="Conversation">
+        <ConversationThread v-if="turns.length" :turns="turns" />
+        <p v-else class="muted empty-thread">This trace has no message content saved. Enable <code>MEMTRACE_CAPTURE_CONTENT=true</code> on the agent to read the conversation here.</p>
+      </section>
+
+      <div v-else class="cols">
         <section class="mt-card tree-card" aria-label="Span tree">
           <div class="tree-head">
             <h2>Spans</h2>
@@ -119,7 +147,7 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
         </section>
 
         <SpanInspector v-if="selectedNode" :node="selectedNode" :empty-hint="hint" />
-        <section v-else class="mt-card empty-card">Esta traza no tiene spans que mostrar.</section>
+        <section v-else class="mt-card empty-card">This trace has no spans to show.</section>
       </div>
 
       <AddToDatasetModal v-if="addingToDataset" :trace-id="traceId" :roots="roots" @close="addingToDataset = false" />
@@ -138,7 +166,9 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  padding: 16px 24px 20px;
+  background: var(--mt-bg);
 }
 .crumbs {
   display: flex;
@@ -150,15 +180,15 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
   white-space: nowrap;
 }
 .crumbs.plain {
-  padding: 0 8px;
+  padding: 0 4px;
 }
 .crumb {
   border: 0;
   background: none;
   padding: 0;
-  color: var(--mt-accent);
+  color: var(--mt-accent-text);
   font: inherit;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
 }
 .current {
@@ -177,83 +207,152 @@ h2 {
   margin: 0;
 }
 h1 {
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 1;
+  min-width: 0;
 }
 h2 {
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-size: 14px;
+  font-weight: 800;
 }
 .head {
   box-sizing: border-box;
-  padding: 4px 16px;
+  padding: 14px 18px;
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 10px;
   flex-shrink: 0;
 }
-.head h1 {
-  flex: 1;
-  min-width: 0;
-  padding-left: 10px;
-  border-left: 1px solid var(--mt-line);
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
-.annotate-btn {
-  border: 0;
-  cursor: pointer;
+.actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.btn {
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--mt-line);
+  border-radius: var(--mt-radius-sm);
+  background: var(--mt-card);
+  color: var(--mt-ink);
   font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
 }
-.sub {
-  font-size: 12px;
-  margin-right: 4px;
+.btn:hover {
+  border-color: var(--mt-accent);
 }
-.pills {
+.btn.primary {
+  background: var(--mt-accent);
+  border-color: var(--mt-accent);
+  color: var(--mt-accent-ink);
+}
+.meta-line {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
-  flex-shrink: 0;
+  gap: 4px 22px;
+  padding-top: 10px;
+  border-top: 1px solid var(--mt-line-2);
+  font-size: 12.5px;
+  color: var(--mt-muted);
+}
+.meta-line b {
+  color: var(--mt-ink);
+  font-weight: 700;
+}
+.meta-line .mono {
+  font-weight: 500;
+}
+.meta-line .bad,
+.meta-line .bad b {
+  color: var(--mt-err-ink);
 }
 .mt-pill {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 3px 9px;
-  border-radius: var(--mt-radius-sm);
-  font-size: 12px;
-  font-weight: 600;
-}
-.mt-pill.error {
-  background: var(--mt-err-bg);
-  color: var(--mt-err-ink);
 }
 .mt-pill.unset {
   background: var(--mt-soft);
+  color: var(--mt-muted);
+}
+.tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  border-bottom: 1px solid var(--mt-line);
+  flex-shrink: 0;
+}
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 12px;
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--mt-muted);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.tab.active {
   color: var(--mt-ink);
+  border-bottom-color: var(--mt-accent);
+}
+.tab-count {
+  padding: 0 5px;
+  border-radius: var(--mt-radius-xs);
+  background: var(--mt-soft);
+  font-size: 11px;
+  font-weight: 500;
+}
+.tabs-hint {
+  margin-left: auto;
+  padding-bottom: 9px;
+  font-size: 12px;
+  color: var(--mt-muted);
 }
 .banner {
   padding: 12px 14px;
   border-radius: var(--mt-radius-lg);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   flex-shrink: 0;
 }
 .banner.warn {
   background: var(--mt-warn-bg);
   color: var(--mt-warn-ink);
 }
+.thread-card {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 22px 26px;
+  background: var(--mt-card);
+}
+.empty-thread {
+  margin: 0;
+  padding: 24px;
+  text-align: center;
+}
 /* árbol ~40 % · inspector ~60 % */
 .cols {
   display: grid;
   grid-template-columns: minmax(300px, 2fr) minmax(0, 3fr);
-  gap: 10px;
+  gap: 12px;
   flex: 1;
   min-height: 0;
 }
@@ -284,14 +383,14 @@ h2 {
   border: 0;
   background: none;
   padding: 0;
-  color: var(--mt-muted);
+  color: var(--mt-accent-text);
   font: inherit;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
 }
 .link-btn:hover {
-  color: var(--mt-ink);
+  text-decoration: underline;
 }
 .dot-sep {
   color: var(--mt-line);

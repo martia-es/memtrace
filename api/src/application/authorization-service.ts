@@ -1,9 +1,10 @@
 import type { IdentityRepository } from "@/application/ports/identity-repository";
 import type { ExperimentAccess } from "@/domain/identity";
+import type { Permission } from "@/domain/permissions";
 
 /**
- * Regla de autorización única (ADR-013 sección 3):
- * acceso a un experimento = org_admin de su organización OR membership directa.
+ * Regla de autorización única (ADR-052): los permisos efectivos de una persona en un experimento son la unión de los
+ * de su rol de organización y los de su rol de experimento. Nadie fuera de aquí compara nombres de rol.
  */
 export class AuthorizationService {
   constructor(private readonly identity: IdentityRepository) {}
@@ -12,13 +13,17 @@ export class AuthorizationService {
     return this.identity.resolveExperimentAccess(userId, experimentId);
   }
 
-  async canReadExperiment(userId: string, experimentId: string): Promise<boolean> {
-    return (await this.resolveExperimentAccess(userId, experimentId)) !== null;
+  async can(userId: string, experimentId: string, permission: Permission): Promise<boolean> {
+    const access = await this.resolveExperimentAccess(userId, experimentId);
+    return !!access && access.permissions.includes(permission);
   }
 
-  async canManageExperimentMembers(userId: string, experimentId: string): Promise<boolean> {
-    const access = await this.resolveExperimentAccess(userId, experimentId);
-    return access === "org_admin" || access === "admin";
+  async canReadExperiment(userId: string, experimentId: string): Promise<boolean> {
+    return this.can(userId, experimentId, "experiment:read");
+  }
+
+  async canInOrganization(userId: string, organizationId: string, permission: Permission): Promise<boolean> {
+    return this.identity.hasOrganizationPermission(userId, organizationId, permission);
   }
 
   async canManageOrganization(userId: string, organizationId: string): Promise<boolean> {

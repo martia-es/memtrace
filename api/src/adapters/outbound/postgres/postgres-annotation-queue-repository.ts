@@ -1,5 +1,5 @@
 import type { Pool, PoolClient } from "pg";
-import type { AddedItems, AnnotationQueueRepository, QueueWithProgress } from "@/application/ports/annotation-queue-repository";
+import type { AddedItems, AnnotationQueueRepository, QueueWithProgress, TraceQueueMembership } from "@/application/ports/annotation-queue-repository";
 import {
   CLAIM_LEASE_MINUTES,
   assertRubricOnlyGrows,
@@ -16,6 +16,7 @@ import {
   type ReviewerProgress,
 } from "@/domain/annotation-queue";
 import { AnnotationQueueInvariantError } from "@/domain/errors";
+import type { QueueResolution } from "@/domain/queue-results";
 
 const QUEUE_COLUMNS = `id, experiment_id, name, instructions, required_annotations, created_by, created_at, archived_at`;
 const ITEM_COLUMNS = `id, queue_id, target_type, trace_id, dataset_run_id, item_index, status, population, sample_seed, added_by, added_at, completed_at`;
@@ -41,6 +42,11 @@ interface RubricRow {
   config_id: string;
   required: boolean;
   position: number;
+}
+
+interface ReviewerRow {
+  queue_id: string;
+  user_id: string;
 }
 
 interface ItemRow {
@@ -89,17 +95,31 @@ export class PostgresAnnotationQueueRepository implements AnnotationQueueReposit
     );
     if (rows.length === 0) return [];
     const ids = rows.map((r) => r.id);
-    const [rubrics, counts] = await Promise.all([
+    const [rubrics, counts, reviewers, curate] = await Promise.all([
       this.pool.query<RubricRow>(`SELECT queue_id, config_id, required, position FROM annotation_queue_configs WHERE queue_id = ANY($1) ORDER BY position`, [ids]),
       this.pool.query<{ queue_id: string; status: QueueItemStatus; n: number }>(
         `SELECT queue_id, status, count(*)::int AS n FROM annotation_queue_items WHERE queue_id = ANY($1) GROUP BY queue_id, status`,
         [ids],
       ),
+      this.pool.query<ReviewerRow>(`SELECT queue_id, user_id FROM annotation_queue_reviewers WHERE queue_id = ANY($1) ORDER BY added_at, user_id`, [ids]),
+      // mismo criterio que findPromotedTraces: "ya está en un dataset" = su última versión contiene la traza
+      this.pool.query<{ queue_id: string; n: number }>(
+        `SELECT i.queue_id, count(*)::int AS n
+           FROM annotation_queue_items i
+          WHERE i.queue_id = ANY($1) AND i.status = 'completed' AND i.target_type = 'trace'
+            AND NOT EXISTS (
+              SELECT 1 FROM datasets d
+                JOIN LATERAL (SELECT id FROM dataset_versions WHERE dataset_id = d.id ORDER BY major DESC, minor DESC LIMIT 1) v ON true
+                JOIN dataset_items di ON di.dataset_version_id = v.id AND di.deleted_at IS NULL
+               WHERE d.experiment_id = $2 AND di.metadata->'promotedFrom'->>'traceId' = i.trace_id)
+          GROUP BY i.queue_id`,
+        [ids, experimentId],
+      ),
     ]);
     return rows.map((row) => {
       const progress: QueueProgress = { pending: 0, completed: 0, skipped: 0 };
       for (const c of counts.rows) if (c.queue_id === row.id) progress[c.status] = c.n;
-      return { queue: toQueue(row, rubrics.rows.filter((r) => r.queue_id === row.id)), progress };
+      return { queue: toQueue(row, rubrics.rows.filter((r) => r.queue_id === row.id), reviewers.rows.filter((r) => r.queue_id === row.id)), progress, toCurate: curate.rows.find((c) => c.queue_id === row.id)?.n ?? 0 };
     });
   }
 
@@ -148,6 +168,7 @@ export class PostgresAnnotationQueueRepository implements AnnotationQueueReposit
         throw mapNameTaken(error, input.name);
       }
       await this.writeRubric(client, row.id, input.rubric);
+      await this.writeReviewers(client, row.id, input.reviewerIds);
       return (await this.fetchQueue(client, experimentId, row.id))!;
     });
   }
@@ -164,6 +185,10 @@ export class PostgresAnnotationQueueRepository implements AnnotationQueueReposit
         if (started) assertRubricOnlyGrows(current.rubric, patch.rubric);
         else await client.query(`DELETE FROM annotation_queue_configs WHERE queue_id = $1`, [queueId]);
         await this.writeRubric(client, queueId, patch.rubric);
+      }
+      if (patch.reviewerIds) {
+        await client.query(`DELETE FROM annotation_queue_reviewers WHERE queue_id = $1`, [queueId]);
+        await this.writeReviewers(client, queueId, patch.reviewerIds);
       }
       try {
         await client.query(
@@ -262,7 +287,10 @@ export class PostgresAnnotationQueueRepository implements AnnotationQueueReposit
         const probe = await client.query(candidateSql(false), params);
         return { item: null, contended: (probe.rowCount ?? 0) > 0 };
       }
-      await client.query(`INSERT INTO annotation_queue_claims (queue_item_id, user_id) VALUES ($1, $2)`, [item.id, userId]);
+      await client.query(`INSERT INTO annotation_queue_claims (queue_item_id, user_id) VALUES ($1, $2)
+         ON CONFLICT (queue_item_id, user_id) DO UPDATE SET claimed_at = now(), skipped_at = NULL`,
+        [item.id, userId],
+      );
       return { item: toItem(item), contended: false };
     });
   }
@@ -306,6 +334,52 @@ export class PostgresAnnotationQueueRepository implements AnnotationQueueReposit
     return rows[0] ? toItem(rows[0]) : null;
   }
 
+  async listQueuesForTrace(experimentId: string, traceId: string): Promise<TraceQueueMembership[]> {
+    const { rows } = await this.pool.query<{ id: string; name: string; archived_at: Date | null; status: QueueItemStatus }>(
+      `SELECT q.id, q.name, q.archived_at, i.status
+         FROM annotation_queue_items i JOIN annotation_queues q ON q.id = i.queue_id
+        WHERE q.experiment_id = $1 AND i.target_type = 'trace' AND i.trace_id = $2
+        ORDER BY q.archived_at NULLS FIRST, q.created_at DESC`,
+      [experimentId, traceId],
+    );
+    return rows.map((r) => ({ queueId: r.id, queueName: r.name, archived: r.archived_at !== null, itemStatus: r.status }));
+  }
+
+  async listResolutions(queueId: string, itemIds: string[]): Promise<QueueResolution[]> {
+    const ids = itemIds.filter((id) => UUID.test(id));
+    if (ids.length === 0) return [];
+    const { rows } = await this.pool.query<ResolutionRow>(
+      `SELECT r.queue_item_id, r.config_id, r.value, r.expected_output, r.resolved_by, r.resolved_at
+         FROM annotation_queue_resolutions r JOIN annotation_queue_items i ON i.id = r.queue_item_id
+        WHERE i.queue_id = $1 AND r.queue_item_id = ANY($2::uuid[])`,
+      [queueId, ids],
+    );
+    return rows.map(toResolution);
+  }
+
+  async upsertResolution(queueId: string, resolution: Omit<QueueResolution, "resolvedAt">): Promise<QueueResolution> {
+    const { rows } = await this.pool.query<ResolutionRow>(
+      `INSERT INTO annotation_queue_resolutions (queue_item_id, config_id, value, expected_output, resolved_by)
+       SELECT i.id, $3, $4, $5, $6 FROM annotation_queue_items i WHERE i.id = $2 AND i.queue_id = $1
+       ON CONFLICT (queue_item_id, config_id)
+       DO UPDATE SET value = EXCLUDED.value, expected_output = EXCLUDED.expected_output, resolved_by = EXCLUDED.resolved_by, resolved_at = now()
+       RETURNING queue_item_id, config_id, value, expected_output, resolved_by, resolved_at`,
+      [queueId, resolution.queueItemId, resolution.configId, resolution.value, resolution.expectedOutput, resolution.resolvedBy],
+    );
+    if (!rows[0]) throw new AnnotationQueueInvariantError("The item does not belong to this queue");
+    return toResolution(rows[0]);
+  }
+
+  async deleteResolution(queueId: string, itemId: string, configId: string): Promise<boolean> {
+    if (!UUID.test(itemId) || !UUID.test(configId)) return false;
+    const { rowCount } = await this.pool.query(
+      `DELETE FROM annotation_queue_resolutions r USING annotation_queue_items i
+        WHERE r.queue_item_id = i.id AND i.queue_id = $1 AND r.queue_item_id = $2 AND r.config_id = $3`,
+      [queueId, itemId, configId],
+    );
+    return (rowCount ?? 0) > 0;
+  }
+
   private async fetchQueue(db: Pool | PoolClient, experimentId: string, queueId: string, lock = false): Promise<AnnotationQueue | null> {
     const { rows } = await db.query<QueueRow>(
       `SELECT ${QUEUE_COLUMNS} FROM annotation_queues WHERE id = $1 AND experiment_id = $2 ${lock ? "FOR UPDATE" : ""}`,
@@ -313,7 +387,8 @@ export class PostgresAnnotationQueueRepository implements AnnotationQueueReposit
     );
     if (!rows[0]) return null;
     const rubric = await db.query<RubricRow>(`SELECT queue_id, config_id, required, position FROM annotation_queue_configs WHERE queue_id = $1 ORDER BY position`, [queueId]);
-    return toQueue(rows[0], rubric.rows);
+    const reviewers = await db.query<ReviewerRow>(`SELECT queue_id, user_id FROM annotation_queue_reviewers WHERE queue_id = $1 ORDER BY added_at, user_id`, [queueId]);
+    return toQueue(rows[0], rubric.rows, reviewers.rows);
   }
 
   private async fetchItem(db: Pool | PoolClient, queueId: string, itemId: string): Promise<QueueItem | null> {
@@ -329,6 +404,13 @@ export class PostgresAnnotationQueueRepository implements AnnotationQueueReposit
         [queueId, entry.configId, entry.required, position],
       );
     }
+  }
+
+  private async writeReviewers(client: PoolClient, queueId: string, userIds: string[]): Promise<void> {
+    await client.query(
+      `INSERT INTO annotation_queue_reviewers (queue_id, user_id) SELECT $1::uuid, unnest($2::uuid[]) ON CONFLICT DO NOTHING`,
+      [queueId, userIds],
+    );
   }
 
   private async transaction<T>(run: (client: PoolClient) => Promise<T>): Promise<T> {
@@ -347,15 +429,21 @@ export class PostgresAnnotationQueueRepository implements AnnotationQueueReposit
   }
 }
 
-/** Primer item pendiente que este revisor puede coger: no lo ha tocado y aún caben revisores (claims vivos < requeridos). */
+/**
+ * Primer item pendiente que este revisor puede coger: no lo ha completado ni lo tiene en curso y aún caben revisores
+ * (claims vivos < requeridos). Los que saltó vuelven a ofrecerse, pero solo después de los que no ha visto y
+ * rotando (el salto más antiguo primero), para que con un único revisor saltar no deje items inalcanzables.
+ */
 function candidateSql(lock: boolean): string {
   return `SELECT ${prefixed("i", ITEM_COLUMNS)} FROM annotation_queue_items i
            WHERE i.queue_id = $1 AND i.status = 'pending'
-             AND NOT EXISTS (SELECT 1 FROM annotation_queue_claims c WHERE c.queue_item_id = i.id AND c.user_id = $2)
+             AND NOT EXISTS (SELECT 1 FROM annotation_queue_claims c WHERE c.queue_item_id = i.id AND c.user_id = $2
+                               AND (c.completed_at IS NOT NULL OR c.skipped_at IS NULL))
              AND (SELECT count(*) FROM annotation_queue_claims c
                    WHERE c.queue_item_id = i.id AND c.skipped_at IS NULL
                      AND (c.completed_at IS NOT NULL OR c.claimed_at > now() - make_interval(mins => $4))) < $3
-           ORDER BY i.added_at ASC, i.id ASC
+           ORDER BY (SELECT c.skipped_at FROM annotation_queue_claims c WHERE c.queue_item_id = i.id AND c.user_id = $2) ASC NULLS FIRST,
+                    i.added_at ASC, i.id ASC
            ${lock ? "FOR UPDATE OF i SKIP LOCKED" : ""}
            LIMIT 1`;
 }
@@ -378,7 +466,7 @@ function iso(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : value;
 }
 
-function toQueue(row: QueueRow, rubric: RubricRow[]): AnnotationQueue {
+function toQueue(row: QueueRow, rubric: RubricRow[], reviewers: ReviewerRow[]): AnnotationQueue {
   const entries: QueueRubricEntry[] = rubric.map((r) => ({ configId: r.config_id, required: r.required, position: r.position }));
   return {
     id: row.id,
@@ -386,10 +474,31 @@ function toQueue(row: QueueRow, rubric: RubricRow[]): AnnotationQueue {
     name: row.name,
     instructions: row.instructions,
     requiredAnnotations: row.required_annotations,
+    reviewerIds: reviewers.map((r) => r.user_id),
     rubric: entries,
     createdBy: row.created_by,
     createdAt: iso(row.created_at),
     archivedAt: row.archived_at ? iso(row.archived_at) : null,
+  };
+}
+
+interface ResolutionRow {
+  queue_item_id: string;
+  config_id: string;
+  value: string;
+  expected_output: string | null;
+  resolved_by: string;
+  resolved_at: Date | string;
+}
+
+function toResolution(row: ResolutionRow): QueueResolution {
+  return {
+    queueItemId: row.queue_item_id,
+    configId: row.config_id,
+    value: row.value,
+    expectedOutput: row.expected_output,
+    resolvedBy: row.resolved_by,
+    resolvedAt: iso(row.resolved_at),
   };
 }
 

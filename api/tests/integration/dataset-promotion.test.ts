@@ -82,4 +82,23 @@ describe.skipIf(!url)("addPromotedDatasetItems (postgres)", () => {
     [item] = await liveItems(datasetId);
     expect(item!.metadata).toEqual({ other: 1, promotedFrom: { traceId: "a" } });
   });
+  it("finds the datasets whose LATEST version holds an item promoted from each trace (ADR-050)", async () => {
+    const datasetId = await newDataset();
+    await repo.addPromotedDatasetItems(datasetId, userId, [draft("found-a"), draft("found-b")]);
+    const other = await newDataset();
+    await repo.addPromotedDatasetItems(other, userId, [draft("found-a")]);
+
+    const found = await repo.findPromotedTraces(expId, ["found-a", "found-b", "never"]);
+    expect(found.filter((f) => f.traceId === "found-a").map((f) => f.datasetId).sort()).toEqual([datasetId, other].sort());
+    expect(found.find((f) => f.traceId === "found-b")).toMatchObject({ datasetId, version: "2.0" });
+    expect(found.some((f) => f.traceId === "never")).toBe(false);
+    expect(await repo.findPromotedTraces(expId, [])).toEqual([]);
+  });
+
+  it("does not report a trace whose item was removed in the latest version", async () => {
+    const datasetId = await newDataset();
+    const { added } = await repo.addPromotedDatasetItems(datasetId, userId, [draft("gone")]);
+    await repo.deleteDatasetItem(datasetId, added[0]!.id, userId);
+    expect((await repo.findPromotedTraces(expId, ["gone"])).filter((f) => f.datasetId === datasetId)).toEqual([]);
+  });
 });

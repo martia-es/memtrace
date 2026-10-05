@@ -5,13 +5,19 @@ import type {
   AnnotationQueueDetailResponse,
   AnnotationQueueDto,
   AnnotationQueuesListResponse,
+  ReviewerCandidatesResponse,
   NextQueueItemResponse,
   QueueItemDto,
   QueueItemsResponse,
+  QueueResolutionDto,
+  QueueResultsResponse,
+  TraceQueuesResponse,
+  ResolveQueueItemBody,
   AttributeKeysResponse,
   AttributeValuesResponse,
   ConversationDetailResponse,
   ConversationListResponse,
+  LowRatedResponse,
   ConversationTreeResponse,
   CustomMetricDefinitionDto,
   CustomMetricResultResponse,
@@ -98,6 +104,7 @@ export interface NewAnnotationQueueBody {
   name: string;
   instructions?: string | null;
   requiredAnnotations: number;
+  reviewerIds: string[];
   rubric: Array<{ configId: string; required: boolean }>;
 }
 
@@ -105,12 +112,20 @@ export interface AnnotationQueuePatchBody {
   name?: string;
   instructions?: string | null;
   requiredAnnotations?: number;
+  reviewerIds?: string[];
   rubric?: Array<{ configId: string; required: boolean }>;
   archived?: boolean;
 }
 
 /** Alcance del acuerdo juez-humano: un run o una cola, nunca el experimento entero. */
 export type AgreementScope = { datasetRunId: string } | { queueId: string };
+
+export interface QueueResultsParams {
+  status?: QueueItemDto["status"];
+  onlyDisagreements?: boolean;
+  limit?: number;
+  offset?: number;
+}
 
 export interface QueueLabelBody {
   configId: string;
@@ -132,8 +147,12 @@ export interface TraceApi {
   retractTraceAnnotation(traceId: string, configId: string, options?: { spanId?: string | null; annotatorId?: string }, signal?: AbortSignal): Promise<void>;
   /** Colas de anotación del experimento con su progreso (ADR-039). */
   listAnnotationQueues(includeArchived?: boolean, signal?: AbortSignal): Promise<AnnotationQueuesListResponse>;
+  /** trazas con alguna valoración humana baja en el rango, para "Needs attention" (ADR-049) */
+  getLowRated(params: RangeParams, signal?: AbortSignal): Promise<LowRatedResponse>;
   createAnnotationQueue(body: NewAnnotationQueueBody, signal?: AbortSignal): Promise<AnnotationQueueDto>;
   getAnnotationQueue(queueId: string, signal?: AbortSignal): Promise<AnnotationQueueDetailResponse>;
+  /** Quién se puede asignar como revisor: miembros del experimento y org_admin (solo admin). */
+  listReviewerCandidates(signal?: AbortSignal): Promise<ReviewerCandidatesResponse>;
   updateAnnotationQueue(queueId: string, patch: AnnotationQueuePatchBody, signal?: AbortSignal): Promise<AnnotationQueueDetailResponse>;
   listAnnotationQueueItems(queueId: string, status?: QueueItemDto["status"], signal?: AbortSignal): Promise<QueueItemsResponse>;
   addAnnotationQueueItems(queueId: string, body: AddQueueItemsBody, signal?: AbortSignal): Promise<AddQueueItemsResponse>;
@@ -143,6 +162,13 @@ export interface TraceApi {
   skipAnnotationQueueItem(queueId: string, itemId: string, signal?: AbortSignal): Promise<QueueItemDto>;
   /** Solo admin: el item deja de repartirse. */
   markAnnotationQueueItemUnreviewable(queueId: string, itemId: string, signal?: AbortSignal): Promise<QueueItemDto>;
+  /** Colas de revisión que contienen la traza y el estado de su item (ADR-050). */
+  listTraceQueues(traceId: string, signal?: AbortSignal): Promise<TraceQueuesResponse>;
+  /** Solo admin (ADR-050): qué respondió cada revisor por item y criterio, con desacuerdos y resoluciones. */
+  getQueueResults(queueId: string, params?: QueueResultsParams, signal?: AbortSignal): Promise<QueueResultsResponse>;
+  /** Solo admin: el técnico fija el valor final de un criterio (y, opcional, la respuesta correcta). No toca las etiquetas. */
+  resolveQueueItem(queueId: string, itemId: string, configId: string, body: ResolveQueueItemBody, signal?: AbortSignal): Promise<QueueResolutionDto>;
+  clearQueueResolution(queueId: string, itemId: string, configId: string, signal?: AbortSignal): Promise<void>;
   /** Acuerdo del juez LLM con las etiquetas humanas sobre un run o una cola (ADR-040). `name` limita a un evaluador. */
   getJudgeHumanAgreement(scope: AgreementScope, name?: string, signal?: AbortSignal): Promise<JudgeHumanAgreementResponse>;
   /** Acuerdo entre quienes etiquetaron los items de una cola (ADR-040). */

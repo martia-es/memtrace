@@ -30,8 +30,8 @@ export async function POST(request: Request, context: { params: Promise<{ experi
     const user = await requireUser();
     if (user instanceof Response) return user;
 
-    if (!(await getIdentity().authorizationService.canManageExperimentMembers(user.id, experimentId))) {
-      return problem(403, "Forbidden", "Only experiment admins can manage score configs");
+    if (!(await getIdentity().authorizationService.can(user.id, experimentId, "scoreconfig:manage"))) {
+      return problem(403, "Forbidden", "Missing permission: scoreconfig:manage");
     }
     const body = await parseJsonOrThrow(createScoreConfigBody, request);
     return json(toScoreConfigDto(await getAnnotation().createScoreConfig(experimentId, user.id, body)), 201);

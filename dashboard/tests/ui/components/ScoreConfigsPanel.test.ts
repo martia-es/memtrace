@@ -19,7 +19,7 @@ describe("ScoreConfigsPanel", () => {
   it("shows an explanatory empty state to members without management buttons", async () => {
     const { wrapper } = await mountPanel(false);
     expect(wrapper.text()).toContain("No score configs yet");
-    expect(wrapper.text()).toContain("An experiment admin needs to create them");
+    expect(wrapper.text()).toContain("A technical profile needs to create them");
     expect(wrapper.text()).not.toContain("New score config");
   });
 

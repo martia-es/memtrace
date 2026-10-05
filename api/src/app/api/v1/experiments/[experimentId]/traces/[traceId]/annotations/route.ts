@@ -1,4 +1,4 @@
-import { requireExperimentMember } from "@/adapters/inbound/http/auth-context";
+import { requirePermission } from "@/adapters/inbound/http/auth-context";
 import { identityGuard } from "@/adapters/inbound/http/identity-guard";
 import { parseJsonOrThrow } from "@/adapters/inbound/http/identity-schemas";
 import { toTraceAnnotationsResponse } from "@/adapters/inbound/http/mappers";
@@ -14,7 +14,7 @@ type Params = { params: Promise<{ experimentId: string; traceId: string }> };
 export async function GET(_request: Request, context: Params) {
   return identityGuard(async () => {
     const { experimentId, traceId } = await context.params;
-    const ctx = await requireExperimentMember(experimentId);
+    const ctx = await requirePermission(experimentId, "experiment:read");
     if (ctx instanceof Response) return ctx;
     return json(toTraceAnnotationsResponse(await getAnnotation().listForTrace(ctx.serviceName, traceId)));
   });
@@ -24,7 +24,7 @@ export async function GET(_request: Request, context: Params) {
 export async function POST(request: Request, context: Params) {
   return identityGuard(async () => {
     const { experimentId, traceId } = await context.params;
-    const ctx = await requireExperimentMember(experimentId);
+    const ctx = await requirePermission(experimentId, "annotation:write");
     if (ctx instanceof Response) return ctx;
 
     const body = await parseJsonOrThrow(saveAnnotationBody, request);

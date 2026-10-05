@@ -22,8 +22,18 @@ import type {
   PendingInvitationTarget,
   User,
 } from "@/domain/identity";
+import type { AgentProfile } from "@/domain/assistant-registry";
+import type { Permission } from "@/domain/permissions";
 
 /** Puerto hacia el almacén de identidad (PostgreSQL, ver ADR-013). Auth.js gestiona users/accounts/sessions aparte. */
+export interface PromotedTraceLocation {
+  traceId: string;
+  datasetId: string;
+  datasetName: string;
+  /** versión actual del dataset, p. ej. "3.0" */
+  version: string;
+}
+
 export interface IdentityRepository {
   getUserByEmail(email: string): Promise<User | null>;
   /** Usuarios por id en una sola consulta (nombres de anotadores, ADR-037). Los ids desconocidos simplemente no aparecen. */
@@ -33,13 +43,17 @@ export interface IdentityRepository {
   getOrganization(organizationId: string): Promise<Organization | null>;
   /** Todas las organizaciones visibles (org_admin, o con al menos un experimento con membership directa). */
   listOrganizationsForUser(userId: string): Promise<OrganizationSummary[]>;
+  /** `org:manage` en la organización. */
   isOrgAdmin(userId: string, organizationId: string): Promise<boolean>;
+  /** Permiso concedido por el rol de organización de la persona (ADR-052/053). */
+  hasOrganizationPermission(userId: string, organizationId: string, permission: Permission): Promise<boolean>;
   addOrgAdmin(organizationId: string, userId: string): Promise<void>;
   listOrgMembers(organizationId: string): Promise<Member[]>;
   /** Reemplaza el tema visual de la organización (ADR-019). Requiere ser org_admin (comprobado por el caller). */
   updateOrganizationTheme(organizationId: string, theme: OrganizationTheme): Promise<Organization>;
 
-  createExperiment(organizationId: string, name: string, serviceName: string): Promise<Experiment>;
+  /** Crea el experimento, que es también la ficha del agente (ADR-054): descripción, dueño y equipo. */
+  createExperiment(organizationId: string, name: string, serviceName: string, profile?: Partial<AgentProfile>): Promise<Experiment>;
   getExperiment(experimentId: string): Promise<Experiment | null>;
   listExperimentsForUser(userId: string): Promise<ExperimentSummary[]>;
 
@@ -53,13 +67,16 @@ export interface IdentityRepository {
   /** Invitaciones sin aceptar todavía de una organización o experimento concreto, más recientes primero. */
   listPendingInvitations(target: { organizationId: string } | { experimentId: string }): Promise<PendingInvitation[]>;
 
-  /** org_admin de la organización dueña del experimento, o membership directa. `null` si no hay acceso. */
+  /** Permisos efectivos (rol de organización + rol de experimento, ADR-052). `null` si no hay ninguna membership que lo alcance. */
   resolveExperimentAccess(userId: string, experimentId: string): Promise<ExperimentAccess>;
+  /** Nombres de los roles asignables en un ámbito (para validar invitaciones). */
+  listRoleNames(scope: "organization" | "experiment"): Promise<string[]>;
 
   /** Devuelve la key en claro (única vez) además de sus metadatos. */
   createApiKey(experimentId: string, createdByUserId: string): Promise<{ apiKey: ApiKey; plaintext: string }>;
-  listApiKeys(experimentId: string): Promise<ApiKey[]>;
-  revokeApiKey(experimentId: string, keyId: string): Promise<void>;
+  /** `createdBy` limita a las keys de esa persona (quien solo tiene `apikey:manage_own`, ADR-052). */
+  listApiKeys(experimentId: string, createdBy?: string): Promise<ApiKey[]>;
+  revokeApiKey(experimentId: string, keyId: string, createdBy?: string): Promise<void>;
   /** Para el gateway de ingesta (piece 9) y `requireExperimentAccess` (ADR-028): experimentId de
    * una key en claro válida y no revocada, o `null`. `createdByUserId` es quien creó la key, usado
    * como autor de lo que el agente crea vía API (datasets) al no tener usuario propio. */
@@ -107,6 +124,8 @@ export interface IdentityRepository {
   /** Como `addDatasetItems` para items promovidos desde trazas (ADR-038): UNA versión MAJOR para todo el lote. Descarta
    * (`alreadyPromoted`) los `traceId` que ya estén en un item vivo de la última versión; la comprobación y el alta van
    * en la misma transacción bajo un lock por dataset. Si no queda nada que añadir no crea versión (`version: null`). */
+  /** Datasets del experimento cuya ÚLTIMA versión contiene un item vivo promovido desde alguna de esas trazas (ADR-050). */
+  findPromotedTraces(experimentId: string, traceIds: string[]): Promise<PromotedTraceLocation[]>;
   addPromotedDatasetItems(
     datasetId: string,
     createdByUserId: string,

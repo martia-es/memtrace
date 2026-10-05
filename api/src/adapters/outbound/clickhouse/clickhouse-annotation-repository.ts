@@ -83,6 +83,26 @@ export class ClickHouseAnnotationRepository implements AnnotationRepository {
     return this.listWhere(serviceName, "TargetType = 'trace' AND SpanId = '' AND TraceId IN {traceIds:Array(String)}", { traceIds }, configName);
   }
 
+  async listRecentForTraces(serviceName: string, fromMs: number, toMs: number, limit: number): Promise<Annotation[]> {
+    try {
+      return await this.limiter.run(async () => {
+        const result = await this.readClient.query({
+          query: `SELECT * FROM ${this.database}.annotations FINAL
+                   WHERE ServiceName = {serviceName:String} AND TargetType = 'trace' AND SpanId = '' AND IsDeleted = 0
+                     AND CreatedAt >= fromUnixTimestamp64Milli({fromMs:Int64}) AND CreatedAt < fromUnixTimestamp64Milli({toMs:Int64})
+                   ORDER BY CreatedAt DESC
+                   LIMIT {limit:UInt32}`,
+          query_params: { serviceName, fromMs, toMs, limit },
+          format: "JSONEachRow",
+        });
+        return (await result.json<AnnotationRow>()).map(toAnnotation);
+      });
+    } catch (error) {
+      console.error("[memtrace-api] ClickHouse query (recent annotations) failed:", error);
+      throw new RepositoryUnavailableError(error);
+    }
+  }
+
   /** Lectura acotada para el cálculo de acuerdo: el tope evita traer una tabla entera si el alcance es enorme. */
   private async listWhere(serviceName: string, condition: string, params: Record<string, unknown>, configName?: string): Promise<Annotation[]> {
     try {

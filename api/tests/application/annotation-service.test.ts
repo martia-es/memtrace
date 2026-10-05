@@ -178,3 +178,50 @@ describe("AnnotationService annotations (ADR-037)", () => {
     expect((await service.listForTrace(SERVICE, "t1")).annotations).toEqual([]);
   });
 });
+
+describe("AnnotationService low-rated traces (ADR-049)", () => {
+  const NOW = Date.parse("2026-10-04T12:00:00Z");
+  const range = { fromMs: NOW - 24 * 3600_000, toMs: NOW };
+  let configs: FakeScoreConfigRepository;
+  let annotations: FakeAnnotationRepository;
+  let service: AnnotationService;
+
+  const label = (traceId: string, configId: string, configName: string, dataType: "numeric" | "boolean" | "categorical", value: string, hoursAgo: number, annotatorId = "u1") => ({
+    traceId, spanId: null, configId, configName, dataType, annotatorId, value, comment: null, createdAt: new Date(NOW - hoursAgo * 3600_000).toISOString(),
+  });
+
+  beforeEach(async () => {
+    configs = new FakeScoreConfigRepository();
+    annotations = new FakeAnnotationRepository();
+    service = new AnnotationService(configs, annotations, new FakeTraceRepository(), {} as ScoreRepository, {} as IdentityRepository);
+    await configs.create("e1", "u1", numeric); // cfg-1: tone 1–5
+  });
+
+  it("counts distinct traces with a low human label, newest first, ignoring good labels and other tenants", async () => {
+    await annotations.upsert("svc", label("t-old", "cfg-1", "tone", "numeric", "1", 5));
+    await annotations.upsert("svc", label("t-new", "cfg-1", "tone", "numeric", "2", 1));
+    await annotations.upsert("svc", label("t-new", "cfg-1", "tone", "numeric", "1", 1, "u2")); // same trace, second reviewer: still one trace
+    await annotations.upsert("svc", label("t-good", "cfg-1", "tone", "numeric", "5", 2));
+    await annotations.upsert("svc", label("t-no", "cfg-bool", "correct", "boolean", "false", 3));
+    await annotations.upsert("svc", label("t-cat", "cfg-cat", "kind", "categorical", "bad", 3));
+    await annotations.upsert("svc", label("t-outside", "cfg-1", "tone", "numeric", "1", 72)); // before the range
+    await annotations.upsert("other-svc", label("t-other", "cfg-1", "tone", "numeric", "1", 1));
+
+    const summary = await service.listLowRated("e1", "svc", range);
+    expect(summary.count).toBe(3);
+    expect(summary.items.map((i) => i.traceId)).toEqual(["t-new", "t-no", "t-old"]);
+    expect(summary.items[0]).toMatchObject({ configName: "tone", value: expect.any(String) });
+  });
+
+  it("reports nothing when there is nothing to flag", async () => {
+    await annotations.upsert("svc", label("t-good", "cfg-1", "tone", "numeric", "4", 1));
+    expect(await service.listLowRated("e1", "svc", range)).toEqual({ count: 0, items: [] });
+  });
+
+  it("does not count a retracted label", async () => {
+    const low = label("t-1", "cfg-1", "tone", "numeric", "1", 1);
+    await annotations.upsert("svc", low);
+    await annotations.retract("svc", { ...low, value: "" });
+    expect((await service.listLowRated("e1", "svc", range)).count).toBe(0);
+  });
+});

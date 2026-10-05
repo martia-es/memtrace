@@ -2,10 +2,12 @@
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { withGaps } from "@/domain/conversation";
-import { formatCount, formatDateTime, formatDuration } from "@/domain/format";
+import { formatCostUsd, formatCount, formatDateTime, formatDuration } from "@/domain/format";
 import { findNode } from "@/domain/waterfall";
 import ConversationTree from "../components/ConversationTree.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
+import Modal from "../components/Modal.vue";
+import TraceAnnotationsPanel from "../components/TraceAnnotationsPanel.vue";
 import SpanInspector from "../components/SpanInspector.vue";
 import TraceTable from "../components/TraceTable.vue";
 import { useAsync } from "../composables/useAsync";
@@ -97,9 +99,13 @@ const stats = computed(() => {
     { k: "Traces", v: formatCount(c.turnCount) },
     { k: "Active time", v: formatDuration(c.activeMs) },
     { k: "Tokens", v: c.totalTokens ? formatCount(c.totalTokens) : "–" },
+    { k: "Cost", v: formatCostUsd(c.costUsd) ?? "–" },
     { k: "Failed spans", v: formatCount(c.failedSpans) },
   ];
 });
+
+// ---- anotar un turno sin salir de la conversación (ADR-050): mismo panel que en el detalle de traza ----
+const annotatingTrace = ref<string | null>(null);
 
 const openTrace = (traceId: string) => void router.push({ name: "trace", params: { experimentId: experimentId.value, traceId }, query: f.shared.value });
 const backToList = () => void router.push({ name: "conversations", params: { experimentId: experimentId.value }, query: { ...f.shared.value, group: "conversation" } });
@@ -120,7 +126,7 @@ const backToList = () => void router.push({ name: "conversations", params: { exp
       <header class="head mt-card">
         <div class="titles">
           <div class="title-row">
-            <h1 class="leading-none">Conversation</h1>
+            <h1 class="leading-none" :title="conversation.title ?? undefined">{{ conversation.title ?? "Conversation" }}</h1>
             <span v-if="conversation.errorTurns" class="mt-pill error">{{ conversation.errorTurns }} {{ conversation.errorTurns === 1 ? "trace with error" : "traces with error" }}</span>
             <span v-else-if="conversation.failedSpans" class="mt-pill warn">{{ conversation.failedSpans }} {{ conversation.failedSpans === 1 ? "span with failures" : "spans with failures" }}</span>
           </div>
@@ -136,7 +142,7 @@ const backToList = () => void router.push({ name: "conversations", params: { exp
       </header>
 
       <section v-if="view === 'table'" class="mt-card list" aria-label="Conversation traces">
-        <TraceTable v-if="traces.length" :items="traces" :labels="labels" @open="openTrace" />
+        <TraceTable v-if="traces.length" :items="traces" :labels="labels" annotatable @open="openTrace" @annotate="annotatingTrace = $event" />
         <p v-else class="muted empty">This conversation has no traces to show.</p>
         <button v-if="cursor" type="button" class="more" :disabled="more.loading.value" @click="loadMore">{{ more.loading.value ? "Loading…" : "Load more traces" }}</button>
         <ErrorBanner v-if="more.error.value" :error="more.error.value" @retry="loadMore" />
@@ -154,6 +160,10 @@ const backToList = () => void router.push({ name: "conversations", params: { exp
         </div>
       </template>
     </template>
+
+    <Modal v-if="annotatingTrace" title="Annotate trace" wide @close="annotatingTrace = null">
+      <TraceAnnotationsPanel :trace-id="annotatingTrace" :experiment-id="experimentId" :span="null" />
+    </Modal>
   </div>
 </template>
 
@@ -163,24 +173,26 @@ const backToList = () => void router.push({ name: "conversations", params: { exp
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
+  padding: 16px 24px 20px;
+  background: var(--mt-bg);
 }
 .crumbs {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 8px;
+  padding: 0 4px;
   color: var(--mt-muted);
-  font-size: 13px;
+  font-size: 12.5px;
   flex-shrink: 0;
 }
 .crumb {
   border: 0;
   background: none;
   padding: 0;
-  color: var(--mt-accent);
+  color: var(--mt-accent-text);
   font: inherit;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
 }
 .current {
@@ -197,13 +209,13 @@ const backToList = () => void router.push({ name: "conversations", params: { exp
 h1 {
   margin: 0;
   font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 .head {
   box-sizing: border-box;
-  padding: 16px 22px;
+  padding: 14px 18px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -213,7 +225,7 @@ h1 {
 .titles {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
 }
 .title-row {
@@ -225,9 +237,10 @@ h1 {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: 12.5px;
 }
 .id {
-  color: var(--mt-accent);
+  color: var(--mt-accent-text);
   font-size: 12px;
 }
 .stats {
@@ -239,16 +252,19 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  padding: 6px 16px;
-  border-radius: var(--mt-radius-lg);
-  background: var(--mt-soft-2);
+  padding: 6px 14px;
+  border: 1px solid var(--mt-line);
+  border-radius: var(--mt-radius-sm);
 }
 .stat .k {
-  font-size: 11px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 .stat .v {
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 800;
   letter-spacing: -0.02em;
   white-space: nowrap;
 }
@@ -256,38 +272,37 @@ h1 {
   display: flex;
   gap: 2px;
   padding: 3px;
-  border-radius: var(--mt-radius-lg);
-  background: var(--mt-soft-2);
+  border-radius: var(--mt-radius-sm);
+  background: var(--mt-soft);
   flex-shrink: 0;
 }
 .toggle-btn {
   border: 0;
   background: none;
   padding: 5px 14px;
-  border-radius: var(--mt-radius-sm);
+  border-radius: var(--mt-radius-xs);
   font: inherit;
   font-size: 12.5px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--mt-muted);
   cursor: pointer;
 }
 .toggle-btn.active {
   background: var(--mt-card);
   color: var(--mt-ink);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 0 0 1px var(--mt-line);
 }
 .list {
   box-sizing: border-box;
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 12px 14px;
 }
 /* árbol ~40 % · inspector ~60 %, igual que en TraceDetailPage */
 .cols {
   display: grid;
   grid-template-columns: minmax(300px, 2fr) minmax(0, 3fr);
-  gap: 10px;
+  gap: 12px;
   flex: 1;
   min-height: 0;
 }
@@ -309,14 +324,16 @@ h1 {
 }
 .more {
   display: block;
-  margin: 10px auto 0;
+  margin: 12px auto;
   height: 30px;
   padding: 0 14px;
   border: 1px solid var(--mt-line);
-  border-radius: var(--mt-radius-lg);
+  border-radius: var(--mt-radius-sm);
   background: var(--mt-card);
+  color: var(--mt-accent-text);
   font: inherit;
-  font-weight: 600;
+  font-size: 12.5px;
+  font-weight: 700;
   cursor: pointer;
 }
 @media (max-width: 1100px) {

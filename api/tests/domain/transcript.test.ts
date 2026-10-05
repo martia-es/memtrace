@@ -17,6 +17,13 @@ describe("buildTranscript", () => {
     expect(t.contentCaptured).toBe(true);
   });
 
+  it("reads the GenAI `parts` message format (Pydantic AI)", () => {
+    const t = buildTranscript("c", [
+      rec("t3", 1, [{ role: "user", parts: [{ type: "text", content: "¿Qué tiempo hace?" }] }], [{ role: "assistant", parts: [{ type: "tool_call", name: "get_weather" }, { type: "text", content: "Soleado" }] }]),
+    ], false);
+    expect(t.turns[0]).toMatchObject({ user: "¿Qué tiempo hace?", assistant: "Soleado" });
+  });
+
   it("uses only the latest user message when the history is resent", () => {
     const t = buildTranscript("c", [
       rec("t2", 5, [{ role: "user", content: "hola" }, { role: "assistant", content: "buenas" }, { role: "user", content: "¿y mi pedido?" }], [{ role: "assistant", content: "ok" }]),

@@ -11,8 +11,9 @@ import Modal from "../../components/Modal.vue";
 import MemberList from "../../components/admin/MemberList.vue";
 import InviteForm from "../../components/admin/InviteForm.vue";
 import OrganizationAppearance from "../../components/admin/OrganizationAppearance.vue";
+import OrganizationIdentity from "../../components/admin/OrganizationIdentity.vue";
 
-/** Nivel 2: una organización. Pestañas: experimentos (siempre), y miembros + apariencia solo para org_admin. */
+/** Nivel 2: una organización. Pestañas: experimentos (siempre), y miembros + identidad + apariencia solo para org_admin. */
 const props = defineProps<{ organizationId: string }>();
 
 const api = useIdentityApi();
@@ -36,6 +37,7 @@ const tabs = computed(() => {
   const list: { id: string; label: string; count?: number }[] = [{ id: "experiments", label: "Experiments", count: orgExperiments.value.length }];
   if (isOrgAdmin.value) {
     list.push({ id: "members", label: "Members", count: (orgMembers.value?.members.length ?? 0) + (orgMembers.value?.pendingInvitations.length ?? 0) });
+    list.push({ id: "identity", label: "Identity" });
     list.push({ id: "appearance", label: "Appearance" });
   }
   return list;
@@ -49,6 +51,7 @@ const tab = computed({
 const showCreate = ref(false);
 const serviceName = ref("");
 const displayName = ref("");
+const description = ref("");
 const displayTouched = ref(false);
 const creating = ref(false);
 function onServiceInput() {
@@ -58,9 +61,10 @@ async function createExperiment() {
   if (!serviceName.value.trim() || !displayName.value.trim()) return;
   creating.value = true;
   try {
-    await api.createExperiment(props.organizationId, displayName.value.trim(), serviceName.value.trim());
+    await api.createExperiment(props.organizationId, displayName.value.trim(), serviceName.value.trim(), { description: description.value.trim() });
     serviceName.value = "";
     displayName.value = "";
+    description.value = "";
     displayTouched.value = false;
     showCreate.value = false;
     await dir.reload();
@@ -145,20 +149,26 @@ async function inviteOrgAdmin({ email }: { email: string }) {
           />
         </section>
 
+        <section v-if="tab === 'identity' && organization && isOrgAdmin" class="panel">
+          <OrganizationIdentity :organization="organization" :experiments="orgExperiments" />
+        </section>
+
         <section v-if="tab === 'appearance' && organization && isOrgAdmin" class="panel">
           <OrganizationAppearance :organization="organization" :can-manage="isOrgAdmin" @saved="dir.reload" />
         </section>
       </template>
     </div>
 
-    <Modal v-if="showCreate" title="New experiment" @close="showCreate = false">
+    <Modal v-if="showCreate" title="New experiment (agent)" @close="showCreate = false">
       <form class="adm-form" @submit.prevent="createExperiment">
         <p class="adm-hint">
+          An experiment is one agent: it appears in the <router-link :to="{ name: 'assistants' }">Assistants catalog</router-link> as soon as you create it, with you as its owner.
           The <span class="mono">service.name</span> must be the same value the agent uses in <span class="mono">MEMTRACE_SERVICE_NAME</span>.
           The display name is only for this dashboard.
         </p>
         <input v-model="serviceName" class="adm-input mono" placeholder="service.name, e.g. support-agent" autofocus @input="onServiceInput" />
         <input v-model="displayName" class="adm-input" placeholder="Display name" @input="displayTouched = true" />
+        <textarea v-model="description" class="adm-input" rows="2" placeholder="What does this agent do, and for whom? (optional)" />
         <button type="submit" class="adm-btn primary" :disabled="creating || !serviceName.trim() || !displayName.trim()">Create experiment</button>
       </form>
     </Modal>

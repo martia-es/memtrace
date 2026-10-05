@@ -4,13 +4,16 @@ import type {
   ApiKeyDto,
   CurrentUser,
   ExperimentDto,
+  ExternalMappingDto,
   IdentityApi,
   MembersResponseDto,
   MetricReportDto,
   MetricReportSummaryDto,
   NewScoreConfigInput,
   OrganizationDto,
+  OrganizationIdentityDto,
   OrganizationThemeDto,
+  ScimTokenDto,
   SavedCustomMetricDto,
   ScoreConfigPatchInput,
 } from "@/application/identity-api";
@@ -52,16 +55,45 @@ export class HttpIdentityApi implements IdentityApi {
     return this.patch(`/organizations/${encodeURIComponent(organizationId)}/theme`, theme, signal);
   }
 
+  getOrganizationIdentity(organizationId: string, signal?: AbortSignal): Promise<OrganizationIdentityDto> {
+    return this.get(`/organizations/${encodeURIComponent(organizationId)}/identity`, signal);
+  }
+
+  async setGroupsClaim(organizationId: string, groupsClaim: string, signal?: AbortSignal): Promise<void> {
+    await this.patch(`/organizations/${encodeURIComponent(organizationId)}/identity`, { groupsClaim }, signal);
+  }
+
+  createExternalMapping(organizationId: string, input: { externalGroup: string; experimentId: string | null; role: string }, signal?: AbortSignal): Promise<ExternalMappingDto> {
+    return this.post(`/organizations/${encodeURIComponent(organizationId)}/identity/mappings`, input, signal);
+  }
+
+  async deleteExternalMapping(organizationId: string, mappingId: string, signal?: AbortSignal): Promise<void> {
+    await this.remove(`/organizations/${encodeURIComponent(organizationId)}/identity/mappings/${encodeURIComponent(mappingId)}`, signal);
+  }
+
+  createScimToken(organizationId: string, signal?: AbortSignal): Promise<ScimTokenDto & { plaintext: string }> {
+    return this.post(`/organizations/${encodeURIComponent(organizationId)}/identity/scim-tokens`, {}, signal);
+  }
+
+  async revokeScimToken(organizationId: string, tokenId: string, signal?: AbortSignal): Promise<void> {
+    await this.remove(`/organizations/${encodeURIComponent(organizationId)}/identity/scim-tokens/${encodeURIComponent(tokenId)}`, signal);
+  }
+
+  private async remove(path: string, signal?: AbortSignal): Promise<void> {
+    const response = await this.fetchFn(`${this.baseUrl}${path}`, { method: "DELETE", signal, headers: { Accept: "application/json" } });
+    if (!response.ok) throw await toApiError(response);
+  }
+
   async listExperiments(signal?: AbortSignal): Promise<ExperimentDto[]> {
     const { items } = await this.get<{ items: ExperimentDto[] }>("/experiments", signal);
     return items;
   }
 
-  createExperiment(organizationId: string, name: string, serviceName: string, signal?: AbortSignal): Promise<ExperimentDto> {
-    return this.post<ExperimentDto>(`/organizations/${encodeURIComponent(organizationId)}/experiments`, { name, serviceName }, signal);
+  createExperiment(organizationId: string, name: string, serviceName: string, profile: { description?: string } = {}, signal?: AbortSignal): Promise<ExperimentDto> {
+    return this.post<ExperimentDto>(`/organizations/${encodeURIComponent(organizationId)}/experiments`, { name, serviceName, ...profile }, signal);
   }
 
-  async addExperimentMember(experimentId: string, email: string, role: "admin" | "member", signal?: AbortSignal): Promise<void> {
+  async addExperimentMember(experimentId: string, email: string, role: string, signal?: AbortSignal): Promise<void> {
     await this.post(`/experiments/${encodeURIComponent(experimentId)}/members`, { email, role }, signal);
   }
 

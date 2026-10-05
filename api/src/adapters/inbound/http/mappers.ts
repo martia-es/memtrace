@@ -1,14 +1,15 @@
-import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
+import type { ConversationCursor, ConversationListItem } from "@/domain/conversation";
 import type { AttributeKeyCount, AttributeValueCount, CustomMetricResult, MetricsOverview, ServiceUsage, StepKindCount } from "@/domain/metrics";
 import type { DatasetVersionDiff } from "@/domain/dataset-diff";
 import type { CustomMetric, Dataset, DatasetItem, DatasetRun, DatasetRunWithDataset, DatasetVersion, MetricReport, MetricReportWithCharts } from "@/domain/identity";
 import type { DatasetRunItemResult, ScoreAggregate } from "@/domain/evaluation";
 import type { ScoreConfig } from "@/domain/score-config";
 import type { AnnotationQueue, QueueItem } from "@/domain/annotation-queue";
-import type { QueueDetail } from "@/application/annotation-queue-service";
+import type { QueueDetail, QueueListItem, QueueResults } from "@/application/annotation-queue-service";
+import type { QueueResolution } from "@/domain/queue-results";
 import type { InterAnnotatorResult, JudgeHumanResult } from "@/application/agreement-service";
-import type { QueueWithProgress } from "@/application/ports/annotation-queue-repository";
 import type { TraceJudgments } from "@/application/annotation-service";
+import type { LowRatedSummary } from "@/domain/annotation";
 import type { PromotionResult } from "@/application/dataset-promotion-service";
 import type { ModelPricing } from "@/domain/pricing";
 import type { SpanCursor, SpanRow } from "@/domain/span-row";
@@ -55,7 +56,10 @@ import type {
   AnnotationQueueDto,
   AnnotationQueuesListResponse,
   QueueItemDto,
+  QueueResolutionDto,
+  QueueResultsResponse,
   ScoreConfigsListResponse,
+  LowRatedResponse,
   TraceAnnotationsResponse,
   SpanListResponse,
   SpanNodeDto,
@@ -83,11 +87,12 @@ export function toTraceSummaryDto(t: TraceSummary): TraceSummaryDto {
     totalTokens: t.totalTokens,
     input: t.input,
     output: t.output,
+    error: t.error,
     conversationId: t.conversationId,
   };
 }
 
-export function toConversationSummaryDto(c: ConversationSummary): ConversationSummaryDto {
+export function toConversationSummaryDto(c: ConversationListItem): ConversationSummaryDto {
   return {
     conversationId: c.conversationId,
     serviceNames: c.serviceNames,
@@ -98,17 +103,19 @@ export function toConversationSummaryDto(c: ConversationSummary): ConversationSu
     failedSpans: c.failedSpans,
     totalTokens: c.totalTokens,
     activeMs: c.activeMs,
+    title: c.title,
+    costUsd: c.costUsd,
   };
 }
 
-export function toConversationListResponse(page: Page<ConversationSummary, ConversationCursor>): ConversationListResponse {
+export function toConversationListResponse(page: Page<ConversationListItem, ConversationCursor>): ConversationListResponse {
   return {
     items: page.items.map(toConversationSummaryDto),
     nextCursor: page.nextCursor ? encodeConversationCursor(page.nextCursor) : null,
   };
 }
 
-export function toConversationDetailResponse(conversation: ConversationSummary, turns: Page<TraceSummary>): ConversationDetailResponse {
+export function toConversationDetailResponse(conversation: ConversationListItem, turns: Page<TraceSummary>): ConversationDetailResponse {
   return { ...toConversationSummaryDto(conversation), turns: toTraceListResponse(turns) };
 }
 
@@ -460,6 +467,8 @@ export function toScoreConfigsListResponse(items: ScoreConfig[]): ScoreConfigsLi
   return { items: items.map(toScoreConfigDto) };
 }
 
+export const toLowRatedResponse = (summary: LowRatedSummary): LowRatedResponse => ({ count: summary.count, items: summary.items });
+
 export function toTraceAnnotationsResponse(judgments: TraceJudgments): TraceAnnotationsResponse {
   return {
     annotations: judgments.annotations.map((a) => ({
@@ -482,14 +491,15 @@ export function toAnnotationQueueDto(q: AnnotationQueue): AnnotationQueueDto {
     name: q.name,
     instructions: q.instructions,
     requiredAnnotations: q.requiredAnnotations,
+    reviewerIds: q.reviewerIds,
     rubric: q.rubric.map((r) => ({ configId: r.configId, required: r.required })),
     createdAt: q.createdAt,
     archivedAt: q.archivedAt,
   };
 }
 
-export function toAnnotationQueuesListResponse(items: QueueWithProgress[]): AnnotationQueuesListResponse {
-  return { items: items.map(({ queue, progress }) => ({ ...toAnnotationQueueDto(queue), progress })) };
+export function toAnnotationQueuesListResponse(items: QueueListItem[]): AnnotationQueuesListResponse {
+  return { items: items.map(({ queue, progress, toCurate, assignedReviewers, isReviewer }) => ({ ...toAnnotationQueueDto(queue), progress, toCurate, assignedReviewers, isReviewer })) };
 }
 
 export function toAnnotationQueueDetailResponse(detail: QueueDetail): AnnotationQueueDetailResponse {
@@ -512,6 +522,23 @@ export function toQueueItemDto(i: QueueItem): QueueItemDto {
     population: i.population,
     addedAt: i.addedAt,
     completedAt: i.completedAt,
+  };
+}
+
+export function toQueueResolutionDto(r: QueueResolution): QueueResolutionDto {
+  return { value: r.value, expectedOutput: r.expectedOutput, resolvedBy: r.resolvedBy, resolvedAt: r.resolvedAt };
+}
+
+export function toQueueResultsResponse(results: QueueResults): QueueResultsResponse {
+  return {
+    configs: results.configs.map(toScoreConfigDto),
+    total: results.total,
+    items: results.items.map(({ item, criteria, needsResolution, promotedTo }) => ({
+      ...toQueueItemDto(item),
+      needsResolution,
+      promotedTo: promotedTo.map((p) => ({ datasetId: p.datasetId, datasetName: p.datasetName, version: p.version })),
+      criteria: criteria.map((c) => ({ configId: c.configId, status: c.status, labels: c.labels, resolution: c.resolution ? toQueueResolutionDto(c.resolution) : null })),
+    })),
   };
 }
 

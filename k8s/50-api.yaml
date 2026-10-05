@@ -56,6 +56,9 @@ spec:
               key: password
         - name: POSTGRES_DATABASE
           value: memtrace_identity
+        # «Comprobar ahora» del catálogo de asistentes usa las mismas reglas SSRF que el worker (ADR-053); ver k8s/82-health-probe.yaml
+        - name: HEALTH_PROBE_ALLOW_PRIVATE_NETWORKS
+          value: "true"
         - name: AUTH_URL
           value: http://localhost:8080
         - name: AUTH_SECRET

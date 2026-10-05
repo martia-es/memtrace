@@ -94,10 +94,10 @@ function openRun(runId: string) {
         <q-tab name="runs" label="Runs" />
       </q-tabs>
 
-      <q-tab-panels v-model="activeTab" animated keep-alive class="tab-panels">
+      <q-tab-panels v-model="activeTab" keep-alive class="tab-panels">
         <!-- Items -->
         <q-tab-panel name="items" class="tab-panel">
-          <p class="hint muted">Current version: v{{ latestVersion?.major ?? 1 }}.{{ latestVersion?.minor ?? 0 }} — edita directamente en la tabla; al pulsar Publish todos tus cambios se guardan como <b>una sola versión</b>.</p>
+          <p class="hint muted">Current version: v{{ latestVersion?.major ?? 1 }}.{{ latestVersion?.minor ?? 0 }} — edit directly in the table; when you press Publish, all your changes are saved as <b>a single version</b>.</p>
           <ErrorBanner v-if="items.error.value" :error="items.error.value" @retry="items.run()" />
           <div v-else-if="items.loading.value && !items.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
           <DatasetItemsEditor v-else :dataset-id="datasetId" :items="items.data.value?.items ?? []" :version="latestVersion" @published="afterItemMutation" />
@@ -105,7 +105,7 @@ function openRun(runId: string) {
 
         <!-- Versions: historial de solo lectura, generado automáticamente (ADR-032) -->
         <q-tab-panel name="versions" class="tab-panel">
-          <p class="hint muted">Cada vez que publicas cambios en Items se crea una versión sola — si añades o borras items sube la major, si solo editas contenido sube la minor. Pulsa ⓘ para ver qué cambió y compararla con cualquier versión anterior.</p>
+          <p class="hint muted">Every time you publish changes in Items a version is created on its own — adding or removing items bumps the major, editing content only bumps the minor. Press ⓘ to see what changed and compare it with any earlier version.</p>
           <ErrorBanner v-if="versions.error.value" :error="versions.error.value" @retry="versions.run()" />
           <div v-else-if="versions.loading.value && !versions.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
           <div v-else class="mt-card table-card">
@@ -162,7 +162,7 @@ function openRun(runId: string) {
           <ErrorBanner v-if="runs.error.value" :error="runs.error.value" @retry="runs.run()" />
           <div v-else-if="runs.loading.value && !runs.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
           <EmptyState v-else-if="(runs.data.value?.items.length ?? 0) === 0" icon="playlist_add_check" title="No runs yet">
-            Corre <code>run_experiment(data="{{ datasetId }}", …)</code> desde tu script.
+            Run <code>run_experiment(data="{{ datasetId }}", …)</code> from your script.
           </EmptyState>
           <EmptyState v-else-if="pagedRuns.length === 0" icon="search_off" title="No matches">Try a different search.</EmptyState>
           <div v-else class="mt-card table-card">
@@ -214,7 +214,8 @@ function openRun(runId: string) {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 16px;
+  padding: 16px 24px 20px;
+  background: var(--mt-bg);
 }
 .muted {
   color: var(--mt-muted);
@@ -257,17 +258,21 @@ th {
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: 8px 12px;
-  background: var(--mt-card, #fff);
+  height: 34px;
+  padding: 0 14px;
+  background: var(--mt-soft);
   border-bottom: 1px solid var(--mt-line);
   color: var(--mt-muted);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   text-align: left;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 td {
-  padding: 7px 12px;
+  height: 44px;
+  padding: 0 14px;
   border-bottom: 1px solid var(--mt-line-2);
   white-space: nowrap;
 }

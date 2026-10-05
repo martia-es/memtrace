@@ -15,6 +15,7 @@ const queue: AnnotationQueue = {
   name: "Review",
   instructions: null,
   requiredAnnotations: 2,
+  reviewerIds: ["u1", "u2"],
   rubric: [{ configId: "cfg-ok", required: true, position: 0 }],
   createdBy: "u1",
   createdAt: "2026-10-03T00:00:00.000Z",

@@ -10,6 +10,8 @@ export interface AnnotationRepository {
   listForTrace(serviceName: string, traceId: string): Promise<Annotation[]>;
   /** Anotaciones vigentes de items de run (`TargetType = 'run_item'`) de esos runs, de todos los anotadores (ADR-040). `configName` filtra por rúbrica. */
   listForRuns(serviceName: string, datasetRunIds: string[], configName?: string): Promise<Annotation[]>;
+  /** Etiquetas vigentes sobre trazas enteras creadas en el rango, las más recientes primero, hasta `limit` (ADR-049). */
+  listRecentForTraces(serviceName: string, fromMs: number, toMs: number, limit: number): Promise<Annotation[]>;
   /** Anotaciones vigentes sobre la traza entera (no sobre un span) de esas trazas, de todos los anotadores (ADR-040). */
   listForTraces(serviceName: string, traceIds: string[], configName?: string): Promise<Annotation[]>;
 }

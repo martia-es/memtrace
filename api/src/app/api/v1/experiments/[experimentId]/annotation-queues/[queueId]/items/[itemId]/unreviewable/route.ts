@@ -1,4 +1,4 @@
-import { requireExperimentAdmin } from "@/adapters/inbound/http/auth-context";
+import { requirePermission } from "@/adapters/inbound/http/auth-context";
 import { identityGuard } from "@/adapters/inbound/http/identity-guard";
 import { toQueueItemDto } from "@/adapters/inbound/http/mappers";
 import { json } from "@/adapters/inbound/http/problem";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export async function POST(_request: Request, context: { params: Promise<{ experimentId: string; queueId: string; itemId: string }> }) {
   return identityGuard(async () => {
     const { experimentId, queueId, itemId } = await context.params;
-    const ctx = await requireExperimentAdmin(experimentId);
+    const ctx = await requirePermission(experimentId, "queue:manage");
     if (ctx instanceof Response) return ctx;
     return json({ item: toQueueItemDto(await getAnnotationQueues().markUnreviewable(experimentId, queueId, itemId)) });
   });

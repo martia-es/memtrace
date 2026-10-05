@@ -135,12 +135,14 @@ El proyecto incluye un `Makefile` interactivo para gestionar fácilmente el cicl
 
 | Comando | Descripción |
 | :--- | :--- |
-| **`make up`** | Levanta todo el entorno en 1 paso (clúster, despliegue, migraciones y puertos). |
+| **`make up`** | Levanta todo el entorno en 1 paso (clúster, despliegue, migraciones, puertos y el asistente del tiempo en http://localhost:8000, que se relanza para releer el `.env`). |
+| **`make weather-stop`** | Para el asistente del tiempo lanzado en segundo plano (`make down` también lo para). |
 | **`make status`** | Muestra el estado de los Pods, PVCs (volúmenes) y Jobs de migración. |
 | **`make query`** | Ejecuta una consulta de prueba en ClickHouse mostrando trazas y spans registrados. |
 | **`make forward`** | Vuelve a iniciar la redirección de puertos en primer plano si fuera necesario. |
 | **`make logs`** | Muestra los registros (*logs*) en tiempo real del OpenTelemetry Collector. |
 | **`make migrate`** | Re-ejecuta de forma manual las migraciones de base de datos. |
+| **`make dashboard`** / **`make api`** | Reconstruyen y despliegan solo el dashboard o solo la API (más rápido que `make images`). |
 | **`make images`** | Reconstruye las imágenes de la API y el dashboard, las carga en el clúster y reinicia sus pods. |
 | **`make dev-data`** | Genera trazas de ejemplo con un agente simulado. |
 | **`make docs`** | Sitio de documentación en modo desarrollo con recarga en caliente (http://localhost:5174). `make up` ya lo sirve en http://localhost:8081. |

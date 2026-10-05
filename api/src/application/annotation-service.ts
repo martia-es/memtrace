@@ -3,7 +3,8 @@ import type { IdentityRepository } from "@/application/ports/identity-repository
 import type { ScoreConfigRepository } from "@/application/ports/score-config-repository";
 import type { ScoreRepository } from "@/application/ports/score-repository";
 import type { TraceRepository } from "@/application/ports/trace-repository";
-import { validateAnnotationValue, type Annotation, type AnnotationValue, type TraceScore } from "@/domain/annotation";
+import { isLowRating, validateAnnotationValue, type Annotation, type AnnotationValue, type LowRatedSummary, type TraceScore } from "@/domain/annotation";
+import type { TimeRange } from "@/domain/time-range";
 import { AnnotationForbiddenError, ScoreConfigInvariantError, ScoreConfigNotFoundError, SpanNotFoundError, TraceNotFoundError } from "@/domain/errors";
 import {
   applyScoreConfigPatch,
@@ -15,6 +16,10 @@ import {
 
 /** Techo de spans al comprobar que una traza (y un span) existen: el mismo que usa el detalle de traza. */
 const TRACE_LOOKUP_MAX_SPANS = 5000;
+
+/** Etiquetas recientes que se revisan para buscar valoraciones bajas, y cuántas trazas se devuelven con detalle. */
+const LOW_RATED_SCAN_LIMIT = 2000;
+const LOW_RATED_ITEMS = 10;
 
 /** Quién anota y en qué tenant: `serviceName` es la clave de tenant de ClickHouse, `experimentId` la de PostgreSQL. */
 export interface AnnotationActor {
@@ -92,6 +97,22 @@ export class AnnotationService {
     const users = await this.identity.getUsersByIds([...new Set(annotations.map((a) => a.annotatorId))]);
     const names = new Map(users.map((u) => [u.id, u.name]));
     return { annotations: annotations.map((a) => ({ ...a, annotatorName: names.get(a.annotatorId) ?? null })), scores };
+  }
+
+  /** Trazas con alguna valoración humana baja en el rango (ADR-049). Cuenta trazas distintas, no etiquetas. */
+  async listLowRated(experimentId: string, serviceName: string, range: TimeRange): Promise<LowRatedSummary> {
+    const [labels, configs] = await Promise.all([
+      this.annotations.listRecentForTraces(serviceName, range.fromMs, range.toMs, LOW_RATED_SCAN_LIMIT),
+      this.scoreConfigs.list(experimentId, true),
+    ]);
+    const byId = new Map(configs.map((c) => [c.id, c]));
+    const low = labels.filter((a) => isLowRating(a, byId.get(a.configId)));
+    const firstPerTrace = new Map<string, Annotation>();
+    for (const a of low) if (!firstPerTrace.has(a.traceId)) firstPerTrace.set(a.traceId, a);
+    return {
+      count: firstPerTrace.size,
+      items: [...firstPerTrace.values()].slice(0, LOW_RATED_ITEMS).map((a) => ({ traceId: a.traceId, configName: a.configName, value: a.value, createdAt: a.createdAt })),
+    };
   }
 
   /** Retira una anotación (lápida). Idempotente: si no existe no hace nada. */

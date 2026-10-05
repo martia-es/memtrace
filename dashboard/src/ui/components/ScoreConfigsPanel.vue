@@ -115,7 +115,7 @@ async function setArchived(config: ScoreConfigDto, archived: boolean) {
       </li>
     </ul>
     <p v-else-if="!loading" class="hint">
-      No score configs yet.<template v-if="!canManage"> An experiment admin needs to create them before anyone can annotate.</template>
+      No score configs yet.<template v-if="!canManage"> A technical profile needs to create them before anyone can annotate.</template>
     </p>
 
     <div class="config-actions">

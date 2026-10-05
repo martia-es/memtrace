@@ -1,0 +1,63 @@
+# Worker de /health de los asistentes (ADR-053). Una pasada por minuto: sondea los despliegues a los que les toca
+# (PRO cada 60 s, el resto cada 5 min, o el intervalo propio), guarda el resultado y, a las 03:00 UTC, purga el historial.
+# Cada 10 minutos también sincroniza las conexiones (tools) observadas en trazas de cada agente.
+# Misma imagen que la API (`make api` la reconstruye): el worker es un solo archivo, /app/worker/probe-health.cjs.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: health-probe
+  namespace: memtrace
+spec:
+  schedule: "* * * * *"
+  concurrencyPolicy: Forbid          # si una pasada tarda, no se solapa con la siguiente
+  startingDeadlineSeconds: 30
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0                # un fallo se reintenta en la pasada del minuto siguiente
+      activeDeadlineSeconds: 55
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: health-probe
+              image: memtrace/api:dev
+              imagePullPolicy: IfNotPresent   # imagen local cargada en kind: no hay registro
+              command: ["node", "worker/probe-health.cjs"]
+              env:
+                - name: POSTGRES_HOST
+                  value: postgres
+                - name: POSTGRES_PORT
+                  value: "5432"
+                - name: POSTGRES_USER
+                  value: memtrace
+                - name: POSTGRES_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-credentials
+                      key: password
+                - name: POSTGRES_DATABASE
+                  value: memtrace_identity
+                # ClickHouse (solo lectura): de las trazas salen las tools observadas de cada agente (ADR-053)
+                - name: CLICKHOUSE_URL
+                  value: http://clickhouse:8123
+                - name: CLICKHOUSE_USER
+                  value: default
+                - name: CLICKHOUSE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: clickhouse-credentials
+                      key: password
+                - name: CLICKHOUSE_DATABASE
+                  value: memtrace
+                - name: HEALTH_PROBE_TIMEOUT_MS
+                  value: "5000"
+                # SSRF (ADR-053): por defecto el worker NO conecta a redes privadas ni a loopback, y nunca a link-local
+                # (metadata de la nube). En este clúster local los asistentes corren en tu máquina, que es una red privada.
+                # En un despliegue real, déjalo en "false" o quita la variable.
+                - name: HEALTH_PROBE_ALLOW_PRIVATE_NETWORKS
+                  value: "true"
+              resources:
+                requests: { cpu: 25m, memory: 64Mi }
+                limits: { memory: 192Mi }

@@ -16,23 +16,23 @@ describe("formatDuration", () => {
 });
 
 describe("other formatters", () => {
-  it("formats percentages with one decimal below 10 %", () => {
-    expect(formatPercent(0)).toBe("0 %");
-    expect(formatPercent(0.033)).toBe("3.3 %");
-    expect(formatPercent(0.5)).toBe("50 %");
+  it("formats percentages with one decimal below 10%", () => {
+    expect(formatPercent(0)).toBe("0%");
+    expect(formatPercent(0.033)).toBe("3.3%");
+    expect(formatPercent(0.5)).toBe("50%");
   });
   it("uses compact notation only for large counts", () => {
     expect(formatCount(950)).toBe("950");
-    expect(formatCount(22_800)).toMatch(/22,8/);
+    expect(formatCount(22_800)).toBe("22.8K");
   });
   it("formats relative times", () => {
     const now = Date.parse("2026-09-26T12:00:00Z");
     const ago = (s: number) => new Date(now - s * 1000).toISOString();
-    expect(formatRelativeTime(ago(2), now)).toBe("ahora");
-    expect(formatRelativeTime(ago(30), now)).toBe("hace 30 s");
-    expect(formatRelativeTime(ago(300), now)).toBe("hace 5 min");
-    expect(formatRelativeTime(ago(7200), now)).toBe("hace 2 h");
-    expect(formatRelativeTime(ago(5 * 86400), now)).toBe("hace 5 d");
+    expect(formatRelativeTime(ago(2), now)).toBe("just now");
+    expect(formatRelativeTime(ago(30), now)).toBe("30 s ago");
+    expect(formatRelativeTime(ago(300), now)).toBe("5 min ago");
+    expect(formatRelativeTime(ago(7200), now)).toBe("2 h ago");
+    expect(formatRelativeTime(ago(5 * 86400), now)).toBe("5 d ago");
   });
   it("shortens ids", () => expect(shortId("0123456789abcdef")).toBe("01234567"));
 });

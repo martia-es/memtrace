@@ -34,10 +34,10 @@ describe("AnnotationQueueService — random sampling (ADR-040)", () => {
     traces = new FakeTraceRepository();
     runs = [{ id: "run-1", itemCount: 1000 }];
     const configs = new FakeScoreConfigRepository();
-    const identity = { getUsersByIds: async () => [], listRunsForExperiment: async () => runs } as unknown as IdentityRepository;
+    const identity = { getUsersByIds: async () => [], listRunsForExperiment: async () => runs, getExperiment: async () => ({ id: "e1", organizationId: "org-1" }), listOrgMembers: async () => [], listExperimentMembers: async () => [{ userId: "ana", email: "a@x.com", name: null, role: "member" }] } as unknown as IdentityRepository;
     service = new AnnotationQueueService(queues, configs, new FakeAnnotationRepository(), traces, identity, () => new Date("2026-10-03T10:00:00.000Z"), () => `seed-${++seeds}`);
     const configId = (await configs.create("e1", "u1", { name: "ok", dataType: "boolean", minValue: null, maxValue: null, categories: null, description: null })).id;
-    queueId = (await service.create("e1", "u1", { name: "Review", instructions: null, requiredAnnotations: 1, rubric: [{ configId, required: true }] })).id;
+    queueId = (await service.create("e1", "u1", { name: "Review", instructions: null, requiredAnnotations: 1, reviewerIds: ["ana"], rubric: [{ configId, required: true }] })).id;
   });
 
   describe("fromRun", () => {

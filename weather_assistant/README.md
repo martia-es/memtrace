@@ -38,6 +38,7 @@ Abre http://localhost:8000 para la UI.
 | `POST` | `/api/chat` | Body `{"message": "...", "session_id": "opcional"}`. Devuelve `{"session_id", "reply"}` |
 | `DELETE` | `/api/sessions/{session_id}` | Borra el historial de una sesión |
 | `GET` | `/api/capabilities` | Lista las capabilities activas |
+| `GET` | `/health` | Abierto, sin credenciales: `200 {"status":"ok"}` cuando el agente está construido, `503` mientras arranca. Lo sondea el catálogo de asistentes de MemTrace |
 
 Variables opcionales: `WEATHER_ASSISTANT_MODEL`, `WEATHER_ASSISTANT_HTTP_TIMEOUT`, `OPEN_METEO_FORECAST_URL`, `OPEN_METEO_GEOCODING_URL`.
 
@@ -46,5 +47,19 @@ Variables opcionales: `WEATHER_ASSISTANT_MODEL`, `WEATHER_ASSISTANT_HTTP_TIMEOUT
 ```bash
 uv run pytest
 ```
+
+## Evaluación
+
+`evals/dataset.jsonl` tiene 26 casos (tiempo actual, previsión, varias ciudades, inglés, aclaración, localidad inexistente, fuera de alcance, intentos de manipulación). El LLM es el real, pero el tiempo lo da `evals/fakes.py` con datos fijos, así que las cifras esperadas son estables.
+
+```bash
+uv run python evals/run_eval.py                       # evaluadores de código
+uv run python evals/run_eval.py --judge               # + LLM-as-judge contra la respuesta ideal
+uv run python evals/run_eval.py --min-pass-rate 0.9   # código de salida 1 si baja de ahí (CI)
+```
+
+Para guardarlo todo en MemTrace (trazas, dataset y run con scores), define en el `.env` de la raíz las variables de la cabecera de `run_eval.py`: `WEATHER_ASSISTANT_MEMTRACE_HEADERS`, `WEATHER_ASSISTANT_SERVICE_NAME` (el del experimento), `MEMTRACE_API_URL` y `MEMTRACE_API_KEY`. Con ellas, `run_eval.py` crea el dataset y sube el run; `--dataset-id` repite sobre uno existente y `--local` desactiva la subida.
+
+Evaluadores: `tool_calls` (localidad y `days` correctos, y sin llamar a la tool cuando no toca) y `response_checks` (cifras presentes, nada inventado ni filtrado). Cada fila del dataset lo declara en `metadata`. `uv run pytest` valida el dataset y los evaluadores sin LLM.
 
 Decisión de arquitectura: [ADR-047](../docs/adrs/assistant/adr-047-weather-assistant-architecture.md).

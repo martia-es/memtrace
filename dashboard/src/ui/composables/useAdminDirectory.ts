@@ -1,6 +1,7 @@
 import { reactive, ref } from "vue";
 import { useQuasar } from "quasar";
 import type { ExperimentDto, MembersResponseDto, OrganizationDto } from "@/application/identity-api";
+import { hasPermission } from "./usePermissions";
 import { useIdentityApi } from "./useIdentityApi";
 
 /**
@@ -8,16 +9,21 @@ import { useIdentityApi } from "./useIdentityApi";
  * llama a `load()` al montarse y a `reload()` tras cualquier cambio. Los permisos por fila siguen ADR-016.
  */
 
-// Ver miembros exige poder gestionarlos (ADR-016): un member solo ve su propio acceso, así que no pedimos
-// la lista donde no es org_admin/admin (evita 403 en cascada).
+// Ver miembros exige poder gestionarlos (ADR-052): quien no tiene `member:manage` solo ve su propio acceso, así que no
+// pedimos la lista donde no lo tiene (evita 403 en cascada).
 export function canManageOrg(o: OrganizationDto): boolean {
-  return o.myRole === "org_admin";
+  return hasPermission(o, "org:manage");
 }
 export function canManageExperiment(e: ExperimentDto): boolean {
-  return e.myRole === "org_admin" || e.myRole === "admin";
+  return hasPermission(e, "member:manage");
+}
+export function canUseApiKeys(e: ExperimentDto): boolean {
+  return hasPermission(e, "apikey:manage_own") || hasPermission(e, "apikey:manage_all");
 }
 
-export const ROLE_LABEL: Record<string, string> = { org_admin: "org_admin", admin: "admin", member: "member" };
+const ROLE_LABELS: Record<string, string> = { org_admin: "org_admin", technical: "technical", business: "business" };
+/** Etiqueta de un rol; un rol propio que no conocemos se muestra con su nombre. */
+export const ROLE_LABEL: Record<string, string> = new Proxy(ROLE_LABELS, { get: (t, k) => t[k as string] ?? String(k) });
 
 export function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);

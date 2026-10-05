@@ -1,4 +1,4 @@
-import { requireExperimentMember } from "@/adapters/inbound/http/auth-context";
+import { requirePermission } from "@/adapters/inbound/http/auth-context";
 import { identityGuard } from "@/adapters/inbound/http/identity-guard";
 import { toQueueItemDto } from "@/adapters/inbound/http/mappers";
 import { json } from "@/adapters/inbound/http/problem";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export async function POST(_request: Request, context: { params: Promise<{ experimentId: string; queueId: string }> }) {
   return identityGuard(async () => {
     const { experimentId, queueId } = await context.params;
-    const ctx = await requireExperimentMember(experimentId);
+    const ctx = await requirePermission(experimentId, "annotation:write");
     if (ctx instanceof Response) return ctx;
     const item = await getAnnotationQueues().next({ userId: ctx.user.id, experimentId, serviceName: ctx.serviceName }, queueId);
     return json({ item: item ? toQueueItemDto(item) : null });

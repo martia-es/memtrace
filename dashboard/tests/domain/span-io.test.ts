@@ -38,6 +38,53 @@ describe("spanIo", () => {
   it("keeps non-message arrays as a single block", () => {
     expect(spanIo(node({ content: { inputMessages: [1, 2] } })).input).toHaveLength(1);
   });
+
+  it("parses Google GenAI / Pydantic AI messages with parts structure", () => {
+    const io = spanIo(
+      node({
+        content: {
+          inputMessages: [
+            {
+              role: "user",
+              parts: [{ type: "text", content: "tiempo en madrid" }],
+            },
+          ],
+        },
+      })
+    );
+    expect(io.input[0]).toMatchObject({
+      label: "user",
+      role: "user",
+      text: "tiempo en madrid",
+    });
+  });
+
+  it("extracts full conversation from pydantic_ai.all_messages attribute when present", () => {
+    const allMessages = JSON.stringify([
+      { role: "user", parts: [{ type: "text", content: "que tiempo hace?" }] },
+      { role: "assistant", parts: [{ type: "tool_call", id: "c1", name: "get_weather", arguments: { loc: "Almeria" } }] },
+      { role: "user", parts: [{ type: "tool_call_response", id: "c1", name: "get_weather", result: { temp: 24 } }] },
+      { role: "assistant", parts: [{ type: "text", content: "Hace 24 grados" }] },
+    ]);
+    const io = spanIo(node({ attributes: { "pydantic_ai.all_messages": allMessages } }));
+    expect(io.input).toHaveLength(1);
+    expect(io.input[0]).toMatchObject({ role: "user", text: "que tiempo hace?" });
+    expect(io.output[0]).toMatchObject({ role: "assistant" });
+    expect(io.output[1]).toMatchObject({ role: "tool", text: '{\n  "temp": 24\n}' });
+    expect(io.output[2]).toMatchObject({ role: "assistant", text: "Hace 24 grados" });
+  });
+});
+
+describe("spanIo ordered conversation", () => {
+  it("keeps the real order of a Pydantic AI history (user, assistant, user)", () => {
+    const all = JSON.stringify([
+      { role: "user", parts: [{ type: "text", content: "Hola" }] },
+      { role: "assistant", parts: [{ type: "text", content: "¡Hola!" }] },
+      { role: "user", parts: [{ type: "text", content: "¿tiempo?" }] },
+    ]);
+    const io = spanIo(node({ attributes: { "pydantic_ai.all_messages": all } }));
+    expect(io.ordered?.map((b) => b.text)).toEqual(["Hola", "¡Hola!", "¿tiempo?"]);
+  });
 });
 
 describe("genAiRows", () => {

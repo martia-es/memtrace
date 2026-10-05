@@ -6,12 +6,21 @@ import { ClickHouseAnnotationRepository } from "@/adapters/outbound/clickhouse/c
 import { ClickHouseScoreRepository } from "@/adapters/outbound/clickhouse/clickhouse-score-repository";
 import { configFromEnv, createReadOnlyClient, createEvaluationWriteClient } from "@/adapters/outbound/clickhouse/client";
 import { AuthorizationService } from "@/application/authorization-service";
+import { AssistantRegistryService } from "@/application/assistant-registry-service";
+import type { ChatClient } from "@/application/ports/chat-client";
+import type { HealthProber } from "@/application/ports/health-prober";
+import { HttpChatClient } from "@/adapters/outbound/http/http-chat-client";
+import { HttpHealthProber } from "@/adapters/outbound/http/http-health-prober";
+import { PostgresAssistantRegistryRepository } from "@/adapters/outbound/postgres/postgres-assistant-registry-repository";
 import { AnnotationQueueService } from "@/application/annotation-queue-service";
 import { PostgresAnnotationQueueRepository } from "@/adapters/outbound/postgres/postgres-annotation-queue-repository";
 import { AgreementService } from "@/application/agreement-service";
 import { AnnotationService } from "@/application/annotation-service";
 import { DatasetPromotionService } from "@/application/dataset-promotion-service";
 import { EvaluationService } from "@/application/evaluation-service";
+import { ExternalAccessService } from "@/application/external-access-service";
+import type { ExternalIdentityRepository } from "@/application/ports/external-identity-repository";
+import { PostgresExternalIdentityRepository } from "@/adapters/outbound/postgres/postgres-external-identity-repository";
 import type { IdentityRepository } from "@/application/ports/identity-repository";
 import { PostgresScoreConfigRepository } from "@/adapters/outbound/postgres/postgres-score-config-repository";
 import { PostgresIdentityRepository } from "@/adapters/outbound/postgres/postgres-identity-repository";
@@ -26,6 +35,7 @@ const globalForContainer = globalThis as unknown as {
   __memtraceTraceQueryService?: TraceQueryService;
   __memtraceTraceRepository?: ClickHouseTraceRepository;
   __memtraceIdentity?: { identityRepository: IdentityRepository; authorizationService: AuthorizationService; emailSender: EmailSender };
+  __memtraceExternalAccess?: { externalRepository: ExternalIdentityRepository; externalAccessService: ExternalAccessService };
   __memtraceEvaluation?: EvaluationService;
   __memtraceScoreRepository?: ClickHouseScoreRepository;
   __memtracePostgresPool?: Pool;
@@ -33,6 +43,9 @@ const globalForContainer = globalThis as unknown as {
   __memtraceAnnotationQueue?: AnnotationQueueService;
   __memtraceAgreement?: AgreementService;
   __memtracePromotion?: DatasetPromotionService;
+  __memtraceAssistantRegistry?: AssistantRegistryService;
+  __memtraceHealthProber?: HealthProber;
+  __memtraceChatClient?: ChatClient;
 };
 
 /** Un único pool de Postgres compartido por identidad y score configs. */
@@ -70,6 +83,15 @@ export function getHandlers(): Handlers {
     globalForContainer.__memtraceHandlers = createHandlers(getTraceQueryService());
   }
   return globalForContainer.__memtraceHandlers;
+}
+
+/** Identidad externa (ADR-052, fases B y C): mapeos de grupos, conciliación de membresías y SCIM. */
+export function getExternalAccess(): { externalRepository: ExternalIdentityRepository; externalAccessService: ExternalAccessService } {
+  if (!globalForContainer.__memtraceExternalAccess) {
+    const externalRepository = new PostgresExternalIdentityRepository(getPostgresPool());
+    globalForContainer.__memtraceExternalAccess = { externalRepository, externalAccessService: new ExternalAccessService(externalRepository) };
+  }
+  return globalForContainer.__memtraceExternalAccess;
 }
 
 export function getIdentity(): { identityRepository: IdentityRepository; authorizationService: AuthorizationService; emailSender: EmailSender } {
@@ -152,4 +174,37 @@ export function getDatasetPromotion(): DatasetPromotionService {
     );
   }
   return globalForContainer.__memtracePromotion;
+}
+
+/** Registro de asistentes (ADR-053). El uso de tools observado viene del servicio de consulta de trazas. */
+export function getAssistantRegistry(): AssistantRegistryService {
+  if (!globalForContainer.__memtraceAssistantRegistry) {
+    const traces = getTraceQueryService();
+    globalForContainer.__memtraceAssistantRegistry = new AssistantRegistryService(new PostgresAssistantRegistryRepository(getPostgresPool()), {
+      toolUsage: async (serviceName, from, to) => (await traces.getOverview({ service: serviceName, from, to })).byTool,
+    });
+  }
+  return globalForContainer.__memtraceAssistantRegistry;
+}
+
+/** Sondeo de /health para «Comprobar ahora»; mismo adapter y mismas reglas SSRF que el worker. */
+export function getHealthProber(): HealthProber {
+  if (!globalForContainer.__memtraceHealthProber) {
+    globalForContainer.__memtraceHealthProber = new HttpHealthProber({
+      timeoutMs: Number(process.env.HEALTH_PROBE_TIMEOUT_MS ?? 5000),
+      allowPrivateNetworks: process.env.HEALTH_PROBE_ALLOW_PRIVATE_NETWORKS === "true",
+    });
+  }
+  return globalForContainer.__memtraceHealthProber;
+}
+
+/** Cliente del chat de los asistentes (ADR-055); mismas reglas SSRF que el sondeo de /health. */
+export function getChatClient(): ChatClient {
+  if (!globalForContainer.__memtraceChatClient) {
+    globalForContainer.__memtraceChatClient = new HttpChatClient({
+      timeoutMs: Number(process.env.CHAT_TIMEOUT_MS ?? 60_000),
+      allowPrivateNetworks: process.env.HEALTH_PROBE_ALLOW_PRIVATE_NETWORKS === "true",
+    });
+  }
+  return globalForContainer.__memtraceChatClient;
 }

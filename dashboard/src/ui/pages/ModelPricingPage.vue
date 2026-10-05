@@ -47,9 +47,9 @@ const items = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, 
     </PageHeader>
 
     <p class="hint muted">
-      Catálogo de precios por modelo, sincronizado a diario desde
+      Per-model price catalog, synced daily from
       <a href="https://github.com/BerriAI/litellm" target="_blank" rel="noopener">LiteLLM</a>.
-      Se usa para calcular el coste de cada span de LLM en las vistas de traza y conversación.
+      It is used to compute the cost of every LLM span in the trace and conversation views.
     </p>
 
     <ErrorBanner v-if="pricing.error.value" :error="pricing.error.value" @retry="pricing.run()" />
@@ -97,7 +97,8 @@ const items = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, 
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 16px;
+  padding: 16px 24px 20px;
+  background: var(--mt-bg);
 }
 .actions {
   display: flex;
@@ -112,7 +113,8 @@ const items = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, 
   font-size: 12.5px;
 }
 .hint a {
-  color: var(--mt-accent-ink, inherit);
+  color: var(--mt-accent-text);
+  font-weight: 700;
 }
 .muted {
   color: var(--mt-muted);
@@ -137,17 +139,21 @@ th {
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: 8px 12px;
-  background: var(--mt-card, #fff);
+  height: 34px;
+  padding: 0 14px;
+  background: var(--mt-soft);
   border-bottom: 1px solid var(--mt-line);
   color: var(--mt-muted);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   text-align: left;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 td {
-  padding: 7px 12px;
+  height: 44px;
+  padding: 0 14px;
   border-bottom: 1px solid var(--mt-line-2);
   white-space: nowrap;
 }

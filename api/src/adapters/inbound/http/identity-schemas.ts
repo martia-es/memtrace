@@ -6,11 +6,21 @@ export const createOrganizationBody = z.object({ name: z.string().trim().min(1).
 export const createExperimentBody = z.object({
   name: z.string().trim().min(1).max(200),
   serviceName: z.string().trim().min(1).max(200),
+  /** ficha del agente (ADR-054): todo opcional; el dueño es quien lo crea */
+  description: z.string().trim().max(2000).default(""),
 });
 
 export const addMemberBody = z.object({
   email: z.string().trim().email(),
-  role: z.enum(["admin", "member"]),
+  role: z.string().trim().min(1).max(64),
+});
+
+export const identityClaimBody = z.object({ groupsClaim: z.string().trim().min(1).max(200) });
+
+export const mappingBody = z.object({
+  externalGroup: z.string().trim().min(1).max(500),
+  experimentId: z.string().uuid().nullable(),
+  role: z.string().trim().min(1).max(64),
 });
 
 export const addOrgAdminBody = z.object({

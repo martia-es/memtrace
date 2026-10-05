@@ -43,7 +43,7 @@ describe("addQueueItemsBody — sampling (ADR-040)", () => {
 
 describe("queue bodies", () => {
   it("defaults requiredAnnotations to 1 and each rubric entry to required", () => {
-    const body = createAnnotationQueueBody.parse({ name: "q", rubric: [{ configId: uuid }] });
+    const body = createAnnotationQueueBody.parse({ name: "q", reviewerIds: [uuid], rubric: [{ configId: uuid }] });
     expect(body).toMatchObject({ requiredAnnotations: 1, instructions: null, rubric: [{ configId: uuid, required: true }] });
   });
   it("accepts numeric, boolean and string label values", () => {
@@ -58,7 +58,7 @@ describe("queue mappers", () => {
     });
     expect(JSON.stringify(dto)).not.toContain("secret-user");
     const list = toAnnotationQueuesListResponse([
-      { queue: { id: "q", experimentId: "e", name: "n", instructions: null, requiredAnnotations: 1, rubric: [], createdBy: "secret-user", createdAt: "x", archivedAt: null }, progress: { pending: 1, completed: 0, skipped: 0 } },
+      { queue: { id: "q", experimentId: "e", name: "n", instructions: null, requiredAnnotations: 1, reviewerIds: [], rubric: [], createdBy: "secret-user", createdAt: "x", archivedAt: null }, progress: { pending: 1, completed: 0, skipped: 0 }, toCurate: 0, assignedReviewers: [], isReviewer: false },
     ]);
     expect(JSON.stringify(list)).not.toContain("secret-user");
   });

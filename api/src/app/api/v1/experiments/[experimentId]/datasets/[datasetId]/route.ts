@@ -33,7 +33,7 @@ export async function DELETE(_request: Request, context: { params: Promise<{ exp
     if (user instanceof Response) return user;
 
     const { authorizationService, identityRepository } = getIdentity();
-    if (!(await authorizationService.canReadExperiment(user.id, experimentId))) {
+    if (!(await authorizationService.can(user.id, experimentId, "dataset:write"))) {
       return problem(403, "Forbidden", "No access to this experiment");
     }
     const dataset = await identityRepository.getDataset(datasetId);

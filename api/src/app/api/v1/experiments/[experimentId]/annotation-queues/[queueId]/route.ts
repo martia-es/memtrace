@@ -1,4 +1,4 @@
-import { requireExperimentAdmin, requireExperimentMember } from "@/adapters/inbound/http/auth-context";
+import { requirePermission } from "@/adapters/inbound/http/auth-context";
 import { identityGuard } from "@/adapters/inbound/http/identity-guard";
 import { parseJsonOrThrow } from "@/adapters/inbound/http/identity-schemas";
 import { toAnnotationQueueDetailResponse } from "@/adapters/inbound/http/mappers";
@@ -14,7 +14,7 @@ type Params = { params: Promise<{ experimentId: string; queueId: string }> };
 export async function GET(_request: Request, context: Params) {
   return identityGuard(async () => {
     const { experimentId, queueId } = await context.params;
-    const ctx = await requireExperimentMember(experimentId);
+    const ctx = await requirePermission(experimentId, "experiment:read");
     if (ctx instanceof Response) return ctx;
     return json(toAnnotationQueueDetailResponse(await getAnnotationQueues().getDetail(experimentId, queueId)));
   });
@@ -24,7 +24,7 @@ export async function GET(_request: Request, context: Params) {
 export async function PATCH(request: Request, context: Params) {
   return identityGuard(async () => {
     const { experimentId, queueId } = await context.params;
-    const ctx = await requireExperimentAdmin(experimentId);
+    const ctx = await requirePermission(experimentId, "queue:manage");
     if (ctx instanceof Response) return ctx;
     const patch = await parseJsonOrThrow(updateAnnotationQueueBody, request);
     await getAnnotationQueues().update(experimentId, queueId, patch);

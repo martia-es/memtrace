@@ -2,7 +2,9 @@ import type { Pool } from "pg";
 import { randomBytes, randomUUID, createHash } from "node:crypto";
 import { bumpForChanges, describeChanges } from "@/domain/dataset-version";
 import { ValidationError } from "@/domain/errors";
-import type { IdentityRepository } from "@/application/ports/identity-repository";
+import type { IdentityRepository, PromotedTraceLocation } from "@/application/ports/identity-repository";
+import { isPermission, type Permission } from "@/domain/permissions";
+import { DEFAULT_ENVIRONMENTS, type AgentProfile } from "@/domain/assistant-registry";
 import type {
   ApiKey,
   CustomMetric,
@@ -113,6 +115,12 @@ export class PostgresIdentityRepository implements IdentityRepository {
         `INSERT INTO org_memberships (organization_id, user_id, role) VALUES ($1, $2, 'org_admin')`,
         [organization.id, ownerUserId],
       );
+      for (const env of DEFAULT_ENVIRONMENTS) {
+        await client.query(
+          `INSERT INTO environments (organization_id, key, label, position, is_production, health_interval_seconds) VALUES ($1, $2, $3, $4, $5, $6)`,
+          [organization.id, env.key, env.label, env.position, env.isProduction, env.healthIntervalSeconds],
+        );
+      }
       await client.query("COMMIT");
       return { id: organization.id, name: organization.name, theme: toOrganizationTheme(organization.theme) };
     } catch (err) {
@@ -133,9 +141,9 @@ export class PostgresIdentityRepository implements IdentityRepository {
   }
 
   async listOrganizationsForUser(userId: string): Promise<OrganizationSummary[]> {
-    const { rows } = await this.pool.query<{ id: string; name: string; theme: unknown; my_role: OrgRole | null }>(
-      `SELECT DISTINCT o.id, o.name, o.theme,
-              CASE WHEN om.user_id IS NOT NULL THEN 'org_admin' ELSE NULL END AS my_role
+    const { rows } = await this.pool.query<{ id: string; name: string; theme: unknown; my_role: OrgRole | null; permissions: string[] | null }>(
+      `SELECT DISTINCT o.id, o.name, o.theme, om.role AS my_role,
+              (SELECT array_agg(rp.permission) FROM role_permissions rp WHERE rp.role_name = om.role) AS permissions
          FROM organizations o
          LEFT JOIN org_memberships om ON om.organization_id = o.id AND om.user_id = $1
          LEFT JOIN experiments e ON e.organization_id = o.id
@@ -144,7 +152,13 @@ export class PostgresIdentityRepository implements IdentityRepository {
         ORDER BY o.name`,
       [userId],
     );
-    return rows.map((row) => ({ id: row.id, name: row.name, theme: toOrganizationTheme(row.theme), myRole: row.my_role }));
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      theme: toOrganizationTheme(row.theme),
+      myRole: row.my_role,
+      permissions: (row.permissions ?? []).filter(isPermission),
+    }));
   }
 
   async updateOrganizationTheme(organizationId: string, theme: OrganizationTheme): Promise<Organization> {
@@ -157,10 +171,16 @@ export class PostgresIdentityRepository implements IdentityRepository {
     return { id: row.id, name: row.name, theme: toOrganizationTheme(row.theme) };
   }
 
+  /** Antes bastaba con tener cualquier membresía de organización; con roles de organización distintos de org_admin (p. ej. `governance`) hay que mirar el permiso. */
   async isOrgAdmin(userId: string, organizationId: string): Promise<boolean> {
+    return this.hasOrganizationPermission(userId, organizationId, "org:manage");
+  }
+
+  async hasOrganizationPermission(userId: string, organizationId: string, permission: Permission): Promise<boolean> {
     const { rows } = await this.pool.query(
-      `SELECT 1 FROM org_memberships WHERE user_id = $1 AND organization_id = $2`,
-      [userId, organizationId],
+      `SELECT 1 FROM org_memberships om JOIN role_permissions rp ON rp.role_name = om.role
+        WHERE om.user_id = $1 AND om.organization_id = $2 AND rp.permission = $3 LIMIT 1`,
+      [userId, organizationId, permission],
     );
     return rows.length > 0;
   }
@@ -174,8 +194,8 @@ export class PostgresIdentityRepository implements IdentityRepository {
   }
 
   async listOrgMembers(organizationId: string): Promise<Member[]> {
-    const { rows } = await this.pool.query<{ user_id: string; email: string; name: string | null; role: OrgRole }>(
-      `SELECT u.id AS user_id, u.email, u.name, m.role
+    const { rows } = await this.pool.query<{ user_id: string; email: string; name: string | null; role: OrgRole; source: Member["source"] }>(
+      `SELECT u.id AS user_id, u.email, u.name, m.role, m.source
          FROM org_memberships m
          JOIN users u ON u.id = m.user_id
         WHERE m.organization_id = $1
@@ -185,14 +205,14 @@ export class PostgresIdentityRepository implements IdentityRepository {
     return rows.map(toMember);
   }
 
-  async createExperiment(organizationId: string, name: string, serviceName: string): Promise<Experiment> {
+  async createExperiment(organizationId: string, name: string, serviceName: string, profile: Partial<AgentProfile> = {}): Promise<Experiment> {
     const { rows } = await this.pool.query<{ id: string; organization_id: string; name: string; service_name: string; org_theme: unknown }>(
       `WITH inserted AS (
-         INSERT INTO experiments (organization_id, name, service_name) VALUES ($1, $2, $3)
+         INSERT INTO experiments (organization_id, name, service_name, description, owner_user_id) VALUES ($1, $2, $3, $4, $5)
          RETURNING id, organization_id, name, service_name
        )
        SELECT inserted.*, o.theme AS org_theme FROM inserted JOIN organizations o ON o.id = inserted.organization_id`,
-      [organizationId, name, serviceName],
+      [organizationId, name, serviceName, profile.description ?? "", profile.ownerUserId ?? null],
     );
     const row = rows[0];
     if (!row) throw new Error("failed to insert experiment");
@@ -217,12 +237,13 @@ export class PostgresIdentityRepository implements IdentityRepository {
       name: string;
       service_name: string;
       org_theme: unknown;
-      my_role: ExperimentRole | null;
-      org_admin: boolean;
+      my_role: string | null;
+      org_role: string | null;
+      permissions: string[] | null;
     }>(
-      `SELECT DISTINCT e.id, e.organization_id, e.name, e.service_name, o.theme AS org_theme,
-              em.role AS my_role,
-              (om.user_id IS NOT NULL) AS org_admin
+      `SELECT e.id, e.organization_id, e.name, e.service_name, o.theme AS org_theme,
+              em.role AS my_role, om.role AS org_role,
+              (SELECT array_agg(DISTINCT rp.permission) FROM role_permissions rp WHERE rp.role_name IN (em.role, om.role)) AS permissions
          FROM experiments e
          JOIN organizations o ON o.id = e.organization_id
          LEFT JOIN experiment_memberships em ON em.experiment_id = e.id AND em.user_id = $1
@@ -231,7 +252,11 @@ export class PostgresIdentityRepository implements IdentityRepository {
         ORDER BY e.name`,
       [userId],
     );
-    return rows.map((row) => ({ ...toExperiment(row), myRole: row.org_admin ? "org_admin" : (row.my_role as ExperimentRole) }));
+    return rows.map((row) => ({
+      ...toExperiment(row),
+      myRole: row.my_role ?? (row.org_role as string),
+      permissions: (row.permissions ?? []).filter(isPermission),
+    }));
   }
 
   async addExperimentMember(experimentId: string, userId: string, role: ExperimentRole): Promise<void> {
@@ -243,8 +268,8 @@ export class PostgresIdentityRepository implements IdentityRepository {
   }
 
   async listExperimentMembers(experimentId: string): Promise<Member[]> {
-    const { rows } = await this.pool.query<{ user_id: string; email: string; name: string | null; role: ExperimentRole }>(
-      `SELECT u.id AS user_id, u.email, u.name, m.role
+    const { rows } = await this.pool.query<{ user_id: string; email: string; name: string | null; role: ExperimentRole; source: Member["source"] }>(
+      `SELECT u.id AS user_id, u.email, u.name, m.role, m.source
          FROM experiment_memberships m
          JOIN users u ON u.id = m.user_id
         WHERE m.experiment_id = $1
@@ -268,7 +293,7 @@ export class PostgresIdentityRepository implements IdentityRepository {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
-      const { rows } = await client.query<{ id: string; organization_id: string | null; experiment_id: string | null; role: ExperimentAccess }>(
+      const { rows } = await client.query<{ id: string; organization_id: string | null; experiment_id: string | null; role: string }>(
         `SELECT id, organization_id, experiment_id, role FROM pending_invitations WHERE email = $1`,
         [email],
       );
@@ -319,20 +344,27 @@ export class PostgresIdentityRepository implements IdentityRepository {
   }
 
   async resolveExperimentAccess(userId: string, experimentId: string): Promise<ExperimentAccess> {
-    const { rows } = await this.pool.query<{ org_admin: boolean; experiment_role: ExperimentRole | null }>(
+    const { rows } = await this.pool.query<{ org_role: string | null; experiment_role: string | null; permissions: string[] | null }>(
       `SELECT
-         EXISTS (
-           SELECT 1 FROM org_memberships om
-             JOIN experiments e ON e.organization_id = om.organization_id
-            WHERE om.user_id = $1 AND e.id = $2
-         ) AS org_admin,
-         (SELECT role FROM experiment_memberships WHERE user_id = $1 AND experiment_id = $2) AS experiment_role`,
+         (SELECT om.role FROM org_memberships om JOIN experiments e ON e.organization_id = om.organization_id
+           WHERE om.user_id = $1 AND e.id = $2) AS org_role,
+         (SELECT role FROM experiment_memberships WHERE user_id = $1 AND experiment_id = $2) AS experiment_role,
+         (SELECT array_agg(DISTINCT rp.permission)
+            FROM role_permissions rp
+           WHERE rp.role_name IN (
+                   (SELECT om.role FROM org_memberships om JOIN experiments e ON e.organization_id = om.organization_id
+                     WHERE om.user_id = $1 AND e.id = $2),
+                   (SELECT role FROM experiment_memberships WHERE user_id = $1 AND experiment_id = $2))) AS permissions`,
       [userId, experimentId],
     );
     const row = rows[0];
-    if (!row) return null;
-    if (row.org_admin) return "org_admin";
-    return row.experiment_role ?? null;
+    if (!row || (!row.org_role && !row.experiment_role)) return null;
+    return { role: row.experiment_role ?? (row.org_role as string), permissions: (row.permissions ?? []).filter(isPermission) };
+  }
+
+  async listRoleNames(scope: "organization" | "experiment"): Promise<string[]> {
+    const { rows } = await this.pool.query<{ name: string }>(`SELECT name FROM roles WHERE scope = $1 ORDER BY name`, [scope]);
+    return rows.map((r) => r.name);
   }
 
   async createApiKey(experimentId: string, createdByUserId: string): Promise<{ apiKey: ApiKey; plaintext: string }> {
@@ -348,19 +380,19 @@ export class PostgresIdentityRepository implements IdentityRepository {
     return { apiKey: toApiKey(row), plaintext };
   }
 
-  async listApiKeys(experimentId: string): Promise<ApiKey[]> {
+  async listApiKeys(experimentId: string, createdBy?: string): Promise<ApiKey[]> {
     const { rows } = await this.pool.query<{ id: string; experiment_id: string; key_prefix: string; created_at: string; last_used_at: string | null }>(
       `SELECT id, experiment_id, key_prefix, created_at, last_used_at
          FROM api_keys
-        WHERE experiment_id = $1 AND revoked_at IS NULL
+        WHERE experiment_id = $1 AND revoked_at IS NULL AND ($2::uuid IS NULL OR created_by = $2)
         ORDER BY created_at DESC`,
-      [experimentId],
+      [experimentId, createdBy ?? null],
     );
     return rows.map(toApiKey);
   }
 
-  async revokeApiKey(experimentId: string, keyId: string): Promise<void> {
-    await this.pool.query(`UPDATE api_keys SET revoked_at = now() WHERE id = $1 AND experiment_id = $2`, [keyId, experimentId]);
+  async revokeApiKey(experimentId: string, keyId: string, createdBy?: string): Promise<void> {
+    await this.pool.query(`UPDATE api_keys SET revoked_at = now() WHERE id = $1 AND experiment_id = $2 AND ($3::uuid IS NULL OR created_by = $3)`, [keyId, experimentId, createdBy ?? null]);
   }
 
   async resolveApiKey(plaintext: string): Promise<{ experimentId: string; serviceName: string; createdByUserId: string } | null> {
@@ -667,6 +699,19 @@ export class PostgresIdentityRepository implements IdentityRepository {
     } finally {
       client.release();
     }
+  }
+
+  async findPromotedTraces(experimentId: string, traceIds: string[]): Promise<PromotedTraceLocation[]> {
+    if (traceIds.length === 0) return [];
+    const { rows } = await this.pool.query<{ trace_id: string; dataset_id: string; dataset_name: string; major: number; minor: number }>(
+      `SELECT DISTINCT i.metadata->'promotedFrom'->>'traceId' AS trace_id, d.id AS dataset_id, d.name AS dataset_name, v.major, v.minor
+         FROM datasets d
+         JOIN LATERAL (SELECT id, major, minor FROM dataset_versions WHERE dataset_id = d.id ORDER BY major DESC, minor DESC LIMIT 1) v ON true
+         JOIN dataset_items i ON i.dataset_version_id = v.id AND i.deleted_at IS NULL
+        WHERE d.experiment_id = $1 AND i.metadata->'promotedFrom'->>'traceId' = ANY($2::text[])`,
+      [experimentId, traceIds],
+    );
+    return rows.map((r) => ({ traceId: r.trace_id, datasetId: r.dataset_id, datasetName: r.dataset_name, version: `${r.major}.${r.minor}` }));
   }
 
   async addPromotedDatasetItems(
@@ -1022,8 +1067,8 @@ function toExperiment(row: { id: string; organization_id: string; name: string; 
   };
 }
 
-function toMember(row: { user_id: string; email: string; name: string | null; role: OrgRole | ExperimentRole }): Member {
-  return { userId: row.user_id, email: row.email, name: row.name, role: row.role };
+function toMember(row: { user_id: string; email: string; name: string | null; role: OrgRole | ExperimentRole; source: Member["source"] }): Member {
+  return { userId: row.user_id, email: row.email, name: row.name, role: row.role, source: row.source };
 }
 
 function toDataset(row: { id: string; experiment_id: string; name: string; created_at: string }): Dataset {

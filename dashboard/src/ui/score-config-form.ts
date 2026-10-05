@@ -37,3 +37,10 @@ export function numericChoices(config: Pick<ScoreConfigDto, "dataType" | "minVal
   if (!Number.isInteger(min) || !Number.isInteger(max) || max - min > 9) return null;
   return Array.from({ length: max - min + 1 }, (_, i) => min + i);
 }
+
+/** Valores que puede elegir una persona para una config (botones o lista); null si hay que escribirlos (escala numérica ancha). */
+export function valueChoices(config: Pick<ScoreConfigDto, "dataType" | "minValue" | "maxValue" | "categories">): Array<{ value: string; label: string }> | null {
+  if (config.dataType === "boolean") return [{ value: "true", label: "Yes" }, { value: "false", label: "No" }];
+  if (config.dataType === "categorical") return (config.categories ?? []).map((c) => ({ value: c.label, label: c.label }));
+  return numericChoices(config)?.map((n) => ({ value: String(n), label: String(n) })) ?? null;
+}

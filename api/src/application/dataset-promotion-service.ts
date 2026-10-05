@@ -20,6 +20,8 @@ export interface PromotionRequest {
   input?: unknown;
   expectedOutput?: unknown;
   fromConfigId?: string;
+  /** Cola de revisión de la que sale la traza (ADR-050); solo procedencia, queda en `promotedFrom`. */
+  queueId?: string;
 }
 
 export interface PromotionResult {
@@ -79,7 +81,7 @@ export class DatasetPromotionService {
         skipped.push({ traceId: request.traceId, reason: expected.reason });
         continue;
       }
-      drafts.push(buildPromotedItem({ traceId: request.traceId, content, expectedOutput: expected.value, annotations: traceAnnotations, promotedBy: actor.userId, promotedAt: this.now() }));
+      drafts.push(buildPromotedItem({ traceId: request.traceId, content, expectedOutput: expected.value, annotations: traceAnnotations, promotedBy: actor.userId, promotedAt: this.now(), queueId: request.queueId }));
     }
 
     if (drafts.length === 0) return { added: [], skipped, version: null };

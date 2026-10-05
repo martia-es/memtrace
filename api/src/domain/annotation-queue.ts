@@ -31,6 +31,8 @@ export interface AnnotationQueue {
   name: string;
   instructions: string | null;
   requiredAnnotations: number;
+  /** Personas autorizadas a anotar en esta cola (ADR-051). Nadie más puede reclamar ni completar items. */
+  reviewerIds: string[];
   rubric: QueueRubricEntry[];
   createdBy: string;
   createdAt: string;
@@ -76,6 +78,7 @@ export interface NewAnnotationQueue {
   name: string;
   instructions: string | null;
   requiredAnnotations: number;
+  reviewerIds: string[];
   rubric: Array<{ configId: string; required: boolean }>;
 }
 
@@ -83,6 +86,8 @@ export interface AnnotationQueuePatch {
   name?: string;
   instructions?: string | null;
   requiredAnnotations?: number;
+  /** Lista completa deseada de revisores; sustituye a la actual. Quitar a alguien no borra lo que ya anotó. */
+  reviewerIds?: string[];
   /** Rúbrica completa deseada. En una cola con trabajo ya hecho solo puede añadir configs. */
   rubric?: Array<{ configId: string; required: boolean }>;
   archived?: boolean;
@@ -109,6 +114,11 @@ export function validateNewQueue(input: NewAnnotationQueue): NewAnnotationQueue 
   if (!name) fields.name = "must not be empty";
   if (!Number.isInteger(input.requiredAnnotations) || input.requiredAnnotations < 1 || input.requiredAnnotations > MAX_REQUIRED_ANNOTATIONS) {
     fields.requiredAnnotations = `must be an integer between 1 and ${MAX_REQUIRED_ANNOTATIONS}`;
+  }
+  if (input.reviewerIds.length === 0) fields.reviewerIds = "must include at least one reviewer";
+  else if (new Set(input.reviewerIds).size !== input.reviewerIds.length) fields.reviewerIds = "contains the same reviewer twice";
+  else if (input.requiredAnnotations > input.reviewerIds.length) {
+    fields.requiredAnnotations = `needs at least ${input.requiredAnnotations} reviewers, but only ${input.reviewerIds.length} are assigned`;
   }
   if (input.rubric.length === 0) fields.rubric = "must include at least one score config";
   if (new Set(input.rubric.map((r) => r.configId)).size !== input.rubric.length) fields.rubric = "contains the same score config twice";

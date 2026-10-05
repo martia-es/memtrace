@@ -52,6 +52,15 @@ function textOf(content: unknown): string {
   return content === undefined || content === null ? "" : JSON.stringify(content);
 }
 
+/** Formato GenAI semconv reciente (Pydantic AI…): `parts: [{type: "text", content}]` en lugar de `content`. */
+function textOfParts(parts: unknown): string {
+  if (!Array.isArray(parts)) return "";
+  return parts
+    .filter((p): p is Record<string, unknown> => typeof p === "object" && p !== null && p.type === "text" && typeof p.content === "string")
+    .map((p) => p.content as string)
+    .join("\n");
+}
+
 /**
  * El SDK trunca el contenido largo (`…[truncated]`), lo que deja un JSON inválido:
  * en ese caso se devuelve el texto crudo como un único mensaje sin rol en vez de perderlo.
@@ -63,7 +72,7 @@ export function parseMessages(raw: string | null): Message[] {
     if (Array.isArray(parsed)) {
       return parsed
         .filter((m): m is Record<string, unknown> => typeof m === "object" && m !== null)
-        .map((m) => ({ role: ROLES[String(m.role ?? "").toLowerCase()] ?? "unknown", text: textOf(m.content).trim() }));
+        .map((m) => ({ role: ROLES[String(m.role ?? "").toLowerCase()] ?? "unknown", text: (m.content !== undefined ? textOf(m.content) : textOfParts(m.parts)).trim() }));
     }
   } catch {
     /* JSON truncado o texto plano */

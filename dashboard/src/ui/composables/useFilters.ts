@@ -24,8 +24,8 @@ export function useFilters() {
   const kind = computed(() => first(route.query.kind));
   const model = computed(() => first(route.query.model));
   const text = computed(() => first(route.query.q));
-  /** cómo se listan las trazas: sueltas (por defecto) o agrupadas por conversación */
-  const group = computed<"conversation" | "flat">(() => (first(route.query.group) === "conversation" ? "conversation" : "flat"));
+  /** cómo se listan: por conversación (por defecto, ADR-048) o como trazas sueltas */
+  const group = computed<"conversation" | "flat">(() => (first(route.query.group) === "flat" ? "flat" : "conversation"));
   const hasErrors = computed(() => first(route.query.hasErrors) === "1");
   const conversationId = computed(() => first(route.query.conversation));
   const minDurationMs = computed(() => {
@@ -59,8 +59,10 @@ export function useFilters() {
     setKind: (value: string | undefined) => update({ kind: value }),
     setModel: (value: string | undefined) => update({ model: value }),
     setText: (value: string | undefined) => update({ q: value?.trim() || undefined }),
-    setGroup: (value: "conversation" | "flat") => update({ group: value === "conversation" ? "conversation" : undefined }),
+    setGroup: (value: "conversation" | "flat") => update({ group: value === "flat" ? "flat" : undefined }),
     setHasErrors: (value: boolean) => update({ hasErrors: value ? "1" : undefined }),
+    /** vistas rápidas de la lista (ADR-048): las dos condiciones se aplican en un único cambio de URL */
+    setQuickView: (value: "all" | "errors" | "slow") => update({ hasErrors: value === "errors" ? "1" : undefined, min: value === "slow" ? "5000" : undefined }),
     setConversation: (value: string | undefined) => update({ conversation: value }),
     setMinDuration: (value: number | undefined) => update({ min: value ? String(value) : undefined }),
     /** query que se conserva al navegar entre secciones */

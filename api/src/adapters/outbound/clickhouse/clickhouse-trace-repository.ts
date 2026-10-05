@@ -1,7 +1,7 @@
 import type { ClickHouseClient } from "@clickhouse/client";
 import { RepositoryUnavailableError } from "@/application/errors";
 import type { ConversationListQuery, SpanListQuery, TraceListQuery, TraceRepository, TraceSpans } from "@/application/ports/trace-repository";
-import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
+import type { ConversationCursor, ConversationSummary, ConversationUsage } from "@/domain/conversation";
 import type { ModelPricing } from "@/domain/pricing";
 import { previewOf, type SpanCursor, type SpanRecord } from "@/domain/span-row";
 import type { ChatSpanRecord } from "@/domain/transcript";
@@ -355,7 +355,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
     }
 
     const roots = await this.rows(
-      `SELECT TraceId, SpanName, ServiceName, ConversationId, toUnixTimestamp64Micro(Timestamp) AS startUs, Duration, StatusCode
+      `SELECT TraceId, SpanName, ServiceName, ConversationId, toUnixTimestamp64Micro(Timestamp) AS startUs, Duration, StatusCode, StatusMessage
        FROM ${this.spans} WHERE ${where.join(" AND ")}
        ORDER BY startUs ${dir}, TraceId ${dir} LIMIT {limit:UInt32}`,
       p,
@@ -367,18 +367,23 @@ export class ClickHouseTraceRepository implements TraceRepository {
 
     const items: TraceSummary[] = page.map((r) => {
       const agg = aggregates.get(String(r.TraceId));
+      const status = toStatus(r.StatusCode);
+      // Si la traza falló y lo último con salida es una herramienta, el agente nunca llegó a responder:
+      // el resultado de la herramienta no es la respuesta, así que se muestra el error en su lugar.
+      const noAnswer = status === "error" && agg?.outputTool === true;
       return {
         traceId: String(r.TraceId),
         rootSpanName: String(r.SpanName),
         serviceName: String(r.ServiceName),
         startTimeUs: num(r.startUs),
         durationMs: nsToMs(r.Duration),
-        status: toStatus(r.StatusCode),
+        status,
         spanCount: agg?.spanCount ?? 1,
         errorCount: agg?.errorCount ?? 0,
         totalTokens: agg?.totalTokens ?? 0,
         input: agg ? previewOf(agg.inputRaw, "input", agg.inputChat) : null,
-        output: agg ? previewOf(agg.outputRaw, "output", agg.outputChat) : null,
+        output: agg && !noAnswer ? previewOf(agg.outputRaw, "output", agg.outputChat) : null,
+        error: status === "error" && r.StatusMessage ? previewOf(String(r.StatusMessage), "output", false) : null,
         conversationId: r.ConversationId ? String(r.ConversationId) : null,
       };
     });
@@ -389,7 +394,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
 
   /** Agregados por traza para una página, acotados en tiempo para podar particiones diarias. */
   private async aggregatesFor(roots: Row[]) {
-    const result = new Map<string, { spanCount: number; errorCount: number; totalTokens: number; inputRaw: string | null; inputChat: boolean; outputRaw: string | null; outputChat: boolean }>();
+    const result = new Map<string, { spanCount: number; errorCount: number; totalTokens: number; inputRaw: string | null; inputChat: boolean; outputRaw: string | null; outputChat: boolean; outputTool: boolean }>();
     if (roots.length === 0) return result;
 
     const startsMs = roots.map((r) => num(r.startUs) / 1000);
@@ -406,7 +411,8 @@ export class ClickHouseTraceRepository implements TraceRepository {
               argMinIf(${inputExpr}, Timestamp, ${inputExpr} != '') AS inputRaw,
               argMinIf(${OP} = 'chat', Timestamp, ${inputExpr} != '') AS inputChat,
               argMaxIf(${outputExpr}, Timestamp + toIntervalNanosecond(Duration), ${outputExpr} != '') AS outputRaw,
-              argMaxIf(${OP} = 'chat', Timestamp + toIntervalNanosecond(Duration), ${outputExpr} != '') AS outputChat
+              argMaxIf(${OP} = 'chat', Timestamp + toIntervalNanosecond(Duration), ${outputExpr} != '') AS outputChat,
+              argMaxIf(${OP} = 'execute_tool', Timestamp + toIntervalNanosecond(Duration), ${outputExpr} != '') AS outputTool
        FROM ${this.spans} WHERE TraceId IN {ids:Array(String)} AND ${clause} GROUP BY TraceId`,
       { ...params, ids: roots.map((r) => String(r.TraceId)) },
     );
@@ -419,6 +425,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
         inputChat: Boolean(r.inputChat),
         outputRaw: r.outputRaw ? String(r.outputRaw) : null,
         outputChat: Boolean(r.outputChat),
+        outputTool: Boolean(r.outputTool),
       });
     }
     return result;
@@ -503,6 +510,36 @@ export class ClickHouseTraceRepository implements TraceRepository {
         totalTokens: num(r.totalTokens),
         activeMs: nsToMs(r.activeNs),
       });
+    }
+    return result;
+  }
+
+  async getConversationUsage(ids: string[], toMs: number): Promise<Map<string, ConversationUsage>> {
+    const result = new Map<string, ConversationUsage>();
+    if (ids.length === 0) return result;
+    const { clause, params } = ClickHouseTraceRepository.range(toMs - MAX_RANGE_MS, toMs + TRACE_WINDOW_MS);
+    const where = `ConversationId IN {ids:Array(String)} AND ${OP} = 'chat' AND ${clause}`;
+    const [first, usage] = await Promise.all([
+      this.rows(
+        `SELECT ConversationId, argMin(SpanAttributes['gen_ai.input.messages'], Timestamp) AS firstInput
+         FROM ${this.spans} WHERE ${where} GROUP BY ConversationId`,
+        { ...params, ids },
+      ),
+      this.rows(
+        `SELECT ConversationId, ${attr("gen_ai.request.model")} AS model,
+                sum(${attrNum("gen_ai.usage.input_tokens")}) AS inputTokens,
+                sum(${attrNum("gen_ai.usage.output_tokens")}) AS outputTokens
+         FROM ${this.spans} WHERE ${where} GROUP BY ConversationId, model`,
+        { ...params, ids },
+      ),
+    ]);
+    for (const r of first) {
+      result.set(String(r.ConversationId), { firstInput: r.firstInput ? String(r.firstInput) : null, models: [] });
+    }
+    for (const r of usage) {
+      const entry = result.get(String(r.ConversationId)) ?? { firstInput: null, models: [] };
+      entry.models.push({ model: r.model ? String(r.model) : null, inputTokens: num(r.inputTokens), outputTokens: num(r.outputTokens) });
+      result.set(String(r.ConversationId), entry);
     }
     return result;
   }

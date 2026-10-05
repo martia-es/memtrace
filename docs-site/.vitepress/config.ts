@@ -4,6 +4,7 @@ export default defineConfig({
   title: "MemTrace Docs",
   description: "Observability and learning for AI agents: the Python library and the MemTrace platform.",
   cleanUrls: true,
+  markdown: { theme: { light: "github-light", dark: "github-dark" } },
   sitemap: { hostname: "https://docs.memtraces.ai" },
   themeConfig: {
     nav: [
@@ -38,8 +39,16 @@ export default defineConfig({
             { text: "Datasets & offline evals", link: "/platform/evaluation" },
             { text: "Annotations & review", link: "/platform/annotations" },
             { text: "Organizations & roles", link: "/platform/access-control" },
+            { text: "Assistants catalog", link: "/platform/assistants" },
             { text: "Query API", link: "/platform/api" },
             { text: "Architecture", link: "/platform/architecture" },
+          ],
+        },
+        {
+          text: "Technical reference",
+          items: [
+            { text: "Data model", link: "/platform/data-model" },
+            { text: "Roles & permissions", link: "/platform/roles-and-permissions" },
           ],
         },
       ],

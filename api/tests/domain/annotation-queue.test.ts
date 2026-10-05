@@ -33,7 +33,7 @@ describe("deriveItemStatus", () => {
 });
 
 describe("validateNewQueue", () => {
-  const base = { name: "  Review  ", instructions: "  ", requiredAnnotations: 2, rubric: [{ configId: "a", required: true }] };
+  const base = { name: "  Review  ", instructions: "  ", requiredAnnotations: 2, reviewerIds: ["u1", "u2"], rubric: [{ configId: "a", required: true }] };
   it("trims the name and drops blank instructions", () => {
     expect(validateNewQueue(base)).toMatchObject({ name: "Review", instructions: null });
   });
@@ -42,6 +42,9 @@ describe("validateNewQueue", () => {
     ["zero annotations", { requiredAnnotations: 0 }],
     ["too many annotations", { requiredAnnotations: 11 }],
     ["empty rubric", { rubric: [] }],
+    ["no reviewers", { reviewerIds: [] }],
+    ["duplicate reviewer", { reviewerIds: ["u1", "u1"] }],
+    ["more annotations than reviewers", { requiredAnnotations: 3 }],
     ["duplicate config", { rubric: [{ configId: "a", required: true }, { configId: "a", required: false }] }],
   ])("rejects %s", (_label, over) => {
     expect(() => validateNewQueue({ ...base, ...over })).toThrow(ValidationError);

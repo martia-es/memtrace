@@ -25,7 +25,7 @@ const emit = defineEmits<{ close: [] }>();
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(20, 30, 24, 0.4);
+  background: rgba(8, 23, 22, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -41,6 +41,7 @@ const emit = defineEmits<{ close: [] }>();
   display: flex;
   flex-direction: column;
   gap: 16px;
+  box-shadow: var(--mt-shadow-float);
 }
 .modal-card.wide {
   max-width: 1100px;
@@ -54,7 +55,7 @@ const emit = defineEmits<{ close: [] }>();
 .modal-header h2 {
   margin: 0;
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: -0.02em;
 }
 .modal-close {

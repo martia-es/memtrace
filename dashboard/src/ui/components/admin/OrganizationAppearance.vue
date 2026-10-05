@@ -15,8 +15,10 @@ const api = useIdentityApi();
 const $q = useQuasar();
 const currentExperiment = inject(CURRENT_EXPERIMENT, computed(() => null));
 
-const DEFAULT_ACCENT = "#1c1f23";
-const RADIUS_OPTIONS = [
+const DEFAULT_ACCENT = "#00857f";
+// "Default" = sin override: el 4/6/8 px del diseño Mediterráneo (ADR-048); el resto lo reemplaza
+const RADIUS_OPTIONS: { label: string; value: OrganizationThemeDto["radiusPreset"] }[] = [
+  { label: "Default", value: null },
   { label: "Sharp", value: "sharp" as const },
   { label: "Soft", value: "soft" as const },
   { label: "Round", value: "round" as const },
@@ -75,10 +77,10 @@ function reset() {
         <div class="mt-segmented small">
           <button
             v-for="opt in RADIUS_OPTIONS"
-            :key="opt.value"
+            :key="opt.label"
             type="button"
             :disabled="!canManage"
-            :aria-pressed="(draft.radiusPreset ?? 'sharp') === opt.value"
+            :aria-pressed="draft.radiusPreset === opt.value"
             @click="draft.radiusPreset = opt.value"
           >
             {{ opt.label }}

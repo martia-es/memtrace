@@ -103,7 +103,7 @@ function copy(text: string) {
       <template v-else>An experiment admin needs to create one.</template>
     </p>
 
-    <p v-if="!canManage && keys.length" class="adm-hint">Only an experiment admin can create or revoke keys.</p>
+    <p v-if="!canManage && keys.length" class="adm-hint">You can only see and revoke the keys you created.</p>
   </div>
 </template>
 

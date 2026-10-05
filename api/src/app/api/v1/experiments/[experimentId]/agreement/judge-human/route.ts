@@ -1,4 +1,4 @@
-import { requireExperimentMember } from "@/adapters/inbound/http/auth-context";
+import { requirePermission } from "@/adapters/inbound/http/auth-context";
 import { identityGuard } from "@/adapters/inbound/http/identity-guard";
 import { toJudgeHumanAgreementResponse } from "@/adapters/inbound/http/mappers";
 import { json } from "@/adapters/inbound/http/problem";
@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request, context: { params: Promise<{ experimentId: string }> }) {
   return identityGuard(async () => {
     const { experimentId } = await context.params;
-    const ctx = await requireExperimentMember(experimentId);
+    const ctx = await requirePermission(experimentId, "experiment:read");
     if (ctx instanceof Response) return ctx;
     const parsed = judgeHumanAgreementQuery.safeParse(Object.fromEntries(new URL(request.url).searchParams));
     if (!parsed.success) throw new ValidationError("Invalid query", { query: parsed.error.issues[0]?.message ?? "invalid" });

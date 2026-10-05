@@ -89,10 +89,42 @@ export class AnnotationQueueInvariantError extends Error {
   }
 }
 
+/** El usuario no está en la lista de revisores de la cola (ADR-046). HTTP 403. */
+export class AnnotationQueueReviewerError extends Error {
+  constructor(readonly queueId: string) {
+    super("You are not one of the reviewers assigned to this annotation queue");
+    this.name = "AnnotationQueueReviewerError";
+  }
+}
+
 /** El run pedido no existe en ese experimento (ADR-040). HTTP 404. */
 export class DatasetRunNotFoundError extends Error {
   constructor(readonly datasetRunId: string) {
     super(`Dataset run ${datasetRunId} not found`);
     this.name = "DatasetRunNotFoundError";
+  }
+}
+
+/** El asistente (o el despliegue, la conexión, el acceso) pedido no existe en ese experimento (ADR-053). */
+export class AssistantNotFoundError extends Error {
+  constructor(readonly what: string) {
+    super(`${what} not found`);
+    this.name = "AssistantNotFoundError";
+  }
+}
+
+/** Operación que rompe una regla del registro de asistentes: ya está registrado, entorno repetido, entorno de otra organización… (ADR-053). */
+export class AssistantInvariantError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AssistantInvariantError";
+  }
+}
+
+/** El asistente no respondió al chat de forma válida (caído, timeout, respuesta que no encaja con su contrato). Sale como 502 (ADR-055). */
+export class AssistantUpstreamError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AssistantUpstreamError";
   }
 }

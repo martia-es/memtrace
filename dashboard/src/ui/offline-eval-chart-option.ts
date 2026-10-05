@@ -1,6 +1,6 @@
 import type { RunListItemDto } from "@contract";
 import type { EChartsCoreOption } from "echarts/core";
-import { judgeChanged, judgeSignature } from "@/domain/evaluation";
+import { aggregateTone, judgeChanged, judgeSignature, type AggregateTone } from "@/domain/evaluation";
 import { chartColors } from "./chart-theme";
 
 export type OfflineMetricKind = "passRate" | "average";
@@ -110,6 +110,9 @@ export function offlineEvalChartOption(runs: RunListItemDto[], series: OfflineSe
       symbolSize: 7,
       lineStyle: { width: 2.5, color: c.series[i % c.series.length] },
       itemStyle: { color: c.series[i % c.series.length] },
+      ...(isRate && i === 0
+        ? { markLine: { silent: true, symbol: "none", label: { color: c.muted, fontSize: 10, formatter: "{c}" }, lineStyle: { color: c.ok, type: "dashed", opacity: 0.6 }, data: [{ yAxis: 0.8, label: { formatter: "80% target" } }] } }
+        : {}),
       // un rombo en el color de peligro marca dónde cambió el juez (ADR-043)
       data: s.values.map((value, idx) => (s.judgeChanged[idx] && value !== null ? { value, symbol: "diamond", symbolSize: 13, itemStyle: { color: c.danger } } : value)),
     })),
@@ -126,6 +129,15 @@ export interface EvaluatorSummary {
   previous: number | null;
   delta: number | null;
   status: EvaluatorStatus;
+  /** Mismo umbral que las tarjetas KPI (≥80% ok, <50% mal). Los promedios no tienen escala conocida: `default`. */
+  tone: AggregateTone;
+  /** Scores del último run (items evaluados). */
+  count: number;
+  /** Solo `passRate`: items que pasaron / fallaron en el último run. */
+  passed: number | null;
+  failed: number | null;
+  /** Valor en cada run que tenía este evaluador, más antiguo primero (para el sparkline). */
+  history: number[];
 }
 
 /** Diferencias menores que esto se consideran ruido, no movimiento. */
@@ -152,7 +164,67 @@ export function summarizeEvaluators(runs: RunListItemDto[]): EvaluatorSummary[] 
     else if (judgeChanged(prevAgg, latestAgg)) status = "judge-changed";
     else if (delta === null || Math.abs(delta) < STABLE_EPSILON) status = "stable";
     else status = delta > 0 ? "improving" : "regressing";
-    out.push({ name, kind, latest, previous, delta, status });
+    const passed = kind === "passRate" && latestAgg.passRate !== null ? Math.round(latestAgg.passRate * latestAgg.count) : null;
+    out.push({
+      name,
+      kind,
+      latest,
+      previous,
+      delta,
+      status,
+      tone: aggregateTone(latestAgg),
+      count: latestAgg.count,
+      passed,
+      failed: passed === null ? null : latestAgg.count - passed,
+      history: valued.map((a) => value(a)!),
+    });
   }
   return out;
+}
+
+export type VerdictLevel = "healthy" | "attention" | "failing" | "unknown";
+
+export interface OfflineVerdict {
+  level: VerdictLevel;
+  title: string;
+  detail: string;
+}
+
+/** Respuesta a "¿cómo va el sistema?": el peor de los evaluadores booleanos del último run manda. */
+export function offlineVerdict(summary: EvaluatorSummary[]): OfflineVerdict {
+  const rated = summary.filter((s) => s.kind === "passRate");
+  if (!rated.length) return { level: "unknown", title: "No pass/fail evaluators yet", detail: "Add a boolean evaluator (e.g. exact_match) to get a health verdict." };
+  const failing = rated.filter((s) => s.tone === "negative");
+  const regressing = rated.filter((s) => s.status === "regressing");
+  const weak = rated.filter((s) => s.tone === "warning");
+  const names = (list: EvaluatorSummary[]) => list.map((s) => s.name).join(", ");
+  if (failing.length) return { level: "failing", title: "Failing", detail: `Below 50% pass rate: ${names(failing)}.` };
+  if (regressing.length) return { level: "attention", title: "Regressing", detail: `Lower than the previous run: ${names(regressing)}.` };
+  if (weak.length) return { level: "attention", title: "Needs attention", detail: `Between 50% and 80%: ${names(weak)}.` };
+  return { level: "healthy", title: "Healthy", detail: "Every pass/fail evaluator is at 80% or above." };
+}
+
+/** Barras apiladas aprobados/fallados del último run por evaluador booleano: funciona con un solo run. */
+export function passFailChartOption(summary: EvaluatorSummary[], isDark: boolean): EChartsCoreOption {
+  const c = chartColors(isDark);
+  const rated = summary.filter((s) => s.kind === "passRate");
+  const bar = (name: string, color: string, pick: (s: EvaluatorSummary) => number) => ({
+    name,
+    type: "bar",
+    stack: "items",
+    barMaxWidth: 28,
+    itemStyle: { color },
+    label: { show: true, color: "#fff", fontSize: 11, fontWeight: 600, formatter: (p: { value: number }) => (p.value > 0 ? String(p.value) : "") },
+    data: rated.map(pick),
+  });
+  return {
+    backgroundColor: "transparent",
+    textStyle: { color: c.text },
+    grid: { left: 6, right: 16, top: 32, bottom: 6, containLabel: true },
+    legend: { top: 0, textStyle: { color: c.text, fontSize: 11 } },
+    tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+    xAxis: { type: "value", minInterval: 1, axisLabel: { color: c.muted, fontSize: 11 }, splitLine: { lineStyle: { color: c.grid, type: "dashed" } } },
+    yAxis: { type: "category", inverse: true, data: rated.map((s) => s.name), axisLabel: { color: c.text, fontSize: 12 }, axisLine: { lineStyle: { color: c.grid } } },
+    series: [bar("Passed", c.ok, (s) => s.passed ?? 0), bar("Failed", c.danger, (s) => s.failed ?? 0)],
+  };
 }

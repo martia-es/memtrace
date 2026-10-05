@@ -1,14 +1,23 @@
+import { permissionsOf } from "./permissions";
 import type {
   AddQueueItemsResponse,
   InterAnnotatorAgreementResponse,
   JudgeHumanAgreementResponse,
   AnnotationQueueDetailResponse,
   AnnotationQueueDto,
+  AnnotationQueueListItemDto,
   AnnotationQueueSummaryDto,
   AnnotationQueuesListResponse,
+  ReviewerCandidatesResponse,
+  LowRatedResponse,
   NextQueueItemResponse,
   QueueItemDto,
   QueueItemsResponse,
+  QueueResolutionDto,
+  QueueResultItemDto,
+  QueueResultsResponse,
+  TraceQueuesResponse,
+  ResolveQueueItemBody,
   AttributeKeysResponse,
   AttributeValuesResponse,
   ConversationDetailResponse,
@@ -54,6 +63,7 @@ import type {
   ApiKeyDto,
   CurrentUser,
   ExperimentDto,
+  ExternalMappingDto,
   IdentityApi,
   MembersResponseDto,
   MetricReportDto,
@@ -61,6 +71,8 @@ import type {
   ScoreConfigPatchInput,
   MetricReportSummaryDto,
   OrganizationDto,
+  OrganizationIdentityDto,
+  ScimTokenDto,
   OrganizationThemeDto,
   SavedCustomMetricDto,
 } from "@/application/identity-api";
@@ -76,24 +88,50 @@ export class FakeIdentityApi implements IdentityApi {
     return [];
   }
   async createOrganization(name: string): Promise<OrganizationDto> {
-    return { id: "org-1", name, myRole: "org_admin", theme: NO_THEME };
+    return { id: "org-1", name, myRole: "org_admin", permissions: permissionsOf("org_admin"), theme: NO_THEME };
   }
   async addOrgAdmin(): Promise<void> {}
   async listOrgMembers(): Promise<MembersResponseDto> {
     return { members: [], pendingInvitations: [] };
   }
   async updateOrganizationTheme(organizationId: string, theme: OrganizationThemeDto): Promise<OrganizationDto> {
-    return { id: organizationId, name: "org", myRole: "org_admin", theme };
+    return { id: organizationId, name: "org", myRole: "org_admin", permissions: permissionsOf("org_admin"), theme };
+  }
+  identity: OrganizationIdentityDto = { groupsClaim: "groups", mappings: [], scimTokens: [], scimBaseUrl: "https://mt.test/api/scim/v2" };
+  async getOrganizationIdentity(): Promise<OrganizationIdentityDto> {
+    return this.identity;
+  }
+  async setGroupsClaim(_organizationId: string, groupsClaim: string): Promise<void> {
+    this.identity = { ...this.identity, groupsClaim };
+  }
+  async createExternalMapping(_organizationId: string, input: { externalGroup: string; experimentId: string | null; role: string }): Promise<ExternalMappingDto> {
+    const mapping = { id: `m${this.identity.mappings.length + 1}`, createdAt: "2026-10-05T00:00:00.000Z", ...input };
+    this.identity = { ...this.identity, mappings: [...this.identity.mappings, mapping] };
+    return mapping;
+  }
+  async deleteExternalMapping(_organizationId: string, mappingId: string): Promise<void> {
+    this.identity = { ...this.identity, mappings: this.identity.mappings.filter((m) => m.id !== mappingId) };
+  }
+  async createScimToken(): Promise<ScimTokenDto & { plaintext: string }> {
+    const token = { id: `t${this.identity.scimTokens.length + 1}`, tokenPrefix: "mtscim_abcde", createdAt: "2026-10-05T00:00:00.000Z", lastUsedAt: null };
+    this.identity = { ...this.identity, scimTokens: [...this.identity.scimTokens, token] };
+    return { ...token, plaintext: "mtscim_abcde-secret" };
+  }
+  async revokeScimToken(_organizationId: string, tokenId: string): Promise<void> {
+    this.identity = { ...this.identity, scimTokens: this.identity.scimTokens.filter((t) => t.id !== tokenId) };
   }
   async listExperiments(): Promise<ExperimentDto[]> {
     return [];
   }
-  async createExperiment(organizationId: string, name: string, serviceName: string): Promise<ExperimentDto> {
-    return { id: "exp-1", organizationId, name, serviceName, myRole: "org_admin", organizationTheme: NO_THEME };
+  createdExperiments: Array<{ organizationId: string; name: string; serviceName: string; profile: { description?: string } }> = [];
+  async createExperiment(organizationId: string, name: string, serviceName: string, profile: { description?: string } = {}): Promise<ExperimentDto> {
+    this.createdExperiments.push({ organizationId, name, serviceName, profile });
+    return { id: "exp-1", organizationId, name, serviceName, myRole: "org_admin", permissions: permissionsOf("org_admin"), organizationTheme: NO_THEME };
   }
   async addExperimentMember(): Promise<void> {}
+  experimentMembers: MembersResponseDto["members"] = [];
   async listExperimentMembers(): Promise<MembersResponseDto> {
-    return { members: [], pendingInvitations: [] };
+    return { members: this.experimentMembers, pendingInvitations: [] };
   }
   async listApiKeys(): Promise<ApiKeyDto[]> {
     return [];
@@ -177,6 +215,7 @@ export function summary(overrides: Partial<TraceSummaryDto> = {}): TraceSummaryD
     totalTokens: 0,
     input: null,
     output: null,
+    error: null,
     conversationId: null,
     ...overrides,
   };
@@ -193,6 +232,8 @@ export function conversation(overrides: Partial<ConversationSummaryDto> = {}): C
     failedSpans: 0,
     totalTokens: 0,
     activeMs: 100,
+    title: null,
+    costUsd: null,
     ...overrides,
   };
 }
@@ -375,7 +416,7 @@ export class FakeTraceApi implements TraceApi {
   }
 
   // ---- colas de anotación (ADR-039) ----
-  queues: AnnotationQueueSummaryDto[] = [];
+  queues: AnnotationQueueListItemDto[] = [];
   queueDetail: AnnotationQueueDetailResponse | null = null;
   queueItems: QueueItemDto[] = [];
   /** items que `next` va entregando, en orden; vacío = no queda nada */
@@ -386,12 +427,20 @@ export class FakeTraceApi implements TraceApi {
   completed: Array<{ queueId: string; itemId: string; labels: QueueLabelBody[] }> = [];
   skipped: string[] = [];
   unreviewable: string[] = [];
+  lowRated: LowRatedResponse = { count: 0, items: [] };
+  async getLowRated(): Promise<LowRatedResponse> {
+    return this.lowRated;
+  }
   async listAnnotationQueues(): Promise<AnnotationQueuesListResponse> {
     return { items: this.queues };
   }
   async createAnnotationQueue(body: NewAnnotationQueueBody): Promise<AnnotationQueueDto> {
     this.createdQueues.push(body);
-    return { id: "q-new", name: body.name, instructions: body.instructions ?? null, requiredAnnotations: body.requiredAnnotations, rubric: body.rubric, createdAt: "2026-10-03T00:00:00.000Z", archivedAt: null };
+    return { id: "q-new", name: body.name, instructions: body.instructions ?? null, requiredAnnotations: body.requiredAnnotations, reviewerIds: body.reviewerIds, rubric: body.rubric, createdAt: "2026-10-03T00:00:00.000Z", archivedAt: null };
+  }
+  reviewerCandidates: ReviewerCandidatesResponse["candidates"] = [];
+  async listReviewerCandidates(): Promise<ReviewerCandidatesResponse> {
+    return { candidates: this.reviewerCandidates };
   }
   async getAnnotationQueue(): Promise<AnnotationQueueDetailResponse> {
     if (!this.queueDetail) throw new Error("no queue detail configured");
@@ -422,6 +471,24 @@ export class FakeTraceApi implements TraceApi {
   async markAnnotationQueueItemUnreviewable(_queueId: string, itemId: string): Promise<QueueItemDto> {
     this.unreviewable.push(itemId);
     return { ...queueItemDto({ id: itemId }), status: "skipped" };
+  }
+
+  traceQueues: TraceQueuesResponse = { items: [] };
+  async listTraceQueues(): Promise<TraceQueuesResponse> {
+    return this.traceQueues;
+  }
+  queueResults: QueueResultsResponse = { configs: [], total: 0, items: [] };
+  resolutions: Array<{ queueId: string; itemId: string; configId: string; body: ResolveQueueItemBody }> = [];
+  clearedResolutions: Array<{ itemId: string; configId: string }> = [];
+  async getQueueResults(): Promise<QueueResultsResponse> {
+    return this.queueResults;
+  }
+  async resolveQueueItem(queueId: string, itemId: string, configId: string, body: ResolveQueueItemBody): Promise<QueueResolutionDto> {
+    this.resolutions.push({ queueId, itemId, configId, body });
+    return { value: String(body.value), expectedOutput: body.expectedOutput ?? null, resolvedBy: "u-1", resolvedAt: "2026-10-04T00:00:00.000Z" };
+  }
+  async clearQueueResolution(_queueId: string, itemId: string, configId: string): Promise<void> {
+    this.clearedResolutions.push({ itemId, configId });
   }
 
   annotations: TraceAnnotationsResponse = { annotations: [], scores: [] };
@@ -581,16 +648,24 @@ export function queueItemDto(overrides: Partial<QueueItemDto> = {}): QueueItemDt
   return { id: "item-1", targetType: "trace", traceId: "trace-abc", datasetRunId: null, itemIndex: null, status: "pending", population: "manual", addedAt: "2026-10-03T00:00:00.000Z", completedAt: null, ...overrides };
 }
 
-export function queueSummary(overrides: Partial<AnnotationQueueSummaryDto> = {}): AnnotationQueueSummaryDto {
+export function queueResultItem(overrides: Partial<QueueResultItemDto> = {}): QueueResultItemDto {
+  return { ...queueItemDto({ status: "completed" }), criteria: [], needsResolution: false, promotedTo: [], ...overrides };
+}
+
+export function queueSummary(overrides: Partial<AnnotationQueueListItemDto> = {}): AnnotationQueueListItemDto {
   return {
     id: "q-1",
     name: "Chatbot answers",
     instructions: null,
     requiredAnnotations: 1,
+    reviewerIds: ["u-1"],
     rubric: [{ configId: "cfg-1", required: true }],
     createdAt: "2026-10-03T00:00:00.000Z",
     archivedAt: null,
     progress: { pending: 3, completed: 1, skipped: 0 },
+    toCurate: 0,
+    assignedReviewers: [{ userId: "u-1", name: "Ana García", image: null }],
+    isReviewer: true,
     ...overrides,
   };
 }
@@ -601,4 +676,73 @@ export function scoreConfigDto(overrides: Partial<ScoreConfigDto> = {}): ScoreCo
 
 export function queueDetail(overrides: Partial<AnnotationQueueDetailResponse> = {}): AnnotationQueueDetailResponse {
   return { ...queueSummary(), configs: [scoreConfigDto()], reviewers: [], ...overrides };
+}
+
+// ── Registro de asistentes (ADR-053) ───────────────────────────────────────────────────────────────────────────
+import type { AssistantApi } from "@/application/assistant-api";
+import type { AccessGrantDto, AssistantCardDto, ConnectionDto, DeploymentSummaryDto, HealthCheckDto, HealthStatusDto } from "@contract";
+
+export function deploymentDto(key: string, status: HealthStatusDto, overrides: Partial<DeploymentSummaryDto> = {}): DeploymentSummaryDto {
+  const isProduction = key === "pro";
+  return {
+    id: `dep-${key}`, experimentId: "exp-1", environmentId: `env-${key}`, apiUrl: `https://${key}.acme.test/weather`, healthUrl: null, version: "v1.0.0",
+    authMethod: "oauth2", authProvider: "Entra ID", authAudience: null, healthCheckEnabled: true, healthIntervalSeconds: null, healthStatus: status,
+    healthCheckedAt: "2026-10-05T11:59:30.000Z", healthStatusSince: "2026-10-05T10:00:00.000Z", healthLatencyMs: 112, healthConsecutiveFailures: 0,
+    environment: { id: `env-${key}`, key, label: key.toUpperCase(), position: ["dev", "pre", "pro"].indexOf(key), isProduction, healthIntervalSeconds: 60 },
+    access: { everyone: false, groups: 2, users: 1 },
+    recent: { buckets: Array.from({ length: 36 }, (_, i) => (i % 9 === 0 ? null : status === "down" && i > 32 ? "down" : "up")) as DeploymentSummaryDto["recent"]["buckets"], uptimePercent: status === "down" ? 91.7 : 100 },
+    ...overrides,
+  };
+}
+
+export function assistantCard(overrides: Partial<AssistantCardDto> = {}): AssistantCardDto {
+  const deployments = overrides.deployments ?? [deploymentDto("dev", "up"), deploymentDto("pro", "up")];
+  return {
+    experimentId: "exp-1", name: "weather-assistant", serviceName: "weather-assistant", description: "Answers forecast questions", owner: { id: "u1", name: "Marta F.", email: "m@acme.test" },
+    lifecycle: "active", chat: null, createdAt: "2026-09-12T00:00:00.000Z", updatedAt: "2026-09-12T00:00:00.000Z",
+    connectionCounts: { mcpServers: 2, tools: 7, agents: 1, toReview: 0 }, mcpServerNames: ["weather-mcp", "geocoding-mcp"], members: { total: 2, preview: [{ userId: "u1", name: "Marta Fernández", email: "m@acme.test", image: "https://photos.example/marta.png", role: "technical" }, { userId: "u2", name: null, email: "luis@acme.test", image: null, role: "business" }] }, status: "up", ...overrides, deployments,
+  };
+}
+
+export function connectionDto(overrides: Partial<ConnectionDto> = {}): ConnectionDto {
+  return {
+    id: "c1", kind: "tool", name: "get_forecast", via: "weather-mcp", peerExperimentId: null, declared: true, status: "approved",
+    firstSeenAt: "2026-10-01T00:00:00.000Z", lastSeenAt: "2026-10-05T11:59:00.000Z", decidedBy: null, decidedAt: null, note: null, usage: { calls: 120, errors: 3 }, ...overrides,
+  };
+}
+
+/** Puerto de asistentes en memoria: guarda las llamadas de escritura para que las pruebas las comprueben. */
+export class FakeAssistantApi implements AssistantApi {
+  calls: Array<{ method: string; args: unknown[] }> = [];
+  catalog: AssistantCardDto[] = [];
+  card: AssistantCardDto = assistantCard();
+  connections: ConnectionDto[] = [];
+  grants: AccessGrantDto[] = [];
+  history: HealthCheckDto[] = [];
+  private record(method: string, ...args: unknown[]) {
+    this.calls.push({ method, args });
+  }
+  async listCatalog() { return this.catalog; }
+  async getAssistant() { return this.card; }
+  async updateAssistant(experimentId: string, patch: unknown) { this.record("updateAssistant", experimentId, patch); return this.card; }
+  async listEnvironments() { return [{ id: "env-pre", key: "pre", label: "PRE", position: 1, isProduction: false, healthIntervalSeconds: 300 }]; }
+  async createDeployment(experimentId: string, key: string, input: unknown) { this.record("createDeployment", experimentId, key, input); return deploymentDto(key, "unknown"); }
+  async updateDeployment(experimentId: string, id: string, patch: unknown) { this.record("updateDeployment", experimentId, id, patch); return deploymentDto("pro", "up"); }
+  async deleteDeployment(experimentId: string, id: string) { this.record("deleteDeployment", experimentId, id); }
+  chatReply: string | Error = "Sunny, 21 °C";
+  async chat(experimentId: string, deploymentId: string, message: string, sessionId: string | null) {
+    this.record("chat", experimentId, deploymentId, message, sessionId);
+    if (this.chatReply instanceof Error) throw this.chatReply;
+    return { reply: this.chatReply, sessionId: "s-1", latencyMs: 30 };
+  }
+  async checkDeploymentNow(experimentId: string, id: string) { this.record("checkDeploymentNow", experimentId, id); return deploymentDto("pro", "up"); }
+  async getHealthHistory() { return this.history; }
+  async listGrants() { return this.grants; }
+  async addGrant(experimentId: string, deploymentId: string, input: unknown) { this.record("addGrant", experimentId, deploymentId, input); return { id: "g-new", deploymentId, subjectType: "everyone" as const, userId: null, externalGroup: null, memberCount: null, source: "manual" as const, syncedAt: null }; }
+  async removeGrant(experimentId: string, deploymentId: string, grantId: string) { this.record("removeGrant", experimentId, deploymentId, grantId); }
+  async listConnections() { return this.connections; }
+  async declareConnection(experimentId: string, input: unknown) { this.record("declareConnection", experimentId, input); return connectionDto(); }
+  async decideConnection(experimentId: string, id: string, status: string, note: string | null) { this.record("decideConnection", experimentId, id, status, note); return connectionDto({ id, status: status as ConnectionDto["status"] }); }
+  async undeclareConnection(experimentId: string, id: string) { this.record("undeclareConnection", experimentId, id); }
+  async syncConnections(experimentId: string) { this.record("syncConnections", experimentId); return { observed: 2 }; }
 }

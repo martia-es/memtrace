@@ -1,0 +1,52 @@
+<script setup lang="ts">
+import { computed, reactive, ref } from "vue";
+import { useQuasar } from "quasar";
+import type { ConnectionKindDto } from "@contract";
+import { describeApiError } from "@/application/describe-api-error";
+import { useAssistantApi } from "../../composables/useAssistantApi";
+import Modal from "../Modal.vue";
+
+/** Declara una conexión que el asistente debe usar: servidor MCP, tool o agente (ADR-053). */
+const props = defineProps<{ experimentId: string }>();
+const emit = defineEmits<{ close: []; saved: [] }>();
+
+const api = useAssistantApi();
+const $q = useQuasar();
+const form = reactive({ kind: "mcp_server" as ConnectionKindDto, name: "", via: "" });
+const saving = ref(false);
+const canSave = computed(() => form.name.trim() !== "");
+
+async function save() {
+  saving.value = true;
+  try {
+    await api.declareConnection(props.experimentId, { kind: form.kind, name: form.name.trim(), via: form.kind === "tool" && form.via.trim() ? form.via.trim() : null });
+    emit("saved");
+    emit("close");
+  } catch (error) {
+    $q.notify({ message: `Could not declare the connection: ${describeApiError(error as Error)}`, color: "negative", timeout: 4000 });
+  } finally {
+    saving.value = false;
+  }
+}
+</script>
+
+<template>
+  <Modal title="Declare a connection" @close="emit('close')">
+    <form class="modal-form" @submit.prevent="save">
+      <label class="field">
+        <span>Type</span>
+        <select v-model="form.kind" class="text-input" data-testid="connection-kind">
+          <option value="mcp_server">MCP server</option>
+          <option value="tool">Tool</option>
+          <option value="agent">Agent</option>
+        </select>
+      </label>
+      <label class="field"><span>Name</span><input v-model="form.name" class="text-input" placeholder="weather-mcp" autofocus /></label>
+      <label v-if="form.kind === 'tool'" class="field"><span>Exposed by MCP server (optional)</span><input v-model="form.via" class="text-input" placeholder="weather-mcp" /></label>
+      <p class="hint">Declared connections are approved by governance. Anything the assistant uses that is not declared shows up for review once it appears in traces.</p>
+      <div class="actions"><button type="submit" class="primary-btn" :disabled="saving || !canSave">Declare</button></div>
+    </form>
+  </Modal>
+</template>
+
+<style scoped src="./form.css"></style>

@@ -1,4 +1,4 @@
-import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
+import type { ConversationCursor, ConversationListItem, ConversationSummary } from "@/domain/conversation";
 import { ConversationNotFoundError, TraceNotFoundError, ValidationError } from "@/domain/errors";
 import {
   chooseBucketSeconds,
@@ -13,7 +13,7 @@ import {
 } from "@/domain/metrics";
 import { MAX_RANGE_MS, resolveTimeRange } from "@/domain/time-range";
 import { toSpanRow, type SpanCursor, type SpanRow } from "@/domain/span-row";
-import { buildTranscript, type Transcript } from "@/domain/transcript";
+import { buildTranscript, lastOf, parseMessages, type Transcript } from "@/domain/transcript";
 import type { Page, PageCursor, TraceDetail, TraceSummary } from "@/domain/trace";
 import { buildTraceDetail } from "@/domain/tree";
 import { costOf, toPricingCatalog, type ModelPricing, type PricingCatalog } from "@/domain/pricing";
@@ -25,6 +25,8 @@ export const MAX_PAGE_SIZE = 200;
 export const MAX_SPANS_PER_TRACE = 5000;
 /** El catálogo de precios (ADR-025) se sincroniza una vez al día: cachearlo en memoria evita una consulta extra por request. */
 const PRICING_CACHE_TTL_MS = 5 * 60 * 1000;
+/** Longitud máxima del título de una conversación (su primer mensaje de usuario). */
+const CONVERSATION_TITLE_CHARS = 120;
 /** Más bajo que `MAX_SPANS_PER_TRACE`: la vista de árbol de conversación carga varias trazas a la vez. */
 export const MAX_SPANS_PER_TRACE_IN_TREE = 2000;
 export const MAX_CHAT_SPANS_PER_TRANSCRIPT = 500;
@@ -64,7 +66,7 @@ export interface ListSpansInput {
 }
 
 export interface ConversationDetail {
-  conversation: ConversationSummary;
+  conversation: ConversationListItem;
   turns: Page<TraceSummary>;
 }
 
@@ -98,13 +100,25 @@ export class TraceQueryService {
     return limit;
   }
 
-  listConversations(input: ListConversationsInput): Promise<Page<ConversationSummary, ConversationCursor>> {
-    return this.repository.listConversations({
-      ...resolveTimeRange(input, this.now()),
-      service: input.service,
-      hasErrors: input.hasErrors,
-      limit: this.pageSize(input.limit),
-      cursor: input.cursor,
+  listConversations(input: ListConversationsInput): Promise<Page<ConversationListItem, ConversationCursor>> {
+    // las entradas inválidas fallan ya, no dentro de la promesa
+    const query = { ...resolveTimeRange(input, this.now()), service: input.service, hasErrors: input.hasErrors, limit: this.pageSize(input.limit), cursor: input.cursor };
+    return this.repository.listConversations(query).then(async (page) => ({ items: await this.withHighlights(page.items), nextCursor: page.nextCursor }));
+  }
+
+  /** Título (primer mensaje del usuario) y coste de cada conversación; el repositorio no conoce precios (ADR-025). */
+  private async withHighlights(items: ConversationSummary[]): Promise<ConversationListItem[]> {
+    if (items.length === 0) return [];
+    const [usage, pricing] = await Promise.all([this.repository.getConversationUsage(items.map((c) => c.conversationId), this.now()), this.pricingCatalog()]);
+    return items.map((c) => {
+      const u = usage.get(c.conversationId);
+      const costs = (u?.models ?? []).map((m) => costOf(m.model, m.inputTokens, m.outputTokens, pricing)).filter((v): v is number => v !== null);
+      const opener = lastOf(parseMessages(u?.firstInput ?? null), "user");
+      return {
+        ...c,
+        title: opener ? opener.replace(/\s+/g, " ").slice(0, CONVERSATION_TITLE_CHARS) : null,
+        costUsd: costs.length ? costs.reduce((sum, v) => sum + v, 0) : null,
+      };
     });
   }
 
@@ -118,7 +132,8 @@ export class TraceQueryService {
       this.repository.listTraces({ ...range, conversationId, order: "asc", limit, cursor: input.cursor }),
     ]);
     if (!conversation) throw new ConversationNotFoundError(conversationId);
-    return { conversation, turns };
+    const [withHighlights] = await this.withHighlights([conversation]);
+    return { conversation: withHighlights!, turns };
   }
 
   /** Mensajes usuario/asistente de cada turno; solo hay contenido si el agente lo capturó (ADR-004). */

@@ -2,17 +2,21 @@
 import type { ComputedRef, InjectionKey } from "vue";
 import { HttpTraceApi } from "@/adapters/outbound/http-trace-api";
 import { HttpIdentityApi } from "@/adapters/outbound/http-identity-api";
+import { HttpAssistantApi } from "@/adapters/outbound/http-assistant-api";
+import type { AssistantApi } from "@/application/assistant-api";
 import type { TraceApi } from "@/application/trace-api";
 import type { ExperimentDto, IdentityApi } from "@/application/identity-api";
 
 export const TRACE_API: InjectionKey<TraceApi> = Symbol("TraceApi");
 export const IDENTITY_API: InjectionKey<IdentityApi> = Symbol("IdentityApi");
+export const ASSISTANT_API: InjectionKey<AssistantApi> = Symbol("AssistantApi");
 /** El experimento actual (según :experimentId de la ruta), provisto por MainLayout: evita refetchear la lista en cada página. */
 export const CURRENT_EXPERIMENT: InjectionKey<ComputedRef<ExperimentDto | null>> = Symbol("CurrentExperiment");
 
 export interface Container {
   traceApi: HttpTraceApi;
   identityApi: IdentityApi;
+  assistantApi: AssistantApi;
 }
 
 let container: Container | undefined;
@@ -23,6 +27,7 @@ export function getContainer(): Container {
     container = {
       traceApi: new HttpTraceApi(import.meta.env.VITE_API_BASE_URL ?? "/api/v1"),
       identityApi: new HttpIdentityApi(import.meta.env.VITE_API_BASE_URL ?? "/api/v1"),
+      assistantApi: new HttpAssistantApi(import.meta.env.VITE_API_BASE_URL ?? "/api/v1"),
     };
   }
   return container;

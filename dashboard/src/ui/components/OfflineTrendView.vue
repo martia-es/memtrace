@@ -8,6 +8,8 @@ import {
   judgeChangeNotices,
   offlineEvalChartOption,
   offlineRunLabel,
+  offlineVerdict,
+  passFailChartOption,
   summarizeEvaluators,
   type EvaluatorStatus,
   type EvaluatorSummary,
@@ -25,6 +27,10 @@ const passRateOption = computed(() => offlineEvalChartOption(props.runs, passRat
 const averageOption = computed(() => offlineEvalChartOption(props.runs, averageSeries.value, "average", $q.dark.isActive));
 
 const summary = computed(() => summarizeEvaluators(props.runs));
+const verdict = computed(() => offlineVerdict(summary.value));
+const passFailOption = computed(() => passFailChartOption(summary.value, $q.dark.isActive));
+const hasPassFail = computed(() => summary.value.some((s) => s.kind === "passRate"));
+const hasTrend = computed(() => props.runs.length >= 2);
 const judgeNotices = computed(() => judgeChangeNotices(props.runs));
 const newestFirst = computed(() => [...props.runs].reverse());
 
@@ -47,6 +53,19 @@ function deltaLabel(s: EvaluatorSummary): string {
   return s.kind === "passRate" ? `${sign}${(s.delta * 100).toFixed(1)} pp` : `${sign}${s.delta.toFixed(2)}`;
 }
 
+/** Polyline normalizada 0-1 → 100x28 para el sparkline de cada tarjeta. */
+function sparkPoints(s: EvaluatorSummary): string {
+  const h = s.history;
+  const lo = s.kind === "passRate" ? 0 : Math.min(...h);
+  const hi = s.kind === "passRate" ? 1 : Math.max(...h);
+  const span = hi - lo || 1;
+  return h.map((v, i) => `${((i / (h.length - 1)) * 100).toFixed(1)},${(26 - ((v - lo) / span) * 24).toFixed(1)}`).join(" ");
+}
+
+function itemsLabel(s: EvaluatorSummary): string {
+  return s.passed !== null ? `${s.passed} of ${s.count} items passed` : `${s.count} items scored`;
+}
+
 function deltaTone(s: EvaluatorSummary): string {
   if (s.status === "improving") return "up";
   if (s.status === "regressing") return "down";
@@ -62,39 +81,40 @@ function openAt(index: number) {
 
 <template>
   <div class="trend">
-    <section class="card">
-      <header class="card-head">
-        <div>
-          <h3>Evaluators</h3>
-          <p class="sub">Latest completed run against the one before it.</p>
-        </div>
-        <span class="meta">{{ summary.length }} evaluators · {{ runs.length }} runs in range</span>
-      </header>
-
-      <div v-if="summary.length" class="table-wrap">
-        <table class="tbl">
-          <thead>
-            <tr>
-              <th>Evaluator</th>
-              <th>Metric</th>
-              <th class="num">Latest</th>
-              <th class="num">Δ vs previous</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="s in summary" :key="s.name">
-              <td class="strong">{{ s.name }}</td>
-              <td class="muted">{{ s.kind === "passRate" ? "Pass rate" : "Average score" }}</td>
-              <td class="num strong">{{ fmt(s.latest, s.kind) }}</td>
-              <td class="num" :class="deltaTone(s)">{{ deltaLabel(s) }}</td>
-              <td><span class="status" :class="s.status" :title="STATUS[s.status].hint">{{ STATUS[s.status].label }}</span></td>
-            </tr>
-          </tbody>
-        </table>
+    <section class="verdict" :class="verdict.level" role="status">
+      <span class="verdict-dot" aria-hidden="true" />
+      <div>
+        <strong>{{ verdict.title }}</strong>
+        <p>{{ verdict.detail }}</p>
       </div>
-      <p v-else class="sub">No evaluator produced numeric or boolean results in this range.</p>
+      <span class="meta">{{ summary.length }} evaluators · {{ runs.length }} runs in range</span>
     </section>
+
+    <div v-if="summary.length" class="scorecards">
+      <article v-for="s in summary" :key="s.name" class="score" :class="s.tone">
+        <header class="score-head">
+          <h3>{{ s.name }}</h3>
+          <span class="status" :class="s.status" :title="STATUS[s.status].hint">{{ STATUS[s.status].label }}</span>
+        </header>
+        <div class="score-main">
+          <span class="score-value">{{ fmt(s.latest, s.kind) }}</span>
+          <span class="score-kind">{{ s.kind === "passRate" ? "pass rate" : "average score" }}</span>
+        </div>
+        <div v-if="s.kind === 'passRate'" class="bar" role="img" :aria-label="`${fmt(s.latest, s.kind)} pass rate`">
+          <span class="bar-fill" :style="{ width: `${(s.latest ?? 0) * 100}%` }" />
+          <span class="bar-target" title="80% target" />
+        </div>
+        <footer class="score-foot">
+          <span class="muted">{{ itemsLabel(s) }}</span>
+          <span v-if="s.delta !== null" :class="deltaTone(s)">{{ deltaLabel(s) }} vs previous</span>
+          <span v-else class="muted">No previous run</span>
+        </footer>
+        <svg v-if="s.history.length > 1" class="spark" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true">
+          <polyline :points="sparkPoints(s)" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke" />
+        </svg>
+      </article>
+    </div>
+    <p v-else class="sub">No evaluator produced numeric or boolean results in this range.</p>
 
     <div v-if="judgeNotices.length" class="notice" role="alert">
       <strong>The judge changed between runs</strong>
@@ -107,6 +127,16 @@ function openAt(index: number) {
     </div>
 
     <div class="charts">
+      <section v-if="hasPassFail" class="card">
+        <header class="card-head">
+          <div>
+            <h3>Latest run: passed vs failed</h3>
+            <p class="sub">Items per pass/fail evaluator in the most recent run. Red is what to fix.</p>
+          </div>
+        </header>
+        <EChart :option="passFailOption" :height="`${Math.max(160, summary.length * 64 + 60)}px`" label="Passed and failed items per evaluator in the latest run" />
+      </section>
+
       <section v-if="passRateSeries.length" class="card">
         <header class="card-head">
           <div>
@@ -114,7 +144,8 @@ function openAt(index: number) {
             <p class="sub">Share of items passing each boolean evaluator. Click a point to open its run.</p>
           </div>
         </header>
-        <EChart :option="passRateOption" height="280px" label="Pass rate per evaluator across offline runs" @click="openAt" />
+        <EChart v-if="hasTrend" :option="passRateOption" height="280px" label="Pass rate per evaluator across offline runs" @click="openAt" />
+        <p v-else class="empty-trend">Only one run so far. Change your agent and run <code>run_experiment</code> again to see whether it improves.</p>
       </section>
 
       <section v-if="averageSeries.length" class="card">
@@ -124,7 +155,8 @@ function openAt(index: number) {
             <p class="sub">Mean of each numeric evaluator. Click a point to open its run.</p>
           </div>
         </header>
-        <EChart :option="averageOption" height="280px" label="Average score per evaluator across offline runs" @click="openAt" />
+        <EChart v-if="hasTrend" :option="averageOption" height="280px" label="Average score per evaluator across offline runs" @click="openAt" />
+        <p v-else class="empty-trend">Only one run so far: the trend appears after the next one.</p>
       </section>
     </div>
 
@@ -171,6 +203,42 @@ h3 { margin: 0; font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
 .sub { margin: 4px 0 0; color: var(--mt-muted); font-size: 12.5px; }
 .meta { color: var(--mt-muted); font-size: 12px; white-space: nowrap; }
 .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px; }
+.empty-trend { margin: 0; padding: 36px 12px; text-align: center; color: var(--mt-muted); font-size: 13px; }
+.empty-trend code { font-family: var(--mt-mono); font-size: 12px; background: var(--mt-soft); padding: 1px 5px; border-radius: var(--mt-radius-sm); }
+.verdict { display: flex; align-items: center; gap: 14px; padding: 16px 20px; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); background: var(--mt-card); }
+.verdict strong { font-size: 16px; letter-spacing: -0.02em; }
+.verdict p { margin: 2px 0 0; color: var(--mt-muted); font-size: 13px; }
+.verdict .meta { margin-left: auto; }
+.verdict-dot { width: 12px; height: 12px; border-radius: 50%; flex: none; background: var(--mt-muted); }
+.verdict.healthy { background: var(--mt-ok-bg); border-color: var(--mt-ok); }
+.verdict.healthy .verdict-dot { background: var(--mt-ok); }
+.verdict.healthy strong { color: var(--mt-ok-ink); }
+.verdict.attention { background: var(--mt-warn-bg); border-color: var(--mt-warn); }
+.verdict.attention .verdict-dot { background: var(--mt-warn); }
+.verdict.attention strong { color: var(--mt-warn-ink); }
+.verdict.failing { background: var(--mt-err-bg); border-color: var(--mt-err); }
+.verdict.failing .verdict-dot { background: var(--mt-err); }
+.verdict.failing strong { color: var(--mt-err-ink); }
+.verdict.healthy p, .verdict.attention p, .verdict.failing p { color: var(--mt-ink); }
+.scorecards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.score { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; background: var(--mt-card); border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); overflow: hidden; color: var(--mt-muted); }
+.score-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.score-head h3 { color: var(--mt-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.score-main { display: flex; align-items: baseline; gap: 8px; }
+.score-value { color: var(--mt-ink); font-size: 32px; font-weight: 700; letter-spacing: -0.04em; line-height: 1; }
+.score.positive .score-value { color: var(--mt-ok-ink); }
+.score.warning .score-value { color: var(--mt-warn-ink); }
+.score.negative .score-value { color: var(--mt-err-ink); }
+.score-kind { font-size: 12px; }
+.bar { position: relative; height: 8px; border-radius: 999px; background: var(--mt-soft); overflow: hidden; }
+.bar-fill { display: block; height: 100%; border-radius: 999px; background: var(--mt-muted); }
+.score.positive .bar-fill { background: var(--mt-ok); }
+.score.warning .bar-fill { background: var(--mt-warn); }
+.score.negative .bar-fill { background: var(--mt-err); }
+.bar-target { position: absolute; left: 80%; top: 0; bottom: 0; width: 2px; background: var(--mt-ink); opacity: 0.35; }
+.score-foot { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
+.spark { width: 100%; height: 28px; color: var(--mt-accent); }
+@media (max-width: 640px) { .verdict { flex-wrap: wrap; } .verdict .meta { margin-left: 0; } }
 .table-wrap { overflow-x: auto; }
 .tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .tbl th { text-align: left; padding: 8px 10px; color: var(--mt-muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--mt-line); white-space: nowrap; }

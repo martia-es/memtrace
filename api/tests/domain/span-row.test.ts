@@ -7,6 +7,12 @@ const record = (over: Partial<SpanRecord> = {}): SpanRecord => ({
 });
 
 describe("previewOf", () => {
+  it("reads a serialized message list (Pydantic AI parts) even when the span is not a chat", () => {
+    const input = JSON.stringify([{ role: "user", parts: [{ type: "text", content: "¿qué tiempo hace en almeria hoy?" }] }]);
+    expect(previewOf(input, "input", false)).toBe("¿qué tiempo hace en almeria hoy?");
+    expect(previewOf('{"location": "Almería"}', "output", false)).toBe('{"location": "Almería"}');
+  });
+
   it("shows the last user message of a chat input and the last assistant text of its output", () => {
     const input = JSON.stringify([{ role: "system", content: "sé breve" }, { role: "user", content: "hola" }, { role: "assistant", content: "qué tal" }, { role: "user", content: "reserva  un\nvuelo" }]);
     const output = JSON.stringify([{ role: "assistant", content: "hecho" }]);
@@ -20,6 +26,11 @@ describe("previewOf", () => {
 
   it("falls back to the raw text when a chat payload is truncated (invalid JSON)", () => {
     expect(previewOf('[{"role":"user","content":"corta…[truncated]', "input", true)).toContain("truncated");
+  });
+
+  it("does not dump raw JSON when the message list only has tool responses", () => {
+    const input = JSON.stringify([{ role: "user", parts: [{ type: "tool_call_response", id: "x", name: "get_weather", result: { location: "Vigo" } }] }]);
+    expect(previewOf(input, "input", true)).toBeNull();
   });
 
   it("is null for empty content and caps long content", () => {

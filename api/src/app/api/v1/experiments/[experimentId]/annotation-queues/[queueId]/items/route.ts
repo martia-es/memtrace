@@ -1,4 +1,4 @@
-import { requireExperimentMember } from "@/adapters/inbound/http/auth-context";
+import { requirePermission } from "@/adapters/inbound/http/auth-context";
 import { identityGuard } from "@/adapters/inbound/http/identity-guard";
 import { parseJsonOrThrow } from "@/adapters/inbound/http/identity-schemas";
 import { toQueueItemDto } from "@/adapters/inbound/http/mappers";
@@ -15,7 +15,7 @@ type Params = { params: Promise<{ experimentId: string; queueId: string }> };
 export async function GET(request: Request, context: Params) {
   return identityGuard(async () => {
     const { experimentId, queueId } = await context.params;
-    const ctx = await requireExperimentMember(experimentId);
+    const ctx = await requirePermission(experimentId, "experiment:read");
     if (ctx instanceof Response) return ctx;
     const parsed = listQueueItemsQuery.safeParse(Object.fromEntries(new URL(request.url).searchParams));
     if (!parsed.success) throw new ValidationError("Invalid query", { query: parsed.error.issues[0]?.message ?? "invalid" });
@@ -28,7 +28,7 @@ export async function GET(request: Request, context: Params) {
 export async function POST(request: Request, context: Params) {
   return identityGuard(async () => {
     const { experimentId, queueId } = await context.params;
-    const ctx = await requireExperimentMember(experimentId);
+    const ctx = await requirePermission(experimentId, "queue:manage");
     if (ctx instanceof Response) return ctx;
     const body = await parseJsonOrThrow(addQueueItemsBody, request);
     const actor = { userId: ctx.user.id, experimentId, serviceName: ctx.serviceName };

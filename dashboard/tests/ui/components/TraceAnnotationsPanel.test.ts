@@ -1,7 +1,8 @@
+import { permissionsOf } from "../../permissions";
 import { describe, expect, it } from "vitest";
-import { flushPromises, mount } from "@vue/test-utils";
+import { flushPromises, mount, RouterLinkStub } from "@vue/test-utils";
 import { Dark, Notify, Quasar } from "quasar";
-import type { AnnotationDto, ScoreConfigDto } from "@contract";
+import type { AnnotationDto, ScoreConfigDto, TraceQueueDto } from "@contract";
 import { CURRENT_EXPERIMENT, IDENTITY_API, TRACE_API } from "@/dependency-container";
 import TraceAnnotationsPanel from "@/ui/components/TraceAnnotationsPanel.vue";
 import { FakeIdentityApi, FakeTraceApi } from "../../fakes";
@@ -38,14 +39,15 @@ class Identity extends FakeIdentityApi {
   }
 }
 
-async function mountPanel(configs: ScoreConfigDto[], annotations: AnnotationDto[] = [], span: { spanId: string; name: string } | null = null, myRole: string = "member") {
+async function mountPanel(configs: ScoreConfigDto[], annotations: AnnotationDto[] = [], span: { spanId: string; name: string } | null = null, myRole: string = "business", queues: TraceQueueDto[] = []) {
   const identity = new Identity();
   identity.scoreConfigs = configs;
   const trace = new FakeTraceApi();
   trace.annotations = { annotations, scores: [] };
+  trace.traceQueues = { items: queues };
   const wrapper = mount(TraceAnnotationsPanel, {
     props: { traceId: "t1", experimentId: "e1", span },
-    global: { plugins: [[Quasar, { plugins: { Dark, Notify } }]], provide: { [IDENTITY_API as symbol]: identity, [TRACE_API as symbol]: trace, [CURRENT_EXPERIMENT as symbol]: { value: { myRole } } } },
+    global: { stubs: { RouterLink: RouterLinkStub }, plugins: [[Quasar, { plugins: { Dark, Notify } }]], provide: { [IDENTITY_API as symbol]: identity, [TRACE_API as symbol]: trace, [CURRENT_EXPERIMENT as symbol]: { value: { myRole, permissions: permissionsOf(myRole) } } } },
     attachTo: document.body,
   });
   await flushPromises();
@@ -53,8 +55,23 @@ async function mountPanel(configs: ScoreConfigDto[], annotations: AnnotationDto[
 }
 
 describe("TraceAnnotationsPanel", () => {
+  it("says which review queues the trace is in and what state its item has", async () => {
+    const { wrapper } = await mountPanel([], [], null, "business", [
+      { queueId: "q1", queueName: "Weekly QA", archived: false, itemStatus: "completed" },
+      { queueId: "q2", queueName: "Old batch", archived: true, itemStatus: "pending" },
+    ]);
+    const text = wrapper.get('[data-testid="trace-queues"]').text();
+    expect(text).toContain("Weekly QA · completed");
+    expect(text).toContain("Old batch · pending · archived");
+  });
+
+  it("shows nothing about queues when the trace is in none", async () => {
+    const { wrapper } = await mountPanel([]);
+    expect(wrapper.find('[data-testid="trace-queues"]').exists()).toBe(false);
+  });
+
   it("lets an experiment admin create a score config inline and reloads the rubric", async () => {
-    const { wrapper, identity } = await mountPanel([], [], null, "admin");
+    const { wrapper, identity } = await mountPanel([], [], null, "technical");
     await wrapper.get('[data-testid="new-config"]').trigger("click");
     const body = document.body;
     (body.querySelector('input[placeholder^="Name"]') as HTMLInputElement).value = "tone";

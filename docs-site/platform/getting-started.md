@@ -42,6 +42,7 @@ The dashboard refreshes on its own (every 5 seconds by default). To instrument y
 | `make status` | Pods, volumes and migration jobs |
 | `make logs` | Collector logs |
 | `make migrate` | Re-run database migrations |
+| `make dashboard` / `make api` | Rebuild and redeploy only the dashboard or only the API |
 | `make images` | Rebuild API and dashboard images and restart their pods |
 | `make down` | Stop the cluster, keeping data |
 | `make reset` | Delete the cluster **and its data** |

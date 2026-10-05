@@ -2,7 +2,7 @@ import type { OrganizationThemeDto } from "@/application/identity-api";
 
 type RadiusPreset = NonNullable<OrganizationThemeDto["radiusPreset"]>;
 
-/** Presets coherentes entre los 3 tokens de radius (ADR-018/ADR-019). "sharp" = default actual de app.css. */
+/** Presets coherentes entre los 3 tokens de radius (ADR-018/ADR-019). Sin preset se usa el 4/6/8 px de app.css (ADR-048). */
 const RADIUS_PRESETS: Record<RadiusPreset, { xs: string; sm: string; lg: string }> = {
   sharp: { xs: "0px", sm: "0px", lg: "0px" },
   soft: { xs: "4px", sm: "8px", lg: "14px" },
@@ -16,7 +16,7 @@ function contrastInk(hex: string): string {
   const b = parseInt(hex.slice(5, 7), 16) / 255;
   const linear = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
   const luminance = 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
-  return luminance > 0.5 ? "#0e1a13" : "#ffffff";
+  return luminance > 0.5 ? "#0a2321" : "#ffffff";
 }
 
 /**

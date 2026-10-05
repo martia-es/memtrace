@@ -1,21 +1,44 @@
 import { describe, expect, it } from "vitest";
-import type { QueueItemDto } from "@contract";
-import { countSkipReasons, promotableTraceIds, promotionBatches } from "@/domain/queue-promotion";
+import type { QueueResultCriterionDto, QueueResultItemDto } from "@contract";
+import { countSkipReasons, expectedOutputFor, finalValue, promotionBatches, rowReadiness } from "@/domain/queue-promotion";
+import { queueResultItem } from "../fakes";
 
-const item = (o: Partial<QueueItemDto>): QueueItemDto => ({ id: "i", targetType: "trace", traceId: "t1", datasetRunId: null, itemIndex: null, status: "completed", population: "manual", addedAt: "", completedAt: null, ...o });
+const label = (userId: string, value: string) => ({ userId, name: userId, value, comment: null, createdAt: "", isReviewer: true });
+const criterion = (o: Partial<QueueResultCriterionDto> = {}): QueueResultCriterionDto => ({ configId: "c1", status: "consensus", labels: [label("a", "good"), label("b", "good")], resolution: null, ...o });
+const row = (o: Partial<QueueResultItemDto> = {}) => queueResultItem({ traceId: "t1", criteria: [criterion()], ...o });
+const categorical = { id: "c1", dataType: "categorical" as const };
 
-describe("queue promotion", () => {
-  it("only takes completed trace items, once each", () => {
-    const ids = promotableTraceIds([item({ traceId: "a" }), item({ traceId: "a" }), item({ traceId: "b", status: "pending" }), item({ traceId: "c", status: "skipped" }), item({ targetType: "run_item", traceId: null })]);
-    expect(ids).toEqual(["a"]);
+describe("queue promotion from Results (ADR-050)", () => {
+  it("only lets completed trace rows without an open disagreement through", () => {
+    expect(rowReadiness(row())).toBe("ready");
+    expect(rowReadiness(row({ status: "pending" }))).toBe("not_reviewed");
+    expect(rowReadiness(row({ needsResolution: true }))).toBe("needs_resolution");
+    expect(rowReadiness(row({ targetType: "run_item", traceId: null }))).toBe("not_a_trace");
   });
 
-  it("splits into batches of 100 and forwards the label config", () => {
-    const ids = Array.from({ length: 250 }, (_, i) => `t${i}`);
-    const batches = promotionBatches(ids, "cfg");
+  it("takes the resolution first, then the consensus; never guesses on a disagreement", () => {
+    const split = criterion({ status: "disagreement", labels: [label("a", "good"), label("b", "bad")] });
+    expect(finalValue(row({ criteria: [split] }), "c1")).toBeNull();
+    expect(finalValue(row({ criteria: [{ ...split, resolution: { value: "bad", expectedOutput: null, resolvedBy: "u", resolvedAt: "" } }] }), "c1")).toBe("bad");
+    expect(finalValue(row(), "c1")).toBe("good");
+    expect(finalValue(row({ criteria: [criterion({ labels: [label("a", "4"), label("b", "5"), label("c", "5")] })] }), "c1", { dataType: "numeric" })).toBe("5");
+  });
+
+  it("copies the technician's typed answer, else the reference label, else nothing", () => {
+    const typed = row({ criteria: [criterion({ resolution: { value: "good", expectedOutput: "Hoy no llueve", resolvedBy: "u", resolvedAt: "" } })] });
+    expect(expectedOutputFor(typed, categorical)).toBe("Hoy no llueve");
+    expect(expectedOutputFor(row(), categorical)).toBe("good");
+    expect(expectedOutputFor(row())).toBeUndefined();
+    expect(expectedOutputFor(row(), { id: "c1", dataType: "numeric" })).toBeUndefined();
+  });
+
+  it("promotes only ready rows, once per trace, in batches of 100 with the expected output", () => {
+    const rows = Array.from({ length: 250 }, (_, i) => row({ id: `i${i}`, traceId: `t${i}` }));
+    const batches = promotionBatches([...rows, row({ id: "dup", traceId: "t0" }), row({ id: "p", traceId: "p", status: "pending" }), row({ id: "d", traceId: "d", needsResolution: true })], categorical);
     expect(batches.map((b) => b.items.length)).toEqual([100, 100, 50]);
-    expect(batches[0]!.items[0]).toEqual({ traceId: "t0", fromConfigId: "cfg" });
-    expect(promotionBatches(["x"])[0]!.items[0]).toEqual({ traceId: "x" });
+    expect(batches[0]!.items[0]).toEqual({ traceId: "t0", expectedOutput: "good" });
+    expect(promotionBatches([row()])[0]!.items[0]).toEqual({ traceId: "t1" });
+    expect(promotionBatches([row({ status: "pending" })])).toEqual([]);
   });
 
   it("counts skip reasons", () => {

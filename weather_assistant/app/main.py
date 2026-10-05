@@ -5,8 +5,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
-from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse, JSONResponse
 
 from app.agents.assistant import build_assistant
 from app.api.routes import router
@@ -37,6 +37,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="Weather assistant", lifespan=lifespan)
 app.include_router(router)
+
+
+@app.get("/health", include_in_schema=False)
+async def health(request: Request) -> JSONResponse:
+    """Abierto y sin credenciales: lo sondea el catálogo de asistentes de MemTrace (ADR-053).
+
+    200 cuando el agente está construido; 503 mientras arranca (el lifespan aún no ha terminado).
+    """
+    ready = hasattr(request.app.state, "agent")
+    return JSONResponse({"status": "ok" if ready else "starting"}, status_code=200 if ready else 503)
 
 
 @app.get("/", include_in_schema=False)

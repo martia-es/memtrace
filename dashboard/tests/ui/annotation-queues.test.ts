@@ -1,26 +1,30 @@
+import { permissionsOf } from "../permissions";
 import { flushPromises, mount } from "@vue/test-utils";
 import { Dark, Notify, QLayout, QPageContainer, Quasar } from "quasar";
 import { computed, defineComponent, h } from "vue";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { createMemoryHistory, createRouter } from "vue-router";
 import { ApiError } from "@/application/trace-api";
 import { CURRENT_EXPERIMENT, IDENTITY_API, TRACE_API } from "@/dependency-container";
 import type { ExperimentDto } from "@/application/identity-api";
 import AnnotationQueuesPage from "@/ui/pages/AnnotationQueuesPage.vue";
 import AnnotationQueueReviewPage from "@/ui/pages/AnnotationQueueReviewPage.vue";
-import { FakeIdentityApi, FakeTraceApi, node, queueDetail, queueItemDto, queueSummary, scoreConfigDto, traceDetail } from "../fakes";
+import { FakeIdentityApi, FakeTraceApi, node, queueDetail, queueItemDto, queueResultItem, queueSummary, scoreConfigDto, traceDetail } from "../fakes";
 
-async function setup(component: object, api: FakeTraceApi, path: string, props: Record<string, unknown> = {}, role: ExperimentDto["myRole"] = "admin", identity = new FakeIdentityApi()) {
+async function setup(component: object, api: FakeTraceApi, path: string, props: Record<string, unknown> = {}, role: ExperimentDto["myRole"] = "technical", identity = new FakeIdentityApi()) {
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
       { path: "/e/:experimentId/annotation-queues", name: "annotation-queues", component: { template: "<div />" } },
       { path: "/e/:experimentId/annotation-queues/:queueId/review", name: "annotation-queue-review", component: { template: "<div />" } },
+      { path: "/e/:experimentId/traces/:traceId", name: "trace", component: { template: "<div />" } },
+      { path: "/datasets/:datasetId", name: "dataset", component: { template: "<div />" } },
+      { path: "/datasets/:datasetId/runs/:runId", name: "dataset-run", component: { template: "<div />" } },
     ],
   });
   await router.push(path);
   await router.isReady();
-  const experiment = computed(() => ({ id: "e1", myRole: role }) as ExperimentDto);
+  const experiment = computed(() => ({ id: "e1", myRole: role, permissions: permissionsOf(role) }) as ExperimentDto);
   const Host = defineComponent({ setup: () => () => h(QLayout, () => h(QPageContainer, () => h(component, props))) });
   const wrapper = mount(Host, {
     attachTo: document.body,
@@ -50,12 +54,39 @@ describe("AnnotationQueuesPage", () => {
     const { wrapper, router } = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues");
     const row = wrapper.get('[data-testid="queue-row"]');
     expect(row.text()).toContain("Chatbot answers");
-    expect(row.text()).toContain("3 de 4 por revisar");
+    expect(row.text()).toContain("3 of 4 pending");
 
     await row.findAll("button").find((b) => b.text() === "Review")!.trigger("click");
     await flushPromises();
     expect(router.currentRoute.value.name).toBe("annotation-queue-review");
     expect(router.currentRoute.value.params.queueId).toBe("q-1");
+  });
+
+  it("shows each reviewer's photo, or their initials, labelled with their name (shown as a tooltip on hover)", async () => {
+    const api = new FakeTraceApi();
+    api.queues = [queueSummary({ assignedReviewers: [{ userId: "u-1", name: "Ana García", image: "https://img/ana.png" }, { userId: "u-2", name: "Luis Pérez", image: null }] })];
+    const { wrapper } = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues");
+    const avatars = wrapper.findAll('[data-testid="queue-reviewer"]');
+    expect(avatars).toHaveLength(2);
+    expect(avatars[0]!.find("img").attributes("src")).toBe("https://img/ana.png");
+    expect(avatars[1]!.text()).toContain("LP");
+    expect(avatars.map((a) => a.attributes("aria-label"))).toEqual(["Ana García", "Luis Pérez"]);
+  });
+
+  it("does not offer Review (nor count its pending items) for a queue where I am not a reviewer", async () => {
+    const api = new FakeTraceApi();
+    api.queues = [queueSummary({ isReviewer: false })];
+    const { wrapper } = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues");
+    expect(wrapper.findAll("button").some((b) => b.text() === "Review")).toBe(false);
+    expect(wrapper.findAll("button").some((b) => b.text() === "Details")).toBe(true);
+  });
+
+  it("does not show curation work to people who only review", async () => {
+    const api = new FakeTraceApi();
+    api.queues = [queueSummary({ toCurate: 3 })];
+    const { wrapper } = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues", {}, "business");
+    expect(wrapper.find("[data-testid=curate-inbox]").exists()).toBe(false);
+    expect(wrapper.find("[data-testid=queue-to-curate]").exists()).toBe(false);
   });
 
   it("disables Review when nothing is pending", async () => {
@@ -68,7 +99,7 @@ describe("AnnotationQueuesPage", () => {
   it("hides queue management from plain members but still lets them add traces", async () => {
     const api = new FakeTraceApi();
     api.queues = [queueSummary()];
-    const { wrapper } = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues", {}, "member");
+    const { wrapper } = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues", {}, "business");
     expect(wrapper.find('[data-testid="new-queue"]').exists()).toBe(false);
     const labels = wrapper.findAll("button").map((b) => b.text());
     expect(labels).not.toContain("Archive");
@@ -79,16 +110,24 @@ describe("AnnotationQueuesPage", () => {
     const api = new FakeTraceApi();
     const identity = new FakeIdentityApi();
     identity.scoreConfigs = [scoreConfigDto({ id: "cfg-1", name: "tone" }), scoreConfigDto({ id: "cfg-2", name: "helpful" })];
-    const { wrapper } = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues", {}, "admin", identity);
+    api.reviewerCandidates = [
+      { userId: "u-ana", email: "ana@acme.com", name: "Ana" },
+      { userId: "u-luis", email: "luis@acme.com", name: "Luis" },
+    ];
+    const { wrapper } = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues", {}, "technical", identity);
 
     await wrapper.get('[data-testid="new-queue"]').trigger("click");
     await flushPromises();
     await setValue(body().querySelector('[aria-label="Queue name"]'), "Tone review");
     const checkboxes = [...body().querySelectorAll<HTMLInputElement>('.rubric input[type="checkbox"]')];
-    await click(checkboxes[0]);
-    await click([...body().querySelectorAll("button")].find((b) => b.textContent === "Create"));
+    const create = () => [...body().querySelectorAll("button")].find((b) => b.textContent === "Create") as HTMLButtonElement;
+    expect(create().disabled).toBe(true);
+    await click(checkboxes[2]); // primera config de la rúbrica (las dos primeras casillas son los miembros)
+    expect(create().disabled).toBe(true); // sin revisores no se puede crear
+    await click(checkboxes[1]); // Luis
+    await click(create());
 
-    expect(api.createdQueues).toEqual([{ name: "Tone review", instructions: null, requiredAnnotations: 1, rubric: [{ configId: "cfg-1", required: true }] }]);
+    expect(api.createdQueues).toEqual([{ name: "Tone review", instructions: null, requiredAnnotations: 1, reviewerIds: ["u-luis"], rubric: [{ configId: "cfg-1", required: true }] }]);
   });
 
   it("adds traces by filter as a bounded snapshot", async () => {
@@ -129,9 +168,117 @@ describe("AnnotationQueuesPage", () => {
     await wrapper.findAll("button").find((b) => b.text() === "Details")!.trigger("click");
     await flushPromises();
     expect(body().querySelector('[data-testid="reviewer-row"]')!.textContent).toContain("Ana");
+    await click(body().querySelector('[data-testid="tab-settings"]'));
     expect(body().querySelector('[data-testid="queue-item-row"]')!.textContent).toContain("Trace");
     await click([...body().querySelectorAll("button")].find((b) => b.textContent === "Mark unreviewable"));
     expect(api.unreviewable).toEqual(["i1"]);
+  });
+});
+
+describe("Queue results (ADR-050)", () => {
+  // los modales de pruebas anteriores siguen en el body: sin esto `querySelector` encontraría los viejos
+  beforeEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  const cfg = scoreConfigDto({ id: "cfg-1", name: "correct", dataType: "categorical", minValue: null, maxValue: null, categories: [{ label: "good", value: null }, { label: "bad", value: null }] });
+  const label = (userId: string, name: string, value: string, comment: string | null = null) => ({ userId, name, value, comment, createdAt: "", isReviewer: true });
+  const agreed = queueResultItem({ id: "i1", traceId: "trace-ok", criteria: [{ configId: "cfg-1", status: "consensus", labels: [label("a", "Ana", "good"), label("b", "Luis", "good")], resolution: null }] });
+  const split = queueResultItem({
+    id: "i2",
+    traceId: "trace-split",
+    needsResolution: true,
+    criteria: [{ configId: "cfg-1", status: "disagreement", labels: [label("a", "Ana", "good", "looks right"), label("b", "Luis", "bad", "wrong hour")], resolution: null }],
+  });
+
+  async function openResults(role: ExperimentDto["myRole"] = "technical") {
+    const api = new FakeTraceApi();
+    api.queues = [queueSummary()];
+    api.queueDetail = queueDetail({ configs: [cfg] });
+    api.queueResults = { configs: [cfg], total: 2, items: [agreed, split] };
+    const { wrapper } = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues", {}, role);
+    await wrapper.findAll("button").find((b) => b.text() === "Details")!.trigger("click");
+    await flushPromises();
+    return api;
+  }
+
+  it("tells the technical profile which reviewed items wait for their decision, and opens Results directly", async () => {
+    const api = new FakeTraceApi();
+    api.queues = [queueSummary({ progress: { pending: 0, completed: 4, skipped: 0 }, toCurate: 3 })];
+    api.queueDetail = queueDetail({ configs: [cfg] });
+    api.queueResults = { configs: [cfg], total: 0, items: [] };
+    const { wrapper } = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues");
+    expect(wrapper.get("[data-testid=curate-inbox]").text()).toContain("3 reviewed items are waiting for your decision");
+    expect(wrapper.get("[data-testid=queue-to-curate]").text()).toContain("3 to review");
+    await wrapper.get("[data-testid=open-results]").trigger("click");
+    await flushPromises();
+    expect(body().querySelector('[data-testid="queue-results"]')).not.toBeNull();
+  });
+
+  it("shows each reviewer's answer per item and flags the disagreement", async () => {
+    await openResults();
+    await click(body().querySelector('[data-testid="tab-results"]'));
+    const rows = [...body().querySelectorAll('[data-testid="result-row"]')];
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.textContent).toContain("Ana: good");
+    expect(rows[1]!.textContent).toContain("Luis: bad");
+    expect(rows[1]!.textContent).toContain("disagreement");
+  });
+
+  it("does not offer Results to people who only review", async () => {
+    await openResults("business");
+    expect(body().querySelector('[data-testid="tab-results"]')).toBeNull();
+    expect(body().querySelector('[data-testid="queue-results"]')).toBeNull();
+  });
+
+  it("saves the technician's decision apart from the labels", async () => {
+    const api = await openResults();
+    await click(body().querySelector('[data-testid="tab-results"]'));
+    await click([...body().querySelectorAll('[data-testid="resolve-btn"]')][1]);
+    await click([...body().querySelectorAll('[data-testid="choice"]')].find((b) => b.textContent === "bad"));
+    await setValue(body().querySelector('textarea[aria-label="Expected output"]'), "Mañana a las 18h");
+    await click(body().querySelector('[data-testid="save-resolution"]'));
+    expect(api.resolutions).toEqual([{ queueId: "q-1", itemId: "i2", configId: "cfg-1", body: { value: "bad", expectedOutput: "Mañana a las 18h" } }]);
+  });
+
+  it("only lets resolved or agreed rows be selected, and promotes just those with the typed answer", async () => {
+    const api = await openResults();
+    const promoted: unknown[] = [];
+    api.promoteTracesToDataset = async (_datasetId, bodyArg) => {
+      promoted.push(bodyArg);
+      return { added: bodyArg.items.map(() => ({}) as never), skipped: [], version: null } as never;
+    };
+    api.datasets = { items: [{ id: "d1", name: "Regression" }] } as never;
+    await click(body().querySelector('[data-testid="tab-results"]'));
+    const boxes = [...body().querySelectorAll<HTMLInputElement>('[data-testid="result-select"]')];
+    expect(boxes.map((b) => b.disabled)).toEqual([false, true]);
+    await click(body().querySelector('[data-testid="select-ready"]'));
+    const dataset = body().querySelector<HTMLSelectElement>('[data-testid="promote-dataset"]')!;
+    dataset.value = "d1";
+    dataset.dispatchEvent(new Event("change"));
+    const reference = body().querySelector<HTMLSelectElement>('[data-testid="promote-config"]')!;
+    reference.value = "cfg-1";
+    reference.dispatchEvent(new Event("change"));
+    await flushPromises();
+    await click(body().querySelector('[data-testid="promote-run"]'));
+    expect(promoted).toEqual([{ items: [{ traceId: "trace-ok", expectedOutput: "good", queueId: "q-1" }] }]);
+  });
+
+  it("links each row to the dataset that already holds an item promoted from it", async () => {
+    const api = await openResults();
+    api.queueResults = { ...api.queueResults, items: [queueResultItem({ ...agreed, promotedTo: [{ datasetId: "d1", datasetName: "Regression", version: "3.0" }] }), split] };
+    await click(body().querySelector('[data-testid="tab-summary"]'));
+    await click(body().querySelector('[data-testid="tab-results"]'));
+    const badges = [...body().querySelectorAll('[data-testid="promoted-to"]')];
+    expect(badges).toHaveLength(1);
+    expect(badges[0]!.textContent).toContain("Regression v3.0");
+  });
+
+  it("filters to disagreements", async () => {
+    await openResults();
+    await click(body().querySelector('[data-testid="tab-results"]'));
+    await click(body().querySelector('[data-testid="only-disagreements"]'));
+    expect(body().querySelector('[data-testid="queue-results"]')).not.toBeNull();
   });
 });
 
@@ -178,6 +325,14 @@ describe("AnnotationQueueReviewPage", () => {
     await wrapper.get('[data-testid="skip"]').trigger("click");
     await flushPromises();
     expect(api.skipped).toEqual(["i1"]);
+    expect(api.completed).toEqual([]);
+  });
+
+  it("marks an item as unreviewable directly from the review page", async () => {
+    const { wrapper, api } = await open();
+    await wrapper.get('[data-testid="mark-unreviewable"]').trigger("click");
+    await flushPromises();
+    expect(api.unreviewable).toEqual(["i1"]);
     expect(api.completed).toEqual([]);
   });
 

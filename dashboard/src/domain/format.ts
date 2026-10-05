@@ -1,6 +1,8 @@
-const number = new Intl.NumberFormat("es-ES");
-const compact = new Intl.NumberFormat("es-ES", { notation: "compact", maximumFractionDigits: 1 });
-const dateTime = new Intl.DateTimeFormat("es-ES", { dateStyle: "short", timeStyle: "medium" });
+// Toda la interfaz está en inglés (ADR-048): números y fechas siguen el mismo idioma.
+const number = new Intl.NumberFormat("en-US");
+const compact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
+const dateTimeThisYear = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+const dateTimeOtherYear = new Intl.DateTimeFormat("en-US", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
 
 export function formatDuration(ms: number): string {
   if (!Number.isFinite(ms)) return "–";
@@ -19,30 +21,32 @@ export function formatCount(value: number): string {
 }
 
 export function formatPercent(ratio: number): string {
-  return `${(ratio * 100).toFixed(ratio > 0 && ratio < 0.1 ? 1 : 0)} %`;
+  return `${(ratio * 100).toFixed(ratio > 0 && ratio < 0.1 ? 1 : 0)}%`;
 }
 
 export function formatRelativeTime(iso: string, nowMs: number): string {
   const seconds = Math.max(0, Math.round((nowMs - Date.parse(iso)) / 1000));
-  if (seconds < 5) return "ahora";
-  if (seconds < 60) return `hace ${seconds} s`;
+  if (seconds < 5) return "just now";
+  if (seconds < 60) return `${seconds} s ago`;
   const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `hace ${minutes} min`;
+  if (minutes < 60) return `${minutes} min ago`;
   const hours = Math.round(minutes / 60);
-  if (hours < 48) return `hace ${hours} h`;
-  return `hace ${Math.round(hours / 24)} d`;
+  if (hours < 48) return `${hours} h ago`;
+  return `${Math.round(hours / 24)} d ago`;
 }
 
-const clock = new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
-const clockShort = new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", hour12: false });
+const clock = new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+const clockShort = new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
 
 /** Hora del día (HH:MM:SS, o HH:MM con `seconds: false`) en la zona del navegador. */
 export function formatClock(iso: string, seconds = true): string {
   return (seconds ? clock : clockShort).format(new Date(iso));
 }
 
+/** "Sep 26, 13:24:00"; con el año solo si no es el actual. */
 export function formatDateTime(iso: string): string {
-  return dateTime.format(new Date(iso));
+  const date = new Date(iso);
+  return (date.getFullYear() === new Date().getFullYear() ? dateTimeThisYear : dateTimeOtherYear).format(date);
 }
 
 export function shortId(id: string): string {

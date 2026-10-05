@@ -22,21 +22,26 @@ export interface ToolCall {
   args: Record<string, unknown>;
 }
 
-const ROLES: Record<string, IoBlock["role"]> = { user: "user", human: "user", assistant: "assistant", ai: "assistant", system: "system", tool: "tool", function: "tool" };
+export interface SpanIoAdapter {
+  name: string;
+  matches(value: unknown): boolean;
+  parse(value: unknown): IoBlock[];
+}
 
-const textOf = (content: unknown): string => {
-  if (typeof content === "string") return content;
-  if (Array.isArray(content)) {
-    const parts = content.map((p) => (typeof p === "string" ? p : p && typeof p === "object" && "text" in p ? String((p as { text: unknown }).text) : ""));
-    const joined = parts.filter(Boolean).join("\n");
-    if (joined) return joined;
-  }
-  return JSON.stringify(content, null, 2);
+const ROLES: Record<string, IoBlock["role"]> = {
+  user: "user",
+  human: "user",
+  assistant: "assistant",
+  ai: "assistant",
+  system: "system",
+  tool: "tool",
+  function: "tool",
+  model: "assistant",
 };
 
 const pretty = (value: unknown): string => (typeof value === "string" ? value : JSON.stringify(value, null, 2));
 
-const asObject = (v: unknown): Record<string, unknown> => {
+export const asObject = (v: unknown): Record<string, unknown> => {
   if (typeof v === "string") {
     try {
       const parsed: unknown = JSON.parse(v);
@@ -49,7 +54,7 @@ const asObject = (v: unknown): Record<string, unknown> => {
 };
 
 /** Tool calls from a model message (LangChain `tool_calls`, OpenAI `function` format). */
-function toolCallsOf(value: unknown): ToolCall[] {
+export function toolCallsOf(value: unknown): ToolCall[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((c) => {
     if (!c || typeof c !== "object") return [];
@@ -60,52 +65,199 @@ function toolCallsOf(value: unknown): ToolCall[] {
   });
 }
 
-function fromMessages(value: unknown): IoBlock[] | null {
-  if (!Array.isArray(value) || value.length === 0) return null;
-  if (!value.every((m) => typeof m === "object" && m !== null && "role" in m && "content" in m)) return null;
-  return (value as { role: unknown; content: unknown; tool_calls?: unknown }[]).map((m) => {
-    const role = String(m.role);
-    const calls = toolCallsOf(m.tool_calls);
-    const empty = m.content === "" || (Array.isArray(m.content) && m.content.length === 0);
-    const text = empty ? (calls.length ? JSON.stringify(m.tool_calls, null, 2) : "") : textOf(m.content);
-    return {
-      label: role,
-      text,
-      structured: !empty && typeof m.content !== "string" && text.trimStart().startsWith("{"),
-      role: ROLES[role.toLowerCase()] ?? "other",
-      calls,
-      // empty content is only hidden if there are calls to display instead
-      hideText: empty && calls.length > 0,
-    };
+// ---------------------------------------------------------------------------
+// Adaptadores por Framework
+// ---------------------------------------------------------------------------
+
+/**
+ * Adaptador para LangChain / LangGraph (mensajes con 'role' y 'content').
+ */
+export const langchainAdapter: SpanIoAdapter = {
+  name: "LangChain / LangGraph",
+  matches(value: unknown): boolean {
+    if (!Array.isArray(value) || value.length === 0) return false;
+    return value.every((m) => typeof m === "object" && m !== null && "role" in m && "content" in m);
+  },
+  parse(value: unknown): IoBlock[] {
+    return (value as { role: unknown; content: unknown; tool_calls?: unknown }[]).map((m) => {
+      let role = String(m.role);
+      // OpenTelemetry-style content: a list of typed parts (text, tool_call, tool_call_response)
+      const calls = [...toolCallsOf(m.tool_calls), ...extractPartsToolCalls(m.content)];
+      const toolOnly = isToolResponsePartOnly(m.content);
+      if (toolOnly && role.toLowerCase() === "user") role = "tool";
+      const empty = m.content === "" || (Array.isArray(m.content) && m.content.length === 0);
+      const partsText = Array.isArray(m.content) && (calls.length > 0 || toolOnly) ? extractPartsText(m.content) : null;
+      const text = partsText !== null ? partsText : empty ? (calls.length ? JSON.stringify(m.tool_calls, null, 2) : "") : textOfContent(m.content);
+      const hideText = calls.length > 0 && (empty || (partsText !== null && !partsText.trim()));
+      return {
+        label: role,
+        text: hideText ? "" : text,
+        structured: toolOnly || (!empty && typeof m.content !== "string" && text.trimStart().startsWith("{")),
+        role: ROLES[role.toLowerCase()] ?? "other",
+        calls,
+        hideText,
+      };
+    });
+  },
+};
+
+/**
+ * Adaptador para Google GenAI / Vertex / Pydantic AI (mensajes con 'parts').
+ */
+export const googleGenAiAdapter: SpanIoAdapter = {
+  name: "Google GenAI / Pydantic AI",
+  matches(value: unknown): boolean {
+    if (!Array.isArray(value) || value.length === 0) return false;
+    return value.some((m) => typeof m === "object" && m !== null && ("parts" in m || "role" in m));
+  },
+  parse(value: unknown): IoBlock[] {
+    return (value as { role?: unknown; parts?: unknown; content?: unknown; tool_calls?: unknown }[]).map((m) => {
+      let roleStr = String(m.role || "user");
+      const calls = [...toolCallsOf(m.tool_calls), ...extractPartsToolCalls(m.parts)];
+      const textFromParts = extractPartsText(m.parts ?? m.content);
+      const isToolResponseOnly = isToolResponsePartOnly(m.parts);
+      if (isToolResponseOnly && roleStr === "user") {
+        roleStr = "tool";
+      }
+      const rawText = textFromParts || (typeof m.content === "string" ? m.content : "");
+      const hideText = calls.length > 0 && !rawText.trim();
+      const text = hideText ? "" : (rawText || pretty(m.parts ?? m.content ?? m));
+      const structured = isToolResponseOnly || (roleStr === "tool" && text.trimStart().startsWith("{"));
+      return {
+        label: roleStr,
+        text,
+        structured,
+        role: ROLES[roleStr.toLowerCase()] ?? "other",
+        calls: calls.length > 0 ? calls : undefined,
+        hideText,
+      };
+    });
+  },
+};
+
+/**
+ * Adaptador de fallback (valor simple, objeto genérico o array no estructurado).
+ */
+export const fallbackAdapter: SpanIoAdapter = {
+  name: "Fallback (Generic Data)",
+  matches(): boolean {
+    return true;
+  },
+  parse(value: unknown): IoBlock[] {
+    // Si viene como lista de mensajes de cualquier otro estilo
+    const langResult = langchainAdapter.matches(value) ? langchainAdapter.parse(value) : null;
+    if (langResult) return langResult;
+
+    const genAiResult = googleGenAiAdapter.matches(value) ? googleGenAiAdapter.parse(value) : null;
+    if (genAiResult) return genAiResult;
+
+    return single("data", value);
+  },
+};
+
+export const SUPPORTED_FRAMEWORK_ADAPTERS: SpanIoAdapter[] = [
+  langchainAdapter,
+  googleGenAiAdapter,
+];
+
+function isToolResponsePartOnly(parts: unknown): boolean {
+  if (!Array.isArray(parts) || parts.length === 0) return false;
+  return parts.every((p) => p && typeof p === "object" && "type" in p && (p as { type: string }).type === "tool_call_response");
+}
+
+function extractPartsToolCalls(parts: unknown): ToolCall[] {
+  if (!Array.isArray(parts)) return [];
+  return parts.flatMap((p) => {
+    if (!p || typeof p !== "object") return [];
+    const obj = p as { type?: string; name?: string; id?: string; arguments?: unknown; args?: unknown };
+    if (obj.type === "tool_call" && typeof obj.name === "string") {
+      return [{ name: obj.name, id: typeof obj.id === "string" ? obj.id : null, args: asObject(obj.args ?? obj.arguments) }];
+    }
+    return [];
   });
 }
 
+function extractPartsText(parts: unknown): string {
+  if (!Array.isArray(parts)) return "";
+  const texts = parts.map((p) => {
+    if (typeof p === "string") return p;
+    if (p && typeof p === "object") {
+      if ("text" in p && typeof (p as { text: unknown }).text === "string") return (p as { text: string }).text;
+      if ("content" in p && typeof (p as { content: unknown }).content === "string") return (p as { content: string }).content;
+      if ("type" in p && (p as { type: string }).type === "tool_call_response") {
+        const res = (p as { result?: unknown }).result;
+        return res !== undefined ? pretty(res) : "";
+      }
+    }
+    return "";
+  });
+  return texts.filter(Boolean).join("\n");
+}
+
+function textOfContent(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    const parts = content.map((p) => (typeof p === "string" ? p : p && typeof p === "object" && "text" in p ? String((p as { text: unknown }).text) : ""));
+    const joined = parts.filter(Boolean).join("\n");
+    if (joined) return joined;
+  }
+  return pretty(content);
+}
+
+function fromMessages(value: unknown): IoBlock[] | null {
+  for (const adapter of SUPPORTED_FRAMEWORK_ADAPTERS) {
+    if (adapter.matches(value)) {
+      return adapter.parse(value);
+    }
+  }
+  return null;
+}
+
 function single(label: string, value: unknown): IoBlock[] {
-  // a string with JSON (the SDK saves captured content as text) is displayed formatted
   const text = pretty(value);
   const structured = typeof value !== "string" || /^\s*[{[]/.test(text);
   return [{ label, text, structured, role: "other", calls: [] }];
 }
 
-/** Generic graph/chain input: `{"messages": [...]}` (or its JSON string). */
 function messagesIn(value: unknown): unknown {
   const obj = typeof value === "string" && value.trimStart().startsWith("{") ? asObject(value) : value;
   return obj && typeof obj === "object" && "messages" in obj ? (obj as { messages: unknown }).messages : undefined;
 }
 
 export interface SpanIo {
+  /** the whole conversation in its real order, when the span carries it (Pydantic AI); input/output split it by role */
+  ordered?: IoBlock[];
   input: IoBlock[];
   output: IoBlock[];
-  /** el contenido original de cada lado, formateado como JSON (modo "JSON" del panel) */
   inputJson: string;
   outputJson: string;
 }
 
-/**
- * What to show as span input and output: chat messages if it's an LLM, arguments and result if it's a
- * tool, and generic input/output for the rest. Empty if the agent didn't capture content (ADR-004).
- */
 export function spanIo(node: SpanNodeDto): SpanIo {
+  // Pydantic AI full conversation trace in span attributes
+  const allMessagesAttr = node.attributes["pydantic_ai.all_messages"];
+  if (allMessagesAttr) {
+    try {
+      const parsed = JSON.parse(allMessagesAttr);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const blocks = fromMessages(parsed) ?? [];
+        if (blocks.length > 0) {
+          const userBlocks = blocks.filter((b) => b.role === "user" || b.role === "system");
+          const nonUserBlocks = blocks.filter((b) => b.role !== "user" && b.role !== "system");
+          return {
+            ordered: blocks,
+            input: userBlocks.length > 0 ? userBlocks : [blocks[0]!],
+            output: nonUserBlocks.length > 0 ? nonUserBlocks : blocks.slice(1),
+            inputJson: pretty(parsed),
+            outputJson: pretty(parsed),
+          };
+        }
+      }
+    } catch {
+      // fallback to node.content
+    }
+  }
+
   const c = node.content;
   if (!c) return { input: [], output: [], inputJson: "", outputJson: "" };
   const pick = (messages: unknown, tool: unknown, generic: unknown, toolLabel: string, genericLabel: string) => {
@@ -121,7 +273,6 @@ export function spanIo(node: SpanNodeDto): SpanIo {
 
 const raw = (value: unknown): string => (value === undefined ? "" : pretty(value));
 
-/** GenAI data from the span as label/value pairs (non-existent ones are omitted). */
 export function genAiRows(node: SpanNodeDto): [string, string | number][] {
   const g = node.genAi;
   if (!g) return [];

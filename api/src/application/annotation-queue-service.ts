@@ -1,9 +1,9 @@
-import type { AnnotationQueueRepository, QueueWithProgress } from "@/application/ports/annotation-queue-repository";
+import type { AnnotationQueueRepository, QueueWithProgress, TraceQueueMembership } from "@/application/ports/annotation-queue-repository";
 import type { AnnotationRepository } from "@/application/ports/annotation-repository";
-import type { IdentityRepository } from "@/application/ports/identity-repository";
+import type { IdentityRepository, PromotedTraceLocation } from "@/application/ports/identity-repository";
 import type { ScoreConfigRepository } from "@/application/ports/score-config-repository";
 import type { TraceRepository } from "@/application/ports/trace-repository";
-import type { Annotation } from "@/domain/annotation";
+import { validateAnnotationValue, type Annotation, type AnnotationValue } from "@/domain/annotation";
 import { randomUUID } from "node:crypto";
 import {
   MAX_ITEMS_PER_REQUEST,
@@ -20,8 +20,10 @@ import {
   type QueueTarget,
   type ReviewerProgress,
 } from "@/domain/annotation-queue";
-import { AnnotationQueueInvariantError, AnnotationQueueNotFoundError, ScoreConfigNotFoundError, ValidationError } from "@/domain/errors";
+import { AnnotationQueueInvariantError, AnnotationQueueNotFoundError, AnnotationQueueReviewerError, ScoreConfigNotFoundError, ValidationError } from "@/domain/errors";
+import type { Member } from "@/domain/identity";
 import type { ScoreConfig } from "@/domain/score-config";
+import { criterionStatus, type CriterionStatus, type QueueResolution, type ResultLabel } from "@/domain/queue-results";
 import { sampleWithSeed } from "@/domain/sampling";
 import { resolveTimeRange } from "@/domain/time-range";
 
@@ -74,6 +76,19 @@ interface ResolvedTargets {
   sample?: AddItemsResult["sample"];
 }
 
+/** Quién puede anotar en la cola, con lo mínimo para pintarlo (nombre y foto; nunca el email). */
+export interface AssignedReviewer {
+  userId: string;
+  name: string | null;
+  image: string | null;
+}
+
+export interface QueueListItem extends QueueWithProgress {
+  assignedReviewers: AssignedReviewer[];
+  /** ¿puede el usuario que consulta anotar en esta cola? (ADR-051) */
+  isReviewer: boolean;
+}
+
 export interface QueueDetail {
   queue: AnnotationQueue;
   /** configs de la rúbrica, en el orden de la rúbrica (incluye archivadas: la UI las marca) */
@@ -81,6 +96,53 @@ export interface QueueDetail {
   progress: QueueProgress;
   reviewers: Array<ReviewerProgress & { name: string | null }>;
 }
+
+export interface QueueResultsQuery {
+  status?: QueueItemStatus;
+  /** solo items donde los revisores discrepan en algún criterio (con o sin resolución) */
+  onlyDisagreements?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
+export interface ResultLabelWithAuthor extends ResultLabel {
+  name: string | null;
+  /** false si la persona ya no está en la lista de revisores (sus etiquetas se conservan, ADR-051) */
+  isReviewer: boolean;
+}
+
+export interface ResultCriterion {
+  configId: string;
+  status: CriterionStatus;
+  labels: ResultLabelWithAuthor[];
+  resolution: QueueResolution | null;
+}
+
+export interface QueueResultItem {
+  item: QueueItem;
+  criteria: ResultCriterion[];
+  /** algún criterio con desacuerdo y sin resolución del técnico */
+  needsResolution: boolean;
+  /** datasets (última versión) que ya contienen un item promovido desde esta traza */
+  promotedTo: PromotedTraceLocation[];
+}
+
+export interface QueueResults {
+  /** rúbrica de la cola, para las columnas */
+  configs: ScoreConfig[];
+  /** items que cumplen el filtro, antes de paginar */
+  total: number;
+  items: QueueResultItem[];
+}
+
+export interface ResolutionInput {
+  configId: string;
+  value: AnnotationValue;
+  expectedOutput?: string | null;
+}
+
+const RESULTS_PAGE_DEFAULT = 50;
+const RESULTS_PAGE_MAX = 200;
 
 /**
  * Colas de anotación (ADR-039): estado del flujo de trabajo en PostgreSQL, etiquetas en ClickHouse. La
@@ -92,34 +154,54 @@ export class AnnotationQueueService {
     private readonly scoreConfigs: ScoreConfigRepository,
     private readonly annotations: AnnotationRepository,
     private readonly traces: TraceRepository,
-    private readonly identity: Pick<IdentityRepository, "getUsersByIds" | "listRunsForExperiment">,
+    private readonly identity: Pick<IdentityRepository, "getUsersByIds" | "findPromotedTraces" | "listRunsForExperiment" | "listExperimentMembers" | "getExperiment" | "listOrgMembers">,
     private readonly now: () => Date = () => new Date(),
     private readonly newSeed: () => string = () => randomUUID(),
   ) {}
 
-  list(experimentId: string, includeArchived = false): Promise<QueueWithProgress[]> {
-    return this.queues.list(experimentId, includeArchived);
+  async list(experimentId: string, userId: string, includeArchived = false): Promise<QueueListItem[]> {
+    const listed = await this.queues.list(experimentId, includeArchived);
+    const users = new Map((await this.identity.getUsersByIds([...new Set(listed.flatMap((l) => l.queue.reviewerIds))])).map((u) => [u.id, u]));
+    return listed.map((l) => ({
+      ...l,
+      isReviewer: l.queue.reviewerIds.includes(userId),
+      assignedReviewers: l.queue.reviewerIds.map((userId) => ({ userId, name: users.get(userId)?.name ?? null, image: users.get(userId)?.image ?? null })),
+    }));
+  }
+
+  /**
+   * Quién puede ser revisor (ADR-051/ADR-052): los miembros del experimento. Un org_admin no figura: su rol gestiona
+   * personas y claves, no da permiso de anotar; si también trabaja aquí, tiene su propia membership.
+   */
+  async reviewerCandidates(experimentId: string): Promise<Member[]> {
+    return [...(await this.identity.listExperimentMembers(experimentId))].sort((a, b) => a.email.localeCompare(b.email));
   }
 
   async create(experimentId: string, userId: string, input: NewAnnotationQueue): Promise<AnnotationQueue> {
     const valid = validateNewQueue(input);
     await this.requireLiveConfigs(experimentId, valid.rubric.map((r) => r.configId));
+    await this.requireExperimentMembers(experimentId, valid.reviewerIds);
     return this.queues.create(experimentId, userId, valid);
   }
 
   async update(experimentId: string, queueId: string, patch: AnnotationQueuePatch): Promise<AnnotationQueue> {
     const current = await this.requireQueue(experimentId, queueId);
-    const next = patch.name !== undefined || patch.requiredAnnotations !== undefined || patch.rubric
+    const next = patch.name !== undefined || patch.requiredAnnotations !== undefined || patch.rubric || patch.reviewerIds
       ? validateNewQueue({
           name: patch.name ?? current.name,
           instructions: patch.instructions === undefined ? current.instructions : patch.instructions,
           requiredAnnotations: patch.requiredAnnotations ?? current.requiredAnnotations,
+          reviewerIds: patch.reviewerIds ?? current.reviewerIds,
           rubric: patch.rubric ?? current.rubric.map((r) => ({ configId: r.configId, required: r.required })),
         })
       : null;
     if (patch.rubric) {
       const known = new Set(current.rubric.map((r) => r.configId));
       await this.requireLiveConfigs(experimentId, patch.rubric.map((r) => r.configId).filter((id) => !known.has(id)));
+    }
+    if (patch.reviewerIds) {
+      const known = new Set(current.reviewerIds);
+      await this.requireExperimentMembers(experimentId, patch.reviewerIds.filter((id) => !known.has(id)));
     }
     const updated = await this.queues.update(experimentId, queueId, {
       ...patch,
@@ -146,6 +228,91 @@ export class AnnotationQueueService {
     return this.queues.listItems(queueId, status, Math.min(Math.max(limit, 1), MAX_LIST_ITEMS));
   }
 
+  /**
+   * Lo que cada revisor respondió en cada item, con los desacuerdos y las resoluciones del técnico (ADR-050). Es la
+   * única lectura que cruza los dos almacenes: ids y resoluciones de PostgreSQL, y todas las etiquetas de la página
+   * en UNA consulta a ClickHouse. Se filtra y pagina aquí porque "desacuerdo" depende de las etiquetas.
+   */
+  async getResults(actor: QueueActor, queueId: string, query: QueueResultsQuery = {}): Promise<QueueResults> {
+    const queue = await this.requireQueue(actor.experimentId, queueId);
+    const [configs, items] = await Promise.all([this.rubricConfigs(queue), this.queues.listItems(queue.id, query.status, MAX_LIST_ITEMS)]);
+    const rubricIds = new Set(queue.rubric.map((r) => r.configId));
+    const dataTypes = new Map(configs.map((c) => [c.id, c.dataType]));
+
+    const traceIds = [...new Set(items.filter((i) => i.targetType === "trace" && i.traceId).map((i) => i.traceId!))];
+    const runIds = [...new Set(items.filter((i) => i.targetType === "run_item" && i.datasetRunId).map((i) => i.datasetRunId!))];
+    const [traceLabels, runLabels, resolutions] = await Promise.all([
+      traceIds.length ? this.annotations.listForTraces(actor.serviceName, traceIds) : [],
+      runIds.length ? this.annotations.listForRuns(actor.serviceName, runIds) : [],
+      this.queues.listResolutions(queue.id, items.map((i) => i.id)),
+    ]);
+    const promoted = await this.identity.findPromotedTraces(actor.experimentId, traceIds);
+    const users = new Map((await this.identity.getUsersByIds([...new Set([...traceLabels, ...runLabels].map((a) => a.annotatorId))])).map((u) => [u.id, u.name]));
+    const reviewerIds = new Set(queue.reviewerIds);
+
+    const labelsFor = (item: QueueItem, configId: string): ResultLabelWithAuthor[] => {
+      const source = item.targetType === "trace"
+        ? traceLabels.filter((a) => a.traceId === item.traceId)
+        : runLabels.filter((a) => a.datasetRunId === item.datasetRunId && a.itemIndex === item.itemIndex);
+      return source
+        .filter((a) => a.configId === configId)
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+        .map((a) => ({ userId: a.annotatorId, value: a.value, comment: a.comment, createdAt: a.createdAt, name: users.get(a.annotatorId) ?? null, isReviewer: reviewerIds.has(a.annotatorId) }));
+    };
+
+    const rows: QueueResultItem[] = items.map((item) => {
+      const criteria: ResultCriterion[] = [...queue.rubric]
+        .sort((a, b) => a.position - b.position)
+        .filter((r) => rubricIds.has(r.configId) && dataTypes.has(r.configId))
+        .map((r) => {
+          const labels = labelsFor(item, r.configId);
+          const resolution = resolutions.find((x) => x.queueItemId === item.id && x.configId === r.configId) ?? null;
+          return { configId: r.configId, status: criterionStatus(dataTypes.get(r.configId)!, labels), labels, resolution };
+        });
+      return {
+        item,
+        criteria,
+        needsResolution: criteria.some((c) => c.status === "disagreement" && !c.resolution),
+        promotedTo: item.traceId ? promoted.filter((p) => p.traceId === item.traceId) : [],
+      };
+    });
+
+    const filtered = query.onlyDisagreements ? rows.filter((r) => r.criteria.some((c) => c.status === "disagreement")) : rows;
+    const limit = Math.min(Math.max(query.limit ?? RESULTS_PAGE_DEFAULT, 1), RESULTS_PAGE_MAX);
+    const offset = Math.max(query.offset ?? 0, 0);
+    return { configs, total: filtered.length, items: filtered.slice(offset, offset + limit) };
+  }
+
+  /** Colas del experimento que contienen la traza, para mostrarlo en su detalle (ADR-050). Cualquier miembro. */
+  async queuesForTrace(experimentId: string, traceId: string): Promise<TraceQueueMembership[]> {
+    return this.queues.listQueuesForTrace(experimentId, traceId);
+  }
+
+  /** El técnico fija el valor final (y opcionalmente la respuesta correcta) de un criterio. No toca las etiquetas de los revisores. */
+  async resolve(experimentId: string, userId: string, queueId: string, itemId: string, input: ResolutionInput): Promise<QueueResolution> {
+    const queue = await this.requireQueue(experimentId, queueId);
+    const item = await this.requireItem(queue.id, itemId);
+    if (!queue.rubric.some((r) => r.configId === input.configId)) {
+      throw new ValidationError("Invalid resolution", { configId: "is not part of this queue's rubric" });
+    }
+    const config = (await this.rubricConfigs(queue)).find((c) => c.id === input.configId);
+    if (!config) throw new ScoreConfigNotFoundError(input.configId);
+    if (config.archivedAt) throw new ValidationError("Invalid resolution", { configId: `${config.name} is archived` });
+    return this.queues.upsertResolution(queue.id, {
+      queueItemId: item.id,
+      configId: config.id,
+      value: validateAnnotationValue(config, input.value),
+      expectedOutput: input.expectedOutput?.trim() || null,
+      resolvedBy: userId,
+    });
+  }
+
+  async clearResolution(experimentId: string, queueId: string, itemId: string, configId: string): Promise<void> {
+    const queue = await this.requireQueue(experimentId, queueId);
+    const item = await this.requireItem(queue.id, itemId);
+    if (!(await this.queues.deleteResolution(queue.id, item.id, configId))) throw new AnnotationQueueNotFoundError(queue.id, item.id);
+  }
+
   /** Resuelve a objetivos concretos, los verifica contra el tenant y los añade. Los duplicados se descartan. */
   async addItems(actor: QueueActor, queueId: string, input: AddItemsInput): Promise<AddItemsResult> {
     const queue = await this.requireOpenQueue(actor.experimentId, queueId);
@@ -156,7 +323,7 @@ export class AnnotationQueueService {
 
   /** El siguiente item para este revisor (o el que ya tenía abierto). null si la cola no tiene más para él. */
   async next(actor: QueueActor, queueId: string): Promise<QueueItem | null> {
-    const queue = await this.requireOpenQueue(actor.experimentId, queueId);
+    const queue = this.requireReviewer(await this.requireOpenQueue(actor.experimentId, queueId), actor.userId);
     return this.queues.claimNext(queue, actor.userId);
   }
 
@@ -166,7 +333,7 @@ export class AnnotationQueueService {
    * ClickHouse); lo único que puede quedar es un item "aún no terminado", nunca uno terminado sin etiquetas.
    */
   async complete(actor: QueueActor, queueId: string, itemId: string, labels: QueueLabel[]): Promise<QueueItem> {
-    const queue = await this.requireOpenQueue(actor.experimentId, queueId);
+    const queue = this.requireReviewer(await this.requireOpenQueue(actor.experimentId, queueId), actor.userId);
     const item = await this.requireItem(queue.id, itemId);
     if (item.status === "skipped") throw new AnnotationQueueInvariantError("This item was marked as unreviewable");
     if (!(await this.queues.hasClaim(item.id, actor.userId))) {
@@ -195,7 +362,7 @@ export class AnnotationQueueService {
 
   /** El revisor pasa de este item; vuelve al pool para los demás. */
   async skip(actor: QueueActor, queueId: string, itemId: string): Promise<QueueItem> {
-    const queue = await this.requireOpenQueue(actor.experimentId, queueId);
+    const queue = this.requireReviewer(await this.requireOpenQueue(actor.experimentId, queueId), actor.userId);
     const item = await this.requireItem(queue.id, itemId);
     if (!(await this.queues.hasClaim(item.id, actor.userId))) {
       throw new AnnotationQueueInvariantError("Pull this item with `next` before skipping it");
@@ -325,6 +492,20 @@ export class AnnotationQueueService {
     const queue = await this.requireQueue(experimentId, queueId);
     if (queue.archivedAt) throw new AnnotationQueueInvariantError("This queue is archived");
     return queue;
+  }
+
+  /** Solo las personas de la lista (ADR-051) reclaman, completan o saltan items; ni siquiera un admin si no está en ella. */
+  private requireReviewer(queue: AnnotationQueue, userId: string): AnnotationQueue {
+    if (!queue.reviewerIds.includes(userId)) throw new AnnotationQueueReviewerError(queue.id);
+    return queue;
+  }
+
+  /** Los revisores deben tener ya acceso al experimento (miembro del experimento): una cola no abre el acceso a quien no lo tenía. */
+  private async requireExperimentMembers(experimentId: string, userIds: string[]): Promise<void> {
+    if (userIds.length === 0) return;
+    const members = new Set((await this.reviewerCandidates(experimentId)).map((m) => m.userId));
+    const outsiders = userIds.filter((id) => !members.has(id));
+    if (outsiders.length > 0) throw new ValidationError("Invalid reviewers", { reviewerIds: `not members of this experiment: ${outsiders.join(", ")}` });
   }
 
   private async requireItem(queueId: string, itemId: string): Promise<QueueItem> {

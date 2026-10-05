@@ -12,7 +12,7 @@ import OfflineCompareView from "./OfflineCompareView.vue";
 import OfflineRunView from "./OfflineRunView.vue";
 import OfflineTrendView from "./OfflineTrendView.vue";
 
-const props = defineProps<{ range: RangeParams }>();
+const props = defineProps<{ range: RangeParams; /** baseline and candidate to compare, from the Evaluations run list */ compareIds?: [string, string] | null }>();
 
 const api = useTraceApi();
 
@@ -20,7 +20,7 @@ const runs = useAsync((signal) => api.listRuns(signal));
 void runs.run();
 
 const datasetId = ref<string | null>(null);
-const view = ref<"trend" | "run" | "compare">("trend");
+const view = ref<"trend" | "run" | "compare">(props.compareIds ? "compare" : "trend");
 const VIEWS = [
   { name: "trend", label: "Overview" },
   { name: "run", label: "Run detail" },
@@ -77,7 +77,7 @@ function openRun(run: RunListItemDto) {
     <template v-else>
       <OfflineTrendView v-if="view === 'trend'" :runs="inRange" @open-run="openRun" />
       <OfflineRunView v-else-if="view === 'run'" :runs="allCompleted" :run-id="runId" @update:run-id="runId = $event" />
-      <OfflineCompareView v-else :runs="allCompleted" />
+      <OfflineCompareView v-else :runs="allCompleted" :initial-ids="compareIds ?? null" />
     </template>
   </div>
 </template>

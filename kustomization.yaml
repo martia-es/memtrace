@@ -15,6 +15,7 @@ resources:
   - k8s/70-docs.yaml
   - k8s/80-topic-extraction.yaml
   - k8s/81-model-pricing-sync.yaml
+  - k8s/82-health-probe.yaml
 configMapGenerator:
   - name: clickhouse-migrations
     files:
@@ -47,6 +48,16 @@ configMapGenerator:
       - migrations/postgres/014_annotation_queues.sql
       - migrations/postgres/015_queue_item_population.sql
       - migrations/postgres/016_reset_dataset_runs.sql
+      - migrations/postgres/017_annotation_queue_reviewers.sql
+      - migrations/postgres/018_annotation_queue_resolutions.sql
+      - migrations/postgres/019_permission_based_roles.sql
+      - migrations/postgres/020_external_identity.sql
+      - migrations/postgres/021_assistant_registry.sql
+      - migrations/postgres/022_governance_permissions.sql
+      - migrations/postgres/023_deployment_environment_fk.sql
+      - migrations/postgres/024_experiment_is_agent.sql
+      - migrations/postgres/025_drop_experiment_team.sql
+      - migrations/postgres/026_assistant_chat.sql
     options:
       disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
   - name: clickhouse-config

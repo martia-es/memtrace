@@ -19,7 +19,7 @@ SDK runs read the latest version unless they pin one with `dataset_version`. See
 
 ## Runs
 
-Every run uploaded by the SDK appears under **Runs**, and under its dataset's Runs tab in **Datasets**. A run has a status:
+Every run uploaded by the SDK appears under **Evaluations → Runs**, and under its dataset's Runs tab in **Datasets**. A run has a status:
 
 - `running`: items are still arriving. Runs in this state are left out of the offline evals views, so a partial upload never looks like a regression.
 - `completed`: all items were received.
@@ -28,9 +28,9 @@ Each run records the exact dataset version it read.
 
 ## Offline evals
 
-**Metrics → Offline evals** has three views over completed runs.
+**Overview → Offline evals** has three views over completed runs. To open **Compare runs** with two runs already chosen, tick them in **Evaluations → Runs** and choose **Compare runs**.
 
-- **Overview**: a table with one row per evaluator (latest value, change against the previous run, and a status: Improving, Regressing, Stable, Judge changed or Baseline), the pass-rate and average charts across runs, and the run list. Filter by dataset and time range. Click a chart point or a run to open it.
+- **Overview**: a health verdict at the top (Healthy at 80% or above on every pass/fail evaluator, Needs attention between 50% and 80% or when one regresses, Failing below 50%), then one card per evaluator with its latest value, a bar against the 80% target, items passed out of items scored, change against the previous run, a sparkline, and a status (Improving, Regressing, Stable, Judge changed or Baseline). Below are a passed-vs-failed chart for the latest run, the pass-rate and average charts across runs (they appear from the second run on), and the run list. Filter by dataset and time range. Click a chart point or a run to open it.
 - **Run detail**: one run, with its metrics, latency (p50 / p95 / max), and the items that errored or failed a boolean evaluator.
 - **Compare runs**: pick a baseline (A) and a candidate (B). You get per-evaluator deltas, and which items regressed or improved. Items are matched by identical input. It also shows **what changed in the dataset** between their versions: added, modified and removed items, and which regressions touch a changed item. If both runs used the same dataset version, it says so, because the difference does not come from the data.
 
@@ -42,7 +42,7 @@ Each judge score stores the judge's model and prompt fingerprint (see [Which jud
 
 - The affected points in the Trend chart become red diamonds, marking that the points are not directly comparable.
 - An alert lists the change.
-- The evaluator table shows "Judge changed" instead of an improvement or regression, because that difference measures the judge, not your agent.
+- The evaluator card shows "Judge changed" instead of an improvement or regression, because that difference measures the judge, not your agent.
 
 Scores uploaded before judge identity was recorded have no judge information.
 

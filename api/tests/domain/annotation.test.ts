@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateAnnotationValue } from "@/domain/annotation";
+import { isLowRating, validateAnnotationValue } from "@/domain/annotation";
 import { AnnotationValueError } from "@/domain/errors";
 
 const numeric = { dataType: "numeric" as const, minValue: 1, maxValue: 5, categories: null };
@@ -31,5 +31,26 @@ describe("validateAnnotationValue", () => {
     expect(validateAnnotationValue(categorical, " ok ")).toBe("ok");
     expect(() => validateAnnotationValue(categorical, "OK")).toThrow(AnnotationValueError);
     expect(() => validateAnnotationValue(categorical, "good")).toThrow(/bad, ok/);
+  });
+});
+
+describe("isLowRating (ADR-049)", () => {
+  const scale = { minValue: 1, maxValue: 5 };
+
+  it("counts a boolean 'No' and nothing else among booleans", () => {
+    expect(isLowRating({ dataType: "boolean", value: "false" }, undefined)).toBe(true);
+    expect(isLowRating({ dataType: "boolean", value: "true" }, undefined)).toBe(false);
+  });
+
+  it("counts a numeric value strictly below the midpoint of its range", () => {
+    expect(isLowRating({ dataType: "numeric", value: "1" }, scale)).toBe(true);
+    expect(isLowRating({ dataType: "numeric", value: "2" }, scale)).toBe(true);
+    expect(isLowRating({ dataType: "numeric", value: "3" }, scale)).toBe(false); // the midpoint is neutral
+    expect(isLowRating({ dataType: "numeric", value: "5" }, scale)).toBe(false);
+  });
+
+  it("never counts categorical labels, nor numerics whose config is unknown", () => {
+    expect(isLowRating({ dataType: "categorical", value: "bad" }, undefined)).toBe(false);
+    expect(isLowRating({ dataType: "numeric", value: "1" }, undefined)).toBe(false);
   });
 });

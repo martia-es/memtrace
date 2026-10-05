@@ -34,16 +34,15 @@ const experiments = useAsync((signal) => identityApi.listExperiments(signal));
 void experiments.run();
 
 const agentOptions = computed(() => (experiments.data.value ?? []).map((e) => ({ label: e.name, value: e.id })));
-const selectAgent = (id: string) => {
-  if (id !== experimentId.value) router.push({ name: "metrics", params: { experimentId: id }, query: { range: f.range.value } });
-};
-
 const goToErrors = () => {
   router.push({ name: "conversations", params: { experimentId: experimentId.value }, query: { status: "error", range: f.range.value } });
 };
 
 const overview = useAsync((signal) => api.getOverview({ ...resolveRange(f.range.value, Date.now()), service: f.service.value }, signal));
+// valoraciones humanas bajas del mismo rango, para "Needs attention" (ADR-049); si falla, simplemente no se muestran
+const lowRated = useAsync((signal) => api.getLowRated(resolveRange(f.range.value, Date.now()), signal));
 async function loadOverview() {
+  void lowRated.run();
   if (await overview.run()) liveRefresh.touch();
 }
 const liveRefresh = useLiveRefresh(loadOverview, { isBusy: () => overview.loading.value });
@@ -60,9 +59,56 @@ const empty = computed(() => data.value !== null && data.value.totals.traces ===
 const successRate = computed(() => (data.value ? 1 - data.value.totals.errorRate : 1));
 const health = computed(() => {
   const rate = data.value?.totals.errorRate ?? 0;
-  if (rate === 0) return { key: "ok", text: "Stable operation" };
-  if (rate < 0.05) return { key: "warn", text: "Warning: Occasional errors" };
-  return { key: "error", text: "Alert: Errors in executions" };
+  const executions = formatCount(data.value?.totals.traces ?? 0);
+  const ok = `${formatPercent(successRate.value)} of the ${executions} executions in this range finished without errors.`;
+  if (rate === 0) return { key: "ok", title: "Your assistant is healthy", text: ok };
+  if (rate < 0.05) return { key: "warn", title: "Some executions are failing", text: ok };
+  return { key: "error", title: "Your assistant needs attention", text: ok };
+});
+
+// ---- "Needs attention" (ADR-048): lo accionable de esta pantalla, en lenguaje llano y con acción directa ----
+const reviewQueues = useAsync((signal) => api.listAnnotationQueues(false, signal));
+void reviewQueues.run();
+const pendingReviews = computed(() => (reviewQueues.data.value?.items ?? []).reduce((n, q) => n + q.progress.pending, 0));
+const goToReview = () => router.push({ name: "annotation-queues", params: { experimentId: experimentId.value } });
+const attention = computed(() => {
+  const d = data.value;
+  if (!d) return [];
+  const items: { key: string; tone: "error" | "warn" | "info"; title: string; text: string; cta: string; go: () => void }[] = [];
+  if (d.totals.errorTraces > 0) {
+    items.push({ key: "errors", tone: "error", title: `${formatCount(d.totals.errorTraces)} ${d.totals.errorTraces === 1 ? "execution" : "executions"} ended with errors`, text: `${formatPercent(d.totals.errorRate)} of executions in this range.`, cta: "View", go: goToErrors });
+  }
+  const failing = d.byTool.filter((t) => t.errors > 0 && toolErrorRate(t) >= 0.02).sort((a, b) => toolErrorRate(b) - toolErrorRate(a)).slice(0, 2);
+  for (const t of failing) {
+    items.push({ key: `tool:${t.tool}`, tone: "warn", title: `${t.tool} fails ${formatPercent(toolErrorRate(t))} of calls`, text: `${formatCount(t.errors)} of ${formatCount(t.calls)} calls failed.`, cta: "Inspect", go: goToErrors });
+  }
+  const rated = lowRated.data.value;
+  if (rated && rated.count > 0) {
+    const latest = rated.items[0]!;
+    items.push({
+      key: "low-rated",
+      tone: "warn",
+      title: `${formatCount(rated.count)} ${rated.count === 1 ? "trace was" : "traces were"} rated low by reviewers`,
+      text: `Latest: ${latest.configName} = ${latest.value}.`,
+      cta: "Open latest",
+      go: () => void router.push({ name: "trace", params: { experimentId: experimentId.value, traceId: latest.traceId } }),
+    });
+  }
+  if (pendingReviews.value > 0) {
+    items.push({ key: "review", tone: "info", title: `${formatCount(pendingReviews.value)} ${pendingReviews.value === 1 ? "item is" : "items are"} waiting for review`, text: "Conversations queued for human review.", cta: "Start", go: goToReview });
+  }
+  return items;
+});
+const kpis = computed(() => {
+  const d = data.value;
+  if (!d) return [];
+  return [
+    { key: "conversations", label: "CONVERSATIONS", value: formatCount(d.totals.conversations), sub: `${formatCount(d.totals.traces)} executions`, tone: "", spark: true },
+    { key: "success", label: "SUCCESS RATE", value: formatPercent(successRate.value), sub: health.value.title, tone: health.value.key === "ok" ? "good" : health.value.key },
+    { key: "latency", label: "RESPONSE TIME P95", value: formatDuration(d.latencyMs.p95), sub: `median ${formatDuration(d.latencyMs.p50)}`, tone: "" },
+    { key: "errors", label: "ERRORS", value: formatCount(d.totals.errorTraces), sub: `${formatPercent(d.totals.errorRate)} of executions`, tone: d.totals.errorTraces > 0 ? "error" : "", link: d.totals.errorTraces > 0 },
+    { key: "cost", label: "COST", value: formatCostUsd(d.totals.costUsd) ?? "–", sub: `${formatCount(d.totals.totalTokens)} tokens`, tone: "" },
+  ];
 });
 const tokenSplit = computed(() => {
   const t = data.value?.totals;
@@ -74,7 +120,7 @@ const costPerTrace = computed(() => (data.value && data.value.totals.traces ? da
 
 const longRange = computed(() => (data.value ? Date.parse(data.value.range.to) - Date.parse(data.value.range.from) > 2 * 86_400_000 : false));
 const label = (iso: string) =>
-  new Date(iso).toLocaleString("es-ES", longRange.value ? { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" } : { hour: "2-digit", minute: "2-digit" });
+  new Date(iso).toLocaleString("en-US", longRange.value ? { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false } : { hour: "2-digit", minute: "2-digit", hour12: false });
 
 function sparkOption(values: number[], color: string): EChartsCoreOption {
   return {
@@ -386,14 +432,20 @@ const maxToolCalls = computed(() => Math.max(1, ...(data.value?.byTool.map((t) =
 const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.errors / t.calls : 0);
 
 // ---- Pestañas de la página: Overview / Compare / Custom charts / un informe guardado por pestaña ----
-const activeTab = ref<string>("overview");
+// ?tab=offline&compare=<baseline>,<candidate> deep-links here from Evaluations → Compare runs (ADR-048)
+const queryTab = () => (["compare", "custom", "offline"].includes(String(route.query.tab)) ? String(route.query.tab) : "overview");
+const activeTab = ref<string>(queryTab());
+const compareIds = computed<[string, string] | null>(() => {
+  const [a, b] = String(route.query.compare ?? "").split(",");
+  return a && b ? [a, b] : null;
+});
 
 // ---- Informes guardados (ADR-035): una pestaña dinámica por informe, más "+" para crear uno nuevo ----
 const reports = useAsync((signal) => identityApi.listMetricReports(experimentId.value, signal));
 watch(
   experimentId,
   () => {
-    activeTab.value = "overview";
+    activeTab.value = queryTab();
     void reports.run();
   },
   { immediate: true },
@@ -502,11 +554,8 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
 
 <template>
   <q-page class="page">
-    <PageHeader :crumbs="[{ label: 'MemTrace', to: { name: 'conversations', params: { experimentId } } }, { label: 'Metrics' }]" icon="M3 13h4v8H3zM10 3h4v18h-4zM17 9h4v12h-4z" title="Metrics">
+    <PageHeader :crumbs="[{ label: 'MemTrace', to: { name: 'overview', params: { experimentId } } }, { label: 'Overview' }]" icon="M3 11l9-8 9 8v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z" title="Overview">
       <FilterBar :range="f.range.value" :loading="overview.loading.value" @update:range="f.setRange" @refresh="reload">
-        <div class="agent-select">
-          <Select :model-value="experimentId" :options="agentOptions" :loading="experiments.loading.value" placeholder="Select agent" @update:model-value="selectAgent" />
-        </div>
         <LiveControl :seconds="liveRefresh.seconds.value" :updated-at="liveRefresh.updatedAt.value" @update:seconds="setRefreshSeconds" />
       </FilterBar>
     </PageHeader>
@@ -535,7 +584,7 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
       </q-card>
     </q-dialog>
 
-    <q-tab-panels v-model="activeTab" animated keep-alive class="metrics-tab-panels">
+    <q-tab-panels v-model="activeTab" keep-alive class="metrics-tab-panels">
       <q-tab-panel name="overview" class="metrics-tab-panel">
         <ErrorBanner v-if="overview.error.value" :error="overview.error.value" @retry="reload" />
         <div v-else-if="overview.loading.value && !data" class="loading-box">
@@ -545,64 +594,41 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
         <EmptyState v-else-if="empty" icon="insights" title="No data in this range">Run an instrumented agent or extend the time range.</EmptyState>
 
         <template v-else-if="data">
-          <!-- Summary Overview -->
-          <div class="summary-overview">
-            <div class="summary-tile">
-              <div class="summary-number">{{ formatCount(data.totals.traces) }}</div>
-              <div class="summary-text">Executions</div>
+          <section class="health" :class="health.key" data-testid="health-banner">
+            <span class="health-icon" aria-hidden="true">
+              <svg v-if="health.key === 'ok'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10" /></svg>
+              <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5M12 16.5h.01" /></svg>
+            </span>
+            <div class="health-body">
+              <h2>{{ health.title }}</h2>
+              <p>{{ health.text }}</p>
             </div>
-            <div class="summary-tile">
-              <div class="summary-number">{{ formatCount(data.totals.conversations) }}</div>
-              <div class="summary-text">Conversations</div>
-            </div>
-            <div class="summary-tile">
-              <div class="summary-number">{{ formatCount(data.totals.spans) }}</div>
-              <div class="summary-text">Operations</div>
-            </div>
-          </div>
+          </section>
 
-          <!-- Top Row: Status + Key Metrics -->
-          <div class="top-row">
-            <div class="status-card" :class="health.key">
-              <div class="status-icon"><i /></div>
-              <div class="status-body">
-                <div class="status-label">STATUS</div>
-                <div class="status-value">{{ formatPercent(successRate) }}</div>
-                <div class="status-text">{{ health.text }}</div>
+          <section class="kpi-strip" aria-label="Key figures">
+            <div v-for="k in kpis" :key="k.key" class="kpi" :data-testid="`kpi-${k.key}`">
+              <span class="kpi-label">{{ k.label }}</span>
+              <div class="kpi-main">
+                <span class="kpi-value" :class="k.tone">{{ k.value }}</span>
+                <div v-if="k.spark" class="kpi-spark"><EChart :option="traceSpark" height="28px" label="Trend" /></div>
               </div>
-              <div class="spark-box">
-                <EChart :option="traceSpark" height="72px" label="Trend" />
-              </div>
+              <a v-if="k.link" class="kpi-sub link" @click="goToErrors">{{ k.sub }} · view →</a>
+              <span v-else class="kpi-sub" :class="k.tone">{{ k.sub }}</span>
             </div>
+          </section>
 
-            <div class="metric-card" :class="{ alert: data.totals.errorTraces > 0 }">
-              <div class="metric-label">ERRORS</div>
-              <div class="metric-value-with-icon">
-                <q-icon v-if="data.totals.errorTraces > 0" name="error" size="20px" color="var(--mt-err-ink)" />
-                <div :style="{ color: data.totals.errorTraces > 0 ? 'var(--mt-err-ink)' : 'var(--mt-accent)' }">{{ formatCount(data.totals.errorTraces) }}</div>
-              </div>
-              <div class="metric-detail">{{ formatPercent(data.totals.errorRate) }}</div>
-              <a v-if="data.totals.errorTraces > 0" class="error-link" @click="goToErrors">View traces →</a>
+          <section class="attention" aria-label="Needs attention">
+            <div class="attention-head">
+              <h2>Needs attention</h2>
+              <span v-if="attention.length" class="attention-count">{{ attention.length }}</span>
             </div>
-
-            <div class="metric-card">
-              <div class="metric-label">LATENCY P95</div>
-              <div class="metric-value" style="color: var(--mt-accent)">{{ formatDuration(data.latencyMs.p95) }}</div>
-              <div class="metric-detail">{{ formatDuration(data.latencyMs.p50) }} median</div>
-            </div>
-
-            <div class="metric-card">
-              <div class="metric-label">TOTAL TOKENS</div>
-              <div class="metric-value" style="color: var(--mt-accent)">{{ formatCount(data.totals.totalTokens) }}</div>
-              <div class="metric-detail">{{ formatCount(Math.round(tokensPerTrace)) }} per exec.</div>
-            </div>
-
-            <div class="metric-card">
-              <div class="metric-label">TOTAL COST</div>
-              <div class="metric-value" style="color: var(--mt-accent)">{{ formatCostUsd(data.totals.costUsd) }}</div>
-              <div class="metric-detail">{{ formatCostUsd(costPerTrace) }} per exec.</div>
-            </div>
-          </div>
+            <p v-if="!attention.length" class="all-clear" data-testid="all-clear">Nothing needs your attention in this range.</p>
+            <button v-for="a in attention" :key="a.key" type="button" class="attn" :class="a.tone" data-testid="attention-item" @click="a.go">
+              <span class="attn-dot" aria-hidden="true" />
+              <span class="attn-text"><strong>{{ a.title }}</strong><span>{{ a.text }}</span></span>
+              <span class="attn-cta">{{ a.cta }} →</span>
+            </button>
+          </section>
 
           <!-- Charts Row - Activity & Tokens -->
           <div class="charts-grid">
@@ -768,7 +794,7 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
       </q-tab-panel>
 
       <q-tab-panel name="offline" class="metrics-tab-panel">
-        <OfflineEvalPanel v-if="activeTab === 'offline'" :range="customChartsRange" />
+        <OfflineEvalPanel v-if="activeTab === 'offline'" :range="customChartsRange" :compare-ids="compareIds" />
       </q-tab-panel>
 
       <q-tab-panel v-for="r in reports.data.value ?? []" :key="r.id" :name="reportTabName(r.id)" class="metrics-tab-panel">
@@ -912,204 +938,92 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
   padding: 20px 0 0;
 }
 
-/* Summary Overview */
-.summary-overview {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  margin-bottom: 4px;
-}
-
-.summary-tile {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 20px;
-  border-radius: var(--mt-radius-lg);
-  background: var(--mt-soft);
-  text-align: center;
-}
-
-.summary-number {
-  font-size: 32px;
-  font-weight: 800;
-  color: var(--mt-accent);
-  line-height: 1;
-  letter-spacing: -0.03em;
-}
-
-.summary-text {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--mt-muted);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-/* Top Row */
-.top-row {
-  display: grid;
-  grid-template-columns: 1.8fr 1fr 1fr 1fr 1fr;
-  gap: 16px;
-}
-
-.status-card {
+/* Health banner, KPIs y "Needs attention" (ADR-048) */
+.health {
   display: flex;
   align-items: center;
-  gap: 24px;
-  padding: 28px;
+  gap: 16px;
+  padding: 14px 18px;
   border-radius: var(--mt-radius-lg);
-  background: var(--mt-card);
-  box-shadow: var(--mt-shadow);
-  border-left: 5px solid;
+  border: 1px solid transparent;
 }
-
-.status-card.ok {
-  border-left-color: var(--mt-accent);
-}
-.status-card.warn {
-  border-left-color: var(--mt-warn-ink);
-}
-.status-card.error {
-  border-left-color: var(--mt-err-ink);
-}
-
-.status-icon {
-  flex-shrink: 0;
-  width: 64px;
-  height: 64px;
+.health.ok { background: var(--mt-ok-bg); color: var(--mt-ok-ink); border-color: color-mix(in srgb, var(--mt-ok) 25%, transparent); }
+.health.warn { background: var(--mt-warn-bg); color: var(--mt-warn-ink); border-color: color-mix(in srgb, var(--mt-warn) 30%, transparent); }
+.health.error { background: var(--mt-err-bg); color: var(--mt-err-ink); border-color: color-mix(in srgb, var(--mt-err) 25%, transparent); }
+.health-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-}
-
-.status-card.ok .status-icon {
-  background: color-mix(in srgb, var(--mt-accent) 12%, transparent);
-}
-.status-card.warn .status-icon {
-  background: color-mix(in srgb, var(--mt-warn-ink) 12%, transparent);
-}
-.status-card.error .status-icon {
-  background: color-mix(in srgb, var(--mt-err-ink) 12%, transparent);
-}
-
-.status-icon i {
   width: 36px;
   height: 36px;
-  border-radius: 50%;
-}
-
-.status-card.ok .status-icon i {
-  background: var(--mt-accent);
-}
-.status-card.warn .status-icon i {
-  background: var(--mt-warn-ink);
-}
-.status-card.error .status-icon i {
-  background: var(--mt-err-ink);
-}
-
-.status-body {
-  flex: 1;
-}
-
-.status-label {
-  font-size: 11px;
-  font-weight: 800;
-  color: var(--mt-muted);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.status-value {
-  font-size: 48px;
-  font-weight: 900;
-  color: var(--mt-accent);
-  line-height: 1;
-  letter-spacing: -0.05em;
-  margin-top: 4px;
-}
-
-.status-card.warn .status-value {
-  color: var(--mt-warn-ink);
-}
-.status-card.error .status-value {
-  color: var(--mt-err-ink);
-}
-
-.status-text {
-  font-size: 14px;
-  color: var(--mt-ink);
-  font-weight: 600;
-  margin-top: 6px;
-}
-
-.spark-box {
   flex-shrink: 0;
-  width: 140px;
+  border-radius: 50%;
+  color: #fff;
 }
+.health.ok .health-icon { background: var(--mt-ok); }
+.health.warn .health-icon { background: var(--mt-warn); }
+.health.error .health-icon { background: var(--mt-err); }
+.health-body h2 { margin: 0; font-size: 16px; font-weight: 800; letter-spacing: -0.01em; }
+.health-body p { margin: 2px 0 0; font-weight: 500; }
 
-/* Metric Cards */
-.metric-card {
+.kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  background: var(--mt-card);
+  border: 1px solid var(--mt-line);
+  border-radius: var(--mt-radius-lg);
+}
+.kpi {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 24px;
-  border-radius: var(--mt-radius-lg);
+  gap: 4px;
+  padding: 13px 16px;
+  border-left: 1px solid var(--mt-line-2);
+}
+.kpi:first-child { border-left: none; }
+.kpi-label { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: var(--mt-muted); }
+.kpi-main { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+.kpi-value { font-size: 25px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
+.kpi-value.error, .kpi-sub.error { color: var(--mt-err-ink); }
+.kpi-value.warn, .kpi-sub.warn { color: var(--mt-warn-ink); }
+.kpi-sub.good { color: var(--mt-ok-ink); }
+.kpi-spark { width: 64px; flex-shrink: 0; }
+.kpi-sub { font-size: 12px; font-weight: 600; color: var(--mt-muted); }
+.kpi-sub.link { color: var(--mt-err-ink); cursor: pointer; }
+.kpi-sub.link:hover { text-decoration: underline; }
+
+.attention {
   background: var(--mt-card);
-  box-shadow: var(--mt-shadow);
+  border: 1px solid var(--mt-line);
+  border-radius: var(--mt-radius-lg);
+  overflow: hidden;
 }
-
-.metric-card.alert {
-  border: 2px solid rgba(217, 179, 240, 0.3);
-}
-
-.metric-label {
-  font-size: 11px;
-  font-weight: 800;
-  color: var(--mt-muted);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.metric-value {
-  font-size: 42px;
-  font-weight: 900;
-  line-height: 1;
-  letter-spacing: -0.05em;
-}
-
-.metric-value-with-icon {
+.attention-head { display: flex; align-items: center; gap: 8px; padding: 12px 16px; }
+.attention-head h2 { margin: 0; font-size: 14px; font-weight: 800; }
+.attention-count { padding: 1px 7px; border-radius: var(--mt-radius-xs); background: var(--mt-highlight-soft); color: var(--mt-highlight-ink); font-size: 11px; font-weight: 800; }
+.all-clear { margin: 0; padding: 4px 16px 16px; color: var(--mt-muted); }
+.attn {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 42px;
-  font-weight: 900;
-  line-height: 1;
-  letter-spacing: -0.05em;
-}
-
-.metric-detail {
-  font-size: 12px;
-  color: var(--mt-muted);
-  font-weight: 600;
-}
-
-.error-link {
-  margin-top: 8px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--mt-err-ink);
+  gap: 12px;
+  width: 100%;
+  padding: 10px 16px;
+  border: 0;
+  border-top: 1px solid var(--mt-line-2);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
-  transition: color 0.2s;
-  text-decoration: none;
 }
-
-.error-link:hover {
-  color: var(--mt-err-ink);
-  text-decoration: underline;
-}
+.attn:hover { background: var(--mt-soft-2); }
+.attn-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--mt-accent); }
+.attn.error .attn-dot { background: var(--mt-err); }
+.attn.warn .attn-dot { background: var(--mt-warn); }
+.attn-text { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+.attn-text strong { font-weight: 700; }
+.attn-text span { font-size: 12px; color: var(--mt-muted); }
+.attn-cta { font-size: 12px; font-weight: 700; color: var(--mt-accent-text); }
 
 /* Charts Grid */
 .charts-grid {
@@ -1195,10 +1109,6 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
   font-size: 20px;
   font-weight: 800;
   color: var(--mt-accent);
-}
-
-.agent-select {
-  width: 200px;
 }
 
 .compare-panel {

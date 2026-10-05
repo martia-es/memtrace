@@ -7,7 +7,7 @@ DASH_IMAGE ?= docker.io/memtrace/dashboard:dev
 DOCS_IMAGE ?= docker.io/memtrace/docs:dev
 
 .DEFAULT_GOAL := help
-.PHONY: help check up images status forward logs query migrate migrate-postgres down reset db-reset dev-data docs weather
+.PHONY: help check up images dashboard api status forward logs query migrate migrate-postgres down reset db-reset dev-data docs weather weather-bg weather-stop
 
 help: ## Muestra esta ayuda
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-10s %s\n", $$1, $$2}'
@@ -43,12 +43,14 @@ up: check ## Levanta todo en 1 solo comando (clúster, despliegue, migraciones y
 	@nohup kubectl port-forward svc/postgres 5432:5432 -n $(NS) >/dev/null 2>&1 &
 	@nohup kubectl port-forward svc/docs 8081:8080 -n $(NS) >/dev/null 2>&1 &
 	@nohup kubectl port-forward svc/api 3001:3001 -n $(NS) >/dev/null 2>&1 &
+	@$(MAKE) --no-print-directory weather-bg
 	@echo ""
 	@echo "✨ ¡Todo listo en 1 solo comando!"
 	@echo "  • Dashboard:         http://localhost:8080"
 	@echo "  • Documentación:     http://localhost:8081"
 	@echo "  • API (SDK/ejemplos): http://localhost:3001"
 	@echo "  • UI de ClickHouse:  http://localhost:8123/play (Usuario: default | Pass: memtrace-dev-only)"
+	@echo "  • Asistente del tiempo: http://localhost:8000 (logs: weather_assistant/uvicorn.log)"
 	@echo "  • OTel Collector:    localhost:4317 (gRPC) / localhost:4318 (HTTP)"
 	@echo "  • Postgres:          localhost:5432 (Usuario: memtrace | DB: memtrace_identity | Pass: memtrace-dev-only)"
 	@echo ""
@@ -62,6 +64,30 @@ images: ## Construye las imágenes de la API, el dashboard y la documentación y
 		docker save -o $$tmp $$img && kind load image-archive $$tmp --name $(CLUSTER) || { rm -f $$tmp; exit 1; }; \
 	done; rm -f $$tmp
 	@kubectl rollout restart deployment/api deployment/dashboard deployment/docs -n $(NS) 2>/dev/null || true
+
+# Reconstruye UNA imagen, la carga en el clúster, reinicia su deployment y relanza solo su port-forward
+# $(1)=deployment  $(2)=imagen  $(3)=comando docker build  $(4)=puerto local:servicio
+define redeploy
+	$(3)
+	@tmp=$$(mktemp -t memtrace-image.XXXXXX); \
+	docker save -o $$tmp $(2) && kind load image-archive $$tmp --name $(CLUSTER) || { rm -f $$tmp; exit 1; }; rm -f $$tmp
+	kubectl rollout restart deployment/$(1) -n $(NS)
+	kubectl rollout status deployment/$(1) -n $(NS) --timeout=300s
+	@pkill -f "kubectl port-forward svc/$(1) " 2>/dev/null || true
+	@nohup kubectl port-forward svc/$(1) $(4) -n $(NS) >/dev/null 2>&1 &
+endef
+
+dashboard: ## Reconstruye y despliega solo el dashboard (más rápido que make images)
+	$(call redeploy,dashboard,$(DASH_IMAGE),docker build -f dashboard/Dockerfile -t $(DASH_IMAGE) .,8080:8080)
+	@echo "Dashboard actualizado: http://localhost:8080 (recarga forzada: Ctrl/Cmd+Shift+R)"
+
+api: ## Reconstruye y despliega solo la API (más rápido que make images)
+	$(call redeploy,api,$(API_IMAGE),docker build -t $(API_IMAGE) api,3001:3001)
+	@echo "API actualizada: http://localhost:3001"
+
+docs: ## Reconstruye y despliega solo la documentación (más rápido que make images)
+	$(call redeploy,docs,$(DOCS_IMAGE),docker build -t $(DOCS_IMAGE) docs-site,8081:8080)
+	@echo "Documentación actualizada: http://localhost:8081 (recarga forzada: Ctrl/Cmd+Shift+R)"
 
 status: ## Estado de pods, volúmenes y migraciones
 	kubectl get pods,pvc,job -n $(NS)
@@ -94,7 +120,7 @@ migrate-postgres: ## Relanza las migraciones de Postgres (necesario tras añadir
 	kubectl apply -k .
 	kubectl wait --for=condition=complete job/postgres-migrate -n $(NS) --timeout=300s
 
-down: ## Para el clúster conservando los datos (reanuda con 'make up')
+down: weather-stop ## Para el clúster conservando los datos (reanuda con 'make up')
 	@pkill -f "kubectl port-forward" 2>/dev/null || true
 	docker stop $(CLUSTER)-control-plane 2>/dev/null || true
 
@@ -126,6 +152,15 @@ dev-data: ## Genera trazas de ejemplo (agente simulado) para probar el dashboard
 weather: ## Arranca el asistente del tiempo (API + UI en http://localhost:8000). Ctrl+C para parar
 	@command -v uv >/dev/null 2>&1 || { echo "Falta 'uv': instálalo antes de continuar"; exit 1; }
 	cd weather_assistant && uv sync --all-groups && uv run uvicorn app.main:app --reload --port 8000
+
+weather-stop: ## Para el asistente del tiempo lanzado en segundo plano
+	@pkill -f "uvicorn app.main:app --reload --port 8000" 2>/dev/null || true
+
+# Relanza el asistente en segundo plano: el proceso nuevo relee el .env (la API key de MemTrace se lee solo al arrancar)
+weather-bg: weather-stop ## Arranca el asistente del tiempo en segundo plano (lo usa make up)
+	@command -v uv >/dev/null 2>&1 || { echo "Falta 'uv': omito el asistente del tiempo"; exit 0; }
+	@cd weather_assistant && uv sync --all-groups >/dev/null && \
+		(nohup uv run uvicorn app.main:app --reload --port 8000 >uvicorn.log 2>&1 &)
 
 diagrams:
 	cd docs/architecture && env -u GEMINI_API_KEY npx likec4@1.59.2 serve

@@ -91,7 +91,7 @@ CREATE TABLE annotation_queue_claims (              -- one row per reviewer per 
   ```
   then inserts the claim. `SKIP LOCKED` prevents two simultaneous callers from getting the same row; the 15 minute lease frees items abandoned by a closed tab without any background job (stale claims simply stop counting). Lease length is a config constant, not per-queue.
 * A reviewer who already has an unfinished claim is returned that item first (resume), so refreshing the page does not burn another item.
-* **Skip** sets `skipped_at` on that user's claim; the item returns to the pool for others. If **every** eligible reviewer skips, an admin sees it as "skipped" in the queue overview (item `status` set to `skipped` by a "mark unreviewable" admin action, not automatically).
+* **Skip** sets `skipped_at` on that user's claim; the item returns to the pool for others, and to the same reviewer too, but only after every item they have not seen yet and oldest skip first (so a single reviewer never loses items by skipping; re-claiming clears `skipped_at`). If **every** eligible reviewer skips, an admin sees it as "skipped" in the queue overview (item `status` set to `skipped` by a "mark unreviewable" admin action, not automatically).
 
 ### Completing an item (the dual-store write)
 

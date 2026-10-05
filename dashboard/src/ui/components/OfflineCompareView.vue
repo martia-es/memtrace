@@ -9,13 +9,13 @@ import { useTraceApi } from "../composables/useTraceApi";
 import ErrorBanner from "./ErrorBanner.vue";
 import Select from "./Select.vue";
 
-const props = defineProps<{ runs: RunListItemDto[] }>();
+const props = defineProps<{ runs: RunListItemDto[]; /** baseline and candidate chosen elsewhere (Evaluations → Compare runs) */ initialIds?: [string, string] | null }>();
 
 const api = useTraceApi();
 
 const options = computed(() => [...props.runs].reverse().map((r) => ({ label: `${offlineRunLabel(r)} · ${formatDateTime(r.createdAt)}`, value: r.id })));
-const idA = ref<string | null>(null);
-const idB = ref<string | null>(null);
+const idA = ref<string | null>(props.initialIds?.[0] ?? null);
+const idB = ref<string | null>(props.initialIds?.[1] ?? null);
 watch(
   () => props.runs,
   (runs) => {

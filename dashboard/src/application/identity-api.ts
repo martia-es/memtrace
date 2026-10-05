@@ -20,6 +20,8 @@ export interface OrganizationDto {
   name: string;
   /** org_admin si el usuario lo es; null si solo la ve por membership directa en un experimento suyo (ADR-016). */
   myRole: "org_admin" | null;
+  /** permisos que le da su rol de organización (ADR-052) */
+  permissions: string[];
   theme: OrganizationThemeDto;
 }
 
@@ -28,7 +30,10 @@ export interface ExperimentDto {
   organizationId: string;
   name: string;
   serviceName: string;
-  myRole: "org_admin" | "admin" | "member";
+  /** etiqueta del rol; para decidir qué mostrar, usar `permissions` */
+  myRole: string;
+  /** permisos efectivos en este experimento: rol de organización + rol de experimento (ADR-052) */
+  permissions: string[];
   /** Tema de la organización dueña, embebido para que MainLayout lo aplique sin otra llamada. */
   organizationTheme: OrganizationThemeDto;
 }
@@ -45,13 +50,15 @@ export interface MemberDto {
   userId: string;
   email: string;
   name: string | null;
-  role: "org_admin" | "admin" | "member";
+  role: string;
+  /** `manual`, o el proveedor de identidad que gestiona esta membresía (ADR-052) */
+  source: "manual" | "oidc" | "scim";
 }
 
 export interface PendingInvitationDto {
   id: string;
   email: string;
-  role: "org_admin" | "admin" | "member";
+  role: string;
   createdAt: string;
 }
 
@@ -106,6 +113,29 @@ export interface MetricReportDto extends MetricReportSummaryDto {
   charts: MetricReportChartDto[];
 }
 
+/** Un grupo del proveedor de identidad que da un rol; sin `experimentId` el rol es de toda la organización (ADR-052). */
+export interface ExternalMappingDto {
+  id: string;
+  externalGroup: string;
+  experimentId: string | null;
+  role: string;
+  createdAt: string;
+}
+
+export interface ScimTokenDto {
+  id: string;
+  tokenPrefix: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
+export interface OrganizationIdentityDto {
+  groupsClaim: string;
+  mappings: ExternalMappingDto[];
+  scimTokens: ScimTokenDto[];
+  scimBaseUrl: string;
+}
+
 export interface IdentityApi {
   /** `null` si no hay sesión (401) — nunca lanza para ese caso, es la forma normal de comprobar el login. */
   getMe(signal?: AbortSignal): Promise<CurrentUser | null>;
@@ -114,9 +144,18 @@ export interface IdentityApi {
   addOrgAdmin(organizationId: string, email: string, signal?: AbortSignal): Promise<void>;
   listOrgMembers(organizationId: string, signal?: AbortSignal): Promise<MembersResponseDto>;
   updateOrganizationTheme(organizationId: string, theme: OrganizationThemeDto, signal?: AbortSignal): Promise<OrganizationDto>;
+  /** Identidad externa de la organización: claim de grupos, mapeos y tokens SCIM. Solo org_admin. */
+  getOrganizationIdentity(organizationId: string, signal?: AbortSignal): Promise<OrganizationIdentityDto>;
+  setGroupsClaim(organizationId: string, groupsClaim: string, signal?: AbortSignal): Promise<void>;
+  createExternalMapping(organizationId: string, input: { externalGroup: string; experimentId: string | null; role: string }, signal?: AbortSignal): Promise<ExternalMappingDto>;
+  deleteExternalMapping(organizationId: string, mappingId: string, signal?: AbortSignal): Promise<void>;
+  /** El campo `plaintext` solo viene relleno aquí. */
+  createScimToken(organizationId: string, signal?: AbortSignal): Promise<ScimTokenDto & { plaintext: string }>;
+  revokeScimToken(organizationId: string, tokenId: string, signal?: AbortSignal): Promise<void>;
   listExperiments(signal?: AbortSignal): Promise<ExperimentDto[]>;
-  createExperiment(organizationId: string, name: string, serviceName: string, signal?: AbortSignal): Promise<ExperimentDto>;
-  addExperimentMember(experimentId: string, email: string, role: "admin" | "member", signal?: AbortSignal): Promise<void>;
+  /** Crea un experimento, que es un agente (ADR-054): `profile` es su ficha en el catálogo de asistentes. */
+  createExperiment(organizationId: string, name: string, serviceName: string, profile?: { description?: string }, signal?: AbortSignal): Promise<ExperimentDto>;
+  addExperimentMember(experimentId: string, email: string, role: string, signal?: AbortSignal): Promise<void>;
   listExperimentMembers(experimentId: string, signal?: AbortSignal): Promise<MembersResponseDto>;
   listApiKeys(experimentId: string, signal?: AbortSignal): Promise<ApiKeyDto[]>;
   /** El campo `plaintext` solo viene relleno aquí — no se puede volver a consultar después. */

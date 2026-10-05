@@ -65,6 +65,8 @@ export interface PromotedFrom {
   promotedBy: string;
   promotedAt: string;
   observedOutput: unknown | null;
+  /** cola de revisión de origen, si la promoción salió de una (ADR-050) */
+  queueId?: string;
   annotations: Array<{ config: string; value: string; annotator: string }>;
 }
 
@@ -75,6 +77,7 @@ export function buildPromotedItem(args: {
   annotations: Annotation[];
   promotedBy: string;
   promotedAt: Date;
+  queueId?: string;
 }): PromotedItemDraft {
   return {
     traceId: args.traceId,
@@ -86,6 +89,7 @@ export function buildPromotedItem(args: {
         promotedBy: args.promotedBy,
         promotedAt: args.promotedAt.toISOString(),
         observedOutput: args.content.output,
+        ...(args.queueId ? { queueId: args.queueId } : {}),
         annotations: args.annotations
           .filter((a) => a.spanId === null && !a.datasetRunId)
           .map((a) => ({ config: a.configName, value: a.value, annotator: a.annotatorId })),

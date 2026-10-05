@@ -14,6 +14,7 @@ async function setup(component: object, api: FakeTraceApi, path: string) {
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
+      { path: "/overview", name: "overview", component: { template: "<div />" } },
       { path: "/datasets", name: "datasets", component: { template: "<div />" } },
       { path: "/datasets/:datasetId", name: "dataset", component: { template: "<div />" } },
       { path: "/runs", name: "runs", component: { template: "<div />" } },
@@ -97,7 +98,7 @@ describe("DatasetDetailPage", () => {
     await clickTab(wrapper, "Runs");
 
     expect(wrapper.find("tbody tr").text()).toContain("toy-agent-v1");
-    expect(wrapper.find("tbody tr .mt-pill").text()).toContain("66 %");
+    expect(wrapper.find("tbody tr .mt-pill").text()).toContain("66%");
 
     await wrapper.find("tbody tr").trigger("click");
     await flushPromises();
@@ -181,15 +182,35 @@ describe("RunsPage", () => {
 
     const { wrapper, router } = await setup(RunsPage, api, "/runs");
     const headers = wrapper.findAll("th").map((th) => th.text());
-    expect(headers).toEqual(["Run", "Dataset", "Version", "exact_match", "Items", "Created"]);
+    expect(headers).toEqual(["", "Run", "Dataset", "Version", "exact_match", "Items", "Created"]);
     expect(wrapper.find("tbody tr").text()).toContain("toy-agent-v1");
     expect(wrapper.find("tbody tr").text()).toContain("toy-agent-smoke-test");
-    expect(wrapper.find("tbody tr .mt-pill").text()).toContain("66 %");
+    expect(wrapper.find("tbody tr .mt-pill").text()).toContain("66%");
 
     await wrapper.find("tbody tr").trigger("click");
     await flushPromises();
     expect(router.currentRoute.value.name).toBe("dataset-run");
     expect(router.currentRoute.value.params).toMatchObject({ datasetId: "ds-1", runId: "run-1" });
+  });
+
+  it("compares two completed runs: ticking them shows the compare bar and deep-links to the offline comparison", async () => {
+    const api = new FakeTraceApi();
+    api.runs = { items: [runListItem({ id: "run-a", name: "baseline" }), runListItem({ id: "run-b", name: "candidate" }), runListItem({ id: "run-c", name: "still-running", status: "running" })] };
+    const { wrapper, router } = await setup(RunsPage, api, "/runs");
+    expect(wrapper.find('[data-testid="compare-bar"]').exists()).toBe(false);
+
+    const boxes = wrapper.findAll('[data-testid="pick-run"]');
+    expect(boxes[2]!.attributes("disabled")).toBeDefined(); // only completed runs can be compared
+    await boxes[0]!.setValue(true);
+    expect(wrapper.get('[data-testid="compare-go"]').attributes("disabled")).toBeDefined(); // one is not enough
+    await boxes[1]!.setValue(true);
+    expect(wrapper.get('[data-testid="compare-bar"]').text()).toContain("baseline (baseline) vs candidate");
+    expect(router.currentRoute.value.name).toBe("runs"); // ticking never opens the run
+
+    await wrapper.get('[data-testid="compare-go"]').trigger("click");
+    await flushPromises();
+    expect(router.currentRoute.value.name).toBe("overview");
+    expect(router.currentRoute.value.query).toMatchObject({ tab: "offline", compare: "run-a,run-b" });
   });
 
   it("filters by dataset and by run/dataset name", async () => {
@@ -225,7 +246,7 @@ describe("DatasetRunDetailPage", () => {
     expect(wrapper.text()).toContain("toy-agent-smoke-test");
     expect(wrapper.text()).toContain("Agent version:");
     expect(wrapper.text()).toContain("toy-agent-v1");
-    expect(wrapper.text()).toContain("66 %");
+    expect(wrapper.text()).toContain("66%");
     expect(wrapper.text()).toContain("capital of Spain?");
     expect(wrapper.text()).toContain("Barcelona");
     expect(wrapper.find(".mt-pill.error").text()).toContain("exact_match=false");

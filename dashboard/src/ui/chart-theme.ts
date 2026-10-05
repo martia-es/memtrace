@@ -4,17 +4,20 @@ export interface ChartColors {
   grid: string;
   primary: string;
   danger: string;
+  /** Semantic good / caution colors for pass-fail charts. */
+  ok: string;
+  warn: string;
   accent: string;
   /** Monochrome scale for categorical series (pie slices, multi-series charts), darkest/lightest first. */
   series: readonly string[];
 }
 
-// Monochrome scale matching --mt-accent (ADR-018/monochrome UI): grayscale only, no hue.
-const SERIES_LIGHT = ["#1c1f23", "#454950", "#6e727a", "#989ca4", "#c2c5cc"] as const;
-const SERIES_DARK = ["#f2f3f5", "#c7cad0", "#9ca0a8", "#72767f", "#4a4e56"] as const;
+// Series categóricas del diseño Mediterráneo (ADR-048): turquesa, terracota, mar hondo, sol, arena y pizarra.
+const SERIES_LIGHT = ["#00b3ad", "#ff6b4a", "#0a5c8f", "#ffb820", "#c9a27a", "#64748b"] as const;
+const SERIES_DARK = ["#2bc4bd", "#ff8a6b", "#4c9bd6", "#ffc24d", "#d6b48c", "#8497b0"] as const;
 
 export function chartColors(dark: boolean): ChartColors {
   return dark
-    ? { text: "#e3e8f0", muted: "#9aa6b8", grid: "rgba(255,255,255,0.10)", primary: "#f2f3f5", danger: "#ff9d97", accent: "#f2f3f5", series: SERIES_DARK }
-    : { text: "#1f2a3a", muted: "#5b6779", grid: "rgba(0,0,0,0.08)", primary: "#1c1f23", danger: "#b3261e", accent: "#1c1f23", series: SERIES_LIGHT };
+    ? { text: "#e6f4f2", muted: "#8fb0ac", grid: "rgba(255,255,255,0.10)", primary: "#2bc4bd", danger: "#ff6b88", ok: "#4ade80", warn: "#fbbf24", accent: "#ff8a6b", series: SERIES_DARK }
+    : { text: "#0a2321", muted: "#4d6a67", grid: "rgba(10,35,33,0.08)", primary: "#00b3ad", danger: "#e11d48", ok: "#16a34a", warn: "#f59e0b", accent: "#ff6b4a", series: SERIES_LIGHT };
 }

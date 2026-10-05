@@ -238,7 +238,8 @@ a.adm-item:hover {
   background: var(--mt-accent);
   color: var(--mt-accent-ink);
 }
-.adm-pill.admin {
+.adm-pill.technical,
+.adm-pill.business {
   background: var(--mt-soft);
   color: var(--mt-ink);
 }

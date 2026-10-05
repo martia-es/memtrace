@@ -95,6 +95,7 @@ async function mountPage(component: object, api: FakeTraceApi, path: string, pro
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
+      { path: "/overview", name: "overview", component: { template: "<div />" } },
       { path: "/conversations", name: "conversations", component: { template: "<div />" } },
       { path: "/traces/:traceId", name: "trace", component: { template: "<div />" } },
       { path: "/conversations/:conversationId", name: "conversation", component: { template: "<div />" } },
@@ -120,7 +121,7 @@ describe("ConversationsPage live refresh", () => {
       { items: [trace("0", "cero", 4)], nextCursor: null },
     ];
     setRefreshSeconds(5);
-    const wrapper = await mountPage(ConversationsPage, api, "/conversations?range=24h");
+    const wrapper = await mountPage(ConversationsPage, api, "/conversations?range=24h&group=flat");
     await wrapper.findAll("button").find((b) => b.text().includes("Load more"))!.trigger("click");
     await vi.advanceTimersByTimeAsync(0);
     await flushPromises();
@@ -144,7 +145,7 @@ describe("ConversationsPage live refresh", () => {
 
   it("does not fetch by itself when set to Off", async () => {
     const api = new FakeTraceApi();
-    const wrapper = await mountPage(ConversationsPage, api, "/conversations");
+    const wrapper = await mountPage(ConversationsPage, api, "/conversations?group=flat");
     const calls = api.listCalls.length;
     await vi.advanceTimersByTimeAsync(60_000);
     expect(api.listCalls.length).toBe(calls);

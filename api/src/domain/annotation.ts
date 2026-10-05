@@ -35,6 +35,26 @@ export interface TraceScore {
 export type AnnotationValue = string | number | boolean;
 
 /**
+ * Una etiqueta humana cuenta como valoración baja si es un "No" (`boolean`) o queda en la mitad inferior del rango
+ * de la rúbrica (`numeric`, estrictamente por debajo del punto medio). Las categóricas no tienen orden, así que
+ * nunca cuentan (ADR-049).
+ */
+export function isLowRating(annotation: Pick<Annotation, "dataType" | "value">, config: Pick<ScoreConfig, "minValue" | "maxValue"> | undefined): boolean {
+  if (annotation.dataType === "boolean") return annotation.value === "false";
+  if (annotation.dataType !== "numeric" || !config || config.minValue === null || config.maxValue === null) return false;
+  const value = Number(annotation.value);
+  return Number.isFinite(value) && value < (config.minValue + config.maxValue) / 2;
+}
+
+/** Las trazas con alguna valoración baja en un rango, para el aviso "Needs attention". */
+export interface LowRatedSummary {
+  /** trazas distintas con al menos una valoración baja */
+  count: number;
+  /** las más recientes primero */
+  items: Array<{ traceId: string; configName: string; value: string; createdAt: string }>;
+}
+
+/**
  * Comprueba que `raw` es un valor válido para la config y lo devuelve normalizado (el mismo formato
  * en que se guardan los `Score.value`). Lanza `AnnotationValueError`.
  */

@@ -1,4 +1,4 @@
-import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
+import type { ConversationCursor, ConversationSummary, ConversationUsage } from "@/domain/conversation";
 import type { AttributeKeyCount, AttributeValueCount, CustomMetricQuery, CustomMetricResult, MetricsOverview, MetricsQuery, ServiceUsage, StepKindCount } from "@/domain/metrics";
 import type { ModelPricing } from "@/domain/pricing";
 import type { ChatSpanRecord } from "@/domain/transcript";
@@ -68,6 +68,8 @@ export interface TraceRepository {
   getUsageByServices(serviceNames: string[], range: TimeRange): Promise<ServiceUsage[]>;
   /** conversaciones con algún turno iniciado en el rango; sus cifras cubren toda su historia retenida */
   listConversations(query: ConversationListQuery): Promise<Page<ConversationSummary, ConversationCursor>>;
+  /** Primer mensaje y tokens por modelo de esas conversaciones, para el título y el coste (ADR-049). Las que no existen no aparecen. */
+  getConversationUsage(ids: string[], toMs: number): Promise<Map<string, ConversationUsage>>;
   /** null si no existe; `range` acota la búsqueda (la retención) */
   getConversation(conversationId: string, range: TimeRange): Promise<ConversationSummary | null>;
   /** spans de LLM de la conversación con su contenido capturado, cronológicos; hasta `maxSpans` (+ `truncated`) */

@@ -25,3 +25,14 @@ describe("clickhouse migrations", () => {
     expect(missing).toEqual([]);
   });
 });
+
+// Lo mismo para los manifiestos: uno que no esté en `resources` existe en el repo pero `kubectl apply -k .` nunca lo aplica.
+describe("k8s manifests", () => {
+  it("are all registered in kustomization.yaml", () => {
+    const kustomization = readFileSync(resolve(root, "kustomization.yaml"), "utf8");
+    const missing = readdirSync(resolve(root, "k8s"))
+      .filter((file) => /^\d+-.*\.yaml$/.test(file))
+      .filter((file) => !kustomization.includes(`k8s/${file}`));
+    expect(missing).toEqual([]);
+  });
+});

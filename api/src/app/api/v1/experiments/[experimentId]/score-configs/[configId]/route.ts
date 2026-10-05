@@ -15,8 +15,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ exper
     const user = await requireUser();
     if (user instanceof Response) return user;
 
-    if (!(await getIdentity().authorizationService.canManageExperimentMembers(user.id, experimentId))) {
-      return problem(403, "Forbidden", "Only experiment admins can manage score configs");
+    if (!(await getIdentity().authorizationService.can(user.id, experimentId, "scoreconfig:manage"))) {
+      return problem(403, "Forbidden", "Missing permission: scoreconfig:manage");
     }
     const patch = await parseJsonOrThrow(updateScoreConfigBody, request);
     return json(toScoreConfigDto(await getAnnotation().updateScoreConfig(experimentId, configId, patch)));

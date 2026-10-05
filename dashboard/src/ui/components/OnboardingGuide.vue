@@ -23,7 +23,7 @@ function copy(text: string, key: string) {
   }, 1500);
 }
 
-// API key generada aquí mismo (ADR-013, pieza 9): solo vive en memoria del componente, se ve una vez.
+// API key generated right here (ADR-013, pieza 9): solo vive en memoria del componente, se ve una vez.
 const generatedApiKey = ref<string | null>(null);
 const generatingApiKey = ref(false);
 async function generateApiKey() {
@@ -42,7 +42,7 @@ async function generateApiKey() {
 function buildEnv(serviceName: string, apiKey: string | null): string {
   const ingestUrl = `${window.location.origin}/api/v1/ingest`;
   const bearer = apiKey ?? "PEGA_AQUI_TU_API_KEY";
-  return `MEMTRACE_SERVICE_NAME="${serviceName || "mi-agente"}"
+  return `MEMTRACE_SERVICE_NAME="${serviceName || "my-agent"}"
 MEMTRACE_OTLP_PROTOCOL="http"
 MEMTRACE_OTLP_ENDPOINT="${ingestUrl}"
 MEMTRACE_OTLP_HEADERS="Authorization=Bearer ${bearer}"
@@ -63,7 +63,7 @@ const setupGuides: Record<`${Framework}-${Language}`, SetupGuide> = {
 from langchain.agents import create_agent
 from langchain.tools import tool
 
-init_tracer(service_name="mi-agente")
+init_tracer(service_name="my-agent")
 
 @tool
 def search(query: str) -> str:
@@ -92,7 +92,7 @@ with session(conversation_id):
 import { createAgent } from "langchain/agents";
 import { tool } from "@langchain/core/tools";
 
-initTracer({ serviceName: "mi-agente" });
+initTracer({ serviceName: "my-agent" });
 
 const search = tool(
   async (query: string) => \`Results for: \${query}\`,
@@ -122,7 +122,7 @@ await session(conversationId, async () => {
 from langgraph.graph import StateGraph
 from langchain.tools import tool
 
-init_tracer(service_name="mi-agente")
+init_tracer(service_name="my-agent")
 
 @tool
 def search(query: str) -> str:
@@ -153,7 +153,7 @@ with session(conversation_id):
 import { StateGraph } from "@langchain/langgraph";
 import { tool } from "@langchain/core/tools";
 
-initTracer({ serviceName: "mi-agente" });
+initTracer({ serviceName: "my-agent" });
 
 const search = tool(
   async (query: string) => \`Results for: \${query}\`,
@@ -181,7 +181,7 @@ await session(conversationId, async () => {
     example: `from memtrace import init_tracer, session, trace_step
 from pydantic_ai import Agent
 
-init_tracer(service_name="mi-agente")
+init_tracer(service_name="my-agent")
 
 agent = Agent("openai:gpt-4", system_prompt="You are a helpful assistant.")
 
@@ -205,7 +205,7 @@ with session(conversation_id):
     example: `import { initTracer, session, traceStep } from "memtrace-ai";
 import { Agent } from "pydantic-ai";
 
-initTracer({ serviceName: "mi-agente" });
+initTracer({ serviceName: "my-agent" });
 
 const agent = new Agent({
   model: "openai:gpt-4",
@@ -238,10 +238,10 @@ const LANGUAGES: { id: Language; label: string }[] = [
   { id: "typescript", label: "TypeScript" },
 ];
 
-// las plantillas usan "mi-agente" como placeholder fijo: se sustituye por el service.name real del experimento
+// las plantillas usan "my-agent" como placeholder fijo: se sustituye por el service.name real del experimento
 const guide = computed(() => {
   const base = setupGuides[`${selectedFramework.value}-${selectedLanguage.value}`];
-  const example = props.serviceName ? base.example.replaceAll("mi-agente", props.serviceName) : base.example;
+  const example = props.serviceName ? base.example.replaceAll("my-agent", props.serviceName) : base.example;
   return { ...base, env: buildEnv(props.serviceName, generatedApiKey.value), example };
 });
 </script>

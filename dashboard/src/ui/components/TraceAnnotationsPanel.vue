@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, inject, reactive, ref, watch } from "vue";
 import { useQuasar } from "quasar";
-import type { AnnotationDto, ScoreConfigDto, TraceAnnotationsResponse } from "@contract";
+import type { AnnotationDto, ScoreConfigDto, TraceAnnotationsResponse, TraceQueueDto } from "@contract";
+import { hasPermission } from "../composables/usePermissions";
 import { CURRENT_EXPERIMENT } from "@/dependency-container";
 import { shortId } from "@/domain/format";
 import { useIdentityApi } from "../composables/useIdentityApi";
@@ -20,10 +21,12 @@ const traceApi = useTraceApi();
 const identityApi = useIdentityApi();
 const $q = useQuasar();
 const currentExperiment = inject(CURRENT_EXPERIMENT, computed(() => null));
-const canModerate = computed(() => currentExperiment.value?.myRole === "admin" || currentExperiment.value?.myRole === "org_admin");
+const canModerate = computed(() => hasPermission(currentExperiment.value, "queue:manage"));
 
 const configs = ref<ScoreConfigDto[]>([]);
 const judgments = ref<TraceAnnotationsResponse>({ annotations: [], scores: [] });
+// colas de revisión que contienen esta traza (ADR-050); informativo, si falla no impide anotar
+const queues = ref<TraceQueueDto[]>([]);
 const myUserId = ref<string | null>(null);
 const loading = ref(true);
 const savingId = ref<string | null>(null);
@@ -45,6 +48,7 @@ async function load() {
     myUserId.value = me?.id ?? null;
     configs.value = list;
     judgments.value = annotated;
+    queues.value = await traceApi.listTraceQueues(props.traceId).then((r) => r.items).catch(() => []);
   } catch (error) {
     notifyError("Could not load annotations", error);
   } finally {
@@ -135,6 +139,13 @@ const scopeOf = (annotation: AnnotationDto) => (annotation.spanId ? `span ${shor
         <button type="button" class="scope-btn" :class="{ active: onSpan }" :title="span.name" @click="onSpan = true">Selected span</button>
         <span class="hint span-name">{{ span.name }}</span>
       </div>
+
+      <p v-if="queues.length" class="hint queues" data-testid="trace-queues">
+        In review queue{{ queues.length === 1 ? "" : "s" }}:
+        <router-link v-for="q in queues" :key="q.queueId" :to="{ name: 'annotation-queues' }" class="queue-chip">
+          {{ q.queueName }} · {{ q.itemStatus === "skipped" ? "unreviewable" : q.itemStatus }}<template v-if="q.archived"> · archived</template>
+        </router-link>
+      </p>
 
       <p v-if="!configs.length" class="hint" data-testid="no-configs">
         There are no score configs yet — they define what you can score.
@@ -372,5 +383,20 @@ const scopeOf = (annotation: AnnotationDto) => (annotation.spanId ? `span ${shor
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
+}
+.queues {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.queue-chip {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--mt-soft);
+  color: var(--mt-ink);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-decoration: none;
 }
 </style>

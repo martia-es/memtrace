@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import type { RunListItemDto, ScoreAggregateDto } from "@contract";
 import { computed, ref, watch } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { formatDateTime } from "@/domain/format";
 import { aggregateTone, aggregateValueLabel } from "@/domain/evaluation";
 import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
+import EvaluationsTabs from "../components/EvaluationsTabs.vue";
 import FilterPill from "../components/FilterPill.vue";
 import PageHeader from "../components/PageHeader.vue";
 import { useAsync } from "../composables/useAsync";
@@ -15,6 +16,7 @@ const PAGE_SIZE = 20;
 
 const api = useTraceApi();
 const router = useRouter();
+const route = useRoute();
 
 const runs = useAsync((signal) => api.listRuns(signal));
 void runs.run();
@@ -49,6 +51,19 @@ function metricCell(r: RunListItemDto, metric: string): ScoreAggregateDto | null
   return r.aggregates.find((a) => a.name === metric) ?? null;
 }
 
+// ---- compare: tick two completed runs and jump to the comparison (ADR-048); the first ticked is the baseline ----
+const picked = ref<string[]>([]);
+const isPicked = (r: RunListItemDto) => picked.value.includes(r.id);
+function togglePick(r: RunListItemDto) {
+  if (r.status !== "completed") return;
+  picked.value = isPicked(r) ? picked.value.filter((id) => id !== r.id) : [...picked.value, r.id].slice(-2);
+}
+const pickedRuns = computed(() => picked.value.map((id) => runs.data.value?.items.find((r) => r.id === id)).filter((r): r is RunListItemDto => !!r));
+const compare = () => {
+  if (picked.value.length !== 2) return;
+  void router.push({ name: "overview", params: { experimentId: route.params.experimentId as string }, query: { tab: "offline", compare: picked.value.join(",") } });
+};
+
 function openRun(run: RunListItemDto) {
   router.push({ name: "dataset-run", params: { datasetId: run.datasetId, runId: run.id } });
 }
@@ -65,12 +80,14 @@ function openRun(run: RunListItemDto) {
       </div>
     </PageHeader>
 
-    <p class="hint muted">Todas las ejecuciones de todos los datasets de este experimento, más recientes primero.</p>
+    <EvaluationsTabs />
+
+    <p class="hint muted">Every run of every dataset in this experiment, most recent first. Tick two completed runs to compare them.</p>
 
     <ErrorBanner v-if="runs.error.value" :error="runs.error.value" @retry="runs.run()" />
     <div v-else-if="runs.loading.value && !runs.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
     <EmptyState v-else-if="(runs.data.value?.items.length ?? 0) === 0" icon="playlist_add_check" title="No runs yet">
-      Corre <code>run_experiment(data="…", …)</code> desde tu script, o abre un dataset y ejecútalo manualmente.
+      Run <code>run_experiment(data="…", …)</code> from your script, or open a dataset and run it manually.
     </EmptyState>
     <EmptyState v-else-if="items.length === 0" icon="search_off" title="No matches">Try a different search or dataset.</EmptyState>
 
@@ -78,6 +95,7 @@ function openRun(run: RunListItemDto) {
       <table class="runs">
         <thead>
           <tr>
+            <th class="pick" />
             <th>Run</th>
             <th>Dataset</th>
             <th class="num">Version</th>
@@ -87,7 +105,19 @@ function openRun(run: RunListItemDto) {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="r in items" :key="r.id" class="run-row" tabindex="0" @click="openRun(r)" @keydown.enter="openRun(r)">
+          <tr v-for="r in items" :key="r.id" class="run-row" :class="{ picked: isPicked(r) }" tabindex="0" @click="openRun(r)" @keydown.enter="openRun(r)">
+            <td class="pick" @click.stop>
+              <input
+                type="checkbox"
+                class="pick-box"
+                data-testid="pick-run"
+                :checked="isPicked(r)"
+                :disabled="r.status !== 'completed'"
+                :title="r.status !== 'completed' ? 'Only completed runs can be compared' : undefined"
+                :aria-label="`Select ${r.name} to compare`"
+                @change="togglePick(r)"
+              />
+            </td>
             <td class="name">{{ r.name }}</td>
             <td class="muted">{{ r.datasetName }}</td>
             <td class="num mono">v{{ r.versionMajor }}.{{ r.versionMinor }} <span v-if="r.status === 'running'" class="mt-pill warn" title="Still receiving results, or the process stopped before finishing">running</span></td>
@@ -102,6 +132,15 @@ function openRun(run: RunListItemDto) {
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <div v-if="picked.length > 0" class="compare-bar" data-testid="compare-bar">
+      <span class="compare-title">{{ picked.length }} {{ picked.length === 1 ? "run" : "runs" }} selected</span>
+      <span class="compare-sub">{{ picked.length === 2 ? `${pickedRuns[0]?.name} (baseline) vs ${pickedRuns[1]?.name}` : "Pick one more run to compare" }}</span>
+      <div class="compare-actions">
+        <button type="button" class="compare-clear" @click="picked = []">Clear</button>
+        <button type="button" class="compare-go" data-testid="compare-go" :disabled="picked.length !== 2" @click="compare">Compare runs →</button>
+      </div>
     </div>
 
     <div v-if="items.length > 0" class="pager">
@@ -121,8 +160,9 @@ function openRun(run: RunListItemDto) {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px;
+  gap: 12px;
+  padding: 16px 24px 20px;
+  background: var(--mt-bg);
 }
 .actions {
   display: flex;
@@ -159,17 +199,21 @@ th {
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: 8px 12px;
-  background: var(--mt-card, #fff);
+  height: 34px;
+  padding: 0 14px;
+  background: var(--mt-soft);
   border-bottom: 1px solid var(--mt-line);
   color: var(--mt-muted);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   text-align: left;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 td {
-  padding: 7px 12px;
+  height: 46px;
+  padding: 0 14px;
   border-bottom: 1px solid var(--mt-line-2);
   white-space: nowrap;
 }
@@ -177,10 +221,13 @@ td {
   text-align: right;
 }
 .name {
-  font-weight: 600;
+  font-weight: 800;
 }
 .run-row {
   cursor: pointer;
+}
+.run-row.picked {
+  background: var(--mt-accent-tint);
 }
 .run-row:hover,
 .run-row:focus-visible {
@@ -215,6 +262,68 @@ td {
 }
 .page-btn:disabled {
   opacity: 0.4;
+  cursor: not-allowed;
+}
+.pick {
+  width: 18px;
+  padding-right: 0;
+}
+.pick-box {
+  accent-color: var(--mt-accent);
+  cursor: pointer;
+}
+.pick-box:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+.compare-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 52px;
+  padding: 0 18px;
+  border-radius: var(--mt-radius-lg);
+  background: var(--mt-ink);
+  color: var(--mt-bg);
+  flex-shrink: 0;
+}
+.compare-title {
+  font-weight: 800;
+}
+.compare-sub {
+  opacity: 0.75;
+  font-size: 12.5px;
+}
+.compare-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.compare-clear {
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  opacity: 0.8;
+  cursor: pointer;
+}
+.compare-go {
+  height: 34px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: var(--mt-radius-sm);
+  background: var(--mt-brand);
+  color: var(--mt-ink);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.compare-go:disabled {
+  opacity: 0.45;
   cursor: not-allowed;
 }
 </style>

@@ -15,6 +15,7 @@ defineProps<{ data: MembersResponseDto | undefined }>();
           <span class="adm-item-title">{{ m.name ?? m.email }}</span>
           <span class="adm-item-meta">{{ m.email }}</span>
         </div>
+        <span v-if="m.source !== 'manual'" class="adm-pill outline" :title="`Managed by your identity provider (${m.source === 'scim' ? 'SCIM' : 'sign-in groups'}): change it there`" data-testid="idp-badge">IdP</span>
         <span class="adm-pill" :class="m.role">{{ ROLE_LABEL[m.role] }}</span>
       </li>
     </ul>

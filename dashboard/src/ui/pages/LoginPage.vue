@@ -30,26 +30,22 @@ async function signIn(provider: "google" | "microsoft") {
 <template>
   <div class="login-container">
     <div class="showcase-panel">
-      <div class="panel-glow panel-glow-1" aria-hidden="true"></div>
-      <div class="panel-glow panel-glow-2" aria-hidden="true"></div>
-      <div class="panel-grid" aria-hidden="true"></div>
-
       <div class="showcase">
         <div class="showcase-brand">
           <svg width="26" height="26" viewBox="0 0 22 22" aria-hidden="true">
-            <rect x="1" y="3" width="12" height="4" rx="2" fill="#ffffff" />
-            <rect x="6" y="9" width="15" height="4" rx="2" fill="#ffffff" opacity="0.75" />
-            <rect x="3" y="15" width="9" height="4" rx="2" fill="#ffffff" opacity="0.5" />
+            <rect x="1" y="3" width="12" height="4.5" rx="2.25" fill="var(--mt-brand)" />
+            <rect x="6" y="9" width="15" height="4.5" rx="2.25" fill="var(--mt-highlight)" />
+            <rect x="3" y="15" width="9" height="4.5" rx="2.25" fill="var(--mt-brand)" opacity="0.5" />
           </svg>
-          <span>memtrace</span>
+          <span>MemTrace</span>
         </div>
 
-        <h1 class="showcase-title">See exactly what your agent does, step by step.</h1>
+        <h1 class="showcase-title">Understand what your agent does, with peace of mind.</h1>
         <p class="showcase-sub">
-          Traces, spans, and cost for every conversation of your LLM agents, with no manual instrumentation.
+          Traces, spans, and cost for every conversation, with no manual instrumentation.
         </p>
 
-        <div class="mockup">
+        <div class="mockup" aria-hidden="true">
           <div class="mockup-row">
             <div class="mockup-kpi">
               <div class="mockup-kpi-label">TRACES</div>
@@ -61,7 +57,7 @@ async function signIn(provider: "google" | "microsoft") {
             </div>
             <div class="mockup-kpi">
               <div class="mockup-kpi-label">ERRORS</div>
-              <div class="mockup-kpi-value ok">0.4%</div>
+              <div class="mockup-kpi-value">0.4%</div>
             </div>
           </div>
           <div class="mockup-trace">
@@ -93,14 +89,14 @@ async function signIn(provider: "google" | "microsoft") {
       <div class="login-card">
         <div class="brand mobile-only">
           <svg width="30" height="30" viewBox="0 0 22 22" aria-hidden="true">
-            <rect x="1" y="3" width="12" height="4" rx="2" fill="var(--mt-ink)" />
-            <rect x="6" y="9" width="15" height="4" rx="2" fill="var(--mt-ink)" opacity="0.75" />
-            <rect x="3" y="15" width="9" height="4" rx="2" fill="var(--mt-ink)" opacity="0.5" />
+            <rect x="1" y="3" width="12" height="4.5" rx="2.25" fill="var(--mt-brand)" />
+            <rect x="6" y="9" width="15" height="4.5" rx="2.25" fill="var(--mt-highlight)" />
+            <rect x="3" y="15" width="9" height="4.5" rx="2.25" fill="var(--mt-brand)" opacity="0.5" />
           </svg>
-          <span>memtrace</span>
+          <span>MemTrace</span>
         </div>
         <h2 class="welcome">Welcome back</h2>
-        <p class="hint">Sign in to view your experiments.</p>
+        <p class="hint">Sign in to pick up where you left off.</p>
         <button class="signin-btn primary" type="button" @click="signIn('google')">
           <span class="provider-icon">
             <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
@@ -131,58 +127,24 @@ async function signIn(provider: "google" | "microsoft") {
 <style scoped>
 .login-container {
   display: flex;
-  height: 100vh;
+  min-height: 100vh;
   background: var(--mt-bg);
 }
 
-/* Left panel: fixed dark brand gradient, independent of light/dark theme,
-   so it gives the same "hero" impact in both cases. */
+/* Left panel: flat brand surface (no gradients, glows or shadows), same tokens in light and dark. */
 .showcase-panel {
-  position: relative;
   flex: 1.1;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 48px;
-  overflow: hidden;
-  background: linear-gradient(155deg, #0b0c0e 0%, #17191d 42%, #23262b 78%, #313540 100%);
+  background: var(--mt-bg);
+  border-right: 1px solid var(--mt-line);
 }
-.panel-glow {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(80px);
-  pointer-events: none;
-}
-.panel-glow-1 {
-  width: 520px;
-  height: 520px;
-  top: -160px;
-  left: -120px;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.16) 0%, transparent 70%);
-}
-.panel-glow-2 {
-  width: 480px;
-  height: 480px;
-  bottom: -200px;
-  right: -140px;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
-}
-.panel-grid {
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
-  background-size: 44px 44px;
-  mask-image: radial-gradient(ellipse 70% 65% at 50% 40%, black 20%, transparent 78%);
-}
-
 .showcase {
-  position: relative;
-  z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
   max-width: 480px;
 }
 .showcase-brand {
@@ -190,34 +152,36 @@ async function signIn(provider: "google" | "microsoft") {
   align-items: center;
   gap: 10px;
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: -0.02em;
-  color: #ffffff;
+  color: var(--mt-ink);
 }
 .showcase-title {
-  font-size: 44px;
+  font-size: 36px;
   font-weight: 800;
   letter-spacing: -0.03em;
-  line-height: 1.12;
+  line-height: 1.15;
   margin: 4px 0 0;
-  color: #ffffff;
+  color: var(--mt-ink);
 }
 .showcase-sub {
   font-size: 15px;
-  color: rgba(255, 255, 255, 0.72);
+  font-weight: 500;
+  color: var(--mt-muted);
   margin: 0;
   line-height: 1.55;
   max-width: 420px;
 }
 .showcase-features {
   list-style: none;
-  margin: 6px 0 0;
+  margin: 4px 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  font-size: 13.5px;
-  color: rgba(255, 255, 255, 0.82);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--mt-muted);
 }
 .showcase-features li {
   display: flex;
@@ -230,21 +194,18 @@ async function signIn(provider: "google" | "microsoft") {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #ffffff;
-  transform: translateY(-2px);
+  background: var(--mt-highlight);
+  transform: translateY(-1px);
 }
 
 .mockup {
-  padding: 20px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   border-radius: var(--mt-radius-lg);
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(16px);
-  box-shadow: 0 24px 60px -16px rgba(0, 0, 0, 0.45);
-  transform: perspective(1200px) rotateX(1.5deg);
+  background: var(--mt-card);
+  border: 1px solid var(--mt-line);
 }
 .mockup-row {
   display: flex;
@@ -253,50 +214,48 @@ async function signIn(provider: "google" | "microsoft") {
 .mockup-kpi {
   flex: 1;
   padding: 10px 12px;
-  border-radius: var(--mt-radius-lg);
-  background: rgba(255, 255, 255, 0.07);
+  border-radius: var(--mt-radius-sm);
+  background: var(--mt-soft);
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 .mockup-kpi-label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.05em;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--mt-muted);
 }
 .mockup-kpi-value {
+  font-family: var(--mt-mono);
   font-size: 16px;
   font-weight: 700;
-  color: #ffffff;
-}
-.mockup-kpi-value.ok {
-  color: #ffffff;
+  color: var(--mt-ink);
 }
 .mockup-trace {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 10px;
-  border-radius: var(--mt-radius-sm);
-  background: rgba(255, 255, 255, 0.05);
-  font-size: 12px;
+  height: 40px;
+  padding: 0 10px;
+  border-top: 1px solid var(--mt-line-2);
+  font-size: 12.5px;
 }
 .mockup-pill {
   display: inline-block;
-  padding: 3px 10px;
-  border-radius: var(--mt-radius-sm);
+  padding: 2px 8px;
+  border-radius: var(--mt-radius-xs);
   font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
 }
 .mockup-pill.ok {
-  background: rgba(255, 255, 255, 0.16);
-  color: #ffffff;
+  background: var(--mt-ok-bg);
+  color: var(--mt-ok-ink);
 }
 .mockup-pill.warn {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.75);
+  background: var(--mt-warn-bg);
+  color: var(--mt-warn-ink);
 }
 .mockup-trace-name {
   flex: 1;
@@ -305,11 +264,11 @@ async function signIn(provider: "google" | "microsoft") {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--mt-mono);
-  color: #ffffff;
+  color: var(--mt-ink);
 }
 .mockup-trace-meta {
   flex-shrink: 0;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--mt-muted);
   font-family: var(--mt-mono);
   font-size: 11px;
 }
@@ -320,25 +279,22 @@ async function signIn(provider: "google" | "microsoft") {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #ffffff;
-}
-:global(body.body--dark) .login-panel {
   background: var(--mt-card);
 }
 .login-card {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 14px;
+  gap: 12px;
   width: 340px;
 }
 .brand {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 800;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
   color: var(--mt-ink);
   align-self: center;
 }
@@ -346,7 +302,7 @@ async function signIn(provider: "google" | "microsoft") {
   display: none;
 }
 .welcome {
-  font-size: 26px;
+  font-size: 20px;
   font-weight: 800;
   letter-spacing: -0.02em;
   color: var(--mt-ink);
@@ -354,25 +310,25 @@ async function signIn(provider: "google" | "microsoft") {
 }
 .hint {
   color: var(--mt-muted);
-  font-size: 14px;
-  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 500;
+  margin: 0 0 12px;
 }
 .signin-btn {
   display: inline-flex;
   align-items: center;
   gap: 12px;
-  height: 52px;
-  padding: 0 20px;
-  border: 1.5px solid var(--mt-line);
-  border-radius: var(--mt-radius-lg);
-  background: #ffffff;
+  height: 46px;
+  padding: 0 16px;
+  border: 1px solid var(--mt-line);
+  border-radius: var(--mt-radius-sm);
+  background: var(--mt-card);
   color: var(--mt-ink);
   font: inherit;
-  font-size: 14.5px;
+  font-size: 13px;
   font-weight: 700;
-  text-decoration: none;
   cursor: pointer;
-  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.15s ease, background 0.15s ease;
   width: 100%;
 }
 .provider-icon {
@@ -380,27 +336,27 @@ async function signIn(provider: "google" | "microsoft") {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: var(--mt-radius-sm);
-  background: var(--mt-soft);
+  width: 28px;
+  height: 28px;
+  border-radius: var(--mt-radius-xs);
+  background: #ffffff;
 }
 .signin-btn:hover {
-  border-color: var(--mt-faint);
-  transform: translateY(-1px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+  border-color: var(--mt-accent);
+  background: var(--mt-accent-tint);
 }
 .signin-btn.primary {
   background: var(--mt-accent);
   color: var(--mt-accent-ink);
   border-color: var(--mt-accent);
 }
-.signin-btn.primary .provider-icon {
-  background: #ffffff;
-}
 .signin-btn.primary:hover {
-  border-color: var(--mt-accent);
-  box-shadow: 0 8px 20px -4px color-mix(in srgb, var(--mt-accent) 55%, transparent);
+  background: var(--mt-accent-text);
+  border-color: var(--mt-accent-text);
+}
+:global(body.body--dark) .signin-btn.primary:hover {
+  background: var(--mt-accent-soft);
+  color: var(--mt-accent-text);
 }
 
 @media (max-width: 900px) {
@@ -414,7 +370,7 @@ async function signIn(provider: "google" | "microsoft") {
   }
   .brand.mobile-only {
     display: flex;
-    margin-bottom: 4px;
+    margin-bottom: 8px;
   }
 }
 </style>

@@ -132,7 +132,8 @@ function sourceSuffix(s: ScoreDto): string | null {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 16px;
+  padding: 16px 24px 20px;
+  background: var(--mt-bg);
 }
 .loading {
   display: flex;
@@ -147,7 +148,8 @@ function sourceSuffix(s: ScoreDto): string | null {
   color: var(--mt-muted);
 }
 .artifact a {
-  color: var(--mt-accent-ink, inherit);
+  color: var(--mt-accent-text);
+  font-weight: 700;
 }
 .artifact strong {
   color: var(--mt-ink);
@@ -193,19 +195,23 @@ th {
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: 8px 12px;
-  background: var(--mt-card, #fff);
+  height: 34px;
+  padding: 0 14px;
+  background: var(--mt-soft);
   border-bottom: 1px solid var(--mt-line);
   color: var(--mt-muted);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   text-align: left;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 td {
-  padding: 8px 12px;
+  height: 44px;
+  padding: 0 14px;
   border-bottom: 1px solid var(--mt-line-2);
-  vertical-align: top;
+  white-space: nowrap;
 }
 .preview {
   overflow-wrap: break-word;

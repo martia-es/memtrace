@@ -1,5 +1,5 @@
 import type { ConversationListQuery, SpanListQuery, TraceListQuery, TraceRepository, TraceSpans } from "@/application/ports/trace-repository";
-import type { ConversationCursor, ConversationSummary } from "@/domain/conversation";
+import type { ConversationCursor, ConversationSummary, ConversationUsage } from "@/domain/conversation";
 import type { ChatSpanRecord } from "@/domain/transcript";
 import type { MetricsOverview, MetricsQuery, ServiceUsage } from "@/domain/metrics";
 import type { ModelPricing } from "@/domain/pricing";
@@ -10,6 +10,7 @@ import type { Page, TraceStats, TraceSummary } from "@/domain/trace";
 import type { AnnotationRepository } from "@/application/ports/annotation-repository";
 import type { Annotation } from "@/domain/annotation";
 import type { AnnotationQueueRepository } from "@/application/ports/annotation-queue-repository";
+import type { QueueResolution } from "@/domain/queue-results";
 import {
   assertRubricOnlyGrows,
   deriveItemStatus,
@@ -130,6 +131,11 @@ export class FakeTraceRepository implements TraceRepository {
     this.lastSpanQuery = query;
     return this.spanPage;
   }
+  conversationUsage = new Map<string, ConversationUsage>();
+  async getConversationUsage(ids: string[]) {
+    this.check();
+    return new Map(ids.flatMap((id) => (this.conversationUsage.has(id) ? [[id, this.conversationUsage.get(id)!] as const] : [])));
+  }
   async getConversationMessages() {
     this.check();
     return { records: this.chatRecords, truncated: this.chatTruncated };
@@ -221,6 +227,14 @@ export class FakeAnnotationRepository implements AnnotationRepository {
       .filter((r) => r.serviceName === serviceName && !r.isDeleted && !!r.annotation.datasetRunId && datasetRunIds.includes(r.annotation.datasetRunId) && (configName === undefined || r.annotation.configName === configName))
       .map((r) => r.annotation);
   }
+  async listRecentForTraces(serviceName: string, fromMs: number, toMs: number, limit: number) {
+    return this.rows
+      .filter((r) => r.serviceName === serviceName && !r.isDeleted && !r.annotation.datasetRunId && r.annotation.spanId === null)
+      .map((r) => r.annotation)
+      .filter((a) => Date.parse(a.createdAt) >= fromMs && Date.parse(a.createdAt) < toMs)
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+      .slice(0, limit);
+  }
   async listForTraces(serviceName: string, traceIds: string[], configName?: string) {
     return this.rows
       .filter((r) => r.serviceName === serviceName && !r.isDeleted && !r.annotation.datasetRunId && r.annotation.spanId === null && traceIds.includes(r.annotation.traceId) && (configName === undefined || r.annotation.configName === configName))
@@ -248,7 +262,7 @@ export class FakeAnnotationQueueRepository implements AnnotationQueueRepository 
 
   async list(experimentId: string, includeArchived: boolean) {
     const queues = this.queues.filter((q) => q.experimentId === experimentId && (includeArchived || !q.archivedAt));
-    return Promise.all(queues.map(async (queue) => ({ queue, progress: await this.progress(queue.id) })));
+    return Promise.all(queues.map(async (queue) => ({ queue, progress: await this.progress(queue.id), toCurate: 0 })));
   }
   async get(experimentId: string, queueId: string) {
     return this.queues.find((q) => q.experimentId === experimentId && q.id === queueId) ?? null;
@@ -275,6 +289,7 @@ export class FakeAnnotationQueueRepository implements AnnotationQueueRepository 
       name: input.name,
       instructions: input.instructions,
       requiredAnnotations: input.requiredAnnotations,
+      reviewerIds: [...input.reviewerIds],
       rubric: input.rubric.map((r, position) => ({ ...r, position })),
       createdBy: createdByUserId,
       createdAt: "2026-10-03T00:00:00.000Z",
@@ -290,6 +305,7 @@ export class FakeAnnotationQueueRepository implements AnnotationQueueRepository 
       if (this.items.some((i) => i.queueId === queueId)) assertRubricOnlyGrows(queue.rubric, patch.rubric);
       queue.rubric = patch.rubric.map((r, position) => ({ ...r, position }));
     }
+    if (patch.reviewerIds) queue.reviewerIds = [...patch.reviewerIds];
     if (patch.name !== undefined) queue.name = patch.name;
     if (patch.instructions !== undefined) queue.instructions = patch.instructions;
     if (patch.archived !== undefined) queue.archivedAt = patch.archived ? "2026-10-03T00:00:00.000Z" : null;
@@ -365,5 +381,28 @@ export class FakeAnnotationQueueRepository implements AnnotationQueueRepository 
     const item = await this.getItem(queueId, itemId);
     if (item) item.status = "skipped";
     return item;
+  }
+  resolutions: QueueResolution[] = [];
+  async listQueuesForTrace(experimentId: string, traceId: string) {
+    return this.items
+      .filter((i) => i.traceId === traceId)
+      .flatMap((i) => {
+        const q = this.queues.find((x) => x.id === i.queueId && x.experimentId === experimentId);
+        return q ? [{ queueId: q.id, queueName: q.name, archived: q.archivedAt !== null, itemStatus: i.status }] : [];
+      });
+  }
+  async listResolutions(queueId: string, itemIds: string[]) {
+    const ids = new Set(this.items.filter((i) => i.queueId === queueId && itemIds.includes(i.id)).map((i) => i.id));
+    return this.resolutions.filter((r) => ids.has(r.queueItemId));
+  }
+  async upsertResolution(_queueId: string, resolution: Omit<QueueResolution, "resolvedAt">) {
+    const saved: QueueResolution = { ...resolution, resolvedAt: "2026-10-04T00:00:00.000Z" };
+    this.resolutions = [...this.resolutions.filter((r) => !(r.queueItemId === resolution.queueItemId && r.configId === resolution.configId)), saved];
+    return saved;
+  }
+  async deleteResolution(_queueId: string, itemId: string, configId: string) {
+    const before = this.resolutions.length;
+    this.resolutions = this.resolutions.filter((r) => !(r.queueItemId === itemId && r.configId === configId));
+    return this.resolutions.length < before;
   }
 }

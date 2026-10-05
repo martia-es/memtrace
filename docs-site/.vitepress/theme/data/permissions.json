@@ -1,0 +1,313 @@
+{
+  "permissions": [
+    {
+      "id": "experiment:read",
+      "group": "Read",
+      "description": "See the whole dashboard, read-only.",
+      "unlocks": [
+        "Overview, Conversations, Review, Evaluations and Costs",
+        "Conversations and traces shown as a chat",
+        "Metrics, costs, automatic evaluations and judge-human agreement",
+        "Reading rubrics, queues and datasets"
+      ]
+    },
+    {
+      "id": "trace:read_technical",
+      "group": "Read",
+      "description": "See the trace at span level.",
+      "unlocks": [
+        "The “Technical trace” tab and the span inspector",
+        "The spans and conversation-tree endpoints",
+        "The span tree from the review screen"
+      ]
+    },
+    {
+      "id": "annotation:write",
+      "group": "Review",
+      "description": "Label traces and review in the queues where the person is a reviewer.",
+      "unlocks": [
+        "The Annotate panel of a trace",
+        "Pulling the next item, completing it or skipping it",
+        "Also requires being listed as a reviewer of that queue"
+      ]
+    },
+    {
+      "id": "queue:manage",
+      "group": "Review",
+      "description": "Set up and maintain queues.",
+      "unlocks": [
+        "Creating, editing and archiving queues",
+        "Adding traces to a queue and choosing reviewers",
+        "Marking items as not reviewable",
+        "Retracting other people's labels (moderation)"
+      ]
+    },
+    {
+      "id": "queue:curate",
+      "group": "Review",
+      "description": "Decide what is accepted and take it to datasets.",
+      "unlocks": [
+        "The Results tab: every reviewer's answers",
+        "Resolving disagreements and setting the correct answer",
+        "Promoting traces to a dataset",
+        "Inter-annotator agreement"
+      ]
+    },
+    {
+      "id": "scoreconfig:manage",
+      "group": "Configuration",
+      "description": "Define the rubrics.",
+      "unlocks": [
+        "Creating, editing and archiving score configs"
+      ]
+    },
+    {
+      "id": "dataset:write",
+      "group": "Configuration",
+      "description": "Write to datasets and evaluations.",
+      "unlocks": [
+        "Creating and deleting datasets",
+        "Adding, editing and deleting items",
+        "Uploading runs from the session"
+      ]
+    },
+    {
+      "id": "apikey:manage_own",
+      "group": "Keys",
+      "description": "Manage your own agent API key.",
+      "unlocks": [
+        "Creating an API key and seeing it",
+        "Revoking only the keys you created"
+      ]
+    },
+    {
+      "id": "apikey:manage_all",
+      "group": "Keys",
+      "description": "Manage every API key of the experiment.",
+      "unlocks": [
+        "Seeing every key of the experiment",
+        "Revoking any of them"
+      ]
+    },
+    {
+      "id": "member:manage",
+      "group": "People and organization",
+      "description": "Invite people and give them a role.",
+      "unlocks": [
+        "Inviting someone to an experiment with a role",
+        "Seeing members and pending invitations"
+      ]
+    },
+    {
+      "id": "experiment:create",
+      "group": "People and organization",
+      "description": "Create experiments in the organization.",
+      "unlocks": [
+        "New experiment"
+      ]
+    },
+    {
+      "id": "org:manage",
+      "group": "People and organization",
+      "description": "Administer the organization.",
+      "unlocks": [
+        "Inviting org_admins",
+        "Appearance (accent color and corners)",
+        "External identity: group mappings and SCIM tokens"
+      ]
+    },
+    {
+      "id": "governance:read",
+      "group": "Governance",
+      "description": "See the catalog of assistants and their cards.",
+      "unlocks": [
+        "The Assistants catalog and each assistant's card",
+        "Environments, health status, connections and who can call each environment",
+        "Metadata only: no traces and no dashboard data"
+      ]
+    },
+    {
+      "id": "governance:manage",
+      "group": "Governance",
+      "description": "Approve connections and decide who can call each environment.",
+      "unlocks": [
+        "Registering assistants in the catalog",
+        "Approving or blocking the tools, MCP servers and agents an assistant uses",
+        "Adding or removing who can call each environment"
+      ]
+    },
+    {
+      "id": "assistant:manage",
+      "group": "Governance",
+      "description": "Maintain the card of the assistant you work on.",
+      "unlocks": [
+        "Description, owner and team of the assistant",
+        "Deployments per environment: API, health URL, version and authentication method",
+        "Declaring the connections the assistant is meant to use"
+      ]
+    }
+  ],
+  "roles": [
+    {
+      "id": "org_admin",
+      "scope": "Organization",
+      "summary": "Manages people, experiments and keys. Does not read data.",
+      "bullets": [
+        "Creates experiments and invites with a role",
+        "Sees and revokes every API key",
+        "Configures the identity provider",
+        "No access to traces or the dashboard",
+        "Sees the assistant catalog and decides who can call each environment"
+      ],
+      "permissions": [
+        "org:manage",
+        "experiment:create",
+        "member:manage",
+        "apikey:manage_all",
+        "governance:read",
+        "governance:manage"
+      ]
+    },
+    {
+      "id": "technical",
+      "scope": "Experiment",
+      "summary": "The profile that shapes review and evaluation.",
+      "bullets": [
+        "The whole dashboard, including the technical trace",
+        "Creates queues, rubrics and datasets",
+        "Sees every reviewer's answers and decides",
+        "Manages their own API key",
+        "Maintains the card of their assistant"
+      ],
+      "permissions": [
+        "experiment:read",
+        "trace:read_technical",
+        "annotation:write",
+        "queue:manage",
+        "queue:curate",
+        "scoreconfig:manage",
+        "dataset:write",
+        "apikey:manage_own",
+        "assistant:manage"
+      ]
+    },
+    {
+      "id": "business",
+      "scope": "Experiment",
+      "summary": "The people who know what the agent should answer.",
+      "bullets": [
+        "The whole dashboard read-only (metrics, costs, evaluations)",
+        "Traces only as a conversation",
+        "Labels in the queues where they are a reviewer",
+        "Does not curate or create datasets"
+      ],
+      "permissions": [
+        "experiment:read",
+        "annotation:write"
+      ]
+    },
+    {
+      "id": "governance",
+      "scope": "Organization",
+      "summary": "Reviews the assistant catalog. Does not read data.",
+      "bullets": [
+        "Sees every assistant, environment and connection",
+        "Approves or blocks tools, MCP servers and agents",
+        "Decides who can call each environment",
+        "No access to traces or the dashboard"
+      ],
+      "permissions": [
+        "governance:read",
+        "governance:manage"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "label": "See the dashboard, conversations, metrics and costs",
+      "permission": "experiment:read"
+    },
+    {
+      "label": "Open the technical trace (span tree)",
+      "permission": "trace:read_technical"
+    },
+    {
+      "label": "Label a trace and review in a queue",
+      "permission": "annotation:write"
+    },
+    {
+      "label": "Create and archive queues, add traces",
+      "permission": "queue:manage"
+    },
+    {
+      "label": "See every reviewer's answers and resolve",
+      "permission": "queue:curate"
+    },
+    {
+      "label": "Promote reviewed traces to a dataset",
+      "permission": "queue:curate"
+    },
+    {
+      "label": "Create rubrics (score configs)",
+      "permission": "scoreconfig:manage"
+    },
+    {
+      "label": "Create datasets and upload runs",
+      "permission": "dataset:write"
+    },
+    {
+      "label": "Create my own API key",
+      "permission": "apikey:manage_own"
+    },
+    {
+      "label": "See and revoke every API key",
+      "permission": "apikey:manage_all"
+    },
+    {
+      "label": "Invite people to the experiment",
+      "permission": "member:manage"
+    },
+    {
+      "label": "Create experiments",
+      "permission": "experiment:create"
+    },
+    {
+      "label": "Configure external identity and appearance",
+      "permission": "org:manage"
+    },
+    {
+      "label": "See the assistant catalog",
+      "permission": "governance:read"
+    },
+    {
+      "label": "Approve a tool, MCP server or agent",
+      "permission": "governance:manage"
+    },
+    {
+      "label": "Edit my assistant's card and deployments",
+      "permission": "assistant:manage"
+    }
+  ],
+  "presets": [
+    {
+      "name": "Ana · org_admin only",
+      "org": "org_admin",
+      "experiment": ""
+    },
+    {
+      "name": "Luis · business",
+      "org": "",
+      "experiment": "business"
+    },
+    {
+      "name": "Marta · org_admin + technical",
+      "org": "org_admin",
+      "experiment": "technical"
+    },
+    {
+      "name": "Eva · technical",
+      "org": "",
+      "experiment": "technical"
+    }
+  ]
+}

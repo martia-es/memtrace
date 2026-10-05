@@ -5,6 +5,7 @@ import { useQuasar } from "quasar";
 import { formatDateTime } from "@/domain/format";
 import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
+import EvaluationsTabs from "../components/EvaluationsTabs.vue";
 import Modal from "../components/Modal.vue";
 import PageHeader from "../components/PageHeader.vue";
 import { useAsync } from "../composables/useAsync";
@@ -65,15 +66,17 @@ async function createDataset() {
       </div>
     </PageHeader>
 
+    <EvaluationsTabs />
+
     <p class="hint muted">
-      Un dataset agrupa ejemplos curados para evaluar tu agente. Cada cambio en sus items crea una nueva <strong>versión</strong> (ver pestaña Versions
-      dentro de cada dataset): los runs pasados siguen apuntando a la versión exacta con la que se ejecutaron.
+      A dataset is a set of curated examples to evaluate your agent. Every change to its items creates a new <strong>version</strong> (see the Versions tab inside each dataset):
+      past runs keep pointing at the exact version they ran against.
     </p>
 
     <ErrorBanner v-if="datasets.error.value" :error="datasets.error.value" @retry="datasets.run()" />
     <div v-else-if="datasets.loading.value && !datasets.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
     <EmptyState v-else-if="(datasets.data.value?.items.length ?? 0) === 0" icon="science" title="No datasets yet">
-      Crea uno con el botón "New dataset", o sube uno desde <code>memtrace.eval.run_experiment(data="…")</code>.
+      Create one with "New dataset", or upload one from <code>memtrace.eval.run_experiment(data="…")</code>.
     </EmptyState>
     <EmptyState v-else-if="filtered.length === 0" icon="search_off" title="No matches">Try a different search.</EmptyState>
 
@@ -113,8 +116,9 @@ async function createDataset() {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px;
+  gap: 12px;
+  padding: 16px 24px 20px;
+  background: var(--mt-bg);
 }
 .actions {
   display: flex;
@@ -151,17 +155,21 @@ th {
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: 8px 12px;
-  background: var(--mt-card, #fff);
+  height: 34px;
+  padding: 0 14px;
+  background: var(--mt-soft);
   border-bottom: 1px solid var(--mt-line);
   color: var(--mt-muted);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   text-align: left;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 td {
-  padding: 7px 12px;
+  height: 46px;
+  padding: 0 14px;
   border-bottom: 1px solid var(--mt-line-2);
   white-space: nowrap;
 }
@@ -169,7 +177,7 @@ td {
   text-align: right;
 }
 .name {
-  font-weight: 600;
+  font-weight: 800;
 }
 .dataset-row {
   cursor: pointer;

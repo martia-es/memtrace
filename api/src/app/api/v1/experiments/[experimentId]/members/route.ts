@@ -2,11 +2,12 @@ import { requireUser } from "@/adapters/inbound/http/auth-context";
 import { identityGuard } from "@/adapters/inbound/http/identity-guard";
 import { addMemberBody, parseJsonOrThrow } from "@/adapters/inbound/http/identity-schemas";
 import { json, problem } from "@/adapters/inbound/http/problem";
+import { ValidationError } from "@/domain/errors";
 import { getIdentity } from "@/dependency-container";
 
 export const dynamic = "force-dynamic";
 
-/** Lista los miembros aceptados y las invitaciones pendientes del experimento. Requiere ser org_admin o admin. */
+/** Lista los miembros aceptados y las invitaciones pendientes del experimento. Requiere el permiso member:manage (org_admin). */
 export async function GET(_request: Request, context: { params: Promise<{ experimentId: string }> }) {
   return identityGuard(async () => {
     const { experimentId } = await context.params;
@@ -14,7 +15,7 @@ export async function GET(_request: Request, context: { params: Promise<{ experi
     if (user instanceof Response) return user;
 
     const { identityRepository, authorizationService } = getIdentity();
-    if (!(await authorizationService.canManageExperimentMembers(user.id, experimentId))) {
+    if (!(await authorizationService.can(user.id, experimentId, "member:manage"))) {
       return problem(403, "Forbidden", "No permission to manage members of this experiment");
     }
 
@@ -27,7 +28,7 @@ export async function GET(_request: Request, context: { params: Promise<{ experi
 }
 
 /**
- * Invita a otro usuario a este experimento (ADR-013/ADR-014). Requiere ser org_admin o admin del experimento.
+ * Invita a otro usuario a este experimento (ADR-013/ADR-014). Requiere el permiso member:manage (org_admin).
  * Si el invitado no tiene cuenta todavía, se guarda como invitación pendiente y se le manda un email:
  * se aplica sola en cuanto haga login por primera vez (ver events.createUser en auth.ts).
  */
@@ -38,7 +39,7 @@ export async function POST(request: Request, context: { params: Promise<{ experi
     if (user instanceof Response) return user;
 
     const { identityRepository, authorizationService, emailSender } = getIdentity();
-    if (!(await authorizationService.canManageExperimentMembers(user.id, experimentId))) {
+    if (!(await authorizationService.can(user.id, experimentId, "member:manage"))) {
       return problem(403, "Forbidden", "No permission to manage members of this experiment");
     }
 
@@ -46,6 +47,9 @@ export async function POST(request: Request, context: { params: Promise<{ experi
     if (!experiment) return problem(404, "Not Found", "Experiment not found");
 
     const { email, role } = await parseJsonOrThrow(addMemberBody, request);
+    if (!(await identityRepository.listRoleNames("experiment")).includes(role)) {
+      throw new ValidationError("Invalid request body", { role: "unknown role" });
+    }
     const invitee = await identityRepository.getUserByEmail(email);
     if (!invitee) {
       await identityRepository.createPendingInvitation(email, { experimentId, role }, user.id);

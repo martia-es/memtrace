@@ -2,14 +2,15 @@
   "name": "memtrace-api",
   "version": "0.1.0",
   "private": true,
-  "description": "API de consulta de MemTrace (pieza 4): único punto de acceso al almacén de trazas",
+  "description": "API de consulta de MemTrace (pieza 4): \u00fanico punto de acceso al almac\u00e9n de trazas",
   "scripts": {
     "dev": "next dev -p 3001",
     "build": "next build",
     "start": "next start -p 3001",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:integration": "CLICKHOUSE_INTEGRATION=1 vitest run tests/integration"
+    "test:integration": "CLICKHOUSE_INTEGRATION=1 vitest run tests/integration",
+    "build:worker": "esbuild src/worker/probe-health.ts --bundle --platform=node --target=node24 --format=cjs --external:pg-native --outfile=dist-worker/probe-health.cjs"
   },
   "dependencies": {
     "@auth/pg-adapter": "^1.11.3",
@@ -27,6 +28,7 @@
     "@types/pg": "^8.11.10",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "esbuild": "^0.28.2",
     "typescript": "^5.9.0",
     "vitest": "^5.0.2"
   }

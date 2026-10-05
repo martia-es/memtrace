@@ -13,8 +13,8 @@ export async function POST(_request: Request, context: { params: Promise<{ exper
     const user = await requireUser();
     if (user instanceof Response) return user;
 
-    if (!(await getIdentity().authorizationService.canManageExperimentMembers(user.id, experimentId))) {
-      return problem(403, "Forbidden", "Only experiment admins can manage score configs");
+    if (!(await getIdentity().authorizationService.can(user.id, experimentId, "scoreconfig:manage"))) {
+      return problem(403, "Forbidden", "Missing permission: scoreconfig:manage");
     }
     return json(toScoreConfigDto(await getAnnotation().unarchiveScoreConfig(experimentId, configId)));
   });

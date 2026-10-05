@@ -21,7 +21,7 @@ describe.skipIf(!url)("annotation queues (postgres)", () => {
 
   const newUser = async (n: number) => (await pool.query<{ id: string }>(`INSERT INTO users (email) VALUES ($1) RETURNING id`, [`q${n}-${stamp}@example.com`])).rows[0]!.id;
   const newQueue = async (name: string, requiredAnnotations = 1): Promise<AnnotationQueue> =>
-    repo.create(experimentId, users[0]!, { name, instructions: null, requiredAnnotations, rubric: [{ configId, required: true }] });
+    repo.create(experimentId, users[0]!, { name, instructions: null, requiredAnnotations, reviewerIds: users, rubric: [{ configId, required: true }] });
   const traces = (n: number) => Array.from({ length: n }, (_, i) => ({ targetType: "trace" as const, traceId: `t${i}` }));
 
   beforeAll(async () => {
@@ -106,13 +106,17 @@ describe.skipIf(!url)("annotation queues (postgres)", () => {
     expect(await repo.progress(queue.id)).toEqual({ pending: 1, completed: 1, skipped: 0 });
   });
 
-  it("a skipped claim returns the item to others but never to the same person; admin skip is not recomputed", async () => {
+  it("a skipped claim returns the item to others and to the same person only after unseen items; admin skip is not recomputed", async () => {
     const queue = await newQueue("skip");
     await repo.addItems(queue.id, users[0]!, traces(2));
     const item = (await repo.claimNext(queue, users[0]!))!;
     await repo.skipClaim(queue, item.id, users[0]!);
     expect((await repo.claimNext(queue, users[0]!))?.id).not.toBe(item.id);
     expect((await repo.claimNext(queue, users[1]!))?.id).toBe(item.id);
+    // sin items nuevos, lo saltado se vuelve a ofrecer (un único revisor no pierde items)
+    const [other] = await repo.listItems(queue.id, "pending", 10).then((all) => all.filter((i) => i.id !== item.id));
+    await repo.skipClaim(queue, other!.id, users[0]!);
+    expect((await repo.claimNext(queue, users[0]!))?.id).toBe(item.id);
 
     await repo.markUnreviewable(queue.id, item.id);
     await repo.update(experimentId, queue.id, { requiredAnnotations: 2 });
@@ -133,5 +137,36 @@ describe.skipIf(!url)("annotation queues (postgres)", () => {
     const grown = await repo.update(experimentId, queue.id, { rubric: [{ configId, required: true }, { configId: second, required: false }] });
     expect(grown?.rubric.map((r) => r.configId)).toEqual([configId, second]);
     await expect(repo.update(experimentId, queue.id, { rubric: [{ configId: second, required: true }] })).rejects.toThrow(/cannot be removed/);
+  });
+  it("stores, replaces and clears a resolution scoped to its queue (ADR-050)", async () => {
+    const queue = await newQueue("resolutions");
+    const other = await newQueue("resolutions-other");
+    await repo.addItems(queue.id, users[0]!, traces(1));
+    const [item] = await repo.listItems(queue.id, undefined, 10);
+    const draft = { queueItemId: item!.id, configId, value: "2", expectedOutput: "Hoy no llueve", resolvedBy: users[1]! };
+
+    expect(await repo.upsertResolution(queue.id, draft)).toMatchObject({ value: "2", expectedOutput: "Hoy no llueve", resolvedBy: users[1] });
+    await repo.upsertResolution(queue.id, { ...draft, value: "3", expectedOutput: null, resolvedBy: users[2]! });
+    expect(await repo.listResolutions(queue.id, [item!.id])).toMatchObject([{ value: "3", expectedOutput: null, resolvedBy: users[2] }]);
+
+    // otra cola no ve ni toca la resolución de este item
+    expect(await repo.listResolutions(other.id, [item!.id])).toEqual([]);
+    await expect(repo.upsertResolution(other.id, draft)).rejects.toThrow();
+    expect(await repo.deleteResolution(other.id, item!.id, configId)).toBe(false);
+
+    expect(await repo.deleteResolution(queue.id, item!.id, configId)).toBe(true);
+    expect(await repo.deleteResolution(queue.id, item!.id, configId)).toBe(false);
+  });
+  it("lists the queues of the experiment that hold a trace, with the item status (ADR-050)", async () => {
+    const a = await newQueue("membership-a");
+    const b = await newQueue("membership-b");
+    await repo.addItems(a.id, users[0]!, [{ targetType: "trace", traceId: "shared-trace" }]);
+    await repo.addItems(b.id, users[0]!, [{ targetType: "trace", traceId: "shared-trace" }, { targetType: "trace", traceId: "only-b" }]);
+    await repo.update(experimentId, b.id, { archived: true });
+
+    const memberships = await repo.listQueuesForTrace(experimentId, "shared-trace");
+    expect(memberships.map((m) => [m.queueName, m.archived, m.itemStatus])).toEqual([["membership-a", false, "pending"], ["membership-b", true, "pending"]]);
+    expect(await repo.listQueuesForTrace(experimentId, "nobody")).toEqual([]);
+    expect(await repo.listQueuesForTrace("00000000-0000-4000-8000-0000000000ff", "shared-trace")).toEqual([]);
   });
 });

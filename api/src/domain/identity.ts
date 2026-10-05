@@ -1,7 +1,10 @@
 /** Modelo de identidad y RBAC de 2 niveles (ADR-013): Organización -> Experimento. */
 
+import type { Permission } from "./permissions";
+
 export type OrgRole = "org_admin";
-export type ExperimentRole = "admin" | "member";
+/** Nombre de un rol de experimento (`technical`, `business`, o uno propio): los roles son datos (ADR-052). */
+export type ExperimentRole = string;
 
 export interface User {
   id: string;
@@ -43,18 +46,23 @@ export interface Experiment {
  */
 export interface OrganizationSummary extends Organization {
   myRole: OrgRole | null;
+  /** permisos que le da su rol de organización (ADR-052) */
+  permissions: Permission[];
 }
 
 /** Experimento listado en `GET /experiments` (ADR-016), con el rol resuelto del usuario para esa fila. */
 export interface ExperimentSummary extends Experiment {
-  myRole: Exclude<ExperimentAccess, null>;
+  /** etiqueta del rol (la del experimento si la tiene; si no, `org_admin`); la UI decide por `permissions`, no por esto */
+  myRole: string;
+  /** unión de los permisos de su rol de organización y de su rol de experimento (ADR-052) */
+  permissions: Permission[];
 }
 
 /**
- * Acceso resuelto de un usuario a un experimento concreto: org_admin de su
- * organización, o membership directa en el experimento. `null` si no tiene acceso.
+ * Acceso resuelto de un usuario a un experimento concreto: unión de los permisos de su rol de organización y de
+ * su rol de experimento (ADR-052). `role` es solo una etiqueta; `null` si no tiene ningún rol que lo alcance.
  */
-export type ExperimentAccess = "org_admin" | ExperimentRole | null;
+export type ExperimentAccess = { role: string; permissions: Permission[] } | null;
 
 /**
  * API key de agente (ADR-013, pieza 9): autentica la escritura de trazas de un experimento
@@ -92,6 +100,8 @@ export interface Member {
   email: string;
   name: string | null;
   role: OrgRole | ExperimentRole;
+  /** `manual`, o el proveedor de identidad que la gestiona (ADR-052): esas no se editan a mano */
+  source: "manual" | "oidc" | "scim";
 }
 
 /**

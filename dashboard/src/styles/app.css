@@ -1,70 +1,119 @@
-/* Tokens del diseño (memtrace.html): verde suave de fondo, tarjetas blancas muy redondeadas, lima como acento. */
+/* Tokens del diseño "Mediterráneo" (ADR-048): turquesa como acción, terracota como acento, neutros con tinte del mismo matiz. */
 :root {
-  --mt-bg: #dceee2;
+  --mt-bg: #f2faf9;
   --mt-card: #ffffff;
-  --mt-ink: #0e1a13;
-  --mt-muted: #56655c;
-  --mt-faint: #66756d;
-  --mt-soft: #f1f5f2;
-  --mt-soft-2: #f4f8f5;
-  --mt-line: #e8eee9;
-  --mt-line-2: #eef2ef;
-  --mt-accent: #1c1f23;
+  --mt-ink: #0a2321;
+  --mt-muted: #4d6a67;
+  --mt-faint: #6f8a87;
+  --mt-soft: #ebf5f4;
+  --mt-soft-2: #f6fbfa;
+  --mt-line: #d6e9e7;
+  --mt-line-2: #e5f1ef;
+
+  /* acción (botones, enlaces, selección): el ADR-019 permite a cada organización sobrescribir solo --mt-accent */
+  --mt-accent: #00857f;
   --mt-accent-ink: #ffffff;
-  --mt-violet: #1c1f23;
-  --mt-ok-bg: #ddf6b8;
-  --mt-ok-ink: #2a5a0d;
-  --mt-err-bg: #ffe1de;
-  --mt-err-ink: #b3261e;
-  --mt-warn-bg: #ffefd2;
-  --mt-warn-ink: #8a5300;
-  --mt-shadow: 0 1px 2px rgba(20, 60, 35, 0.04), 0 8px 24px rgba(20, 60, 35, 0.05);
-  --mt-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --mt-accent-soft: #c8f0ee;
+  --mt-accent-tint: #e6f8f7;
+  --mt-accent-text: #00605c;
+  --mt-violet: var(--mt-accent);
+  /* marca (logo, gráficos, foco) y acento cálido (resaltados) */
+  --mt-brand: #00b3ad;
+  --mt-highlight: #ff6b4a;
+  --mt-highlight-soft: #ffe3db;
+  --mt-highlight-ink: #a8321a;
+
+  --mt-ok: #16a34a;
+  --mt-ok-bg: #dcfce7;
+  --mt-ok-ink: #15803d;
+  --mt-err: #e11d48;
+  --mt-err-bg: #ffe4e9;
+  --mt-err-ink: #be123c;
+  --mt-warn: #f59e0b;
+  --mt-warn-bg: #fef3c7;
+  --mt-warn-ink: #92400e;
+  --mt-info-bg: #e6f8f7;
+  --mt-info-ink: #00605c;
+
+  /* bordes de 1 px y sin sombras; solo lo que flota (menús, modales) lleva sombra */
+  --mt-shadow: none;
+  --mt-shadow-float: 0 8px 24px rgba(10, 35, 33, 0.14);
+  --mt-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --mt-sans: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
 
-  /* Escala de esquinas centralizada (ADR-018): mínimo redondeo en toda la app. */
-  --mt-radius-xs: 0px;
-  --mt-radius-sm: 0px;
-  --mt-radius-lg: 0px;
+  /* Escala de esquinas centralizada (ADR-018, valores del ADR-048): 4 chips y badges, 6 botones e inputs, 8 tarjetas. */
+  --mt-radius-xs: 4px;
+  --mt-radius-sm: 6px;
+  --mt-radius-lg: 8px;
 
-  --q-primary: #1c1f23;
-  --wf-line: rgba(14, 26, 19, 0.1);
-  --wf-hover: rgba(14, 26, 19, 0.04);
-  --wf-selected: rgba(28, 31, 35, 0.1);
-  --code-bg: rgba(14, 26, 19, 0.04);
+  --q-primary: #00857f;
+  --q-positive: #16a34a;
+  --q-negative: #e11d48;
+  --q-warning: #f59e0b;
+  --wf-line: rgba(10, 35, 33, 0.1);
+  --wf-hover: rgba(10, 35, 33, 0.04);
+  --wf-selected: rgba(0, 133, 127, 0.1);
+  --code-bg: rgba(10, 35, 33, 0.05);
 }
 
 /* Tema oscuro (ADR-017): mismos tokens, activados por la clase que pone Quasar ($q.dark.set). */
 body.body--dark {
-  --mt-bg: #101b14;
-  --mt-card: #16221a;
-  --mt-ink: #eaf3ec;
-  --mt-muted: #93a89c;
-  --mt-faint: #7c9088;
-  --mt-soft: #1d2b22;
-  --mt-soft-2: #1a2620;
-  --mt-line: #263427;
-  --mt-line-2: #223026;
-  --mt-accent: #f2f3f5;
-  --mt-accent-ink: #0e1a13;
-  --mt-violet: #f2f3f5;
-  --mt-ok-bg: #1f3d18;
-  --mt-ok-ink: #b9f28c;
-  --mt-err-bg: #3a1e1a;
-  --mt-err-ink: #ff9d97;
-  --mt-warn-bg: #3a2c10;
-  --mt-warn-ink: #ffcf80;
-  --mt-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.4);
+  --mt-bg: #081716;
+  --mt-card: #0e2221;
+  --mt-ink: #e6f4f2;
+  --mt-muted: #8fb0ac;
+  --mt-faint: #6c8d89;
+  --mt-soft: #132b2a;
+  --mt-soft-2: #102726;
+  --mt-line: #1d3c3a;
+  --mt-line-2: #17302f;
 
-  --q-primary: #f2f3f5;
+  --mt-accent: #2bc4bd;
+  --mt-accent-ink: #04201f;
+  --mt-accent-soft: #0f3b3a;
+  --mt-accent-tint: #0c2d2c;
+  --mt-accent-text: #86e8e2;
+  --mt-brand: #2bc4bd;
+  --mt-highlight: #ff8a6b;
+  --mt-highlight-soft: #3a1f17;
+  --mt-highlight-ink: #ffb4a0;
+
+  --mt-ok: #4ade80;
+  --mt-ok-bg: #0f2a1b;
+  --mt-ok-ink: #6ee79a;
+  --mt-err: #ff6b88;
+  --mt-err-bg: #3a121c;
+  --mt-err-ink: #ff9baf;
+  --mt-warn: #fbbf24;
+  --mt-warn-bg: #33260a;
+  --mt-warn-ink: #ffd27a;
+  --mt-info-bg: #0c2d2c;
+  --mt-info-ink: #86e8e2;
+  --mt-shadow-float: 0 8px 24px rgba(0, 0, 0, 0.5);
+
+  --q-primary: #2bc4bd;
+  --q-positive: #4ade80;
+  --q-negative: #ff6b88;
+  --q-warning: #fbbf24;
   --wf-line: rgba(255, 255, 255, 0.12);
   --wf-hover: rgba(255, 255, 255, 0.06);
-  --wf-selected: rgba(242, 243, 245, 0.16);
+  --wf-selected: rgba(43, 196, 189, 0.16);
   --code-bg: rgba(255, 255, 255, 0.08);
+}
+
+body.body--dark {
+  color-scheme: dark;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--mt-accent);
 }
 
 body {
   font-family: var(--mt-sans);
+  font-size: 13px;
+  font-weight: 500;
   color: var(--mt-ink);
   background: var(--mt-bg);
 }
@@ -73,18 +122,38 @@ body {
   font-family: var(--mt-mono);
 }
 
+/* enlaces: color de acento y sin subrayado, que solo aparece al pasar el ratón; los que llevan su propia clase la sobrescriben */
+a {
+  color: var(--mt-accent-text);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+/* Quasar fija line-height de 50 px en los títulos; el diseño usa títulos compactos (ADR-048) */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  line-height: 1.3;
+}
+
 .mt-card {
   background: var(--mt-card);
+  border: 1px solid var(--mt-line);
   border-radius: var(--mt-radius-lg);
   box-shadow: var(--mt-shadow);
 }
 
 .mt-pill {
   display: inline-block;
-  padding: 3px 10px;
-  border-radius: var(--mt-radius-sm);
-  font-size: 12px;
-  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--mt-radius-xs);
+  font-size: 11.5px;
+  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -135,7 +204,7 @@ body {
 .mt-segmented button[aria-pressed="true"] {
   background: var(--mt-card);
   color: var(--mt-ink);
-  box-shadow: 0 1px 3px rgba(20, 60, 35, 0.15);
+  box-shadow: 0 0 0 1px var(--mt-line);
 }
 
 .mt-segmented.small {
@@ -180,7 +249,6 @@ code {
   border-radius: var(--mt-radius-sm);
   background: var(--mt-soft);
   border: 1px solid var(--wf-line);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
 }
 
 .toggle-group .q-btn-group {
@@ -208,7 +276,7 @@ code {
 .toggle-group .q-btn.q-btn--active {
   background: var(--mt-card);
   color: var(--mt-ink);
-  box-shadow: 0 1px 3px rgba(20, 60, 35, 0.14), 0 0 0 1px rgba(20, 60, 35, 0.04) !important;
+  box-shadow: 0 0 0 1px var(--mt-line) !important;
 }
 
 .toggle-group .q-btn:before {

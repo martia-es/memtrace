@@ -27,7 +27,7 @@ onBeforeUnmount(() => clearInterval(ticker));
       @update:model-value="$emit('update:seconds', $event)"
     />
     <span class="text-caption text-grey-7 status" aria-live="off">
-      {{ updatedAt ? `Updated ${formatRelativeTime(new Date(updatedAt).toISOString(), now)} ago` : "Loading…" }}
+      {{ updatedAt ? `Updated ${formatRelativeTime(new Date(updatedAt).toISOString(), now)}` : "Loading…" }}
     </span>
   </div>
 </template>

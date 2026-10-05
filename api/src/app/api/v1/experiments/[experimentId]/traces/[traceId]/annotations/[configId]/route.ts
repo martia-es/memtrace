@@ -1,4 +1,4 @@
-import { requireExperimentMember } from "@/adapters/inbound/http/auth-context";
+import { requirePermission } from "@/adapters/inbound/http/auth-context";
 import { identityGuard } from "@/adapters/inbound/http/identity-guard";
 import { problem } from "@/adapters/inbound/http/problem";
 import { retractAnnotationQuery } from "@/adapters/inbound/http/schemas";
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export async function DELETE(request: Request, context: { params: Promise<{ experimentId: string; traceId: string; configId: string }> }) {
   return identityGuard(async () => {
     const { experimentId, traceId, configId } = await context.params;
-    const ctx = await requireExperimentMember(experimentId);
+    const ctx = await requirePermission(experimentId, "annotation:write");
     if (ctx instanceof Response) return ctx;
 
     const query = retractAnnotationQuery.safeParse(Object.fromEntries(new URL(request.url).searchParams));
@@ -23,7 +23,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ expe
       configId,
       spanId: query.data.spanId,
       annotatorId: query.data.annotatorId,
-      actorIsAdmin: ctx.access === "admin" || ctx.access === "org_admin",
+      actorIsAdmin: ctx.permissions.includes("queue:manage"),
     });
     return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
   });

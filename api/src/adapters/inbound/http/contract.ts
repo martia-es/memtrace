@@ -51,6 +51,8 @@ export interface TraceSummaryDto {
   /** vista previa (≤ 240 caracteres) del mensaje de entrada y de salida */
   input: string | null;
   output: string | null;
+  /** mensaje de error del span raíz (≤ 240 caracteres) cuando la traza falló; `output` va vacío si el agente no llegó a responder */
+  error: string | null;
   /** conversación a la que pertenece el turno (ADR-012) */
   conversationId: string | null;
 }
@@ -144,6 +146,10 @@ export interface ConversationSummaryDto {
   totalTokens: number;
   /** suma de las duraciones de los turnos (sin esperas del usuario) */
   activeMs: number;
+  /** el primer mensaje del usuario (≤ 120 caracteres); null si el agente no capturó contenido (ADR-049) */
+  title: string | null;
+  /** null si ningún modelo de la conversación tiene precio conocido (ADR-025) */
+  costUsd: number | null;
 }
 
 /** Mensajes de la conversación por turno; vacío si el agente no capturó contenido (ADR-013). */
@@ -425,7 +431,7 @@ export interface DatasetItemsListResponse {
 
 /** ADR-038. `input` (opcional) sustituye al extraído de la traza. `expectedOutput` explícito gana sobre `fromConfigId` (etiqueta categórica de las anotaciones de la traza). */
 export interface PromoteTracesBody {
-  items: Array<{ traceId: string; input?: unknown; expectedOutput?: unknown; fromConfigId?: string }>;
+  items: Array<{ traceId: string; input?: unknown; expectedOutput?: unknown; fromConfigId?: string; /** cola de la que sale, para dejarlo en `promotedFrom` */ queueId?: string }>;
 }
 
 export type PromotionSkipReasonDto = "already_promoted" | "no_content" | "not_found" | "ambiguous_label" | "unsupported_label";
@@ -573,6 +579,12 @@ export interface TraceScoreDto {
   comment: string | null;
 }
 
+/** Trazas con alguna valoración humana baja en el rango (ADR-049). */
+export interface LowRatedResponse {
+  count: number;
+  items: Array<{ traceId: string; configName: string; value: string; createdAt: string }>;
+}
+
 export interface TraceAnnotationsResponse {
   annotations: AnnotationDto[];
   scores: TraceScoreDto[];
@@ -584,6 +596,8 @@ export interface AnnotationQueueDto {
   name: string;
   instructions: string | null;
   requiredAnnotations: number;
+  /** Personas autorizadas a anotar (ADR-046). */
+  reviewerIds: string[];
   rubric: Array<{ configId: string; required: boolean }>;
   createdAt: string;
   archivedAt: string | null;
@@ -599,8 +613,27 @@ export interface AnnotationQueueSummaryDto extends AnnotationQueueDto {
   progress: QueueProgressDto;
 }
 
+/** Persona que puede anotar en una cola: lo justo para mostrar su avatar y su nombre. */
+export interface AssignedReviewerDto {
+  userId: string;
+  name: string | null;
+  image: string | null;
+}
+
+export interface AnnotationQueueListItemDto extends AnnotationQueueSummaryDto {
+  /** items terminados por los revisores que aún no están en ningún dataset (trabajo pendiente del perfil técnico) */
+  toCurate: number;
+  assignedReviewers: AssignedReviewerDto[];
+  /** ¿puede quien consulta anotar en esta cola? Si no, el botón Review no se ofrece (ADR-051). */
+  isReviewer: boolean;
+}
+
+export interface ReviewerCandidatesResponse {
+  candidates: Array<{ userId: string; name: string | null; email: string }>;
+}
+
 export interface AnnotationQueuesListResponse {
-  items: AnnotationQueueSummaryDto[];
+  items: AnnotationQueueListItemDto[];
 }
 
 export interface AnnotationQueueDetailResponse extends AnnotationQueueSummaryDto {
@@ -635,6 +668,69 @@ export interface AddQueueItemsResponse {
 /** `item` es null cuando no queda nada para este revisor. */
 export interface NextQueueItemResponse {
   item: QueueItemDto | null;
+}
+
+/** Qué respondió un revisor en un criterio (ADR-050). `isReviewer` es false si ya no está en la lista de la cola. */
+export interface QueueResultLabelDto {
+  userId: string;
+  name: string | null;
+  value: string;
+  comment: string | null;
+  createdAt: string;
+  isReviewer: boolean;
+}
+
+/** Decisión del técnico sobre un criterio de un item; no modifica las etiquetas de los revisores. */
+export interface QueueResolutionDto {
+  value: string;
+  expectedOutput: string | null;
+  resolvedBy: string;
+  resolvedAt: string;
+}
+
+export interface QueueResultCriterionDto {
+  configId: string;
+  status: "no_labels" | "consensus" | "disagreement";
+  labels: QueueResultLabelDto[];
+  resolution: QueueResolutionDto | null;
+}
+
+/** Dataset (última versión) que ya contiene un item promovido desde la traza. */
+export interface PromotedToDto {
+  datasetId: string;
+  datasetName: string;
+  version: string;
+}
+
+export interface QueueResultItemDto extends QueueItemDto {
+  criteria: QueueResultCriterionDto[];
+  promotedTo: PromotedToDto[];
+  /** algún criterio con desacuerdo y sin resolver */
+  needsResolution: boolean;
+}
+
+/** Cola que contiene una traza, con el estado del item (ADR-050). */
+export interface TraceQueueDto {
+  queueId: string;
+  queueName: string;
+  archived: boolean;
+  itemStatus: "pending" | "completed" | "skipped";
+}
+
+export interface TraceQueuesResponse {
+  items: TraceQueueDto[];
+}
+
+/** Resultados de una cola para el perfil técnico (ADR-050). Solo admin. */
+export interface QueueResultsResponse {
+  configs: ScoreConfigDto[];
+  total: number;
+  items: QueueResultItemDto[];
+}
+
+export interface ResolveQueueItemBody {
+  value: string | number | boolean;
+  expectedOutput?: string | null;
 }
 
 /** Acuerdo juez-humano (ADR-040). `target` de un desacuerdo es `run:<datasetRunId>:<itemIndex>`. */
@@ -695,4 +791,146 @@ export interface ProblemDetails {
   status: number;
   detail?: string;
   errors?: Record<string, string>;
+}
+
+// ── Registro de asistentes (ADR-053) ───────────────────────────────────────────────────────────────────────────
+
+export type HealthStatusDto = "up" | "degraded" | "down" | "unknown";
+export type AuthMethodDto = "none" | "api_key" | "oauth2" | "mtls" | "other";
+export type ConnectionKindDto = "mcp_server" | "tool" | "agent";
+export type ConnectionStatusDto = "pending" | "approved" | "blocked";
+export type GrantSubjectTypeDto = "user" | "group" | "everyone";
+
+export interface EnvironmentDto {
+  id: string;
+  key: string;
+  label: string;
+  position: number;
+  isProduction: boolean;
+  healthIntervalSeconds: number;
+}
+
+export interface DeploymentDto {
+  id: string;
+  experimentId: string;
+  environmentId: string;
+  apiUrl: string;
+  /** null = `apiUrl` + `/health` */
+  healthUrl: string | null;
+  version: string | null;
+  authMethod: AuthMethodDto;
+  authProvider: string | null;
+  authAudience: string | null;
+  healthCheckEnabled: boolean;
+  healthIntervalSeconds: number | null;
+  healthStatus: HealthStatusDto;
+  healthCheckedAt: string | null;
+  healthStatusSince: string | null;
+  healthLatencyMs: number | null;
+  healthConsecutiveFailures: number;
+}
+
+export interface DeploymentSummaryDto extends DeploymentDto {
+  environment: EnvironmentDto;
+  access: { everyone: boolean; groups: number; users: number };
+  /** últimas 24 h en 36 tramos, el más antiguo primero; `null` = sin sondeos en el tramo */
+  recent: { buckets: Array<HealthStatusDto | null>; uptimePercent: number | null };
+}
+
+export interface AssistantMemberDto {
+  userId: string;
+  name: string | null;
+  email: string;
+  image: string | null;
+  role: string;
+}
+
+/** Cómo se habla con el agente (ADR-055): el path es el mismo en todos los entornos; el host sale de cada despliegue. */
+export interface ChatConfigDto {
+  path: string;
+  requestField: string;
+  responseField: string;
+  sessionField: string | null;
+}
+
+export interface ChatResponseDto {
+  reply: string;
+  sessionId: string | null;
+  latencyMs: number;
+}
+
+export interface AssistantCardDto {
+  experimentId: string;
+  name: string;
+  serviceName: string;
+  description: string;
+  owner: { id: string; name: string | null; email: string } | null;
+  lifecycle: "active" | "retired";
+  /** null = el agente no declara endpoint de chat */
+  chat: ChatConfigDto | null;
+  createdAt: string;
+  updatedAt: string;
+  deployments: DeploymentSummaryDto[];
+  connectionCounts: { mcpServers: number; tools: number; agents: number; toReview: number };
+  mcpServerNames: string[];
+  /** quién participa en el experimento (técnicos y de negocio), con su foto si el proveedor de identidad la da */
+  members: { total: number; preview: AssistantMemberDto[] };
+  /** el peor estado de sus despliegues; null si no tiene ninguno */
+  status: HealthStatusDto | null;
+}
+
+export interface AssistantCatalogResponse {
+  items: AssistantCardDto[];
+}
+
+export interface EnvironmentsResponse {
+  items: EnvironmentDto[];
+}
+
+export interface HealthCheckDto {
+  checkedAt: string;
+  status: HealthStatusDto;
+  latencyMs: number | null;
+  httpStatus: number | null;
+  error: string | null;
+}
+
+export interface HealthHistoryResponse {
+  items: HealthCheckDto[];
+}
+
+export interface ConnectionDto {
+  id: string;
+  kind: ConnectionKindDto;
+  name: string;
+  via: string | null;
+  peerExperimentId: string | null;
+  declared: boolean;
+  status: ConnectionStatusDto;
+  firstSeenAt: string | null;
+  lastSeenAt: string | null;
+  decidedBy: string | null;
+  decidedAt: string | null;
+  note: string | null;
+  /** últimos 7 días; null donde todavía no se mide (servidores MCP y agentes) */
+  usage: { calls: number; errors: number } | null;
+}
+
+export interface ConnectionsResponse {
+  items: ConnectionDto[];
+}
+
+export interface AccessGrantDto {
+  id: string;
+  deploymentId: string;
+  subjectType: GrantSubjectTypeDto;
+  userId: string | null;
+  externalGroup: string | null;
+  memberCount: number | null;
+  source: "manual" | "oidc" | "scim";
+  syncedAt: string | null;
+}
+
+export interface AccessGrantsResponse {
+  items: AccessGrantDto[];
 }

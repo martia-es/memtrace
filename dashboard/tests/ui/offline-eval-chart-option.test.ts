@@ -1,6 +1,6 @@
 import type { RunListItemDto } from "@contract";
 import { describe, expect, it } from "vitest";
-import { buildOfflineSeries, judgeChangeNotices, selectOfflineRuns, summarizeEvaluators } from "@/ui/offline-eval-chart-option";
+import { buildOfflineSeries, judgeChangeNotices, offlineVerdict, passFailChartOption, selectOfflineRuns, summarizeEvaluators } from "@/ui/offline-eval-chart-option";
 
 function run(id: string, createdAt: string, over: Partial<RunListItemDto> = {}): RunListItemDto {
   return { id, name: id, versionMajor: 1, versionMinor: 0, itemCount: 2, status: "completed", createdAt, aggregates: [], datasetId: "d1", datasetName: "D1", ...over };
@@ -86,5 +86,28 @@ describe("summarizeEvaluators", () => {
     expect(byName.exact).toMatchObject({ latest: 0.7, previous: 0.8, status: "regressing" });
     expect(byName.tone).toMatchObject({ latest: 0.9, status: "judge-changed" });
     expect(byName.solo).toMatchObject({ latest: 1, previous: null, status: "first-run" });
+  });
+});
+
+describe("offlineVerdict and pass/fail breakdown", () => {
+  const agg = (name: string, passRate: number | null, count = 4) => ({ name, dataType: "boolean" as const, passRate, average: null, count, judges: [] });
+  const verdictOf = (...rates: number[]) => offlineVerdict(summarizeEvaluators([run("a", "2026-03-01T00:00:00Z", { aggregates: rates.map((r, i) => agg(`e${i}`, r)) })]));
+
+  it("derives passed/failed counts and tone from the latest run", () => {
+    const [s] = summarizeEvaluators([run("a", "2026-03-01T00:00:00Z", { aggregates: [agg("exact", 0.5)] })]);
+    expect(s).toMatchObject({ passed: 2, failed: 2, count: 4, tone: "warning", history: [0.5] });
+  });
+
+  it("rates the system by its worst pass/fail evaluator", () => {
+    expect(verdictOf(0.9, 0.85).level).toBe("healthy");
+    expect(verdictOf(0.9, 0.6).level).toBe("attention");
+    expect(verdictOf(0.9, 0.3).level).toBe("failing");
+    expect(offlineVerdict([]).level).toBe("unknown");
+  });
+
+  it("plots one passed and one failed bar per boolean evaluator", () => {
+    const summary = summarizeEvaluators([run("a", "2026-03-01T00:00:00Z", { aggregates: [agg("x", 0.75)] })]);
+    const option = passFailChartOption(summary, false) as { series: { name: string; data: number[] }[] };
+    expect(option.series.map((s) => [s.name, s.data])).toEqual([["Passed", [3]], ["Failed", [1]]]);
   });
 });

@@ -13,16 +13,21 @@ export const router = createRouter({
     { path: "/admin/organizations/:organizationId", name: "admin-organization", component: () => import("./pages/admin/AdminOrganizationPage.vue"), props: true, meta: { title: "Organization", section: "admin" } },
     // el parámetro no se llama :experimentId a propósito: el guard de abajo fija el experimento "activo" para :experimentId
     { path: "/admin/experiments/:expId", name: "admin-experiment", component: () => import("./pages/admin/AdminExperimentPage.vue"), props: (route) => ({ experimentId: route.params.expId }), meta: { title: "Experiment", section: "admin" } },
+    // catálogo de asistentes para gobernanza (ADR-053): de organización, no cuelga de :experimentId; el parámetro se llama :expId por la misma razón que en /admin
+    { path: "/assistants", name: "assistants", component: () => import("./pages/AssistantsPage.vue"), meta: { title: "Assistants", section: "assistants" } },
+    { path: "/assistants/:expId", name: "assistant", component: () => import("./pages/AssistantDetailPage.vue"), props: (route) => ({ experimentId: route.params.expId }), meta: { title: "Assistant", section: "assistants" } },
     { path: "/model-pricing", name: "model-pricing", component: () => import("./pages/ModelPricingPage.vue"), meta: { title: "Model pricing", section: "model-pricing" } },
     {
       path: "/e/:experimentId",
       children: [
-        { path: "", redirect: (to) => ({ name: "conversations", params: to.params }) },
+        { path: "", redirect: (to) => ({ name: "overview", params: to.params }) },
         { path: "spans", redirect: (to) => ({ name: "conversations", params: to.params }) },
         { path: "conversations", name: "conversations", component: () => import("./pages/ConversationsPage.vue"), meta: { title: "Conversations", section: "conversations" } },
         { path: "conversations/:conversationId", name: "conversation", component: () => import("./pages/ConversationDetailPage.vue"), props: true, meta: { title: "Conversation", section: "conversations", framed: true } },
         { path: "traces/:traceId", name: "trace", component: () => import("./pages/TraceDetailPage.vue"), props: true, meta: { title: "Trace", section: "conversations", framed: true } },
-        { path: "metrics", name: "metrics", component: () => import("./pages/MetricsPage.vue"), meta: { title: "Metrics", section: "metrics" } },
+        { path: "overview", name: "overview", component: () => import("./pages/MetricsPage.vue"), meta: { title: "Overview", section: "overview" } },
+        // antes "Metrics": se mantiene el path para enlaces guardados (ADR-048)
+        { path: "metrics", redirect: (to) => ({ name: "overview", params: to.params, query: to.query }) },
         { path: "annotation-queues", name: "annotation-queues", component: () => import("./pages/AnnotationQueuesPage.vue"), meta: { title: "Review queues", section: "annotation-queues" } },
         { path: "annotation-queues/:queueId/review", name: "annotation-queue-review", component: () => import("./pages/AnnotationQueueReviewPage.vue"), props: true, meta: { title: "Review", section: "annotation-queues", framed: true } },
         { path: "datasets", name: "datasets", component: () => import("./pages/DatasetsPage.vue"), meta: { title: "Datasets", section: "datasets" } },
@@ -59,9 +64,11 @@ router.beforeEach(async (to) => {
   if (to.name === "home") {
     const experiments = await identityApi.listExperiments();
     const lastId = localStorage.getItem(LAST_EXPERIMENT_KEY);
-    const target = experiments.find((e) => e.id === lastId) ?? experiments[0];
+    // solo experimentos que puede leer: un org_admin sin rol de trabajo aterriza en Admin (ADR-052)
+    const readable = experiments.filter((e) => e.permissions.includes("experiment:read"));
+    const target = readable.find((e) => e.id === lastId) ?? readable[0];
     if (!target) return { name: "admin" };
-    return { name: "conversations", params: { experimentId: target.id } };
+    return { name: "overview", params: { experimentId: target.id } };
   }
 
   const experimentId = to.params.experimentId;

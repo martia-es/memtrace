@@ -20,7 +20,7 @@ export async function PUT(request: Request, context: { params: Promise<{ experim
     if (user instanceof Response) return user;
 
     const { authorizationService, identityRepository } = getIdentity();
-    if (!(await authorizationService.canReadExperiment(user.id, experimentId))) {
+    if (!(await authorizationService.can(user.id, experimentId, "dataset:write"))) {
       return problem(403, "Forbidden", "No access to this experiment");
     }
     const dataset = await identityRepository.getDataset(datasetId);
@@ -41,7 +41,7 @@ export async function DELETE(_request: Request, context: { params: Promise<{ exp
     if (user instanceof Response) return user;
 
     const { authorizationService, identityRepository } = getIdentity();
-    if (!(await authorizationService.canReadExperiment(user.id, experimentId))) {
+    if (!(await authorizationService.can(user.id, experimentId, "dataset:write"))) {
       return problem(403, "Forbidden", "No access to this experiment");
     }
     const dataset = await identityRepository.getDataset(datasetId);

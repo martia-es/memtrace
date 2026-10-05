@@ -5,13 +5,19 @@ import type {
   AnnotationQueueDetailResponse,
   AnnotationQueueDto,
   AnnotationQueuesListResponse,
+  ReviewerCandidatesResponse,
   NextQueueItemResponse,
   QueueItemDto,
   QueueItemsResponse,
+  QueueResolutionDto,
+  QueueResultsResponse,
+  TraceQueuesResponse,
+  ResolveQueueItemBody,
   AttributeKeysResponse,
   AttributeValuesResponse,
   ConversationDetailResponse,
   ConversationListResponse,
+  LowRatedResponse,
   ConversationTreeResponse,
   CustomMetricDefinitionDto,
   CustomMetricResultResponse,
@@ -40,7 +46,7 @@ import type {
   TraceListResponse,
   TranscriptResponse,
 } from "@contract";
-import { ApiError, type ListConversationsParams, type ListSpansParams, type ListTracesParams, type RangeParams, type SaveAnnotationBody, type TraceApi, type AddQueueItemsBody, type AnnotationQueuePatchBody, type NewAnnotationQueueBody, type QueueLabelBody, type AgreementScope } from "@/application/trace-api";
+import { ApiError, type ListConversationsParams, type ListSpansParams, type ListTracesParams, type RangeParams, type SaveAnnotationBody, type TraceApi, type AddQueueItemsBody, type AnnotationQueuePatchBody, type NewAnnotationQueueBody, type QueueLabelBody, type AgreementScope, type QueueResultsParams } from "@/application/trace-api";
 
 type Fetch = typeof fetch;
 type QueryValue = string | number | boolean | undefined;
@@ -100,8 +106,16 @@ export class HttpTraceApi implements TraceApi {
     return this.get<AnnotationQueuesListResponse>(this.queueBase(), { includeArchived }, signal);
   }
 
+  getLowRated(params: RangeParams, signal?: AbortSignal) {
+    return this.get<LowRatedResponse>(`${this.scopedBase()}/annotations/low-rated`, { ...params }, signal);
+  }
+
   createAnnotationQueue(body: NewAnnotationQueueBody, signal?: AbortSignal) {
     return this.post<AnnotationQueueDto>(this.queueBase(), body, signal);
+  }
+
+  listReviewerCandidates(signal?: AbortSignal) {
+    return this.get<ReviewerCandidatesResponse>(`${this.queueBase()}/reviewer-candidates`, {}, signal);
   }
 
   getAnnotationQueue(queueId: string, signal?: AbortSignal) {
@@ -118,6 +132,26 @@ export class HttpTraceApi implements TraceApi {
 
   addAnnotationQueueItems(queueId: string, body: AddQueueItemsBody, signal?: AbortSignal) {
     return this.post<AddQueueItemsResponse>(`${this.queueBase(queueId)}/items`, body, signal);
+  }
+
+  listTraceQueues(traceId: string, signal?: AbortSignal) {
+    return this.get<TraceQueuesResponse>(`${this.scopedBase()}/traces/${encodeURIComponent(traceId)}/queues`, {}, signal);
+  }
+
+  getQueueResults(queueId: string, params: QueueResultsParams = {}, signal?: AbortSignal) {
+    return this.get<QueueResultsResponse>(`${this.queueBase(queueId)}/results`, { ...params }, signal);
+  }
+
+  private resolutionPath(queueId: string, itemId: string, configId: string) {
+    return `${this.queueBase(queueId)}/items/${encodeURIComponent(itemId)}/resolution/${encodeURIComponent(configId)}`;
+  }
+
+  resolveQueueItem(queueId: string, itemId: string, configId: string, body: ResolveQueueItemBody, signal?: AbortSignal) {
+    return this.put<QueueResolutionDto>(this.resolutionPath(queueId, itemId, configId), body, signal);
+  }
+
+  clearQueueResolution(queueId: string, itemId: string, configId: string, signal?: AbortSignal) {
+    return this.del(this.resolutionPath(queueId, itemId, configId), signal);
   }
 
   getJudgeHumanAgreement(scope: AgreementScope, name?: string, signal?: AbortSignal) {

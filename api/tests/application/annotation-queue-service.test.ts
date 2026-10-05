@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { AnnotationQueueService } from "@/application/annotation-queue-service";
 import type { IdentityRepository } from "@/application/ports/identity-repository";
 import { RepositoryUnavailableError } from "@/application/errors";
-import { AnnotationQueueInvariantError, AnnotationQueueNotFoundError, ScoreConfigNotFoundError, ValidationError } from "@/domain/errors";
+import { AnnotationQueueInvariantError, AnnotationQueueNotFoundError, AnnotationQueueReviewerError, ScoreConfigNotFoundError, ValidationError } from "@/domain/errors";
 import { FakeAnnotationQueueRepository, FakeAnnotationRepository, FakeScoreConfigRepository, FakeTraceRepository, span } from "../helpers";
 
 const SERVICE = "svc";
@@ -15,6 +15,7 @@ describe("AnnotationQueueService (ADR-039)", () => {
   let annotations: FakeAnnotationRepository;
   let traces: FakeTraceRepository;
   let runs: Array<{ id: string; itemCount: number }>;
+  let promoted: Array<{ traceId: string; datasetId: string; datasetName: string; version: string }>;
   let service: AnnotationQueueService;
   let toneId: string;
   let queueId: string;
@@ -27,20 +28,60 @@ describe("AnnotationQueueService (ADR-039)", () => {
     for (const id of ["t1", "t2", "t3"]) traces.traces.set(id, { spans: [span({ serviceName: SERVICE })], truncated: false });
     traces.traces.set("foreign", { spans: [span({ serviceName: "other" })], truncated: false });
     runs = [{ id: "run-1", itemCount: 3 }];
+    promoted = [];
     const identity = {
-      getUsersByIds: async (ids: string[]) => ids.map((id) => ({ id, name: id.toUpperCase() })),
+      getUsersByIds: async (ids: string[]) => ids.map((id) => ({ id, name: id.toUpperCase(), email: `${id}@x.com`, image: `https://img/${id}.png` })),
       listRunsForExperiment: async () => runs,
+      getExperiment: async () => ({ id: "e1", organizationId: "org-1" }),
+      listOrgMembers: async () => [{ userId: "olga", email: "olga@x.com", name: "Olga", role: "org_admin" }],
+      findPromotedTraces: async (_experimentId: string, traceIds: string[]) => promoted.filter((p) => traceIds.includes(p.traceId)),
+      listExperimentMembers: async () => ["ana", "luis", "bea", "eva"].map((userId) => ({ userId, email: `${userId}@x.com`, name: userId, role: "member" })),
     } as unknown as IdentityRepository;
     service = new AnnotationQueueService(queues, configs, annotations, traces, identity, () => new Date("2026-10-03T10:00:00.000Z"));
     toneId = (await configs.create("e1", "u1", { name: "tone", dataType: "numeric", minValue: 1, maxValue: 5, categories: null, description: null })).id;
-    queueId = (await service.create("e1", "u1", { name: "Review", instructions: null, requiredAnnotations: 1, rubric: [{ configId: toneId, required: true }] })).id;
+    queueId = (await service.create("e1", "u1", { name: "Review", instructions: null, requiredAnnotations: 1, reviewerIds: ["ana", "luis"], rubric: [{ configId: toneId, required: true }] })).id;
   });
 
   describe("queues", () => {
     it("rejects a rubric config that does not exist in the experiment or is archived", async () => {
-      await expect(service.create("e1", "u1", { name: "x", instructions: null, requiredAnnotations: 1, rubric: [{ configId: "nope", required: true }] })).rejects.toBeInstanceOf(ScoreConfigNotFoundError);
+      await expect(service.create("e1", "u1", { name: "x", instructions: null, requiredAnnotations: 1, reviewerIds: ["ana", "luis"], rubric: [{ configId: "nope", required: true }] })).rejects.toBeInstanceOf(ScoreConfigNotFoundError);
       await configs.setArchived("e1", toneId, true);
-      await expect(service.create("e1", "u1", { name: "x", instructions: null, requiredAnnotations: 1, rubric: [{ configId: toneId, required: true }] })).rejects.toBeInstanceOf(AnnotationQueueInvariantError);
+      await expect(service.create("e1", "u1", { name: "x", instructions: null, requiredAnnotations: 1, reviewerIds: ["ana", "luis"], rubric: [{ configId: toneId, required: true }] })).rejects.toBeInstanceOf(AnnotationQueueInvariantError);
+    });
+
+    it("lists each queue with the name and photo of its reviewers, never their email", async () => {
+      const [listed] = await service.list("e1", "ana");
+      expect(listed!.assignedReviewers).toEqual([
+        { userId: "ana", name: "ANA", image: "https://img/ana.png" },
+        { userId: "luis", name: "LUIS", image: "https://img/luis.png" },
+      ]);
+    });
+
+    it("offers only the experiment's members as reviewers: an org_admin has no annotation permission (ADR-052)", async () => {
+      const candidates = await service.reviewerCandidates("e1");
+      expect(candidates.map((c) => c.userId).sort()).toEqual(["ana", "bea", "eva", "luis"]);
+      await expect(service.update("e1", queueId, { reviewerIds: ["ana", "olga"] })).rejects.toBeInstanceOf(ValidationError);
+    });
+
+    it("tells each person whether they can annotate in a queue", async () => {
+      expect((await service.list("e1", "ana"))[0]!.isReviewer).toBe(true);
+      expect((await service.list("e1", "bea"))[0]!.isReviewer).toBe(false);
+    });
+
+    it("rejects reviewers that are not members of the experiment", async () => {
+      await expect(service.create("e1", "u1", { name: "x", instructions: null, requiredAnnotations: 1, reviewerIds: ["ana", "stranger"], rubric: [{ configId: toneId, required: true }] })).rejects.toBeInstanceOf(ValidationError);
+      await expect(service.update("e1", queueId, { reviewerIds: ["stranger"] })).rejects.toBeInstanceOf(ValidationError);
+    });
+
+    it("only lets the assigned reviewers pull, complete and skip, even other experiment members", async () => {
+      await service.addItems(ana, queueId, { traceIds: ["t1"] });
+      const bea = { userId: "bea", experimentId: "e1", serviceName: SERVICE };
+      await expect(service.next(bea, queueId)).rejects.toBeInstanceOf(AnnotationQueueReviewerError);
+      const item = (await service.next(ana, queueId))!;
+      await expect(service.skip(bea, queueId, item.id)).rejects.toBeInstanceOf(AnnotationQueueReviewerError);
+      await expect(service.complete(bea, queueId, item.id, [{ configId: toneId, value: 3 }])).rejects.toBeInstanceOf(AnnotationQueueReviewerError);
+      await service.update("e1", queueId, { reviewerIds: ["ana", "bea"] });
+      expect(await service.next(bea, queueId)).toBeNull();
     });
 
     it("does not leak queues across experiments", async () => {
@@ -100,6 +141,7 @@ describe("AnnotationQueueService (ADR-039)", () => {
     it("returns null when nothing is left for the reviewer", async () => {
       await service.next(ana, queueId);
       await service.next(luis, queueId);
+      await service.update("e1", queueId, { reviewerIds: ["ana", "luis", "eva"] });
       expect(await service.next({ ...ana, userId: "eva" }, queueId)).toBeNull();
     });
 
@@ -196,5 +238,92 @@ describe("AnnotationQueueService (ADR-039)", () => {
     await service.addItems(ana, queueId, { traceIds: ["t1"] });
     await service.complete(ana, queueId, (await service.next(ana, queueId))!.id, [{ configId: toneId, value: 3 }]);
     expect((await service.getDetail("e1", queueId)).reviewers).toEqual([{ userId: "ana", name: "ANA", completed: 1, skipped: 0, inProgress: 0 }]);
+  });
+  describe("results and resolutions (ADR-050)", () => {
+    const label = (userId: string, traceId: string, value: string, comment: string | null = null) => ({
+      traceId, spanId: null, configId: toneId, configName: "tone", dataType: "numeric" as const, annotatorId: userId, value, comment, createdAt: "2026-10-04T10:00:00.000Z",
+    });
+
+    async function twoReviewedItems() {
+      const q = await service.create("e1", "u1", { name: "Two", instructions: null, requiredAnnotations: 2, reviewerIds: ["ana", "luis"], rubric: [{ configId: toneId, required: true }] });
+      await service.addItems(ana, q.id, { traceIds: ["t1", "t2"] });
+      await annotations.upsert(SERVICE, label("ana", "t1", "5", "great"));
+      await annotations.upsert(SERVICE, label("luis", "t1", "4"));
+      await annotations.upsert(SERVICE, label("ana", "t2", "1"));
+      await annotations.upsert(SERVICE, label("luis", "t2", "5"));
+      return q.id;
+    }
+
+    it("returns every reviewer's label per item and criterion, flagging disagreements", async () => {
+      const id = await twoReviewedItems();
+      const results = await service.getResults(ana, id);
+      expect(results.total).toBe(2);
+      const [t1, t2] = results.items;
+      expect(t1!.item.traceId).toBe("t1");
+      expect(t1!.criteria[0]!.status).toBe("consensus");
+      expect(t1!.criteria[0]!.labels.map((l) => [l.name, l.value, l.comment])).toEqual([["ANA", "5", "great"], ["LUIS", "4", null]]);
+      expect(t2!.criteria[0]!.status).toBe("disagreement");
+      expect(t2!.needsResolution).toBe(true);
+    });
+
+    it("says which dataset already holds an item promoted from each trace", async () => {
+      const id = await twoReviewedItems();
+      promoted = [{ traceId: "t1", datasetId: "d1", datasetName: "Regression", version: "3.0" }];
+      const [t1, t2] = (await service.getResults(ana, id)).items;
+      expect(t1!.promotedTo).toEqual(promoted);
+      expect(t2!.promotedTo).toEqual([]);
+    });
+
+    it("lists the queues a trace belongs to with the item status", async () => {
+      const id = await twoReviewedItems();
+      expect(await service.queuesForTrace("e1", "t1")).toEqual([{ queueId: id, queueName: "Two", archived: false, itemStatus: "pending" }]);
+      expect(await service.queuesForTrace("e1", "nope")).toEqual([]);
+    });
+
+    it("filters to disagreements and paginates after filtering", async () => {
+      const id = await twoReviewedItems();
+      const only = await service.getResults(ana, id, { onlyDisagreements: true });
+      expect(only.items.map((i) => i.item.traceId)).toEqual(["t2"]);
+      expect(only.total).toBe(1);
+      const page = await service.getResults(ana, id, { limit: 1, offset: 1 });
+      expect(page.items.map((i) => i.item.traceId)).toEqual(["t2"]);
+      expect(page.total).toBe(2);
+    });
+
+    it("marks labels of people removed from the reviewer list but keeps them", async () => {
+      const id = await twoReviewedItems();
+      await service.update("e1", id, { reviewerIds: ["ana", "bea"], requiredAnnotations: 1 });
+      const [t1] = (await service.getResults(ana, id)).items;
+      expect(t1!.criteria[0]!.labels.map((l) => [l.name, l.isReviewer])).toEqual([["ANA", true], ["LUIS", false]]);
+    });
+
+    it("stores a resolution apart from the labels and stops flagging the item", async () => {
+      const id = await twoReviewedItems();
+      const t2 = (await service.getResults(ana, id)).items[1]!;
+      const saved = await service.resolve("e1", "tech", id, t2.item.id, { configId: toneId, value: 2, expectedOutput: "  Hoy no llueve  " });
+      expect(saved).toMatchObject({ value: "2", expectedOutput: "Hoy no llueve", resolvedBy: "tech" });
+      const after = (await service.getResults(ana, id)).items[1]!;
+      expect(after.needsResolution).toBe(false);
+      expect(after.criteria[0]!.resolution?.value).toBe("2");
+      expect(after.criteria[0]!.labels).toHaveLength(2);
+      expect(annotations.rows.filter((r) => r.annotation.annotatorId === "tech")).toEqual([]);
+    });
+
+    it("validates the resolution against the rubric config", async () => {
+      const id = await twoReviewedItems();
+      const item = (await service.getResults(ana, id)).items[0]!.item;
+      await expect(service.resolve("e1", "tech", id, item.id, { configId: toneId, value: 9 })).rejects.toBeInstanceOf(Error);
+      await expect(service.resolve("e1", "tech", id, item.id, { configId: "other", value: 3 })).rejects.toBeInstanceOf(ValidationError);
+      await expect(service.resolve("e1", "tech", id, "missing", { configId: toneId, value: 3 })).rejects.toBeInstanceOf(AnnotationQueueNotFoundError);
+    });
+
+    it("clears a resolution and 404s when there is none", async () => {
+      const id = await twoReviewedItems();
+      const item = (await service.getResults(ana, id)).items[1]!.item;
+      await service.resolve("e1", "tech", id, item.id, { configId: toneId, value: 2 });
+      await service.clearResolution("e1", id, item.id, toneId);
+      expect((await service.getResults(ana, id)).items[1]!.needsResolution).toBe(true);
+      await expect(service.clearResolution("e1", id, item.id, toneId)).rejects.toBeInstanceOf(AnnotationQueueNotFoundError);
+    });
   });
 });

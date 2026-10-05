@@ -1,19 +1,20 @@
 <script setup lang="ts">
 import type { ConversationSummaryDto, TraceSummaryDto } from "@contract";
-import { computed, inject, watch } from "vue";
+import { computed, inject, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { CURRENT_EXPERIMENT } from "@/dependency-container";
-import { formatCount, formatDateTime, formatDuration, formatPercent } from "@/domain/format";
+import { formatCostUsd, formatCount, formatDateTime, formatDuration, formatPercent } from "@/domain/format";
 import { mergeLatestConversations, mergeLatestTraces } from "@/domain/merge";
 import { RANGE_PRESETS, resolveRange } from "@/domain/time-range";
 import EmptyState from "../components/EmptyState.vue";
 import OnboardingGuide from "../components/OnboardingGuide.vue";
+import ConversationPreview from "../components/ConversationPreview.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
+import StatusChip from "../components/StatusChip.vue";
 import FilterBar from "../components/FilterBar.vue";
 import LiveControl from "../components/LiveControl.vue";
 import PageHeader from "../components/PageHeader.vue";
 import TraceTable from "../components/TraceTable.vue";
-import Select from "../components/Select.vue";
 import { useAsync } from "../composables/useAsync";
 import { useFilters } from "../composables/useFilters";
 import { setRefreshSeconds, useLiveRefresh } from "../composables/useLiveRefresh";
@@ -70,16 +71,73 @@ const liveRefresh = useLiveRefresh(
 );
 watch([f.range, f.service, f.hasErrors, f.minDurationMs, grouped], reload, { immediate: true });
 
-const LATENCY_OPTIONS = [
-  { label: "Any latency", value: 0 },
-  { label: "≥ 1 s", value: 1000 },
-  { label: "≥ 5 s", value: 5000 },
-  { label: "≥ 10 s", value: 10000 },
-  { label: "≥ 30 s", value: 30000 },
-];
-
 const convStatus = (c: ConversationSummaryDto) => (c.errorTurns > 0 ? "error" : c.failedSpans > 0 ? "warn" : "ok");
 const STATUS_LABEL = { ok: "OK", error: "Error", warn: "With failures" } as const;
+
+// ---- vistas rápidas (ADR-048): atajos a los filtros que más se usan ----
+const SLOW_MS = 5000;
+const quick = computed<"all" | "errors" | "slow">(() => (f.hasErrors.value ? "errors" : (f.minDurationMs.value ?? 0) >= SLOW_MS ? "slow" : "all"));
+const quickViews = computed(() => {
+  const errors = overview.data.value?.totals.errorTraces;
+  return [
+    { key: "all" as const, label: "All", count: null },
+    { key: "errors" as const, label: "With errors", count: errors ?? null },
+    ...(grouped.value ? [] : [{ key: "slow" as const, label: `Slow (≥ ${SLOW_MS / 1000} s)`, count: null }]),
+  ];
+});
+
+// ---- vista previa: un clic selecciona, doble clic o Enter abre el detalle ----
+const selected = ref<{ kind: "conversation" | "trace"; id: string } | null>(null);
+watch([grouped, f.range, f.service, f.hasErrors, f.minDurationMs], () => (selected.value = null));
+const transcript = useAsync((signal) => api.getTranscript(selected.value!.id, signal));
+watch(selected, (s) => {
+  if (s?.kind === "conversation") void transcript.run();
+});
+const selectedConversation = computed(() => (selected.value?.kind === "conversation" ? conversations.items.value.find((c) => c.conversationId === selected.value!.id) ?? null : null));
+const selectedTrace = computed(() => (selected.value?.kind === "trace" ? traces.items.value.find((t) => t.traceId === selected.value!.id) ?? null : null));
+const preview = computed(() => {
+  const c = selectedConversation.value;
+  if (c) {
+    const turns = transcript.data.value?.turns ?? [];
+    const messages = turns.flatMap((t) => [
+      ...(t.user ? [{ role: "user" as const, text: t.user }] : []),
+      ...(t.assistant ? [{ role: "assistant" as const, text: t.assistant }] : []),
+    ]);
+    return {
+      title: c.title ?? c.conversationId,
+      subtitle: `${c.conversationId} · ${c.serviceNames.join(", ")} · ${formatDateTime(c.lastActivity)}`,
+      stats: [
+        { k: "TURNS", v: String(c.turnCount) },
+        { k: "ACTIVE TIME", v: formatDuration(c.activeMs) },
+        { k: "COST", v: formatCostUsd(c.costUsd) ?? "–" },
+      ],
+      messages,
+      loading: transcript.loading.value && !transcript.data.value,
+      emptyHint: transcript.data.value && !transcript.data.value.contentCaptured ? "The agent did not capture message content (enable MEMTRACE_CAPTURE_CONTENT=true to see it here)." : undefined,
+    };
+  }
+  const t = selectedTrace.value;
+  if (t) {
+    return {
+      title: t.rootSpanName,
+      subtitle: t.traceId,
+      stats: [
+        { k: "DURATION", v: formatDuration(t.durationMs) },
+        { k: "TOKENS", v: t.totalTokens ? formatCount(t.totalTokens) : "–" },
+        { k: "SPANS", v: formatCount(t.spanCount) },
+      ],
+      messages: [...(t.input ? [{ role: "user" as const, text: t.input }] : []), ...(t.output ? [{ role: "assistant" as const, text: t.output }] : [])],
+      loading: false,
+      emptyHint: undefined,
+    };
+  }
+  return null;
+});
+const openSelected = () => {
+  if (!selected.value) return;
+  if (selected.value.kind === "conversation") openConversation(selected.value.id);
+  else openTrace(selected.value.id);
+};
 
 const openTrace = (traceId: string) => void router.push({ name: "trace", params: { experimentId: experimentId.value, traceId }, query: f.shared.value });
 const openConversation = (conversationId: string) => void router.push({ name: "conversation", params: { experimentId: experimentId.value, conversationId }, query: f.shared.value });
@@ -95,7 +153,7 @@ const rangeOptions = computed(() => RANGE_PRESETS.map((p) => ({ label: p.long, v
 
 <template>
   <q-page class="page">
-    <PageHeader :crumbs="[{ label: 'MemTrace', to: { name: 'conversations', params: { experimentId } } }, { label: 'Conversations' }]" icon="M4 5h16v11H9l-5 4z" title="Conversations">
+    <PageHeader :crumbs="[{ label: 'MemTrace', to: { name: 'overview', params: { experimentId } } }, { label: 'Conversations' }]" icon="M4 5h16v11H9l-5 4z" title="Conversations">
       <FilterBar :range="f.range.value" :loading="overview.loading.value" @update:range="f.setRange" @refresh="reload">
         <LiveControl :seconds="liveRefresh.seconds.value" :updated-at="liveRefresh.updatedAt.value" @update:seconds="setRefreshSeconds" />
       </FilterBar>
@@ -112,58 +170,92 @@ const rangeOptions = computed(() => RANGE_PRESETS.map((p) => ({ label: p.long, v
       <div v-else class="kpi-msg">Loading summary…</div>
     </section>
 
-    <section class="table-card mt-card">
-      <div class="toolbar">
-        <q-toggle :model-value="f.hasErrors.value" label="Only with errors" dense @update:model-value="(v: boolean) => f.setHasErrors(v)" />
-        <Select
-          v-if="!grouped"
-          class="latency"
-          :model-value="f.minDurationMs.value ?? 0"
-          :options="LATENCY_OPTIONS"
-          placeholder="Latency"
-          @update:model-value="(v: number) => f.setMinDuration(v || undefined)"
-        />
-        <q-toggle class="group-toggle" :model-value="grouped" label="Group by conversation" dense @update:model-value="(v: boolean) => f.setGroup(v ? 'conversation' : 'flat')" />
+    <div class="views-row">
+      <div class="mt-segmented small" role="group" aria-label="List mode">
+        <button type="button" class="mode-conversations" :aria-pressed="grouped" @click="f.setGroup('conversation')">Conversations</button>
+        <button type="button" class="mode-traces" :aria-pressed="!grouped" @click="f.setGroup('flat')">Traces</button>
       </div>
-
-      <ErrorBanner v-if="active.error.value" :error="active.error.value" @retry="reload" />
-
-      <div class="list">
-        <table v-if="grouped && conversations.items.value.length" class="conversations">
-          <thead>
-            <tr><th>Conversation</th><th>Agent</th><th>Last Activity</th><th class="num">Turns</th><th class="num">Active Time</th><th class="num">Tokens</th><th>Status</th></tr>
-          </thead>
-          <tbody>
-            <tr v-for="c in conversations.items.value" :key="c.conversationId" class="item" :class="{ fresh: conversations.newKeys.value.has(c.conversationId) }" tabindex="0" @click="openConversation(c.conversationId)" @keydown.enter="openConversation(c.conversationId)">
-              <td class="name mono" :title="c.conversationId">{{ c.conversationId }}</td>
-              <td class="muted">{{ c.serviceNames.join(", ") }}</td>
-              <td class="muted mono">{{ formatDateTime(c.lastActivity) }}</td>
-              <td class="num mono">{{ c.turnCount }}</td>
-              <td class="num mono">{{ formatDuration(c.activeMs) }}</td>
-              <td class="num mono">{{ c.totalTokens ? formatCount(c.totalTokens) : "–" }}</td>
-              <td><span class="status" :class="convStatus(c)">{{ STATUS_LABEL[convStatus(c)] }}</span></td>
-            </tr>
-          </tbody>
-        </table>
-        <TraceTable v-else-if="!grouped && traces.items.value.length" :items="traces.items.value" :new-keys="traces.newKeys.value" show-conversation @open="openTrace" @open-conversation="openConversation" />
-
-        <OnboardingGuide
-          v-if="!active.loading.value && active.items.value.length === 0 && !active.error.value"
-          :service-name="currentExperiment?.serviceName ?? ''"
-          :experiment-id="experimentId"
-        />
-        <div v-if="active.loading.value && active.items.value.length === 0" class="spinner"><q-spinner size="28px" color="primary" /></div>
+      <div class="quick-tabs" role="tablist" aria-label="Quick views">
+        <button v-for="v in quickViews" :key="v.key" type="button" role="tab" class="quick" :class="{ active: quick === v.key }" :aria-selected="quick === v.key" @click="f.setQuickView(v.key)">
+          {{ v.label }}<span v-if="v.count !== null" class="quick-count mono">{{ v.count }}</span>
+        </button>
       </div>
+    </div>
 
-      <ErrorBanner v-if="active.moreError.value" :error="active.moreError.value" @retry="active.loadMore" />
-      <div class="footer">
-        <div class="footer-actions">
+    <div class="body">
+      <section class="table-card mt-card">
+        <ErrorBanner v-if="active.error.value" :error="active.error.value" @retry="reload" />
+
+        <div class="list">
+          <table v-if="grouped && conversations.items.value.length" class="conversations">
+            <thead>
+              <tr><th>Conversation</th><th>Last activity</th><th class="num">Turns</th><th class="num">Active time</th><th class="num">Tokens</th><th class="num">Cost</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="c in conversations.items.value"
+                :key="c.conversationId"
+                class="item"
+                :class="{ fresh: conversations.newKeys.value.has(c.conversationId), selected: selected?.id === c.conversationId }"
+                tabindex="0"
+                @click="selected = { kind: 'conversation', id: c.conversationId }"
+                @dblclick="openConversation(c.conversationId)"
+                @keydown.enter="openConversation(c.conversationId)"
+              >
+                <td class="name-cell">
+                  <span class="name" :class="{ mono: !c.title }" :title="c.title ?? c.conversationId">{{ c.title ?? c.conversationId }}</span>
+                  <span class="sub"><span v-if="c.title" class="mono">{{ c.conversationId }} · </span>{{ c.serviceNames.join(", ") }}</span>
+                </td>
+                <td class="muted mono">{{ formatDateTime(c.lastActivity) }}</td>
+                <td class="num mono">{{ c.turnCount }}</td>
+                <td class="num mono">{{ formatDuration(c.activeMs) }}</td>
+                <td class="num mono">{{ c.totalTokens ? formatCount(c.totalTokens) : "–" }}</td>
+                <td class="num mono">{{ formatCostUsd(c.costUsd) ?? "–" }}</td>
+                <td><StatusChip :tone="convStatus(c)" :label="STATUS_LABEL[convStatus(c)]" /></td>
+              </tr>
+            </tbody>
+          </table>
+          <TraceTable
+            v-else-if="!grouped && traces.items.value.length"
+            :items="traces.items.value"
+            :new-keys="traces.newKeys.value"
+            :selected-id="selected?.kind === 'trace' ? selected.id : null"
+            selectable
+            show-conversation
+            @select="(id: string) => (selected = { kind: 'trace', id })"
+            @open="openTrace"
+            @open-conversation="openConversation"
+          />
+
+          <OnboardingGuide
+            v-if="!active.loading.value && active.items.value.length === 0 && !active.error.value"
+            :service-name="currentExperiment?.serviceName ?? ''"
+            :experiment-id="experimentId"
+          />
+          <div v-if="active.loading.value && active.items.value.length === 0" class="spinner"><q-spinner size="28px" color="primary" /></div>
+        </div>
+
+        <ErrorBanner v-if="active.moreError.value" :error="active.moreError.value" @retry="active.loadMore" />
+        <div class="footer">
+          <span class="count">{{ footer }}</span>
           <button v-if="active.nextCursor.value" type="button" class="more" :disabled="active.moreLoading.value" @click="active.loadMore">
             {{ active.moreLoading.value ? "Loading…" : "Load more" }}
           </button>
         </div>
-      </div>
-    </section>
+      </section>
+
+      <ConversationPreview
+        v-if="preview"
+        :title="preview.title"
+        :subtitle="preview.subtitle"
+        :stats="preview.stats"
+        :messages="preview.messages"
+        :loading="preview.loading"
+        :empty-hint="preview.emptyHint"
+        @open="openSelected"
+        @close="selected = null"
+      />
+    </div>
   </q-page>
 </template>
 
@@ -174,96 +266,104 @@ const rangeOptions = computed(() => RANGE_PRESETS.map((p) => ({ label: p.long, v
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  padding: 24px 20px 32px;
+  padding: 20px 24px 20px;
   font-family: var(--mt-sans);
-  background: var(--mt-card);
-  border-radius: var(--mt-radius-lg);
-  box-shadow: var(--mt-shadow);
-}
-.range {
-  height: 34px;
-  font-size: 13px;
-  font-weight: 600;
-}
-.range :deep(.select-trigger) {
-  height: 34px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: var(--mt-radius-lg);
-  background: var(--mt-soft);
-  color: var(--mt-ink);
-  font-weight: 600;
-}
-.range :deep(.select-trigger:hover) {
-  background: rgba(127, 207, 74, 0.12);
-  border-color: transparent;
-}
-.range :deep(.select-trigger.active) {
-  color: var(--mt-ink);
+  background: var(--mt-bg);
 }
 .kpis {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   flex-shrink: 0;
-  border-radius: var(--mt-radius-lg);
 }
 .kpi {
-  padding: 7px 16px;
+  padding: 10px 16px;
   display: flex;
   flex-direction: column;
-  gap: 0;
-  border-left: 1px solid var(--mt-line);
+  gap: 2px;
+  border-left: 1px solid var(--mt-line-2);
 }
 .kpi.first {
   border-left: 0;
 }
 .kpi-k {
   font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   color: var(--mt-muted);
 }
 .kpi-v {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 20px;
+  font-weight: 800;
   letter-spacing: -0.03em;
 }
 .kpi-v.bad {
-  color: #d0342c;
+  color: var(--mt-err-ink);
 }
 .kpi-msg {
   grid-column: 1 / -1;
   padding: 12px 16px;
   color: var(--mt-muted);
 }
-.table-card {
-  flex: 1;
-  min-height: 0;
-  box-sizing: border-box;
-  padding: 12px 16px 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  overflow: hidden;
-}
-.toolbar {
+.views-row {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: 16px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--mt-line);
 }
-.latency {
-  min-width: 170px;
+.views-row .mt-segmented {
+  margin-bottom: 6px;
 }
-.group-toggle {
-  margin-left: auto;
-  font-weight: 600;
+.quick-tabs {
+  display: flex;
+  gap: 4px;
+  align-self: flex-end;
+}
+.quick {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 10px;
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--mt-muted);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.quick.active {
+  color: var(--mt-ink);
+  border-bottom-color: var(--mt-accent);
+}
+.quick-count {
+  padding: 0 5px;
+  border-radius: var(--mt-radius-xs);
+  background: var(--mt-soft);
+  color: var(--mt-muted);
+  font-size: 11px;
+}
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 12px;
+}
+.table-card {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 .muted {
   color: var(--mt-muted);
-}
-.strong {
-  font-weight: 500;
 }
 .list {
   flex: 1;
@@ -279,22 +379,30 @@ th {
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: 8px 12px;
-  background: var(--mt-card, #fff);
+  padding: 0 14px;
+  height: 34px;
+  background: var(--mt-soft);
   border-bottom: 1px solid var(--mt-line);
   color: var(--mt-muted);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   text-align: left;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 td {
-  padding: 7px 12px;
+  padding: 0 14px;
+  height: 50px;
   border-bottom: 1px solid var(--mt-line-2);
   white-space: nowrap;
 }
 .num {
   text-align: right;
+}
+.mono {
+  font-size: 12px;
+  font-weight: 400;
 }
 .item {
   cursor: pointer;
@@ -304,32 +412,30 @@ td {
   background: var(--mt-soft-2);
   outline: none;
 }
+.item.selected {
+  background: var(--mt-accent-tint);
+  box-shadow: inset 3px 0 0 var(--mt-accent);
+}
 .item.fresh {
   animation: fade-new 3s ease-out;
 }
+.name-cell {
+  max-width: 380px;
+}
 .name {
-  max-width: 320px;
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 13px;
 }
-.status {
-  padding: 3px 8px;
-  border-radius: var(--mt-radius-sm);
-  font-size: 11px;
-  font-weight: 500;
+.name.mono {
+  font-size: 12.5px;
 }
-.status.ok {
-  background: #dff5e8;
-  color: #0b6b5d;
-}
-.status.warn {
-  background: #ffe9d9;
-  color: #b24a0a;
-}
-.status.error {
-  background: #ffe9e9;
-  color: #d0342c;
+.sub {
+  display: block;
+  font-size: 11.5px;
+  color: var(--mt-faint);
 }
 .spinner {
   display: flex;
@@ -341,34 +447,35 @@ td {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  flex-wrap: wrap;
-  padding: 6px 8px 0;
+  height: 40px;
+  padding: 0 16px;
+  background: var(--mt-soft);
   border-top: 1px solid var(--mt-line);
   flex-shrink: 0;
 }
-.footer-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+.count {
+  font-size: 12px;
+  color: var(--mt-muted);
 }
 .more {
-  height: 34px;
-  padding: 0 16px;
+  height: 28px;
+  padding: 0 12px;
   border: 1px solid var(--mt-line);
-  border-radius: var(--mt-radius-lg);
+  border-radius: var(--mt-radius-sm);
   background: var(--mt-card);
-  color: var(--mt-ink);
+  color: var(--mt-accent-text);
   font: inherit;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
   cursor: pointer;
 }
 .more:disabled {
   opacity: 0.6;
 }
 @keyframes fade-new {
-  from { background: rgba(111, 207, 74, 0.3); }
+  from { background: var(--mt-accent-soft); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .item.fresh { animation: none; background: rgba(111, 207, 74, 0.16); }
+  .item.fresh { animation: none; background: var(--mt-accent-tint); }
 }
 </style>

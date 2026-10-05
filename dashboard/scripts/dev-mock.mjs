@@ -45,6 +45,8 @@ const conversations = [
         failedSpans: 1,
         totalTokens: 18340,
         activeMs: 162000,
+        title: "Plan the next step for the Lisbon trip",
+        costUsd: 0.0412,
     },
     {
         conversationId: "conv-2",
@@ -56,6 +58,8 @@ const conversations = [
         failedSpans: 0,
         totalTokens: 7420,
         activeMs: 82000,
+        title: null,
+        costUsd: null,
     },
 ];
 
@@ -307,6 +311,68 @@ const overview = {
     ],
 };
 
+// --- Evaluación, revisión y precios (ADR-031/039/025/049): lo justo para recorrer todas las pantallas -----------------
+
+overview.byTopic = [];
+overview.totals.costUsd = 12.34;
+overview.byModel[0].costUsd = 12.34;
+
+const scoreConfigs = [
+    { id: "cfg-1", name: "Helpfulness", dataType: "numeric", minValue: 1, maxValue: 5, categories: null, description: "How useful the reply is", createdAt: "2026-09-20T09:00:00.000Z", updatedAt: "2026-09-20T09:00:00.000Z", archivedAt: null },
+];
+const queues = [
+    { id: "q1", name: "Support answers · weekly QA", instructions: "Judge only what the reply says.", requiredAnnotations: 2, reviewerIds: ["u1", "u2"], rubric: [{ configId: "cfg-1", required: true }], createdAt: "2026-10-01T10:00:00.000Z", archivedAt: null, progress: { pending: 16, completed: 8, skipped: 0 } },
+    { id: "q2", name: "Low-rated by users", instructions: null, requiredAnnotations: 1, reviewerIds: ["u1", "u2"], rubric: [{ configId: "cfg-1", required: true }], createdAt: "2026-10-02T10:00:00.000Z", archivedAt: null, progress: { pending: 8, completed: 3, skipped: 0 } },
+    { id: "q3", name: "Sensitive data check", instructions: null, requiredAnnotations: 1, reviewerIds: ["u1", "u2"], rubric: [{ configId: "cfg-1", required: true }], createdAt: "2026-09-20T10:00:00.000Z", archivedAt: null, progress: { pending: 0, completed: 40, skipped: 0 } },
+];
+const mockLabel = (userId, name, value, comment = null) => ({ userId, name, value, comment, createdAt: "2026-10-04T10:00:00.000Z", isReviewer: true });
+const queueResults = {
+    configs: scoreConfigs.slice(0, 1),
+    total: 2,
+    items: [
+        { id: "ri1", targetType: "trace", traceId: traces[0]?.traceId ?? "t1", datasetRunId: null, itemIndex: null, status: "completed", population: "manual", addedAt: "2026-10-04T09:00:00.000Z", completedAt: "2026-10-04T10:00:00.000Z", needsResolution: false, promotedTo: [{ datasetId: "d1", datasetName: "Refund questions", version: "1.3" }], criteria: [{ configId: scoreConfigs[0]?.id ?? "cfg-1", status: "consensus", labels: [mockLabel("u1", "Ana", "4"), mockLabel("u2", "Luis", "5")], resolution: null }] },
+        { id: "ri2", targetType: "trace", traceId: traces[1]?.traceId ?? "t2", datasetRunId: null, itemIndex: null, status: "completed", population: "manual", addedAt: "2026-10-04T09:00:00.000Z", completedAt: "2026-10-04T10:05:00.000Z", needsResolution: true, promotedTo: [], criteria: [{ configId: scoreConfigs[0]?.id ?? "cfg-1", status: "disagreement", labels: [mockLabel("u1", "Ana", "1", "Wrong hour"), mockLabel("u2", "Luis", "5")], resolution: null }] },
+    ],
+};
+const aggregate = (average) => ({ name: "accuracy", dataType: "numeric", passRate: null, average, count: 120, judges: [] });
+const runs = [
+    { id: "r1", name: "prompt-v7 vs prompt-v6", versionMajor: 1, versionMinor: 2, itemCount: 120, status: "completed", createdAt: "2026-10-04T09:14:00.000Z", aggregates: [aggregate(0.902)], datasetId: "d1", datasetName: "Refund questions" },
+    { id: "r2", name: "prompt-v6 baseline", versionMajor: 1, versionMinor: 2, itemCount: 120, status: "completed", createdAt: "2026-10-03T17:22:00.000Z", aggregates: [aggregate(0.861)], datasetId: "d1", datasetName: "Refund questions" },
+    { id: "r3", name: "Prompt v8 draft", versionMajor: 1, versionMinor: 3, itemCount: 31, status: "running", createdAt: "2026-10-04T10:00:00.000Z", aggregates: [], datasetId: "d1", datasetName: "Refund questions" },
+];
+const datasets = [
+    { id: "d1", name: "Refund questions", createdAt: "2026-09-18T09:00:00.000Z", runCount: 3, versionCount: 3, latestVersionMajor: 1, latestVersionMinor: 3, lastRun: null },
+    { id: "d2", name: "Weather basics", createdAt: "2026-09-10T09:00:00.000Z", runCount: 0, versionCount: 1, latestVersionMajor: 2, latestVersionMinor: 0, lastRun: null },
+];
+const modelPricing = [
+    { modelId: "gpt-5.4-mini", provider: "openai", inputPricePerToken: 0.00000025, outputPricePerToken: 0.000002, source: "litellm", updatedAt: "2026-10-04T03:00:00.000Z" },
+    { modelId: "claude-haiku-4-5", provider: "anthropic", inputPricePerToken: 0.000001, outputPricePerToken: 0.000005, source: "litellm", updatedAt: "2026-10-04T03:00:00.000Z" },
+];
+const versionsOf = (datasetId) => [
+    { id: `${datasetId}-v3`, major: 1, minor: 2, note: "Edited 2 items", createdByEmail: me.email, createdAt: "2026-10-02T09:00:00.000Z", itemCount: 3, addedCount: 0, modifiedCount: 2, removedCount: 0 },
+    { id: `${datasetId}-v2`, major: 1, minor: 1, note: "Added an item", createdByEmail: me.email, createdAt: "2026-09-25T09:00:00.000Z", itemCount: 3, addedCount: 1, modifiedCount: 0, removedCount: 0 },
+    { id: `${datasetId}-v1`, major: 1, minor: 0, note: null, createdByEmail: me.email, createdAt: "2026-09-18T09:00:00.000Z", itemCount: 2, addedCount: 2, modifiedCount: 0, removedCount: 0 },
+];
+const datasetItems = (datasetId) => ["Refund for a cancelled flight", "How long do refunds take?", "Can I change my seat?"].map((input, i) => ({
+    id: `${datasetId}-item-${i + 1}`, datasetVersionId: `${datasetId}-v3`, input, expectedOutput: "Refunds arrive within 14 business days.", metadata: null,
+    createdByEmail: me.email, createdAt: "2026-09-18T09:00:00.000Z", updatedByEmail: null, updatedAt: null, deletedByEmail: null, deletedAt: null,
+}));
+const runDetail = (runId) => ({
+    dataset: { id: "d1", name: "Refund questions" },
+    run: runs.find((r) => r.id === runId) ?? runs[0],
+    items: [
+        { itemIndex: 0, input: "Refund for a cancelled flight", expectedOutput: "Within 14 business days", output: "Within 14 business days", traceId: null, error: null, telemetry: { latencyMs: 1200, inputTokens: 800, outputTokens: 90, costUsd: 0.002 }, scores: [{ name: "accuracy", value: "1", dataType: "numeric", source: "code", comment: null }] },
+        { itemIndex: 1, input: "How long do refunds take?", expectedOutput: "Within 14 business days", output: "About a week", traceId: null, error: null, telemetry: { latencyMs: 4800, inputTokens: 900, outputTokens: 60, costUsd: 0.003 }, scores: [{ name: "accuracy", value: "0", dataType: "numeric", source: "code", comment: null }] },
+    ],
+});
+const queueDetail = (queueId) => ({
+    ...(queues.find((q) => q.id === queueId) ?? queues[0]),
+    configs: scoreConfigs,
+    reviewers: [{ userId: me.id, name: me.name, completed: 8, skipped: 0, inProgress: 1 }],
+});
+const nextQueueItem = { item: { id: "qi-1", targetType: "trace", traceId: "t-000222222222222222222222222222", datasetRunId: null, itemIndex: null, status: "pending", population: "manual", addedAt: "2026-10-03T10:00:00.000Z", completedAt: null } };
+const lowRated = { count: 3, items: [{ traceId: "t-000222222222222222222222222222", configName: "Helpfulness", value: "1", createdAt: "2026-09-26T11:40:00.000Z" }] };
+
 const services = { items: ["planner", "research", "tools"] };
 
 function json(res, status, body) {
@@ -337,6 +403,31 @@ function handleExperimentScoped(res, experimentId, subpath, url) {
     if (subpath === "/traces") return json(res, 200, slicePage(traces, url.searchParams.get("cursor"), Number(url.searchParams.get("limit") ?? 50)));
     if (subpath === "/spans") return json(res, 200, slicePage(spans, url.searchParams.get("cursor"), Number(url.searchParams.get("limit") ?? 50)));
     if (subpath === "/metrics/overview") return json(res, 200, overview);
+    if (subpath === "/annotation-queues") return json(res, 200, { items: queues.map((q) => ({ ...q, isReviewer: true })) });
+    if (subpath === "/annotations/low-rated") return json(res, 200, lowRated);
+    if (subpath === "/score-configs") return json(res, 200, { items: scoreConfigs });
+    if (subpath === "/runs") return json(res, 200, { items: runs });
+    if (subpath === "/reports") return json(res, 200, { items: [] });
+    if (subpath === "/datasets") return json(res, 200, { items: datasets });
+    const resultsMatch = subpath.match(/^\/annotation-queues\/([^/]+)\/results$/);
+    if (resultsMatch) return json(res, 200, queueResults);
+    const traceQueuesMatch = subpath.match(/^\/traces\/([^/]+)\/queues$/);
+    if (traceQueuesMatch) return json(res, 200, { items: [{ queueId: "q1", queueName: "Support answers · weekly QA", archived: false, itemStatus: "completed" }] });
+    const queueMatch = subpath.match(/^\/annotation-queues\/([^/]+)$/);
+    if (queueMatch) return json(res, 200, queueDetail(decodeURIComponent(queueMatch[1])));
+    const datasetMatch = subpath.match(/^\/datasets\/([^/]+)(\/.*)?$/);
+    if (datasetMatch) {
+        const datasetId = decodeURIComponent(datasetMatch[1]);
+        const rest = datasetMatch[2] ?? "";
+        const dataset = datasets.find((d) => d.id === datasetId);
+        if (!dataset) return problem(res, 404, "Not Found", `Dataset ${datasetId} not found`);
+        if (rest === "") return json(res, 200, dataset);
+        if (rest === "/versions") return json(res, 200, { items: versionsOf(datasetId) });
+        if (rest === "/items" || rest.endsWith("/items")) return json(res, 200, { items: datasetItems(datasetId) });
+        if (rest === "/runs") return json(res, 200, { items: runs.filter((r) => r.datasetId === datasetId) });
+        const runMatch = rest.match(/^\/runs\/([^/]+)$/);
+        if (runMatch) return json(res, 200, runDetail(decodeURIComponent(runMatch[1])));
+    }
     if (subpath === "/conversations") return json(res, 200, slicePage(conversations, url.searchParams.get("cursor"), Number(url.searchParams.get("limit") ?? 50)));
 
     const traceMatch = subpath.match(/^\/traces\/([^/]+)$/);
@@ -471,6 +562,7 @@ async function handler(req, res) {
 
     try {
         if (path === "/services" && method === "GET") return json(res, 200, services);
+        if (path === "/model-pricing" && method === "GET") return json(res, 200, { items: modelPricing });
 
         const experimentScopedMatch = path.match(/^\/experiments\/([^/]+)(\/.*)$/);
         if (experimentScopedMatch && method === "GET") {
@@ -478,6 +570,9 @@ async function handler(req, res) {
             const handled = handleExperimentScoped(res, decodeURIComponent(experimentId), subpath, url);
             if (handled !== null) return;
         }
+
+        const nextMatch = path.match(/^\/experiments\/[^/]+\/annotation-queues\/[^/]+\/next$/);
+        if (nextMatch && method === "POST") return json(res, 200, nextQueueItem);
 
         const identityHandled = await handleIdentity(req, res, method, path, url);
         if (identityHandled !== null) return;

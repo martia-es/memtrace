@@ -1,0 +1,1542 @@
+{
+ "tables": {
+  "users": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "id",
+     "type": "UUID",
+     "mark": "pk"
+    },
+    {
+     "name": "name",
+     "type": "TEXT"
+    },
+    {
+     "name": "email",
+     "type": "TEXT"
+    },
+    {
+     "name": "emailVerified",
+     "type": "TIMESTAMPTZ"
+    },
+    {
+     "name": "image",
+     "type": "TEXT"
+    }
+   ]
+  },
+  "organizations": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "id",
+     "type": "UUID",
+     "mark": "pk"
+    },
+    {
+     "name": "name",
+     "type": "TEXT"
+    },
+    {
+     "name": "created_at",
+     "type": "TIMESTAMPTZ"
+    },
+    {
+     "name": "theme",
+     "type": "JSONB"
+    }
+   ]
+  },
+  "org_memberships": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "organization_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "user_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "role",
+     "type": "TEXT",
+     "mark": "fk"
+    },
+    {
+     "name": "source",
+     "type": "manual "
+    },
+    {
+     "name": "created_at",
+     "type": "TIMESTAMPTZ"
+    }
+   ]
+  },
+  "experiments": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "id",
+     "type": "UUID",
+     "mark": "pk"
+    },
+    {
+     "name": "organization_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "name",
+     "type": "TEXT"
+    },
+    {
+     "name": "service_name",
+     "type": "TEXT"
+    },
+    {
+     "name": "created_at",
+     "type": "TIMESTAMPTZ"
+    }
+   ]
+  },
+  "experiment_memberships": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "experiment_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "user_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "role",
+     "type": "TEXT",
+     "mark": "fk"
+    },
+    {
+     "name": "source",
+     "type": "manual "
+    },
+    {
+     "name": "created_at",
+     "type": "TIMESTAMPTZ"
+    }
+   ]
+  },
+  "api_keys": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "id",
+     "type": "UUID",
+     "mark": "pk"
+    },
+    {
+     "name": "experiment_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "key_hash",
+     "type": "TEXT"
+    },
+    {
+     "name": "key_prefix",
+     "type": "TEXT"
+    },
+    {
+     "name": "created_by",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "last_used_at",
+     "type": "TIMESTAMPTZ"
+    },
+    {
+     "name": "revoked_at",
+     "type": "TIMESTAMPTZ"
+    }
+   ]
+  },
+  "pending_invitations": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "id",
+     "type": "UUID",
+     "mark": "pk"
+    },
+    {
+     "name": "email",
+     "type": "TEXT"
+    },
+    {
+     "name": "organization_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "experiment_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "role",
+     "type": "TEXT",
+     "mark": "fk"
+    },
+    {
+     "name": "invited_by",
+     "type": "UUID",
+     "mark": "fk"
+    }
+   ]
+  },
+  "roles": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "name",
+     "type": "TEXT",
+     "mark": "pk"
+    },
+    {
+     "name": "scope",
+     "type": "organization "
+    },
+    {
+     "name": "builtin",
+     "type": "BOOL"
+    }
+   ]
+  },
+  "role_permissions": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "role_name",
+     "type": "TEXT",
+     "mark": "fk"
+    },
+    {
+     "name": "permission",
+     "type": "TEXT"
+    }
+   ]
+  },
+  "external_mappings": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "id",
+     "type": "UUID",
+     "mark": "pk"
+    },
+    {
+     "name": "organization_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "external_group",
+     "type": "TEXT"
+    },
+    {
+     "name": "experiment_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "role",
+     "type": "TEXT",
+     "mark": "fk"
+    },
+    {
+     "name": "created_at",
+     "type": "TIMESTAMPTZ"
+    }
+   ]
+  },
+  "organization_idp_settings": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "organization_id",
+     "type": "UUID",
+     "mark": "pk"
+    },
+    {
+     "name": "groups_claim",
+     "type": "TEXT"
+    },
+    {
+     "name": "updated_at",
+     "type": "TIMESTAMPTZ"
+    }
+   ]
+  },
+  "scim_tokens": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "id",
+     "type": "UUID",
+     "mark": "pk"
+    },
+    {
+     "name": "organization_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "token_hash",
+     "type": "TEXT"
+    },
+    {
+     "name": "token_prefix",
+     "type": "TEXT"
+    },
+    {
+     "name": "created_by",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "last_used_at",
+     "type": "TIMESTAMPTZ"
+    },
+    {
+     "name": "revoked_at",
+     "type": "TIMESTAMPTZ"
+    }
+   ]
+  },
+  "scim_users": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "id",
+     "type": "UUID",
+     "mark": "pk"
+    },
+    {
+     "name": "organization_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "user_name",
+     "type": "TEXT"
+    },
+    {
+     "name": "external_id",
+     "type": "TEXT"
+    },
+    {
+     "name": "display_name",
+     "type": "TEXT"
+    },
+    {
+     "name": "active",
+     "type": "BOOL"
+    },
+    {
+     "name": "user_id",
+     "type": "UUID",
+     "mark": "fk"
+    }
+   ]
+  },
+  "scim_groups": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "id",
+     "type": "UUID",
+     "mark": "pk"
+    },
+    {
+     "name": "organization_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "display_name",
+     "type": "TEXT"
+    },
+    {
+     "name": "external_id",
+     "type": "TEXT"
+    }
+   ]
+  },
+  "scim_group_members": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "group_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "scim_user_id",
+     "type": "UUID",
+     "mark": "fk"
+    }
+   ]
+  },
+  "custom_metrics": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "id",
+     "type": "UUID",
+     "mark": "pk"
+    },
+    {
+     "name": "experiment_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "name",
+     "type": "TEXT"
+    },
+    {
+     "name": "definition",
+     "type": "JSONB"
+    },
+    {
+     "name": "created_by",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "created_at",
+     "type": "TIMESTAMPTZ"
+    }
+   ]
+  },
+  "metric_reports": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "id",
+     "type": "UUID",
+     "mark": "pk"
+    },
+    {
+     "name": "experiment_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "name",
+     "type": "TEXT"
+    },
+    {
+     "name": "created_by",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "updated_at",
+     "type": "TIMESTAMPTZ"
+    }
+   ]
+  },
+  "metric_report_charts": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "id",
+     "type": "UUID",
+     "mark": "pk"
+    },
+    {
+     "name": "report_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "custom_metric_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "grid_x, grid_y",
+     "type": "SMALLINT"
+    },
+    {
+     "name": "grid_w, grid_h",
+     "type": "SMALLINT"
+    }
+   ]
+  },
+  "datasets": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "id",
+     "type": "UUID",
+     "mark": "pk"
+    },
+    {
+     "name": "experiment_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "name",
+     "type": "TEXT"
+    },
+    {
+     "name": "created_by",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "created_at",
+     "type": "TIMESTAMPTZ"
+    }
+   ]
+  },
+  "dataset_versions": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "id",
+     "type": "UUID",
+     "mark": "pk"
+    },
+    {
+     "name": "dataset_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "major",
+     "type": "INT"
+    },
+    {
+     "name": "minor",
+     "type": "INT"
+    },
+    {
+     "name": "note",
+     "type": "TEXT"
+    },
+    {
+     "name": "created_by",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "created_at",
+     "type": "TIMESTAMPTZ"
+    }
+   ]
+  },
+  "dataset_items": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "id",
+     "type": "UUID",
+     "mark": "pk"
+    },
+    {
+     "name": "dataset_version_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "origin_item_id",
+     "type": "UUID"
+    },
+    {
+     "name": "input",
+     "type": "JSONB"
+    },
+    {
+     "name": "expected_output",
+     "type": "JSONB"
+    },
+    {
+     "name": "metadata",
+     "type": "JSONB"
+    },
+    {
+     "name": "created_by",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "updated_by",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "updated_at",
+     "type": "TIMESTAMPTZ"
+    },
+    {
+     "name": "deleted_by",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "deleted_at",
+     "type": "TIMESTAMPTZ"
+    }
+   ]
+  },
+  "dataset_runs": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "id",
+     "type": "UUID",
+     "mark": "pk"
+    },
+    {
+     "name": "dataset_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "dataset_version_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "name",
+     "type": "TEXT"
+    },
+    {
+     "name": "item_count",
+     "type": "INT"
+    },
+    {
+     "name": "status",
+     "type": "running "
+    },
+    {
+     "name": "created_at",
+     "type": "TIMESTAMPTZ"
+    }
+   ]
+  },
+  "score_configs": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "id",
+     "type": "UUID",
+     "mark": "pk"
+    },
+    {
+     "name": "experiment_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "name",
+     "type": "TEXT"
+    },
+    {
+     "name": "data_type",
+     "type": "numeric "
+    },
+    {
+     "name": "min_value, max_value",
+     "type": "DOUBLE"
+    },
+    {
+     "name": "categories",
+     "type": "JSONB"
+    },
+    {
+     "name": "description",
+     "type": "TEXT"
+    },
+    {
+     "name": "created_by",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "archived_at",
+     "type": "TIMESTAMPTZ"
+    }
+   ]
+  },
+  "annotation_queues": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "id",
+     "type": "UUID",
+     "mark": "pk"
+    },
+    {
+     "name": "experiment_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "name",
+     "type": "TEXT"
+    },
+    {
+     "name": "instructions",
+     "type": "TEXT"
+    },
+    {
+     "name": "required_annotations",
+     "type": "INT 1–10"
+    },
+    {
+     "name": "created_by",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "archived_at",
+     "type": "TIMESTAMPTZ"
+    }
+   ]
+  },
+  "annotation_queue_configs": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "queue_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "config_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "required",
+     "type": "BOOL"
+    },
+    {
+     "name": "position",
+     "type": "INT"
+    }
+   ]
+  },
+  "annotation_queue_items": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "id",
+     "type": "UUID",
+     "mark": "pk"
+    },
+    {
+     "name": "queue_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "target_type",
+     "type": "trace "
+    },
+    {
+     "name": "trace_id",
+     "type": "TEXT",
+     "mark": "rf"
+    },
+    {
+     "name": "dataset_run_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "item_index",
+     "type": "INT"
+    },
+    {
+     "name": "status",
+     "type": "pending "
+    },
+    {
+     "name": "population",
+     "type": "manual "
+    },
+    {
+     "name": "sample_seed",
+     "type": "TEXT"
+    },
+    {
+     "name": "added_by",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "added_at",
+     "type": "TIMESTAMPTZ"
+    },
+    {
+     "name": "completed_at",
+     "type": "TIMESTAMPTZ"
+    }
+   ]
+  },
+  "annotation_queue_claims": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "queue_item_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "user_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "claimed_at",
+     "type": "TIMESTAMPTZ"
+    },
+    {
+     "name": "completed_at",
+     "type": "TIMESTAMPTZ"
+    },
+    {
+     "name": "skipped_at",
+     "type": "TIMESTAMPTZ"
+    }
+   ]
+  },
+  "annotation_queue_reviewers": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "queue_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "user_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "added_at",
+     "type": "TIMESTAMPTZ"
+    }
+   ]
+  },
+  "annotation_queue_resolutions": {
+   "store": "postgres",
+   "fields": [
+    {
+     "name": "queue_item_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "config_id",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "value",
+     "type": "TEXT"
+    },
+    {
+     "name": "expected_output",
+     "type": "TEXT"
+    },
+    {
+     "name": "resolved_by",
+     "type": "UUID",
+     "mark": "fk"
+    },
+    {
+     "name": "resolved_at",
+     "type": "TIMESTAMPTZ"
+    }
+   ]
+  },
+  "otel_traces": {
+   "store": "clickhouse",
+   "fields": [
+    {
+     "name": "Timestamp",
+     "type": "DateTime64"
+    },
+    {
+     "name": "TraceId",
+     "type": "String",
+     "mark": "rf"
+    },
+    {
+     "name": "SpanId",
+     "type": "String"
+    },
+    {
+     "name": "ParentSpanId",
+     "type": "String"
+    },
+    {
+     "name": "SpanName",
+     "type": "LowCard"
+    },
+    {
+     "name": "ServiceName",
+     "type": "LowCard"
+    },
+    {
+     "name": "SpanKind",
+     "type": "LowCard"
+    },
+    {
+     "name": "SpanAttributes",
+     "type": "Map"
+    },
+    {
+     "name": "ResourceAttributes",
+     "type": "Map"
+    },
+    {
+     "name": "Duration",
+     "type": "UInt64"
+    },
+    {
+     "name": "StatusCode",
+     "type": "LowCard"
+    },
+    {
+     "name": "StatusMessage",
+     "type": "String"
+    },
+    {
+     "name": "Events.*, Links.*",
+     "type": "Array"
+    },
+    {
+     "name": "ConversationId",
+     "type": "String (calc.)"
+    }
+   ]
+  },
+  "otel_traces_trace_id_ts": {
+   "store": "clickhouse",
+   "fields": [
+    {
+     "name": "TraceId",
+     "type": "String"
+    },
+    {
+     "name": "Start",
+     "type": "DateTime64"
+    },
+    {
+     "name": "End",
+     "type": "DateTime64"
+    }
+   ]
+  },
+  "span_topics": {
+   "store": "clickhouse",
+   "fields": [
+    {
+     "name": "TraceId",
+     "type": "String"
+    },
+    {
+     "name": "SpanId",
+     "type": "String"
+    },
+    {
+     "name": "Topic",
+     "type": "LowCard"
+    },
+    {
+     "name": "Confidence",
+     "type": "Float32"
+    },
+    {
+     "name": "ModelVersion",
+     "type": "LowCard"
+    },
+    {
+     "name": "ExtractedAt",
+     "type": "DateTime64"
+    }
+   ]
+  },
+  "model_pricing": {
+   "store": "clickhouse",
+   "fields": [
+    {
+     "name": "ModelId",
+     "type": "LowCard"
+    },
+    {
+     "name": "Provider",
+     "type": "LowCard"
+    },
+    {
+     "name": "InputPricePerToken",
+     "type": "Float64"
+    },
+    {
+     "name": "OutputPricePerToken",
+     "type": "Float64"
+    },
+    {
+     "name": "Source",
+     "type": "LowCard"
+    },
+    {
+     "name": "UpdatedAt",
+     "type": "DateTime64"
+    }
+   ]
+  },
+  "eval_items": {
+   "store": "clickhouse",
+   "fields": [
+    {
+     "name": "ServiceName",
+     "type": "LowCard"
+    },
+    {
+     "name": "DatasetRunId",
+     "type": "String",
+     "mark": "rf"
+    },
+    {
+     "name": "ItemIndex",
+     "type": "UInt32"
+    },
+    {
+     "name": "TraceId",
+     "type": "Nullable",
+     "mark": "rf"
+    },
+    {
+     "name": "Input",
+     "type": "String"
+    },
+    {
+     "name": "Output",
+     "type": "Nullable"
+    },
+    {
+     "name": "ExpectedOutput",
+     "type": "Nullable"
+    },
+    {
+     "name": "Error",
+     "type": "Nullable"
+    },
+    {
+     "name": "CreatedAt",
+     "type": "DateTime64"
+    }
+   ]
+  },
+  "eval_scores": {
+   "store": "clickhouse",
+   "fields": [
+    {
+     "name": "ServiceName",
+     "type": "LowCard"
+    },
+    {
+     "name": "DatasetRunId",
+     "type": "String"
+    },
+    {
+     "name": "ItemIndex",
+     "type": "UInt32"
+    },
+    {
+     "name": "Name",
+     "type": "LowCard"
+    },
+    {
+     "name": "Value",
+     "type": "String"
+    },
+    {
+     "name": "ValueNum",
+     "type": "Float64"
+    },
+    {
+     "name": "DataType",
+     "type": "LowCard"
+    },
+    {
+     "name": "Source",
+     "type": "LowCard"
+    },
+    {
+     "name": "JudgeModel",
+     "type": "Nullable"
+    },
+    {
+     "name": "JudgePromptHash",
+     "type": "Nullable"
+    },
+    {
+     "name": "CreatedAt",
+     "type": "DateTime64"
+    }
+   ]
+  },
+  "eval_run_summaries": {
+   "store": "clickhouse",
+   "fields": [
+    {
+     "name": "ServiceName",
+     "type": "LowCard"
+    },
+    {
+     "name": "DatasetRunId",
+     "type": "String"
+    },
+    {
+     "name": "Name",
+     "type": "LowCard"
+    },
+    {
+     "name": "DataType",
+     "type": "LowCard"
+    },
+    {
+     "name": "Total",
+     "type": "UInt64"
+    },
+    {
+     "name": "AvgValue",
+     "type": "Float64"
+    },
+    {
+     "name": "Judges",
+     "type": "Array"
+    },
+    {
+     "name": "CreatedAt",
+     "type": "DateTime64"
+    }
+   ]
+  },
+  "annotations": {
+   "store": "clickhouse",
+   "fields": [
+    {
+     "name": "ServiceName",
+     "type": "LowCard"
+    },
+    {
+     "name": "TargetType",
+     "type": "LowCard"
+    },
+    {
+     "name": "TraceId",
+     "type": "String",
+     "mark": "rf"
+    },
+    {
+     "name": "SpanId",
+     "type": "String"
+    },
+    {
+     "name": "DatasetRunId",
+     "type": "String",
+     "mark": "rf"
+    },
+    {
+     "name": "ItemIndex",
+     "type": "UInt32"
+    },
+    {
+     "name": "ConfigId",
+     "type": "String",
+     "mark": "rf"
+    },
+    {
+     "name": "ConfigName",
+     "type": "LowCard"
+    },
+    {
+     "name": "DataType",
+     "type": "LowCard"
+    },
+    {
+     "name": "AnnotatorId",
+     "type": "String",
+     "mark": "rf"
+    },
+    {
+     "name": "Value",
+     "type": "String"
+    },
+    {
+     "name": "Comment",
+     "type": "Nullable"
+    },
+    {
+     "name": "CreatedAt",
+     "type": "DateTime64"
+    },
+    {
+     "name": "IsDeleted",
+     "type": "UInt8"
+    }
+   ]
+  }
+ },
+ "pos": {
+  "users": [
+   1,
+   1
+  ],
+  "experiment_memberships": [
+   2,
+   1
+  ],
+  "experiments": [
+   3,
+   1
+  ],
+  "datasets": [
+   4,
+   1
+  ],
+  "dataset_versions": [
+   5,
+   1
+  ],
+  "org_memberships": [
+   1,
+   2
+  ],
+  "organizations": [
+   2,
+   2
+  ],
+  "api_keys": [
+   3,
+   2
+  ],
+  "dataset_runs": [
+   4,
+   2
+  ],
+  "dataset_items": [
+   5,
+   2
+  ],
+  "pending_invitations": [
+   2,
+   3
+  ],
+  "custom_metrics": [
+   3,
+   3
+  ],
+  "metric_reports": [
+   4,
+   3
+  ],
+  "metric_report_charts": [
+   4,
+   4
+  ],
+  "score_configs": [
+   1,
+   5
+  ],
+  "annotation_queues": [
+   2,
+   5
+  ],
+  "annotation_queue_configs": [
+   1,
+   6
+  ],
+  "annotation_queue_items": [
+   2,
+   6
+  ],
+  "annotation_queue_claims": [
+   2,
+   7
+  ],
+  "roles": [
+   1,
+   3
+  ],
+  "role_permissions": [
+   1,
+   4
+  ],
+  "organization_idp_settings": [
+   2,
+   4
+  ],
+  "external_mappings": [
+   3,
+   4
+  ],
+  "scim_tokens": [
+   5,
+   3
+  ],
+  "scim_users": [
+   5,
+   4
+  ],
+  "scim_groups": [
+   5,
+   5
+  ],
+  "scim_group_members": [
+   4,
+   5
+  ],
+  "annotation_queue_reviewers": [
+   3,
+   5
+  ],
+  "annotation_queue_resolutions": [
+   3,
+   6
+  ],
+  "otel_traces": [
+   7,
+   1
+  ],
+  "otel_traces_trace_id_ts": [
+   8,
+   1
+  ],
+  "span_topics": [
+   7,
+   2
+  ],
+  "model_pricing": [
+   8,
+   2
+  ],
+  "eval_items": [
+   6,
+   4
+  ],
+  "eval_scores": [
+   7,
+   4
+  ],
+  "eval_run_summaries": [
+   8,
+   4
+  ],
+  "annotations": [
+   7,
+   5
+  ]
+ },
+ "rels": [
+  [
+   "users",
+   "experiment_memberships"
+  ],
+  [
+   "experiment_memberships",
+   "experiments"
+  ],
+  [
+   "users",
+   "org_memberships"
+  ],
+  [
+   "org_memberships",
+   "organizations"
+  ],
+  [
+   "organizations",
+   "experiments"
+  ],
+  [
+   "organizations",
+   "pending_invitations"
+  ],
+  [
+   "experiments",
+   "api_keys"
+  ],
+  [
+   "experiments",
+   "custom_metrics"
+  ],
+  [
+   "experiments",
+   "metric_reports"
+  ],
+  [
+   "metric_reports",
+   "metric_report_charts"
+  ],
+  [
+   "custom_metrics",
+   "metric_report_charts"
+  ],
+  [
+   "experiments",
+   "datasets"
+  ],
+  [
+   "datasets",
+   "dataset_versions"
+  ],
+  [
+   "dataset_items",
+   "dataset_versions"
+  ],
+  [
+   "dataset_versions",
+   "dataset_runs"
+  ],
+  [
+   "experiments",
+   "score_configs"
+  ],
+  [
+   "experiments",
+   "annotation_queues"
+  ],
+  [
+   "score_configs",
+   "annotation_queue_configs"
+  ],
+  [
+   "annotation_queues",
+   "annotation_queue_configs"
+  ],
+  [
+   "annotation_queues",
+   "annotation_queue_items"
+  ],
+  [
+   "annotation_queue_items",
+   "annotation_queue_claims"
+  ],
+  [
+   "annotation_queue_items",
+   "dataset_runs"
+  ],
+  [
+   "otel_traces",
+   "otel_traces_trace_id_ts"
+  ],
+  [
+   "otel_traces",
+   "span_topics"
+  ],
+  [
+   "dataset_runs",
+   "eval_items"
+  ],
+  [
+   "eval_items",
+   "eval_scores"
+  ],
+  [
+   "eval_scores",
+   "eval_run_summaries"
+  ],
+  [
+   "annotations",
+   "score_configs"
+  ],
+  [
+   "roles",
+   "role_permissions"
+  ],
+  [
+   "roles",
+   "org_memberships"
+  ],
+  [
+   "roles",
+   "experiment_memberships"
+  ],
+  [
+   "organizations",
+   "external_mappings"
+  ],
+  [
+   "experiments",
+   "external_mappings"
+  ],
+  [
+   "roles",
+   "external_mappings"
+  ],
+  [
+   "organizations",
+   "organization_idp_settings"
+  ],
+  [
+   "organizations",
+   "scim_tokens"
+  ],
+  [
+   "organizations",
+   "scim_users"
+  ],
+  [
+   "organizations",
+   "scim_groups"
+  ],
+  [
+   "scim_groups",
+   "scim_group_members"
+  ],
+  [
+   "scim_users",
+   "scim_group_members"
+  ],
+  [
+   "users",
+   "scim_users"
+  ],
+  [
+   "annotation_queues",
+   "annotation_queue_reviewers"
+  ],
+  [
+   "users",
+   "annotation_queue_reviewers"
+  ],
+  [
+   "annotation_queue_items",
+   "annotation_queue_resolutions"
+  ],
+  [
+   "score_configs",
+   "annotation_queue_resolutions"
+  ]
+ ]
+}

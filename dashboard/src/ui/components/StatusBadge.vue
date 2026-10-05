@@ -1,19 +1,26 @@
 <script setup lang="ts">
 import type { StatusCodeDto } from "@contract";
-import { statusMeta } from "@/domain/meta";
+import { computed } from "vue";
+import StatusChip from "./StatusChip.vue";
 
-defineProps<{ status: StatusCodeDto; errorCount?: number; showLabel?: boolean }>();
+const props = defineProps<{ status: StatusCodeDto; errorCount?: number; showLabel?: boolean }>();
+
+const chip = computed(() => {
+  switch (props.status) {
+    case "ok":
+      return { tone: "ok" as const, label: "OK" };
+    case "error":
+      return { tone: "error" as const, label: "Error" };
+    default:
+      return { tone: "neutral" as const, label: "Unset" };
+  }
+});
 </script>
 
 <template>
   <span class="status-badge">
-    <q-icon :name="statusMeta(status).icon" :color="statusMeta(status).color" size="20px" :aria-label="statusMeta(status).label">
-      <q-tooltip>{{ statusMeta(status).label }}</q-tooltip>
-    </q-icon>
-    <span v-if="showLabel" class="q-ml-xs">{{ statusMeta(status).label }}</span>
-    <q-badge v-if="errorCount && errorCount > 0" color="negative" class="q-ml-xs" :label="errorCount">
-      <q-tooltip>{{ errorCount }} {{ errorCount === 1 ? "span con error" : "spans con error" }} dentro de la traza</q-tooltip>
-    </q-badge>
+    <StatusChip :tone="chip.tone" :label="chip.label" />
+    <span v-if="errorCount && errorCount > 0" class="inner-errors" :title="`${errorCount} ${errorCount === 1 ? 'span' : 'spans'} with error inside the trace`">{{ errorCount }} failed</span>
   </span>
 </template>
 
@@ -21,5 +28,11 @@ defineProps<{ status: StatusCodeDto; errorCount?: number; showLabel?: boolean }>
 .status-badge {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
+}
+.inner-errors {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--mt-err-ink);
 }
 </style>

@@ -13,6 +13,8 @@ export const timeRangeShape = {
   to: isoDate.optional(),
 };
 
+export const lowRatedQuery = z.object({ ...timeRangeShape });
+
 export const listTracesQuery = z.object({
   ...timeRangeShape,
   service: nonEmpty.optional(),
@@ -132,7 +134,7 @@ export const addDatasetItemsBody = z.object({
 /** Promoción de trazas a items de dataset: una llamada = una versión (ADR-038). */
 export const promoteTracesBody = z.object({
   items: z
-    .array(z.object({ traceId: z.string().min(1), input: z.unknown().optional(), expectedOutput: z.unknown().optional(), fromConfigId: z.string().min(1).optional() }))
+    .array(z.object({ traceId: z.string().min(1), input: z.unknown().optional(), expectedOutput: z.unknown().optional(), fromConfigId: z.string().min(1).optional(), queueId: z.string().uuid().optional() }))
     .min(1)
     .max(100),
 });
@@ -301,6 +303,7 @@ export const createAnnotationQueueBody = z.object({
   name: z.string().max(200),
   instructions: z.string().max(5000).nullable().optional().default(null),
   requiredAnnotations: z.number().int().optional().default(1),
+  reviewerIds: z.array(z.string().uuid()).max(100),
   rubric: z.array(queueRubricEntryBody).max(50),
 });
 
@@ -308,6 +311,7 @@ export const updateAnnotationQueueBody = z.object({
   name: z.string().max(200).optional(),
   instructions: z.string().max(5000).nullable().optional(),
   requiredAnnotations: z.number().int().optional(),
+  reviewerIds: z.array(z.string().uuid()).max(100).optional(),
   rubric: z.array(queueRubricEntryBody).max(50).optional(),
   archived: z.boolean().optional(),
 });
@@ -343,6 +347,18 @@ export const completeQueueItemBody = z.object({
 export const listQueueItemsQuery = z.object({
   status: z.enum(["pending", "completed", "skipped"]).optional(),
   limit: z.coerce.number().int().min(1).max(500).optional(),
+});
+
+export const queueResultsQuery = z.object({
+  status: z.enum(["pending", "completed", "skipped"]).optional(),
+  onlyDisagreements: z.enum(["true", "false"]).transform((v) => v === "true").optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+});
+
+export const resolveQueueItemBody = z.strictObject({
+  value: z.union([z.string().max(500), z.number(), z.boolean()]),
+  expectedOutput: z.string().max(20000).nullable().optional(),
 });
 
 /** Alcance del acuerdo juez-humano (ADR-040): exactamente un run o una cola, nunca el experimento entero. */

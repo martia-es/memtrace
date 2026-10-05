@@ -1,4 +1,3 @@
-import type { StatusCodeDto } from "@contract";
 import { SPAN_COLORS, spanBg } from "./palette";
 
 export interface Meta {
@@ -7,28 +6,17 @@ export interface Meta {
   color: string;
 }
 
-export function statusMeta(code: StatusCodeDto): Meta {
-  switch (code) {
-    case "ok":
-      return { label: "Correcto", icon: "check_circle", color: "positive" };
-    case "error":
-      return { label: "Error", icon: "error", color: "negative" };
-    default:
-      return { label: "Sin estado", icon: "help_outline", color: "grey" };
-  }
-}
-
 // colores del diseño; `bg` es el fondo suave de la insignia
 const KINDS: Record<string, Meta> = {
-  agent: { label: "Agente", icon: "smart_toy", color: SPAN_COLORS.agent },
+  agent: { label: "Agent", icon: "smart_toy", color: SPAN_COLORS.agent },
   llm: { label: "LLM", icon: "psychology", color: SPAN_COLORS.llm },
-  tool: { label: "Herramienta", icon: "build", color: SPAN_COLORS.tool },
-  chain: { label: "Cadena", icon: "link", color: SPAN_COLORS.chain },
+  tool: { label: "Tool", icon: "build", color: SPAN_COLORS.tool },
+  chain: { label: "Chain", icon: "link", color: SPAN_COLORS.chain },
   retriever: { label: "Retriever", icon: "search", color: SPAN_COLORS.retriever },
   embedding: { label: "Embedding", icon: "hub", color: SPAN_COLORS.embedding },
 };
 
 export function kindMeta(kind: string): Meta & { bg: string } {
-  const meta = KINDS[kind] ?? { label: kind === "unknown" ? "Otro" : kind, icon: "circle", color: SPAN_COLORS.unknown };
+  const meta = KINDS[kind] ?? { label: kind === "unknown" ? "Other" : kind, icon: "circle", color: SPAN_COLORS.unknown };
   return { ...meta, bg: spanBg(meta.color) };
 }

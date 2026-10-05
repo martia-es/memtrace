@@ -113,4 +113,12 @@ describe("DatasetPromotionService", () => {
     expect(identity.calls[0]![0]).toMatchObject({ input: "capital of [country]?" });
     expect(identity.calls[0]![0]!.metadata.promotedFrom).toMatchObject({ observedOutput: "Lyon" });
   });
+  it("records the review queue a trace came from in promotedFrom (ADR-050)", async () => {
+    await service.promoteTraces(actor, "d1", [{ traceId: "t1", queueId: "q-1" }]);
+    const [first] = identity.calls[0]!;
+    expect((first!.metadata.promotedFrom as { queueId?: string }).queueId).toBe("q-1");
+    identity.calls = [];
+    await service.promoteTraces(actor, "d1", [{ traceId: "t1" }]);
+    expect(identity.calls[0]![0]!.metadata.promotedFrom).not.toHaveProperty("queueId");
+  });
 });

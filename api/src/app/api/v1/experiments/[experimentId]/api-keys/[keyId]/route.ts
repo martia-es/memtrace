@@ -1,19 +1,20 @@
-import { requireUser } from "@/adapters/inbound/http/auth-context";
+import { requirePermission } from "@/adapters/inbound/http/auth-context";
 import { json, problem } from "@/adapters/inbound/http/problem";
 import { getIdentity } from "@/dependency-container";
 
 export const dynamic = "force-dynamic";
 
-/** Revoca una API key. Requiere admin/org_admin del experimento. */
+/** Revoca una API key: cualquiera con `apikey:manage_all`, o la propia con `apikey:manage_own` (ADR-052). */
 export async function DELETE(_request: Request, context: { params: Promise<{ experimentId: string; keyId: string }> }) {
   const { experimentId, keyId } = await context.params;
-  const user = await requireUser();
-  if (user instanceof Response) return user;
-
-  const { authorizationService, identityRepository } = getIdentity();
-  if (!(await authorizationService.canManageExperimentMembers(user.id, experimentId))) {
-    return problem(403, "Forbidden", "No permission to manage API keys of this experiment");
+  const own = await requirePermission(experimentId, "apikey:manage_own");
+  let onlyCreatedBy: string | undefined;
+  if (!(own instanceof Response)) {
+    onlyCreatedBy = own.permissions.includes("apikey:manage_all") ? undefined : own.user.id;
+  } else {
+    const all = await requirePermission(experimentId, "apikey:manage_all");
+    if (all instanceof Response) return problem(403, "Forbidden", "Missing permission: apikey:manage_own or apikey:manage_all");
   }
-  await identityRepository.revokeApiKey(experimentId, keyId);
+  await getIdentity().identityRepository.revokeApiKey(experimentId, keyId, onlyCreatedBy);
   return json({ revoked: true });
 }

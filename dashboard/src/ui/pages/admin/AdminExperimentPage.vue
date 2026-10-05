@@ -4,7 +4,8 @@ import { useQuasar } from "quasar";
 import { useRoute, useRouter } from "vue-router";
 import "@/styles/admin.css";
 import { useIdentityApi } from "../../composables/useIdentityApi";
-import { canManageExperiment, notifyErrorWith, ROLE_LABEL, useAdminDirectory } from "../../composables/useAdminDirectory";
+import { hasPermission } from "../../composables/usePermissions";
+import { canManageExperiment, canUseApiKeys, notifyErrorWith, ROLE_LABEL, useAdminDirectory } from "../../composables/useAdminDirectory";
 import PageHeader from "../../components/PageHeader.vue";
 import TabBar from "../../components/TabBar.vue";
 import ScoreConfigsPanel from "../../components/ScoreConfigsPanel.vue";
@@ -33,6 +34,8 @@ onMounted(async () => {
 const experiment = computed(() => dir.experiments.value.find((e) => e.id === props.experimentId) ?? null);
 const organization = computed(() => dir.organizations.value.find((o) => o.id === experiment.value?.organizationId) ?? null);
 const canManage = computed(() => (experiment.value ? canManageExperiment(experiment.value) : false));
+const canKeys = computed(() => (experiment.value ? canUseApiKeys(experiment.value) : false));
+const canScoreConfigs = computed(() => hasPermission(experiment.value, "scoreconfig:manage"));
 const members = computed(() => dir.membersByExperiment[props.experimentId]);
 
 const keyCount = ref<number | null>(null);
@@ -73,7 +76,7 @@ function copyTemplate() {
   $q.notify({ message: "Copied", timeout: 1200, position: "bottom" });
 }
 
-async function inviteMember({ email, role }: { email: string; role: "admin" | "member" }) {
+async function inviteMember({ email, role }: { email: string; role: string }) {
   try {
     await api.addExperimentMember(props.experimentId, email, role);
     $q.notify({ message: "Invitation sent", color: "positive", timeout: 2500 });
@@ -84,8 +87,8 @@ async function inviteMember({ email, role }: { email: string; role: "admin" | "m
 }
 
 const MEMBER_ROLE_OPTIONS = [
-  { label: "member: read-only", value: "member" as const },
-  { label: "admin: can manage everything here", value: "admin" as const },
+  { label: "technical: curates reviews, rubrics, datasets and the technical trace", value: "technical" },
+  { label: "business: sees the dashboard and labels in the queues they review", value: "business" },
 ];
 </script>
 
@@ -134,7 +137,7 @@ const MEMBER_ROLE_OPTIONS = [
                   {{ keyCount ? `This experiment has ${keyCount} active key(s).` : "The agent needs a key to prove which experiment its traces belong to." }}
                 </p>
                 <button class="adm-btn primary small" type="button" @click="tab = 'keys'">{{ keyCount ? "Manage API keys" : "Create API key" }}</button>
-                <p v-if="!canManage && !keyCount" class="adm-hint">Only an experiment admin can create keys.</p>
+                <p v-if="!canKeys && !keyCount" class="adm-hint">Only technical profiles and organization admins can create keys.</p>
               </div>
             </li>
             <li class="adm-step">
@@ -160,7 +163,7 @@ const MEMBER_ROLE_OPTIONS = [
 
         <section v-if="tab === 'keys'" class="panel">
           <p class="adm-sub">Credentials that let an agent write traces into this experiment.</p>
-          <ExperimentApiKeys :experiment="experiment" :can-manage="canManage" />
+          <ExperimentApiKeys :experiment="experiment" :can-manage="canKeys" />
         </section>
 
         <section v-if="tab === 'score-configs'" class="panel">
@@ -168,13 +171,13 @@ const MEMBER_ROLE_OPTIONS = [
             A score config is a rubric: it defines what can be scored on a trace (a number range, yes/no, or categories), so labels
             from different people are comparable. Annotation queues use them.
           </p>
-          <ScoreConfigsPanel :experiment-id="experiment.id" :can-manage="canManage" />
+          <ScoreConfigsPanel :experiment-id="experiment.id" :can-manage="canScoreConfigs" />
         </section>
 
         <section v-if="tab === 'members' && canManage" class="panel">
           <div class="adm-card">
             <h3 class="adm-section-title">Who can access this experiment</h3>
-            <p class="adm-hint">Members see the traces. Admins can also invite people and manage keys and score configs.</p>
+            <p class="adm-hint">Technical profiles curate the reviews and manage rubrics, datasets and their own keys. Business profiles see the dashboard and label in the queues they review.</p>
             <MemberList :data="members" />
           </div>
           <InviteForm

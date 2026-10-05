@@ -48,13 +48,26 @@ const compact = (text: string) => {
   return flat.length > PREVIEW_CHARS ? `${flat.slice(0, PREVIEW_CHARS - 1)}…` : flat;
 };
 
+/** Un valor suelto (`memtrace.input` del span raíz de un agente) puede ser la lista de mensajes serializada: se lee igual que un chat. */
+function looksLikeMessages(raw: string): boolean {
+  if (!raw.trimStart().startsWith("[")) return false;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 && parsed.every((m) => typeof m === "object" && m !== null && "role" in m);
+  } catch {
+    return false;
+  }
+}
+
 /** En un chat, el último mensaje del usuario (entrada) o del asistente (salida); en el resto, el valor tal cual. */
 export function previewOf(raw: string | null, side: "input" | "output", chat: boolean): string | null {
   if (!raw || raw.trim() === "") return null;
-  if (!chat) return compact(raw);
+  if (!chat && !looksLikeMessages(raw)) return compact(raw);
   const messages = parseMessages(raw);
   const text = side === "input" ? lastOf(messages, "user") : (lastOf(messages, "assistant") ?? lastOf(messages, "unknown"));
-  return text === null ? compact(raw) : compact(text);
+  if (text !== null) return compact(text);
+  // Lista de mensajes válida sin texto del lado pedido (p. ej. solo respuestas de herramientas): no volcar el JSON crudo.
+  return messages.some((m) => m.role !== "unknown") ? null : compact(raw);
 }
 
 export function toSpanRow({ inputRaw, outputRaw, chat, inputTokens, outputTokens, ...row }: SpanRecord, pricing: PricingCatalog = new Map()): SpanRow {

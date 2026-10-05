@@ -9,10 +9,21 @@ import type {
   QueueTarget,
   ReviewerProgress,
 } from "@/domain/annotation-queue";
+import type { QueueResolution } from "@/domain/queue-results";
 
 export interface QueueWithProgress {
   queue: AnnotationQueue;
   progress: QueueProgress;
+  /** items terminados por los revisores cuya traza aún no está en ningún dataset: el trabajo que espera al perfil técnico */
+  toCurate: number;
+}
+
+/** Una cola que contiene la traza, con el estado del item (ADR-050). */
+export interface TraceQueueMembership {
+  queueId: string;
+  queueName: string;
+  archived: boolean;
+  itemStatus: QueueItemStatus;
 }
 
 export interface AddedItems {
@@ -58,4 +69,14 @@ export interface AnnotationQueueRepository {
   skipClaim(queue: AnnotationQueue, itemId: string, userId: string): Promise<QueueItem>;
   /** Acción de admin: el item pasa a `skipped` y deja de repartirse. */
   markUnreviewable(queueId: string, itemId: string): Promise<QueueItem | null>;
+
+  /** Colas del experimento que contienen la traza como item. */
+  listQueuesForTrace(experimentId: string, traceId: string): Promise<TraceQueueMembership[]>;
+
+  /** Resoluciones del técnico (ADR-050) de esos items de la cola. */
+  listResolutions(queueId: string, itemIds: string[]): Promise<QueueResolution[]>;
+  /** Crea o sustituye la resolución de (item, config). */
+  upsertResolution(queueId: string, resolution: Omit<QueueResolution, "resolvedAt">): Promise<QueueResolution>;
+  /** true si existía. */
+  deleteResolution(queueId: string, itemId: string, configId: string): Promise<boolean>;
 }

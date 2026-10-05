@@ -5,12 +5,15 @@ import { useQuasar } from "quasar";
 import type { AnnotationQueueDetailResponse, QueueItemDto, ScoreConfigDto } from "@contract";
 import { ApiError } from "@/application/trace-api";
 import { shortId } from "@/domain/format";
-import { spanIo, type IoBlock } from "@/domain/span-io";
+import { conversationTurns } from "@/domain/review-thread";
+import { traceThread } from "@/domain/trace-thread";
 import { findNode, firstErrorNode } from "@/domain/waterfall";
+import ConversationThread from "../components/ConversationThread.vue";
 import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import SpanInspector from "../components/SpanInspector.vue";
 import SpanTree from "../components/SpanTree.vue";
+import { usePermissions } from "../composables/usePermissions";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
 import { numericChoices } from "../score-config-form";
@@ -23,6 +26,7 @@ import { numericChoices } from "../score-config-form";
 const props = defineProps<{ queueId: string }>();
 
 const api = useTraceApi();
+const { can } = usePermissions();
 const route = useRoute();
 const router = useRouter();
 const $q = useQuasar();
@@ -54,13 +58,9 @@ const ready = computed(() => rubric.value.every((r) => !r.required || (drafts[r.
 // ---- business view: the conversation as turns, the agent's answer last; the span tree is one click away ----
 const showTrace = ref(false);
 const openNotes = reactive<Record<string, boolean>>({});
-const thread = computed<IoBlock[]>(() => {
-  const root = roots.value[0];
-  if (!root) return [];
-  const io = spanIo(root);
-  return [...io.input, ...io.output];
-});
-const isAnswer = (block: IoBlock) => block.role === "assistant" || block.role === "other";
+const thread = computed(() => traceThread(roots.value));
+const turns = computed(() => conversationTurns(thread.value));
+const hasAnswer = computed(() => turns.value.some((t) => t.kind === "answer"));
 const firstUnanswered = computed(() => rubric.value.find((r) => (drafts[r.configId]?.value ?? "") === ""));
 
 function pickByKey(key: string) {
@@ -136,6 +136,19 @@ async function skip() {
   }
 }
 
+async function markUnreviewable() {
+  if (!item.value) return;
+  busy.value = true;
+  try {
+    await api.markAnnotationQueueItemUnreviewable(props.queueId, item.value.id);
+    await loadNext();
+  } catch (error) {
+    notifyError("Could not mark item as unreviewable", error);
+  } finally {
+    busy.value = false;
+  }
+}
+
 function choices(config: ScoreConfigDto): Array<{ value: string; label: string }> | null {
   if (config.dataType === "boolean") return [{ value: "true", label: "Yes" }, { value: "false", label: "No" }];
   if (config.dataType === "categorical") return (config.categories ?? []).map((c) => ({ value: c.label, label: c.label }));
@@ -149,10 +162,13 @@ const progress = computed(() => queue.value?.progress);
 <template>
   <div class="page">
     <header class="head mt-card">
-      <button type="button" class="crumb" @click="back">Review</button>
+      <button type="button" class="crumb" @click="back">← Review</button>
       <span class="muted">/</span>
       <h1>{{ queue?.name ?? "Queue" }}</h1>
-      <span v-if="progress" class="muted counts" data-testid="progress">{{ progress.completed }} done · {{ progress.pending }} pending</span>
+      <div v-if="progress" class="progress-wrap">
+        <span class="muted counts" data-testid="progress">{{ progress.completed }} done · {{ progress.pending }} pending</span>
+        <div class="bar" aria-hidden="true"><div class="bar-fill" :style="{ width: `${Math.round((progress.completed / Math.max(1, progress.completed + progress.pending + progress.skipped)) * 100)}%` }" /></div>
+      </div>
     </header>
 
     <ErrorBanner v-if="loadError" :error="loadError" @retry="loadError = null; loadNext()" />
@@ -172,18 +188,22 @@ const progress = computed(() => queue.value?.progress);
           </p>
           <div v-else-if="!trace.data.value" class="loading"><q-spinner size="28px" color="primary" /></div>
           <template v-else>
-            <div class="thread" data-testid="thread">
-              <div v-for="(block, i) in thread" :key="i" class="turn" :class="{ answer: isAnswer(block) }">
-                <span class="who">{{ isAnswer(block) ? "Assistant" : block.role === "user" ? "User" : block.label }}</span>
-                <p>{{ block.text }}</p>
+            <h2 class="section-title">Conversation</h2>
+            <ConversationThread :turns="turns" answer-label="Reply to review">
+              <div v-if="turns.length && !hasAnswer" class="no-answer" data-testid="no-answer">
+                <q-icon name="warning" size="18px" />
+                <span v-if="trace.data.value && trace.data.value.errorCount > 0" data-testid="agent-failed">
+                  The agent failed before replying to the last message (see the error in the technical trace). There is nothing to review: skip it or mark it unreviewable.
+                </span>
+                <span v-else>The assistant's final reply was not captured in this trace. Skip it or mark it unreviewable.</span>
               </div>
-              <p v-if="!thread.length" class="gone">This trace has no content saved. Skip it or check the technical view.</p>
-            </div>
+              <p v-if="!turns.length" class="gone">This trace has no content saved. Skip it or check the technical view.</p>
+            </ConversationThread>
 
-            <button type="button" class="link" :aria-expanded="showTrace" data-testid="trace-toggle" @click="showTrace = !showTrace">
+            <button v-if="can('trace:read_technical')" type="button" class="link" :aria-expanded="showTrace" data-testid="trace-toggle" @click="showTrace = !showTrace">
               {{ showTrace ? "Hide technical trace" : "Show technical trace" }}
             </button>
-            <div v-if="showTrace" class="trace-cols" data-testid="technical-trace">
+            <div v-if="showTrace && can('trace:read_technical')" class="trace-cols" data-testid="technical-trace">
               <SpanTree :roots="roots" :total-ms="trace.data.value.durationMs" :selected-id="selectedNode?.spanId ?? null" @select="(id: string) => (selectedSpan = id)" />
               <SpanInspector v-if="selectedNode" :node="selectedNode" empty-hint="This span has no content saved." />
             </div>
@@ -195,9 +215,14 @@ const progress = computed(() => queue.value?.progress);
       </section>
 
       <aside class="mt-card rubric" aria-label="Rubric" data-testid="rubric">
-        <p v-if="queue.instructions" class="instructions">{{ queue.instructions }}</p>
+        <h2 class="section-title">Your review</h2>
+        <p v-if="queue.instructions" class="instructions"><q-icon name="info" size="16px" /> {{ queue.instructions }}</p>
         <section v-for="r in rubric" :key="r.configId" class="criterion" data-testid="rubric-config">
-          <h3>{{ r.config.name }} <span v-if="r.required" class="req">required</span></h3>
+          <h3>
+            {{ r.config.name }}
+            <span v-if="r.required" class="req">required</span>
+            <q-icon v-if="drafts[r.configId]?.value" name="check_circle" size="16px" class="done" />
+          </h3>
           <p v-if="r.config.description" class="help">{{ r.config.description }}</p>
           <div v-if="choices(r.config)" class="choices">
             <button
@@ -233,6 +258,7 @@ const progress = computed(() => queue.value?.progress);
           />
         </section>
         <div class="buttons">
+          <button type="button" class="small-btn" :disabled="busy" data-testid="mark-unreviewable" @click="markUnreviewable">Mark unreviewable</button>
           <button type="button" class="small-btn" :disabled="busy" data-testid="skip" @click="skip">Skip</button>
           <button type="button" class="primary-btn" :disabled="busy || !ready" data-testid="submit" @click="submit">Submit &amp; next</button>
         </div>
@@ -248,30 +274,49 @@ const progress = computed(() => queue.value?.progress);
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  padding: 16px 24px 20px;
+  background: var(--mt-bg);
 }
 .head {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 16px;
+  height: 48px;
+  box-sizing: border-box;
+  padding: 0 18px;
   flex-shrink: 0;
 }
 .head h1 {
   margin: 0;
   font-size: 15px;
-  font-weight: 700;
+  font-weight: 800;
 }
-.counts {
+.progress-wrap {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.bar {
+  width: 200px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--mt-line-2);
+}
+.bar-fill {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--mt-accent);
+  transition: width 0.3s ease;
 }
 .crumb {
   border: 0;
   background: none;
   padding: 0;
-  color: var(--mt-accent);
+  color: var(--mt-accent-text);
   font: inherit;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
 }
 .muted {
@@ -288,132 +333,48 @@ const progress = computed(() => queue.value?.progress);
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) 420px;
+  gap: 12px;
 }
 .main {
   min-height: 0;
   overflow: auto;
-  padding: 12px;
+  padding: 18px 22px;
+  background: var(--mt-card);
 }
-.thread {
+.section-title {
+  margin: 0 0 12px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--mt-muted);
+}
+.no-answer {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 8px;
-}
-.turn {
-  padding: 10px 12px;
-  border-radius: var(--mt-radius-lg);
-  background: var(--mt-soft);
+  padding: 12px 14px;
+  border-radius: var(--mt-radius-sm);
+  border: 1px dashed var(--mt-line);
   color: var(--mt-muted);
   font-size: 13px;
-}
-.turn p {
-  margin: 2px 0 0;
-  white-space: pre-wrap;
-  color: var(--mt-ink);
-}
-.turn.answer {
-  background: var(--mt-card);
-  border: 1px solid var(--mt-line);
-}
-.turn.answer p {
-  font-size: 15px;
-}
-.who {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 .link {
-  margin-top: 12px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--mt-accent);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-.criterion {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 0;
-  border-top: 1px solid var(--mt-line);
-}
-.criterion:first-of-type {
-  padding-top: 0;
-  border-top: 0;
-}
-.criterion h3 {
-  margin: 0;
-  font-size: 14px;
-}
-.help {
-  margin: 0;
-  font-size: 12.5px;
-  color: var(--mt-muted);
-}
-.choices {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.choice {
-  flex: 1 1 auto;
-  min-width: 64px;
-  padding: 10px 12px;
-  border-radius: var(--mt-radius-lg);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  color: var(--mt-ink);
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-}
-.choice.on {
-  border-color: var(--mt-accent);
-  background: color-mix(in srgb, var(--mt-accent) 12%, transparent);
-  color: var(--mt-accent);
-  font-weight: 600;
-}
-.choice kbd {
   display: block;
-  font: inherit;
-  font-size: 11px;
-  color: var(--mt-muted);
-}
-.note-toggle {
-  align-self: flex-start;
+  margin: 16px 0 12px;
   padding: 0;
   border: 0;
   background: none;
-  color: var(--mt-muted);
+  color: var(--mt-accent-text);
   font: inherit;
   font-size: 12px;
+  font-weight: 700;
   cursor: pointer;
-}
-.note {
-  box-sizing: border-box;
-  width: 100%;
-  padding: 8px;
-  border-radius: var(--mt-radius-lg);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  color: var(--mt-ink);
-  font: inherit;
-  font-size: 13px;
-  resize: vertical;
-}
-.hint {
-  margin: 0;
-  text-align: center;
-  font-size: 11.5px;
-  color: var(--mt-muted);
 }
 .trace-cols {
+  position: relative;
+  padding-top: 22px; /* the time-axis labels of SpanTree are drawn above their track */
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 10px;
@@ -426,65 +387,121 @@ const progress = computed(() => queue.value?.progress);
 }
 .rubric {
   overflow: auto;
-  padding: 14px;
+  padding: 16px 20px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 .instructions {
   margin: 0;
   padding: 10px 12px;
-  border-radius: var(--mt-radius-lg);
-  background: var(--mt-soft);
+  border-radius: var(--mt-radius-sm);
+  background: var(--mt-accent-tint);
+  color: var(--mt-accent-text);
   font-size: 12.5px;
+  line-height: 1.45;
   white-space: pre-wrap;
 }
-.config {
+.criterion {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px;
-  border-radius: var(--mt-radius-lg);
-  background: var(--mt-soft);
+  gap: 8px;
 }
-.config-name {
-  font-weight: 700;
-  font-size: 13px;
+.criterion h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
 }
 .req {
-  margin-left: 6px;
-  color: var(--mt-muted);
+  color: var(--mt-err-ink);
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
 }
-.choice-row {
+.done {
+  margin-left: auto;
+  color: var(--mt-ok-ink);
+}
+.help {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 12.5px;
+  color: var(--mt-muted);
+}
+.choices {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 6px;
 }
-.choice-btn {
-  height: 28px;
-  min-width: 34px;
+.choice {
+  flex: 1 1 auto;
+  min-width: 64px;
+  height: 34px;
   padding: 0 12px;
   border-radius: var(--mt-radius-sm);
   border: 1px solid var(--mt-line);
   background: var(--mt-card);
-  color: var(--mt-muted);
+  color: var(--mt-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.choice:hover {
+  border-color: var(--mt-accent);
+}
+.choice.on {
+  border-color: var(--mt-accent);
+  background: var(--mt-accent-tint);
+  color: var(--mt-accent-text);
+  box-shadow: 0 0 0 3px var(--mt-accent-soft);
+}
+.choice kbd {
+  font-family: var(--mt-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  opacity: 0.6;
+}
+.note-toggle {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--mt-accent-text);
   font: inherit;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
 }
-.choice-btn.active {
-  background: var(--mt-accent);
-  border-color: var(--mt-accent);
-  color: var(--mt-accent-ink);
+.note {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--mt-radius-sm);
+  border: 1px solid var(--mt-line);
+  background: var(--mt-soft-2);
+  color: var(--mt-ink);
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+.hint {
+  margin: 0;
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--mt-faint);
 }
 .text-input {
   box-sizing: border-box;
   height: 32px;
   padding: 0 12px;
-  border-radius: var(--mt-radius-lg);
+  border-radius: var(--mt-radius-sm);
   border: 1px solid var(--mt-line);
   background: var(--mt-card);
   font: inherit;
@@ -492,19 +509,25 @@ const progress = computed(() => queue.value?.progress);
   color: var(--mt-ink);
 }
 .buttons {
+  position: sticky;
+  bottom: -16px;
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
   margin-top: auto;
+  padding: 12px 0 16px;
+  background: var(--mt-card);
+  border-top: 1px solid var(--mt-line);
 }
 .small-btn,
 .primary-btn {
   height: 34px;
   padding: 0 16px;
-  border-radius: var(--mt-radius-lg);
+  border-radius: var(--mt-radius-sm);
   font: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
 }
 .small-btn {

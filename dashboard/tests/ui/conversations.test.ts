@@ -71,6 +71,15 @@ describe("ConversationDetailPage", () => {
     expect(api.conversationDetailCalls[0]).toMatchObject({ id: "conv-1" });
   });
 
+  it("annotates a turn from the conversation without leaving it", async () => {
+    const { wrapper, router } = await open();
+    const before = router.currentRoute.value.fullPath;
+    await wrapper.findAll('[data-testid="row-annotate"]')[0]!.trigger("click");
+    await flushPromises();
+    expect(document.body.querySelector('[data-testid="annotations-panel"]')).not.toBeNull();
+    expect(router.currentRoute.value.fullPath).toBe(before);
+  });
+
   it("opens a trace from its row, keeping the shared filters", async () => {
     const { wrapper, router } = await open("/conversations/conv-1?range=6h&service=svc-a");
     await wrapper.findAll("tbody tr")[1]!.trigger("click");
