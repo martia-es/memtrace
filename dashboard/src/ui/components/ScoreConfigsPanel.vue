@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from "@/ui/components/TextInput.vue";
 import { computed, reactive, ref } from "vue";
 import { useQuasar } from "quasar";
 import type { ScoreConfigDto } from "@contract";
@@ -119,7 +120,7 @@ async function setArchived(config: ScoreConfigDto, archived: boolean) {
     </p>
 
     <div class="config-actions">
-      <button v-if="canManage" class="primary-btn" type="button" @click="showCreate = true">New score config</button>
+      <button v-if="canManage" class="primary-btn mt-new" type="button" @click="showCreate = true">+ New score config</button>
       <button class="link-btn" type="button" @click="toggleArchived">{{ showArchived ? "Hide archived" : "Show archived" }}</button>
     </div>
 
@@ -128,14 +129,14 @@ async function setArchived(config: ScoreConfigDto, archived: boolean) {
     <Modal v-if="editing" :title="`Edit ${editing.name}`" @close="editing = null">
       <form class="modal-form" @submit.prevent="saveEdit">
         <div v-if="editing.dataType === 'numeric'" class="range-row">
-          <input v-model="edit.min" class="text-input" type="number" step="any" :max="editing.minValue ?? undefined" aria-label="Min (can only be lowered)" />
-          <input v-model="edit.max" class="text-input" type="number" step="any" :min="editing.maxValue ?? undefined" aria-label="Max (can only be raised)" />
+          <TextInput v-model="edit.min" type="number" step="any" :max="editing.minValue ?? undefined" aria-label="Min (can only be lowered)" />
+          <TextInput v-model="edit.max" type="number" step="any" :min="editing.maxValue ?? undefined" aria-label="Max (can only be raised)" />
         </div>
         <template v-if="editing.dataType === 'categorical'">
-          <textarea v-model="edit.categories" class="text-input area" rows="5" />
+          <TextInput multiline v-model="edit.categories" :rows="5" />
           <p class="hint">Add lines to add categories. Existing ones can't be removed, renamed or re-valued.</p>
         </template>
-        <textarea v-model="edit.description" class="text-input area" rows="2" placeholder="Guideline shown to the annotator (optional)" />
+        <TextInput multiline v-model="edit.description" :rows="2" placeholder="Guideline shown to the annotator (optional)" />
         <button type="submit" class="primary-btn" :disabled="saving">Save</button>
       </form>
     </Modal>
@@ -254,27 +255,6 @@ async function setArchived(config: ScoreConfigDto, archived: boolean) {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
-}
-.text-input {
-  width: 100%;
-  box-sizing: border-box;
-  height: 40px;
-  padding: 0 14px;
-  border-radius: var(--mt-radius-lg);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  font: inherit;
-  font-size: 13px;
-  color: var(--mt-ink);
-}
-.text-input.area {
-  height: auto;
-  padding: 10px 14px;
-  resize: vertical;
-}
-.text-input:focus {
-  outline: 2px solid var(--mt-accent);
-  outline-offset: -1px;
 }
 .primary-btn {
   align-self: flex-start;

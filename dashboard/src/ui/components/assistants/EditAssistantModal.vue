@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import TextInput from "@/ui/components/TextInput.vue";
+import Select from "../Select.vue";
 import { reactive, ref } from "vue";
 import { useQuasar } from "quasar";
 import type { AssistantCardDto } from "@contract";
@@ -41,34 +43,35 @@ async function save() {
     saving.value = false;
   }
 }
+const LIFECYCLE_OPTIONS: { label: string; value: "active" | "retired" }[] = [
+  { label: "Active", value: "active" },
+  { label: "Retired (health checks stop)", value: "retired" },
+];
 </script>
 
 <template>
   <Modal :title="`Edit ${card.name}`" @close="emit('close')">
     <form class="modal-form" @submit.prevent="save">
-      <label class="field"><span>Description</span><textarea v-model="form.description" class="text-input" rows="3" /></label>
+      <label class="field"><span>Description</span><TextInput multiline v-model="form.description" :rows="3" /></label>
       <label class="field">
         <span>Lifecycle</span>
-        <select v-model="form.lifecycle" class="text-input">
-          <option value="active">Active</option>
-          <option value="retired">Retired (health checks stop)</option>
-        </select>
+        <Select v-model="form.lifecycle" :options="LIFECYCLE_OPTIONS" />
       </label>
       <fieldset class="chat">
         <legend>Chat endpoint</legend>
         <label class="field">
           <span>Path</span>
-          <input v-model="form.chatPath" class="text-input" :class="{ invalid: fieldErrors.path }" placeholder="/api/chat" data-testid="chat-path" />
+          <TextInput v-model="form.chatPath" :invalid="!!fieldErrors.path" placeholder="/api/chat" data-testid="chat-path" />
           <span v-if="fieldErrors.path" class="field-error">{{ fieldErrors.path }}</span>
           <p class="hint">Same in every environment: the host comes from each deployment. Leave empty if the agent has no chat.</p>
         </label>
         <div v-if="form.chatPath.trim() !== ''" class="row">
-          <label class="field"><span>Message field</span><input v-model="form.requestField" class="text-input" :class="{ invalid: fieldErrors.requestField }" /></label>
-          <label class="field"><span>Reply field</span><input v-model="form.responseField" class="text-input" :class="{ invalid: fieldErrors.responseField }" placeholder="reply or data.answer" /></label>
+          <label class="field"><span>Message field</span><TextInput v-model="form.requestField" :invalid="!!fieldErrors.requestField" /></label>
+          <label class="field"><span>Reply field</span><TextInput v-model="form.responseField" :invalid="!!fieldErrors.responseField" placeholder="reply or data.answer" /></label>
         </div>
         <label v-if="form.chatPath.trim() !== ''" class="field">
           <span>Session field (optional)</span>
-          <input v-model="form.sessionField" class="text-input" placeholder="session_id" />
+          <TextInput v-model="form.sessionField" placeholder="session_id" />
           <p class="hint">JSON key that carries the conversation id, in the request and in the reply.</p>
         </label>
       </fieldset>

@@ -9,6 +9,7 @@ import {
   type RecentHealth,
   type AccessGrant,
   type AssistantMember,
+  type AssistantPerson,
   type AssistantCard,
   type AssistantPatch,
   type Connection,
@@ -125,12 +126,18 @@ interface GrantRow {
   member_count: number | null;
   source: GrantSource;
   synced_at: Ts | null;
+  user_name: string | null;
+  user_email: string | null;
+  user_image: string | null;
 }
+const GRANT_COLUMNS = `g.id, g.deployment_id, g.subject_type, g.user_id, g.external_group, g.member_count, g.source, g.synced_at,
+       u.name AS user_name, u.email AS user_email, u.image AS user_image`;
 const toGrant = (r: GrantRow): AccessGrant => ({
   id: r.id,
   deploymentId: r.deployment_id,
   subjectType: r.subject_type,
   userId: r.user_id,
+  user: r.user_id && r.user_email ? { userId: r.user_id, name: r.user_name, email: r.user_email, image: r.user_image } : null,
   externalGroup: r.external_group,
   memberCount: r.member_count,
   source: r.source,
@@ -196,10 +203,11 @@ export class PostgresAssistantRegistryRepository implements AssistantRegistryRep
       service_name: string;
       owner_name: string | null;
       owner_email: string | null;
+      owner_image: string | null;
     }>(
       `SELECT e.id AS experiment_id, e.description, e.owner_user_id, e.lifecycle, e.created_at, e.updated_at,
               e.chat_path, e.chat_request_field, e.chat_response_field, e.chat_session_field,
-              e.name, e.service_name, u.name AS owner_name, u.email AS owner_email
+              e.name, e.service_name, u.name AS owner_name, u.email AS owner_email, u.image AS owner_image
          FROM experiments e LEFT JOIN users u ON u.id = e.owner_user_id
         WHERE ${where} ORDER BY e.name`,
       params,
@@ -261,7 +269,7 @@ export class PostgresAssistantRegistryRepository implements AssistantRegistryRep
         updatedAt: iso(r.updated_at),
         name: r.name,
         serviceName: r.service_name,
-        owner: r.owner_user_id ? { id: r.owner_user_id, name: r.owner_name, email: r.owner_email ?? "" } : null,
+        owner: r.owner_user_id ? { id: r.owner_user_id, name: r.owner_name, email: r.owner_email ?? "", image: r.owner_image } : null,
         deployments,
         connectionCounts: { mcpServers: c?.mcp ?? 0, tools: c?.tools ?? 0, agents: c?.agents ?? 0, toReview: c?.to_review ?? 0 },
         mcpServerNames: c?.mcp_names ?? [],
@@ -533,20 +541,40 @@ export class PostgresAssistantRegistryRepository implements AssistantRegistryRep
   async listGrants(experimentId: string, deploymentId: string): Promise<AccessGrant[] | null> {
     if (!(await this.getDeployment(experimentId, deploymentId))) return null;
     const { rows } = await this.pool.query<GrantRow>(
-      `SELECT id, deployment_id, subject_type, user_id, external_group, member_count, source, synced_at
-         FROM deployment_access_grants WHERE deployment_id = $1 ORDER BY subject_type, external_group, created_at`,
+      `SELECT ${GRANT_COLUMNS}
+         FROM deployment_access_grants g LEFT JOIN users u ON u.id = g.user_id
+        WHERE g.deployment_id = $1 ORDER BY g.subject_type, g.external_group, g.created_at`,
       [deploymentId],
     );
     return rows.map(toGrant);
+  }
+
+  async searchPeople(experimentId: string, query: string, limit: number): Promise<AssistantPerson[] | null> {
+    if (!UUID.test(experimentId)) return null;
+    const like = `%${query.trim().replace(/[\\%_]/g, "\\$&")}%`;
+    const { rows } = await this.pool.query<{ id: string; name: string | null; email: string; image: string | null }>(
+      `SELECT u.id, u.name, u.email, u.image
+         FROM users u
+        WHERE (u.name ILIKE $2 OR u.email ILIKE $2)
+          AND (EXISTS (SELECT 1 FROM org_memberships om JOIN experiments e ON e.organization_id = om.organization_id WHERE e.id = $1 AND om.user_id = u.id)
+            OR EXISTS (SELECT 1 FROM experiment_memberships xm WHERE xm.experiment_id = $1 AND xm.user_id = u.id))
+        ORDER BY u.name NULLS LAST, u.email
+        LIMIT $3`,
+      [experimentId, like, limit],
+    );
+    return rows.map((r) => ({ userId: r.id, name: r.name, email: r.email, image: r.image }));
   }
 
   async addGrant(experimentId: string, deploymentId: string, grant: NewGrant, createdBy: string): Promise<AccessGrant | null> {
     if (!(await this.getDeployment(experimentId, deploymentId))) return null;
     try {
       const { rows } = await this.pool.query<GrantRow>(
-        `INSERT INTO deployment_access_grants (deployment_id, subject_type, user_id, external_group, member_count, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING id, deployment_id, subject_type, user_id, external_group, member_count, source, synced_at`,
+        `WITH g AS (
+           INSERT INTO deployment_access_grants (deployment_id, subject_type, user_id, external_group, member_count, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           RETURNING *
+         )
+         SELECT ${GRANT_COLUMNS} FROM g LEFT JOIN users u ON u.id = g.user_id`,
         [deploymentId, grant.subjectType, grant.userId ?? null, grant.externalGroup?.trim() || null, grant.memberCount ?? null, createdBy],
       );
       return toGrant(rows[0]!);

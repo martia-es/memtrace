@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Select from "./Select.vue";
 import type { DatasetItemChangeDto, DatasetVersionDto } from "@contract";
 import { computed, ref, watch } from "vue";
 import { formatDateTime } from "@/domain/format";
@@ -29,6 +30,7 @@ const diff = useAsync((signal) => api.getDatasetVersionDiff(props.datasetId, pro
 watch(againstId, () => void diff.run(), { immediate: true });
 
 const label = (v: { major: number; minor: number }) => `v${v.major}.${v.minor}`;
+const versionOptions = computed(() => olderVersions.value.map((v) => ({ label: `${label(v)}${v.note ? ` — ${v.note}` : ""}`, value: v.id })));
 
 const entries = computed(() =>
   (diff.data.value?.changes ?? []).map((change) => ({
@@ -56,9 +58,7 @@ const KIND_TONE = { added: "ok", modified: "warn", removed: "error" } as const;
       <div>
         <dt><label for="compare-with">Compare with</label></dt>
         <dd>
-          <select v-if="olderVersions.length > 0" id="compare-with" v-model="againstId" class="compare-select">
-            <option v-for="v in olderVersions" :key="v.id" :value="v.id">{{ label(v) }}{{ v.note ? ` — ${v.note}` : "" }}</option>
-          </select>
+          <Select v-if="olderVersions.length > 0" id="compare-with" v-model="againstId" :options="versionOptions" />
           <span v-else class="muted">Initial version</span>
         </dd>
       </div>

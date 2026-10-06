@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from "@/ui/components/TextInput.vue";
 import { ref } from "vue";
 import Select from "../Select.vue";
 
@@ -29,7 +30,7 @@ function submit() {
     <h4 class="invite-title">{{ props.title }}</h4>
     <p class="adm-hint">{{ props.help }}</p>
     <div class="adm-form-row">
-      <input v-model="email" class="adm-input" type="email" placeholder="Email of the person to invite" aria-label="Email" />
+      <TextInput v-model="email" type="email" placeholder="Email of the person to invite" aria-label="Email" />
       <Select v-if="roleOptions" v-model="role" :options="roleOptions" />
       <button class="adm-btn primary" type="submit" :disabled="sending || !email.trim()">Send invitation</button>
     </div>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from "@/ui/components/TextInput.vue";
 import type { DatasetRunSummaryDto, DatasetVersionDto, ScoreAggregateDto } from "@contract";
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
@@ -156,9 +157,7 @@ function openRun(runId: string) {
 
         <!-- Runs -->
         <q-tab-panel name="runs" class="tab-panel">
-          <q-input v-model="runSearch" dense outlined placeholder="Filter by run name…" class="search" clearable>
-            <template #prepend><q-icon name="search" size="18px" /></template>
-          </q-input>
+          <TextInput type="search" v-model="runSearch" placeholder="Filter by run name…" class="search" />
           <ErrorBanner v-if="runs.error.value" :error="runs.error.value" @retry="runs.run()" />
           <div v-else-if="runs.loading.value && !runs.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
           <EmptyState v-else-if="(runs.data.value?.items.length ?? 0) === 0" icon="playlist_add_check" title="No runs yet">

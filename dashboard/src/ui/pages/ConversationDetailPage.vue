@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TopbarSlot from "../components/TopbarSlot.vue";
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { withGaps } from "@/domain/conversation";
@@ -113,11 +114,13 @@ const backToList = () => void router.push({ name: "conversations", params: { exp
 
 <template>
   <div class="page">
-    <nav class="crumbs" aria-label="Breadcrumbs">
-      <button type="button" class="crumb" @click="backToList">Conversations</button>
-      <q-icon name="chevron_right" size="16px" />
-      <span class="mono current">{{ conversationId }}</span>
-    </nav>
+    <TopbarSlot side="left">
+      <nav class="crumbs" aria-label="Breadcrumbs">
+        <button type="button" class="crumb" @click="backToList">← Conversations</button>
+        <span class="sep">/</span>
+        <span class="mono current">{{ conversationId }}</span>
+      </nav>
+    </TopbarSlot>
 
     <ErrorBanner v-if="detail.error.value" :error="detail.error.value" @retry="load" />
     <div v-else-if="!conversation" class="loading"><q-spinner size="32px" color="primary" /></div>
@@ -180,11 +183,13 @@ const backToList = () => void router.push({ name: "conversations", params: { exp
 .crumbs {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 4px;
+  gap: 10px;
   color: var(--mt-muted);
-  font-size: 12.5px;
-  flex-shrink: 0;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.sep {
+  color: var(--mt-faint);
 }
 .crumb {
   border: 0;

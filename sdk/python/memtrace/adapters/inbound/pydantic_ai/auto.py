@@ -7,6 +7,7 @@ import logging
 from typing import Optional
 
 from memtrace.adapters.inbound.auto_instrumentation import resolve_tracer_provider
+from memtrace.adapters.inbound.pydantic_ai.mcp import instrument_mcp_toolsets
 from memtrace.adapters.inbound.pydantic_ai.normalization import PydanticAiSpanNormalizer
 from memtrace.application.span_normalization import register_span_normalizer
 from memtrace.application.tracing_service import TracingService
@@ -37,4 +38,5 @@ def enable_pydantic_ai_instrumentation(service: Optional[TracingService] = None)
     Agent.instrument_all(
         InstrumentationSettings(tracer_provider=provider, include_content=service.captures_content)
     )
+    instrument_mcp_toolsets()
     logger.info("[MemTrace] Pydantic AI auto-instrumentation enabled")

@@ -5,17 +5,20 @@ import type { SpanNodeDto } from "@contract";
 import { TRACE_API } from "@/dependency-container";
 import AddToDatasetModal from "@/ui/components/AddToDatasetModal.vue";
 import { datasetDto, FakeTraceApi, node } from "../../fakes";
+import { chooseOption } from "../select";
 
 // `Modal` se teletransporta a <body>: se consulta el documento, no el wrapper.
 const $ = <T extends Element>(testId: string) => document.body.querySelector(`[data-testid="${testId}"]`) as T | null;
 const text = (testId: string) => $(testId)!.textContent ?? "";
 
 async function set(testId: string, value: string) {
-  const el = $<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(testId)!;
+  const el = $<HTMLInputElement | HTMLTextAreaElement>(testId)!;
   el.value = value;
-  el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? "change" : "input"));
+  el.dispatchEvent(new Event("input"));
   await flushPromises();
 }
+
+const pickDataset = (label = "toy-agent-smoke-test") => chooseOption(document.body, '[data-testid="dataset-select"]', label);
 
 async function submit() {
   document.body.querySelector("form")!.dispatchEvent(new Event("submit", { cancelable: true }));
@@ -50,7 +53,7 @@ describe("AddToDatasetModal", () => {
 
   it("sends the edited input and the expected output parsed as JSON-or-text, in one call", async () => {
     const { trace } = await mountModal(withContent);
-    await set("dataset-select", "ds-1");
+    await pickDataset();
     await set("input", '{"q":"capital of [country]?"}');
     await set("expected", "Paris");
     await submit();
@@ -59,7 +62,7 @@ describe("AddToDatasetModal", () => {
 
   it("omits expectedOutput when left blank", async () => {
     const { trace } = await mountModal(withContent);
-    await set("dataset-select", "ds-1");
+    await pickDataset();
     await submit();
     expect(trace.promoteCalls[0]!.body.items[0]).toEqual({ traceId: "t1", input: "capital of France?" });
   });
@@ -67,7 +70,7 @@ describe("AddToDatasetModal", () => {
   it("warns and blocks saving when the trace has no input until one is typed", async () => {
     await mountModal([node({ content: null })]);
     expect($("no-content")).not.toBeNull();
-    await set("dataset-select", "ds-1");
+    await pickDataset();
     expect($<HTMLButtonElement>("save")!.disabled).toBe(true);
     await set("input", "typed input");
     expect($<HTMLButtonElement>("save")!.disabled).toBe(false);
@@ -81,7 +84,7 @@ describe("AddToDatasetModal", () => {
   it("stays open when the server skips the trace", async () => {
     const { wrapper, trace } = await mountModal(withContent);
     trace.promoteResult = { added: [], skipped: [{ traceId: "t1", reason: "already_promoted" }], version: null };
-    await set("dataset-select", "ds-1");
+    await pickDataset();
     await submit();
     expect(wrapper.emitted("close")).toBeUndefined();
   });
@@ -89,7 +92,7 @@ describe("AddToDatasetModal", () => {
   it("closes after a successful promotion", async () => {
     const { wrapper, trace } = await mountModal(withContent);
     trace.promoteResult = { added: [], skipped: [], version: { major: 2, minor: 0 } as never };
-    await set("dataset-select", "ds-1");
+    await pickDataset();
     await submit();
     expect(wrapper.emitted("close")).toHaveLength(1);
   });

@@ -31,5 +31,7 @@ MEMTRACE_TAGS = "memtrace.tags"
 MEMTRACE_INPUT = "memtrace.input"
 MEMTRACE_OUTPUT = "memtrace.output"
 MEMTRACE_SPAN_EXPIRED = "memtrace.span.expired"
+# name of the MCP server a tool span ran on (ADR-053 §8); absent for local functions
+MEMTRACE_MCP_SERVER = "memtrace.mcp_server"
 MEMTRACE_RETRIEVER_DOCUMENTS = "memtrace.retriever.documents"
 MEMTRACE_RETRIEVER_CHUNKS = "memtrace.retriever.chunks"

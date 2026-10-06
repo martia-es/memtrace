@@ -30,6 +30,13 @@ WMO_CODES: dict[int, str] = {
 }
 
 
+# Escala del índice UV de la OMS: (límite superior exclusivo, nivel).
+UV_LEVELS = [(3, "bajo"), (6, "moderado"), (8, "alto"), (11, "muy alto")]
+
+# Tipos de polen que publica Open-Meteo (solo hay datos en Europa).
+POLLEN_FIELDS = ("alder_pollen", "birch_pollen", "grass_pollen", "mugwort_pollen", "olive_pollen", "ragweed_pollen")
+
+
 class LocationNotFoundError(Exception):
     """No se encontró ninguna localidad con ese nombre."""
 
@@ -48,10 +55,12 @@ class WeatherService:
         client: httpx.AsyncClient,
         geocoding_url: str,
         forecast_url: str,
+        air_quality_url: str | None = None,
     ) -> None:
         self._client = client
         self._geocoding_url = geocoding_url
         self._forecast_url = forecast_url
+        self._air_quality_url = air_quality_url
 
     async def find_location(self, query: str) -> Location:
         response = await self._client.get(
@@ -86,6 +95,27 @@ class WeatherService:
         )
         response.raise_for_status()
         return response.json()
+
+    async def uv_and_pollen(self, location: Location) -> dict:
+        if self._air_quality_url is None:
+            raise RuntimeError("WeatherService sin air_quality_url: no puede consultar UV ni polen")
+        response = await self._client.get(
+            self._air_quality_url,
+            params={
+                "latitude": location.latitude,
+                "longitude": location.longitude,
+                "current": ",".join(("uv_index", *POLLEN_FIELDS)),
+                "timezone": "auto",
+            },
+        )
+        response.raise_for_status()
+        return response.json()
+
+
+def describe_uv_index(value: float | None) -> str:
+    if value is None:
+        return "desconocido"
+    return next((label for limit, label in UV_LEVELS if value < limit), "extremo")
 
 
 def describe_weather_code(code: int | None) -> str:

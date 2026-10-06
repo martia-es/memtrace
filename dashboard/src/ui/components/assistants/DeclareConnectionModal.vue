@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import TextInput from "@/ui/components/TextInput.vue";
+import Select from "../Select.vue";
 import { computed, reactive, ref } from "vue";
 import { useQuasar } from "quasar";
 import type { ConnectionKindDto } from "@contract";
@@ -28,6 +30,11 @@ async function save() {
     saving.value = false;
   }
 }
+const KIND_OPTIONS: { label: string; value: ConnectionKindDto }[] = [
+  { label: "MCP server", value: "mcp_server" },
+  { label: "Tool", value: "tool" },
+  { label: "Agent", value: "agent" },
+];
 </script>
 
 <template>
@@ -35,14 +42,10 @@ async function save() {
     <form class="modal-form" @submit.prevent="save">
       <label class="field">
         <span>Type</span>
-        <select v-model="form.kind" class="text-input" data-testid="connection-kind">
-          <option value="mcp_server">MCP server</option>
-          <option value="tool">Tool</option>
-          <option value="agent">Agent</option>
-        </select>
+        <Select v-model="form.kind" :options="KIND_OPTIONS" data-testid="connection-kind" />
       </label>
-      <label class="field"><span>Name</span><input v-model="form.name" class="text-input" placeholder="weather-mcp" autofocus /></label>
-      <label v-if="form.kind === 'tool'" class="field"><span>Exposed by MCP server (optional)</span><input v-model="form.via" class="text-input" placeholder="weather-mcp" /></label>
+      <label class="field"><span>Name</span><TextInput v-model="form.name" placeholder="weather-mcp" autofocus /></label>
+      <label v-if="form.kind === 'tool'" class="field"><span>Exposed by MCP server (optional)</span><TextInput v-model="form.via" placeholder="weather-mcp" /></label>
       <p class="hint">Declared connections are approved by governance. Anything the assistant uses that is not declared shows up for review once it appears in traces.</p>
       <div class="actions"><button type="submit" class="primary-btn" :disabled="saving || !canSave">Declare</button></div>
     </form>

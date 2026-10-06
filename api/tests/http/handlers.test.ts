@@ -112,6 +112,10 @@ describe("conversations endpoints", () => {
     const { repo, handlers } = setup();
     const cursor = { lastActivityUs: 1_790_000_060_000_000, conversationId: "conv a/b" };
     repo.conversationPage = { items: [summary("conv a/b")], nextCursor: cursor };
+    await handlers.listConversations(get("/conversations?text=refund"));
+    expect(repo.lastConversationQuery).toMatchObject({ text: "refund" });
+    await handlers.listTraces(get("/traces?text=refund"));
+    expect(repo.lastListQuery).toMatchObject({ text: "refund" });
     const response = await handlers.listConversations(get("/conversations?service=svc&hasErrors=true"));
     const body = await response.json();
     expect(response.status).toBe(200);

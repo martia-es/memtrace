@@ -14,6 +14,8 @@ export interface TraceListQuery extends TimeRange {
   /** true: la traza contiene algún span fallido */
   hasErrors?: boolean;
   minDurationMs?: number;
+  /** texto contenido en la entrada o salida capturadas de algún span de la traza (sin distinguir mayúsculas) */
+  text?: string;
   /** solo los turnos de esta conversación */
   conversationId?: string;
   /** desc (defecto): las más recientes primero; asc: cronológico (turnos de una conversación) */
@@ -26,6 +28,8 @@ export interface ConversationListQuery extends TimeRange {
   service?: string;
   /** true: la conversación contiene algún span fallido */
   hasErrors?: boolean;
+  /** texto contenido en la entrada o salida capturadas de algún turno (sin distinguir mayúsculas) */
+  text?: string;
   limit: number;
   cursor?: ConversationCursor;
 }
@@ -70,6 +74,8 @@ export interface TraceRepository {
   listConversations(query: ConversationListQuery): Promise<Page<ConversationSummary, ConversationCursor>>;
   /** Primer mensaje y tokens por modelo de esas conversaciones, para el título y el coste (ADR-049). Las que no existen no aparecen. */
   getConversationUsage(ids: string[], toMs: number): Promise<Map<string, ConversationUsage>>;
+  /** Ids de las trazas (turnos) de esas conversaciones, para cruzarlas con las valoraciones humanas. Las que no existen no aparecen. */
+  getConversationTraceIds(ids: string[], toMs: number): Promise<Map<string, string[]>>;
   /** null si no existe; `range` acota la búsqueda (la retención) */
   getConversation(conversationId: string, range: TimeRange): Promise<ConversationSummary | null>;
   /** spans de LLM de la conversación con su contenido capturado, cronológicos; hasta `maxSpans` (+ `truncated`) */

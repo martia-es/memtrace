@@ -14,8 +14,21 @@ export function isRangeKey(value: unknown): value is RangeKey {
   return RANGE_PRESETS.some((preset) => preset.key === value);
 }
 
-/** Rango relativo a `nowMs`: al refrescar, la ventana avanza con el reloj. */
-export function resolveRange(key: RangeKey, nowMs: number): { from: string; to: string } {
+/** Selección del usuario: un preset relativo o un rango propio ("custom", fechas YYYY-MM-DD en hora local). */
+export type RangeSelection = RangeKey | "custom";
+export type CustomRange = { from: string; to: string };
+
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+export function isCustomRange(from: unknown, to: unknown): boolean {
+  return typeof from === "string" && typeof to === "string" && DAY.test(from) && DAY.test(to) && from <= to;
+}
+
+/** Rango relativo a `nowMs`: al refrescar, la ventana avanza con el reloj. Un rango propio es fijo (días completos). */
+export function resolveRange(key: RangeSelection, nowMs: number, custom?: CustomRange): { from: string; to: string } {
+  if (key === "custom" && custom) {
+    return { from: new Date(`${custom.from}T00:00:00`).toISOString(), to: new Date(`${custom.to}T23:59:59.999`).toISOString() };
+  }
+  if (key === "custom") key = DEFAULT_RANGE;
   const preset = RANGE_PRESETS.find((p) => p.key === key)!;
   return { from: new Date(nowMs - preset.ms).toISOString(), to: new Date(nowMs).toISOString() };
 }

@@ -50,6 +50,8 @@ export interface ToolUsage {
   calls: number;
   errors: number;
   p95Ms: number;
+  /** servidor MCP que sirve la tool (`memtrace.mcp_server`); null si es una función local o el SDK no lo marca */
+  mcpServer: string | null;
 }
 
 /** Distribución de temáticas de las respuestas del agente (ADR-022). */

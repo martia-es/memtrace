@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from "@/ui/components/TextInput.vue";
 import { computed, onMounted, ref } from "vue";
 import { useQuasar } from "quasar";
 import { useRoute, useRouter } from "vue-router";
@@ -115,7 +116,7 @@ async function inviteOrgAdmin({ email }: { email: string }) {
               <h3 class="adm-section-title">Experiments</h3>
               <p class="adm-hint">An experiment is one agent. Open one to connect it, manage its keys, score configs and members.</p>
             </div>
-            <button v-if="isOrgAdmin" class="adm-btn primary" type="button" @click="showCreate = true">New experiment</button>
+            <button v-if="isOrgAdmin" class="adm-btn primary mt-new" type="button" @click="showCreate = true">+ New experiment</button>
           </div>
 
           <ul v-if="orgExperiments.length" class="adm-list">
@@ -166,9 +167,9 @@ async function inviteOrgAdmin({ email }: { email: string }) {
           The <span class="mono">service.name</span> must be the same value the agent uses in <span class="mono">MEMTRACE_SERVICE_NAME</span>.
           The display name is only for this dashboard.
         </p>
-        <input v-model="serviceName" class="adm-input mono" placeholder="service.name, e.g. support-agent" autofocus @input="onServiceInput" />
-        <input v-model="displayName" class="adm-input" placeholder="Display name" @input="displayTouched = true" />
-        <textarea v-model="description" class="adm-input" rows="2" placeholder="What does this agent do, and for whom? (optional)" />
+        <TextInput mono v-model="serviceName" placeholder="service.name, e.g. support-agent" autofocus @input="onServiceInput" />
+        <TextInput v-model="displayName" placeholder="Display name" @input="displayTouched = true" />
+        <TextInput multiline v-model="description" :rows="2" placeholder="What does this agent do, and for whom? (optional)" />
         <button type="submit" class="adm-btn primary" :disabled="creating || !serviceName.trim() || !displayName.trim()">Create experiment</button>
       </form>
     </Modal>

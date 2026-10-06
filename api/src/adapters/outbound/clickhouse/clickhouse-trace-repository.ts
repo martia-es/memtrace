@@ -22,6 +22,8 @@ const TOKENS = `if(mapContains(SpanAttributes, 'gen_ai.usage.total_tokens'), ${a
 
 const attr = (key: string) => `SpanAttributes['${key}']`;
 const CONTENT_KEYS = ["gen_ai.input.messages", "gen_ai.output.messages", "gen_ai.tool.call.arguments", "gen_ai.tool.call.result", "memtrace.input", "memtrace.output"];
+/** el parámetro `{text}` aparece (sin distinguir mayúsculas) en la entrada o salida capturadas del span */
+const CONTENT_MATCH = `(${CONTENT_KEYS.map((k) => `positionCaseInsensitiveUTF8(${attr(k)}, {text:String}) > 0`).join(" OR ")})`;
 /** Tipo de paso: el declarado por el SDK o, si falta, el que se deduce de la operación GenAI. */
 const KIND = `multiIf(${attr("memtrace.step_type")} != '', ${attr("memtrace.step_type")}, ${OP} = 'chat', 'llm', ${OP} = 'execute_tool', 'tool', 'unknown')`;
 /** Primer atributo de contenido presente, acotado al máximo que guarda el SDK (16 KB). */
@@ -274,7 +276,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
       p.conversationId = q.conversationId;
     }
     if (q.text) {
-      where.push(`(${CONTENT_KEYS.map((k) => `positionCaseInsensitiveUTF8(${attr(k)}, {text:String}) > 0`).join(" OR ")})`);
+      where.push(CONTENT_MATCH);
       p.text = q.text;
     }
     if (q.cursor) {
@@ -341,6 +343,11 @@ export class ClickHouseTraceRepository implements TraceRepository {
       where.push(
         `TraceId IN (SELECT TraceId FROM ${this.spans} WHERE StatusCode = ${ERROR} AND Timestamp >= fromUnixTimestamp64Milli({fromMs:Int64}) AND Timestamp < fromUnixTimestamp64Milli({toWithWindowMs:Int64}))`,
       );
+      p.toWithWindowMs = q.toMs + TRACE_WINDOW_MS;
+    }
+    if (q.text) {
+      where.push(`TraceId IN (SELECT TraceId FROM ${this.spans} WHERE ${CONTENT_MATCH} AND Timestamp >= fromUnixTimestamp64Milli({fromMs:Int64}) AND Timestamp < fromUnixTimestamp64Milli({toWithWindowMs:Int64}))`);
+      p.text = q.text;
       p.toWithWindowMs = q.toMs + TRACE_WINDOW_MS;
     }
     if (q.conversationId) {
@@ -446,6 +453,13 @@ export class ClickHouseTraceRepository implements TraceRepository {
       );
       p.toWithWindowMs = q.toMs + TRACE_WINDOW_MS;
     }
+    if (q.text) {
+      where.push(
+        `ConversationId IN (SELECT ConversationId FROM ${this.spans} WHERE ConversationId != '' AND ${CONTENT_MATCH} AND Timestamp >= fromUnixTimestamp64Milli({fromMs:Int64}) AND Timestamp < fromUnixTimestamp64Milli({toWithWindowMs:Int64}))`,
+      );
+      p.text = q.text;
+      p.toWithWindowMs = q.toMs + TRACE_WINDOW_MS;
+    }
     const having = q.cursor ? "HAVING (lastUs, ConversationId) < ({cursorUs:Int64}, {cursorId:String})" : "";
     if (q.cursor) {
       p.cursorUs = q.cursor.lastActivityUs;
@@ -542,6 +556,16 @@ export class ClickHouseTraceRepository implements TraceRepository {
       result.set(String(r.ConversationId), entry);
     }
     return result;
+  }
+
+  async getConversationTraceIds(ids: string[], toMs: number): Promise<Map<string, string[]>> {
+    if (ids.length === 0) return new Map();
+    const { clause, params } = ClickHouseTraceRepository.range(toMs - MAX_RANGE_MS, toMs + TRACE_WINDOW_MS);
+    const rows = await this.rows(
+      `SELECT ConversationId, groupUniqArray(TraceId) AS traceIds FROM ${this.spans} WHERE ConversationId IN {ids:Array(String)} AND ${clause} GROUP BY ConversationId`,
+      { ...params, ids },
+    );
+    return new Map(rows.map((r) => [String(r.ConversationId), (r.traceIds as unknown[]).map(String)]));
   }
 
   async getConversationMessages(conversationId: string, range: TimeRange, maxSpans: number): Promise<{ records: ChatSpanRecord[]; truncated: boolean }> {
@@ -747,7 +771,8 @@ export class ClickHouseTraceRepository implements TraceRepository {
       ),
       this.rows(
         `SELECT if(SpanAttributes['gen_ai.tool.name'] != '', SpanAttributes['gen_ai.tool.name'], SpanName) AS tool,
-                count() AS calls, countIf(StatusCode = ${ERROR}) AS errors, quantile(0.95)(Duration) AS p95
+                count() AS calls, countIf(StatusCode = ${ERROR}) AS errors, quantile(0.95)(Duration) AS p95,
+                anyIf(${attr("memtrace.mcp_server")}, ${attr("memtrace.mcp_server")} != '') AS mcpServer
          ${from} AND ${OP} = 'execute_tool' GROUP BY tool ORDER BY calls DESC LIMIT 50`,
         p,
       ),
@@ -809,6 +834,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
         calls: num(r.calls),
         errors: num(r.errors),
         p95Ms: nsToMs(r.p95),
+        mcpServer: r.mcpServer ? String(r.mcpServer) : null,
       })),
       byTopic: topics.map((r) => ({
         topic: String(r.topic),

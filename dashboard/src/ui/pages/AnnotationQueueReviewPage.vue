@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from "@/ui/components/TextInput.vue";
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useQuasar } from "quasar";
@@ -236,22 +237,20 @@ const progress = computed(() => queue.value?.progress);
               {{ c.label }}<kbd v-if="firstUnanswered?.configId === r.configId && idx < 9">{{ idx + 1 }}</kbd>
             </button>
           </div>
-          <input
+          <TextInput
             v-else-if="drafts[r.configId]"
             v-model="drafts[r.configId]!.value"
-            class="text-input"
             type="number"
             step="any"
             :min="r.config.minValue ?? undefined"
             :max="r.config.maxValue ?? undefined"
-            :aria-label="`${r.config.name} value`"
-          />
+            :aria-label="`${r.config.name} value`" />
           <button v-if="!openNotes[r.configId]" type="button" class="note-toggle" @click="openNotes[r.configId] = true">+ Add note</button>
-          <textarea
+          <TextInput
             v-if="openNotes[r.configId] && drafts[r.configId]"
             v-model="drafts[r.configId]!.comment"
-            class="note"
-            rows="2"
+            multiline
+            :rows="2"
             maxlength="5000"
             placeholder="Optional note for this criterion"
             :aria-label="`${r.config.name} note`"
@@ -479,34 +478,11 @@ const progress = computed(() => queue.value?.progress);
   font-weight: 700;
   cursor: pointer;
 }
-.note {
-  box-sizing: border-box;
-  width: 100%;
-  padding: 8px 10px;
-  border-radius: var(--mt-radius-sm);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-soft-2);
-  color: var(--mt-ink);
-  font: inherit;
-  font-size: 13px;
-  resize: vertical;
-}
 .hint {
   margin: 0;
   text-align: center;
   font-size: 11.5px;
   color: var(--mt-faint);
-}
-.text-input {
-  box-sizing: border-box;
-  height: 32px;
-  padding: 0 12px;
-  border-radius: var(--mt-radius-sm);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  font: inherit;
-  font-size: 12.5px;
-  color: var(--mt-ink);
 }
 .buttons {
   position: sticky;

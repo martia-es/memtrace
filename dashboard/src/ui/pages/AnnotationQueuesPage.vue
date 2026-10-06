@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import TextInput from "@/ui/components/TextInput.vue";
+import Select from "../components/Select.vue";
 import { computed, inject, reactive, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useQuasar } from "quasar";
@@ -30,8 +32,19 @@ const currentExperiment = inject(CURRENT_EXPERIMENT, computed(() => null));
 const canManage = computed(() => hasPermission(currentExperiment.value, "queue:manage"));
 const canCurate = computed(() => hasPermission(currentExperiment.value, "queue:curate"));
 
-const queues = useAsync((signal) => api.listAnnotationQueues(false, signal));
+// se piden también las archivadas: alimentan la pestaña "Archived"
+const queues = useAsync((signal) => api.listAnnotationQueues(true, signal));
 void queues.run();
+// nombres de la rúbrica para las etiquetas de cada fila; si no cargan, la fila simplemente no las muestra
+const scoreConfigs = useAsync(() => identityApi.listScoreConfigs(experimentId.value));
+void scoreConfigs.run();
+const rubricNames = (q: AnnotationQueueSummaryDto) =>
+  q.rubric.map((r) => scoreConfigs.data.value?.find((c) => c.id === r.configId)?.name).filter((n): n is string => !!n);
+
+type QueueTab = "active" | "assigned" | "archived";
+// la vista la fija la ruta (ADR-059): bandeja personal, todas las colas o archivadas
+const tab = computed<QueueTab>(() => (route.meta.view as QueueTab | undefined) ?? "active");
+const VIEW_TITLES: Record<QueueTab, string> = { assigned: "My inbox", active: "All queues", archived: "Archived" };
 
 function notifyError(action: string, error: unknown) {
   $q.notify({ message: `${action}: ${error instanceof Error ? error.message : String(error)}`, color: "negative", timeout: 4000 });
@@ -48,8 +61,13 @@ const total = (q: AnnotationQueueSummaryDto) => q.progress.pending + q.progress.
 
 // Colas con trabajo pendiente primero, para que el reviewer vea de un vistazo dónde tiene que ir.
 const sortedQueues = computed(() =>
-  [...(queues.data.value?.items ?? [])].sort((a, b) => Number(b.progress.pending > 0) - Number(a.progress.pending > 0)),
+  [...(queues.data.value?.items ?? [])]
+    .filter((q) => !q.archivedAt)
+    .sort((a, b) => Number(b.progress.pending > 0) - Number(a.progress.pending > 0)),
 );
+const archivedQueues = computed(() => (queues.data.value?.items ?? []).filter((q) => q.archivedAt));
+const assignedQueues = computed(() => sortedQueues.value.filter((q) => q.isReviewer));
+const visibleQueues = computed(() => (tab.value === "archived" ? archivedQueues.value : tab.value === "assigned" ? assignedQueues.value : sortedQueues.value));
 
 // solo cuenta lo que YO puedo revisar (ADR-051): una cola donde no estoy en la lista no es trabajo mío
 const pendingTotal = computed(() => sortedQueues.value.filter((q) => q.isReviewer).reduce((n, q) => n + q.progress.pending, 0));
@@ -111,12 +129,12 @@ async function create() {
   }
 }
 
-async function archive(queue: AnnotationQueueSummaryDto) {
+async function setArchived(queue: AnnotationQueueSummaryDto, archived: boolean) {
   try {
-    await api.updateAnnotationQueue(queue.id, { archived: true });
+    await api.updateAnnotationQueue(queue.id, { archived });
     await queues.run();
   } catch (error) {
-    notifyError("Could not archive the queue", error);
+    notifyError(`Could not ${archived ? "archive" : "restore"} the queue`, error);
   }
 }
 
@@ -151,19 +169,24 @@ async function addByFilter() {
     adding.value = false;
   }
 }
+const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
+  { label: "Any", value: "" },
+  { label: "OK", value: "ok" },
+  { label: "Error", value: "error" },
+];
 </script>
 
 <template>
   <div class="page">
-    <PageHeader :crumbs="[{ label: 'Review' }]" :icon="ICON" title="Review">
-      <button v-if="canManage" type="button" class="primary-btn" data-testid="new-queue" @click="openCreate">New queue</button>
+    <PageHeader :crumbs="[{ label: 'Review' }, { label: VIEW_TITLES[tab] }]" :icon="ICON" :title="VIEW_TITLES[tab]">
+      <button v-if="canManage" type="button" class="primary-btn mt-new" data-testid="new-queue" @click="openCreate">+ New queue</button>
     </PageHeader>
 
     <section v-if="pendingTotal > 0" class="inbox" data-testid="inbox">
       <div class="inbox-text">
         <span class="eyebrow">YOUR REVIEW INBOX</span>
-        <h2>{{ pendingTotal }} {{ pendingTotal === 1 ? "item is" : "items are" }} waiting for review</h2>
-        <p>Across {{ pendingQueues.length }} {{ pendingQueues.length === 1 ? "queue" : "queues" }}. Nobody gets the same item twice, and you can skip anything you are unsure about.</p>
+        <h2>{{ pendingTotal }} {{ pendingTotal === 1 ? "conversation is" : "conversations are" }} waiting for you</h2>
+        <p>Across {{ pendingQueues.length }} {{ pendingQueues.length === 1 ? "queue" : "queues" }} · nobody gets the same item twice, and you can skip anything you are unsure about</p>
       </div>
       <button type="button" class="inbox-cta" data-testid="continue-reviewing" @click="continueReviewing">Continue reviewing →</button>
     </section>
@@ -175,72 +198,79 @@ async function addByFilter() {
       </div>
       <button type="button" class="inbox-cta" data-testid="open-results" @click="openDetail(curateQueues[0]!.id, 'results')">Open results →</button>
     </section>
-    <p v-if="pendingTotal === 0 && curateTotal === 0 && queues.data.value?.items.length" class="hint muted">
-      You are all caught up. Queues are batches of traces that people review with a rubric; add traces here by filter or from any trace's detail.
-    </p>
+
+    <p v-if="pendingTotal === 0 && curateTotal === 0 && queues.data.value?.items.length" class="hint muted">You are all caught up.</p>
 
     <ErrorBanner v-if="queues.error.value" :error="queues.error.value" @retry="queues.run()" />
     <div v-else-if="queues.loading.value && !queues.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
     <EmptyState v-else-if="(queues.data.value?.items.length ?? 0) === 0" icon="rate_review" title="No review queues yet">
       {{ canManage ? 'Create one with "New queue" (you need at least one score config first).' : "Ask an experiment admin to create one." }}
     </EmptyState>
+    <p v-else-if="visibleQueues.length === 0" class="hint muted" data-testid="queues-empty-tab">
+      {{ tab === "archived" ? "No archived queues." : tab === "assigned" ? "You are not assigned to any queue." : "You are all caught up." }}
+    </p>
 
-    <div v-if="queues.data.value?.items.length" class="mt-card table-card">
-      <table>
-        <thead>
-          <tr>
-            <th>Queue</th>
-            <th>Progress</th>
-            <th>Reviewers</th>
-            <th class="num">Reviews / item</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="q in sortedQueues" :key="q.id" data-testid="queue-row" :class="{ 'has-work': q.progress.pending > 0 }">
-            <td class="name">{{ q.name }}</td>
-            <td class="progress-cell">
-              <div class="progress-top">
-                <span class="done-count">{{ q.progress.completed }} of {{ total(q) }} reviewed</span>
-                <span v-if="q.progress.pending > 0" class="notice work" data-testid="queue-pending">{{ q.progress.pending }} of {{ total(q) }} pending</span>
-                <span v-else class="notice done" data-testid="queue-pending">All caught up · {{ total(q) }} reviewed</span>
+    <div v-if="visibleQueues.length" class="mt-card table-card">
+      <div class="grid head">
+        <span>Queue</span>
+        <span>Rubric</span>
+        <span>Progress</span>
+        <span>Reviewers</span>
+        <span />
+      </div>
+      <div v-for="q in visibleQueues" :key="q.id" class="grid row" data-testid="queue-row" :class="{ 'has-work': q.progress.pending > 0 && !q.archivedAt }">
+        <div class="queue-cell">
+          <span class="name">{{ q.name }}</span>
+          <span v-if="q.instructions" class="desc">{{ q.instructions }}</span>
+        </div>
+        <div class="chips">
+          <span v-for="n in rubricNames(q)" :key="n" class="chip">{{ n }}</span>
+        </div>
+        <div class="progress-cell">
+          <div class="progress-top">
+            <span class="done-count">{{ q.progress.completed }} of {{ total(q) }}</span>
+            <span class="state" :class="{ done: q.progress.pending === 0 }" data-testid="queue-pending">{{ q.progress.pending > 0 ? `${q.progress.pending} pending` : "Done" }}</span>
+          </div>
+          <div class="bar" aria-hidden="true"><div class="bar-fill" :class="{ complete: q.progress.pending === 0 }" :style="{ width: `${percent(q)}%` }" /></div>
+          <span v-if="canCurate && q.toCurate > 0" class="curate-note" data-testid="queue-to-curate">{{ q.toCurate }} to review &amp; add to a dataset</span>
+        </div>
+        <div class="avatars" data-testid="queue-reviewers">
+          <q-avatar v-for="r in q.assignedReviewers" :key="r.userId" size="26px" class="avatar" color="primary" text-color="white" :aria-label="r.name ?? 'Former member'" data-testid="queue-reviewer">
+            <img v-if="r.image" :src="r.image" :alt="r.name ?? 'Former member'" referrerpolicy="no-referrer" />
+            <span v-else>{{ initials(r.name) }}</span>
+            <q-tooltip>{{ r.name ?? "Former member" }}</q-tooltip>
+          </q-avatar>
+        </div>
+        <div class="actions">
+          <button v-if="q.isReviewer && q.progress.pending > 0 && !q.archivedAt" type="button" class="cta accent" @click="review(q.id)">Review</button>
+          <button v-else-if="canCurate && !q.archivedAt" type="button" class="cta" data-testid="queue-results-btn" @click="openDetail(q.id, 'results')">View results</button>
+          <button v-else type="button" class="cta" @click="openDetail(q.id)">Details</button>
+          <button type="button" class="more" aria-label="More actions" data-testid="queue-more">
+            ⋯
+            <q-menu auto-close anchor="bottom right" self="top right" :offset="[0, 6]" class="queue-menu">
+              <div class="menu-list">
+                <button v-if="!q.archivedAt" type="button" @click="addTo = q">Add traces</button>
+                <button v-if="canCurate && q.toCurate > 0" type="button" @click="openDetail(q.id, 'results')">Review results</button>
+                <button type="button" @click="openDetail(q.id)">Details</button>
+                <button v-if="canManage && !q.archivedAt" type="button" @click="setArchived(q, true)">Archive</button>
+                <button v-if="canManage && q.archivedAt" type="button" @click="setArchived(q, false)">Restore</button>
               </div>
-              <span v-if="canCurate && q.toCurate > 0" class="notice curate-note" data-testid="queue-to-curate">{{ q.toCurate }} to review &amp; add to a dataset</span>
-              <div class="bar" aria-hidden="true"><div class="bar-fill" :class="{ complete: q.progress.pending === 0 }" :style="{ width: `${percent(q)}%` }" /></div>
-            </td>
-            <td>
-              <div class="avatars" data-testid="queue-reviewers">
-                <q-avatar v-for="r in q.assignedReviewers" :key="r.userId" size="28px" class="avatar" color="primary" text-color="white" :aria-label="r.name ?? 'Former member'" data-testid="queue-reviewer">
-                  <img v-if="r.image" :src="r.image" :alt="r.name ?? 'Former member'" referrerpolicy="no-referrer" />
-                  <span v-else>{{ initials(r.name) }}</span>
-                  <q-tooltip>{{ r.name ?? "Former member" }}</q-tooltip>
-                </q-avatar>
-              </div>
-            </td>
-            <td class="num mono">{{ q.requiredAnnotations }}</td>
-            <td>
-              <div class="actions">
-                <button v-if="q.isReviewer" type="button" class="small-btn" :class="{ accent: q.progress.pending > 0 }" :disabled="q.progress.pending === 0" @click="review(q.id)">Review</button>
-                <button type="button" class="small-btn" @click="addTo = q">Add traces</button>
-                <button v-if="canCurate && q.toCurate > 0" type="button" class="small-btn accent" data-testid="queue-results-btn" @click="openDetail(q.id, 'results')">Review results</button>
-                <button type="button" class="small-btn" @click="openDetail(q.id)">Details</button>
-                <button v-if="canManage" type="button" class="small-btn" @click="archive(q)">Archive</button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+            </q-menu>
+          </button>
+        </div>
+      </div>
     </div>
+    <p class="footnote muted">A queue is a batch of conversations that people review with a rubric. Business reviewers rate quality; technical reviewers can promote the best examples into a dataset.</p>
 
     <QueueDetailModal v-if="detailQueueId" :queue-id="detailQueueId" :can-manage="canManage" :initial-tab="detailTab" @close="detailQueueId = null" @changed="queues.run()" />
 
     <Modal v-if="showCreate" title="New review queue" @close="showCreate = false">
       <form class="modal-form" @submit.prevent="create">
-        <input v-model="form.name" class="text-input" placeholder="Queue name" maxlength="200" aria-label="Queue name" />
-        <textarea v-model="form.instructions" class="text-input area" placeholder="Instructions for reviewers (optional)" maxlength="5000" aria-label="Instructions" />
+        <TextInput v-model="form.name" placeholder="Queue name" maxlength="200" aria-label="Queue name" />
+        <TextInput multiline v-model="form.instructions" placeholder="Instructions for reviewers (optional)" maxlength="5000" aria-label="Instructions" />
         <label class="inline">
           Reviews required per item
-          <input v-model.number="form.requiredAnnotations" class="text-input num-input" type="number" min="1" max="10" aria-label="Reviews required per item" />
+          <TextInput v-model="form.requiredAnnotations" type="number" min="1" max="10" aria-label="Reviews required per item" />
         </label>
         <fieldset class="rubric">
           <legend>Reviewers</legend>
@@ -265,18 +295,14 @@ async function addByFilter() {
     <Modal v-if="addTo" :title="`Add traces to “${addTo.name}”`" @close="addTo = null">
       <form class="modal-form" @submit.prevent="addByFilter">
         <p class="muted">Adds the traces that match <em>now</em>; the queue keeps their ids, it does not follow new traffic.</p>
-        <label class="inline">Last <input v-model.number="filter.hours" class="text-input num-input" type="number" min="1" max="720" aria-label="Hours" /> hours</label>
+        <label class="inline">Last <TextInput v-model="filter.hours" type="number" min="1" max="720" aria-label="Hours" /> hours</label>
         <label class="inline">
           Root status
-          <select v-model="filter.status" class="text-input" aria-label="Root status">
-            <option value="">Any</option>
-            <option value="ok">OK</option>
-            <option value="error">Error</option>
-          </select>
+          <Select v-model="filter.status" :options="STATUS_OPTIONS" aria-label="Root status" />
         </label>
         <label class="inline"><input v-model="filter.hasErrors" type="checkbox" /> Only traces with a failed span</label>
-        <label class="inline">Slower than (ms) <input v-model.number="filter.minDurationMs" class="text-input num-input" type="number" min="0" aria-label="Minimum duration" /></label>
-        <label class="inline">{{ filter.random ? "Sample of" : "At most" }} <input v-model.number="filter.limit" class="text-input num-input" type="number" min="1" max="500" aria-label="Limit" /> traces</label>
+        <label class="inline">Slower than (ms) <TextInput v-model="filter.minDurationMs" type="number" min="0" aria-label="Minimum duration" /></label>
+        <label class="inline">{{ filter.random ? "Sample of" : "At most" }} <TextInput v-model="filter.limit" type="number" min="1" max="500" aria-label="Limit" /> traces</label>
         <label class="inline"><input v-model="filter.random" type="checkbox" aria-label="Random sample" /> Pick them at random from all matches instead of the first ones</label>
         <button type="submit" class="primary-btn" :disabled="adding">Add traces</button>
       </form>
@@ -329,7 +355,7 @@ async function addByFilter() {
 }
 .inbox h2 {
   margin: 0;
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 800;
   letter-spacing: -0.02em;
 }
@@ -349,52 +375,103 @@ async function addByFilter() {
   font-weight: 800;
   cursor: pointer;
 }
-.notice {
+.curate-note {
   display: inline-flex;
-  align-items: center;
+  margin-top: 2px;
   padding: 2px 8px;
   border-radius: var(--mt-radius-xs);
+  background: var(--mt-highlight-soft);
+  color: var(--mt-highlight-ink);
   font-size: 11.5px;
   font-weight: 700;
-  white-space: nowrap;
-}
-.notice.work {
-  background: var(--mt-highlight-soft);
-  color: var(--mt-highlight-ink);
-}
-.notice.curate-note {
-  margin-top: 8px;
-  margin-bottom: 2px;
-  background: var(--mt-highlight-soft);
-  color: var(--mt-highlight-ink);
+  width: fit-content;
 }
 .inbox.curate {
   background: var(--mt-highlight-soft);
   color: var(--mt-highlight-ink);
 }
-.notice.done {
-  background: var(--mt-ok-bg);
-  color: var(--mt-ok-ink);
+.table-card {
+  flex: none;
+  overflow: hidden;
+  padding: 0;
 }
-tr.has-work td:first-child {
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.2fr) minmax(0, 1.3fr) 90px 150px;
+  gap: 16px;
+  align-items: center;
+  padding: 0 18px;
+}
+.grid.head {
+  height: 34px;
+  background: var(--mt-soft);
+  border-bottom: 1px solid var(--mt-line);
+  color: var(--mt-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.grid.row {
+  min-height: 72px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--mt-line-2);
+}
+.grid.row.has-work {
   box-shadow: inset 3px 0 0 var(--mt-highlight);
 }
+.queue-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.desc {
+  overflow: hidden;
+  color: var(--mt-muted);
+  font-size: 12px;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  display: flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--mt-radius-xs);
+  background: var(--mt-accent-tint);
+  color: var(--mt-accent-text);
+  font-size: 11.5px;
+  font-weight: 700;
+}
 .progress-cell {
-  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 .progress-top {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-.done-count {
   font-size: 12px;
+}
+.done-count,
+.state {
   font-weight: 700;
 }
+.state {
+  color: var(--mt-muted);
+}
+.state.done {
+  color: var(--mt-ok-ink);
+}
 .bar {
-  margin-top: 8px;
   height: 6px;
   border-radius: 3px;
   background: var(--mt-line-2);
@@ -407,53 +484,18 @@ tr.has-work td:first-child {
 .bar-fill.complete {
   background: var(--mt-ok);
 }
-.table-card {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: 0;
-}
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-th {
-  position: sticky;
-  top: 0;
-  height: 34px;
-  padding: 0 14px;
-  background: var(--mt-soft);
-  border-bottom: 1px solid var(--mt-line);
-  color: var(--mt-muted);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-align: left;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-td {
-  height: 64px;
-  padding: 14px 14px;
-  vertical-align: middle;
-  border-bottom: 1px solid var(--mt-line-2);
-  white-space: nowrap;
-}
 .avatars {
   display: flex;
 }
 .avatar {
-  border: 2px solid var(--mt-surface, #fff);
-  margin-left: -8px;
-  font-size: 11px;
-  font-weight: 700;
+  border: 2px solid var(--mt-card);
+  margin-left: -6px;
+  font-size: 10px;
+  font-weight: 800;
+  box-sizing: border-box;
 }
 .avatar:first-child {
   margin-left: 0;
-}
-.num {
-  text-align: right;
 }
 .name {
   font-weight: 800;
@@ -462,28 +504,59 @@ td {
 .actions {
   display: flex;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 8px;
 }
-.small-btn {
-  height: 28px;
-  padding: 0 12px;
+.cta,
+.more {
+  height: 32px;
   border-radius: var(--mt-radius-sm);
   border: 1px solid var(--mt-line);
   background: var(--mt-card);
-  color: var(--mt-ink);
+  color: var(--mt-accent-text);
   font: inherit;
-  font-size: 12px;
-  font-weight: 600;
+  font-weight: 800;
   cursor: pointer;
 }
-.small-btn.accent {
+.cta {
+  padding: 0 14px;
+}
+.cta.accent {
   background: var(--mt-accent);
   border-color: var(--mt-accent);
   color: var(--mt-accent-ink);
 }
-.small-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.more {
+  width: 32px;
+  padding: 0;
+  color: var(--mt-muted);
+}
+.menu-list {
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  padding: 4px;
+}
+.menu-list button {
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--mt-radius-xs);
+  background: none;
+  color: var(--mt-ink);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.menu-list button:hover {
+  background: var(--mt-soft);
+}
+.footnote {
+  max-width: 760px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
 }
 .modal-form {
   display: flex;
@@ -513,25 +586,6 @@ td {
   display: flex;
   justify-content: space-between;
   font-size: 13px;
-}
-.text-input {
-  box-sizing: border-box;
-  height: 36px;
-  padding: 0 12px;
-  border-radius: var(--mt-radius-lg);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  font: inherit;
-  font-size: 13px;
-  color: var(--mt-ink);
-}
-.text-input.area {
-  height: 80px;
-  padding: 8px 12px;
-  resize: vertical;
-}
-.text-input.num-input {
-  width: 80px;
 }
 .primary-btn {
   display: inline-flex;

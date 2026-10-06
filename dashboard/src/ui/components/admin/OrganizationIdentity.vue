@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import TextInput from "@/ui/components/TextInput.vue";
+import Select from "../Select.vue";
 import { computed, reactive, ref } from "vue";
 import { useQuasar } from "quasar";
 import type { ExperimentDto, OrganizationDto } from "@/application/identity-api";
@@ -97,6 +99,8 @@ function copy(text: string) {
   void navigator.clipboard?.writeText(text);
   $q.notify({ message: "Copied", timeout: 1200, position: "bottom" });
 }
+const targetOptions = computed(() => [{ label: "Whole organization", value: "" }, ...props.experiments.map((e) => ({ label: e.name, value: e.id }))]);
+const roleSelectOptions = computed(() => roleOptions.value.map((r) => ({ label: ROLE_LABEL[r] ?? r, value: r })));
 </script>
 
 <template>
@@ -123,20 +127,15 @@ function copy(text: string) {
       <p v-else class="adm-hint" data-testid="no-mappings">No mappings yet: access is only what you assign by hand.</p>
 
       <form class="row" @submit.prevent="addMapping">
-        <input v-model="form.externalGroup" class="adm-input mono" placeholder="Group name or id, exactly as in the token" aria-label="Group" data-testid="mapping-group" />
-        <select v-model="form.target" class="adm-input" aria-label="Applies to" data-testid="mapping-target" @change="onTargetChange">
-          <option value="">Whole organization</option>
-          <option v-for="e in experiments" :key="e.id" :value="e.id">{{ e.name }}</option>
-        </select>
-        <select v-model="form.role" class="adm-input" aria-label="Role" data-testid="mapping-role">
-          <option v-for="r in roleOptions" :key="r" :value="r">{{ ROLE_LABEL[r] }}</option>
-        </select>
+        <TextInput mono v-model="form.externalGroup" placeholder="Group name or id, exactly as in the token" aria-label="Group" data-testid="mapping-group" />
+        <Select v-model="form.target" :options="targetOptions" aria-label="Applies to" data-testid="mapping-target" @update:model-value="onTargetChange" />
+        <Select v-model="form.role" :options="roleSelectOptions" aria-label="Role" data-testid="mapping-role" />
         <button type="submit" class="adm-btn primary" :disabled="adding || !form.externalGroup.trim()" data-testid="add-mapping">Add mapping</button>
       </form>
 
       <div class="row">
         <label class="adm-hint" for="claim">Claim that carries the groups in the sign-in token</label>
-        <input id="claim" v-model="claimValue" class="adm-input mono claim" data-testid="groups-claim" />
+        <TextInput mono class="claim" id="claim" v-model="claimValue" data-testid="groups-claim" />
         <button type="button" class="adm-btn ghost small" :disabled="!claimTouched" @click="saveClaim">Save</button>
       </div>
       <p class="adm-hint">Usually <span class="mono">groups</span> (Entra ID, Okta) or <span class="mono">roles</span> (Entra app roles). If a token carries no groups at all, nobody's access changes.</p>

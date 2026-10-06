@@ -67,20 +67,36 @@ const editing = ref(false);
         <span class="avatar" aria-hidden="true">{{ initials(card.data.value.name) }}</span>
         <div class="intro-main">
           <p class="desc">{{ card.data.value.description || "No description yet." }}</p>
-          <p class="facts">
-            <span>Owner <b>{{ card.data.value.owner?.name ?? card.data.value.owner?.email ?? "nobody yet" }}</b></span>
-            <span>Traces service <b class="mono">{{ card.data.value.serviceName }}</b></span>
-            <router-link :to="{ name: 'overview', params: { experimentId } }" class="traces">Open traces →</router-link>
-          </p>
-          <div class="people" data-testid="people">
-            <div class="faces">
-              <PersonAvatar v-for="m in card.data.value.members.preview" :key="m.userId" :name="m.name" :email="m.email" :image="m.image" :size="28" class="face" :class="m.role" />
-              <span v-if="card.data.value.members.total > card.data.value.members.preview.length" class="face more">+{{ card.data.value.members.total - card.data.value.members.preview.length }}</span>
+          <dl class="facts">
+            <div class="fact">
+              <dt>Owner</dt>
+              <dd v-if="card.data.value.owner" class="owner">
+                <PersonAvatar :name="card.data.value.owner.name" :email="card.data.value.owner.email" :image="card.data.value.owner.image" :size="22" />{{ card.data.value.owner.name ?? card.data.value.owner.email }}
+              </dd>
+              <dd v-else>Nobody yet</dd>
             </div>
-            <span v-if="card.data.value.members.total === 0" class="muted">Nobody yet.</span>
-            <span v-else class="names">{{ card.data.value.members.preview.map((m) => `${personLabel(m)} (${ROLE_LABEL[m.role] ?? m.role})`).join(", ") }}</span>
-            <router-link v-if="canManagePeople" :to="{ name: 'admin-experiment', params: { expId: experimentId }, query: { tab: 'members' } }" class="traces" data-testid="manage-people">Manage people →</router-link>
-          </div>
+            <div class="fact">
+              <dt>Traces service</dt>
+              <dd>
+                <span class="mono">{{ card.data.value.serviceName }}</span>
+                <router-link :to="{ name: 'overview', params: { experimentId } }" class="traces">Open traces →</router-link>
+              </dd>
+            </div>
+            <div class="fact people" data-testid="people">
+              <dt>People</dt>
+              <dd>
+                <span v-if="card.data.value.members.total === 0" class="muted">Nobody yet.</span>
+                <ul v-else class="members">
+                  <li v-for="m in card.data.value.members.preview" :key="m.userId">
+                    <PersonAvatar :name="m.name" :email="m.email" :image="m.image" :size="24" :class="m.role" />
+                    <span>{{ personLabel(m) }} <small>{{ ROLE_LABEL[m.role] ?? m.role }}</small></span>
+                  </li>
+                  <li v-if="card.data.value.members.total > card.data.value.members.preview.length" class="more">+{{ card.data.value.members.total - card.data.value.members.preview.length }} more</li>
+                </ul>
+                <router-link v-if="canManagePeople" :to="{ name: 'admin-experiment', params: { expId: experimentId }, query: { tab: 'members' } }" class="traces" data-testid="manage-people">Manage people →</router-link>
+              </dd>
+            </div>
+          </dl>
         </div>
       </section>
 
@@ -94,22 +110,26 @@ const editing = ref(false);
 </template>
 
 <style scoped>
+.owner { display: inline-flex; align-items: center; gap: 8px; }
 .page { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; padding: 16px 24px 24px; background: var(--mt-bg); }
 .loading { display: flex; justify-content: center; padding: 60px; }
 .ghost { height: 32px; padding: 0 12px; font: inherit; font-size: 13px; font-weight: 700; color: var(--mt-accent-text); background: var(--mt-card); border: 1px solid var(--mt-line); border-radius: var(--mt-radius-sm); cursor: pointer; }
-.intro { display: flex; align-items: flex-start; gap: 14px; }
+.intro { display: flex; align-items: flex-start; gap: 16px; padding: 16px 18px; background: var(--mt-card); border: 1px solid var(--mt-line); border-radius: var(--mt-radius); }
 .avatar { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 10px; font-weight: 800; font-size: 15px; background: var(--mt-accent-soft); color: var(--mt-accent-text); }
-.intro-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.desc { margin: 0; font-size: 13px; max-width: 72ch; }
-.facts { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 0; font-size: 12px; color: var(--mt-muted); }
-.facts b { color: var(--mt-ink); font-weight: 700; }
+.intro-main { flex: 1; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.desc { margin: 0; font-size: 14px; line-height: 1.5; max-width: 72ch; }
+.facts { display: grid; grid-template-columns: minmax(140px, 200px) minmax(180px, 260px) 1fr; gap: 14px 32px; margin: 0; padding-top: 14px; border-top: 1px solid var(--mt-line); }
+.fact { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.fact dt { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--mt-muted); }
+.fact dd { margin: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; font-size: 13px; font-weight: 600; color: var(--mt-ink); }
 .mono { font-family: var(--mt-mono); font-weight: 500; }
-.people { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin-top: 4px; font-size: 12px; color: var(--mt-muted); }
-.faces { display: flex; align-items: center; padding-right: 6px; }
-.face { margin-right: -6px; }
-.face.business { background: var(--mt-highlight-soft); color: var(--mt-highlight-ink); }
-.face.more { width: 28px; height: 28px; box-sizing: border-box; display: grid; place-items: center; border: 2px solid var(--mt-card); border-radius: 50%; font-size: 9.5px; font-weight: 800; background: var(--mt-soft); color: var(--mt-muted); }
-.names { color: var(--mt-ink); }
-.traces { font-weight: 700; color: var(--mt-accent-text); text-decoration: none; }
+.members { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0; padding: 0; list-style: none; }
+.members li { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.members small { font-size: 11px; font-weight: 500; color: var(--mt-muted); }
+.members :deep(.business) { background: var(--mt-highlight-soft); color: var(--mt-highlight-ink); }
+.members .more { color: var(--mt-muted); font-weight: 500; font-size: 12px; }
+.muted { color: var(--mt-muted); font-weight: 500; }
+@media (max-width: 900px) { .facts { grid-template-columns: 1fr; } }
+.traces { font-size: 12px; font-weight: 700; color: var(--mt-accent-text); text-decoration: none; }
 .traces:hover { text-decoration: underline; }
 </style>

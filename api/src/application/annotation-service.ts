@@ -3,7 +3,7 @@ import type { IdentityRepository } from "@/application/ports/identity-repository
 import type { ScoreConfigRepository } from "@/application/ports/score-config-repository";
 import type { ScoreRepository } from "@/application/ports/score-repository";
 import type { TraceRepository } from "@/application/ports/trace-repository";
-import { isLowRating, validateAnnotationValue, type Annotation, type AnnotationValue, type LowRatedSummary, type TraceScore } from "@/domain/annotation";
+import { isLowRating, validateAnnotationValue, type Annotation, type AnnotationValue, type AnnotationRating, type LowRatedSummary, type TraceScore } from "@/domain/annotation";
 import type { TimeRange } from "@/domain/time-range";
 import { AnnotationForbiddenError, ScoreConfigInvariantError, ScoreConfigNotFoundError, SpanNotFoundError, TraceNotFoundError } from "@/domain/errors";
 import {
@@ -113,6 +113,25 @@ export class AnnotationService {
       count: firstPerTrace.size,
       items: [...firstPerTrace.values()].slice(0, LOW_RATED_ITEMS).map((a) => ({ traceId: a.traceId, configName: a.configName, value: a.value, createdAt: a.createdAt })),
     };
+  }
+
+  /**
+   * Etiquetas humanas de las trazas (o de las conversaciones, vía sus turnos) dadas, para la columna Annotation de las
+   * listas. Solo aparecen los ids con alguna etiqueta; `low` usa el mismo criterio que `listLowRated`.
+   */
+  async listRatings(experimentId: string, serviceName: string, target: { traceIds: string[] } | { conversationIds: string[] }): Promise<AnnotationRating[]> {
+    const byConversation = "conversationIds" in target ? await this.traces.getConversationTraceIds(target.conversationIds, this.now().getTime()) : null;
+    const groups = byConversation ? [...byConversation].map(([id, traceIds]) => ({ id, traceIds })) : (target as { traceIds: string[] }).traceIds.map((id) => ({ id, traceIds: [id] }));
+    const traceIds = [...new Set(groups.flatMap((g) => g.traceIds))];
+    if (traceIds.length === 0) return [];
+    const [labels, configs] = await Promise.all([this.annotations.listForTraces(serviceName, traceIds), this.scoreConfigs.list(experimentId, true)]);
+    const byId = new Map(configs.map((c) => [c.id, c]));
+    const labelsByTrace = new Map<string, Annotation[]>();
+    for (const a of labels) labelsByTrace.set(a.traceId, [...(labelsByTrace.get(a.traceId) ?? []), a]);
+    return groups.flatMap(({ id, traceIds: ids }) => {
+      const own = ids.flatMap((t) => labelsByTrace.get(t) ?? []);
+      return own.length ? [{ id, labels: own.length, low: own.some((a) => isLowRating(a, byId.get(a.configId))) }] : [];
+    });
   }
 
   /** Retira una anotación (lápida). Idempotente: si no existe no hace nada. */

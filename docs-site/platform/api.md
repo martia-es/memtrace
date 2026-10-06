@@ -8,10 +8,10 @@ All under `/api/v1/experiments/{experimentId}`:
 
 | Endpoint | Description |
 |---|---|
-| `GET /traces` | Paginated trace list. Params: `from`, `to`, `service`, `status`, `hasErrors`, `minDurationMs`, `limit`, `cursor` |
+| `GET /traces` | Paginated trace list. Params: `from`, `to`, `service`, `status`, `hasErrors`, `minDurationMs`, `text`, `limit`, `cursor` |
 | `GET /traces/{traceId}` | A trace with its span tree |
 | `GET /spans` | Flat, paginated span list |
-| `GET /conversations` | Paginated conversations. Each one carries `title` (the user's first message, up to 120 characters, `null` if the agent did not capture content) and `costUsd` (`null` if none of its models has a known price) |
+| `GET /conversations` | Paginated conversations; `text=` keeps only those with a turn whose captured input or output contains it (case-insensitive). Each one carries `title` (the user's first message, up to 120 characters, `null` if the agent did not capture content) and `costUsd` (`null` if none of its models has a known price) |
 | `GET /conversations/{conversationId}` | Same summary and turns in chronological order |
 | `GET /conversations/{conversationId}/transcript` | User/assistant messages per turn (needs captured content) |
 | `GET /conversations/{conversationId}/tree` | Span tree of each turn |
@@ -66,6 +66,8 @@ Human labels on a trace (or one span of it), under `/api/v1/experiments/{experim
 | `DELETE /annotations/{configId}?spanId=` | Retract your label (`204`, idempotent). An experiment admin can retract someone else's with `&annotatorId=` |
 
 Not under a trace: `GET /api/v1/experiments/{experimentId}/annotations/low-rated?from=&to=` returns the traces with a low human label in the range, for the dashboard's **Needs attention** (ADR-049): `{ count, items: [{ traceId, configName, value, createdAt }] }`, newest first, at most 10 items. A label is low when a boolean is `false` or a numeric value is below the midpoint of its rubric range; categorical labels never count. Any member.
+
+`GET /api/v1/experiments/{experimentId}/annotations/ratings?traceIds=a,b` (or `?conversationIds=a,b`, up to 200 ids, exactly one of the two) returns the annotation state of those rows, for the **Annotation** column of the Conversations list: `{ items: [{ id, labels, low }] }`. Only ids with at least one human label appear; a conversation counts the labels of all its turns and is `low` if any turn is. Any member.
 
 `value` must fit the [score config](#score-configs-adr-036): a number inside its range, `true`/`false`, or one of its category labels. Errors: `422` invalid value, `404` unknown config, unknown trace, a trace of another experiment, or a span not in the trace; `409` archived config; `403` retracting someone else's label without being admin. Editing replaces your previous label for the same trace, span and config; labels from different people coexist.
 

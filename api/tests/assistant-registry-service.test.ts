@@ -11,19 +11,19 @@ const connection = (o: Partial<Connection>): Connection => ({
   firstSeenAt: null, lastSeenAt: null, decidedBy: null, decidedAt: null, note: null, ...o,
 });
 
-function build(repo: Partial<Record<keyof AssistantRegistryRepository, unknown>>, usage: Array<{ tool: string; calls: number; errors: number }> = []) {
+function build(repo: Partial<Record<keyof AssistantRegistryRepository, unknown>>, usage: Array<{ tool: string; calls: number; errors: number; mcpServer?: string | null }> = []) {
   const toolUsage = vi.fn(async () => usage);
   return { service: new AssistantRegistryService(repo as unknown as AssistantRegistryRepository, { toolUsage }, () => NOW), toolUsage };
 }
 
 describe("AssistantRegistryService (ADR-053)", () => {
-  it("adds 7-day tool usage to tool connections only, with zeros for tools not seen", async () => {
+  it("adds 7-day usage to tool and MCP server connections, with zeros for those not seen", async () => {
     const { service, toolUsage } = build(
       { listConnections: async () => [connection({ name: "get_forecast" }), connection({ id: "c2", name: "get_alerts" }), connection({ id: "c3", kind: "mcp_server", name: "weather-mcp" })] },
       [{ tool: "get_forecast", calls: 120, errors: 3 }],
     );
     const items = await service.listConnections("e1", "weather-assistant");
-    expect(items.map((c) => c.usage)).toEqual([{ calls: 120, errors: 3 }, { calls: 0, errors: 0 }, null]);
+    expect(items.map((c) => c.usage)).toEqual([{ calls: 120, errors: 3 }, { calls: 0, errors: 0 }, { calls: 0, errors: 0 }]);
     const [, from, to] = toolUsage.mock.calls[0] as unknown as [string, Date, Date];
     expect(to).toEqual(NOW);
     expect(NOW.getTime() - from.getTime()).toBe(7 * 86_400_000);
@@ -37,6 +37,40 @@ describe("AssistantRegistryService (ADR-053)", () => {
     ]);
     expect(await service.syncObservedConnections("e1", "svc")).toEqual({ observed: 1 });
     expect(recordObservedConnections).toHaveBeenCalledWith("e1", [{ kind: "tool", name: "get_forecast" }], NOW);
+  });
+
+  it("sums the calls of an MCP server's tools and leaves agents unmeasured", async () => {
+    const { service } = build(
+      { listConnections: async () => [connection({ id: "c1", kind: "mcp_server", name: "weather-mcp" }), connection({ id: "c2", kind: "mcp_server", name: "idle-mcp" }), connection({ id: "c3", kind: "agent", name: "peer" })] },
+      [
+        { tool: "get_forecast", calls: 10, errors: 1, mcpServer: "weather-mcp" },
+        { tool: "get_alerts", calls: 5, errors: 0, mcpServer: "weather-mcp" },
+        { tool: "local_tool", calls: 99, errors: 9, mcpServer: null },
+      ],
+    );
+    const items = await service.listConnections("e1", "svc");
+    expect(items.map((c) => c.usage)).toEqual([{ calls: 15, errors: 1 }, { calls: 0, errors: 0 }, null]);
+  });
+
+  it("syncs the MCP servers seen in traces, and links their tools to them", async () => {
+    const recordObservedConnections = vi.fn(async () => {});
+    const { service } = build({ getCard: async () => ({}) as AssistantCard, recordObservedConnections }, [
+      { tool: "get_forecast", calls: 5, errors: 0, mcpServer: "weather-mcp" },
+      { tool: "get_alerts", calls: 2, errors: 0, mcpServer: "weather-mcp" },
+      { tool: "local_tool", calls: 1, errors: 0, mcpServer: null },
+      { tool: "idle_mcp_tool", calls: 0, errors: 0, mcpServer: "idle-mcp" },
+    ]);
+    expect(await service.syncObservedConnections("e1", "svc")).toEqual({ observed: 4 });
+    expect(recordObservedConnections).toHaveBeenCalledWith(
+      "e1",
+      [
+        { kind: "mcp_server", name: "weather-mcp" },
+        { kind: "tool", name: "get_forecast", via: "weather-mcp" },
+        { kind: "tool", name: "get_alerts", via: "weather-mcp" },
+        { kind: "tool", name: "local_tool" },
+      ],
+      NOW,
+    );
   });
 
   it("refuses to sync or declare for an experiment that does not exist", async () => {

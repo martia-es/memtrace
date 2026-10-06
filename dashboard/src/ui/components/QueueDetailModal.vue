@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from "@/ui/components/TextInput.vue";
 import { useRoute } from "vue-router";
 import { computed, ref } from "vue";
 import { useQuasar } from "quasar";
@@ -128,15 +129,13 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
       <section v-if="canManage && showSettings">
         <h3>Reviews required per item</h3>
         <div class="req-row">
-          <input
-            :value="required ?? detail.data.value.requiredAnnotations"
-            class="text-input num"
+          <TextInput
+            :model-value="required ?? detail.data.value.requiredAnnotations"
             type="number"
             min="1"
             max="10"
             aria-label="Reviews required per item"
-            @input="required = Number(($event.target as HTMLInputElement).value)"
-          />
+            @input="required = Number(($event.target as HTMLInputElement).value)" />
           <button type="button" class="small-btn" :disabled="required === null || required === detail.data.value.requiredAnnotations" @click="saveRequired">Apply</button>
         </div>
         <p class="muted">Raising it reopens items that were already completed; lowering it can complete them.</p>
@@ -334,20 +333,6 @@ h3 {
 }
 .pill.warning {
   color: #92400e;
-}
-.text-input {
-  box-sizing: border-box;
-  height: 28px;
-  padding: 0 8px;
-  border-radius: var(--mt-radius-sm);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  font: inherit;
-  font-size: 12.5px;
-  color: var(--mt-ink);
-}
-.text-input.num {
-  width: 64px;
 }
 .small-btn {
   margin-left: auto;

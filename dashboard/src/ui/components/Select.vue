@@ -1,5 +1,7 @@
 <script setup lang="ts" generic="T extends string | number">
-import { computed, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+
+defineOptions({ inheritAttrs: false });
 
 interface Option {
   label: string;
@@ -37,13 +39,24 @@ const handleSelect = (value: T) => {
 const closeMenu = () => {
   isOpen.value = false;
 };
+
+const root = ref<HTMLElement | null>(null);
+const onOutsideClick = (event: MouseEvent) => {
+  if (isOpen.value && root.value && !root.value.contains(event.target as Node)) closeMenu();
+};
+onMounted(() => document.addEventListener("click", onOutsideClick));
+onBeforeUnmount(() => document.removeEventListener("click", onOutsideClick));
 </script>
 
 <template>
-  <div class="select" @keydown.escape="closeMenu">
+  <div ref="root" class="select" @keydown.escape="closeMenu">
     <button
+      v-bind="$attrs"
+      type="button"
       class="select-trigger"
-      :class="{ open: isOpen, active: modelValue !== null }"
+      :class="{ open: isOpen, active: modelValue !== null && modelValue !== '' }"
+      aria-haspopup="listbox"
+      :aria-expanded="isOpen"
       :disabled="loading || disabled"
       @click="isOpen = !isOpen"
     >
@@ -73,6 +86,7 @@ const closeMenu = () => {
           <button
             v-for="option in options"
             :key="option.value"
+            type="button"
             class="select-option"
             :class="{ selected: modelValue === option.value }"
             @click="handleSelect(option.value)"

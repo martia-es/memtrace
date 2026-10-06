@@ -224,4 +224,24 @@ describe("AnnotationService low-rated traces (ADR-049)", () => {
     await annotations.retract("svc", { ...low, value: "" });
     expect((await service.listLowRated("e1", "svc", range)).count).toBe(0);
   });
+
+  it("reports the annotation state of traces and, through their turns, of conversations", async () => {
+    const traces = new FakeTraceRepository();
+    traces.conversationTraceIds.set("conv-low", ["t-a", "t-b"]);
+    traces.conversationTraceIds.set("conv-ok", ["t-c"]);
+    traces.conversationTraceIds.set("conv-none", ["t-d"]);
+    const svc = new AnnotationService(configs, annotations, traces, {} as ScoreRepository, {} as IdentityRepository, () => new Date(NOW));
+    await annotations.upsert("svc", label("t-a", "cfg-1", "tone", "numeric", "5", 1));
+    await annotations.upsert("svc", label("t-b", "cfg-1", "tone", "numeric", "1", 1)); // low turn makes the conversation low
+    await annotations.upsert("svc", label("t-c", "cfg-1", "tone", "numeric", "4", 1));
+
+    expect(await svc.listRatings("e1", "svc", { conversationIds: ["conv-low", "conv-ok", "conv-none"] })).toEqual([
+      { id: "conv-low", labels: 2, low: true },
+      { id: "conv-ok", labels: 1, low: false },
+    ]);
+    expect(await svc.listRatings("e1", "svc", { traceIds: ["t-a", "t-b", "t-d"] })).toEqual([
+      { id: "t-a", labels: 1, low: false },
+      { id: "t-b", labels: 1, low: true },
+    ]);
+  });
 });

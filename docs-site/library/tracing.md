@@ -68,6 +68,23 @@ Every tracing entry point (`trace_step`, `trace_step_context`, `trace_llm_call`)
 
 Token counts feed the dashboard's token metrics. Messages are stored only when [content capture](./configuration#privacy-and-content-capture) is on.
 
+## MCP tools
+
+A tool served by an MCP server looks like any other tool in a span. To let MemTrace know which server it came from, the span carries `memtrace.mcp_server`; the assistant's *Connections* tab then lists the server and its usage.
+
+With Pydantic AI it is automatic: `enable_pydantic_ai_instrumentation()` names the server after the toolset's `id` (or, without one, the name the server announces). Give your toolsets an `id` (`MCPToolset` in Pydantic AI 2.x):
+
+```python
+MCPToolset("https://weather.example/mcp", id="weather-mcp")
+```
+
+With any other framework, or a tool you wrap yourself, set it on the step:
+
+```python
+@trace_step(name="get_forecast", step_type="tool", attributes={"memtrace.mcp_server": "weather-mcp"})
+def get_forecast(city: str) -> str: ...
+```
+
 ## Custom step trees (fine-grained, non-LLM steps)
 
 `step_type` isn't limited to the six built-in values — any string works. This lets you trace steps that aren't LLM calls (a regex check, a rules-based classifier, a validation library) as their own spans, nested under whatever node runs them. Nesting is automatic: any step opened inside a `trace_step`/`trace_step_context` block becomes its child.

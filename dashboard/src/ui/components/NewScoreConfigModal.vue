@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from "@/ui/components/TextInput.vue";
 import { computed, reactive, ref } from "vue";
 import { useQuasar } from "quasar";
 import type { ScoreConfigDto } from "@contract";
@@ -55,17 +56,17 @@ async function create() {
 <template>
   <Modal title="New score config" @close="emit('close')">
     <form class="modal-form" @submit.prevent="create">
-      <input v-model="form.name" class="text-input" placeholder="Name (e.g. tone)" autofocus />
+      <TextInput v-model="form.name" placeholder="Name (e.g. tone)" autofocus />
       <Select v-model="form.dataType" :options="TYPE_OPTIONS" />
       <div v-if="form.dataType === 'numeric'" class="range-row">
-        <input v-model="form.min" class="text-input" type="number" step="any" placeholder="Min" />
-        <input v-model="form.max" class="text-input" type="number" step="any" placeholder="Max" />
+        <TextInput v-model="form.min" type="number" step="any" placeholder="Min" />
+        <TextInput v-model="form.max" type="number" step="any" placeholder="Max" />
       </div>
       <template v-if="form.dataType === 'categorical'">
-        <textarea v-model="form.categories" class="text-input area" rows="4" placeholder="One category per line (at least 2)&#10;bad=0&#10;ok=1&#10;good=2" />
+        <TextInput multiline v-model="form.categories" :rows="4" placeholder="One category per line (at least 2)&#10;bad=0&#10;ok=1&#10;good=2" />
         <p class="hint">Optional <code>=number</code> after a label gives it a value, used for correlation with judge scores.</p>
       </template>
-      <textarea v-model="form.description" class="text-input area" rows="2" placeholder="Guideline shown to the annotator (optional)" />
+      <TextInput multiline v-model="form.description" :rows="2" placeholder="Guideline shown to the annotator (optional)" />
       <button type="submit" class="primary-btn" :disabled="saving || !canCreate">Create</button>
     </form>
   </Modal>
@@ -93,27 +94,6 @@ async function create() {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
-}
-.text-input {
-  width: 100%;
-  box-sizing: border-box;
-  height: 40px;
-  padding: 0 14px;
-  border-radius: var(--mt-radius-lg);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  font: inherit;
-  font-size: 13px;
-  color: var(--mt-ink);
-}
-.text-input.area {
-  height: auto;
-  padding: 10px 14px;
-  resize: vertical;
-}
-.text-input:focus {
-  outline: 2px solid var(--mt-accent);
-  outline-offset: -1px;
 }
 .primary-btn {
   align-self: flex-start;

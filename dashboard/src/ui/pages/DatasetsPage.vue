@@ -1,11 +1,11 @@
 <script setup lang="ts">
+import TextInput from "@/ui/components/TextInput.vue";
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useQuasar } from "quasar";
 import { formatDateTime } from "@/domain/format";
 import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
-import EvaluationsTabs from "../components/EvaluationsTabs.vue";
 import Modal from "../components/Modal.vue";
 import PageHeader from "../components/PageHeader.vue";
 import { useAsync } from "../composables/useAsync";
@@ -57,16 +57,12 @@ async function createDataset() {
 
 <template>
   <div class="page">
-    <PageHeader :crumbs="[{ label: 'Datasets' }]" icon="M4 6a2 2 0 0 1 2-2h3l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" title="Datasets">
+    <PageHeader :crumbs="[{ label: 'Evaluations' }, { label: 'Datasets' }]" icon="M4 6a2 2 0 0 1 2-2h3l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" title="Datasets">
       <div class="actions">
-        <q-input v-model="search" dense outlined placeholder="Filter by name…" class="search" clearable>
-          <template #prepend><q-icon name="search" size="18px" /></template>
-        </q-input>
-        <button type="button" class="primary-btn" @click="showCreateModal = true">New dataset</button>
+        <TextInput type="search" v-model="search" placeholder="Filter by name…" class="search" />
+        <button type="button" class="primary-btn mt-new" @click="showCreateModal = true">+ New dataset</button>
       </div>
     </PageHeader>
-
-    <EvaluationsTabs />
 
     <p class="hint muted">
       A dataset is a set of curated examples to evaluate your agent. Every change to its items creates a new <strong>version</strong> (see the Versions tab inside each dataset):
@@ -103,7 +99,7 @@ async function createDataset() {
 
     <Modal v-if="showCreateModal" title="New dataset" @close="showCreateModal = false">
       <form class="modal-form" @submit.prevent="createDataset">
-        <input v-model="newDatasetName" class="text-input" placeholder="Dataset name" autofocus />
+        <TextInput v-model="newDatasetName" placeholder="Dataset name" autofocus />
         <button type="submit" class="primary-btn" :disabled="creating || !newDatasetName.trim()">Create</button>
       </form>
     </Modal>
@@ -193,22 +189,6 @@ td {
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-.text-input {
-  width: 100%;
-  box-sizing: border-box;
-  height: 40px;
-  padding: 0 14px;
-  border-radius: var(--mt-radius-lg);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  font: inherit;
-  font-size: 13px;
-  color: var(--mt-ink);
-}
-.text-input:focus {
-  outline: 2px solid var(--mt-accent);
-  outline-offset: -1px;
 }
 .primary-btn {
   display: inline-flex;

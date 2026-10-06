@@ -1,23 +1,26 @@
 <script setup lang="ts">
+import TextInput from "@/ui/components/TextInput.vue";
 import type { ConversationSummaryDto, TraceSummaryDto } from "@contract";
-import { computed, inject, ref, watch } from "vue";
+import { computed, inject, onBeforeUnmount, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { CURRENT_EXPERIMENT } from "@/dependency-container";
 import { formatCostUsd, formatCount, formatDateTime, formatDuration, formatPercent } from "@/domain/format";
 import { mergeLatestConversations, mergeLatestTraces } from "@/domain/merge";
-import { RANGE_PRESETS, resolveRange } from "@/domain/time-range";
 import EmptyState from "../components/EmptyState.vue";
 import OnboardingGuide from "../components/OnboardingGuide.vue";
 import ConversationPreview from "../components/ConversationPreview.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
+import AnnotationChip from "../components/AnnotationChip.vue";
+import AddToDatasetModal from "../components/AddToDatasetModal.vue";
+import AddToQueueModal from "../components/AddToQueueModal.vue";
+import Modal from "../components/Modal.vue";
+import TraceAnnotationsPanel from "../components/TraceAnnotationsPanel.vue";
 import StatusChip from "../components/StatusChip.vue";
-import FilterBar from "../components/FilterBar.vue";
-import LiveControl from "../components/LiveControl.vue";
 import PageHeader from "../components/PageHeader.vue";
 import TraceTable from "../components/TraceTable.vue";
 import { useAsync } from "../composables/useAsync";
 import { useFilters } from "../composables/useFilters";
-import { setRefreshSeconds, useLiveRefresh } from "../composables/useLiveRefresh";
+import { useLiveRefresh } from "../composables/useLiveRefresh";
 import { usePagedList } from "../composables/usePagedList";
 import { useTraceApi } from "../composables/useTraceApi";
 
@@ -33,20 +36,20 @@ const grouped = computed(() => f.group.value === "conversation");
 // Ungrouped (default): all traces. Grouped: one row per conversation.
 const traces = usePagedList<TraceSummaryDto>({
   key: (t) => t.traceId,
-  load: (cursor, signal) => api.listTraces({ ...resolveRange(f.range.value, Date.now()), service: f.service.value, hasErrors: f.hasErrors.value || undefined, minDurationMs: f.minDurationMs.value, limit: PAGE_SIZE, cursor }, signal),
+  load: (cursor, signal) => api.listTraces({ ...f.resolve(), service: f.service.value, hasErrors: f.hasErrors.value || undefined, minDurationMs: f.minDurationMs.value, text: f.text.value, limit: PAGE_SIZE, cursor }, signal),
   merge: mergeLatestTraces,
   onLoaded: () => liveRefresh.touch(),
 });
 const conversations = usePagedList<ConversationSummaryDto>({
   key: (c) => c.conversationId,
-  load: (cursor, signal) => api.listConversations({ ...resolveRange(f.range.value, Date.now()), service: f.service.value, hasErrors: f.hasErrors.value || undefined, limit: PAGE_SIZE, cursor }, signal),
+  load: (cursor, signal) => api.listConversations({ ...f.resolve(), service: f.service.value, hasErrors: f.hasErrors.value || undefined, text: f.text.value, limit: PAGE_SIZE, cursor }, signal),
   merge: mergeLatestConversations,
   onLoaded: () => liveRefresh.touch(),
 });
 const active = computed(() => (grouped.value ? conversations : traces));
 
 // ---- KPIs and filter options ----
-const overview = useAsync((signal) => api.getOverview({ ...resolveRange(f.range.value, Date.now()), service: f.service.value }, signal));
+const overview = useAsync((signal) => api.getOverview({ ...f.resolve(), service: f.service.value }, signal));
 const kpis = computed(() => {
   const o = overview.data.value;
   if (!o) return [];
@@ -69,10 +72,51 @@ const liveRefresh = useLiveRefresh(
   },
   { isBusy: () => active.value.loading.value || active.value.moreLoading.value },
 );
-watch([f.range, f.service, f.hasErrors, f.minDurationMs, grouped], reload, { immediate: true });
+watch([f.rangeSig, f.service, f.hasErrors, f.minDurationMs, f.text, grouped], reload, { immediate: true });
 
 const convStatus = (c: ConversationSummaryDto) => (c.errorTurns > 0 ? "error" : c.failedSpans > 0 ? "warn" : "ok");
+/** barra de color a la izquierda de la fila (diseño): error y valoración baja destacan; con fallos internos, aviso */
+const rowBar = (c: ConversationSummaryDto) => (convStatus(c) === "error" ? "bar-error" : ratings.value.get(c.conversationId)?.low ? "bar-low" : convStatus(c) === "warn" ? "bar-warn" : "");
 const STATUS_LABEL = { ok: "OK", error: "Error", warn: "With failures" } as const;
+
+// ---- columna Annotation: etiquetas humanas de las filas cargadas (se piden por lote, solo las que faltan) ----
+const ratings = ref(new Map<string, { labels: number; low: boolean }>());
+const rated = new Set<string>();
+const ratingIds = computed(() => (grouped.value ? conversations.items.value.map((c) => c.conversationId) : traces.items.value.map((t) => t.traceId)));
+async function loadRatings(ids: string[]) {
+  const missing = ids.filter((id) => !rated.has(id));
+  if (missing.length === 0) return;
+  missing.forEach((id) => rated.add(id));
+  try {
+    const { items } = await api.getAnnotationRatings(grouped.value ? { conversationIds: missing } : { traceIds: missing });
+    ratings.value = new Map([...ratings.value, ...items.map((r) => [r.id, r] as const)]);
+  } catch {
+    missing.forEach((id) => rated.delete(id)); // sin dato la columna muestra "–"; se reintenta en la próxima carga
+  }
+}
+watch([ratingIds, grouped], ([ids]) => void loadRatings(ids));
+/** Tras anotar desde la vista previa, la fila seleccionada se vuelve a pedir para que la columna refleje la etiqueta nueva. */
+function closeAnnotate() {
+  annotating.value = false;
+  if (selected.value) {
+    rated.delete(selected.value.id);
+    void loadRatings([selected.value.id]);
+  }
+}
+watch([f.rangeSig, f.service], () => {
+  rated.clear();
+  ratings.value = new Map();
+});
+
+// ---- búsqueda por texto de entrada / salida (se aplica tras una pausa al teclear) ----
+const search = ref(f.text.value ?? "");
+watch(f.text, (v) => (search.value = v ?? ""));
+let searchTimer: ReturnType<typeof setTimeout> | undefined;
+watch(search, (v) => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => f.setText(v ?? ""), 400);
+});
+onBeforeUnmount(() => clearTimeout(searchTimer));
 
 // ---- vistas rápidas (ADR-048): atajos a los filtros que más se usan ----
 const SLOW_MS = 5000;
@@ -88,7 +132,7 @@ const quickViews = computed(() => {
 
 // ---- vista previa: un clic selecciona, doble clic o Enter abre el detalle ----
 const selected = ref<{ kind: "conversation" | "trace"; id: string } | null>(null);
-watch([grouped, f.range, f.service, f.hasErrors, f.minDurationMs], () => (selected.value = null));
+watch([grouped, f.rangeSig, f.service, f.hasErrors, f.minDurationMs, f.text], () => (selected.value = null));
 const transcript = useAsync((signal) => api.getTranscript(selected.value!.id, signal));
 watch(selected, (s) => {
   if (s?.kind === "conversation") void transcript.run();
@@ -133,6 +177,16 @@ const preview = computed(() => {
   }
   return null;
 });
+// ---- acciones de la vista previa: actúan sobre la traza seleccionada o, en una conversación, sobre su último turno ----
+const actionTraceId = computed(() => (selected.value?.kind === "trace" ? selected.value.id : transcript.data.value?.turns.at(-1)?.traceId ?? null));
+const annotating = ref(false);
+const addingToQueue = ref(false);
+const addingToDataset = ref(false);
+const datasetTrace = useAsync((signal) => api.getTrace(actionTraceId.value!, signal));
+const startAddToDataset = () => {
+  addingToDataset.value = true;
+  void datasetTrace.run();
+};
 const openSelected = () => {
   if (!selected.value) return;
   if (selected.value.kind === "conversation") openConversation(selected.value.id);
@@ -147,17 +201,11 @@ const footer = computed(() => {
   const noun = grouped.value ? (n === 1 ? "conversation" : "conversations") : n === 1 ? "trace" : "traces";
   return `${n} ${noun}${active.value.nextCursor.value ? " · more available" : ""}`;
 });
-const rangeLabel = computed(() => RANGE_PRESETS.find((p) => p.key === f.range.value)!.long);
-const rangeOptions = computed(() => RANGE_PRESETS.map((p) => ({ label: p.long, value: p.key })));
 </script>
 
 <template>
   <q-page class="page">
-    <PageHeader :crumbs="[{ label: 'MemTrace', to: { name: 'overview', params: { experimentId } } }, { label: 'Conversations' }]" icon="M4 5h16v11H9l-5 4z" title="Conversations">
-      <FilterBar :range="f.range.value" :loading="overview.loading.value" @update:range="f.setRange" @refresh="reload">
-        <LiveControl :seconds="liveRefresh.seconds.value" :updated-at="liveRefresh.updatedAt.value" @update:seconds="setRefreshSeconds" />
-      </FilterBar>
-    </PageHeader>
+    <PageHeader :crumbs="[{ label: 'MemTrace', to: { name: 'overview', params: { experimentId } } }, { label: 'Conversations' }]" icon="M4 5h16v11H9l-5 4z" title="Conversations" />
 
     <section class="kpis mt-card" aria-label="Summary">
       <template v-if="kpis.length">
@@ -180,6 +228,7 @@ const rangeOptions = computed(() => RANGE_PRESETS.map((p) => ({ label: p.long, v
           {{ v.label }}<span v-if="v.count !== null" class="quick-count mono">{{ v.count }}</span>
         </button>
       </div>
+      <TextInput type="search" v-model="search" placeholder="Search input / output…" class="search" aria-label="Search input and output" />
     </div>
 
     <div class="body">
@@ -189,14 +238,14 @@ const rangeOptions = computed(() => RANGE_PRESETS.map((p) => ({ label: p.long, v
         <div class="list">
           <table v-if="grouped && conversations.items.value.length" class="conversations">
             <thead>
-              <tr><th>Conversation</th><th>Last activity</th><th class="num">Turns</th><th class="num">Active time</th><th class="num">Tokens</th><th class="num">Cost</th><th>Status</th></tr>
+              <tr><th>Conversation</th><th>Last activity</th><th class="num">Turns</th><th class="num">Active time</th><th class="num">Tokens</th><th class="num">Cost</th><th>Status</th><th>Annotation</th></tr>
             </thead>
             <tbody>
               <tr
                 v-for="c in conversations.items.value"
                 :key="c.conversationId"
                 class="item"
-                :class="{ fresh: conversations.newKeys.value.has(c.conversationId), selected: selected?.id === c.conversationId }"
+                :class="[{ fresh: conversations.newKeys.value.has(c.conversationId), selected: selected?.id === c.conversationId }, rowBar(c)]"
                 tabindex="0"
                 @click="selected = { kind: 'conversation', id: c.conversationId }"
                 @dblclick="openConversation(c.conversationId)"
@@ -212,6 +261,7 @@ const rangeOptions = computed(() => RANGE_PRESETS.map((p) => ({ label: p.long, v
                 <td class="num mono">{{ c.totalTokens ? formatCount(c.totalTokens) : "–" }}</td>
                 <td class="num mono">{{ formatCostUsd(c.costUsd) ?? "–" }}</td>
                 <td><StatusChip :tone="convStatus(c)" :label="STATUS_LABEL[convStatus(c)]" /></td>
+                <td><AnnotationChip :rating="ratings.get(c.conversationId)" /></td>
               </tr>
             </tbody>
           </table>
@@ -220,6 +270,7 @@ const rangeOptions = computed(() => RANGE_PRESETS.map((p) => ({ label: p.long, v
             :items="traces.items.value"
             :new-keys="traces.newKeys.value"
             :selected-id="selected?.kind === 'trace' ? selected.id : null"
+            :ratings="ratings"
             selectable
             show-conversation
             @select="(id: string) => (selected = { kind: 'trace', id })"
@@ -227,8 +278,9 @@ const rangeOptions = computed(() => RANGE_PRESETS.map((p) => ({ label: p.long, v
             @open-conversation="openConversation"
           />
 
+          <div v-if="!active.loading.value && active.items.value.length === 0 && !active.error.value && f.text.value" class="no-match">No matches for “{{ f.text.value }}” in this range.</div>
           <OnboardingGuide
-            v-if="!active.loading.value && active.items.value.length === 0 && !active.error.value"
+            v-else-if="!active.loading.value && active.items.value.length === 0 && !active.error.value"
             :service-name="currentExperiment?.serviceName ?? ''"
             :experiment-id="experimentId"
           />
@@ -252,9 +304,23 @@ const rangeOptions = computed(() => RANGE_PRESETS.map((p) => ({ label: p.long, v
         :messages="preview.messages"
         :loading="preview.loading"
         :empty-hint="preview.emptyHint"
+        show-actions
+        :actions-disabled="!actionTraceId"
+        :actions-hint="selected?.kind === 'conversation' ? 'Acts on the latest turn of the conversation' : undefined"
         @open="openSelected"
         @close="selected = null"
+        @annotate="annotating = true"
+        @add-to-queue="addingToQueue = true"
+        @add-to-dataset="startAddToDataset"
       />
+
+      <template v-if="actionTraceId">
+        <AddToQueueModal v-if="addingToQueue" :trace-id="actionTraceId" @close="addingToQueue = false" />
+        <AddToDatasetModal v-if="addingToDataset && datasetTrace.data.value" :trace-id="actionTraceId" :roots="datasetTrace.data.value.roots" @close="addingToDataset = false" />
+        <Modal v-if="annotating" title="Annotate trace" wide @close="closeAnnotate">
+          <TraceAnnotationsPanel :trace-id="actionTraceId" :experiment-id="experimentId" :span="null" />
+        </Modal>
+      </template>
     </div>
   </q-page>
 </template>
@@ -316,6 +382,10 @@ const rangeOptions = computed(() => RANGE_PRESETS.map((p) => ({ label: p.long, v
 }
 .views-row .mt-segmented {
   margin-bottom: 6px;
+}
+.search {
+  margin: 0 0 6px auto;
+  width: 280px;
 }
 .quick-tabs {
   display: flex;
@@ -416,6 +486,9 @@ td {
   background: var(--mt-accent-tint);
   box-shadow: inset 3px 0 0 var(--mt-accent);
 }
+.item.bar-error { box-shadow: inset 3px 0 0 var(--mt-err); }
+.item.bar-low { box-shadow: inset 3px 0 0 var(--mt-highlight); }
+.item.bar-warn { box-shadow: inset 3px 0 0 var(--mt-warn); }
 .item.fresh {
   animation: fade-new 3s ease-out;
 }
@@ -436,6 +509,11 @@ td {
   display: block;
   font-size: 11.5px;
   color: var(--mt-faint);
+}
+.no-match {
+  padding: 40px;
+  text-align: center;
+  color: var(--mt-muted);
 }
 .spinner {
   display: flex;

@@ -37,8 +37,8 @@ function preview(value: unknown): string {
   return typeof value === "string" ? value : JSON.stringify(value);
 }
 
-function failedScores(item: DatasetRunItemResultDto): string {
-  return item.scores.filter((s) => s.dataType === "boolean" && s.value !== "true").map((s) => s.name).join(", ");
+function failedScores(item: DatasetRunItemResultDto): string[] {
+  return item.scores.filter((s) => s.dataType === "boolean" && s.value !== "true").map((s) => s.name);
 }
 
 function openFull() {
@@ -80,31 +80,39 @@ function openFull() {
     <section class="card">
       <h3>Items needing attention <span class="hint">({{ problemItems.length }} of {{ detail.data.value?.items.length ?? 0 }})</span></h3>
       <p v-if="detail.data.value && problemItems.length === 0" class="hint">No item failed a boolean evaluator or errored.</p>
-      <table v-else-if="problemItems.length" class="tbl">
-        <thead><tr><th>Input</th><th>Output</th><th>Failed</th></tr></thead>
+      <div v-else-if="problemItems.length" class="mt-table-wrap"><table class="mt-table layout-fixed">
+        <thead><tr><th>Input</th><th>Output</th><th class="failed-col">Failed</th></tr></thead>
         <tbody>
           <tr v-for="item in problemItems.slice(0, SHOWN)" :key="item.itemIndex">
             <td class="preview" :title="preview(item.input)">{{ preview(item.input) }}</td>
             <td class="preview" :title="item.error ?? preview(item.output)">{{ item.error ? `error: ${item.error}` : preview(item.output) }}</td>
-            <td>{{ failedScores(item) || "–" }}</td>
+            <td><span v-for="n in failedScores(item)" :key="n" class="mt-pill error fail">{{ n }}</span><span v-if="!failedScores(item).length" class="muted">–</span></td>
           </tr>
         </tbody>
-      </table>
+      </table></div>
       <p v-if="problemItems.length > SHOWN" class="hint">Showing {{ SHOWN }}; open the full item list for the rest.</p>
     </section>
   </div>
 </template>
 
 <style scoped>
-.run-view { display: flex; flex-direction: column; gap: 14px; }
-.toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.run-view { display: flex; flex-direction: column; flex-shrink: 0; gap: 16px; min-width: 0; font-family: var(--mt-sans); }
+.toolbar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .picker { min-width: 280px; }
-.link { background: none; border: 0; cursor: pointer; color: inherit; text-decoration: underline; font-size: 12px; }
-.hint { margin: 0; font-size: 12px; opacity: 0.7; }
+.link { background: none; border: 0; cursor: pointer; color: var(--mt-accent-text); font: inherit; font-size: 12.5px; font-weight: 600; }
+.link:hover { text-decoration: underline; }
+.hint { margin: 0; font-size: 12.5px; color: var(--mt-muted); }
+.hint code { font-family: var(--mt-mono); font-size: 12px; background: var(--mt-soft); padding: 1px 5px; border-radius: var(--mt-radius-sm); }
 .kpi-row { display: flex; flex-wrap: wrap; gap: 12px; }
-h3 { margin: 0 0 10px; font-size: 13px; font-weight: 600; }
-.card { border: 1px solid var(--mt-border, rgba(128, 128, 128, 0.25)); border-radius: 8px; padding: 14px 16px; }
-.tbl { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
-.tbl th, .tbl td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--mt-border, rgba(128, 128, 128, 0.2)); }
-.preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+h3 { margin: 0 0 12px; font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+h3 .hint { font-weight: 400; }
+.card { background: var(--mt-card); border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); padding: 18px 20px; min-width: 0; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; }
+.card h3 { margin: 0; }
+.card .mt-table-wrap { flex-shrink: 0; max-width: 100%; }
+.layout-fixed { table-layout: fixed; }
+.layout-fixed .preview { max-width: none; }
+.layout-fixed th:first-child { width: 34%; }
+.failed-col { width: 200px; }
+.fail { margin: 2px 4px 2px 0; }
+.muted { color: var(--mt-muted); }
 </style>

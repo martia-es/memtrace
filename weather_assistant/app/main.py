@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from app.agents.assistant import build_assistant
 from app.api.routes import router
-from app.capabilities.registry import ALL_CAPABILITIES
+from app.capabilities.registry import build_capabilities
 from app.config import Settings
 from app.services.weather_service import WeatherService
 from app.sessions import SessionStore
@@ -24,15 +24,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = Settings.from_env()
     setup_tracing()
     async with httpx.AsyncClient(timeout=settings.http_timeout_seconds) as client:
-        app.state.capabilities = ALL_CAPABILITIES
-        app.state.agent = build_assistant(settings.model, ALL_CAPABILITIES)
+        capabilities = build_capabilities(settings.air_quality_mcp_url)
+        app.state.capabilities = capabilities
+        app.state.agent = build_assistant(settings.model, capabilities)
         app.state.weather = WeatherService(
             client,
             geocoding_url=settings.open_meteo_geocoding_url,
             forecast_url=settings.open_meteo_forecast_url,
+            air_quality_url=settings.open_meteo_air_quality_url,
         )
         app.state.sessions = SessionStore()
-        yield
+        async with app.state.agent:  # mantiene abiertos los servidores MCP mientras el proceso vive
+            yield
 
 
 app = FastAPI(title="Weather assistant", lifespan=lifespan)

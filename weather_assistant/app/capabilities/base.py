@@ -17,3 +17,5 @@ class Capability:
     instructions: str
     # Funciones con `RunContext` como primer argumento (Pydantic AI las convierte en tools).
     tools: list[Callable[..., Any]] = field(default_factory=list)
+    # Toolsets de Pydantic AI, p. ej. un servidor MCP: sus tools no son funciones locales.
+    toolsets: list[Any] = field(default_factory=list)

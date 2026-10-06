@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import TextInput from "@/ui/components/TextInput.vue";
+import Select from "../components/Select.vue";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useAsync } from "../composables/useAsync";
 import { useAssistantApi } from "../composables/useAssistantApi";
@@ -103,16 +105,15 @@ const summary = computed(() => {
 
 // los permisos de la organización decidirán si se ofrece crear agentes (experimentos) en Settings
 const canCreateAgents = computed(() => hasPermission(organization.value, "experiment:create"));
+const organizationOptions = computed(() => readable.value.map((o) => ({ label: o.name, value: o.id })));
 </script>
 
 <template>
   <div class="page">
     <PageHeader :crumbs="[{ label: 'Assistants' }]" icon="M12 8V4M8 4h8M5 8h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2zM9 14h.01M15 14h.01" title="Assistants">
       <div class="actions">
-        <select v-if="readable.length > 1" v-model="organizationId" class="org-select" aria-label="Organization">
-          <option v-for="o in readable" :key="o.id" :value="o.id">{{ o.name }}</option>
-        </select>
-        <router-link v-if="canCreateAgents && organizationId" :to="{ name: 'admin-organization', params: { organizationId } }" class="primary" data-testid="create-agent">New agent</router-link>
+        <div v-if="readable.length > 1" class="org-select"><Select v-model="organizationId" :options="organizationOptions" aria-label="Organization" /></div>
+        <router-link v-if="canCreateAgents && organizationId" :to="{ name: 'admin-organization', params: { organizationId } }" class="primary mt-new" data-testid="create-agent">+ New agent</router-link>
       </div>
     </PageHeader>
 
@@ -133,9 +134,7 @@ const canCreateAgents = computed(() => hasPermission(organization.value, "experi
       </section>
 
       <div class="filters">
-        <q-input v-model="search" dense outlined placeholder="Search by name, description or owner…" class="search" clearable>
-          <template #prepend><q-icon name="search" size="18px" /></template>
-        </q-input>
+        <TextInput type="search" v-model="search" placeholder="Search by name, description or owner…" class="search" />
         <FilterPill label="Environment" :model-value="environment" :options="environmentOptions" all-label="All" @update:model-value="environment = $event" />
         <FilterPill label="Status" :model-value="status" :options="statusOptions" all-label="All" @update:model-value="status = $event" />
         <label class="toggle"><input v-model="onlyIssues" type="checkbox" />Only with issues</label>
@@ -156,7 +155,7 @@ const canCreateAgents = computed(() => hasPermission(organization.value, "experi
 <style scoped>
 .page { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; padding: 16px 24px 24px; background: var(--mt-bg); }
 .actions { display: flex; align-items: center; gap: 10px; }
-.org-select { height: 32px; padding: 0 10px; font: inherit; font-weight: 600; color: var(--mt-ink); background: var(--mt-card); border: 1px solid var(--mt-line); border-radius: var(--mt-radius-sm); }
+.org-select { min-width: 180px; }
 .primary { display: inline-flex; align-items: center; height: 32px; padding: 0 14px; text-decoration: none; font: inherit; font-size: 13px; font-weight: 700; color: var(--mt-accent-ink); background: var(--mt-accent); border: none; border-radius: var(--mt-radius-sm); cursor: pointer; }
 .primary:focus-visible { outline: 2px solid var(--mt-accent); outline-offset: 2px; }
 .loading { display: flex; justify-content: center; padding: 60px; }

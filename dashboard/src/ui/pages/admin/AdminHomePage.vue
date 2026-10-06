@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from "@/ui/components/TextInput.vue";
 import { computed, ref } from "vue";
 import { useQuasar } from "quasar";
 import "@/styles/admin.css";
@@ -58,7 +59,7 @@ async function createOrganization() {
         </div>
         <div class="adm-form-row">
           <router-link class="adm-btn ghost" :to="{ name: 'admin-members' }">All members</router-link>
-          <button class="adm-btn primary" type="button" @click="showCreate = true">New organization</button>
+          <button class="adm-btn primary mt-new" type="button" @click="showCreate = true">+ New organization</button>
         </div>
       </div>
 
@@ -90,7 +91,7 @@ async function createOrganization() {
     <Modal v-if="showCreate" title="New organization" @close="showCreate = false">
       <form class="adm-form" @submit.prevent="createOrganization">
         <p class="adm-hint">Creating it makes you its first org_admin, with access to all of its experiments.</p>
-        <input v-model="newName" class="adm-input" placeholder="Organization name, e.g. Acme" autofocus />
+        <TextInput v-model="newName" placeholder="Organization name, e.g. Acme" autofocus />
         <button type="submit" class="adm-btn primary" :disabled="creating || !newName.trim()">Create organization</button>
       </form>
     </Modal>

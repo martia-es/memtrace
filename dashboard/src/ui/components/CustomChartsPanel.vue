@@ -1,14 +1,33 @@
 <script setup lang="ts">
+import TextInput from "@/ui/components/TextInput.vue";
+import Select from "./Select.vue";
 import type { CustomMetricDefinitionDto, CustomMetricPointDto } from "@contract";
 import type { EChartsCoreOption } from "echarts/core";
-import { computed, reactive, ref, watch } from "vue";
+import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
 import { useQuasar } from "quasar";
-import { customMetricChartOption } from "../custom-metric-chart-option";
+import { customMetricChartOption, presentResult } from "../custom-metric-chart-option";
 import EChart from "./EChart.vue";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import type { SavedCustomMetricDto } from "@/application/identity-api";
 import type { RangeParams } from "@/application/trace-api";
+import {
+  METRIC_LABELS,
+  SELECTABLE_METRICS,
+  attributeLabel,
+  describeChange,
+  describeDefinition,
+  findOutlier,
+  formatMetricValue,
+  isTechnicalAttribute,
+  previousRange,
+  singleNumber,
+  stepLabel,
+  suggestChartType,
+  suggestName,
+  templatesFor,
+  type ChartTemplate,
+} from "@/domain/custom-chart-vocabulary";
 
 const props = defineProps<{ experimentId: string; range: RangeParams }>();
 
@@ -16,7 +35,9 @@ const api = useTraceApi();
 const identityApi = useIdentityApi();
 const $q = useQuasar();
 
-// ---- descubrimiento (ADR-027): tipos de paso disponibles, detectados de las trazas del usuario ----
+type Result = { points: CustomMetricPointDto[]; timeseries: { bucketStart: string; points: CustomMetricPointDto[] }[] };
+
+// ---- descubrimiento (ADR-027): lo que hay en las trazas del usuario, presentado con nombres de negocio (ADR-057) ----
 const stepKinds = ref<{ stepType: string; count: number }[]>([]);
 const stepKindsLoading = ref(false);
 async function loadStepKinds() {
@@ -30,23 +51,34 @@ async function loadStepKinds() {
     stepKindsLoading.value = false;
   }
 }
+const templates = computed(() => templatesFor(stepKinds.value.map((s) => s.stepType)));
+const QUESTIONS_COLLAPSED = 6;
+const showAllQuestions = ref(false);
+const questionsOpen = ref(false);
+const visibleQuestions = computed(() => (showAllQuestions.value ? templates.value : templates.value.slice(0, QUESTIONS_COLLAPSED)));
 
 // ---- estado del builder ----
-const chartType = ref<CustomMetricDefinitionDto["chartType"]>("bar");
-const selectedStepTypes = ref<Set<string>>(new Set());
+const chartType = ref<CustomMetricDefinitionDto["chartType"]>("line");
+const chartTypeTouched = ref(false);
+const selectedSteps = ref<string[]>([]);
+const hasSteps = computed(() => selectedSteps.value.length > 0);
+/** Desglose y condiciones solo tienen sentido sobre un único paso: con varios, la gráfica compara un paso por serie. */
+const singleStep = computed(() => (selectedSteps.value.length === 1 ? selectedSteps.value[0]! : ""));
+const multiStep = computed(() => selectedSteps.value.length > 1);
 const metric = ref<CustomMetricDefinitionDto["metric"]>("count");
 const groupByAttribute = ref("");
+const showTechnical = ref(false);
+const activeTemplate = ref<string | null>(null);
 
-// ---- claves de atributo detectadas en los step types elegidos (ADR-030): alimenta los dos selects de abajo ----
 const attributeKeys = ref<{ key: string; count: number }[]>([]);
 const attributeKeysLoading = ref(false);
 
 async function loadAttributeKeys() {
   attributeKeys.value = [];
-  if (selectedStepTypes.value.size === 0) return;
+  if (!singleStep.value) return;
   attributeKeysLoading.value = true;
   try {
-    const { items } = await api.getAttributeKeys({ ...props.range, stepTypes: [...selectedStepTypes.value] });
+    const { items } = await api.getAttributeKeys({ ...props.range, stepTypes: [singleStep.value] });
     attributeKeys.value = items;
   } catch {
     attributeKeys.value = [];
@@ -66,19 +98,16 @@ const filterRows = ref<FilterRow[]>([]);
 function addFilterRow() {
   filterRows.value.push({ attribute: "", values: [], selected: new Set(), loading: false });
 }
-
 function removeFilterRow(index: number) {
   filterRows.value.splice(index, 1);
-  previewResult.value = null;
 }
-
 async function loadFilterRowValues(row: FilterRow) {
   row.values = [];
   row.selected = new Set();
-  if (!row.attribute || selectedStepTypes.value.size === 0) return;
+  if (!row.attribute || !singleStep.value) return;
   row.loading = true;
   try {
-    const { items } = await api.getAttributeValues({ ...props.range, stepTypes: [...selectedStepTypes.value], attribute: row.attribute });
+    const { items } = await api.getAttributeValues({ ...props.range, stepTypes: [singleStep.value], attribute: row.attribute });
     row.values = items;
   } catch {
     row.values = [];
@@ -86,26 +115,43 @@ async function loadFilterRowValues(row: FilterRow) {
     row.loading = false;
   }
 }
-
 function toggleFilterRowValue(row: FilterRow, value: string) {
   if (row.selected.has(value)) row.selected.delete(value);
   else row.selected.add(value);
   row.selected = new Set(row.selected);
-  previewResult.value = null;
 }
 
 function toggleStep(id: string) {
-  if (selectedStepTypes.value.has(id)) selectedStepTypes.value.delete(id);
-  else selectedStepTypes.value.add(id);
-  selectedStepTypes.value = new Set(selectedStepTypes.value);
-  previewResult.value = null;
+  activeTemplate.value = null;
+  selectedSteps.value = selectedSteps.value.includes(id) ? selectedSteps.value.filter((x) => x !== id) : [...selectedSteps.value, id];
+  groupByAttribute.value = "";
+  filterRows.value = [];
   void loadAttributeKeys();
+}
+
+function pickChartType(t: CustomMetricDefinitionDto["chartType"]) {
+  chartType.value = t;
+  chartTypeTouched.value = true;
+}
+
+async function applyTemplate(t: ChartTemplate) {
+  const d = t.definition;
+  activeTemplate.value = t.id;
+  selectedSteps.value = [...d.stepTypes];
+  metric.value = d.metric;
+  groupByAttribute.value = d.groupByAttribute ?? "";
+  chartType.value = d.chartType;
+  chartTypeTouched.value = true;
+  filterRows.value = [];
+  nameTouched.value = false;
+  newChartName.value = suggestName(currentDefinition());
+  await loadAttributeKeys();
 }
 
 function currentDefinition(): CustomMetricDefinitionDto {
   return {
     chartType: chartType.value,
-    stepTypes: [...selectedStepTypes.value],
+    stepTypes: [...selectedSteps.value],
     metric: metric.value,
     groupByAttribute: groupByAttribute.value.trim() || null,
     filters: filterRows.value
@@ -114,54 +160,126 @@ function currentDefinition(): CustomMetricDefinitionDto {
   };
 }
 
-// ---- plain-language summary of what ends up on each axis/series, from the current selection ----
-const axisSummary = computed(() => {
-  const isTimeBased = chartType.value === "line" || chartType.value === "area";
-  const xAxis = isTimeBased ? "time (bucketed automatically)" : groupByAttribute.value ? `value of "${groupByAttribute.value}"` : "step type";
-  const series = isTimeBased ? (groupByAttribute.value ? `one line per value of "${groupByAttribute.value}"` : "one line per step type") : null;
-  return { xAxis, series };
+const description = computed(() => describeDefinition(currentDefinition()));
+
+// ---- nombre sugerido: se rellena solo hasta que la persona lo edita ----
+const newChartName = ref("");
+const nameTouched = ref(false);
+watch(
+  () => suggestName(currentDefinition()),
+  (suggested) => {
+    if (!nameTouched.value && hasSteps.value) newChartName.value = suggested;
+  },
+);
+
+// ---- el tipo de gráfica se sugiere solo hasta que la persona elige uno ----
+watch(selectedSteps, () => {
+  groupByAttribute.value = "";
+  filterRows.value = [];
+  void loadAttributeKeys();
+});
+watch(groupByAttribute, (g) => {
+  if (!chartTypeTouched.value) chartType.value = suggestChartType(g || null);
 });
 
-// ---- vista previa ----
-const previewResult = ref<{ points: CustomMetricPointDto[]; timeseries: { bucketStart: string; points: CustomMetricPointDto[] }[] } | null>(null);
+// ---- vista previa en vivo ----
+const previewResult = ref<Result | null>(null);
 const previewLoading = ref(false);
 const previewError = ref<string | null>(null);
+let previewTimer: ReturnType<typeof setTimeout> | undefined;
+let previewSeq = 0;
 
 async function runPreview() {
+  const seq = ++previewSeq;
+  if (!hasSteps.value) {
+    previewResult.value = null;
+    summary.value = null;
+    previewLoading.value = false;
+    return;
+  }
   previewLoading.value = true;
   previewError.value = null;
   try {
-    previewResult.value = await api.queryCustomMetric(currentDefinition(), props.range);
+    const res = await api.queryCustomMetric(currentDefinition(), props.range);
+    if (seq === previewSeq) {
+      previewResult.value = res;
+      void runSummary(seq);
+    }
   } catch (err) {
+    if (seq !== previewSeq) return;
     previewError.value = err instanceof Error ? err.message : "Could not compute the chart";
     previewResult.value = null;
   } finally {
-    previewLoading.value = false;
+    if (seq === previewSeq) previewLoading.value = false;
   }
 }
 
+// ---- cifra global y comparación con el periodo anterior (sin desglose, para que la cifra sea el total real) ----
+const summary = ref<{ current: number; previous: number } | null>(null);
+
+async function runSummary(seq: number) {
+  summary.value = null;
+  const def: CustomMetricDefinitionDto = { ...currentDefinition(), groupByAttribute: null, chartType: "number" };
+  try {
+    const [cur, prev] = await Promise.all([api.queryCustomMetric(def, props.range), api.queryCustomMetric(def, previousRange(props.range))]);
+    if (seq !== previewSeq) return;
+    summary.value = { current: singleNumber(metric.value, cur.points), previous: singleNumber(metric.value, prev.points) };
+  } catch {
+    if (seq === previewSeq) summary.value = null;
+  }
+}
+
+watch(
+  () => JSON.stringify(currentDefinition()),
+  () => {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(() => void runPreview(), 300);
+  },
+);
+onBeforeUnmount(() => clearTimeout(previewTimer));
+
 function resetBuilder() {
-  selectedStepTypes.value = new Set();
+  selectedSteps.value = [];
+  activeTemplate.value = null;
+  metric.value = "count";
   groupByAttribute.value = "";
+  chartType.value = "line";
+  chartTypeTouched.value = false;
   filterRows.value = [];
   attributeKeys.value = [];
   previewResult.value = null;
+  summary.value = null;
   previewError.value = null;
+  newChartName.value = "";
+  nameTouched.value = false;
 }
 
 // ---- opciones de ECharts a partir del resultado (compartido con MetricReportView, ADR-035) ----
-function optionFor(result: { points: CustomMetricPointDto[]; timeseries: { bucketStart: string; points: CustomMetricPointDto[] }[] }, type: CustomMetricDefinitionDto["chartType"]): EChartsCoreOption {
-  return customMetricChartOption(result, type, $q.dark.isActive);
+const present = presentResult;
+function optionFor(result: Result, def: Pick<CustomMetricDefinitionDto, "groupByAttribute" | "metric">, type: CustomMetricDefinitionDto["chartType"]): EChartsCoreOption {
+  return customMetricChartOption(present(result, def), type, $q.dark.isActive, def.metric);
 }
 
-const previewOption = computed(() => (previewResult.value && chartType.value !== "table" && chartType.value !== "number" ? optionFor(previewResult.value, chartType.value) : null));
-const previewTotal = computed(() => previewResult.value?.points.reduce((sum, p) => sum + p.value, 0) ?? 0);
+const previewOption = computed(() =>
+  previewResult.value && chartType.value !== "table" && chartType.value !== "number" ? optionFor(previewResult.value, currentDefinition(), chartType.value) : null,
+);
+const previewRows = computed(() => (previewResult.value ? present(previewResult.value, currentDefinition()).points : []));
+const headline = computed(() => {
+  if (!summary.value || (multiStep.value && metric.value !== "count")) return null;
+  const { current, previous } = summary.value;
+  return {
+    value: formatMetricValue(metric.value, current),
+    previous: formatMetricValue(metric.value, previous),
+    change: describeChange(metric.value, current, previous),
+    overall: !!groupByAttribute.value,
+  };
+});
+const outlier = computed(() => (groupByAttribute.value ? findOutlier(metric.value, previewRows.value) : null));
 
 // ---- guardados ----
 const saved = ref<SavedCustomMetricDto[]>([]);
-const savedResults = reactive<Record<string, { points: CustomMetricPointDto[]; timeseries: { bucketStart: string; points: CustomMetricPointDto[] }[] } | null>>({});
+const savedResults = reactive<Record<string, Result | null>>({});
 const savedLoading = ref(false);
-const newChartName = ref("");
 const saving = ref(false);
 
 async function loadSaved() {
@@ -183,11 +301,11 @@ async function loadSaved() {
 }
 
 async function saveChart() {
-  if (!newChartName.value.trim() || selectedStepTypes.value.size === 0) return;
+  if (!newChartName.value.trim() || !hasSteps.value) return;
   saving.value = true;
   try {
     await identityApi.createCustomMetric(props.experimentId, newChartName.value.trim(), currentDefinition());
-    newChartName.value = "";
+    resetBuilder();
     await loadSaved();
   } finally {
     saving.value = false;
@@ -204,20 +322,37 @@ watch(() => props.range, () => { void loadStepKinds(); void loadSaved(); }, { im
 watch(() => props.experimentId, () => void loadSaved());
 
 const CHART_TYPES: { value: CustomMetricDefinitionDto["chartType"]; label: string }[] = [
+  { value: "line", label: "Over time" },
   { value: "bar", label: "Bars" },
   { value: "pie", label: "Pie" },
-  { value: "line", label: "Line" },
   { value: "area", label: "Area" },
-  { value: "number", label: "Number" },
+  { value: "number", label: "Single number" },
   { value: "table", label: "Table" },
 ];
-const METRICS: { value: CustomMetricDefinitionDto["metric"]; label: string }[] = [
-  { value: "count", label: "Number of times" },
-  { value: "avg_duration", label: "Average duration" },
-  { value: "p50_duration", label: "Median duration (p50)" },
-  { value: "p95_duration", label: "p95 duration" },
-  { value: "error_rate", label: "Error rate" },
-];
+/** "Based on 1,284 tool calls": cuántos datos hay detrás de cada pregunta. */
+function templateBasis(t: ChartTemplate): string {
+  const n = stepKinds.value.filter((s) => t.requires.includes(s.stepType)).reduce((sum, s) => sum + s.count, 0);
+  return `Based on ${n.toLocaleString()} ${stepLabel(t.requires[0] ?? "").toLowerCase()}`;
+}
+const METRICS = SELECTABLE_METRICS.map((value) => ({ value, label: METRIC_LABELS[value] }));
+const metricLabel = (m: CustomMetricDefinitionDto["metric"]) => METRIC_LABELS[m];
+
+/** Los atributos técnicos (gen_ai.*, memtrace.*…) se esconden salvo que se pida verlos o ya estén elegidos. */
+const visibleAttributeKeys = computed(() =>
+  attributeKeys.value.filter(
+    (k) => showTechnical.value || !isTechnicalAttribute(k.key) || k.key === groupByAttribute.value || filterRows.value.some((r) => r.attribute === k.key),
+  ),
+);
+const hiddenTechnicalCount = computed(() => attributeKeys.value.length - visibleAttributeKeys.value.length);
+const groupByOptions = computed(() => [
+  { label: "— don't break down —", value: "" },
+  ...visibleAttributeKeys.value.map((k) => ({ label: attributeLabel(k.key), value: k.key })),
+]);
+const filterAttributeOptions = computed(() => [
+  { label: "Choose a detail…", value: "" },
+  ...visibleAttributeKeys.value.map((k) => ({ label: attributeLabel(k.key), value: k.key })),
+]);
+const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) => (def.groupByAttribute ? attributeLabel(def.groupByAttribute) : "Step");
 </script>
 
 <template>
@@ -225,163 +360,168 @@ const METRICS: { value: CustomMetricDefinitionDto["metric"]; label: string }[] =
     <div class="panel-header">
       <div>
         <h3>Custom charts</h3>
-        <span class="panel-hint">Build a chart from your own instrumented spans — no query language required.</span>
+        <span class="panel-hint">Pick a question, or build your own chart — no query language required.</span>
       </div>
     </div>
 
-    <div class="builder">
-      <div class="builder-step">
-        <div class="step-head">
-          <span class="step-num">1</span>
-          <div class="step-title">Chart type</div>
-        </div>
-        <div class="step-body">
-          <div class="type-row">
-            <button v-for="t in CHART_TYPES" :key="t.value" type="button" class="type-btn" :class="{ on: chartType === t.value }" @click="chartType = t.value; previewResult = null">
-              {{ t.label }}
+    <div class="cc-grid">
+      <div class="cc-builder">
+        <template v-if="templates.length && !hasSteps">
+          <div class="cc-title">What do you want to know?</div>
+          <p class="hint cc-sub">Pick a question. We set up the chart; you can tweak it after.</p>
+          <div class="question-list">
+            <button v-for="t in visibleQuestions" :key="t.id" type="button" class="question-card" @click="applyTemplate(t)">
+              <span class="q-text">{{ t.question }}</span>
+              <span class="q-basis">{{ templateBasis(t) }}</span>
             </button>
           </div>
-        </div>
-      </div>
+          <button v-if="templates.length > QUESTIONS_COLLAPSED" type="button" class="link-btn" @click="showAllQuestions = !showAllQuestions">
+            {{ showAllQuestions ? "Show fewer questions" : `Show all ${templates.length} questions` }}
+          </button>
+          <div class="cc-divider" />
+          <div class="eyebrow">Or build it yourself</div>
+        </template>
 
-      <div class="builder-step">
-        <div class="step-head">
-          <span class="step-num">2</span>
-          <div class="step-title">Step type(s)</div>
-          <span class="step-caption">Detected from your traces</span>
-        </div>
-        <div class="step-body">
+        <div class="field">
+          <label>I want to see… <span class="label-note">(pick one or several to compare)</span></label>
           <div class="chip-select">
             <span v-if="stepKindsLoading" class="hint">Loading…</span>
-            <span v-else-if="!stepKinds.length" class="hint">No spans in this range yet.</span>
-            <button
-              v-for="s in stepKinds"
-              :key="s.stepType"
-              type="button"
-              class="chip"
-              :class="{ on: selectedStepTypes.has(s.stepType) }"
-              @click="toggleStep(s.stepType)"
-            >
-              {{ s.stepType }}<span class="n">{{ s.count }}</span>
+            <span v-else-if="!stepKinds.length" class="hint">No activity in this range yet.</span>
+            <button v-for="k in stepKinds" :key="k.stepType" type="button" class="chip" :class="{ on: selectedSteps.includes(k.stepType) }" :aria-pressed="selectedSteps.includes(k.stepType)" @click="toggleStep(k.stepType)">
+              {{ stepLabel(k.stepType) }}<span class="n">{{ k.count.toLocaleString() }}</span>
             </button>
           </div>
         </div>
-      </div>
+        <div class="field">
+          <label>Measured as…</label>
+          <Select v-model="metric" :options="METRICS" :disabled="!hasSteps" />
+        </div>
+        <div class="field">
+          <label>Split by… (optional)</label>
+          <Select v-model="groupByAttribute" :options="groupByOptions" :disabled="!singleStep" />
+          <span v-if="attributeKeysLoading" class="hint">Loading details…</span>
+          <span v-else-if="multiStep" class="hint">Comparing {{ selectedSteps.length }} steps: one {{ chartType === "line" || chartType === "area" ? "line" : "bar" }} each. Pick a single step to split it by a detail.</span>
+          <span v-else-if="singleStep && !visibleAttributeKeys.length" class="hint">Nothing to split by for this step.</span>
+          <button v-if="singleStep && (hiddenTechnicalCount > 0 || showTechnical)" type="button" class="link-btn" @click="showTechnical = !showTechnical">
+            {{ showTechnical ? "Hide technical details" : `Show ${hiddenTechnicalCount} technical detail${hiddenTechnicalCount === 1 ? "" : "s"}` }}
+          </button>
+        </div>
 
-      <div class="builder-step">
-        <div class="step-head">
-          <span class="step-num">3</span>
-          <div class="step-title">Metric &amp; grouping</div>
-        </div>
-        <div class="step-body">
-          <div class="row">
-            <div class="field">
-              <label>Metric</label>
-              <select v-model="metric" class="text-input" @change="previewResult = null">
-                <option v-for="m in METRICS" :key="m.value" :value="m.value">{{ m.label }}</option>
-              </select>
-            </div>
-            <div class="field">
-              <label>Group by attribute (optional)</label>
-              <select v-model="groupByAttribute" class="text-input" :disabled="selectedStepTypes.size === 0" @change="previewResult = null">
-                <option value="">— don't group, break down by step type —</option>
-                <option v-for="k in attributeKeys" :key="k.key" :value="k.key">{{ k.key }} ({{ k.count }})</option>
-              </select>
-              <span v-if="attributeKeysLoading" class="hint">Loading attributes…</span>
-              <span v-else-if="selectedStepTypes.size > 0 && !attributeKeys.length" class="hint">No attributes found on the selected step type(s).</span>
-            </div>
-          </div>
-          <p class="hint axis-summary">
-            X axis: <strong>{{ axisSummary.xAxis }}</strong><template v-if="axisSummary.series"> · Series: <strong>{{ axisSummary.series }}</strong></template>
-          </p>
-        </div>
-      </div>
-
-      <div class="builder-step">
-        <div class="step-head">
-          <span class="step-num">4</span>
-          <div class="step-title">Filters</div>
-          <span class="step-caption">Optional — narrows the dataset before computing the metric</span>
-        </div>
-        <div class="step-body">
+        <div class="field">
+          <label>Only when… (optional)</label>
           <div v-for="(row, i) in filterRows" :key="i" class="filter-block">
             <div class="filter-row">
-              <select v-model="row.attribute" class="text-input" :disabled="selectedStepTypes.size === 0" @change="loadFilterRowValues(row)">
-                <option value="">Choose an attribute…</option>
-                <option v-for="k in attributeKeys" :key="k.key" :value="k.key">{{ k.key }} ({{ k.count }})</option>
-              </select>
-              <q-btn flat dense no-caps size="sm" icon="close" @click="removeFilterRow(i)" />
+              <Select v-model="row.attribute" :options="filterAttributeOptions" :disabled="!singleStep" @update:model-value="loadFilterRowValues(row)" />
+              <q-btn flat dense no-caps size="sm" icon="close" aria-label="Remove condition" @click="removeFilterRow(i)" />
             </div>
             <div v-if="row.attribute" class="value-box">
               <span v-if="row.loading" class="hint">Loading values…</span>
-              <span v-else-if="!row.values.length" class="hint">No values found for this attribute on the selected step type(s).</span>
+              <span v-else-if="!row.values.length" class="hint">No values found for this detail.</span>
               <template v-else>
-                <span class="hint">Detected values — tick the ones to include:</span>
+                <span class="hint">Only include these:</span>
                 <div class="chip-select">
-                  <button
-                    v-for="v in row.values"
-                    :key="v.value"
-                    type="button"
-                    class="chip"
-                    :class="{ on: row.selected.has(v.value) }"
-                    @click="toggleFilterRowValue(row, v.value)"
-                  >
+                  <button v-for="v in row.values" :key="v.value" type="button" class="chip" :class="{ on: row.selected.has(v.value) }" @click="toggleFilterRowValue(row, v.value)">
                     {{ v.value }}<span class="n">{{ v.count }}</span>
                   </button>
                 </div>
               </template>
             </div>
           </div>
-          <q-btn outline no-caps dense size="sm" label="+ Add filter" :disable="selectedStepTypes.size === 0" @click="addFilterRow" />
-        </div>
-      </div>
-
-      <div class="actions">
-        <q-btn unelevated no-caps color="primary" label="Preview" :disable="selectedStepTypes.size === 0" :loading="previewLoading" @click="runPreview" />
-        <q-btn outline no-caps label="Clear" @click="resetBuilder" />
-        <div class="save-row" :class="{ highlight: previewResult && !newChartName.trim() }">
-          <div class="save-field">
-            <label>Chart name (required to save)</label>
-            <input v-model="newChartName" class="text-input" placeholder="e.g. Guardrail blocks per day" :disabled="!previewResult" />
+          <div>
+            <button type="button" class="add-condition" :disabled="!singleStep" @click="addFilterRow">+ Add condition</button>
           </div>
-          <q-btn outline no-caps color="primary" label="Save to Metrics" :disable="!previewResult || !newChartName.trim()" :loading="saving" @click="saveChart" />
         </div>
+
+        <template v-if="templates.length && hasSteps">
+          <div class="cc-divider" />
+          <button type="button" class="link-btn" @click="questionsOpen = !questionsOpen">
+            {{ questionsOpen ? "Hide questions" : `Try another question (${templates.length})` }}
+          </button>
+          <div v-if="questionsOpen" class="pill-row">
+            <button v-for="t in templates" :key="t.id" type="button" class="pill" :class="{ on: activeTemplate === t.id }" @click="applyTemplate(t)">
+              {{ t.question }}
+            </button>
+          </div>
+        </template>
       </div>
-      <p v-if="previewResult && !newChartName.trim()" class="hint save-hint">↑ Type a name above to enable "Save to Metrics"</p>
 
-      <p v-if="previewError" class="error-text">{{ previewError }}</p>
+      <div class="cc-preview-card" :class="{ empty: !hasSteps }">
+        <template v-if="!hasSteps">
+          <div class="ghost" aria-hidden="true">
+            <div v-for="w in [200, 150, 110, 60]" :key="w" class="ghost-row"><span class="ghost-label" /><span class="ghost-bar" :style="{ width: w + 'px' }" /></div>
+          </div>
+          <div class="cc-title">Your chart appears here</div>
+          <p class="hint cc-sub">Choose a question on the left and you will see the result right away, computed from your traces.</p>
+        </template>
 
-      <div v-if="previewResult" class="preview">
-        <div v-if="chartType === 'number'" class="number-tile">{{ previewTotal.toLocaleString() }}</div>
-        <table v-else-if="chartType === 'table'" class="result-table">
-          <thead><tr><th>{{ groupByAttribute || "Step type" }}</th><th>{{ METRICS.find((m) => m.value === metric)?.label }}</th></tr></thead>
-          <tbody><tr v-for="p in previewResult.points" :key="p.label"><td>{{ p.label }}</td><td>{{ p.value.toLocaleString() }}</td></tr></tbody>
-        </table>
-        <EChart v-else-if="previewOption" :option="previewOption" height="220px" label="Custom chart preview" />
-        <p v-if="!previewResult.points.length && !previewResult.timeseries.length" class="hint">No data for this combination in the selected range.</p>
+        <template v-else>
+          <div class="preview-head">
+            <div class="preview-name">
+              <TextInput v-model="newChartName" placeholder="Name this chart" @update:model-value="nameTouched = true" />
+              <span class="hint">{{ description }}</span>
+            </div>
+            <div class="seg" role="group" aria-label="Chart type">
+              <button v-for="t in CHART_TYPES" :key="t.value" type="button" class="seg-btn" :class="{ on: chartType === t.value }" @click="pickChartType(t.value)">
+                {{ t.label }}
+              </button>
+            </div>
+          </div>
+
+          <div class="preview-body" :class="{ stale: previewLoading }">
+            <p v-if="previewError" class="error-text">{{ previewError }}</p>
+
+            <div v-if="headline" class="headline">
+              <span class="headline-value">{{ headline.value }}</span>
+              <span v-if="headline.change" class="delta" :class="headline.change.tone">{{ headline.change.label }}</span>
+              <span class="hint">{{ headline.overall ? "overall" : "" }}{{ headline.overall && headline.change ? " · " : "" }}{{ headline.change ? `vs previous period (${headline.previous})` : "" }}</span>
+            </div>
+
+            <template v-if="previewResult">
+              <table v-if="chartType === 'table'" class="result-table">
+                <thead><tr><th>{{ groupHeader({ groupByAttribute: groupByAttribute || null }) }}</th><th>{{ metricLabel(metric) }}</th></tr></thead>
+                <tbody><tr v-for="p in previewRows" :key="p.label"><td>{{ p.label }}</td><td>{{ formatMetricValue(metric, p.value) }}</td></tr></tbody>
+              </table>
+              <EChart v-else-if="previewOption" :option="previewOption" height="240px" label="Custom chart preview" />
+              <p v-if="!previewResult.points.length && !previewResult.timeseries.length" class="hint">No data for this combination in the selected range.</p>
+            </template>
+            <p v-else-if="!previewError" class="hint">Loading…</p>
+
+            <div v-if="outlier" class="insight">
+              <q-icon name="warning_amber" size="18px" />
+              <span><b>{{ outlier.label }}</b> {{ outlier.text }}</span>
+            </div>
+          </div>
+
+          <div class="preview-foot">
+            <span class="hint foot-hint">{{ chartTypeTouched ? "" : "Chart type suggested for this data. Change it any time." }}</span>
+            <q-btn outline no-caps label="Start over" @click="resetBuilder" />
+            <q-btn unelevated no-caps color="primary" label="Save to Metrics" :disable="!previewResult || !newChartName.trim()" :loading="saving" @click="saveChart" />
+          </div>
+        </template>
       </div>
     </div>
 
-    <div v-if="saved.length || savedLoading" class="saved-section">
+    <div class="saved-section">
       <div class="saved-section-head">
         <h4>Saved charts</h4>
         <span class="panel-count">{{ saved.length }}</span>
       </div>
-      <div class="saved-list">
+      <p v-if="!saved.length && !savedLoading" class="hint">Charts you save show up here and refresh with the selected period.</p>
+      <div v-else class="saved-list">
         <div v-for="m in saved" :key="m.id" class="saved-card">
           <div class="saved-head">
             <span class="name">{{ m.name }}</span>
-            <q-btn flat dense no-caps size="sm" icon="close" @click="removeSaved(m.id)" />
+            <q-btn flat dense no-caps size="sm" icon="close" :aria-label="`Delete ${m.name}`" @click="removeSaved(m.id)" />
           </div>
           <div v-if="savedResults[m.id]" class="saved-chart">
             <div v-if="m.definition.chartType === 'number'" class="number-tile small">
-              {{ (savedResults[m.id]?.points.reduce((s, p) => s + p.value, 0) ?? 0).toLocaleString() }}
+              {{ formatMetricValue(m.definition.metric, singleNumber(m.definition.metric, savedResults[m.id]?.points ?? [])) }}
             </div>
             <table v-else-if="m.definition.chartType === 'table'" class="result-table">
-              <thead><tr><th>{{ m.definition.groupByAttribute || "Step type" }}</th><th>{{ METRICS.find((x) => x.value === m.definition.metric)?.label }}</th></tr></thead>
-              <tbody><tr v-for="p in savedResults[m.id]!.points" :key="p.label"><td>{{ p.label }}</td><td>{{ p.value.toLocaleString() }}</td></tr></tbody>
+              <thead><tr><th>{{ groupHeader(m.definition) }}</th><th>{{ metricLabel(m.definition.metric) }}</th></tr></thead>
+              <tbody><tr v-for="p in present(savedResults[m.id]!, m.definition).points" :key="p.label"><td>{{ p.label }}</td><td>{{ formatMetricValue(m.definition.metric, p.value) }}</td></tr></tbody>
             </table>
-            <EChart v-else :option="optionFor(savedResults[m.id]!, m.definition.chartType)" height="180px" :label="m.name" />
+            <EChart v-else :option="optionFor(savedResults[m.id]!, m.definition, m.definition.chartType)" height="180px" :label="m.name" />
           </div>
         </div>
       </div>
@@ -422,71 +562,11 @@ const METRICS: { value: CustomMetricDefinitionDto["metric"]; label: string }[] =
   font-size: 12.5px;
   color: var(--mt-muted);
 }
-.builder {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-.builder-step {
-  display: flex;
-  gap: 20px;
-  padding: 20px 0;
-  border-bottom: 1px solid var(--mt-line-2);
-}
-.builder-step:first-child {
-  padding-top: 0;
-}
-.step-head {
-  flex: 0 0 200px;
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-}
-.step-num {
-  flex-shrink: 0;
-  width: 22px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: var(--mt-soft);
-  color: var(--mt-muted);
-  font-size: 11px;
-  font-weight: 700;
-}
-.step-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--mt-ink);
-  letter-spacing: -0.01em;
-}
-.step-caption {
-  display: block;
-  font-size: 11.5px;
-  color: var(--mt-muted);
-  margin-top: 2px;
-}
-.step-body {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.row {
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-}
 .field {
-  flex: 1 1 220px;
+  flex: none;
   display: flex;
   flex-direction: column;
   gap: 6px;
-}
-.field.full {
-  flex: 1 1 100%;
 }
 .field label {
   font-size: 11.5px;
@@ -495,40 +575,10 @@ const METRICS: { value: CustomMetricDefinitionDto["metric"]; label: string }[] =
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
-.text-input {
-  width: 100%;
-  box-sizing: border-box;
-  height: 36px;
-  padding: 0 12px;
-  border-radius: var(--mt-radius-sm, 8px);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  font: inherit;
-  font-size: 13px;
-  color: var(--mt-ink);
-  transition: border-color 0.15s ease;
-}
-.text-input:hover {
-  border-color: var(--mt-muted);
-}
-.text-input:focus {
-  outline: 2px solid var(--mt-accent);
-  outline-offset: -1px;
-  border-color: var(--mt-accent);
-}
-select.text-input {
-  cursor: pointer;
-}
 .hint {
   font-size: 11.5px;
   color: var(--mt-muted);
 }
-.type-row {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.type-btn,
 .chip {
   font-family: inherit;
   cursor: pointer;
@@ -537,19 +587,6 @@ select.text-input {
   color: var(--mt-ink);
   border-radius: var(--mt-radius-sm, 8px);
   transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
-}
-.type-btn {
-  padding: 8px 14px;
-  font-size: 12.5px;
-  font-weight: 600;
-}
-.type-btn:hover {
-  border-color: var(--mt-muted);
-}
-.type-btn.on {
-  background: var(--mt-accent);
-  border-color: var(--mt-accent);
-  color: var(--mt-accent-ink, #fff);
 }
 .chip-select {
   display: flex;
@@ -607,12 +644,6 @@ select.text-input {
 .filter-block .filter-row select {
   flex: 1;
 }
-.axis-summary {
-  margin: 2px 0 0;
-  padding: 8px 12px;
-  background: var(--mt-soft);
-  border-radius: var(--mt-radius-sm, 8px);
-}
 .result-table {
   width: 100%;
   border-collapse: collapse;
@@ -639,65 +670,10 @@ select.text-input {
   flex-direction: column;
   gap: 8px;
 }
-.actions {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  flex-wrap: wrap;
-  padding-top: 20px;
-}
-.save-row {
-  display: flex;
-  gap: 8px;
-  align-items: flex-end;
-  margin-left: auto;
-  padding: 6px 10px;
-  border-radius: var(--mt-radius-sm, 8px);
-  transition: background 0.2s ease, box-shadow 0.2s ease;
-}
-.save-row.highlight {
-  background: color-mix(in srgb, var(--mt-accent) 10%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mt-accent) 35%, transparent);
-}
-.save-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.save-field label {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--mt-accent);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-.save-row .text-input {
-  width: 240px;
-}
-.save-hint {
-  margin: -4px 0 0;
-  color: var(--mt-accent);
-  font-weight: 600;
-}
 .error-text {
   font-size: 12.5px;
   color: var(--mt-err-ink);
   margin: 0;
-}
-.preview {
-  margin-top: 4px;
-  padding: 20px;
-  border: 1px solid var(--mt-line);
-  border-radius: var(--mt-radius-lg, 10px);
-  background: var(--mt-soft);
-}
-.number-tile {
-  font-size: 44px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-  padding: 10px 4px;
-  color: var(--mt-accent);
 }
 .number-tile.small {
   font-size: 28px;
@@ -755,5 +731,266 @@ select.text-input {
   font-size: 13px;
   font-weight: 600;
   color: var(--mt-ink);
+}
+
+.link-btn {
+  align-self: flex-start;
+  padding: 0;
+  font-family: inherit;
+  font-size: 11.5px;
+  color: var(--mt-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.cc-grid {
+  display: grid;
+  grid-template-columns: 380px minmax(0, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+@media (max-width: 1000px) {
+  .cc-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.cc-builder,
+.cc-preview-card {
+  border: 1px solid var(--mt-line);
+  border-radius: var(--mt-radius-lg, 10px);
+  background: var(--mt-card);
+}
+.cc-builder {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.cc-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--mt-ink);
+}
+.label-note {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--mt-muted);
+}
+.cc-sub {
+  margin: 0;
+}
+.cc-divider {
+  height: 1px;
+  background: var(--mt-line-2);
+}
+.eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--mt-muted);
+}
+.question-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.question-card,
+.pill {
+  font-family: inherit;
+  cursor: pointer;
+  color: var(--mt-ink);
+  background: var(--mt-card);
+  border: 1px solid var(--mt-line);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.question-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: var(--mt-radius-sm, 8px);
+}
+.question-card:hover,
+.pill:hover {
+  border-color: var(--mt-muted);
+}
+.q-text {
+  font-size: 13px;
+  font-weight: 700;
+}
+.q-basis {
+  font-size: 11.5px;
+  color: var(--mt-muted);
+}
+.pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pill {
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 999px;
+}
+.pill.on {
+  border-color: var(--mt-accent);
+  background: color-mix(in srgb, var(--mt-accent) 10%, transparent);
+}
+.add-condition {
+  font-family: inherit;
+  cursor: pointer;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--mt-muted);
+  background: none;
+  border: 1px dashed var(--mt-muted);
+  border-radius: var(--mt-radius-sm, 8px);
+}
+.add-condition:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.cc-preview-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.cc-preview-card.empty {
+  border-style: dashed;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 48px 24px;
+  min-height: 360px;
+  text-align: center;
+}
+.ghost {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 10px;
+  opacity: 0.55;
+}
+.ghost-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ghost-label {
+  width: 64px;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--mt-line);
+}
+.ghost-bar {
+  height: 18px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--mt-accent) 25%, transparent);
+}
+.preview-head {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--mt-line-2);
+}
+.preview-name {
+  flex: 1 1 260px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.seg {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--mt-radius-sm, 8px);
+  background: var(--mt-soft);
+}
+.seg-btn {
+  font-family: inherit;
+  cursor: pointer;
+  padding: 6px 11px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--mt-muted);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+}
+.seg-btn.on {
+  color: var(--mt-ink);
+  background: var(--mt-card);
+  box-shadow: var(--mt-shadow);
+}
+.preview-body {
+  padding: 16px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: opacity 0.15s ease;
+}
+.preview-body.stale {
+  opacity: 0.6;
+}
+.headline {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.headline-value {
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.delta {
+  align-self: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  font-weight: 800;
+  background: var(--mt-soft);
+  color: var(--mt-muted);
+}
+.delta.bad {
+  background: var(--mt-err-bg, #ffe4e9);
+  color: var(--mt-err-ink);
+}
+.delta.good {
+  background: var(--mt-ok-bg, #dcfce7);
+  color: var(--mt-ok-ink, #15803d);
+}
+.insight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--mt-radius-sm, 8px);
+  background: var(--mt-warn-bg, #fef3c7);
+  color: var(--mt-warn-ink, #92400e);
+  font-size: 13px;
+}
+.preview-foot {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--mt-line-2);
+  border-radius: 0 0 var(--mt-radius-lg, 10px) var(--mt-radius-lg, 10px);
+  background: var(--mt-soft);
+}
+.foot-hint {
+  flex: 1;
 }
 </style>

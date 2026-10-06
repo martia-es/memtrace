@@ -15,6 +15,7 @@ def build_assistant(model: str, capabilities: list[Capability]) -> Agent[Assista
     instructions = [BASE_INSTRUCTIONS]
     instructions += [capability.instructions for capability in capabilities]
     tools = [tool for capability in capabilities for tool in capability.tools]
+    toolsets = [toolset for capability in capabilities for toolset in capability.toolsets]
 
     return Agent(
         model,
@@ -22,4 +23,5 @@ def build_assistant(model: str, capabilities: list[Capability]) -> Agent[Assista
         output_type=str,
         instructions="\n\n".join(instructions),
         tools=tools,
+        toolsets=toolsets or None,
     )

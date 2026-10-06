@@ -21,11 +21,6 @@ void runs.run();
 
 const datasetId = ref<string | null>(null);
 const view = ref<"trend" | "run" | "compare">(props.compareIds ? "compare" : "trend");
-const VIEWS = [
-  { name: "trend", label: "Overview" },
-  { name: "run", label: "Run detail" },
-  { name: "compare", label: "Compare runs" },
-] as const;
 const runId = ref<string | null>(null);
 
 const ALL_DATASETS = "__all__";
@@ -42,6 +37,12 @@ const datasetSelection = computed({
 /** Tendencia: respeta el rango de la página. Run/Compare: todas las runs completadas, para poder elegir una antigua como baseline. */
 const inRange = computed(() => selectOfflineRuns(runs.data.value?.items ?? [], props.range, datasetId.value));
 const allCompleted = computed(() => selectOfflineRuns(runs.data.value?.items ?? [], { from: new Date(0).toISOString(), to: new Date(8.64e15).toISOString() }, datasetId.value));
+
+const seedIds = ref<[string, string] | null>(props.compareIds ?? null);
+function openCompare(ids: [string, string]) {
+  seedIds.value = ids;
+  view.value = "compare";
+}
 
 function openRun(run: RunListItemDto) {
   runId.value = run.id;
@@ -64,26 +65,22 @@ function openRun(run: RunListItemDto) {
       </div>
     </header>
 
-    <nav class="tabs" aria-label="Offline evaluation views">
-      <button v-for="v in VIEWS" :key="v.name" type="button" class="tab" :class="{ active: view === v.name }" :aria-current="view === v.name ? 'page' : undefined" @click="view = v.name">
-        {{ v.label }}
-      </button>
-    </nav>
+    <button v-if="view !== 'trend'" type="button" class="back" @click="view = 'trend'">← All runs</button>
 
     <ErrorBanner v-if="runs.error.value" :error="runs.error.value" @retry="runs.run()" />
     <div v-else-if="runs.loading.value && !runs.data.value" class="loading-box"><q-spinner size="32px" color="primary" /></div>
     <EmptyState v-else-if="!allCompleted.length" icon="science" title="No offline evaluation runs">No completed runs yet. Run <code>run_experiment</code> against a MemTrace dataset to see them here.</EmptyState>
 
     <template v-else>
-      <OfflineTrendView v-if="view === 'trend'" :runs="inRange" @open-run="openRun" />
+      <OfflineTrendView v-if="view === 'trend'" :runs="inRange" @open-run="openRun" @compare="openCompare" />
       <OfflineRunView v-else-if="view === 'run'" :runs="allCompleted" :run-id="runId" @update:run-id="runId = $event" />
-      <OfflineCompareView v-else :runs="allCompleted" :initial-ids="compareIds ?? null" />
+      <OfflineCompareView v-else :runs="allCompleted" :initial-ids="seedIds" />
     </template>
   </div>
 </template>
 
 <style scoped>
-.offline { display: flex; flex-direction: column; gap: 18px; font-family: var(--mt-sans); }
+.offline { display: flex; flex-direction: column; flex-shrink: 0; min-width: 0; gap: 18px; font-family: var(--mt-sans); background: var(--mt-card); border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); padding: 20px 22px; }
 .head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
 .titles h2 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -0.02em; }
 .sub { margin: 4px 0 0; color: var(--mt-muted); font-size: 13px; max-width: 680px; }
@@ -91,10 +88,7 @@ function openRun(run: RunListItemDto) {
 .filters { min-width: 220px; }
 .field { display: flex; flex-direction: column; gap: 4px; }
 .field-label { color: var(--mt-muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
-.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--mt-line); }
-.tab { position: relative; padding: 10px 14px; border: 0; background: none; color: var(--mt-muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
-.tab:hover { color: var(--mt-ink); }
-.tab.active { color: var(--mt-ink); }
-.tab.active::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--mt-accent); border-radius: 2px; }
+.back { align-self: flex-start; padding: 0; border: 0; background: none; color: var(--mt-muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.back:hover { color: var(--mt-ink); }
 .loading-box { display: flex; justify-content: center; align-items: center; min-height: 240px; }
 </style>

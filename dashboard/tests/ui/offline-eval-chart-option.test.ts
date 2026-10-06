@@ -1,6 +1,6 @@
 import type { RunListItemDto } from "@contract";
 import { describe, expect, it } from "vitest";
-import { buildOfflineSeries, judgeChangeNotices, offlineVerdict, passFailChartOption, selectOfflineRuns, summarizeEvaluators } from "@/ui/offline-eval-chart-option";
+import { buildOfflineSeries, judgeChangeNotices, offlineAttention, offlineVerdict, passFailChartOption, selectOfflineRuns, summarizeEvaluators } from "@/ui/offline-eval-chart-option";
 
 function run(id: string, createdAt: string, over: Partial<RunListItemDto> = {}): RunListItemDto {
   return { id, name: id, versionMajor: 1, versionMinor: 0, itemCount: 2, status: "completed", createdAt, aggregates: [], datasetId: "d1", datasetName: "D1", ...over };
@@ -109,5 +109,24 @@ describe("offlineVerdict and pass/fail breakdown", () => {
     const summary = summarizeEvaluators([run("a", "2026-03-01T00:00:00Z", { aggregates: [agg("x", 0.75)] })]);
     const option = passFailChartOption(summary, false) as { series: { name: string; data: number[] }[] };
     expect(option.series.map((s) => [s.name, s.data])).toEqual([["Passed", [3]], ["Failed", [1]]]);
+  });
+});
+
+describe("offlineAttention", () => {
+  const agg = (name: string, passRate: number, count = 4) => ({ name, dataType: "boolean" as const, passRate, average: null, count, judges: [] });
+  const attentionOf = (...runs: RunListItemDto[]) => offlineAttention(runs, summarizeEvaluators(runs));
+
+  it("is empty when every evaluator is healthy", () => {
+    expect(attentionOf(run("a", "2026-03-01T00:00:00Z", { aggregates: [agg("exact", 0.9)] }))).toEqual([]);
+  });
+
+  it("lists failing evaluators first and opens the latest run", () => {
+    const items = attentionOf(run("a", "2026-03-01T00:00:00Z", { aggregates: [agg("weak", 0.6), agg("bad", 0.25)] }));
+    expect(items.map((i) => [i.key, i.tone, i.runId])).toEqual([["failing:bad", "error", "a"], ["weak:weak", "warn", "a"]]);
+  });
+
+  it("flags a regression with the previous and latest runs to compare", () => {
+    const items = attentionOf(run("a", "2026-03-01T00:00:00Z", { aggregates: [agg("exact", 0.95)] }), run("b", "2026-03-02T00:00:00Z", { aggregates: [agg("exact", 0.85)] }));
+    expect(items).toMatchObject([{ key: "regressing:exact", compare: ["a", "b"] }]);
   });
 });

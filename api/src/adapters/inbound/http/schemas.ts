@@ -15,12 +15,18 @@ export const timeRangeShape = {
 
 export const lowRatedQuery = z.object({ ...timeRangeShape });
 
+const idList = z.string().min(1).max(8000).transform((v) => v.split(",").filter(Boolean)).pipe(z.array(z.string().max(200)).min(1).max(200));
+export const ratingsQuery = z
+  .object({ traceIds: idList.optional(), conversationIds: idList.optional() })
+  .refine((q) => Boolean(q.traceIds) !== Boolean(q.conversationIds), { message: "Pass exactly one of traceIds or conversationIds" });
+
 export const listTracesQuery = z.object({
   ...timeRangeShape,
   service: nonEmpty.optional(),
   status: z.enum(["ok", "error"]).optional(),
   hasErrors: boolean.optional(),
   minDurationMs: z.coerce.number().min(0).optional(),
+  text: z.string().min(1).max(200).optional(),
   conversationId: z.string().min(1).max(200).optional(),
   limit: z.coerce.number().int().optional(), // el rango 1..200 lo impone el servicio
   cursor: z.string().max(512).optional(),
@@ -42,6 +48,7 @@ export const listConversationsQuery = z.object({
   ...timeRangeShape,
   service: nonEmpty.optional(),
   hasErrors: boolean.optional(),
+  text: z.string().min(1).max(200).optional(),
   limit: z.coerce.number().int().optional(),
   cursor: z.string().max(512).optional(),
 });

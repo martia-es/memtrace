@@ -6,9 +6,11 @@ import { describeApiError } from "@/application/describe-api-error";
 import { useAsync } from "../../composables/useAsync";
 import { useAssistantApi } from "../../composables/useAssistantApi";
 import { formatRelativeTime } from "@/domain/format";
+import { personLabel } from "@/domain/assistants";
 import EmptyState from "../EmptyState.vue";
 import ErrorBanner from "../ErrorBanner.vue";
 import AddAccessModal from "./AddAccessModal.vue";
+import PersonAvatar from "./PersonAvatar.vue";
 
 /** Quién puede llamar a un entorno (ADR-053). Documentado y sincronizado desde el proveedor de identidad; MemTrace no lo hace cumplir. */
 const props = defineProps<{ experimentId: string; deployment: DeploymentSummaryDto; canGovern: boolean; nowMs: number }>();
@@ -56,7 +58,10 @@ function saved() {
       <thead><tr><th>Who</th><th>Type</th><th>People</th><th>Source</th><th /></tr></thead>
       <tbody>
         <tr v-for="g in grants.data.value ?? []" :key="g.id">
-          <td class="who">{{ g.subjectType === "everyone" ? "Everyone in the organization" : g.externalGroup ?? g.userId }}</td>
+          <td class="who">
+            <span v-if="g.user" class="person-cell"><PersonAvatar :name="g.user.name" :email="g.user.email" :image="g.user.image" :size="22" />{{ personLabel(g.user) }}</span>
+            <template v-else>{{ g.subjectType === "everyone" ? "Everyone in the organization" : g.externalGroup ?? g.userId }}</template>
+          </td>
           <td><span class="tag" :class="g.subjectType">{{ TYPE_LABEL[g.subjectType] }}</span></td>
           <td class="mono">{{ g.memberCount ?? (g.subjectType === "user" ? 1 : "–") }}</td>
           <td class="muted">{{ SOURCE_LABEL[g.source] }}<template v-if="g.syncedAt"> · {{ formatRelativeTime(g.syncedAt, nowMs) }}</template></td>
@@ -79,6 +84,7 @@ p { margin: 2px 0 0; font-size: 12px; color: var(--mt-muted); }
 th { height: 32px; padding: 0 10px; text-align: left; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--mt-muted); background: var(--mt-soft); }
 td { height: 42px; padding: 0 10px; border-top: 1px solid var(--mt-line-2); }
 .who { font-weight: 700; }
+.person-cell { display: inline-flex; align-items: center; gap: 8px; }
 .muted { color: var(--mt-muted); }
 .end { text-align: right; }
 .tag { display: inline-flex; height: 22px; align-items: center; padding: 0 8px; border-radius: var(--mt-radius-xs); font-size: 11.5px; font-weight: 700; background: var(--mt-soft); color: var(--mt-muted); }

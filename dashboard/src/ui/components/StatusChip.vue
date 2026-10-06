@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** Chip de estado del diseño (ADR-048): punto + etiqueta sobre fondo suave; el color solo comunica estado. */
-withDefaults(defineProps<{ tone?: "ok" | "error" | "warn" | "info" | "neutral"; label: string }>(), { tone: "neutral" });
+withDefaults(defineProps<{ tone?: "ok" | "error" | "warn" | "info" | "highlight" | "neutral"; label: string }>(), { tone: "neutral" });
 </script>
 
 <template>
@@ -30,5 +30,6 @@ withDefaults(defineProps<{ tone?: "ok" | "error" | "warn" | "info" | "neutral"; 
 .chip.ok { background: var(--mt-ok-bg); color: var(--mt-ok-ink); }
 .chip.error { background: var(--mt-err-bg); color: var(--mt-err-ink); }
 .chip.warn { background: var(--mt-warn-bg); color: var(--mt-warn-ink); }
+.chip.highlight { background: var(--mt-highlight-soft); color: var(--mt-highlight-ink); }
 .chip.info { background: var(--mt-accent-soft); color: var(--mt-accent-text); }
 </style>

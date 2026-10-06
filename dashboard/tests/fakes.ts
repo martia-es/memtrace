@@ -10,6 +10,7 @@ import type {
   AnnotationQueuesListResponse,
   ReviewerCandidatesResponse,
   LowRatedResponse,
+  AnnotationRatingsResponse,
   NextQueueItemResponse,
   QueueItemDto,
   QueueItemsResponse,
@@ -428,6 +429,10 @@ export class FakeTraceApi implements TraceApi {
   skipped: string[] = [];
   unreviewable: string[] = [];
   lowRated: LowRatedResponse = { count: 0, items: [] };
+  ratings: AnnotationRatingsResponse["items"] = [];
+  async getAnnotationRatings(): Promise<AnnotationRatingsResponse> {
+    return { items: this.ratings };
+  }
   async getLowRated(): Promise<LowRatedResponse> {
     return this.lowRated;
   }
@@ -680,7 +685,7 @@ export function queueDetail(overrides: Partial<AnnotationQueueDetailResponse> = 
 
 // ── Registro de asistentes (ADR-053) ───────────────────────────────────────────────────────────────────────────
 import type { AssistantApi } from "@/application/assistant-api";
-import type { AccessGrantDto, AssistantCardDto, ConnectionDto, DeploymentSummaryDto, HealthCheckDto, HealthStatusDto } from "@contract";
+import type { AccessGrantDto, AssistantPersonDto, AssistantCardDto, ConnectionDto, DeploymentSummaryDto, HealthCheckDto, HealthStatusDto } from "@contract";
 
 export function deploymentDto(key: string, status: HealthStatusDto, overrides: Partial<DeploymentSummaryDto> = {}): DeploymentSummaryDto {
   const isProduction = key === "pro";
@@ -698,7 +703,7 @@ export function deploymentDto(key: string, status: HealthStatusDto, overrides: P
 export function assistantCard(overrides: Partial<AssistantCardDto> = {}): AssistantCardDto {
   const deployments = overrides.deployments ?? [deploymentDto("dev", "up"), deploymentDto("pro", "up")];
   return {
-    experimentId: "exp-1", name: "weather-assistant", serviceName: "weather-assistant", description: "Answers forecast questions", owner: { id: "u1", name: "Marta F.", email: "m@acme.test" },
+    experimentId: "exp-1", name: "weather-assistant", serviceName: "weather-assistant", description: "Answers forecast questions", owner: { id: "u1", name: "Marta F.", email: "m@acme.test", image: null },
     lifecycle: "active", chat: null, createdAt: "2026-09-12T00:00:00.000Z", updatedAt: "2026-09-12T00:00:00.000Z",
     connectionCounts: { mcpServers: 2, tools: 7, agents: 1, toReview: 0 }, mcpServerNames: ["weather-mcp", "geocoding-mcp"], members: { total: 2, preview: [{ userId: "u1", name: "Marta Fernández", email: "m@acme.test", image: "https://photos.example/marta.png", role: "technical" }, { userId: "u2", name: null, email: "luis@acme.test", image: null, role: "business" }] }, status: "up", ...overrides, deployments,
   };
@@ -738,7 +743,9 @@ export class FakeAssistantApi implements AssistantApi {
   async checkDeploymentNow(experimentId: string, id: string) { this.record("checkDeploymentNow", experimentId, id); return deploymentDto("pro", "up"); }
   async getHealthHistory() { return this.history; }
   async listGrants() { return this.grants; }
-  async addGrant(experimentId: string, deploymentId: string, input: unknown) { this.record("addGrant", experimentId, deploymentId, input); return { id: "g-new", deploymentId, subjectType: "everyone" as const, userId: null, externalGroup: null, memberCount: null, source: "manual" as const, syncedAt: null }; }
+  async addGrant(experimentId: string, deploymentId: string, input: unknown) { this.record("addGrant", experimentId, deploymentId, input); return { id: "g-new", deploymentId, subjectType: "everyone" as const, userId: null, user: null, externalGroup: null, memberCount: null, source: "manual" as const, syncedAt: null }; }
+  people: AssistantPersonDto[] = [];
+  async searchPeople(experimentId: string, query: string) { this.record("searchPeople", experimentId, query); return this.people; }
   async removeGrant(experimentId: string, deploymentId: string, grantId: string) { this.record("removeGrant", experimentId, deploymentId, grantId); }
   async listConnections() { return this.connections; }
   async declareConnection(experimentId: string, input: unknown) { this.record("declareConnection", experimentId, input); return connectionDto(); }

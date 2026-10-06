@@ -18,6 +18,7 @@ import type {
   ConversationDetailResponse,
   ConversationListResponse,
   LowRatedResponse,
+  AnnotationRatingsResponse,
   ConversationTreeResponse,
   CustomMetricDefinitionDto,
   CustomMetricResultResponse,
@@ -56,6 +57,8 @@ export interface ListTracesParams extends RangeParams {
   status?: "ok" | "error";
   hasErrors?: boolean;
   minDurationMs?: number;
+  /** texto contenido en la entrada o salida capturadas */
+  text?: string;
   conversationId?: string;
   limit?: number;
   cursor?: string;
@@ -76,6 +79,8 @@ export interface ListSpansParams extends RangeParams {
 export interface ListConversationsParams extends RangeParams {
   service?: string;
   hasErrors?: boolean;
+  /** texto contenido en la entrada o salida capturadas */
+  text?: string;
   limit?: number;
   cursor?: string;
 }
@@ -149,6 +154,8 @@ export interface TraceApi {
   listAnnotationQueues(includeArchived?: boolean, signal?: AbortSignal): Promise<AnnotationQueuesListResponse>;
   /** trazas con alguna valoración humana baja en el rango, para "Needs attention" (ADR-049) */
   getLowRated(params: RangeParams, signal?: AbortSignal): Promise<LowRatedResponse>;
+  /** etiquetas humanas (y si alguna es baja) de las trazas o conversaciones de una página de lista; solo vuelven las que tienen alguna */
+  getAnnotationRatings(target: { traceIds: string[] } | { conversationIds: string[] }, signal?: AbortSignal): Promise<AnnotationRatingsResponse>;
   createAnnotationQueue(body: NewAnnotationQueueBody, signal?: AbortSignal): Promise<AnnotationQueueDto>;
   getAnnotationQueue(queueId: string, signal?: AbortSignal): Promise<AnnotationQueueDetailResponse>;
   /** Quién se puede asignar como revisor: miembros del experimento y org_admin (solo admin). */

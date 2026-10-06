@@ -93,6 +93,41 @@ function costCell(s: TelemetrySummary): string {
 }
 const hasLatency = computed(() => !!loaded.data.value && (loaded.data.value.latA.count > 0 || loaded.data.value.latB.count > 0));
 const SHOWN = 20;
+
+/** Bar width (%) for a metric value; rates live in 0-1, other averages scale to the larger of the two runs. */
+function barWidth(v: number | null, d: { a: number | null; b: number | null; isRate: boolean }): string {
+  if (v === null) return "0%";
+  const scale = d.isRate ? 1 : Math.max(d.a ?? 0, d.b ?? 0, 1);
+  return `${Math.max(2, Math.min(100, (v / scale) * 100))}%`;
+}
+
+interface LatencyRow { label: string; a: number | null; b: number | null }
+const latencyRows = computed<LatencyRow[]>(() => {
+  const l = loaded.data.value;
+  if (!l) return [];
+  return [
+    { label: "p50", a: l.latA.p50, b: l.latB.p50 },
+    { label: "p95", a: l.latA.p95, b: l.latB.p95 },
+  ].filter((r) => r.a !== null || r.b !== null);
+});
+function latWidth(v: number | null, r: LatencyRow): string {
+  if (v === null) return "0%";
+  return `${Math.max(2, (v / Math.max(r.a ?? 0, r.b ?? 0)) * 100)}%`;
+}
+/** Latency: lower is better, so a drop is the good direction. */
+function latDelta(r: LatencyRow): { text: string; cls: string } {
+  if (r.a === null || r.b === null || r.a === 0) return { text: "–", cls: "unset" };
+  const pct = ((r.b - r.a) / r.a) * 100;
+  if (Math.abs(pct) < 1) return { text: "≈ 0%", cls: "unset" };
+  return { text: `${pct > 0 ? "+" : ""}${pct.toFixed(0)}%`, cls: pct < 0 ? "ok" : "error" };
+}
+const unchangedPairs = computed(() => {
+  const l = loaded.data.value;
+  if (!l) return 0;
+  const flipped = new Set(flips.value.map((f) => f.pair.key));
+  return l.pairing.paired.length - flipped.size;
+});
+const netVerdict = computed(() => (regressions.value === 0 && improvements.value === 0 ? "neutral" : improvements.value >= regressions.value ? (regressions.value === 0 ? "good" : "mixed") : "bad"));
 </script>
 
 <template>
@@ -109,20 +144,25 @@ const SHOWN = 20;
         <strong>These runs use different datasets</strong> ({{ runA.datasetName }} vs {{ runB.datasetName }}). Aggregates are shown but the differences are not a like-for-like comparison.
       </section>
 
+      <section class="runs-strip">
+        <div class="run-chip a"><span class="tag-ab">A · baseline</span><strong>{{ offlineRunLabel(runA) }}</strong><span class="meta">{{ runA.datasetName }} v{{ runA.versionMajor }}.{{ runA.versionMinor }} · {{ formatDateTime(runA.createdAt) }}</span></div>
+        <span class="strip-arrow">→</span>
+        <div class="run-chip b"><span class="tag-ab">B · candidate</span><strong>{{ offlineRunLabel(runB) }}</strong><span class="meta">{{ runB.datasetName }} v{{ runB.versionMajor }}.{{ runB.versionMinor }} · {{ formatDateTime(runB.createdAt) }}</span></div>
+      </section>
+
       <section class="card">
-        <h3>Metrics</h3>
-        <table class="tbl">
-          <thead><tr><th>Evaluator</th><th>A</th><th>B</th><th>Δ</th><th></th></tr></thead>
-          <tbody>
-            <tr v-for="d in deltas" :key="d.name">
-              <td>{{ d.name }}</td>
-              <td>{{ fmt(d.a, d.isRate) }}</td>
-              <td>{{ fmt(d.b, d.isRate) }}</td>
-              <td :class="['delta', tone(d.delta)]">{{ fmtDelta(d.delta, d.isRate) }}</td>
-              <td><span v-if="d.judgeChanged" class="warn" title="The judge model or rubric differs between A and B (ADR-043)">⚠ judge changed</span></td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="card-head"><h3>Metrics</h3><span class="legend"><i class="sw a" /> A <i class="sw b" /> B</span></div>
+        <div v-for="d in deltas" :key="d.name" class="metric">
+          <div class="metric-name">
+            <strong>{{ d.name }}</strong>
+            <span v-if="d.judgeChanged" class="mt-pill warn" title="The judge model or rubric differs between A and B (ADR-043)">⚠ judge changed</span>
+          </div>
+          <div class="bars">
+            <div class="bar-row"><div class="track"><div class="fill a" :style="{ width: barWidth(d.a, d) }" /></div><span class="val">{{ fmt(d.a, d.isRate) }}</span></div>
+            <div class="bar-row"><div class="track"><div class="fill b" :class="tone(d.delta)" :style="{ width: barWidth(d.b, d) }" /></div><span class="val">{{ fmt(d.b, d.isRate) }}</span></div>
+          </div>
+          <span class="mt-pill delta-pill" :class="d.delta === null || d.delta === 0 ? 'unset' : d.delta > 0 ? 'ok' : 'error'">{{ d.delta !== null && d.delta !== 0 ? (d.delta > 0 ? "▲ " : "▼ ") : "" }}{{ fmtDelta(d.delta, d.isRate) }}</span>
+        </div>
         <p v-if="!deltas.length" class="hint">Neither run has numeric or boolean evaluators.</p>
       </section>
 
@@ -140,15 +180,15 @@ const SHOWN = 20;
               +{{ diffCounts.added }} added, ~{{ diffCounts.modified }} modified, −{{ diffCounts.removed }} removed, {{ loaded.data.value.diff.unchangedCount }} unchanged.
               Metrics may move because the items changed, not only the agent.
             </p>
-            <table v-if="changes.length" class="tbl">
+            <div v-if="changes.length" class="mt-table-wrap"><table class="mt-table">
               <thead><tr><th>Change</th><th>Input</th></tr></thead>
               <tbody>
                 <tr v-for="c in changes.slice(0, SHOWN)" :key="c.originItemId">
-                  <td><span class="tag" :class="c.kind">{{ c.kind }}</span></td>
+                  <td><span class="mt-pill" :class="c.kind === 'added' ? 'ok' : c.kind === 'removed' ? 'error' : 'warn'">{{ c.kind }}</span></td>
                   <td class="preview" :title="preview((c.after ?? c.before)?.input)">{{ preview((c.after ?? c.before)?.input) }}</td>
                 </tr>
               </tbody>
-            </table>
+            </table></div>
             <p v-if="changes.length > SHOWN" class="hint">Showing {{ SHOWN }} of {{ changes.length }} changes.</p>
           </template>
           <p v-else class="hint">The dataset version diff is not available for these runs.</p>
@@ -156,33 +196,48 @@ const SHOWN = 20;
 
         <section class="card">
           <h3>Items <span class="hint">({{ loaded.data.value.pairing.paired.length }} in both · {{ loaded.data.value.pairing.onlyA.length }} only in A · {{ loaded.data.value.pairing.onlyB.length }} only in B)</span></h3>
-          <p class="hint">Items are matched by identical input. {{ regressions }} regressed, {{ improvements }} improved.</p>
-          <table v-if="flips.length" class="tbl">
+          <div class="outcomes" :class="netVerdict">
+            <div class="outcome bad"><strong>{{ regressions }}</strong><span>regressed</span></div>
+            <div class="outcome good"><strong>{{ improvements }}</strong><span>improved</span></div>
+            <div class="outcome flat"><strong>{{ unchangedPairs }}</strong><span>unchanged</span></div>
+          </div>
+          <div v-if="loaded.data.value.pairing.paired.length" class="stack" aria-hidden="true">
+            <div class="seg bad" :style="{ flex: regressions }" />
+            <div class="seg good" :style="{ flex: improvements }" />
+            <div class="seg flat" :style="{ flex: unchangedPairs }" />
+          </div>
+          <p class="hint">Items are matched by identical input.</p>
+          <div v-if="flips.length" class="mt-table-wrap"><table class="mt-table">
             <thead><tr><th>Input</th><th>Evaluator</th><th>A → B</th><th>Dataset</th></tr></thead>
             <tbody>
               <tr v-for="(f, i) in flips.slice(0, SHOWN)" :key="`${f.pair.key}-${f.evaluator}-${i}`">
                 <td class="preview" :title="preview(f.pair.a.input)">{{ preview(f.pair.a.input) }}</td>
-                <td>{{ f.evaluator }}</td>
-                <td :class="['delta', f.outcome === 'improved' ? 'up' : 'down']">{{ f.before }} → {{ f.after }}</td>
-                <td><span v-if="datasetChangeFor(changes, f.pair.a.input)" class="tag modified">{{ datasetChangeFor(changes, f.pair.a.input)!.kind }}</span><span v-else class="hint">–</span></td>
+                <td class="strong">{{ f.evaluator }}</td>
+                <td><span class="mt-pill" :class="f.outcome === 'improved' ? 'ok' : 'error'">{{ f.before }} → {{ f.after }}</span></td>
+                <td><span v-if="datasetChangeFor(changes, f.pair.a.input)" class="mt-pill warn">{{ datasetChangeFor(changes, f.pair.a.input)!.kind }}</span><span v-else class="hint">–</span></td>
               </tr>
             </tbody>
-          </table>
+          </table></div>
           <p v-if="flips.length > SHOWN" class="hint">Showing {{ SHOWN }} of {{ flips.length }}; regressions first.</p>
         </section>
 
         <section class="card">
           <h3>Latency</h3>
-          <table v-if="hasLatency" class="tbl">
-            <thead><tr><th></th><th>A</th><th>B</th></tr></thead>
-            <tbody>
-              <tr><td>p50</td><td>{{ latencyCell(loaded.data.value.latA, "p50") }}</td><td>{{ latencyCell(loaded.data.value.latB, "p50") }}</td></tr>
-              <tr><td>p95</td><td>{{ latencyCell(loaded.data.value.latA, "p95") }}</td><td>{{ latencyCell(loaded.data.value.latB, "p95") }}</td></tr>
-              <tr><td>tokens in / out</td><td>{{ loaded.data.value.latA.inputTokens }} / {{ loaded.data.value.latA.outputTokens }}</td><td>{{ loaded.data.value.latB.inputTokens }} / {{ loaded.data.value.latB.outputTokens }}</td></tr>
-              <tr><td>cost</td><td>{{ costCell(loaded.data.value.latA) }}</td><td>{{ costCell(loaded.data.value.latB) }}</td></tr>
-              <tr><td>items with trace</td><td>{{ loaded.data.value.latA.count }} / {{ loaded.data.value.latA.total }}</td><td>{{ loaded.data.value.latB.count }} / {{ loaded.data.value.latB.total }}</td></tr>
-            </tbody>
-          </table>
+          <template v-if="hasLatency">
+            <div v-for="r in latencyRows" :key="r.label" class="metric">
+              <div class="metric-name"><strong>{{ r.label }}</strong></div>
+              <div class="bars">
+                <div class="bar-row"><div class="track"><div class="fill a" :style="{ width: latWidth(r.a, r) }" /></div><span class="val">{{ r.a !== null ? formatDuration(r.a) : "–" }}</span></div>
+                <div class="bar-row"><div class="track"><div class="fill b" :style="{ width: latWidth(r.b, r) }" /></div><span class="val">{{ r.b !== null ? formatDuration(r.b) : "–" }}</span></div>
+              </div>
+              <span class="mt-pill delta-pill" :class="latDelta(r).cls">{{ latDelta(r).text }}</span>
+            </div>
+            <div class="facts">
+              <div class="fact"><span>tokens in / out</span><strong>{{ loaded.data.value.latA.inputTokens }} / {{ loaded.data.value.latA.outputTokens }}</strong><i>→</i><strong>{{ loaded.data.value.latB.inputTokens }} / {{ loaded.data.value.latB.outputTokens }}</strong></div>
+              <div class="fact"><span>cost</span><strong>{{ costCell(loaded.data.value.latA) }}</strong><i>→</i><strong>{{ costCell(loaded.data.value.latB) }}</strong></div>
+              <div class="fact"><span>items with trace</span><strong>{{ loaded.data.value.latA.count }} / {{ loaded.data.value.latA.total }}</strong><i>→</i><strong>{{ loaded.data.value.latB.count }} / {{ loaded.data.value.latB.total }}</strong></div>
+            </div>
+          </template>
           <p v-else class="hint">Latency is not recorded for these runs: no item has a linked trace (ADR-044). Call <code>memtrace.init_tracer()</code> before <code>run_experiment</code>.</p>
         </section>
       </template>
@@ -192,20 +247,63 @@ const SHOWN = 20;
 </template>
 
 <style scoped>
-.compare { display: flex; flex-direction: column; gap: 14px; }
+.compare { display: flex; flex-direction: column; gap: 16px; font-family: var(--mt-sans); }
 .toolbar { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
 .pick { display: flex; flex-direction: column; gap: 4px; min-width: 260px; }
-.lbl { font-size: 11px; opacity: 0.7; }
-.arrow { padding-bottom: 8px; }
-.hint { margin: 0; font-size: 12px; opacity: 0.7; }
-h3 { margin: 0 0 10px; font-size: 13px; font-weight: 600; }
-.card { border: 1px solid var(--mt-border, rgba(128, 128, 128, 0.25)); border-radius: 8px; padding: 14px 16px; }
-.notice { border: 1px solid var(--q-negative, #b3261e); border-radius: 8px; padding: 10px 14px; font-size: 12px; }
-.tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
-.tbl th, .tbl td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--mt-border, rgba(128, 128, 128, 0.2)); }
-.preview { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.delta { font-weight: 600; }
-.delta.up { color: var(--q-positive, #2e7d32); }
-.delta.down, .warn { color: var(--q-negative, #b3261e); }
-.tag { font-size: 11px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--mt-border, rgba(128, 128, 128, 0.4)); }
+.lbl { color: var(--mt-muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+.arrow { padding-bottom: 8px; color: var(--mt-muted); }
+.hint { margin: 0; font-size: 12.5px; color: var(--mt-muted); }
+.hint code { font-family: var(--mt-mono); font-size: 12px; background: var(--mt-soft); padding: 1px 5px; border-radius: var(--mt-radius-sm); }
+h3 { margin: 0; font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+h3 .hint { font-weight: 400; }
+.card { background: var(--mt-card); border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); padding: 18px 20px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.card-head { display: flex; justify-content: space-between; align-items: center; }
+.notice { border: 1px solid var(--mt-warn); background: var(--mt-warn-bg); color: var(--mt-warn-ink); border-radius: var(--mt-radius-lg); padding: 10px 14px; font-size: 12.5px; }
+
+.runs-strip { display: flex; align-items: stretch; gap: 12px; flex-wrap: wrap; }
+.strip-arrow { align-self: center; font-size: 20px; color: var(--mt-faint); }
+.run-chip { flex: 1; min-width: 240px; display: flex; flex-direction: column; gap: 3px; padding: 12px 16px; border-radius: var(--mt-radius-lg); border: 1px solid var(--mt-line); border-left-width: 4px; background: var(--mt-card); }
+.run-chip.a { border-left-color: var(--mt-faint); }
+.run-chip.b { border-left-color: var(--mt-accent); background: var(--mt-accent-tint); }
+.tag-ab { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--mt-muted); }
+.run-chip strong { font-size: 15px; letter-spacing: -0.01em; }
+.meta { font-size: 12px; color: var(--mt-muted); }
+
+.legend { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--mt-muted); }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+.sw.a, .fill.a { background: var(--mt-faint); opacity: 0.55; }
+.sw.b, .fill.b { background: var(--mt-accent); }
+.fill.b.up { background: var(--mt-ok); }
+.fill.b.down { background: var(--mt-err); }
+
+.metric { display: grid; grid-template-columns: 170px 1fr 92px; align-items: center; gap: 16px; padding: 10px 0; border-top: 1px solid var(--mt-line-2); }
+.metric:first-of-type { border-top: 0; }
+.metric-name { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.metric-name strong { font-size: 13px; overflow-wrap: anywhere; }
+.bars { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.bar-row { display: flex; align-items: center; gap: 10px; }
+.track { flex: 1; height: 10px; border-radius: 5px; background: var(--mt-soft); overflow: hidden; }
+.fill { height: 100%; border-radius: 5px; transition: width 0.4s ease; }
+.val { width: 64px; text-align: right; font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.delta-pill { justify-self: end; font-size: 13px; padding: 4px 10px; }
+
+.outcomes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.outcome { display: flex; flex-direction: column; gap: 2px; padding: 12px 16px; border-radius: var(--mt-radius-lg); background: var(--mt-soft); }
+.outcome strong { font-size: 26px; letter-spacing: -0.03em; line-height: 1.1; }
+.outcome span { font-size: 12px; font-weight: 600; color: var(--mt-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.outcome.bad { background: var(--mt-err-bg); } .outcome.bad strong { color: var(--mt-err-ink); }
+.outcome.good { background: var(--mt-ok-bg); } .outcome.good strong { color: var(--mt-ok-ink); }
+.stack { display: flex; height: 8px; border-radius: 4px; overflow: hidden; gap: 2px; }
+.seg.bad { background: var(--mt-err); } .seg.good { background: var(--mt-ok); } .seg.flat { background: var(--mt-line); }
+
+.facts { display: flex; flex-direction: column; gap: 6px; padding-top: 10px; border-top: 1px solid var(--mt-line-2); }
+.fact { display: flex; align-items: baseline; gap: 10px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.fact span { width: 170px; color: var(--mt-muted); }
+.fact i { font-style: normal; color: var(--mt-faint); }
+
+@media (max-width: 720px) {
+  .metric { grid-template-columns: 1fr; gap: 8px; }
+  .delta-pill { justify-self: start; }
+  .outcomes { grid-template-columns: 1fr; }
+}
 </style>

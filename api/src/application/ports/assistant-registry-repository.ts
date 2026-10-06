@@ -1,5 +1,6 @@
 import type {
   AccessGrant,
+  AssistantPerson,
   AssistantCard,
   AssistantPatch,
   Connection,
@@ -62,4 +63,6 @@ export interface AssistantRegistryRepository {
   /** Lanza `AssistantInvariantError` si ya existe ese acceso. null si el despliegue no es de ese experimento. */
   addGrant(experimentId: string, deploymentId: string, grant: NewGrant, createdBy: string): Promise<AccessGrant | null>;
   removeGrant(experimentId: string, deploymentId: string, grantId: string): Promise<boolean>;
+  /** Personas de la organización del experimento cuyo nombre o email contiene `query`, por nombre. null si el experimento no existe. */
+  searchPeople(experimentId: string, query: string, limit: number): Promise<AssistantPerson[] | null>;
 }

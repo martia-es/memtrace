@@ -9,6 +9,7 @@ import type { ExperimentDto, OrganizationDto } from "@/application/identity-api"
 import AdminHomePage from "@/ui/pages/admin/AdminHomePage.vue";
 import AdminOrganizationPage from "@/ui/pages/admin/AdminOrganizationPage.vue";
 import AdminExperimentPage from "@/ui/pages/admin/AdminExperimentPage.vue";
+import { chooseOption, optionLabels } from "./select";
 import { FakeIdentityApi, FakeTraceApi } from "../fakes";
 
 const THEME = { accentColor: null, radiusPreset: null };
@@ -88,7 +89,7 @@ describe("admin pages", () => {
   it("creating an experiment creates the agent: the card fields travel with it (ADR-054)", async () => {
     const identity = new AdminFakeIdentityApi([org], [exp]);
     const { wrapper } = await setup(AdminOrganizationPage, "/admin/organizations/org-1", identity);
-    const newButton = wrapper.findAll("button").find((b) => b.text() === "New experiment")!;
+    const newButton = wrapper.findAll("button").find((b) => b.text() === "+ New experiment")!;
     await newButton.trigger("click");
     await flushPromises();
     const dialog = document.body.querySelector("[role='dialog']")!;
@@ -132,7 +133,7 @@ describe("admin pages", () => {
       const { identity, wrapper } = await open();
       expect(wrapper.find("[data-testid=no-mappings]").exists()).toBe(true);
       await wrapper.get("[data-testid=mapping-group]").setValue("ai-team");
-      await wrapper.get("[data-testid=mapping-target]").setValue("exp-1");
+      await chooseOption(wrapper.element, "[data-testid=mapping-target]", "Support bot");
       await wrapper.get("[data-testid=add-mapping]").trigger("submit");
       await flushPromises();
       expect(identity.identity.mappings).toMatchObject([{ externalGroup: "ai-team", experimentId: "exp-1", role: "technical" }]);
@@ -142,10 +143,10 @@ describe("admin pages", () => {
 
     it("offers organization roles for the whole organization and experiment roles for an experiment", async () => {
       const { wrapper } = await open();
-      const roles = () => wrapper.findAll("[data-testid=mapping-role] option").map((o) => o.text());
-      expect(roles()).toEqual(["org_admin"]);
-      await wrapper.get("[data-testid=mapping-target]").setValue("exp-1");
-      expect(roles()).toEqual(["technical", "business"]);
+      const roles = () => optionLabels(wrapper.element, "[data-testid=mapping-role]");
+      expect(await roles()).toEqual(["org_admin"]);
+      await chooseOption(wrapper.element, "[data-testid=mapping-target]", "Support bot");
+      expect(await roles()).toEqual(["technical", "business"]);
     });
 
     it("removes a mapping", async () => {

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import TextInput from "@/ui/components/TextInput.vue";
+import Select from "./Select.vue";
 import { computed, ref } from "vue";
 import { useQuasar } from "quasar";
 import type { PromotionSkipReasonDto, SpanNodeDto } from "@contract";
@@ -34,6 +36,7 @@ const input = ref(draft?.input ?? "");
 const expected = ref("");
 const saving = ref(false);
 const items = computed(() => datasets.data.value?.items ?? []);
+const datasetOptions = computed(() => items.value.map((d) => ({ label: d.name, value: d.id })));
 const canSave = computed(() => !!datasetId.value && input.value.trim() !== "" && !saving.value);
 
 async function save() {
@@ -66,20 +69,17 @@ async function save() {
     <form v-else class="form" @submit.prevent="save">
       <label class="field">
         <span>Dataset</span>
-        <select v-model="datasetId" data-testid="dataset-select">
-          <option :value="null" disabled>Choose a dataset…</option>
-          <option v-for="d in items" :key="d.id" :value="d.id">{{ d.name }}</option>
-        </select>
+        <Select v-model="datasetId" :options="datasetOptions" placeholder="Choose a dataset…" data-testid="dataset-select" />
       </label>
       <label class="field">
         <span>Input</span>
-        <textarea v-model="input" rows="5" data-testid="input" spellcheck="false" />
+        <TextInput v-model="input" multiline mono :rows="5" data-testid="input" spellcheck="false" />
         <small v-if="!draft" class="warn" data-testid="no-content">No input was saved in this trace: type the input to use.</small>
         <small v-else class="muted">Copied from the trace. Remove personal data here: the item is a long-lived copy.</small>
       </label>
       <label class="field">
         <span>Expected output</span>
-        <textarea v-model="expected" rows="3" data-testid="expected" spellcheck="false" placeholder="The correct answer (optional)" />
+        <TextInput v-model="expected" multiline mono :rows="3" data-testid="expected" spellcheck="false" placeholder="The correct answer (optional)" />
         <small v-if="!expected.trim()" class="muted" data-testid="no-expected">Without it, only evaluators that need no reference (e.g. LLM-as-judge) can score this item.</small>
       </label>
       <p v-if="draft?.observedOutput" class="observed muted">

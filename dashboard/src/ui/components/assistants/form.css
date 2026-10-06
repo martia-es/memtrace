@@ -1,14 +1,6 @@
 .modal-form { display: flex; flex-direction: column; gap: 12px; }
 .field { display: flex; flex-direction: column; gap: 4px; }
 .field > span { font-size: 12px; font-weight: 700; color: var(--mt-muted); }
-.text-input {
-  box-sizing: border-box; width: 100%; height: 34px; padding: 0 10px;
-  font: inherit; font-size: 13px; color: var(--mt-ink);
-  background: var(--mt-card); border: 1px solid var(--mt-line); border-radius: var(--mt-radius-sm);
-}
-textarea.text-input { height: auto; padding: 8px 10px; resize: vertical; }
-.text-input:focus-visible { outline: 2px solid var(--mt-accent); outline-offset: 1px; }
-.text-input.invalid { border-color: var(--mt-err); }
 .field-error { font-size: 12px; color: var(--mt-err-ink); font-weight: 600; }
 .hint { margin: 0; font-size: 12px; color: var(--mt-muted); }
 .check { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }

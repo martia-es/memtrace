@@ -85,7 +85,7 @@ const sync = () =>
           <table class="grid">
             <thead>
               <tr>
-                <th>Name</th><th v-if="g.kind === 'tool'">Via</th><th>Source</th><th v-if="g.kind === 'tool'" class="num">Calls</th><th v-if="g.kind === 'tool'" class="num">Errors</th><th>Last seen</th><th>Status</th><th />
+                <th>Name</th><th v-if="g.kind === 'tool'">Via</th><th>Source</th><th v-if="g.kind !== 'agent'" class="num">Calls</th><th v-if="g.kind !== 'agent'" class="num">Errors</th><th>Last seen</th><th>Status</th><th />
               </tr>
             </thead>
             <tbody>
@@ -93,8 +93,8 @@ const sync = () =>
                 <td class="name">{{ c.name }}<span v-if="g.kind === 'agent' && !c.peerExperimentId" class="outside">Not in catalog</span></td>
                 <td v-if="g.kind === 'tool'" class="mono muted">{{ c.via ?? "local function" }}</td>
                 <td class="muted">{{ ORIGIN_LABEL[connectionOrigin(c)] }}</td>
-                <td v-if="g.kind === 'tool'" class="num mono">{{ c.usage ? formatCount(c.usage.calls) : "–" }}</td>
-                <td v-if="g.kind === 'tool'" class="num mono" :class="{ bad: (errorRate(c.usage) ?? 0) >= 0.02 }">{{ errorRate(c.usage) === null ? "–" : formatPercent(errorRate(c.usage)!) }}</td>
+                <td v-if="g.kind !== 'agent'" class="num mono">{{ c.usage ? formatCount(c.usage.calls) : "–" }}</td>
+                <td v-if="g.kind !== 'agent'" class="num mono" :class="{ bad: (errorRate(c.usage) ?? 0) >= 0.02 }">{{ errorRate(c.usage) === null ? "–" : formatPercent(errorRate(c.usage)!) }}</td>
                 <td class="muted">{{ c.lastSeenAt ? formatRelativeTime(c.lastSeenAt, nowMs) : "never" }}</td>
                 <td><StatusChip :tone="STATUS[c.status].tone" :label="STATUS[c.status].label" /></td>
                 <td class="actions">

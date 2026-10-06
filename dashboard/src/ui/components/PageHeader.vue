@@ -1,89 +1,60 @@
 <script setup lang="ts">
-withDefaults(
-  defineProps<{
-    crumbs: { label: string; to?: { name: string; params?: Record<string, string> } }[];
-    icon: string;
-    title: string;
-  }>(),
-  {},
-);
+import { computed } from "vue";
+import TopbarSlot from "./TopbarSlot.vue";
+
+const props = defineProps<{
+  crumbs: { label: string; to?: { name: string; params?: Record<string, string> } }[];
+  title: string;
+  /** en desuso: el topbar ya no pinta icono; se acepta para no romper llamadas existentes */
+  icon?: string;
+}>();
+
+// la raíz "MemTrace" es el logo del sidebar: no se repite. El último nivel es `title`.
+const ancestors = computed(() => props.crumbs.slice(0, -1).filter((c) => c.label !== "MemTrace"));
 </script>
 
 <template>
-  <header class="page-header">
+  <TopbarSlot side="left">
     <nav class="crumbs" aria-label="Breadcrumb">
-      <template v-for="(c, i) in crumbs" :key="i">
+      <template v-for="(c, i) in ancestors" :key="i">
         <router-link v-if="c.to" :to="c.to" class="crumb link">{{ c.label }}</router-link>
-        <span v-else class="crumb current">{{ c.label }}</span>
-        <span v-if="i < crumbs.length - 1" class="sep">/</span>
+        <span v-else class="crumb">{{ c.label }}</span>
+        <span class="sep">/</span>
       </template>
+      <h1>{{ title }}</h1>
     </nav>
-    <div class="title-row">
-      <div class="title-main">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="icon"><path :d="icon" /></svg>
-        <h1>{{ title }}</h1>
-      </div>
-      <div class="title-actions">
-        <slot />
-      </div>
-    </div>
-  </header>
+  </TopbarSlot>
+  <TopbarSlot side="right">
+    <slot />
+  </TopbarSlot>
 </template>
 
 <style scoped>
-.page-header {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  flex-shrink: 0;
-}
 .crumbs {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--mt-muted);
+  gap: 8px;
+  min-width: 0;
+  white-space: nowrap;
 }
-.crumb.link {
+.crumb {
   color: var(--mt-muted);
+  font-size: 13px;
+  font-weight: 700;
   text-decoration: none;
 }
 .crumb.link:hover {
   color: var(--mt-accent-text);
-  text-decoration: underline;
-}
-.crumb.current {
-  color: var(--mt-muted);
 }
 .sep {
   color: var(--mt-faint);
 }
-.title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.title-main {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-.icon {
-  flex-shrink: 0;
-  color: var(--mt-accent);
-}
-.title-main h1 {
+h1 {
   margin: 0;
-  font-size: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 16px;
   font-weight: 800;
-  letter-spacing: -0.02em;
-}
-.title-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  letter-spacing: -0.01em;
 }
 </style>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from "@/ui/components/TextInput.vue";
 import type { CustomMetricDefinitionDto, CustomMetricPointDto } from "@contract";
 import { computed, reactive, ref, watch } from "vue";
 import { useQuasar } from "quasar";
@@ -6,7 +7,8 @@ import { GridItem, GridLayout } from "grid-layout-plus";
 import EChart from "./EChart.vue";
 import EmptyState from "./EmptyState.vue";
 import ErrorBanner from "./ErrorBanner.vue";
-import { customMetricChartOption } from "../custom-metric-chart-option";
+import { customMetricChartOption, presentResult } from "../custom-metric-chart-option";
+import { formatMetricValue, singleNumber } from "@/domain/custom-chart-vocabulary";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import type { MetricReportDto, SavedCustomMetricDto } from "@/application/identity-api";
@@ -58,7 +60,7 @@ const results = reactive<Record<string, ChartResult | null>>({});
 
 async function loadResultFor(id: string, definition: CustomMetricDefinitionDto) {
   try {
-    results[id] = await api.queryCustomMetric(definition, props.range);
+    results[id] = presentResult(await api.queryCustomMetric(definition, props.range), definition);
   } catch {
     results[id] = null;
   }
@@ -70,8 +72,8 @@ async function loadAllResults() {
 }
 watch([report, () => props.range], loadAllResults);
 
-function optionFor(result: ChartResult, type: CustomMetricDefinitionDto["chartType"]) {
-  return customMetricChartOption(result, type, $q.dark.isActive);
+function optionFor(result: ChartResult, type: CustomMetricDefinitionDto["chartType"], metric: CustomMetricDefinitionDto["metric"]) {
+  return customMetricChartOption(result, type, $q.dark.isActive, metric);
 }
 
 // ---- modo edición: añadir/quitar charts ya guardados y mover/redimensionar el grid (ADR-035) ----
@@ -177,7 +179,7 @@ async function sendEmail() {
     <div class="report-toolbar">
       <div class="report-title">
         <template v-if="renaming">
-          <input v-model="renameValue" class="text-input rename-input" @keyup.enter="saveRename" @keyup.escape="renaming = false" />
+          <TextInput class="rename-input" v-model="renameValue" @keyup.enter="saveRename" @keyup.escape="renaming = false" />
           <q-btn unelevated no-caps dense size="sm" color="primary" label="Save" :disable="!renameValue.trim()" @click="saveRename" />
           <q-btn flat no-caps dense size="sm" label="Cancel" @click="renaming = false" />
         </template>
@@ -189,13 +191,13 @@ async function sendEmail() {
 
       <div class="report-actions">
         <template v-if="editMode">
-          <q-btn outline no-caps dense label="Cancel" @click="cancelEdit" />
-          <q-btn unelevated no-caps dense color="primary" label="Save layout" :loading="savingLayout" @click="saveLayout" />
+          <button type="button" class="small-btn" @click="cancelEdit">Cancel</button>
+          <button type="button" class="small-btn primary" :disabled="savingLayout" @click="saveLayout">Save layout</button>
         </template>
         <template v-else>
-          <q-btn outline no-caps dense label="Send by email" @click="openSendDialog" />
-          <q-btn outline no-caps dense label="Edit layout" @click="enterEdit" />
-          <q-btn flat no-caps dense color="negative" label="Delete" @click="confirmingDelete = true" />
+          <button type="button" class="small-btn" @click="openSendDialog">Send by email</button>
+          <button type="button" class="small-btn" @click="enterEdit">Edit layout</button>
+          <button type="button" class="small-btn danger" @click="confirmingDelete = true">Delete</button>
         </template>
       </div>
     </div>
@@ -229,23 +231,23 @@ async function sendEmail() {
           <div class="report-chart-body">
             <template v-if="chartById.get(item.i)">
               <div v-if="chartById.get(item.i)!.definition.chartType === 'number'" class="number-tile small">
-                {{ (results[item.i]?.points.reduce((s, p) => s + p.value, 0) ?? 0).toLocaleString() }}
+                {{ formatMetricValue(chartById.get(item.i)!.definition.metric, singleNumber(chartById.get(item.i)!.definition.metric, results[item.i]?.points ?? [])) }}
               </div>
               <table v-else-if="chartById.get(item.i)!.definition.chartType === 'table'" class="result-table">
                 <thead>
                   <tr>
-                    <th>{{ chartById.get(item.i)!.definition.groupByAttribute || "Step type" }}</th>
+                    <th>{{ chartById.get(item.i)!.definition.groupByAttribute || "Step" }}</th>
                     <th>Value</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="p in results[item.i]?.points ?? []" :key="p.label">
                     <td>{{ p.label }}</td>
-                    <td>{{ p.value.toLocaleString() }}</td>
+                    <td>{{ formatMetricValue(chartById.get(item.i)!.definition.metric, p.value) }}</td>
                   </tr>
                 </tbody>
               </table>
-              <EChart v-else-if="results[item.i]" :option="optionFor(results[item.i]!, chartById.get(item.i)!.definition.chartType)" height="100%" :label="chartById.get(item.i)!.name" />
+              <EChart v-else-if="results[item.i]" :option="optionFor(results[item.i]!, chartById.get(item.i)!.definition.chartType, chartById.get(item.i)!.definition.metric)" height="100%" :label="chartById.get(item.i)!.name" />
               <div v-else class="loading-box small"><q-spinner size="20px" color="primary" /></div>
             </template>
           </div>
@@ -268,7 +270,7 @@ async function sendEmail() {
         <q-card-section>
           <div class="send-title">Send "{{ report?.name }}" by email</div>
           <p class="hint">Sends a text summary (one table per chart) over the current time range — no PDF attachment.</p>
-          <input v-model="sendEmails" class="text-input" placeholder="emails separated by comma" />
+          <TextInput v-model="sendEmails" placeholder="emails separated by comma" />
           <p v-if="sendError" class="error-text">{{ sendError }}</p>
           <p v-if="sendSuccess" class="success-text">Sent.</p>
         </q-card-section>
@@ -323,8 +325,38 @@ async function sendEmail() {
 .icon-link:hover {
   color: var(--mt-accent);
 }
+.small-btn {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: var(--mt-radius-sm);
+  border: 1px solid var(--mt-line);
+  background: var(--mt-card);
+  color: var(--mt-ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.small-btn:hover:not(:disabled) {
+  border-color: var(--mt-accent);
+  color: var(--mt-accent);
+}
+.small-btn.primary {
+  border-color: var(--mt-accent);
+  color: var(--mt-accent);
+}
+.small-btn.danger {
+  border-color: transparent;
+  background: none;
+  color: var(--mt-danger, #c10015);
+}
+.small-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 .report-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
@@ -468,22 +500,6 @@ async function sendEmail() {
   font-size: 11.5px;
   text-transform: uppercase;
   letter-spacing: 0.02em;
-}
-.text-input {
-  width: 100%;
-  box-sizing: border-box;
-  height: 36px;
-  padding: 0 12px;
-  border-radius: var(--mt-radius-sm, 8px);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  font: inherit;
-  font-size: 13px;
-  color: var(--mt-ink);
-}
-.text-input:focus {
-  outline: 2px solid var(--mt-accent);
-  outline-offset: -1px;
 }
 .confirm-card,
 .send-card {

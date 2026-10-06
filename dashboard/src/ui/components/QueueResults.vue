@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import TextInput from "@/ui/components/TextInput.vue";
+import Select from "./Select.vue";
 import { computed, reactive, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useQuasar } from "quasar";
@@ -49,6 +51,11 @@ const configs = computed(() => results.data.value?.configs ?? []);
 const rows = computed(() => results.data.value?.items ?? []);
 const configById = computed(() => new Map(configs.value.map((c) => [c.id, c])));
 const categorical = computed(() => configs.value.filter((c) => c.dataType === "categorical" && !c.archivedAt));
+const datasetOptions = computed(() => (datasets.data.value?.items ?? []).map((d) => ({ label: d.name, value: d.id })));
+const referenceOptions = computed(() => [
+  { label: "Expected output: only what I typed", value: "" },
+  ...categorical.value.map((c) => ({ label: `Expected output from “${c.name}”`, value: c.id })),
+]);
 
 const openRow = ref<string | null>(null);
 const drafts = reactive<Record<string, { value: string; expected: string }>>({});
@@ -201,9 +208,9 @@ async function promote() {
                       @click="drafts[key(row, crit.configId)]!.value = c.value"
                     >{{ c.label }}</button>
                   </template>
-                  <input v-else v-model="drafts[key(row, crit.configId)]!.value" class="text-input" type="number" aria-label="Final value" />
+                  <TextInput v-else v-model="drafts[key(row, crit.configId)]!.value" type="number" aria-label="Final value" />
                 </div>
-                <textarea v-if="drafts[key(row, crit.configId)]" v-model="drafts[key(row, crit.configId)]!.expected" rows="2" class="text-input expected" placeholder="Correct answer (optional): what the agent should have said" aria-label="Expected output" />
+                <TextInput multiline class="expected" v-if="drafts[key(row, crit.configId)]" v-model="drafts[key(row, crit.configId)]!.expected" :rows="2" placeholder="Correct answer (optional): what the agent should have said" aria-label="Expected output" />
                 <div class="decide">
                   <button type="button" class="small-btn" :disabled="!drafts[key(row, crit.configId)]?.value" data-testid="save-resolution" @click="save(row, crit)">Save decision</button>
                   <button v-if="crit.resolution" type="button" class="small-btn" data-testid="clear-resolution" @click="clear(row, crit)">Clear decision</button>
@@ -217,14 +224,8 @@ async function promote() {
 
     <div v-if="rows.length" class="promote" data-testid="promote-bar">
       <strong>{{ chosen.length }} selected</strong>
-      <select v-model="datasetId" aria-label="Dataset" data-testid="promote-dataset">
-        <option :value="null" disabled>Choose a dataset…</option>
-        <option v-for="d in datasets.data.value?.items ?? []" :key="d.id" :value="d.id">{{ d.name }}</option>
-      </select>
-      <select v-model="referenceId" aria-label="Expected output from" data-testid="promote-config">
-        <option value="">Expected output: only what I typed</option>
-        <option v-for="c in categorical" :key="c.id" :value="c.id">Expected output from “{{ c.name }}”</option>
-      </select>
+      <Select v-model="datasetId" :options="datasetOptions" placeholder="Choose a dataset…" aria-label="Dataset" data-testid="promote-dataset" />
+      <Select v-model="referenceId" :options="referenceOptions" aria-label="Expected output from" data-testid="promote-config" />
       <button type="button" class="small-btn primary" data-testid="promote-run" :disabled="!canPromote" @click="promote">Add to dataset</button>
       <p class="muted">Items are copies and each batch of 100 creates one new dataset version. Rows where reviewers disagree can’t be selected until you resolve them.</p>
     </div>
@@ -358,20 +359,6 @@ h4 {
   border-color: var(--mt-accent);
   color: var(--mt-accent);
   font-weight: 700;
-}
-.text-input {
-  box-sizing: border-box;
-  padding: 4px 8px;
-  border-radius: var(--mt-radius-sm);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  font: inherit;
-  font-size: 12.5px;
-  color: var(--mt-ink);
-}
-.text-input.expected {
-  width: 100%;
-  resize: vertical;
 }
 .promote {
   display: flex;

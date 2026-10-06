@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from "@/ui/components/TextInput.vue";
 import type { DatasetItemDto } from "@contract";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { onBeforeRouteLeave } from "vue-router";
@@ -174,9 +175,7 @@ defineExpose({ dirty });
 <template>
   <div ref="root" class="editor">
     <div class="toolbar">
-      <q-input v-model="search" dense outlined placeholder="Search items…" class="search" clearable>
-        <template #prepend><q-icon name="search" size="18px" /></template>
-      </q-input>
+      <TextInput type="search" v-model="search" placeholder="Search items…" class="search" />
       <template v-if="selected.size > 0">
         <span class="muted">{{ selected.size }} selected</span>
         <button type="button" class="ghost-btn small" @click="duplicateSelected">Duplicate</button>
@@ -275,7 +274,7 @@ defineExpose({ dirty });
     <Modal v-if="detailRow" title="Item details" @close="detailKey = null">
       <div class="modal-form">
         <label class="field-label" for="item-metadata">Metadata (JSON object, optional)</label>
-        <textarea id="item-metadata" v-model="detailRow.metadata" class="text-area" rows="5" placeholder='{"source": "manual"}'></textarea>
+        <TextInput id="item-metadata" v-model="detailRow.metadata" multiline mono :rows="5" placeholder='{"source": "manual"}' />
         <div v-if="rowProblem(detailRow)" class="problem-text">{{ rowProblem(detailRow) }}</div>
         <template v-if="detailRow.id && itemsById.get(detailRow.id)">
           <label class="field-label">Audit</label>

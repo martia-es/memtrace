@@ -15,6 +15,8 @@ class Settings:
     model: str
     open_meteo_geocoding_url: str
     open_meteo_forecast_url: str
+    open_meteo_air_quality_url: str
+    air_quality_mcp_url: str | None
     http_timeout_seconds: float
 
     @classmethod
@@ -27,5 +29,9 @@ class Settings:
             open_meteo_forecast_url=os.getenv(
                 "OPEN_METEO_FORECAST_URL", "https://api.open-meteo.com/v1/forecast"
             ),
+            open_meteo_air_quality_url=os.getenv(
+                "OPEN_METEO_AIR_QUALITY_URL", "https://air-quality-api.open-meteo.com/v1/air-quality"
+            ),
+            air_quality_mcp_url=os.getenv("AIR_QUALITY_MCP_URL") or None,
             http_timeout_seconds=float(os.getenv("WEATHER_ASSISTANT_HTTP_TIMEOUT", "10")),
         )

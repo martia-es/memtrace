@@ -21,8 +21,12 @@ defineProps<{
   /** se muestra en lugar de los mensajes cuando no hay contenido capturado */
   emptyHint?: string;
   openLabel?: string;
+  /** muestra Annotate / Add to queue / Add to dataset; se desactivan si no hay una traza sobre la que actuar */
+  actionsDisabled?: boolean;
+  actionsHint?: string;
+  showActions?: boolean;
 }>();
-defineEmits<{ open: []; close: [] }>();
+defineEmits<{ open: []; close: []; annotate: []; addToQueue: []; addToDataset: [] }>();
 </script>
 
 <template>
@@ -52,6 +56,11 @@ defineEmits<{ open: []; close: [] }>();
       <div v-for="s in stats" :key="s.k" class="stat">
         <span class="k">{{ s.k }}</span>
         <span class="v mono">{{ s.v }}</span>
+      </div>
+      <div v-if="showActions" class="actions" :title="actionsHint">
+        <button type="button" class="btn primary" data-testid="preview-annotate" :disabled="actionsDisabled" @click="$emit('annotate')">Annotate</button>
+        <button type="button" class="btn" data-testid="preview-add-to-queue" :disabled="actionsDisabled" @click="$emit('addToQueue')">Add to queue</button>
+        <button type="button" class="btn" data-testid="preview-add-to-dataset" :disabled="actionsDisabled" @click="$emit('addToDataset')">Add to dataset</button>
       </div>
     </footer>
   </aside>
@@ -186,6 +195,34 @@ defineEmits<{ open: []; close: [] }>();
   padding: 6px 10px;
   border: 1px solid var(--mt-line);
   border-radius: var(--mt-radius-sm);
+}
+.actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+}
+.btn {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: var(--mt-radius-sm);
+  border: 1px solid var(--mt-line);
+  background: var(--mt-card);
+  color: var(--mt-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn.primary {
+  flex: 1;
+  border-color: var(--mt-accent);
+  background: var(--mt-accent);
+  color: var(--mt-accent-ink);
+  font-weight: 800;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 .k {
   font-size: 10px;

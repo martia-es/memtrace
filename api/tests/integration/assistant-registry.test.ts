@@ -186,6 +186,18 @@ describe.skipIf(!url)("assistant registry (postgres)", () => {
     expect(await repo.removeGrant(experimentId, pro.id, grants[0]!.id)).toBe(false);
   });
 
+  it("returns who a user grant is for and finds people of the organization by name or email", async () => {
+    const pro = (await repo.getCard(experimentId))!.deployments.find((d) => d.environment.key === "pro")!;
+    const grant = (await repo.addGrant(experimentId, pro.id, { subjectType: "user", userId }, userId))!;
+    expect(grant.user).toEqual({ userId, name: "Owner", email: `owner-${stamp}@example.com`, image: null });
+    await repo.removeGrant(experimentId, pro.id, grant.id);
+
+    expect((await repo.searchPeople(experimentId, `OWNER-${stamp}`, 10))!.map((p) => p.userId)).toEqual([userId]);
+    expect((await repo.searchPeople(experimentId, "Owner", 10))!.map((p) => p.userId)).toContain(userId);
+    expect(await repo.searchPeople(experimentId, "%", 10)).toEqual([]);
+    expect(await repo.searchPeople("not-a-uuid", "owner", 10)).toBeNull();
+  });
+
   it("treats a deployment of another experiment as not found", async () => {
     const pro = (await repo.getCard(experimentId))!.deployments.find((d) => d.environment.key === "pro")!;
     expect(await repo.getDeployment(peerId, pro.id)).toBeNull();

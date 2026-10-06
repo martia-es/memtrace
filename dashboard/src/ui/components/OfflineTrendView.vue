@@ -6,6 +6,7 @@ import { formatDateTime, formatPercent } from "@/domain/format";
 import {
   buildOfflineSeries,
   judgeChangeNotices,
+  offlineAttention,
   offlineEvalChartOption,
   offlineRunLabel,
   offlineVerdict,
@@ -17,7 +18,7 @@ import {
 import EChart from "./EChart.vue";
 
 const props = defineProps<{ runs: RunListItemDto[] }>();
-const emit = defineEmits<{ "open-run": [run: RunListItemDto] }>();
+const emit = defineEmits<{ "open-run": [run: RunListItemDto]; compare: [ids: [string, string]] }>();
 
 const $q = useQuasar();
 
@@ -28,6 +29,12 @@ const averageOption = computed(() => offlineEvalChartOption(props.runs, averageS
 
 const summary = computed(() => summarizeEvaluators(props.runs));
 const verdict = computed(() => offlineVerdict(summary.value));
+const attention = computed(() => offlineAttention(props.runs, summary.value));
+function goToAttention(a: (typeof attention.value)[number]) {
+  if (a.compare) return emit("compare", a.compare);
+  const run = props.runs.find((r) => r.id === a.runId);
+  if (run) emit("open-run", run);
+}
 const passFailOption = computed(() => passFailChartOption(summary.value, $q.dark.isActive));
 const hasPassFail = computed(() => summary.value.some((s) => s.kind === "passRate"));
 const hasTrend = computed(() => props.runs.length >= 2);
@@ -88,6 +95,19 @@ function openAt(index: number) {
         <p>{{ verdict.detail }}</p>
       </div>
       <span class="meta">{{ summary.length }} evaluators · {{ runs.length }} runs in range</span>
+    </section>
+
+    <section v-if="summary.length" class="attention" aria-label="Needs attention">
+      <div class="attention-head">
+        <h3>Needs attention</h3>
+        <span v-if="attention.length" class="attention-count">{{ attention.length }}</span>
+      </div>
+      <p v-if="!attention.length" class="all-clear" data-testid="offline-all-clear">Nothing needs your attention in the latest run.</p>
+      <button v-for="a in attention" :key="a.key" type="button" class="attn" :class="a.tone" data-testid="offline-attention-item" @click="goToAttention(a)">
+        <span class="attn-dot" aria-hidden="true" />
+        <span class="attn-text"><strong>{{ a.title }}</strong><span>{{ a.text }}</span></span>
+        <span class="attn-cta">{{ a.cta }} →</span>
+      </button>
     </section>
 
     <div v-if="summary.length" class="scorecards">
@@ -167,8 +187,8 @@ function openAt(index: number) {
           <p class="sub">Select a run to inspect its items, or compare two of them.</p>
         </div>
       </header>
-      <div class="table-wrap">
-        <table class="tbl">
+      <div class="mt-table-wrap">
+        <table class="mt-table">
           <thead>
             <tr>
               <th>Run</th>
@@ -220,6 +240,20 @@ h3 { margin: 0; font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
 .verdict.failing .verdict-dot { background: var(--mt-err); }
 .verdict.failing strong { color: var(--mt-err-ink); }
 .verdict.healthy p, .verdict.attention p, .verdict.failing p { color: var(--mt-ink); }
+.attention { background: var(--mt-card); border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); overflow: hidden; }
+.attention-head { display: flex; align-items: center; gap: 8px; padding: 12px 16px; }
+.attention-head h3 { font-weight: 800; }
+.attention-count { padding: 1px 7px; border-radius: var(--mt-radius-xs); background: var(--mt-highlight-soft); color: var(--mt-highlight-ink); font-size: 11px; font-weight: 800; }
+.all-clear { margin: 0; padding: 4px 16px 16px; color: var(--mt-muted); font-size: 13px; }
+.attn { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 16px; border: 0; border-top: 1px solid var(--mt-line-2); background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.attn:hover { background: var(--mt-soft-2); }
+.attn-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--mt-accent); }
+.attn.error .attn-dot { background: var(--mt-err); }
+.attn.warn .attn-dot { background: var(--mt-warn); }
+.attn-text { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+.attn-text strong { font-weight: 700; }
+.attn-text span { font-size: 12px; color: var(--mt-muted); }
+.attn-cta { font-size: 12px; font-weight: 700; color: var(--mt-accent-text); }
 .scorecards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
 .score { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; background: var(--mt-card); border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); overflow: hidden; color: var(--mt-muted); }
 .score-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
@@ -239,18 +273,10 @@ h3 { margin: 0; font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
 .score-foot { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
 .spark { width: 100%; height: 28px; color: var(--mt-accent); }
 @media (max-width: 640px) { .verdict { flex-wrap: wrap; } .verdict .meta { margin-left: 0; } }
-.table-wrap { overflow-x: auto; }
-.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
-.tbl th { text-align: left; padding: 8px 10px; color: var(--mt-muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--mt-line); white-space: nowrap; }
-.tbl td { padding: 10px; border-bottom: 1px solid var(--mt-line); color: var(--mt-ink); }
-.tbl tbody tr:last-child td { border-bottom: 0; }
-.num { text-align: right; font-variant-numeric: tabular-nums; }
-.strong { font-weight: 600; }
-.muted { color: var(--mt-muted); }
 .up { color: var(--mt-ok-ink); font-weight: 600; }
 .down { color: var(--mt-err-ink); font-weight: 600; }
 .clickable { cursor: pointer; }
-.clickable:hover td { background: var(--mt-soft); }
+.clickable:hover td { background: var(--mt-accent-tint); }
 .status { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid var(--mt-line); white-space: nowrap; }
 .status.improving { color: var(--mt-ok-ink); }
 .status.regressing { color: var(--mt-err-ink); }

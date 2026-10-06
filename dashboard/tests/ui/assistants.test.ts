@@ -1,4 +1,4 @@
-import { flushPromises, mount } from "@vue/test-utils";
+import { DOMWrapper, flushPromises, mount } from "@vue/test-utils";
 import { Dark, Notify, QLayout, QPageContainer, Quasar } from "quasar";
 import { defineComponent, h } from "vue";
 import { describe, expect, it } from "vitest";
@@ -10,6 +10,7 @@ import AssistantDetailPage from "@/ui/pages/AssistantDetailPage.vue";
 import AssistantChatDock from "@/ui/components/AssistantChatDock.vue";
 import { useChatDock } from "@/ui/composables/useChatDock";
 import { permissionsOf } from "../permissions";
+import { chooseOption } from "./select";
 import { FakeAssistantApi, FakeIdentityApi, FakeTraceApi, assistantCard, connectionDto, deploymentDto } from "../fakes";
 
 const THEME = { accentColor: null, radiusPreset: null };
@@ -134,7 +135,7 @@ describe("assistants catalog (ADR-053)", () => {
     await wrapper.get("input[type='checkbox']").setValue(true);
     expect(wrapper.findAll("[data-testid^='assistant-card-']").map((c) => c.attributes("data-testid"))).toEqual(["assistant-card-invoice-extractor"]);
     await wrapper.get("input[type='checkbox']").setValue(false);
-    await wrapper.get("input.q-field__native").setValue("weather");
+    await wrapper.get("input[type=search]").setValue("weather");
     expect(wrapper.findAll("[data-testid^='assistant-card-']")).toHaveLength(1);
     expect(wrapper.text()).toContain("weather-assistant");
   });
@@ -172,7 +173,7 @@ describe("assistants catalog (ADR-053)", () => {
 describe("assistant detail (ADR-053)", () => {
   it("shows one card per environment and who can call the production one", async () => {
     const api = new FakeAssistantApi();
-    api.grants = [{ id: "g1", deploymentId: "dep-pro", subjectType: "group", userId: null, externalGroup: "Support-Agents", memberCount: 214, source: "scim", syncedAt: "2026-10-05T10:00:00.000Z" }];
+    api.grants = [{ id: "g1", deploymentId: "dep-pro", subjectType: "group", userId: null, user: null, externalGroup: "Support-Agents", memberCount: 214, source: "scim", syncedAt: "2026-10-05T10:00:00.000Z" }];
     const { wrapper } = await setup(AssistantDetailPage, "/assistants/exp-1", api, new Identity([org("org_admin")], [exp("technical")]), { experimentId: "exp-1" });
     expect(wrapper.find("[data-testid='deployment-dev']").exists()).toBe(true);
     expect(wrapper.find("[data-testid='deployment-pro']").exists()).toBe(true);
@@ -186,8 +187,8 @@ describe("assistant detail (ADR-053)", () => {
   it("shows who is in the experiment, and links to choose them only for people who can manage members", async () => {
     const withLink = await setup(AssistantDetailPage, "/assistants/exp-1", new FakeAssistantApi(), new Identity([org("org_admin")], [{ ...exp("technical"), permissions: [...permissionsOf("technical"), "member:manage"] }]), { experimentId: "exp-1" });
     const people = withLink.wrapper.get("[data-testid='people']");
-    expect(people.text()).toContain("Marta Fernández (Technical)");
-    expect(people.text()).toContain("luis@acme.test (Business)");
+    expect(people.text()).toContain("Marta Fernández Technical");
+    expect(people.text()).toContain("luis@acme.test Business");
     expect(people.findAll("img")).toHaveLength(1);
     expect(withLink.wrapper.find("[data-testid='manage-people']").exists()).toBe(true);
     withLink.wrapper.unmount();
@@ -210,7 +211,7 @@ describe("assistant detail (ADR-053)", () => {
   });
 
   it("lets governance remove an access but not an owner without governance:manage", async () => {
-    const grants = [{ id: "g1", deploymentId: "dep-pro", subjectType: "everyone" as const, userId: null, externalGroup: null, memberCount: null, source: "manual" as const, syncedAt: null }];
+    const grants = [{ id: "g1", deploymentId: "dep-pro", subjectType: "everyone" as const, userId: null, user: null, externalGroup: null, memberCount: null, source: "manual" as const, syncedAt: null }];
     const governed = new FakeAssistantApi();
     governed.grants = grants;
     const a = await setup(AssistantDetailPage, "/assistants/exp-1", governed, new Identity([org("org_admin")], []), { experimentId: "exp-1" });
@@ -227,6 +228,30 @@ describe("assistant detail (ADR-053)", () => {
     expect(b.wrapper.text()).not.toContain("Add access");
     expect(b.wrapper.findAll("button").some((x) => x.text() === "Remove")).toBe(false);
     expect(b.wrapper.text()).toContain("Edit");
+  });
+
+  it("picks a person by searching name or email, and grants access by their user id", async () => {
+    const api = new FakeAssistantApi();
+    api.people = [{ userId: "u-luis", name: "Luis Pérez", email: "luis@acme.test", image: "https://photos.example/luis.png" }];
+    const { wrapper } = await setup(AssistantDetailPage, "/assistants/exp-1", api, new Identity([org("org_admin")], []), { experimentId: "exp-1" });
+    await wrapper.findAll("button").find((b) => b.text() === "Add access")!.trigger("click");
+    await flushPromises();
+    const modal = new DOMWrapper(document.body);
+    await chooseOption(document.body, "[data-testid='grant-type']", "One person");
+    const input = modal.get("[data-testid='person-picker'] input");
+    await input.setValue("luis");
+    await new Promise((r) => setTimeout(r, 250));
+    await flushPromises();
+    expect(api.calls.find((c) => c.method === "searchPeople")?.args).toEqual(["exp-1", "luis"]);
+    const option = modal.get("[data-testid='person-picker'] [role='option']");
+    expect(option.text()).toContain("Luis Pérez");
+    expect(option.text()).toContain("luis@acme.test");
+    expect(option.find("img").attributes("src")).toBe("https://photos.example/luis.png");
+    await option.trigger("mousedown");
+    await modal.get("form").trigger("submit");
+    await flushPromises();
+    expect(api.calls.find((c) => c.method === "addGrant")?.args[2]).toMatchObject({ subjectType: "user", userId: "u-luis" });
+    wrapper.unmount();
   });
 
   it("flags connections seen in traces and lets governance approve them", async () => {

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import TextInput from "@/ui/components/TextInput.vue";
+import Select from "../Select.vue";
 import { computed, reactive, ref } from "vue";
 import { useQuasar } from "quasar";
 import type { AuthMethodDto, DeploymentSummaryDto, EnvironmentDto } from "@contract";
@@ -67,6 +69,8 @@ async function run(action: () => Promise<unknown>, failure: string) {
 const save = () =>
   run(() => (d ? api.updateDeployment(props.experimentId, d.id, toInput()) : api.createDeployment(props.experimentId, form.environmentKey, toInput())), "Could not save the deployment");
 const remove = () => run(() => api.deleteDeployment(props.experimentId, d!.id), "Could not remove the deployment");
+const environmentOptions = computed(() => props.environments.map((e) => ({ label: e.label, value: e.key })));
+const authOptions = Object.entries(AUTH_LABEL).map(([value, label]) => ({ label, value }));
 </script>
 
 <template>
@@ -74,39 +78,35 @@ const remove = () => run(() => api.deleteDeployment(props.experimentId, d!.id), 
     <form class="modal-form" @submit.prevent="save">
       <label v-if="!editing" class="field">
         <span>Environment</span>
-        <select v-model="form.environmentKey" class="text-input" data-testid="deployment-environment">
-          <option v-for="e in environments" :key="e.key" :value="e.key">{{ e.label }}</option>
-        </select>
+        <Select v-model="form.environmentKey" :options="environmentOptions" data-testid="deployment-environment" />
       </label>
       <label class="field">
         <span>API URL</span>
-        <input v-model="form.apiUrl" class="text-input" :class="{ invalid: fieldErrors.apiUrl }" placeholder="https://api.example.com/weather" autofocus />
+        <TextInput v-model="form.apiUrl" :invalid="!!fieldErrors.apiUrl" placeholder="https://api.example.com/weather" autofocus />
         <span v-if="fieldErrors.apiUrl" class="field-error">{{ fieldErrors.apiUrl }}</span>
       </label>
       <label class="field">
         <span>Health URL (optional)</span>
-        <input v-model="form.healthUrl" class="text-input" :class="{ invalid: fieldErrors.healthUrl }" placeholder="Defaults to the API URL + /health" />
+        <TextInput v-model="form.healthUrl" :invalid="!!fieldErrors.healthUrl" placeholder="Defaults to the API URL + /health" />
         <span v-if="fieldErrors.healthUrl" class="field-error">{{ fieldErrors.healthUrl }}</span>
       </label>
       <div class="row">
-        <label class="field"><span>Version</span><input v-model="form.version" class="text-input" placeholder="v1.4.0" /></label>
+        <label class="field"><span>Version</span><TextInput v-model="form.version" placeholder="v1.4.0" /></label>
         <label class="field">
           <span>Authentication</span>
-          <select v-model="form.authMethod" class="text-input">
-            <option v-for="(label, value) in AUTH_LABEL" :key="value" :value="value">{{ label }}</option>
-          </select>
+          <Select v-model="form.authMethod" :options="authOptions" />
         </label>
       </div>
       <div v-if="form.authMethod !== 'none'" class="row">
-        <label class="field"><span>Provider</span><input v-model="form.authProvider" class="text-input" placeholder="Entra ID" /></label>
-        <label class="field"><span>Audience</span><input v-model="form.authAudience" class="text-input" placeholder="api://weather-assistant" /></label>
+        <label class="field"><span>Provider</span><TextInput v-model="form.authProvider" placeholder="Entra ID" /></label>
+        <label class="field"><span>Audience</span><TextInput v-model="form.authAudience" placeholder="api://weather-assistant" /></label>
       </div>
       <p v-if="form.authMethod !== 'none'" class="hint">MemTrace never stores secrets: only how this deployment authenticates.</p>
       <div class="row">
         <label class="check"><input v-model="form.healthCheckEnabled" type="checkbox" />Check /health automatically</label>
         <label class="field">
           <span>Check every (seconds)</span>
-          <input v-model="form.interval" class="text-input" :class="{ invalid: fieldErrors.healthIntervalSeconds }" type="number" min="15" placeholder="Environment default" />
+          <TextInput v-model="form.interval" :invalid="!!fieldErrors.healthIntervalSeconds" type="number" min="15" placeholder="Environment default" />
           <span v-if="fieldErrors.healthIntervalSeconds" class="field-error">{{ fieldErrors.healthIntervalSeconds }}</span>
         </label>
       </div>

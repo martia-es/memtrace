@@ -1,5 +1,17 @@
-import { createRouter, createWebHistory } from "vue-router";
+import { createRouter, createWebHistory, type RouteLocationNormalized } from "vue-router";
 import { getContainer } from "@/dependency-container";
+
+const metricsPage = () => import("./pages/MetricsPage.vue");
+const queuesPage = () => import("./pages/AnnotationQueuesPage.vue");
+
+// enlaces guardados de cuando Overview tenía pestañas: /overview?tab=compare|custom|offline
+const LEGACY_TABS: Record<string, string> = { compare: "overview-compare", custom: "overview-charts", offline: "trends" };
+function legacyOverviewTab(to: RouteLocationNormalized) {
+  const name = LEGACY_TABS[String(to.query.tab)];
+  if (!name) return true;
+  const { tab: _tab, ...query } = to.query;
+  return { name, params: to.params, query };
+}
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -25,14 +37,24 @@ export const router = createRouter({
         { path: "conversations", name: "conversations", component: () => import("./pages/ConversationsPage.vue"), meta: { title: "Conversations", section: "conversations" } },
         { path: "conversations/:conversationId", name: "conversation", component: () => import("./pages/ConversationDetailPage.vue"), props: true, meta: { title: "Conversation", section: "conversations", framed: true } },
         { path: "traces/:traceId", name: "trace", component: () => import("./pages/TraceDetailPage.vue"), props: true, meta: { title: "Trace", section: "conversations", framed: true } },
-        { path: "overview", name: "overview", component: () => import("./pages/MetricsPage.vue"), meta: { title: "Overview", section: "overview" } },
+        // Overview: una sola página con varias vistas; cada una tiene su URL y su entrada de submenú (ADR-059)
+        { path: "overview", name: "overview", component: metricsPage, beforeEnter: legacyOverviewTab, meta: { title: "Overview", section: "overview", view: "summary" } },
+        { path: "overview/compare", name: "overview-compare", component: metricsPage, meta: { title: "Compare", section: "compare", view: "compare" } },
+        { path: "overview/charts", name: "overview-charts", component: metricsPage, meta: { title: "Custom charts", section: "charts", view: "charts" } },
+        { path: "overview/reports", name: "overview-reports", component: metricsPage, meta: { title: "Reports", section: "reports", view: "reports" } },
+        { path: "overview/reports/:reportId", name: "overview-report", component: metricsPage, meta: { title: "Report", section: "reports", view: "report" } },
         // antes "Metrics": se mantiene el path para enlaces guardados (ADR-048)
         { path: "metrics", redirect: (to) => ({ name: "overview", params: to.params, query: to.query }) },
-        { path: "annotation-queues", name: "annotation-queues", component: () => import("./pages/AnnotationQueuesPage.vue"), meta: { title: "Review queues", section: "annotation-queues" } },
-        { path: "annotation-queues/:queueId/review", name: "annotation-queue-review", component: () => import("./pages/AnnotationQueueReviewPage.vue"), props: true, meta: { title: "Review", section: "annotation-queues", framed: true } },
+        // Review: bandeja personal, todas las colas y archivadas (ADR-059)
+        { path: "annotation-queues", name: "annotation-queues", component: queuesPage, meta: { title: "My inbox", section: "review-inbox", view: "assigned" } },
+        { path: "annotation-queues/all", name: "annotation-queues-all", component: queuesPage, meta: { title: "All queues", section: "review-queues", view: "active" } },
+        { path: "annotation-queues/archived", name: "annotation-queues-archived", component: queuesPage, meta: { title: "Archived queues", section: "review-archived", view: "archived" } },
+        { path: "annotation-queues/:queueId/review", name: "annotation-queue-review", component: () => import("./pages/AnnotationQueueReviewPage.vue"), props: true, meta: { title: "Review", section: "review-inbox", framed: true } },
         { path: "datasets", name: "datasets", component: () => import("./pages/DatasetsPage.vue"), meta: { title: "Datasets", section: "datasets" } },
         { path: "datasets/:datasetId", name: "dataset", component: () => import("./pages/DatasetDetailPage.vue"), props: true, meta: { title: "Dataset", section: "datasets", framed: true } },
         { path: "runs", name: "runs", component: () => import("./pages/RunsPage.vue"), meta: { title: "Runs", section: "runs" } },
+        // antes la pestaña "Offline evals" de Overview (ADR-059)
+        { path: "evaluations/trends", name: "trends", component: () => import("./pages/TrendsPage.vue"), meta: { title: "Trends", section: "trends" } },
         { path: "datasets/:datasetId/runs/:runId", name: "dataset-run", component: () => import("./pages/DatasetRunDetailPage.vue"), props: true, meta: { title: "Run", section: "runs", framed: true } },
       ],
     },

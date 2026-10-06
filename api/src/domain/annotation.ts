@@ -54,6 +54,13 @@ export interface LowRatedSummary {
   items: Array<{ traceId: string; configName: string; value: string; createdAt: string }>;
 }
 
+/** Estado de anotación de una traza o conversación: cuántas etiquetas humanas tiene y si alguna es una valoración baja. */
+export interface AnnotationRating {
+  id: string;
+  labels: number;
+  low: boolean;
+}
+
 /**
  * Comprueba que `raw` es un valor válido para la config y lo devuelve normalizado (el mismo formato
  * en que se guardan los `Score.value`). Lanza `AnnotationValueError`.

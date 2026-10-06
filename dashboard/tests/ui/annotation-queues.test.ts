@@ -9,6 +9,7 @@ import { CURRENT_EXPERIMENT, IDENTITY_API, TRACE_API } from "@/dependency-contai
 import type { ExperimentDto } from "@/application/identity-api";
 import AnnotationQueuesPage from "@/ui/pages/AnnotationQueuesPage.vue";
 import AnnotationQueueReviewPage from "@/ui/pages/AnnotationQueueReviewPage.vue";
+import { chooseOption } from "./select";
 import { FakeIdentityApi, FakeTraceApi, node, queueDetail, queueItemDto, queueResultItem, queueSummary, scoreConfigDto, traceDetail } from "../fakes";
 
 async function setup(component: object, api: FakeTraceApi, path: string, props: Record<string, unknown> = {}, role: ExperimentDto["myRole"] = "technical", identity = new FakeIdentityApi()) {
@@ -16,6 +17,9 @@ async function setup(component: object, api: FakeTraceApi, path: string, props: 
     history: createMemoryHistory(),
     routes: [
       { path: "/e/:experimentId/annotation-queues", name: "annotation-queues", component: { template: "<div />" } },
+      { path: "/e/:experimentId/annotation-queues/all", name: "annotation-queues-all", component: { template: "<div />" }, meta: { view: "active" } },
+      { path: "/e/:experimentId/annotation-queues/archived", name: "annotation-queues-archived", component: { template: "<div />" }, meta: { view: "archived" } },
+      { path: "/e/:experimentId/inbox", name: "inbox", component: { template: "<div />" }, meta: { view: "assigned" } },
       { path: "/e/:experimentId/annotation-queues/:queueId/review", name: "annotation-queue-review", component: { template: "<div />" } },
       { path: "/e/:experimentId/traces/:traceId", name: "trace", component: { template: "<div />" } },
       { path: "/datasets/:datasetId", name: "dataset", component: { template: "<div />" } },
@@ -35,6 +39,18 @@ async function setup(component: object, api: FakeTraceApi, path: string, props: 
 }
 
 const body = () => document.body;
+// las acciones secundarias de cada fila viven en el menú ⋯
+const menuAction = async (wrapper: { get: (sel: string) => { trigger: (e: string) => Promise<unknown> } }, label: string) => {
+  await wrapper.get('[data-testid="queue-more"]').trigger("click");
+  await flushPromises();
+  await click([...body().querySelectorAll(".menu-list button")].reverse().find((b) => b.textContent === label));
+};
+const menuLabels = async (wrapper: { get: (sel: string) => { trigger: (e: string) => Promise<unknown> } }) => {
+  await wrapper.get('[data-testid="queue-more"]').trigger("click");
+  await flushPromises();
+  const menus = body().querySelectorAll(".menu-list");
+  return [...menus[menus.length - 1]!.querySelectorAll("button")].map((b) => b.textContent);
+};
 const click = async (el: Element | null | undefined) => {
   if (!el) throw new Error("element not found");
   (el as HTMLElement).click();
@@ -54,12 +70,33 @@ describe("AnnotationQueuesPage", () => {
     const { wrapper, router } = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues");
     const row = wrapper.get('[data-testid="queue-row"]');
     expect(row.text()).toContain("Chatbot answers");
-    expect(row.text()).toContain("3 of 4 pending");
+    expect(row.text()).toContain("1 of 4");
+    expect(row.text()).toContain("3 pending");
 
     await row.findAll("button").find((b) => b.text() === "Review")!.trigger("click");
     await flushPromises();
     expect(router.currentRoute.value.name).toBe("annotation-queue-review");
     expect(router.currentRoute.value.params.queueId).toBe("q-1");
+  });
+
+  it("shows the queues of the page the route points to (inbox, all queues, archived), with no tab bar", async () => {
+    const api = new FakeTraceApi();
+    api.queues = [queueSummary({ id: "q-mine", name: "Mine", isReviewer: true }), queueSummary({ id: "q-other", name: "Other", isReviewer: false }), queueSummary({ id: "q-old", name: "Old", archivedAt: "2026-01-01T00:00:00Z" })];
+    const names = (w: { findAll: (s: string) => { text: () => string }[] }) => w.findAll('[data-testid="queue-row"]').map((r) => r.text());
+
+    const inbox = await setup(AnnotationQueuesPage, api, "/e/e1/inbox");
+    expect(names(inbox.wrapper)).toHaveLength(1);
+    expect(names(inbox.wrapper)[0]).toContain("Mine");
+    expect(inbox.wrapper.find('[role="tablist"]').exists()).toBe(false);
+    inbox.wrapper.unmount();
+
+    const all = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues/all");
+    expect(names(all.wrapper)).toHaveLength(2);
+    all.wrapper.unmount();
+
+    const archived = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues/archived");
+    expect(names(archived.wrapper)).toHaveLength(1);
+    expect(names(archived.wrapper)[0]).toContain("Old");
   });
 
   it("shows each reviewer's photo, or their initials, labelled with their name (shown as a tooltip on hover)", async () => {
@@ -78,7 +115,7 @@ describe("AnnotationQueuesPage", () => {
     api.queues = [queueSummary({ isReviewer: false })];
     const { wrapper } = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues");
     expect(wrapper.findAll("button").some((b) => b.text() === "Review")).toBe(false);
-    expect(wrapper.findAll("button").some((b) => b.text() === "Details")).toBe(true);
+    expect(wrapper.findAll("button").some((b) => b.text() === "View results")).toBe(true);
   });
 
   it("does not show curation work to people who only review", async () => {
@@ -89,11 +126,12 @@ describe("AnnotationQueuesPage", () => {
     expect(wrapper.find("[data-testid=queue-to-curate]").exists()).toBe(false);
   });
 
-  it("disables Review when nothing is pending", async () => {
+  it("offers View results instead of Review when nothing is pending", async () => {
     const api = new FakeTraceApi();
     api.queues = [queueSummary({ progress: { pending: 0, completed: 4, skipped: 0 } })];
     const { wrapper } = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues");
-    expect(wrapper.findAll("button").find((b) => b.text() === "Review")!.attributes("disabled")).toBeDefined();
+    expect(wrapper.findAll("button").some((b) => b.text() === "Review")).toBe(false);
+    expect(wrapper.findAll("button").some((b) => b.text() === "View results")).toBe(true);
   });
 
   it("hides queue management from plain members but still lets them add traces", async () => {
@@ -101,7 +139,7 @@ describe("AnnotationQueuesPage", () => {
     api.queues = [queueSummary()];
     const { wrapper } = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues", {}, "business");
     expect(wrapper.find('[data-testid="new-queue"]').exists()).toBe(false);
-    const labels = wrapper.findAll("button").map((b) => b.text());
+    const labels = await menuLabels(wrapper);
     expect(labels).not.toContain("Archive");
     expect(labels).toContain("Add traces");
   });
@@ -134,7 +172,7 @@ describe("AnnotationQueuesPage", () => {
     const api = new FakeTraceApi();
     api.queues = [queueSummary()];
     const { wrapper } = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues");
-    await wrapper.findAll("button").find((b) => b.text() === "Add traces")!.trigger("click");
+    await menuAction(wrapper, "Add traces");
     await flushPromises();
     await click(body().querySelector('input[type="checkbox"]'));
     await click(body().querySelector(".modal-form button[type=submit]"));
@@ -148,7 +186,7 @@ describe("AnnotationQueuesPage", () => {
     const api = new FakeTraceApi();
     api.queues = [queueSummary()];
     const { wrapper } = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues");
-    await wrapper.findAll("button").find((b) => b.text() === "Add traces")!.trigger("click");
+    await menuAction(wrapper, "Add traces");
     await flushPromises();
     await click(body().querySelector('[aria-label="Random sample"]'));
     await setValue(body().querySelector('[aria-label="Limit"]'), "30");
@@ -165,7 +203,7 @@ describe("AnnotationQueuesPage", () => {
     api.queueDetail = queueDetail({ reviewers: [{ userId: "u1", name: "Ana", completed: 2, skipped: 1, inProgress: 0 }] });
     api.queueItems = [queueItemDto({ id: "i1" })];
     const { wrapper } = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues");
-    await wrapper.findAll("button").find((b) => b.text() === "Details")!.trigger("click");
+    await menuAction(wrapper, "Details");
     await flushPromises();
     expect(body().querySelector('[data-testid="reviewer-row"]')!.textContent).toContain("Ana");
     await click(body().querySelector('[data-testid="tab-settings"]'));
@@ -197,7 +235,7 @@ describe("Queue results (ADR-050)", () => {
     api.queueDetail = queueDetail({ configs: [cfg] });
     api.queueResults = { configs: [cfg], total: 2, items: [agreed, split] };
     const { wrapper } = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues", {}, role);
-    await wrapper.findAll("button").find((b) => b.text() === "Details")!.trigger("click");
+    await menuAction(wrapper, "Details");
     await flushPromises();
     return api;
   }
@@ -253,12 +291,8 @@ describe("Queue results (ADR-050)", () => {
     const boxes = [...body().querySelectorAll<HTMLInputElement>('[data-testid="result-select"]')];
     expect(boxes.map((b) => b.disabled)).toEqual([false, true]);
     await click(body().querySelector('[data-testid="select-ready"]'));
-    const dataset = body().querySelector<HTMLSelectElement>('[data-testid="promote-dataset"]')!;
-    dataset.value = "d1";
-    dataset.dispatchEvent(new Event("change"));
-    const reference = body().querySelector<HTMLSelectElement>('[data-testid="promote-config"]')!;
-    reference.value = "cfg-1";
-    reference.dispatchEvent(new Event("change"));
+    await chooseOption(body(), '[data-testid="promote-dataset"]', "Regression");
+    await chooseOption(body(), '[data-testid="promote-config"]', "Expected output from “correct”");
     await flushPromises();
     await click(body().querySelector('[data-testid="promote-run"]'));
     expect(promoted).toEqual([{ items: [{ traceId: "trace-ok", expectedOutput: "good", queueId: "q-1" }] }]);

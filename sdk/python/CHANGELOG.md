@@ -12,6 +12,9 @@
 - The `otel-langchain` extra installs `langchain-core` and, on Python 3.9, `wrapt<2`.
 
 ### Added
+- MCP tool spans carry `memtrace.mcp_server`: `enable_pydantic_ai_instrumentation()` names the server (toolset `id`,
+  else the name the server announces) on the tool span, so the assistant registry detects MCP servers and measures
+  their calls and errors. Other frameworks set it with `trace_step(..., attributes={"memtrace.mcp_server": ...})`. See ADR-056.
 - `eval-judges` extra and `memtrace.eval_judges` module: `Correctness` and `Faithfulness`,
   LLM-as-judge evaluators built on a new `LLMJudgeEvaluator` base class and `LLMClient` port
   (`application/eval_ports.py`), plus a default `AnthropicJudgeClient` adapter. Both drop into

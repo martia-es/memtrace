@@ -20,14 +20,5 @@ export default defineConfig({
     proxy: { "/api": { target: API_TARGET, changeOrigin: true } },
   },
   preview: { port: 5173, proxy: { "/api": { target: API_TARGET, changeOrigin: true } } },
-  build: {
-    chunkSizeWarningLimit: 900,
-    rollupOptions: {
-      output: {
-        // ECharts (y zrender) pesan mucho: chunk aparte para cachearlo y no bloquear el resto
-        manualChunks: (id: string) => (/node_modules\/(echarts|zrender)\//.test(id) ? "echarts" : undefined),
-      },
-    },
-  },
   test: { environment: "jsdom", include: ["tests/**/*.test.ts"], css: false, setupFiles: ["tests/setup.ts"] },
 });

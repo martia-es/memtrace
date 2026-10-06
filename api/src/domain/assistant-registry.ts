@@ -111,10 +111,21 @@ export interface AccessGrant {
   deploymentId: string;
   subjectType: GrantSubjectType;
   userId: string | null;
+  /** quién es, cuando el acceso es de una persona; null en grupos y "todos" */
+  user: AssistantPerson | null;
   externalGroup: string | null;
   memberCount: number | null;
   source: GrantSource;
   syncedAt: string | null;
+}
+
+/** Persona de la organización a la que se le puede dar acceso: lo justo para elegirla y mostrarla. */
+export interface AssistantPerson {
+  userId: string;
+  name: string | null;
+  email: string;
+  /** URL de la foto del proveedor de identidad; null si no tiene */
+  image: string | null;
 }
 
 /** URL de /health de un despliegue: la propia si la tiene, y si no `apiUrl` sin barra final + `/health`. */
@@ -270,7 +281,7 @@ export interface AssistantCard extends Assistant {
   /** nombre del experimento */
   name: string;
   serviceName: string;
-  owner: { id: string; name: string | null; email: string } | null;
+  owner: { id: string; name: string | null; email: string; image: string | null } | null;
   deployments: DeploymentSummary[];
   connectionCounts: ConnectionCounts;
   /** nombres de sus servidores MCP (declarados u observados), para los chips de la tarjeta */
@@ -324,7 +335,7 @@ export interface ObservedConnection {
   via?: string | null;
 }
 
-/** Una conexión con su uso observado (ClickHouse). `null` donde todavía no se mide (MCP y agentes). */
+/** Una conexión con su uso observado (ClickHouse). `null` donde todavía no se mide (agentes). */
 export interface ConnectionWithUsage extends Connection {
   usage: { calls: number; errors: number } | null;
 }

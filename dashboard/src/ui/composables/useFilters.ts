@@ -1,6 +1,6 @@
 import { computed } from "vue";
 import { useRoute, useRouter, type LocationQueryValue } from "vue-router";
-import { DEFAULT_RANGE, isRangeKey, type RangeKey } from "@/domain/time-range";
+import { DEFAULT_RANGE, isCustomRange, isRangeKey, resolveRange, type CustomRange, type RangeKey, type RangeSelection } from "@/domain/time-range";
 
 const first = (value: LocationQueryValue | LocationQueryValue[] | undefined): string | undefined => {
   const v = Array.isArray(value) ? value[0] : value;
@@ -12,10 +12,18 @@ export function useFilters() {
   const route = useRoute();
   const router = useRouter();
 
-  const range = computed<RangeKey>(() => {
+  const customRange = computed<CustomRange | undefined>(() => {
+    const from = first(route.query.from);
+    const to = first(route.query.to);
+    return first(route.query.range) === "custom" && isCustomRange(from, to) ? { from: from!, to: to! } : undefined;
+  });
+  const range = computed<RangeSelection>(() => {
+    if (customRange.value) return "custom";
     const value = first(route.query.range);
     return isRangeKey(value) ? value : DEFAULT_RANGE;
   });
+  /** clave estable (primitiva) para `watch`: cambia con el preset o con las fechas propias */
+  const rangeSig = computed(() => (customRange.value ? `custom:${customRange.value.from}:${customRange.value.to}` : range.value));
   const service = computed(() => first(route.query.service));
   const status = computed<"ok" | "error" | undefined>(() => {
     const value = first(route.query.status);
@@ -44,6 +52,10 @@ export function useFilters() {
 
   return {
     range,
+    customRange,
+    rangeSig,
+    /** ventana {from,to} ISO de la selección actual (los presets avanzan con el reloj) */
+    resolve: () => resolveRange(range.value, Date.now(), customRange.value),
     service,
     status,
     kind,
@@ -53,7 +65,8 @@ export function useFilters() {
     hasErrors,
     conversationId,
     minDurationMs,
-    setRange: (value: RangeKey) => update({ range: value === DEFAULT_RANGE ? undefined : value }),
+    setRange: (value: RangeKey) => update({ range: value === DEFAULT_RANGE ? undefined : value, from: undefined, to: undefined }),
+    setCustomRange: (value: CustomRange) => update({ range: "custom", from: value.from, to: value.to }),
     setService: (value: string | null | undefined) => update({ service: value ?? undefined }),
     setStatus: (value: "ok" | "error" | undefined) => update({ status: value }),
     setKind: (value: string | undefined) => update({ kind: value }),
@@ -66,6 +79,6 @@ export function useFilters() {
     setConversation: (value: string | undefined) => update({ conversation: value }),
     setMinDuration: (value: number | undefined) => update({ min: value ? String(value) : undefined }),
     /** query que se conserva al navegar entre secciones */
-    shared: computed(() => ({ ...(first(route.query.range) ? { range: first(route.query.range) } : {}), ...(service.value ? { service: service.value } : {}) })),
+    shared: computed(() => ({ ...(customRange.value ? { range: "custom", ...customRange.value } : first(route.query.range) ? { range: first(route.query.range) } : {}), ...(service.value ? { service: service.value } : {}) })),
   };
 }

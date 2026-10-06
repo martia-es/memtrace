@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TopbarSlot from "../components/TopbarSlot.vue";
 import { computed, ref, useTemplateRef, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { formatCostUsd, formatCount, formatDateTime, formatDuration, shortId } from "@/domain/format";
@@ -73,25 +74,22 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
 
 <template>
   <div class="page">
-    <nav v-if="!trace.data.value" class="crumbs plain" aria-label="Breadcrumbs">
-      <button type="button" class="crumb" @click="goList">Conversations</button>
-      <q-icon name="chevron_right" size="16px" />
-      <span class="mono current">{{ shortId(traceId) }}</span>
-    </nav>
+    <TopbarSlot side="left">
+      <nav class="crumbs" aria-label="Breadcrumbs">
+        <button type="button" class="crumb" @click="goList">← Conversations</button>
+        <template v-if="conversationId">
+          <span class="sep">/</span>
+          <button type="button" class="crumb mono" @click="goConversation">{{ conversationId }}</button>
+        </template>
+        <span class="sep">/</span>
+        <span class="mono current">{{ shortId(traceId) }}</span>
+      </nav>
+    </TopbarSlot>
     <ErrorBanner v-if="trace.error.value" :error="trace.error.value" @retry="trace.run()" />
     <div v-else-if="!trace.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
 
     <template v-if="trace.data.value">
       <header class="head mt-card">
-        <nav class="crumbs" aria-label="Breadcrumbs">
-          <button type="button" class="crumb" @click="goList">Conversations</button>
-          <template v-if="conversationId">
-            <q-icon name="chevron_right" size="16px" />
-            <button type="button" class="crumb mono" @click="goConversation">{{ conversationId }}</button>
-          </template>
-          <q-icon name="chevron_right" size="16px" />
-          <span class="mono current">{{ shortId(traceId) }}</span>
-        </nav>
         <div class="title-row">
           <h1 :title="rootName">{{ rootName }}</h1>
           <StatusBadge :status="trace.data.value.status" show-label />
@@ -173,14 +171,13 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
 .crumbs {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 10px;
   color: var(--mt-muted);
-  font-size: 12.5px;
-  flex-shrink: 0;
+  font-size: 13px;
   white-space: nowrap;
 }
-.crumbs.plain {
-  padding: 0 4px;
+.sep {
+  color: var(--mt-faint);
 }
 .crumb {
   border: 0;

@@ -1,6 +1,7 @@
 import type { RunListItemDto } from "@contract";
 import type { EChartsCoreOption } from "echarts/core";
 import { aggregateTone, judgeChanged, judgeSignature, type AggregateTone } from "@/domain/evaluation";
+import { formatPercent } from "@/domain/format";
 import { chartColors } from "./chart-theme";
 
 export type OfflineMetricKind = "passRate" | "average";
@@ -202,6 +203,41 @@ export function offlineVerdict(summary: EvaluatorSummary[]): OfflineVerdict {
   if (regressing.length) return { level: "attention", title: "Regressing", detail: `Lower than the previous run: ${names(regressing)}.` };
   if (weak.length) return { level: "attention", title: "Needs attention", detail: `Between 50% and 80%: ${names(weak)}.` };
   return { level: "healthy", title: "Healthy", detail: "Every pass/fail evaluator is at 80% or above." };
+}
+
+export interface OfflineAttentionItem {
+  key: string;
+  tone: "error" | "warn";
+  title: string;
+  text: string;
+  cta: string;
+  /** Run a abrir; con `compare` se comparan `compare[0]` (anterior) y `compare[1]` (último). */
+  runId: string;
+  compare?: [string, string];
+}
+
+/** Lo accionable del último run, como la lista "Needs attention" de Metrics: fallos, regresiones y juez cambiado. */
+export function offlineAttention(runs: RunListItemDto[], summary: EvaluatorSummary[]): OfflineAttentionItem[] {
+  const runsWith = (name: string) => runs.filter((r) => r.aggregates.some((a) => a.name === name && (a.passRate !== null || a.average !== null)));
+  const items: OfflineAttentionItem[] = [];
+  for (const s of summary) {
+    const withEv = runsWith(s.name);
+    const latest = withEv[withEv.length - 1];
+    const prev = withEv[withEv.length - 2];
+    if (!latest) continue;
+    const label = offlineRunLabel(latest);
+    if (s.kind === "passRate" && s.tone === "negative") {
+      items.push({ key: `failing:${s.name}`, tone: "error", title: `${s.name} passes only ${formatPercent(s.latest ?? 0)} of items`, text: `${s.failed} of ${s.count} items failed in ${label}.`, cta: "Inspect", runId: latest.id });
+    } else if (s.status === "regressing" && prev) {
+      items.push({ key: `regressing:${s.name}`, tone: "warn", title: `${s.name} dropped since the previous run`, text: `${label} is lower than ${offlineRunLabel(prev)}.`, cta: "Compare", runId: latest.id, compare: [prev.id, latest.id] });
+    } else if (s.kind === "passRate" && s.tone === "warning") {
+      items.push({ key: `weak:${s.name}`, tone: "warn", title: `${s.name} is below the 80% target`, text: `${formatPercent(s.latest ?? 0)} pass rate; ${s.failed} of ${s.count} items failed.`, cta: "Inspect", runId: latest.id });
+    }
+    if (s.status === "judge-changed" && prev) {
+      items.push({ key: `judge:${s.name}`, tone: "warn", title: `The judge for ${s.name} changed`, text: "Results are not comparable with the previous run.", cta: "Compare", runId: latest.id, compare: [prev.id, latest.id] });
+    }
+  }
+  return items.sort((a, b) => Number(b.tone === "error") - Number(a.tone === "error"));
 }
 
 /** Barras apiladas aprobados/fallados del último run por evaluador booleano: funciona con un solo run. */

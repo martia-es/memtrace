@@ -105,27 +105,6 @@
   padding: 0 12px;
   font-size: 12px;
 }
-.adm-input {
-  width: 100%;
-  box-sizing: border-box;
-  height: 40px;
-  padding: 0 14px;
-  border-radius: var(--mt-radius-lg);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  font: inherit;
-  font-size: 13px;
-  color: var(--mt-ink);
-}
-.adm-input:focus {
-  outline: 2px solid var(--mt-accent);
-  outline-offset: -1px;
-}
-.adm-input.area {
-  height: auto;
-  padding: 10px 14px;
-  resize: vertical;
-}
 .adm-form {
   display: flex;
   flex-direction: column;
@@ -137,7 +116,7 @@
   align-items: center;
   flex-wrap: wrap;
 }
-.adm-form-row .adm-input {
+.adm-form-row .ti {
   flex: 1;
   min-width: 200px;
 }
@@ -331,16 +310,12 @@ a.adm-item:hover {
   gap: 12px;
   flex-wrap: wrap;
 }
-.adm-toolbar .adm-input {
-  width: 300px;
-  max-width: 100%;
-}
 
 @media (max-width: 640px) {
   .adm-page {
     padding: 20px 16px 32px;
   }
-  .adm-toolbar .adm-input {
+  .adm-toolbar .ti {
     width: 100%;
   }
 }

@@ -136,6 +136,11 @@ export class FakeTraceRepository implements TraceRepository {
     this.check();
     return new Map(ids.flatMap((id) => (this.conversationUsage.has(id) ? [[id, this.conversationUsage.get(id)!] as const] : [])));
   }
+  conversationTraceIds = new Map<string, string[]>();
+  async getConversationTraceIds(ids: string[]) {
+    this.check();
+    return new Map(ids.flatMap((id) => (this.conversationTraceIds.has(id) ? [[id, this.conversationTraceIds.get(id)!] as const] : [])));
+  }
   async getConversationMessages() {
     this.check();
     return { records: this.chatRecords, truncated: this.chatTruncated };

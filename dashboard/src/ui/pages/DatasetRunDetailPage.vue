@@ -96,6 +96,7 @@ function sourceSuffix(s: ScoreDto): string | null {
         <table class="items">
           <thead>
             <tr>
+              <th class="idx">#</th>
               <th>Input</th>
               <th>Expected</th>
               <th>Output</th>
@@ -105,9 +106,10 @@ function sourceSuffix(s: ScoreDto): string | null {
           </thead>
           <tbody>
             <tr v-for="item in run.data.value!.items" :id="`item-${item.itemIndex}`" :key="item.itemIndex" class="item-row" :class="{ error: item.error, highlighted: highlighted === item.itemIndex }">
-              <td class="preview" :title="preview(item.input)">{{ preview(item.input) }}</td>
-              <td class="preview" :title="preview(item.expectedOutput)">{{ preview(item.expectedOutput) }}</td>
-              <td class="preview" :title="item.error ?? preview(item.output)">{{ item.error ? `error: ${item.error}` : preview(item.output) }}</td>
+              <td class="idx mono">{{ item.itemIndex + 1 }}</td>
+              <td><div class="preview" :title="preview(item.input)">{{ preview(item.input) }}</div></td>
+              <td><div class="preview" :class="{ empty: item.expectedOutput == null }" :title="preview(item.expectedOutput)">{{ preview(item.expectedOutput) }}</div></td>
+              <td><div class="preview" :title="item.error ?? preview(item.output)">{{ item.error ? `error: ${item.error}` : preview(item.output) }}</div></td>
               <td>
                 <div class="scores">
                   <span v-if="item.scores.length === 0" class="muted">–</span>
@@ -168,35 +170,29 @@ function sourceSuffix(s: ScoreDto): string | null {
 }
 .items {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 13px;
+  table-layout: fixed;
 }
 .items th:nth-child(1),
 .items td:nth-child(1) {
-  min-width: 180px;
-}
-.items th:nth-child(2),
-.items td:nth-child(2) {
-  min-width: 140px;
-}
-.items th:nth-child(3),
-.items td:nth-child(3) {
-  min-width: 140px;
-}
-.items th:nth-child(4),
-.items td:nth-child(4) {
-  min-width: 220px;
+  width: 56px;
 }
 .items th:nth-child(5),
 .items td:nth-child(5) {
-  min-width: 140px;
+  width: 260px;
+}
+.items th:nth-child(6),
+.items td:nth-child(6) {
+  width: 150px;
 }
 th {
   position: sticky;
   top: 0;
   z-index: 1;
-  height: 34px;
-  padding: 0 14px;
+  height: 38px;
+  padding: 0 16px;
   background: var(--mt-soft);
   border-bottom: 1px solid var(--mt-line);
   color: var(--mt-muted);
@@ -208,13 +204,37 @@ th {
   white-space: nowrap;
 }
 td {
-  height: 44px;
-  padding: 0 14px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--mt-line-2);
-  white-space: nowrap;
+  vertical-align: top;
 }
+.item-row:last-child td {
+  border-bottom: 0;
+}
+.item-row:hover td {
+  background: var(--mt-soft-2);
+}
+.idx {
+  color: var(--mt-faint);
+  font-size: 12px;
+  text-align: right;
+  padding-right: 4px;
+}
+.item-row.error td:first-child {
+  box-shadow: inset 3px 0 0 var(--mt-err);
+}
+/* tres líneas como máximo: el texto completo sigue en el tooltip */
 .preview {
-  overflow-wrap: break-word;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.preview.empty {
+  color: var(--mt-faint);
 }
 .item-row.highlighted td {
   background: var(--mt-warn-bg, rgba(245, 158, 11, 0.14));
@@ -229,7 +249,7 @@ td {
   font-size: 12.5px;
   cursor: pointer;
 }
-.item-row.error .preview {
+.item-row.error td:nth-child(4) .preview {
   color: var(--mt-err-ink);
 }
 .muted {

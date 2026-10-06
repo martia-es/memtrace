@@ -1,12 +1,15 @@
 <script setup lang="ts">
+import TextInput from "@/ui/components/TextInput.vue";
 import type { RunListItemDto, ScoreAggregateDto } from "@contract";
 import { computed, ref, watch } from "vue";
+import { useQuasar } from "quasar";
 import { useRoute, useRouter } from "vue-router";
-import { formatDateTime } from "@/domain/format";
+import { formatDateTime, formatPercent } from "@/domain/format";
 import { aggregateTone, aggregateValueLabel } from "@/domain/evaluation";
+import { buildOfflineSeries, offlineEvalChartOption, summarizeEvaluators, type EvaluatorSummary } from "../offline-eval-chart-option";
+import EChart from "../components/EChart.vue";
 import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
-import EvaluationsTabs from "../components/EvaluationsTabs.vue";
 import FilterPill from "../components/FilterPill.vue";
 import PageHeader from "../components/PageHeader.vue";
 import { useAsync } from "../composables/useAsync";
@@ -17,6 +20,8 @@ const PAGE_SIZE = 20;
 const api = useTraceApi();
 const router = useRouter();
 const route = useRoute();
+
+const $q = useQuasar();
 
 const runs = useAsync((signal) => api.listRuns(signal));
 void runs.run();
@@ -51,6 +56,23 @@ function metricCell(r: RunListItemDto, metric: string): ScoreAggregateDto | null
   return r.aggregates.find((a) => a.name === metric) ?? null;
 }
 
+// ---- tendencia y último vs anterior: solo runs completadas del filtro actual, la más antigua primero ----
+const completed = computed(() => filtered.value.filter((r) => r.status === "completed").reverse());
+const hasTrend = computed(() => completed.value.length >= 2);
+const trendOption = computed(() => offlineEvalChartOption(completed.value, buildOfflineSeries(completed.value, "passRate"), "passRate", $q.dark.isActive));
+const deltas = computed(() => summarizeEvaluators(completed.value).filter((s) => s.previous !== null));
+
+function fmt(v: number | null, kind: EvaluatorSummary["kind"]): string {
+  if (v === null) return "–";
+  return kind === "passRate" ? formatPercent(v) : v.toFixed(2);
+}
+function deltaLabel(s: EvaluatorSummary): string {
+  if (s.delta === null) return "–";
+  const sign = s.delta > 0 ? "+" : "";
+  return s.kind === "passRate" ? `${sign}${(s.delta * 100).toFixed(1)} pp` : `${sign}${s.delta.toFixed(2)}`;
+}
+const deltaClass = (s: EvaluatorSummary) => (s.status === "improving" ? "ok" : s.status === "regressing" ? "error" : "unset");
+
 // ---- compare: tick two completed runs and jump to the comparison (ADR-048); the first ticked is the baseline ----
 const picked = ref<string[]>([]);
 const isPicked = (r: RunListItemDto) => picked.value.includes(r.id);
@@ -61,7 +83,7 @@ function togglePick(r: RunListItemDto) {
 const pickedRuns = computed(() => picked.value.map((id) => runs.data.value?.items.find((r) => r.id === id)).filter((r): r is RunListItemDto => !!r));
 const compare = () => {
   if (picked.value.length !== 2) return;
-  void router.push({ name: "overview", params: { experimentId: route.params.experimentId as string }, query: { tab: "offline", compare: picked.value.join(",") } });
+  void router.push({ name: "trends", params: { experimentId: route.params.experimentId as string }, query: { compare: picked.value.join(",") } });
 };
 
 function openRun(run: RunListItemDto) {
@@ -71,18 +93,27 @@ function openRun(run: RunListItemDto) {
 
 <template>
   <div class="page">
-    <PageHeader :crumbs="[{ label: 'Runs' }]" icon="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" title="Runs">
-      <div class="actions">
-        <FilterPill label="Dataset" :model-value="datasetId" :options="datasetOptions" all-label="All" @update:model-value="datasetId = $event" />
-        <q-input v-model="search" dense outlined placeholder="Filter by run or dataset…" class="search" clearable>
-          <template #prepend><q-icon name="search" size="18px" /></template>
-        </q-input>
+    <PageHeader :crumbs="[{ label: 'Evaluations' }, { label: 'Runs' }]" icon="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" title="Runs" />
+
+    <div class="toolbar">
+      <FilterPill label="Dataset" :model-value="datasetId" :options="datasetOptions" all-label="All" @update:model-value="datasetId = $event" />
+      <TextInput type="search" v-model="search" placeholder="Filter runs…" class="search" />
+    </div>
+
+    <section v-if="hasTrend" class="insights">
+      <div class="mt-card insight">
+        <h2>Score trend</h2>
+        <EChart :option="trendOption" height="150px" label="Pass rate per evaluator across runs" />
       </div>
-    </PageHeader>
-
-    <EvaluationsTabs />
-
-    <p class="hint muted">Every run of every dataset in this experiment, most recent first. Tick two completed runs to compare them.</p>
+      <div class="mt-card insight">
+        <h2>Latest vs previous run</h2>
+        <div v-for="s in deltas" :key="s.name" class="delta-row">
+          <span class="delta-name">{{ s.name }}</span>
+          <span class="mono muted">{{ fmt(s.previous, s.kind) }} → <b class="ink">{{ fmt(s.latest, s.kind) }}</b></span>
+          <span class="mt-pill mono" :class="deltaClass(s)">{{ deltaLabel(s) }}</span>
+        </div>
+      </div>
+    </section>
 
     <ErrorBanner v-if="runs.error.value" :error="runs.error.value" @retry="runs.run()" />
     <div v-else-if="runs.loading.value && !runs.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
@@ -98,10 +129,10 @@ function openRun(run: RunListItemDto) {
             <th class="pick" />
             <th>Run</th>
             <th>Dataset</th>
-            <th class="num">Version</th>
-            <th v-for="m in metricNames" :key="m" class="num">{{ m }}</th>
+            <th>When</th>
+            <th v-for="m in metricNames" :key="m" class="center">{{ m }}</th>
             <th class="num">Items</th>
-            <th>Created</th>
+            <th>Status</th>
           </tr>
         </thead>
         <tbody>
@@ -119,16 +150,18 @@ function openRun(run: RunListItemDto) {
               />
             </td>
             <td class="name">{{ r.name }}</td>
-            <td class="muted">{{ r.datasetName }}</td>
-            <td class="num mono">v{{ r.versionMajor }}.{{ r.versionMinor }} <span v-if="r.status === 'running'" class="mt-pill warn" title="Still receiving results, or the process stopped before finishing">running</span></td>
-            <td v-for="m in metricNames" :key="m" class="num">
+            <td class="muted">{{ r.datasetName }} <span class="mono faint">v{{ r.versionMajor }}.{{ r.versionMinor }}</span></td>
+            <td class="muted">{{ formatDateTime(r.createdAt) }}</td>
+            <td v-for="m in metricNames" :key="m" class="center">
               <span v-if="metricCell(r, m)" class="mt-pill" :class="{ ok: aggregateTone(metricCell(r, m)!) === 'positive', warn: aggregateTone(metricCell(r, m)!) === 'warning', error: aggregateTone(metricCell(r, m)!) === 'negative', unset: aggregateTone(metricCell(r, m)!) === 'default' }">
                 {{ aggregateValueLabel(metricCell(r, m)!) }}
               </span>
               <span v-else class="muted">–</span>
             </td>
             <td class="num mono">{{ r.itemCount }}</td>
-            <td class="muted mono">{{ formatDateTime(r.createdAt) }}</td>
+            <td>
+              <span class="mt-pill" :class="r.status === 'running' ? 'warn' : 'ok'" :title="r.status === 'running' ? 'Still receiving results, or the process stopped before finishing' : undefined">{{ r.status === "running" ? "Running" : "Completed" }}</span>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -164,13 +197,52 @@ function openRun(run: RunListItemDto) {
   padding: 16px 24px 20px;
   background: var(--mt-bg);
 }
-.actions {
+.toolbar {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 .search {
-  width: 260px;
+  width: 220px;
+}
+.insights {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: 12px;
+  flex-shrink: 0;
+}
+.insight {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+}
+.insight h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+}
+.delta-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 14px;
+  align-items: center;
+  padding: 7px 0;
+  border-top: 1px solid var(--mt-line-2);
+}
+.delta-name {
+  font-weight: 700;
+}
+.ink {
+  color: var(--mt-ink);
+  font-weight: 500;
+}
+.faint {
+  color: var(--mt-faint);
+  font-size: 11.5px;
+}
+.center {
+  text-align: center;
 }
 .hint {
   margin: 0;

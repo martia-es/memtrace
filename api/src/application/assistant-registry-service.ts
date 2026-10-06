@@ -13,6 +13,7 @@ import {
   validateNewDeployment,
   validateNewGrant,
   type AccessGrant,
+  type AssistantPerson,
   type AssistantCard,
   type AssistantPatch,
   type Connection,
@@ -26,6 +27,7 @@ import {
   type HealthStatus,
   type NewDeployment,
   type NewGrant,
+  type ObservedConnection,
   type ProbeResult,
   type ProbeTarget,
 } from "@/domain/assistant-registry";
@@ -33,7 +35,7 @@ import { AssistantInvariantError, AssistantNotFoundError, AssistantUpstreamError
 
 /** Uso de tools observado en trazas (ClickHouse). Puerto propio para no acoplar el registro al repositorio de trazas. */
 export interface ToolUsageSource {
-  toolUsage(serviceName: string, from: Date, to: Date): Promise<Array<{ tool: string; calls: number; errors: number }>>;
+  toolUsage(serviceName: string, from: Date, to: Date): Promise<Array<{ tool: string; calls: number; errors: number; mcpServer?: string | null }>>;
 }
 
 const DAY_MS = 86_400_000;
@@ -149,7 +151,7 @@ export class AssistantRegistryService {
 
   // ── Conexiones ──────────────────────────────────────────────────────────────────────────────────────────────
 
-  /** Conexiones registradas con el uso observado de las tools (últimos 7 días). MCP y agentes aún sin medir (`usage: null`). */
+  /** Conexiones registradas con el uso observado (últimos 7 días): tools y servidores MCP (la suma de sus tools). Agentes aún sin medir (`usage: null`). */
   async listConnections(experimentId: string, serviceName: string): Promise<ConnectionWithUsage[]> {
     const to = this.now();
     const [connections, usage] = await Promise.all([
@@ -157,23 +159,38 @@ export class AssistantRegistryService {
       this.toolUsage.toolUsage(serviceName, new Date(to.getTime() - OBSERVATION_WINDOW_DAYS * DAY_MS), to),
     ]);
     const byTool = new Map(usage.map((u) => [u.tool, u]));
+    const byServer = new Map<string, { calls: number; errors: number }>();
+    for (const u of usage) {
+      if (!u.mcpServer) continue;
+      const total = byServer.get(u.mcpServer) ?? { calls: 0, errors: 0 };
+      byServer.set(u.mcpServer, { calls: total.calls + u.calls, errors: total.errors + u.errors });
+    }
     return connections.map((c) => {
-      const u = c.kind === "tool" ? byTool.get(c.name) : undefined;
-      return { ...c, usage: c.kind === "tool" ? { calls: u?.calls ?? 0, errors: u?.errors ?? 0 } : null };
+      if (c.kind === "tool") {
+        const u = byTool.get(c.name);
+        return { ...c, usage: { calls: u?.calls ?? 0, errors: u?.errors ?? 0 } };
+      }
+      if (c.kind === "mcp_server") return { ...c, usage: byServer.get(c.name) ?? { calls: 0, errors: 0 } };
+      return { ...c, usage: null };
     });
   }
 
-  /** Registra en el catálogo las tools vistas en trazas (nuevas como `pending`). Idempotente; lo llamará también un job periódico. */
+  /** Registra en el catálogo las tools y los servidores MCP vistos en trazas (nuevos como `pending`). Idempotente; lo llama también un job periódico. */
   async syncObservedConnections(experimentId: string, serviceName: string): Promise<{ observed: number }> {
     await this.getCard(experimentId);
     const to = this.now();
     const usage = await this.toolUsage.toolUsage(serviceName, new Date(to.getTime() - OBSERVATION_WINDOW_DAYS * DAY_MS), to);
-    const seen = usage.filter((u) => u.calls > 0).map((u) => ({ kind: "tool" as const, name: u.tool }));
+    const called = usage.filter((u) => u.calls > 0);
+    const servers = [...new Set(called.flatMap((u) => (u.mcpServer ? [u.mcpServer] : [])))];
+    const seen: ObservedConnection[] = [
+      ...servers.map((name) => ({ kind: "mcp_server" as const, name })),
+      ...called.map((u) => ({ kind: "tool" as const, name: u.tool, ...(u.mcpServer ? { via: u.mcpServer } : {}) })),
+    ];
     await this.repo.recordObservedConnections(experimentId, seen, to);
     return { observed: seen.length };
   }
 
-  /** Sincroniza las tools observadas de todos los experimentos activos. Un fallo en uno (p. ej. ClickHouse) no detiene a los demás. */
+  /** Sincroniza las conexiones observadas de todos los experimentos activos. Un fallo en uno (p. ej. ClickHouse) no detiene a los demás. */
   async syncAllObservedConnections(): Promise<{ experiments: number; observed: number; failed: number }> {
     const experiments = await this.repo.listActiveExperiments();
     let observed = 0;
@@ -219,6 +236,12 @@ export class AssistantRegistryService {
     const created = await this.repo.addGrant(experimentId, deploymentId, grant, createdBy);
     if (!created) throw new AssistantNotFoundError("Deployment");
     return created;
+  }
+
+  async searchPeople(experimentId: string, query: string, limit = 20): Promise<AssistantPerson[]> {
+    const people = await this.repo.searchPeople(experimentId, query, Math.min(Math.max(limit, 1), 50));
+    if (!people) throw new AssistantNotFoundError("Assistant");
+    return people;
   }
 
   async removeGrant(experimentId: string, deploymentId: string, grantId: string): Promise<void> {

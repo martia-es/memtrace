@@ -1,22 +1,21 @@
 <script setup lang="ts">
+import TextInput from "@/ui/components/TextInput.vue";
 import type { EChartsCoreOption } from "echarts/core";
 import { computed, ref, watch } from "vue";
 import { chartColors } from "../chart-theme";
-import { formatCostUsd, formatCount, formatDuration, formatPercent } from "@/domain/format";
-import { resolveRange } from "@/domain/time-range";
+import { formatCostUsd, formatCount, formatDuration, formatPercent, formatRelativeTime } from "@/domain/format";
+import { aggregateTone, aggregateValueLabel } from "@/domain/evaluation";
 import { useQuasar } from "quasar";
 import CustomChartsPanel from "../components/CustomChartsPanel.vue";
-import OfflineEvalPanel from "../components/OfflineEvalPanel.vue";
 import MetricReportView from "../components/MetricReportView.vue";
+import ReportCard from "../components/ReportCard.vue";
 import EChart from "../components/EChart.vue";
 import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
-import FilterBar from "../components/FilterBar.vue";
-import LiveControl from "../components/LiveControl.vue";
 import PageHeader from "../components/PageHeader.vue";
 import Select from "../components/Select.vue";
 import { useAsync } from "../composables/useAsync";
-import { setRefreshSeconds, useLiveRefresh } from "../composables/useLiveRefresh";
+import { useLiveRefresh } from "../composables/useLiveRefresh";
 import { useFilters } from "../composables/useFilters";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTraceApi } from "../composables/useTraceApi";
@@ -35,12 +34,12 @@ void experiments.run();
 
 const agentOptions = computed(() => (experiments.data.value ?? []).map((e) => ({ label: e.name, value: e.id })));
 const goToErrors = () => {
-  router.push({ name: "conversations", params: { experimentId: experimentId.value }, query: { status: "error", range: f.range.value } });
+  router.push({ name: "conversations", params: { experimentId: experimentId.value }, query: { ...f.shared.value, status: "error" } });
 };
 
-const overview = useAsync((signal) => api.getOverview({ ...resolveRange(f.range.value, Date.now()), service: f.service.value }, signal));
+const overview = useAsync((signal) => api.getOverview({ ...f.resolve(), service: f.service.value }, signal));
 // valoraciones humanas bajas del mismo rango, para "Needs attention" (ADR-049); si falla, simplemente no se muestran
-const lowRated = useAsync((signal) => api.getLowRated(resolveRange(f.range.value, Date.now()), signal));
+const lowRated = useAsync((signal) => api.getLowRated(f.resolve(), signal));
 async function loadOverview() {
   void lowRated.run();
   if (await overview.run()) liveRefresh.touch();
@@ -49,10 +48,10 @@ const liveRefresh = useLiveRefresh(loadOverview, { isBusy: () => overview.loadin
 const reload = () => {
   void loadOverview();
 };
-watch([f.range, f.service], reload, { immediate: true });
+watch([f.rangeSig, f.service], reload, { immediate: true });
 
 const data = computed(() => overview.data.value);
-const customChartsRange = computed(() => resolveRange(f.range.value, Date.now()));
+const customChartsRange = computed(() => f.resolve());
 const empty = computed(() => data.value !== null && data.value.totals.traces === 0 && data.value.totals.spans === 0);
 
 
@@ -170,10 +169,10 @@ const activityOption = computed<EChartsCoreOption>(() => {
       { type: "value", ...a, splitLine: { show: false }, axisLabel: { ...a.axisLabel, formatter: (v: number) => formatDuration(v) } },
     ],
     series: [
-      { name: "Successful", type: "bar", stack: "t", barMaxWidth: 26, data: d?.timeseries.map((p) => p.traces - p.errorTraces) ?? [], itemStyle: { color: c.primary, borderRadius: [0, 0, 0, 0] } },
-      { name: "With errors", type: "bar", stack: "t", barMaxWidth: 26, data: d?.timeseries.map((p) => p.errorTraces) ?? [], itemStyle: { color: c.danger, borderRadius: [6, 6, 0, 0] } },
+      { name: "Conversations", type: "bar", stack: "t", barMaxWidth: 26, data: d?.timeseries.map((p) => p.traces - p.errorTraces) ?? [], itemStyle: { color: c.primary, borderRadius: [0, 0, 0, 0] } },
+      { name: "Errors", type: "bar", stack: "t", barMaxWidth: 26, data: d?.timeseries.map((p) => p.errorTraces) ?? [], itemStyle: { color: c.danger, borderRadius: [6, 6, 0, 0] } },
       {
-        name: "Latency p95",
+        name: "p95 latency",
         type: "line",
         yAxisIndex: 1,
         smooth: 0.35,
@@ -185,274 +184,92 @@ const activityOption = computed<EChartsCoreOption>(() => {
   };
 });
 
-const inputTokensOption = computed<EChartsCoreOption>(() => {
-  const d = data.value;
-  const c = chartColors($q.dark.isActive);
-  const a = axisBase();
-  return {
-    backgroundColor: "transparent",
-    textStyle: { color: c.text },
-    animationDuration: 520,
-    grid: { left: 6, right: 6, top: 16, bottom: 6, containLabel: true },
-    tooltip: tooltip(),
-    xAxis: { type: "category", boundaryGap: false, data: d?.timeseries.map((p) => label(p.bucketStart)) ?? [], ...a, splitLine: { show: false }, axisLine: { lineStyle: { color: c.grid } } },
-    yAxis: { type: "value", ...a, axisLabel: { ...a.axisLabel, formatter: (v: number) => formatCount(v) } },
-    series: [
-      {
-        name: "Input tokens",
-        type: "line",
-        smooth: 0.35,
-        showSymbol: false,
-        lineStyle: { width: 2.5, color: c.primary },
-        areaStyle: { color: c.primary, opacity: 0.14 },
-        data: d?.timeseries.map((p) => Math.round((p.totalTokens * data.value!.totals.inputTokens) / data.value!.totals.totalTokens)) ?? [],
-      },
-    ],
-  };
-});
-
-const outputTokensOption = computed<EChartsCoreOption>(() => {
-  const d = data.value;
-  const c = chartColors($q.dark.isActive);
-  const a = axisBase();
-  return {
-    backgroundColor: "transparent",
-    textStyle: { color: c.text },
-    animationDuration: 520,
-    grid: { left: 6, right: 6, top: 16, bottom: 6, containLabel: true },
-    tooltip: tooltip(),
-    xAxis: { type: "category", boundaryGap: false, data: d?.timeseries.map((p) => label(p.bucketStart)) ?? [], ...a, splitLine: { show: false }, axisLine: { lineStyle: { color: c.grid } } },
-    yAxis: { type: "value", ...a, axisLabel: { ...a.axisLabel, formatter: (v: number) => formatCount(v) } },
-    series: [
-      {
-        name: "Output tokens",
-        type: "line",
-        smooth: 0.35,
-        showSymbol: false,
-        lineStyle: { width: 2.5, color: c.primary },
-        areaStyle: { color: c.primary, opacity: 0.14 },
-        data: d?.timeseries.map((p) => Math.round((p.totalTokens * data.value!.totals.outputTokens) / data.value!.totals.totalTokens)) ?? [],
-      },
-    ],
-  };
-});
-
-const latencyByModelOption = computed<EChartsCoreOption>(() => {
-  const d = data.value;
-  const c = chartColors($q.dark.isActive);
-  const a = axisBase();
-  return {
-    backgroundColor: "transparent",
-    textStyle: { color: c.text },
-    animationDuration: 520,
-    grid: { left: 6, right: 6, top: 16, bottom: 6, containLabel: true },
-    tooltip: tooltip(),
-    xAxis: { type: "category", data: d?.byModel.map((m) => m.model.substring(0, 15)) ?? [], ...a, splitLine: { show: false }, axisLine: { lineStyle: { color: c.grid } } },
-    yAxis: { type: "value", ...a, axisLabel: { ...a.axisLabel, formatter: (v: number) => formatDuration(v) } },
-    series: [
-      {
-        name: "Latency p95",
-        type: "bar",
-        barMaxWidth: 40,
-        data: d?.byModel.map((m) => m.p95Ms) ?? [],
-        itemStyle: { color: c.primary, borderRadius: [6, 6, 0, 0] },
-      },
-    ],
-  };
-});
-
-const toolUsageOption = computed<EChartsCoreOption>(() => {
-  const d = data.value;
-  const c = chartColors($q.dark.isActive);
-  const colors = c.series;
-  const total = d?.byTool.reduce((acc, t) => acc + t.calls, 0) ?? 1;
-  const toolData = d?.byTool.map((t, i) => {
-    const errorRate = t.calls ? ((t.errors / t.calls) * 100).toFixed(0) : 0;
-    return {
-      value: t.calls,
-      name: t.tool,
-      errors: t.errors,
-      errorRate: errorRate,
-      itemStyle: { color: colors[i % colors.length] }
-    };
-  }) ?? [];
-
-  return {
-    backgroundColor: "transparent",
-    textStyle: { color: c.text },
-    tooltip: {
-      trigger: "item",
-      backgroundColor: $q.dark.isActive ? "rgba(22,34,26,0.98)" : "rgba(255,255,255,0.98)",
-      textStyle: { color: c.text },
-      borderColor: c.grid,
-      extraCssText: "border-radius: var(--mt-radius-sm);",
-      formatter: (param: any) => {
-        if (param.data) {
-          const percentage = ((param.value / total) * 100).toFixed(0);
-          return `<strong>${param.name}</strong><br/>Uses: ${param.value} (${percentage}%)<br/>Failures: ${param.data.errors} (${param.data.errorRate}%)`;
-        }
-        return '';
-      }
-    },
-    series: [
-      {
-        name: "Tool usage",
-        type: "pie",
-        radius: ["40%", "70%"],
-        data: toolData,
-        emphasis: { itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: "rgba(0, 0, 0, 0.5)" } },
-        label: {
-          show: true,
-          fontSize: 12,
-          fontWeight: 600,
-          color: c.text
-        }
-      },
-    ],
-  };
-});
-
-const inputTokensByModelOption = computed<EChartsCoreOption>(() => {
-  const d = data.value;
-  const c = chartColors($q.dark.isActive);
-  const a = axisBase();
-  return {
-    backgroundColor: "transparent",
-    textStyle: { color: c.text },
-    animationDuration: 520,
-    grid: { left: 6, right: 6, top: 16, bottom: 6, containLabel: true },
-    tooltip: tooltip(),
-    xAxis: { type: "category", data: d?.byModel.map((m) => m.model.substring(0, 15)) ?? [], ...a, splitLine: { show: false }, axisLine: { lineStyle: { color: c.grid } } },
-    yAxis: { type: "value", ...a, axisLabel: { ...a.axisLabel, formatter: (v: number) => formatCount(v) } },
-    series: [
-      {
-        name: "Input tokens",
-        type: "bar",
-        barMaxWidth: 40,
-        data: d?.byModel.map((m) => m.inputTokens) ?? [],
-        itemStyle: { color: c.primary, borderRadius: [6, 6, 0, 0] },
-      },
-    ],
-  };
-});
-
-const outputTokensByModelOption = computed<EChartsCoreOption>(() => {
-  const d = data.value;
-  const c = chartColors($q.dark.isActive);
-  const a = axisBase();
-  return {
-    backgroundColor: "transparent",
-    textStyle: { color: c.text },
-    animationDuration: 520,
-    grid: { left: 6, right: 6, top: 16, bottom: 6, containLabel: true },
-    tooltip: tooltip(),
-    xAxis: { type: "category", data: d?.byModel.map((m) => m.model.substring(0, 15)) ?? [], ...a, splitLine: { show: false }, axisLine: { lineStyle: { color: c.grid } } },
-    yAxis: { type: "value", ...a, axisLabel: { ...a.axisLabel, formatter: (v: number) => formatCount(v) } },
-    series: [
-      {
-        name: "Output tokens",
-        type: "bar",
-        barMaxWidth: 40,
-        data: d?.byModel.map((m) => m.outputTokens) ?? [],
-        itemStyle: { color: c.series[2], borderRadius: [6, 6, 0, 0] },
-      },
-    ],
-  };
-});
-
-const costByModelOption = computed<EChartsCoreOption>(() => {
-  const d = data.value;
-  const c = chartColors($q.dark.isActive);
-  const a = axisBase();
-  return {
-    backgroundColor: "transparent",
-    textStyle: { color: c.text },
-    animationDuration: 520,
-    grid: { left: 6, right: 6, top: 16, bottom: 6, containLabel: true },
-    tooltip: { ...tooltip(), valueFormatter: (v: unknown) => formatCostUsd(typeof v === "number" ? v : 0) ?? "–" },
-    xAxis: { type: "category", data: d?.byModel.map((m) => m.model.substring(0, 15)) ?? [], ...a, splitLine: { show: false }, axisLine: { lineStyle: { color: c.grid } } },
-    yAxis: { type: "value", ...a, axisLabel: { ...a.axisLabel, formatter: (v: number) => formatCostUsd(v) ?? "–" } },
-    series: [
-      {
-        name: "Cost",
-        type: "bar",
-        barMaxWidth: 40,
-        data: d?.byModel.map((m) => m.costUsd ?? 0) ?? [],
-        itemStyle: { color: c.series[3] ?? c.primary, borderRadius: [6, 6, 0, 0] },
-      },
-    ],
-  };
-});
-
-const topicUsageOption = computed<EChartsCoreOption>(() => {
-  const d = data.value;
-  const c = chartColors($q.dark.isActive);
-  const colors = c.series;
-  const total = d?.byTopic.reduce((acc, t) => acc + t.responses, 0) ?? 1;
-  const topicData =
-    d?.byTopic.map((t, i) => ({
-      value: t.responses,
-      name: t.topic,
-      avgConfidence: (t.avgConfidence * 100).toFixed(0),
-      itemStyle: { color: colors[i % colors.length] },
-    })) ?? [];
-
-  return {
-    backgroundColor: "transparent",
-    textStyle: { color: c.text },
-    tooltip: {
-      trigger: "item",
-      backgroundColor: $q.dark.isActive ? "rgba(22,34,26,0.98)" : "rgba(255,255,255,0.98)",
-      textStyle: { color: c.text },
-      borderColor: c.grid,
-      extraCssText: "border-radius: var(--mt-radius-sm);",
-      formatter: (param: any) => {
-        if (param.data) {
-          const percentage = ((param.value / total) * 100).toFixed(0);
-          return `<strong>${param.name}</strong><br/>Responses: ${param.value} (${percentage}%)<br/>Avg. confidence: ${param.data.avgConfidence}%`;
-        }
-        return "";
-      },
-    },
-    series: [
-      {
-        name: "Topics",
-        type: "pie",
-        radius: ["40%", "70%"],
-        data: topicData,
-        emphasis: { itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: "rgba(0, 0, 0, 0.5)" } },
-        label: { show: true, fontSize: 12, fontWeight: 600, color: c.text },
-      },
-    ],
-  };
-});
-
-const maxModelCalls = computed(() => Math.max(1, ...(data.value?.byModel.map((m) => m.calls) ?? [1])));
-const maxToolCalls = computed(() => Math.max(1, ...(data.value?.byTool.map((t) => t.calls) ?? [1])));
 const toolErrorRate = (t: { calls: number; errors: number }) => (t.calls ? t.errors / t.calls : 0);
 
-// ---- Pestañas de la página: Overview / Compare / Custom charts / un informe guardado por pestaña ----
-// ?tab=offline&compare=<baseline>,<candidate> deep-links here from Evaluations → Compare runs (ADR-048)
-const queryTab = () => (["compare", "custom", "offline"].includes(String(route.query.tab)) ? String(route.query.tab) : "overview");
-const activeTab = ref<string>(queryTab());
-const compareIds = computed<[string, string] | null>(() => {
-  const [a, b] = String(route.query.compare ?? "").split(",");
-  return a && b ? [a, b] : null;
-});
+// ---- tarjetas inferiores del Overview: Models, Human review quality, Latest evaluation runs ----
+const topModels = computed(() => [...(data.value?.byModel ?? [])].sort((a, b) => (b.costUsd ?? 0) - (a.costUsd ?? 0) || b.calls - a.calls).slice(0, 4));
 
-// ---- Informes guardados (ADR-035): una pestaña dinámica por informe, más "+" para crear uno nuevo ----
-const reports = useAsync((signal) => identityApi.listMetricReports(experimentId.value, signal));
-watch(
-  experimentId,
-  () => {
-    activeTab.value = queryTab();
-    void reports.run();
-  },
-  { immediate: true },
+const latestRuns = useAsync((signal) => api.listRuns(signal));
+void latestRuns.run();
+const recentRuns = computed(() =>
+  (latestRuns.data.value?.items ?? []).slice(0, 4).map((r) => {
+    const a = r.aggregates[0];
+    const tone = a ? aggregateTone(a) : "default";
+    return { id: r.id, datasetId: r.datasetId, name: r.name, when: `${formatRelativeTime(r.createdAt, Date.now())} · ${r.itemCount} items`, score: a ? aggregateValueLabel(a) : "–", tone };
+  }),
 );
 
-const reportTabName = (id: string) => `report:${id}`;
-const reportIdFromTab = (tab: string) => (tab.startsWith("report:") ? tab.slice("report:".length) : null);
+// valoración humana media por criterio, a partir de los resultados de las colas de revisión (solo perfil técnico:
+// si la petición se rechaza, la tarjeta se queda vacía en vez de romper la pantalla)
+const reviewQuality = useAsync(async (signal) => {
+  const queues = (await api.listAnnotationQueues(false, signal)).items.slice(0, 3);
+  const acc = new Map<string, { name: string; sum: number; n: number; max: number }>();
+  for (const q of queues) {
+    const results = await api.getQueueResults(q.id, { status: "completed", limit: 200 }, signal);
+    const configs = new Map(results.configs.map((c) => [c.id, c]));
+    for (const item of results.items) {
+      for (const crit of item.criteria) {
+        const cfg = configs.get(crit.configId);
+        if (!cfg || cfg.dataType === "categorical") continue;
+        const raw = crit.resolution?.value ?? (crit.labels.length ? crit.labels.reduce((s, l) => s + (cfg.dataType === "boolean" ? (l.value === "true" ? 1 : 0) : Number(l.value)), 0) / crit.labels.length : null);
+        const v = raw === null ? null : cfg.dataType === "boolean" ? (raw === "true" || raw === 1 ? 1 : Number(raw) || 0) : Number(raw);
+        if (v === null || Number.isNaN(v)) continue;
+        const e = acc.get(cfg.id) ?? { name: cfg.name, sum: 0, n: 0, max: cfg.dataType === "boolean" ? 1 : (cfg.maxValue ?? 5) };
+        e.sum += v;
+        e.n += 1;
+        acc.set(cfg.id, e);
+      }
+    }
+  }
+  return [...acc.values()].map((e) => {
+    const avg = e.sum / e.n;
+    const ratio = Math.min(1, avg / e.max);
+    return { name: e.name, value: e.max === 1 ? formatPercent(avg) : `${avg.toFixed(1)} / ${e.max}`, width: Math.round(ratio * 100), low: ratio < 0.75 };
+  });
+});
+void reviewQuality.run();
+
+// sparklines de las tarjetas KPI (58×24), normalizadas al rango de cada serie
+function sparkPoints(values: number[]): string {
+  if (values.length < 2) return "";
+  const min = Math.min(...values);
+  const span = Math.max(...values) - min || 1;
+  return values.map((v, i) => `${((i / (values.length - 1)) * 58).toFixed(1)},${(21 - ((v - min) / span) * 18).toFixed(1)}`).join(" ");
+}
+const tonePalette = (tone: string) => (tone === "error" ? "var(--mt-err)" : "var(--mt-accent)");
+const kpiCards = computed(() => {
+  const series = data.value?.timeseries ?? [];
+  const sparks: Record<string, number[]> = {
+    conversations: series.map((p) => p.traces),
+    success: series.map((p) => (p.traces ? 1 - p.errorTraces / p.traces : 1)),
+    latency: series.map((p) => p.p95Ms),
+    errors: series.map((p) => p.errorTraces),
+    cost: series.map((p) => p.totalTokens),
+  };
+  return kpis.value.map((k) => ({ ...k, points: sparkPoints(sparks[k.key] ?? []), stroke: tonePalette(k.key === "errors" && k.tone === "error" ? "error" : "") }));
+});
+
+const attentionIcon = { error: "M12 8v5M12 16h.01M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z", warn: "M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z", info: "M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" } as const;
+const goToFirstAttention = () => attention.value[0]?.go();
+
+// ---- Vistas de la página (ADR-059): cada una tiene su ruta y su entrada de submenú; el router decide cuál se pinta ----
+type View = "summary" | "compare" | "charts" | "reports" | "report";
+const view = computed(() => (route.meta.view as View | undefined) ?? "summary");
+const PANEL: Record<View, string> = { summary: "overview", compare: "compare", charts: "custom", reports: "reports", report: "report" };
+const activePanel = computed(() => PANEL[view.value]);
+const reportId = computed(() => (view.value === "report" ? String(route.params.reportId) : null));
+const VIEW_TITLES: Record<View, string> = { summary: "Overview", compare: "Compare", charts: "Custom charts", reports: "Reports", report: "Report" };
+const crumbs = computed(() => {
+  const root = { label: "Overview", to: { name: "overview", params: { experimentId: experimentId.value } } };
+  if (view.value === "summary") return [{ label: "Overview" }];
+  if (view.value === "report") return [root, { label: "Reports", to: { name: "overview-reports", params: { experimentId: experimentId.value } } }, { label: pageTitle.value }];
+  return [root, { label: VIEW_TITLES[view.value] }];
+});
+
+// ---- Informes guardados (ADR-035): una página de listado y una por informe ----
+const reports = useAsync((signal) => identityApi.listMetricReports(experimentId.value, signal));
+watch(experimentId, () => void reports.run(), { immediate: true });
+const pageTitle = computed(() => (view.value === "report" ? (reports.data.value?.find((r) => r.id === reportId.value)?.name ?? "Report") : VIEW_TITLES[view.value]));
 
 const creatingReport = ref(false);
 const newReportName = ref("");
@@ -469,8 +286,8 @@ async function createReport() {
   try {
     const created = await identityApi.createMetricReport(experimentId.value, newReportName.value.trim());
     await reports.run();
-    activeTab.value = reportTabName(created.id);
     creatingReport.value = false;
+    void router.push({ name: "overview-report", params: { experimentId: experimentId.value, reportId: created.id } });
   } finally {
     creatingReportBusy.value = false;
   }
@@ -482,8 +299,8 @@ function onReportRenamed(reportId: string, name: string) {
 }
 
 function onReportDeleted() {
-  activeTab.value = "overview";
   void reports.run();
+  void router.push({ name: "overview-reports", params: { experimentId: experimentId.value } });
 }
 
 // ---- Comparativa entre 2 agentes (superpuesta sobre el mismo rango) ----
@@ -492,15 +309,15 @@ const compareOptions = computed(() => agentOptions.value.filter((o) => o.value !
 const agentAName = computed(() => experiments.data.value?.find((e) => e.id === experimentId.value)?.name ?? "This agent");
 const agentBName = computed(() => experiments.data.value?.find((e) => e.id === compareAgentId.value)?.name ?? "Agent B");
 
-const compareB = useAsync((signal) => api.getOverviewForExperiment(compareAgentId.value as string, resolveRange(f.range.value, Date.now()), signal));
+const compareB = useAsync((signal) => api.getOverviewForExperiment(compareAgentId.value as string, f.resolve(), signal));
 function loadCompare() {
-  if (activeTab.value === "compare" && compareAgentId.value) void compareB.run();
+  if (activePanel.value === "compare" && compareAgentId.value) void compareB.run();
 }
-watch([f.range, compareAgentId, activeTab], loadCompare);
+watch([f.rangeSig, compareAgentId, activePanel], loadCompare);
 const compareData = computed(() => compareB.data.value);
 
-watch(activeTab, (tab) => {
-  if (tab === "compare" && !compareAgentId.value) compareAgentId.value = compareOptions.value[0]?.value ?? null;
+watch([activePanel, compareOptions], ([panel]) => {
+  if (panel === "compare" && !compareAgentId.value) compareAgentId.value = compareOptions.value[0]?.value ?? null;
 });
 
 const compareRows = computed(() => {
@@ -554,28 +371,13 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
 
 <template>
   <q-page class="page">
-    <PageHeader :crumbs="[{ label: 'MemTrace', to: { name: 'overview', params: { experimentId } } }, { label: 'Overview' }]" icon="M3 11l9-8 9 8v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z" title="Overview">
-      <FilterBar :range="f.range.value" :loading="overview.loading.value" @update:range="f.setRange" @refresh="reload">
-        <LiveControl :seconds="liveRefresh.seconds.value" :updated-at="liveRefresh.updatedAt.value" @update:seconds="setRefreshSeconds" />
-      </FilterBar>
-    </PageHeader>
-
-    <div class="metrics-tabs-row">
-      <q-tabs v-model="activeTab" class="metrics-tabs" active-color="primary" indicator-color="primary" align="left" no-caps dense>
-        <q-tab name="overview" label="Overview" />
-        <q-tab name="compare" label="Compare" :disable="(experiments.data.value?.length ?? 0) < 2" />
-        <q-tab name="custom" label="Custom charts" />
-        <q-tab name="offline" label="Offline evals" />
-        <q-tab v-for="r in reports.data.value ?? []" :key="r.id" :name="reportTabName(r.id)" :label="r.name" />
-      </q-tabs>
-      <button type="button" class="add-report-btn" title="New report" @click="openCreateReport">+ New report</button>
-    </div>
+    <PageHeader :crumbs="crumbs" icon="M3 11l9-8 9 8v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z" :title="pageTitle" />
 
     <q-dialog v-model="creatingReport">
       <q-card class="create-report-card">
         <q-card-section>
           <div class="create-report-title">New report</div>
-          <input v-model="newReportName" class="text-input" placeholder="Report name" @keyup.enter="createReport" />
+          <TextInput v-model="newReportName" placeholder="Report name" @keyup.enter="createReport" />
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat no-caps label="Cancel" @click="creatingReport = false" />
@@ -584,7 +386,7 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
       </q-card>
     </q-dialog>
 
-    <q-tab-panels v-model="activeTab" keep-alive class="metrics-tab-panels">
+    <q-tab-panels :model-value="activePanel" keep-alive class="metrics-tab-panels">
       <q-tab-panel name="overview" class="metrics-tab-panel">
         <ErrorBanner v-if="overview.error.value" :error="overview.error.value" @retry="reload" />
         <div v-else-if="overview.loading.value && !data" class="loading-box">
@@ -601,129 +403,83 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
             </span>
             <div class="health-body">
               <h2>{{ health.title }}</h2>
-              <p>{{ health.text }}</p>
+              <p>{{ health.text }}<template v-if="attention.length"> {{ attention.length }} {{ attention.length === 1 ? "thing" : "things" }} could use a look.</template></p>
             </div>
+            <button v-if="attention.length" type="button" class="health-cta" @click="goToFirstAttention">See what needs attention</button>
           </section>
 
-          <section class="kpi-strip" aria-label="Key figures">
-            <div v-for="k in kpis" :key="k.key" class="kpi" :data-testid="`kpi-${k.key}`">
+          <section class="kpi-grid" aria-label="Key figures">
+            <div v-for="k in kpiCards" :key="k.key" class="kpi" :data-testid="`kpi-${k.key}`">
               <span class="kpi-label">{{ k.label }}</span>
               <div class="kpi-main">
                 <span class="kpi-value" :class="k.tone">{{ k.value }}</span>
-                <div v-if="k.spark" class="kpi-spark"><EChart :option="traceSpark" height="28px" label="Trend" /></div>
+                <svg v-if="k.points" class="kpi-spark" width="58" height="24" viewBox="0 0 58 24" aria-hidden="true"><polyline :points="k.points" fill="none" :stroke="k.stroke" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" /></svg>
               </div>
               <a v-if="k.link" class="kpi-sub link" @click="goToErrors">{{ k.sub }} · view →</a>
               <span v-else class="kpi-sub" :class="k.tone">{{ k.sub }}</span>
             </div>
           </section>
 
-          <section class="attention" aria-label="Needs attention">
-            <div class="attention-head">
-              <h2>Needs attention</h2>
-              <span v-if="attention.length" class="attention-count">{{ attention.length }}</span>
-            </div>
-            <p v-if="!attention.length" class="all-clear" data-testid="all-clear">Nothing needs your attention in this range.</p>
-            <button v-for="a in attention" :key="a.key" type="button" class="attn" :class="a.tone" data-testid="attention-item" @click="a.go">
-              <span class="attn-dot" aria-hidden="true" />
-              <span class="attn-text"><strong>{{ a.title }}</strong><span>{{ a.text }}</span></span>
-              <span class="attn-cta">{{ a.cta }} →</span>
-            </button>
-          </section>
-
-          <!-- Charts Row - Activity & Tokens -->
-          <div class="charts-grid">
-            <section class="chart-panel">
-              <h2>Activity and Performance</h2>
-              <EChart :option="activityOption" height="400px" label="Executions, errors, and latency" />
+          <div class="overview-row split">
+            <section class="card" aria-label="Activity">
+              <div class="card-head">
+                <h2>Activity</h2>
+                <span class="legend"><i class="sw" style="background: var(--mt-accent)" />Conversations</span>
+                <span class="legend"><i class="sw" style="background: var(--mt-err)" />Errors</span>
+                <span class="legend"><i class="sw line" style="background: var(--mt-highlight)" />p95 latency</span>
+              </div>
+              <EChart :option="activityOption" height="200px" label="Conversations, errors, and p95 latency" />
             </section>
 
-            <section class="chart-panel">
-              <h2>Tool Distribution</h2>
-              <EChart v-if="data.byTool.length" :option="toolUsageOption" height="400px" label="Tool usage" />
-              <div v-else class="no-data">No tools executed</div>
+            <section class="card attention" aria-label="Needs attention">
+              <div class="card-head">
+                <h2>Needs attention</h2>
+                <span v-if="attention.length" class="attention-count">{{ attention.length }}</span>
+              </div>
+              <p v-if="!attention.length" class="all-clear" data-testid="all-clear">Nothing needs your attention in this range.</p>
+              <button v-for="a in attention" :key="a.key" type="button" class="attn" :class="a.tone" data-testid="attention-item" @click="a.go">
+                <span class="attn-icon" aria-hidden="true">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path :d="attentionIcon[a.tone]" /></svg>
+                </span>
+                <span class="attn-text"><strong>{{ a.title }}</strong><span>{{ a.text }}</span></span>
+                <span class="attn-cta">{{ a.cta }} →</span>
+              </button>
             </section>
           </div>
 
-          <!-- Tokens Row -->
-          <div class="tokens-grid">
-            <section class="chart-panel">
-              <h2>Input Tokens (Timeseries)</h2>
-              <EChart :option="inputTokensOption" height="300px" label="Input tokens" />
-            </section>
-
-            <section class="chart-panel">
-              <h2>Output Tokens (Timeseries)</h2>
-              <EChart :option="outputTokensOption" height="300px" label="Output tokens" />
-            </section>
-
-            <section class="chart-panel">
-              <h2>Input by Model</h2>
-              <EChart v-if="data.byModel.length" :option="inputTokensByModelOption" height="300px" label="Input tokens by model" />
-              <div v-else class="no-data">No LLM calls</div>
-            </section>
-
-            <section class="chart-panel">
-              <h2>Output by Model</h2>
-              <EChart v-if="data.byModel.length" :option="outputTokensByModelOption" height="300px" label="Output tokens by model" />
-              <div v-else class="no-data">No LLM calls</div>
-            </section>
-          </div>
-
-          <!-- Latency & Cost Row -->
-          <div class="latency-row">
-            <section class="chart-panel">
-              <h2>Latency by Model</h2>
-              <EChart v-if="data.byModel.length" :option="latencyByModelOption" height="300px" label="Latency p95 by model" />
-              <div v-else class="no-data">No LLM calls</div>
-            </section>
-
-            <section class="chart-panel">
-              <h2>Cost by Model</h2>
-              <EChart v-if="data.byModel.length" :option="costByModelOption" height="300px" label="Cost by model" />
-              <div v-else class="no-data">No LLM calls</div>
-            </section>
-          </div>
-
-          <!-- Details Row -->
-          <div class="details-grid">
-            <section class="detail-panel">
-              <div class="panel-header">
-                <h3>AI Models</h3>
-                <span class="panel-count">{{ data.byModel.length }}</span>
-              </div>
-              <div v-if="!data.byModel.length" class="empty-state">No LLM calls</div>
-              <div v-else class="model-grid">
-                <div v-for="m in data.byModel" :key="m.model" class="model-card">
-                  <div class="model-title">{{ m.model }}</div>
-                  <div class="model-stat-main">
-                    <div class="model-number">{{ formatCount(m.calls) }}</div>
-                    <div class="model-label">calls</div>
-                  </div>
-                  <div class="model-stats-row">
-                    <div class="model-stat-item">
-                      <div class="stat-value">{{ formatCount(m.inputTokens + m.outputTokens) }}</div>
-                      <div class="stat-label">tokens</div>
-                    </div>
-                    <div class="model-stat-item">
-                      <div class="stat-value" style="color: var(--mt-accent)">{{ formatDuration(m.p95Ms) }}</div>
-                      <div class="stat-label">latency p95</div>
-                    </div>
-                    <div class="model-stat-item">
-                      <div class="stat-value" style="color: var(--mt-accent)">{{ formatCostUsd(m.costUsd) || "n/a" }}</div>
-                      <div class="stat-label">cost</div>
-                    </div>
-                  </div>
-                </div>
+          <div class="overview-row thirds">
+            <section class="card list-card" aria-label="Models">
+              <div class="card-head"><h2>Models</h2><span class="spacer" /><span class="card-link">{{ data.byModel.length }} in range</span></div>
+              <p v-if="!topModels.length" class="list-empty">No LLM calls in this range.</p>
+              <div v-for="m in topModels" :key="m.model" class="model-row">
+                <span class="mono ellipsis">{{ m.model }}</span>
+                <span class="mono muted right">{{ formatDuration(m.p95Ms) }}</span>
+                <span class="mono right">{{ formatCostUsd(m.costUsd) ?? "–" }}</span>
               </div>
             </section>
 
-            <section class="detail-panel">
-              <div class="panel-header">
-                <h3>Response Topics</h3>
-                <span class="panel-count">{{ data.byTopic.length }}</span>
+            <section class="card list-card" aria-label="Human review quality">
+              <div class="card-head">
+                <h2>Human review quality</h2><span class="spacer" />
+                <a class="card-link" @click="goToReview">Review →</a>
               </div>
-              <div v-if="!data.byTopic.length" class="empty-state">No topics extracted yet for this range</div>
-              <EChart v-else :option="topicUsageOption" height="320px" label="Response topics" />
+              <p v-if="!reviewQuality.data.value?.length" class="list-empty">No completed human reviews yet.</p>
+              <div v-for="q in reviewQuality.data.value ?? []" :key="q.name" class="quality-row">
+                <div class="quality-line"><span class="quality-name">{{ q.name }}</span><span class="mono">{{ q.value }}</span></div>
+                <div class="bar"><div class="bar-fill" :class="{ low: q.low }" :style="{ width: `${q.width}%` }" /></div>
+              </div>
+            </section>
+
+            <section class="card list-card" aria-label="Latest evaluation runs">
+              <div class="card-head">
+                <h2>Latest evaluation runs</h2><span class="spacer" />
+                <a class="card-link" @click="router.push({ name: 'runs', params: { experimentId } })">All runs →</a>
+              </div>
+              <p v-if="!recentRuns.length" class="list-empty">No evaluation runs yet.</p>
+              <a v-for="r in recentRuns" :key="r.id" class="run-row" @click="router.push({ name: 'dataset-run', params: { experimentId, datasetId: r.datasetId, runId: r.id } })">
+                <span class="run-text"><strong>{{ r.name }}</strong><span>{{ r.when }}</span></span>
+                <span class="run-score" :class="r.tone">{{ r.score }}</span>
+              </a>
             </section>
           </div>
         </template>
@@ -793,17 +549,26 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
         <CustomChartsPanel :experiment-id="experimentId" :range="customChartsRange" />
       </q-tab-panel>
 
-      <q-tab-panel name="offline" class="metrics-tab-panel">
-        <OfflineEvalPanel v-if="activeTab === 'offline'" :range="customChartsRange" :compare-ids="compareIds" />
+      <q-tab-panel name="reports" class="metrics-tab-panel">
+        <div class="reports-head">
+          <p class="reports-hint">A report is a saved set of custom charts you can share with the rest of the experiment.</p>
+          <button type="button" class="add-report-btn mt-new" data-testid="new-report" @click="openCreateReport">+ New report</button>
+        </div>
+        <ErrorBanner v-if="reports.error.value" :error="reports.error.value" @retry="reports.run()" />
+        <EmptyState v-else-if="reports.data.value && reports.data.value.length === 0" icon="dashboard" title="No reports yet">Create one to group the charts you check every week.</EmptyState>
+        <div v-else class="report-list">
+          <ReportCard v-for="r in reports.data.value ?? []" :key="r.id" :experiment-id="experimentId" :report="r" />
+        </div>
       </q-tab-panel>
 
-      <q-tab-panel v-for="r in reports.data.value ?? []" :key="r.id" :name="reportTabName(r.id)" class="metrics-tab-panel">
+      <q-tab-panel name="report" class="metrics-tab-panel">
         <MetricReportView
-          v-if="reportIdFromTab(activeTab) === r.id"
+          v-if="reportId"
+          :key="reportId"
           :experiment-id="experimentId"
-          :report-id="r.id"
+          :report-id="reportId"
           :range="customChartsRange"
-          @renamed="(name) => onReportRenamed(r.id, name)"
+          @renamed="(name) => onReportRenamed(reportId!, name)"
           @deleted="onReportDeleted"
         />
       </q-tab-panel>
@@ -829,20 +594,6 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
   min-height: 240px;
 }
 
-.metrics-tabs-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  border-bottom: 1px solid var(--mt-line);
-}
-
-.metrics-tabs {
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 44px;
-  border-bottom: none;
-}
-
 .add-report-btn {
   flex-shrink: 0;
   font-family: inherit;
@@ -860,6 +611,24 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
   color: var(--mt-accent);
 }
 
+.reports-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.reports-hint {
+  margin: 0;
+  color: var(--mt-muted);
+}
+
+.report-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
 .create-report-card {
   padding: 8px;
   min-width: 360px;
@@ -872,60 +641,7 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
   margin-bottom: 8px;
 }
 
-.text-input {
-  width: 100%;
-  box-sizing: border-box;
-  height: 36px;
-  padding: 0 12px;
-  border-radius: var(--mt-radius-sm, 8px);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  font: inherit;
-  font-size: 13px;
-  color: var(--mt-ink);
-}
 
-.text-input:focus {
-  outline: 2px solid var(--mt-accent);
-  outline-offset: -1px;
-}
-
-.metrics-tabs :deep(.q-tab) {
-  min-height: 44px;
-  padding: 0 4px;
-  margin-right: 28px;
-}
-
-.metrics-tabs :deep(.q-tab:last-child) {
-  margin-right: 0;
-}
-
-.metrics-tabs :deep(.q-tab__content) {
-  min-width: 0;
-}
-
-.metrics-tabs :deep(.q-tab__label) {
-  font-size: 13.5px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--mt-muted);
-}
-
-.metrics-tabs :deep(.q-tab--active .q-tab__label) {
-  color: var(--mt-ink);
-}
-
-.metrics-tabs :deep(.q-tab--disable) {
-  opacity: 0.45;
-}
-
-.metrics-tabs :deep(.q-tabs__content) {
-  gap: 0;
-}
-
-.metrics-tabs :deep(.q-tab__indicator) {
-  height: 2px;
-}
 
 .metrics-tab-panels {
   background: transparent;
@@ -938,7 +654,7 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
   padding: 20px 0 0;
 }
 
-/* Health banner, KPIs y "Needs attention" (ADR-048) */
+/* Overview (diseño "1 · Overview"): banner de salud, 5 KPIs, actividad + atención, y 3 tarjetas de detalle */
 .health {
   display: flex;
   align-items: center;
@@ -963,43 +679,75 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
 .health.ok .health-icon { background: var(--mt-ok); }
 .health.warn .health-icon { background: var(--mt-warn); }
 .health.error .health-icon { background: var(--mt-err); }
+.health-body { flex: 1; min-width: 0; }
 .health-body h2 { margin: 0; font-size: 16px; font-weight: 800; letter-spacing: -0.01em; }
 .health-body p { margin: 2px 0 0; font-weight: 500; }
+.health-cta {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--mt-radius-sm);
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  background: var(--mt-card);
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.health-cta:hover { background: var(--mt-soft-2); }
 
-.kpi-strip {
+.kpi-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  background: var(--mt-card);
-  border: 1px solid var(--mt-line);
-  border-radius: var(--mt-radius-lg);
+  gap: 12px;
 }
 .kpi {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 13px 16px;
-  border-left: 1px solid var(--mt-line-2);
+  gap: 5px;
+  padding: 13px 15px;
+  background: var(--mt-card);
+  border: 1px solid var(--mt-line);
+  border-radius: var(--mt-radius-lg);
 }
-.kpi:first-child { border-left: none; }
 .kpi-label { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: var(--mt-muted); }
 .kpi-main { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
 .kpi-value { font-size: 25px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
 .kpi-value.error, .kpi-sub.error { color: var(--mt-err-ink); }
 .kpi-value.warn, .kpi-sub.warn { color: var(--mt-warn-ink); }
 .kpi-sub.good { color: var(--mt-ok-ink); }
-.kpi-spark { width: 64px; flex-shrink: 0; }
-.kpi-sub { font-size: 12px; font-weight: 600; color: var(--mt-muted); }
+.kpi-spark { flex-shrink: 0; }
+.kpi-sub { font-size: 11.5px; font-weight: 600; color: var(--mt-muted); }
 .kpi-sub.link { color: var(--mt-err-ink); cursor: pointer; }
 .kpi-sub.link:hover { text-decoration: underline; }
 
-.attention {
+.overview-row { display: grid; gap: 12px; }
+.overview-row.split { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
+.overview-row.thirds { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+  padding: 14px 16px;
   background: var(--mt-card);
   border: 1px solid var(--mt-line);
   border-radius: var(--mt-radius-lg);
-  overflow: hidden;
 }
-.attention-head { display: flex; align-items: center; gap: 8px; padding: 12px 16px; }
-.attention-head h2 { margin: 0; font-size: 14px; font-weight: 800; }
+.card.list-card, .card.attention { gap: 0; padding: 0; }
+.card-head { display: flex; align-items: center; gap: 12px; }
+.card.list-card .card-head, .card.attention .card-head { padding: 12px 16px; }
+.card-head h2 { margin: 0; font-size: 14px; font-weight: 800; }
+.spacer { flex: 1; }
+.card-link { font-size: 12px; font-weight: 700; color: var(--mt-accent-text); cursor: pointer; text-decoration: none; }
+.legend { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--mt-muted); }
+.legend:first-of-type { margin-left: auto; }
+.sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; }
+.sw.line { width: 12px; height: 2px; border-radius: 0; }
+.list-empty { margin: 0; padding: 8px 16px 16px; color: var(--mt-muted); }
+
 .attention-count { padding: 1px 7px; border-radius: var(--mt-radius-xs); background: var(--mt-highlight-soft); color: var(--mt-highlight-ink); font-size: 11px; font-weight: 800; }
 .all-clear { margin: 0; padding: 4px 16px 16px; color: var(--mt-muted); }
 .attn {
@@ -1017,61 +765,50 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
   cursor: pointer;
 }
 .attn:hover { background: var(--mt-soft-2); }
-.attn-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--mt-accent); }
-.attn.error .attn-dot { background: var(--mt-err); }
-.attn.warn .attn-dot { background: var(--mt-warn); }
+.attn-icon { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; flex-shrink: 0; border-radius: var(--mt-radius-sm); background: var(--mt-accent-soft); color: var(--mt-accent-text); }
+.attn.error .attn-icon { background: var(--mt-err-bg); color: var(--mt-err-ink); }
+.attn.warn .attn-icon { background: var(--mt-highlight-soft); color: var(--mt-highlight-ink); }
 .attn-text { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
 .attn-text strong { font-weight: 700; }
 .attn-text span { font-size: 12px; color: var(--mt-muted); }
-.attn-cta { font-size: 12px; font-weight: 700; color: var(--mt-accent-text); }
+.attn-cta { font-size: 12px; font-weight: 700; color: var(--mt-accent-text); white-space: nowrap; }
 
-/* Charts Grid */
-.charts-grid {
+.mono { font-family: var(--mt-mono, "JetBrains Mono", monospace); font-size: 12px; }
+.muted { color: var(--mt-muted); }
+.right { text-align: right; }
+.ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.model-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-
-.tokens-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-}
-
-.latency-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-
-.chart-panel {
-  padding: 28px;
-  border-radius: var(--mt-radius-lg);
-  background: var(--mt-card);
-  box-shadow: var(--mt-shadow);
-}
-
-.chart-panel.span-2 {
-  grid-column: span 1;
-}
-
-.chart-panel h2 {
-  margin: 0 0 20px 0;
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--mt-ink);
-  letter-spacing: -0.02em;
-}
-
-.no-data {
-  display: flex;
+  grid-template-columns: minmax(0, 1fr) 52px 56px;
+  gap: 10px;
   align-items: center;
-  justify-content: center;
-  height: 380px;
-  color: var(--mt-muted);
-  font-size: 14px;
-  font-weight: 600;
+  padding: 8px 16px;
+  border-top: 1px solid var(--mt-line-2);
 }
+.quality-row { display: flex; flex-direction: column; gap: 5px; padding: 8px 16px; border-top: 1px solid var(--mt-line-2); }
+.quality-line { display: flex; justify-content: space-between; }
+.quality-name { font-weight: 600; }
+.bar { height: 6px; border-radius: 3px; background: var(--mt-line-2); }
+.bar-fill { height: 6px; border-radius: 3px; background: var(--mt-accent); }
+.bar-fill.low { background: var(--mt-highlight); }
+.run-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 16px;
+  border-top: 1px solid var(--mt-line-2);
+  color: inherit;
+  cursor: pointer;
+}
+.run-row:hover { background: var(--mt-soft-2); }
+.run-text { display: flex; flex-direction: column; min-width: 0; }
+.run-text strong { font-weight: 700; }
+.run-text span { font-size: 11.5px; color: var(--mt-muted); }
+.run-score { height: 22px; padding: 0 8px; display: flex; align-items: center; border-radius: var(--mt-radius-xs); font: 800 11.5px var(--mt-mono, "JetBrains Mono", monospace); background: var(--mt-soft); color: var(--mt-muted); }
+.run-score.positive { background: var(--mt-ok-bg); color: var(--mt-ok-ink); }
+.run-score.negative { background: var(--mt-err-bg); color: var(--mt-err-ink); }
+.run-score.warning { background: var(--mt-warn-bg); color: var(--mt-warn-ink); }
 
 /* Details Grid */
 .details-grid {
@@ -1396,6 +1133,15 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
   color: var(--mt-muted);
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+@media (max-width: 1200px) {
+  .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .overview-row.split, .overview-row.thirds { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .health { flex-wrap: wrap; }
 }
 
 @media (max-width: 1400px) {

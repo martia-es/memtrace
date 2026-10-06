@@ -1,5 +1,6 @@
 import type {
   AccessGrantDto,
+  AssistantPersonDto,
   AssistantCardDto,
   AuthMethodDto,
   ChatConfigDto,
@@ -60,6 +61,8 @@ export interface AssistantApi {
   listGrants(experimentId: string, deploymentId: string, signal?: AbortSignal): Promise<AccessGrantDto[]>;
   addGrant(experimentId: string, deploymentId: string, input: NewGrantInput, signal?: AbortSignal): Promise<AccessGrantDto>;
   removeGrant(experimentId: string, deploymentId: string, grantId: string, signal?: AbortSignal): Promise<void>;
+  /** Personas de la organización cuyo nombre o email contiene `query` (vacío = las primeras por nombre). */
+  searchPeople(experimentId: string, query: string, signal?: AbortSignal): Promise<AssistantPersonDto[]>;
 
   listConnections(experimentId: string, signal?: AbortSignal): Promise<ConnectionDto[]>;
   declareConnection(experimentId: string, input: { kind: ConnectionKindDto; name: string; via?: string | null }, signal?: AbortSignal): Promise<ConnectionDto>;

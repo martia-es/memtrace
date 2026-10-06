@@ -1,13 +1,17 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { Dark, Notify, QLayout, QPageContainer, Quasar } from "quasar";
 import { defineComponent, h } from "vue";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createMemoryHistory, createRouter } from "vue-router";
 import { IDENTITY_API, TRACE_API } from "@/dependency-container";
 import DatasetsPage from "@/ui/pages/DatasetsPage.vue";
 import DatasetDetailPage from "@/ui/pages/DatasetDetailPage.vue";
 import DatasetRunDetailPage from "@/ui/pages/DatasetRunDetailPage.vue";
 import RunsPage from "@/ui/pages/RunsPage.vue";
+
+// ECharts needs a real canvas, which jsdom does not have: the charts are not what these tests are about
+vi.mock("@/ui/components/EChart.vue", () => ({ default: { name: "EChart", template: '<div class="echart-stub" />' } }));
+import { chooseOption, optionLabels } from "./select";
 import { FakeIdentityApi, FakeTraceApi, datasetDto, datasetItemDto, datasetRunItem, datasetRunSummary, datasetVersionDto, runListItem, scoreAggregate } from "../fakes";
 
 async function setup(component: object, api: FakeTraceApi, path: string) {
@@ -18,6 +22,7 @@ async function setup(component: object, api: FakeTraceApi, path: string) {
       { path: "/datasets", name: "datasets", component: { template: "<div />" } },
       { path: "/datasets/:datasetId", name: "dataset", component: { template: "<div />" } },
       { path: "/runs", name: "runs", component: { template: "<div />" } },
+      { path: "/trends", name: "trends", component: { template: "<div />" } },
       { path: "/datasets/:datasetId/runs/:runId", name: "dataset-run", component: { template: "<div />" } },
     ],
   });
@@ -155,11 +160,8 @@ describe("DatasetDetailPage", () => {
     expect(modal.querySelector(".line.add")?.textContent).toContain("four");
 
     // comparar con una versión no adyacente
-    const select = modal.querySelector<HTMLSelectElement>("#compare-with")!;
-    expect([...select.options].map((o) => o.value)).toEqual(["v2", "v1"]);
-    select.value = "v1";
-    select.dispatchEvent(new Event("change"));
-    await flushPromises();
+    expect(await optionLabels(modal, "#compare-with")).toEqual(["v1.1 — Added item", "v1.0"]);
+    await chooseOption(modal, "#compare-with", "v1.0");
     expect(api.datasetVersionDiffCalls.at(-1)).toEqual({ versionId: "v3", againstVersionId: "v1" });
     wrapper.unmount();
   });
@@ -182,7 +184,7 @@ describe("RunsPage", () => {
 
     const { wrapper, router } = await setup(RunsPage, api, "/runs");
     const headers = wrapper.findAll("th").map((th) => th.text());
-    expect(headers).toEqual(["", "Run", "Dataset", "Version", "exact_match", "Items", "Created"]);
+    expect(headers).toEqual(["", "Run", "Dataset", "When", "exact_match", "Items", "Status"]);
     expect(wrapper.find("tbody tr").text()).toContain("toy-agent-v1");
     expect(wrapper.find("tbody tr").text()).toContain("toy-agent-smoke-test");
     expect(wrapper.find("tbody tr .mt-pill").text()).toContain("66%");
@@ -209,8 +211,8 @@ describe("RunsPage", () => {
 
     await wrapper.get('[data-testid="compare-go"]').trigger("click");
     await flushPromises();
-    expect(router.currentRoute.value.name).toBe("overview");
-    expect(router.currentRoute.value.query).toMatchObject({ tab: "offline", compare: "run-a,run-b" });
+    expect(router.currentRoute.value.name).toBe("trends");
+    expect(router.currentRoute.value.query).toMatchObject({ compare: "run-a,run-b" });
   });
 
   it("filters by dataset and by run/dataset name", async () => {

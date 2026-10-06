@@ -16,6 +16,13 @@ function load(): RefreshSeconds {
 /** Shared between pages and persisted: the user chooses the interval once. */
 const seconds = ref<RefreshSeconds>(load());
 
+/** Última carga correcta de cualquier página: lo pinta el "Updated …" del topbar. */
+const updatedAt = ref<number | null>(null);
+/** "Refresh now" del topbar: cada página con refresco en vivo se suscribe y recarga. */
+const refreshSignal = ref(0);
+export const requestRefresh = () => refreshSignal.value++;
+export { updatedAt as liveUpdatedAt, seconds as liveSeconds };
+
 export function setRefreshSeconds(value: RefreshSeconds) {
   seconds.value = value;
   try {
@@ -37,7 +44,6 @@ export interface LiveRefreshOptions {
  * refresca de inmediato para no enseñar datos viejos.
  */
 export function useLiveRefresh(callback: () => unknown, options: LiveRefreshOptions = {}) {
-  const updatedAt = ref<number | null>(null);
   let timer: ReturnType<typeof setInterval> | null = null;
 
   const tick = () => {
@@ -59,6 +65,7 @@ export function useLiveRefresh(callback: () => unknown, options: LiveRefreshOpti
   };
 
   watch(seconds, schedule, { immediate: true });
+  watch(refreshSignal, () => void callback());
   document.addEventListener("visibilitychange", onVisible);
   onScopeDispose(() => {
     stop();

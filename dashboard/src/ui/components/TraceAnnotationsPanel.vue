@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from "@/ui/components/TextInput.vue";
 import { computed, inject, reactive, ref, watch } from "vue";
 import { useQuasar } from "quasar";
 import type { AnnotationDto, ScoreConfigDto, TraceAnnotationsResponse, TraceQueueDto } from "@contract";
@@ -151,7 +152,7 @@ const scopeOf = (annotation: AnnotationDto) => (annotation.spanId ? `span ${shor
         There are no score configs yet — they define what you can score.
         <template v-if="!canModerate">Ask an experiment admin to create them.</template>
       </p>
-      <button v-if="canModerate" type="button" class="scope-btn" data-testid="new-config" @click="showNewConfig = true">New score config</button>
+      <button v-if="canModerate" type="button" class="scope-btn mt-new" data-testid="new-config" @click="showNewConfig = true">+ New score config</button>
       <NewScoreConfigModal v-if="showNewConfig" :experiment-id="experimentId" @close="showNewConfig = false" @created="load" />
 
       <section v-for="config in configs" :key="config.id" class="config" data-testid="annotation-config">
@@ -174,18 +175,16 @@ const scopeOf = (annotation: AnnotationDto) => (annotation.spanId ? `span ${shor
               {{ choice.label }}
             </button>
           </div>
-          <input
+          <TextInput
             v-else
             v-model="drafts[config.id]!.value"
-            class="text-input num"
             type="number"
             step="any"
             :min="config.minValue ?? undefined"
             :max="config.maxValue ?? undefined"
             :placeholder="`${config.minValue} – ${config.maxValue}`"
-            :aria-label="`${config.name} value`"
-          />
-          <input v-model="drafts[config.id]!.comment" class="text-input" placeholder="Comment (optional)" :aria-label="`${config.name} comment`" maxlength="5000" />
+            :aria-label="`${config.name} value`" />
+          <TextInput v-model="drafts[config.id]!.comment" placeholder="Comment (optional)" :aria-label="`${config.name} comment`" maxlength="5000" />
           <button type="button" class="primary-btn" :disabled="savingId === config.id || !isDirty(config)" @click="save(config)">Save</button>
         </div>
       </section>
@@ -296,27 +295,6 @@ const scopeOf = (annotation: AnnotationDto) => (annotation.spanId ? `span ${shor
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-}
-.text-input {
-  flex: 1;
-  min-width: 160px;
-  box-sizing: border-box;
-  height: 32px;
-  padding: 0 12px;
-  border-radius: var(--mt-radius-lg);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  font: inherit;
-  font-size: 12.5px;
-  color: var(--mt-ink);
-}
-.text-input.num {
-  flex: 0 0 120px;
-  min-width: 0;
-}
-.text-input:focus {
-  outline: 2px solid var(--mt-accent);
-  outline-offset: -1px;
 }
 .primary-btn {
   height: 32px;

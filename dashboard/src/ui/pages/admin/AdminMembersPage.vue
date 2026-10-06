@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TextInput from "@/ui/components/TextInput.vue";
 import { computed, ref } from "vue";
 import "@/styles/admin.css";
 import { ROLE_LABEL, formatDate, initials, useAdminDirectory } from "../../composables/useAdminDirectory";
@@ -52,7 +53,7 @@ const filtered = computed(() => {
 
       <div class="adm-toolbar">
         <p class="adm-sub">Everyone with access to an organization or experiment, and which invitations are still waiting.</p>
-        <input v-model="filter" class="adm-input" type="search" placeholder="Search by name, email or organization / experiment" />
+        <TextInput v-model="filter" type="search" placeholder="Search by name, email or organization / experiment" />
       </div>
 
       <div class="adm-card list-card">

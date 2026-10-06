@@ -55,6 +55,17 @@ describe("ConversationsPage", () => {
     expect(wrapper.find(".mode-traces").attributes("aria-pressed")).toBe("false");
   });
 
+  it("sends the search text from the URL to both list modes", async () => {
+    const api = new FakeTraceApi();
+    api.overview = overview();
+    await setup(ConversationsPage, api, "/conversations?q=refund");
+    expect(api.conversationCalls[0]).toMatchObject({ text: "refund" });
+    const flat = new FakeTraceApi();
+    flat.overview = overview();
+    await setup(ConversationsPage, flat, "/conversations?q=refund&group=flat");
+    expect(flat.listCalls[0]).toMatchObject({ text: "refund" });
+  });
+
   it("lists all traces in the traces view, loads the next page and links to the conversation", async () => {
     const api = new FakeTraceApi();
     api.overview = overview();

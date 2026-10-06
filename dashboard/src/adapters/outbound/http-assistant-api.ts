@@ -1,4 +1,4 @@
-import type { AccessGrantDto, AssistantCardDto, ChatResponseDto, ConnectionDto, ConnectionKindDto, ConnectionStatusDto, DeploymentDto, EnvironmentDto, HealthCheckDto } from "@contract";
+import type { AccessGrantDto, AssistantPersonDto, AssistantCardDto, ChatResponseDto, ConnectionDto, ConnectionKindDto, ConnectionStatusDto, DeploymentDto, EnvironmentDto, HealthCheckDto } from "@contract";
 import type { AssistantApi, AssistantPatchInput, DeploymentInput, NewGrantInput } from "@/application/assistant-api";
 import { ApiError } from "@/application/trace-api";
 
@@ -49,6 +49,9 @@ export class HttpAssistantApi implements AssistantApi {
   }
   addGrant(experimentId: string, deploymentId: string, input: NewGrantInput, signal?: AbortSignal): Promise<AccessGrantDto> {
     return this.request("POST", `${this.assistant(experimentId)}/deployments/${e(deploymentId)}/access`, input, signal);
+  }
+  async searchPeople(experimentId: string, query: string, signal?: AbortSignal): Promise<AssistantPersonDto[]> {
+    return (await this.request<{ items: AssistantPersonDto[] }>("GET", `${this.assistant(experimentId)}/people?q=${e(query)}`, undefined, signal)).items;
   }
   async removeGrant(experimentId: string, deploymentId: string, grantId: string, signal?: AbortSignal): Promise<void> {
     await this.request("DELETE", `${this.assistant(experimentId)}/deployments/${e(deploymentId)}/access/${e(grantId)}`, undefined, signal);

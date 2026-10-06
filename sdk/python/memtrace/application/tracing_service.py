@@ -121,6 +121,13 @@ class TracingService:
         handle = self._port.current()
         return handle.trace_id if handle is not None else None
 
+    @_failsafe()
+    def annotate_current(self, attributes: Mapping[str, Any]) -> None:
+        """Sets attributes on the current span, if any. For adapters that learn something after a third-party span opened."""
+        handle = self._port.current()
+        if handle is not None:
+            handle.set_attributes(attributes)
+
     @contextmanager
     def step(
         self,

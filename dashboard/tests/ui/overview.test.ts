@@ -113,7 +113,7 @@ describe("AnnotationQueuesPage inbox", () => {
       queueSummary({ id: "q-work", name: "Support QA", progress: { pending: 6, completed: 2, skipped: 0 } }),
     ];
     const { wrapper, router } = await setup(AnnotationQueuesPage, api, "/annotation-queues");
-    expect(wrapper.get('[data-testid="inbox"]').text()).toContain("6 items are waiting for review");
+    expect(wrapper.get('[data-testid="inbox"]').text()).toContain("6 conversations are waiting for you");
 
     await wrapper.get('[data-testid="continue-reviewing"]').trigger("click");
     await flushPromises();
@@ -126,6 +126,6 @@ describe("AnnotationQueuesPage inbox", () => {
     api.queues = [queueSummary({ progress: { pending: 0, completed: 4, skipped: 0 } })];
     const { wrapper } = await setup(AnnotationQueuesPage, api, "/annotation-queues");
     expect(wrapper.find('[data-testid="inbox"]').exists()).toBe(false);
-    expect(wrapper.text()).toContain("all caught up");
+    expect(wrapper.text()).toContain("You are all caught up");
   });
 });

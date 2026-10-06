@@ -193,7 +193,7 @@ export interface OverviewResponse {
   latencyMs: { p50: number; p95: number; p99: number };
   timeseries: { bucketStart: string; traces: number; errorTraces: number; p95Ms: number; totalTokens: number }[];
   byModel: { model: string; calls: number; inputTokens: number; outputTokens: number; p95Ms: number; costUsd: number | null }[];
-  byTool: { tool: string; calls: number; errors: number; p95Ms: number }[];
+  byTool: { tool: string; calls: number; errors: number; p95Ms: number; mcpServer?: string | null }[];
   /** vacío si el worker de temáticas (ADR-022) aún no ha corrido sobre este rango */
   byTopic: { topic: string; responses: number; avgConfidence: number }[];
 }
@@ -585,6 +585,11 @@ export interface LowRatedResponse {
   items: Array<{ traceId: string; configName: string; value: string; createdAt: string }>;
 }
 
+/** Estado de anotación de las trazas o conversaciones pedidas; solo las que tienen alguna etiqueta humana. */
+export interface AnnotationRatingsResponse {
+  items: Array<{ id: string; labels: number; low: boolean }>;
+}
+
 export interface TraceAnnotationsResponse {
   annotations: AnnotationDto[];
   scores: TraceScoreDto[];
@@ -864,7 +869,7 @@ export interface AssistantCardDto {
   name: string;
   serviceName: string;
   description: string;
-  owner: { id: string; name: string | null; email: string } | null;
+  owner: { id: string; name: string | null; email: string; image: string | null } | null;
   lifecycle: "active" | "retired";
   /** null = el agente no declara endpoint de chat */
   chat: ChatConfigDto | null;
@@ -912,7 +917,7 @@ export interface ConnectionDto {
   decidedBy: string | null;
   decidedAt: string | null;
   note: string | null;
-  /** últimos 7 días; null donde todavía no se mide (servidores MCP y agentes) */
+  /** últimos 7 días; en un servidor MCP, la suma de sus tools; null donde todavía no se mide (agentes) */
   usage: { calls: number; errors: number } | null;
 }
 
@@ -920,11 +925,23 @@ export interface ConnectionsResponse {
   items: ConnectionDto[];
 }
 
+export interface AssistantPersonDto {
+  userId: string;
+  name: string | null;
+  email: string;
+  image: string | null;
+}
+
+export interface PeopleResponse {
+  items: AssistantPersonDto[];
+}
+
 export interface AccessGrantDto {
   id: string;
   deploymentId: string;
   subjectType: GrantSubjectTypeDto;
   userId: string | null;
+  user: AssistantPersonDto | null;
   externalGroup: string | null;
   memberCount: number | null;
   source: "manual" | "oidc" | "scim";

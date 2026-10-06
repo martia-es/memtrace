@@ -9,6 +9,8 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     session_id: str
     reply: str
+    # el guardarraíl de entrada lo detuvo: el agente no vio el mensaje
+    blocked: bool = False
 
 
 class CapabilityInfo(BaseModel):

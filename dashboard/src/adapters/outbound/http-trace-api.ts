@@ -18,6 +18,7 @@ import type {
   ConversationDetailResponse,
   ConversationListResponse,
   LowRatedResponse,
+  AnnotationRatingsResponse,
   ConversationTreeResponse,
   CustomMetricDefinitionDto,
   CustomMetricResultResponse,
@@ -104,6 +105,11 @@ export class HttpTraceApi implements TraceApi {
 
   listAnnotationQueues(includeArchived = false, signal?: AbortSignal) {
     return this.get<AnnotationQueuesListResponse>(this.queueBase(), { includeArchived }, signal);
+  }
+
+  getAnnotationRatings(target: { traceIds: string[] } | { conversationIds: string[] }, signal?: AbortSignal) {
+    const params = "traceIds" in target ? { traceIds: target.traceIds.join(",") } : { conversationIds: target.conversationIds.join(",") };
+    return this.get<AnnotationRatingsResponse>(`${this.scopedBase()}/annotations/ratings`, params, signal);
   }
 
   getLowRated(params: RangeParams, signal?: AbortSignal) {
