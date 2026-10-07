@@ -5,9 +5,9 @@ from opentelemetry.sdk.trace import Event, ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 from opentelemetry.trace import Status
 
+from memtrace.application.span_normalization import active_span_normalizers
 from memtrace.domain import semconv as sc
 from memtrace.domain.attributes import infer_step_type
-from memtrace.application.span_normalization import active_span_normalizers
 from memtrace.domain.redaction import Redactor
 
 logger = logging.getLogger("memtrace")

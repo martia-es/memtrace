@@ -81,7 +81,7 @@ class LLMJudgeEvaluator(ABC):
             )
         except Exception:
             skeleton = f"<{type(self).__module__}.{type(self).__qualname__}>"
-        digest = hashlib.sha256(f"{self.system_prompt()}\x00{skeleton}".encode("utf-8")).hexdigest()
+        digest = hashlib.sha256(f"{self.system_prompt()}\x00{skeleton}".encode()).hexdigest()
         return digest[:16]
 
     def system_prompt(self) -> str:

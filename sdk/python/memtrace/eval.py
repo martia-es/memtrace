@@ -38,11 +38,11 @@ from memtrace.application.eval_ports import (
     ResultsSink,
     TaskFunction,
 )
-from memtrace.application.retrieval_metrics import MRR, HitRate, RecallAtK
 from memtrace.application.experiment_runner import ResultsUploadError
 from memtrace.application.experiment_runner import run_experiment as _execute_experiment
-from memtrace.domain.model import StepType
+from memtrace.application.retrieval_metrics import MRR, HitRate, RecallAtK
 from memtrace.domain.evaluation import EvalItem, EvalItemResult, ExperimentResult, Score, ScoreSummary
+from memtrace.domain.model import StepType
 
 __all__ = [
     "run_experiment",

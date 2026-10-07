@@ -12,15 +12,15 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import nullcontext
 from typing import Any, Callable, ContextManager, Iterable, Mapping, Optional, Sequence, Union
 
-from memtrace.application.retrieval_capture import retrieval_scope
 from memtrace.application.eval_ports import (
     DatasetSource,
     Evaluator,
-    InMemoryDatasetSource,
     IncrementalResultsSink,
+    InMemoryDatasetSource,
     ResultsSink,
     TaskFunction,
 )
+from memtrace.application.retrieval_capture import retrieval_scope
 from memtrace.domain.evaluation import EvalItem, EvalItemResult, ExperimentResult, Score
 
 logger = logging.getLogger("memtrace")

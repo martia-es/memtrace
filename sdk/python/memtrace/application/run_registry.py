@@ -17,7 +17,7 @@ class RunRegistry:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._runs: "OrderedDict[uuid.UUID, Tuple[SpanHandle, float]]" = OrderedDict()
+        self._runs: OrderedDict[uuid.UUID, Tuple[SpanHandle, float]] = OrderedDict()
 
     def add(self, run_id: uuid.UUID, handle: SpanHandle, created_at: Optional[float] = None) -> None:
         with self._lock:

@@ -1,8 +1,7 @@
-from memtrace.application.experiment_runner import run_experiment
-from memtrace.domain.evaluation import EvalItem, Score
 import pytest
 
-from memtrace.application.experiment_runner import ResultsUploadError
+from memtrace.application.experiment_runner import ResultsUploadError, run_experiment
+from memtrace.domain.evaluation import EvalItem, Score
 from tests.fakes import FakeDatasetSource, FakeIncrementalSink, FakeResultsSink
 
 ITEMS = [

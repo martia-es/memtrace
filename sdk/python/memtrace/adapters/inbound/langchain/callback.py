@@ -10,10 +10,10 @@ from memtrace.adapters.inbound.langchain.mapping import (
     response_to_call,
     step_name,
 )
+from memtrace.application.retrieval_capture import note_retrieved
 from memtrace.application.tracing_service import TracingService
 from memtrace.dependency_container import get_service
 from memtrace.domain import semconv as sc
-from memtrace.application.retrieval_capture import note_retrieved
 from memtrace.domain.attributes import llm_attributes, retrieved_chunks
 from memtrace.domain.model import StepType
 from memtrace.domain.serialization import to_json

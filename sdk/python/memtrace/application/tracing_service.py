@@ -8,10 +8,10 @@ from typing import Any, Iterator, Mapping, Optional, Sequence, Union
 
 from memtrace.application.context import current_run_id, get_session_id
 from memtrace.application.ports import SpanPort
+from memtrace.application.retrieval_capture import note_retrieved
 from memtrace.application.run_lifecycle import RunLifecycleGuard
 from memtrace.application.run_registry import RunRegistry
 from memtrace.domain import semconv as sc
-from memtrace.application.retrieval_capture import note_retrieved
 from memtrace.domain.attributes import llm_attributes, retrieved_chunks, step_start_attributes
 from memtrace.domain.model import CapturePolicy, LlmCall, StepType
 

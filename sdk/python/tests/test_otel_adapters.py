@@ -55,8 +55,9 @@ def test_session_processor_tags_foreign_spans_and_leaves_memtrace_spans_alone():
 
 
 def test_revision_is_a_resource_attribute():
-    from memtrace.adapters.outbound.otel.factory import OtelConfig, create_otel_adapter
     from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+    from memtrace.adapters.outbound.otel.factory import OtelConfig, create_otel_adapter
 
     exporter = InMemorySpanExporter()
     adapter = create_otel_adapter(
