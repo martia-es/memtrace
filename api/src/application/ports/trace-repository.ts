@@ -7,6 +7,13 @@ import type { SpanCursor, SpanRecord } from "@/domain/span-row";
 import type { Page, PageCursor, TraceStats, TraceSummary } from "@/domain/trace";
 import type { TimeRange } from "@/domain/time-range";
 
+export interface RevisionSummary {
+  revision: string;
+  traces: number;
+  /** último momento (ms epoch) en que una traza de este commit llegó */
+  lastSeenMs: number;
+}
+
 export interface TraceListQuery extends TimeRange {
   service?: string;
   /** estado del span raíz */
@@ -73,6 +80,8 @@ export interface TraceRepository {
   /** serie temporal *dispersa* (solo buckets con datos); el servicio la rellena */
   getOverview(query: MetricsQuery): Promise<MetricsOverview>;
   listServices(range: TimeRange): Promise<string[]>;
+  /** Versiones del código (commits) vistas en el rango, la más reciente primero, con cuántas trazas generó cada una (ADR-065). */
+  listRevisions(range: TimeRange & { service?: string }): Promise<RevisionSummary[]>;
   /** tokens totales por servicio (= experimento) en el rango, para la comparativa de coste entre agentes */
   getUsageByServices(serviceNames: string[], range: TimeRange): Promise<ServiceUsage[]>;
   /** conversaciones con algún turno iniciado en el rango; sus cifras cubren toda su historia retenida */

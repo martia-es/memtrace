@@ -42,6 +42,7 @@ import type {
   TraceAnnotationsResponse,
   OverviewResponse,
   RunsListResponse,
+  RevisionsResponse,
   ServicesResponse,
   SpanListResponse,
   StepKindsResponse,
@@ -197,6 +198,8 @@ export interface TraceApi {
   /** igual que getOverview pero para un experimento explícito, sin depender del scoping por setExperimentId (comparativa entre agentes) */
   getOverviewForExperiment(experimentId: string, params: RangeParams & { service?: string }, signal?: AbortSignal): Promise<OverviewResponse>;
   listServices(params: RangeParams, signal?: AbortSignal): Promise<ServicesResponse>;
+  /** Commits (versiones del código) vistos en trazas del experimento, el más reciente primero (ADR-065). */
+  listRevisions(params: RangeParams, signal?: AbortSignal): Promise<RevisionsResponse>;
   /** tokens por experimento accesible al usuario, para la comparativa de coste entre agentes */
   getUsageByExperiment(params: RangeParams, signal?: AbortSignal): Promise<ExperimentUsageResponse>;
   listConversations(params: ListConversationsParams, signal?: AbortSignal): Promise<ConversationListResponse>;

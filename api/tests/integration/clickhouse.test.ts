@@ -343,6 +343,12 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
       expect(await traces("ccccccc")).toEqual([]);
     });
 
+    it("lists the versions seen, most recent first, with their trace counts", async () => {
+      const found = await repo.listRevisions({ ...range, service: REV_SERVICE });
+      expect(found.map((r) => [r.revision, r.traces])).toEqual([[REV_B, 1], [REV_A, 1]]); // TNONE no cuenta: sin versión
+      expect(found[0]!.lastSeenMs).toBeGreaterThan(found[1]!.lastSeenMs);
+    });
+
     it("filters conversations and spans, and puts the revision on the trace detail", async () => {
       expect((await repo.listConversations({ ...range, service: REV_SERVICE, revision: "aaaaaaa", limit: 10 })).items.map((c) => c.conversationId)).toEqual([CONV]);
       expect((await repo.listConversations({ ...range, service: REV_SERVICE, revision: "bbbbbbb", limit: 10 })).items).toEqual([]);

@@ -10,7 +10,8 @@ const run = (over: Partial<GateRun> = {}): GateRun => ({
   revision: SHA,
   revisionDirty: null,
   createdAt: "2026-10-07T10:00:00Z",
-  aggregates: [{ name: "exact_match", dataType: "boolean", passRate: 0.9 }],
+  itemCount: 10,
+  aggregates: [{ name: "exact_match", dataType: "boolean", passRate: 0.9, count: 10 }],
   ...over,
 });
 
@@ -37,20 +38,20 @@ describe("deploy gate (ADR-064)", () => {
   });
 
   it("blocks when an evaluator is under its target, and says which", () => {
-    const result = evaluateDeployGate({ sha: SHA, runs: [run({ aggregates: [{ name: "exact_match", dataType: "boolean", passRate: 0.6 }] })] });
+    const result = evaluateDeployGate({ sha: SHA, runs: [run({ aggregates: [{ name: "exact_match", dataType: "boolean", passRate: 0.6, count: 10 }] })] });
     expect(result.verdict).toBe("failed");
     expect(result.reason).toContain("exact_match 60% (target 80%)");
     expect(result.runs[0]!.failures).toEqual([{ evaluator: "exact_match", passRate: 0.6, target: 0.8 }]);
   });
 
   it("uses the evaluator's own target from its score config", () => {
-    const aggregates = [{ name: "safety", dataType: "boolean", passRate: 0.95 }];
+    const aggregates = [{ name: "safety", dataType: "boolean", passRate: 0.95, count: 10 }];
     expect(evaluateDeployGate({ sha: SHA, runs: [run({ aggregates })], targets: new Map([["safety", 0.99]]) }).verdict).toBe("failed");
     expect(evaluateDeployGate({ sha: SHA, runs: [run({ aggregates })], targets: new Map([["safety", 0.9]]) }).verdict).toBe("allowed");
   });
 
   it("only the most recent runs count: a later failure blocks, a later pass unblocks", () => {
-    const bad = run({ id: "bad", aggregates: [{ name: "exact_match", dataType: "boolean", passRate: 0.1 }], createdAt: "2026-10-07T12:00:00Z" });
+    const bad = run({ id: "bad", aggregates: [{ name: "exact_match", dataType: "boolean", passRate: 0.1, count: 10 }], createdAt: "2026-10-07T12:00:00Z" });
     const good = run({ id: "good", createdAt: "2026-10-07T09:00:00Z" });
     expect(evaluateDeployGate({ sha: SHA, runs: [good, bad] }).verdict).toBe("failed");
     expect(evaluateDeployGate({ sha: SHA, runs: [bad, { ...good, createdAt: "2026-10-07T13:00:00Z" }] }).verdict).toBe("allowed");
@@ -63,13 +64,21 @@ describe("deploy gate (ADR-064)", () => {
   });
 
   it("a run without boolean evaluators cannot pass", () => {
-    const result = evaluateDeployGate({ sha: SHA, runs: [run({ aggregates: [{ name: "len", dataType: "numeric", passRate: null }] })] });
+    const result = evaluateDeployGate({ sha: SHA, runs: [run({ aggregates: [{ name: "len", dataType: "numeric", passRate: null, count: 10 }] })] });
     expect(result.verdict).toBe("failed");
     expect(result.reason).toContain("no boolean evaluator");
   });
 
   it("an evaluator without results fails", () => {
-    expect(judgeRun(run({ aggregates: [{ name: "x", dataType: "boolean", passRate: null }] }), new Map()).passed).toBe(false);
+    expect(judgeRun(run({ aggregates: [{ name: "x", dataType: "boolean", passRate: null, count: 10 }] }), new Map()).passed).toBe(false);
+  });
+
+  it("does not trust a pass rate computed on a few items when the rest failed to run", () => {
+    // 26 items, 20 fallaron al ejecutarse (cuota del LLM): los 6 puntuados pasan, pero eso no dice nada del run
+    const result = evaluateDeployGate({ sha: SHA, runs: [run({ itemCount: 26, aggregates: [{ name: "exact_match", dataType: "boolean", passRate: 0.83, count: 6 }] })] });
+    expect(result).toMatchObject({ allowed: false, verdict: "failed" });
+    expect(result.reason).toContain("scored only 6 of 26 items");
+    expect(result.runs[0]!.failures[0]!.incomplete).toEqual({ scored: 6, items: 26 });
   });
 
   it("lets a rollback to an already deployed commit through without evaluating", () => {

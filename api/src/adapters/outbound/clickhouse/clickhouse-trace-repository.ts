@@ -1,6 +1,6 @@
 import type { ClickHouseClient } from "@clickhouse/client";
 import { RepositoryUnavailableError } from "@/application/errors";
-import type { ConversationListQuery, SpanListQuery, TraceListQuery, TraceRepository, TraceSpans } from "@/application/ports/trace-repository";
+import type { ConversationListQuery, RevisionSummary, SpanListQuery, TraceListQuery, TraceRepository, TraceSpans } from "@/application/ports/trace-repository";
 import type { ConversationCursor, ConversationSummary, ConversationUsage } from "@/domain/conversation";
 import type { ModelPricing } from "@/domain/pricing";
 import { previewOf, type SpanCursor, type SpanRecord } from "@/domain/span-row";
@@ -217,6 +217,18 @@ export class ClickHouseTraceRepository implements TraceRepository {
     } catch (error) {
       throw new RepositoryUnavailableError(error);
     }
+  }
+
+  async listRevisions({ fromMs, toMs, service }: TimeRange & { service?: string }): Promise<RevisionSummary[]> {
+    const { clause, params } = ClickHouseTraceRepository.range(fromMs, toMs);
+    const svc = service ? " AND ServiceName = {service:String}" : "";
+    const rows = await this.rows(
+      `SELECT Revision, uniqExact(TraceId) AS traces, toUnixTimestamp64Milli(max(Timestamp)) AS lastMs
+       FROM ${this.spans} WHERE ParentSpanId = '' AND Revision != '' AND ${clause}${svc}
+       GROUP BY Revision ORDER BY lastMs DESC LIMIT 50`,
+      service ? { ...params, service } : params,
+    );
+    return rows.map((r) => ({ revision: String(r.Revision), traces: num(r.traces), lastSeenMs: num(r.lastMs) }));
   }
 
   async listServices({ fromMs, toMs }: TimeRange): Promise<string[]> {

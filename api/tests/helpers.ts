@@ -110,6 +110,11 @@ export class FakeTraceRepository implements TraceRepository {
     this.lastOverviewQuery = query;
     return this.overview;
   }
+  revisions: Array<{ revision: string; traces: number; lastSeenMs: number }> = [];
+  async listRevisions(_range: TimeRange) {
+    this.check();
+    return this.revisions;
+  }
   async listServices(_range: TimeRange) {
     this.check();
     return this.services;

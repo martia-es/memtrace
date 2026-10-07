@@ -206,6 +206,7 @@ export const appendDatasetRunItemsBody = z.object({
   complete: z.boolean().default(false),
 });
 export const servicesQuery = z.object({ ...timeRangeShape });
+export const revisionsQuery = z.object({ ...timeRangeShape, service: nonEmpty.optional() });
 export const usageQuery = z.object({ ...timeRangeShape });
 
 export const traceIdParam = z

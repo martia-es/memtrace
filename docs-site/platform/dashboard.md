@@ -114,3 +114,7 @@ The MemTrace logo and the colors of charts and spans do not change. The chat wit
 ### Assistant views
 
 The chat with an assistant (the **Talk** button) can be shown in three ways: a floating **bubble**, a **side panel** that moves the page aside instead of covering it, or **full screen** in a new browser tab. Use the icons in the chat header to switch between the views your organization allows; your choice is remembered in this browser. Switching to full screen keeps the current conversation.
+
+## Code version
+
+Every trace shows the **commit** of the code that produced it: next to the status in the trace detail (a link to the commit when the assistant declares its repository), and under the trace id in the traces list. In **Conversations** the *All versions* dropdown lists the commits that produced traces in the selected range, with how many traces each one has, and keeps only the conversations and traces of the one you pick. Traces without a commit are still listed; they just have no version. See [Code version on every trace](../library/configuration#code-version-on-every-trace) to make your assistant send it.

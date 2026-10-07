@@ -149,6 +149,28 @@ describe("admin pages", () => {
       expect(await roles()).toEqual(["technical", "business"]);
     });
 
+    it("guides the admin: hints the group id, describes the role and previews the mapping", async () => {
+      const { wrapper } = await open();
+      expect(wrapper.find("[data-testid=mapping-preview]").exists()).toBe(false);
+      await wrapper.get("[data-testid=mapping-group]").setValue("3f2a9c1e-7b4d-4e0a-9c55-1d2e8f6a0b13");
+      expect(wrapper.get("[data-testid=group-hint]").text()).toContain("Object ID");
+      await wrapper.get("[data-testid=mapping-group]").setValue("AI team");
+      expect(wrapper.get("[data-testid=group-hint]").text()).toContain("not the group name");
+      expect(wrapper.get("[data-testid=role-description]").text()).toContain("Invites people");
+      await chooseOption(wrapper.element, "[data-testid=mapping-target]", "Support bot");
+      expect(wrapper.get("[data-testid=role-description]").text()).toContain("technical");
+      expect(wrapper.get("[data-testid=mapping-preview]").text()).toContain("Support bot");
+    });
+
+    it("warns that SCIM is unreachable on a local or non-HTTPS address", async () => {
+      const identity = new AdminFakeIdentityApi([org], [exp]);
+      identity.identity.scimBaseUrl = "http://0.0.0.0:3001/api/scim/v2";
+      const { wrapper } = await setup(AdminOrganizationPage, "/admin/organizations/org-1?tab=identity", identity);
+      expect(wrapper.find("[data-testid=scim-warning]").exists()).toBe(true);
+      const ok = await open();
+      expect(ok.wrapper.find("[data-testid=scim-warning]").exists()).toBe(false);
+    });
+
     it("removes a mapping", async () => {
       const identity = new AdminFakeIdentityApi([org], [exp]);
       await identity.createExternalMapping("org-1", { externalGroup: "sales", experimentId: "exp-1", role: "business" });

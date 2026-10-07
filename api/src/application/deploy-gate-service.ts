@@ -42,7 +42,8 @@ export class DeployGateService {
         revision: r.revision,
         revisionDirty: r.revisionDirty,
         createdAt: r.createdAt,
-        aggregates: aggregates.filter((a) => a.datasetRunId === r.id).map((a) => ({ name: a.name, dataType: a.dataType, passRate: a.passRate })),
+        itemCount: r.itemCount,
+        aggregates: aggregates.filter((a) => a.datasetRunId === r.id).map((a) => ({ name: a.name, dataType: a.dataType, passRate: a.passRate, count: a.count })),
       })),
     });
   }

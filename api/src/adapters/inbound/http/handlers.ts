@@ -1,7 +1,7 @@
 import { RepositoryUnavailableError } from "@/application/errors";
 import type { TraceQueryService } from "@/application/trace-query-service";
 import { ConversationNotFoundError, TraceNotFoundError, ValidationError } from "@/domain/errors";
-import type { ServicesResponse } from "./contract";
+import type { RevisionsResponse, ServicesResponse } from "./contract";
 import {
   toAttributeKeysResponse,
   toAttributeValuesResponse,
@@ -34,6 +34,7 @@ import {
   parseOrThrow,
   queryToObject,
   servicesQuery,
+  revisionsQuery,
   stepKindsQuery,
   traceIdParam,
   turnsQuery,
@@ -121,6 +122,13 @@ export function createHandlers(service: TraceQueryService) {
       guard(async () => {
         const items = await service.listServices(parseOrThrow(servicesQuery, query(request)));
         return json({ items } satisfies ServicesResponse);
+      }),
+
+    /** commits vistos en trazas, para elegir la versión en los filtros (ADR-065) */
+    revisions: (request: Request) =>
+      guard(async () => {
+        const items = await service.listRevisions(parseOrThrow(revisionsQuery, query(request)));
+        return json({ items: items.map((r) => ({ revision: r.revision, traces: r.traces, lastSeen: new Date(r.lastSeenMs).toISOString() })) } satisfies RevisionsResponse);
       }),
 
     /** coste (tokens) por experimento accesible al usuario, para la comparativa entre agentes */

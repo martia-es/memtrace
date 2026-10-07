@@ -18,7 +18,7 @@ import type { Page, PageCursor, TraceDetail, TraceSummary } from "@/domain/trace
 import { buildTraceDetail } from "@/domain/tree";
 import { costOf, toPricingCatalog, type ModelPricing, type PricingCatalog } from "@/domain/pricing";
 import { telemetryOf, type ItemTelemetry } from "@/domain/evaluation";
-import type { TraceRepository } from "./ports/trace-repository";
+import type { RevisionSummary, TraceRepository } from "./ports/trace-repository";
 
 export const DEFAULT_PAGE_SIZE = 50;
 export const MAX_PAGE_SIZE = 200;
@@ -235,6 +235,11 @@ export class TraceQueryService {
       fromMs,
       toMs,
     };
+  }
+
+  /** Commits vistos en el rango (para elegirlos en el filtro de versión). */
+  listRevisions(input: { from?: Date; to?: Date; service?: string }): Promise<RevisionSummary[]> {
+    return this.repository.listRevisions({ ...resolveTimeRange(input, this.now()), service: input.service });
   }
 
   listServices(input: { from?: Date; to?: Date }): Promise<string[]> {

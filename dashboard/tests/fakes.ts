@@ -52,6 +52,7 @@ import type {
   ExperimentUsageResponse,
   ModelPricingResponse,
   OverviewResponse,
+  RevisionsResponse,
   ServicesResponse,
   SpanListResponse,
   SpanNodeDto,
@@ -543,6 +544,10 @@ export class FakeTraceApi implements TraceApi {
     const found = this.overviewByExperiment[experimentId];
     if (!found) throw new Error(`no overview configured for ${experimentId}`);
     return found;
+  }
+  revisions: RevisionsResponse = { items: [] };
+  async listRevisions(_p: RangeParams): Promise<RevisionsResponse> {
+    return this.revisions;
   }
   async listServices(_p: RangeParams): Promise<ServicesResponse> {
     return { items: this.services };

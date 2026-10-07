@@ -104,7 +104,7 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
           <h1 :title="rootName">{{ rootName }}</h1>
           <StatusBadge :status="trace.data.value.status" show-label />
           <span v-if="trace.data.value.framework" class="mt-pill unset">{{ trace.data.value.framework }}</span>
-          <CommitLink :revision="trace.data.value.revision" :repo="repo" data-testid="trace-revision" />
+          <span class="commit" data-testid="trace-revision"><span class="commit-label">Commit</span><CommitLink :revision="trace.data.value.revision" :repo="repo" /></span>
           <div class="actions">
             <button type="button" class="btn" aria-label="Copy trace ID" @click="copyId">Copy ID</button>
             <button type="button" class="btn" data-testid="add-to-dataset-btn" @click="addingToDataset = true">Add to dataset</button>
@@ -178,6 +178,8 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
 </template>
 
 <style scoped>
+.commit { display: inline-flex; align-items: center; gap: 6px; }
+.commit-label { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--mt-muted); }
 .page {
   flex: 1;
   min-height: 0;

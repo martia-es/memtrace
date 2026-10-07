@@ -10,6 +10,7 @@ All under `/api/v1/experiments/{experimentId}`:
 |---|---|
 | `GET /traces` | Paginated trace list. Params: `from`, `to`, `service`, `status`, `hasErrors`, `minDurationMs`, `text`, `revision`, `limit`, `cursor`. Each trace carries `revision`, the commit of the code that produced it (`null` if the agent does not send it); `revision=` keeps the traces of that commit, full or a prefix such as the 7-character short SHA |
 | `GET /traces/{traceId}` | A trace with its span tree |
+| `GET /revisions` | Commits (code versions) seen in the experiment's traces in the range, newest first, with how many traces each produced: `{ items: [{ revision, traces, lastSeen }] }`. It feeds the version filter of the dashboard |
 | `GET /spans` | Flat, paginated span list; `revision=` keeps the spans of one commit |
 | `GET /conversations` | Paginated conversations; `revision=` keeps those with a turn produced by that commit; `text=` keeps only those with a turn whose captured input or output contains it (case-insensitive). Each one carries `title` (the user's first message, up to 120 characters, `null` if the agent did not capture content) and `costUsd` (`null` if none of its models has a known price) |
 | `GET /conversations/{conversationId}` | Same summary and turns in chronological order |

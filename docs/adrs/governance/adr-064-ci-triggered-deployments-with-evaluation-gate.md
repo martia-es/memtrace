@@ -65,6 +65,7 @@ Migration `029_assistant_repo.sql`: `experiments.repo_url`, `repo_provider`, `de
 - Runs are matched to the commit by revision (a short SHA of at least 7 characters matches by prefix).
 - Only `completed` runs with `revisionDirty != true` count; a commit with only dirty runs is `only_dirty_runs`, one with only running runs is `evaluation_running`, one with none is `no_evaluation`.
 - A run passes when it has at least one boolean evaluator and every boolean evaluator reaches its target (`target_pass_rate` of its score config, ADR-060, default 80%); an evaluator with no results fails. Numeric and categorical evaluators do not decide.
+- A run whose evaluator scored fewer items than the run has (`aggregate.count < itemCount`) fails with `incomplete`: when items fail to run (LLM quota, timeout) the evaluators only score the survivors, and their pass rate says nothing about the run. Found in practice: 20 of 26 items failed with a 429 and the 6 scored ones passed 80%.
 - The **latest** `requiredRuns` clean runs must all pass (a later failure blocks, a later pass unblocks). `requiredRuns` is 1 for every environment for now; a per-environment value is a follow-up.
 - A commit already deployed successfully is `rollback` and needs no evaluation. The deploy history does not exist yet, so the service takes it from an injectable function that returns nothing until `deploy_runs` (2c).
 

@@ -53,7 +53,7 @@ async function send() {
 </script>
 
 <template>
-  <Modal :title="`Deploy to ${deployment.environment.label}`" @close="emit('close')">
+  <Modal :title="`Deploy to ${deployment.environment.label}`" medium @close="emit('close')">
     <div class="deploy" data-testid="deploy-modal">
       <p v-if="preview.loading.value && !preview.data.value" class="muted">Checking what would be deployed…</p>
       <p v-else-if="preview.error.value" class="problem" role="alert" data-testid="deploy-error">{{ describeApiError(preview.error.value) }}</p>
@@ -70,7 +70,8 @@ async function send() {
         <ul v-if="gate.runs.some((r) => r.failures.length)" class="failures">
           <template v-for="r in gate.runs" :key="r.runId">
             <li v-for="f in r.failures" :key="r.runId + f.evaluator">
-              <b>{{ f.evaluator }}</b> {{ f.passRate === null ? "has no results" : `${Math.round(f.passRate * 100)}%` }} <span class="muted">(target {{ Math.round(f.target * 100) }}%)</span>
+              <template v-if="f.incomplete"><b>{{ f.evaluator }}</b> scored only {{ f.incomplete.scored }} of {{ f.incomplete.items }} items <span class="muted">(the rest failed to run, so its pass rate says nothing about the run)</span></template>
+              <template v-else><b>{{ f.evaluator }}</b> {{ f.passRate === null ? "has no results" : `${Math.round(f.passRate * 100)}%` }} <span class="muted">(target {{ Math.round(f.target * 100) }}%)</span></template>
             </li>
           </template>
         </ul>
@@ -96,15 +97,15 @@ async function send() {
 </template>
 
 <style scoped>
-.deploy { display: flex; flex-direction: column; gap: 12px; min-width: min(460px, 80vw); }
-.facts { display: grid; grid-template-columns: 90px 1fr; gap: 8px 12px; margin: 0; font-size: 13px; align-items: center; }
+.deploy { display: flex; flex-direction: column; gap: 14px; min-width: min(560px, 80vw); }
+.facts { display: grid; grid-template-columns: 100px 1fr; gap: 10px 12px; margin: 0; font-size: 14px; align-items: center; }
 dt { color: var(--mt-muted); }
 dd { margin: 0; }
 .mono { font-family: var(--mt-mono); }
 .muted { color: var(--mt-muted); font-size: 12px; }
-.reason { margin: 0; font-size: 13px; line-height: 1.5; }
+.reason { margin: 0; font-size: 14px; line-height: 1.5; }
 .failures { margin: 0; padding-left: 18px; font-size: 13px; }
-.hint { margin: 0; font-size: 12px; color: var(--mt-muted); line-height: 1.5; }
+.hint { margin: 0; font-size: 13px; color: var(--mt-muted); line-height: 1.5; }
 .problem { margin: 0; padding: 10px 12px; font-size: 13px; color: var(--mt-error-text, var(--mt-ink)); background: var(--mt-error-soft, var(--mt-bg)); border-radius: var(--mt-radius-sm); }
 .bypass { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
 .field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; }

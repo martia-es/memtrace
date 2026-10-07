@@ -201,6 +201,17 @@ export interface OverviewResponse {
   byTopic: { topic: string; responses: number; avgConfidence: number }[];
 }
 
+/** Versiones del código (commits) vistas en trazas (ADR-065). */
+export interface RevisionDto {
+  revision: string;
+  traces: number;
+  lastSeen: string;
+}
+
+export interface RevisionsResponse {
+  items: RevisionDto[];
+}
+
 export interface ServicesResponse {
   items: string[];
 }
@@ -945,7 +956,7 @@ export interface DeployGateDto {
   requiredRuns: number;
   reason: string;
   /** runs completos y limpios del commit que se miraron, el más reciente primero */
-  runs: Array<{ runId: string; name: string; passed: boolean; failures: Array<{ evaluator: string; passRate: number | null; target: number }> }>;
+  runs: Array<{ runId: string; name: string; passed: boolean; failures: Array<{ evaluator: string; passRate: number | null; target: number; incomplete?: { scored: number; items: number } }> }>;
 }
 
 /** Un despliegue lanzado desde MemTrace (ADR-064). */

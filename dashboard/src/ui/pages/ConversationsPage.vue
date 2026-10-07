@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import TextInput from "@/ui/components/TextInput.vue";
+import Select from "../components/Select.vue";
 import type { ConversationSummaryDto, TraceSummaryDto } from "@contract";
 import { computed, inject, onBeforeUnmount, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { CURRENT_EXPERIMENT } from "@/dependency-container";
-import { formatCostUsd, formatCount, formatDateTime, formatDuration, formatPercent } from "@/domain/format";
+import { formatCostUsd, formatCount, formatDateTime, formatDuration, formatPercent, formatRelativeTime, shortRevision } from "@/domain/format";
 import { mergeLatestConversations, mergeLatestTraces } from "@/domain/merge";
 import EmptyState from "../components/EmptyState.vue";
 import OnboardingGuide from "../components/OnboardingGuide.vue";
@@ -129,15 +130,18 @@ watch(search, (v) => {
 onBeforeUnmount(() => clearTimeout(searchTimer));
 
 // ---- versión del código (ADR-065): SHA completo o prefijo ----
-const version = ref(f.revision.value ?? "");
-watch(f.revision, (v) => (version.value = v ?? ""));
-let versionTimer: ReturnType<typeof setTimeout> | undefined;
-watch(version, (v) => {
-  clearTimeout(versionTimer);
-  // solo hexadecimales y al menos 7 caracteres: antes de eso el filtro no es un SHA y no se aplica
-  versionTimer = setTimeout(() => f.setRevision(/^[0-9a-f]{7,64}$/i.test(v.trim()) ? v : ""), 400);
+// se elige entre los commits que han generado trazas en el rango (con cuántas), en vez de teclear el hash
+const revisions = useAsync((signal) => api.listRevisions(f.resolve(), signal));
+watch([f.rangeSig, f.service], () => void revisions.run(), { immediate: true });
+const versionOptions = computed(() => {
+  const found = revisions.data.value?.items ?? [];
+  const options = [{ label: "All versions", value: "" }, ...found.map((r) => ({ label: `${shortRevision(r.revision)} · ${r.traces} ${r.traces === 1 ? "trace" : "traces"} · ${formatRelativeTime(r.lastSeen, Date.now())}`, value: r.revision }))];
+  const current = f.revision.value;
+  // un filtro que llega por la URL y no está en el rango sigue visible y se puede quitar
+  if (current && !found.some((r) => r.revision.startsWith(current.toLowerCase()))) options.splice(1, 0, { label: `${shortRevision(current)} (not in this range)`, value: current });
+  return options;
 });
-onBeforeUnmount(() => clearTimeout(versionTimer));
+const selectedVersion = computed(() => versionOptions.value.find((o) => o.value && f.revision.value && (o.value.startsWith(f.revision.value.toLowerCase()) || f.revision.value.toLowerCase().startsWith(o.value)))?.value ?? "");
 const repo = useExperimentRepo(experimentId);
 
 // ---- vistas rápidas (ADR-048): atajos a los filtros que más se usan ----
@@ -250,7 +254,7 @@ const footer = computed(() => {
           {{ v.label }}<span v-if="v.count !== null" class="quick-count mono">{{ v.count }}</span>
         </button>
       </div>
-      <TextInput type="search" v-model="version" placeholder="Code version (SHA)…" class="version" aria-label="Filter by code version" data-testid="revision-filter" />
+      <Select :model-value="selectedVersion" :options="versionOptions" :loading="revisions.loading.value" class="version" aria-label="Filter by code version" data-testid="revision-filter" @update:model-value="(v: string) => f.setRevision(v)" />
       <TextInput type="search" v-model="search" placeholder="Search input / output…" class="search" aria-label="Search input and output" />
     </div>
 
@@ -409,7 +413,7 @@ const footer = computed(() => {
 .views-row .mt-segmented {
   margin-bottom: 6px;
 }
-.version { width: 170px; }
+.version { width: 260px; }
 .search {
   margin: 0 0 6px auto;
   width: 280px;

@@ -31,6 +31,8 @@ export interface GateAggregate {
   name: string;
   dataType: string;
   passRate: number | null;
+  /** items que este evaluador puntuó */
+  count: number;
 }
 
 export interface GateRun {
@@ -40,6 +42,8 @@ export interface GateRun {
   revision: string | null;
   revisionDirty: boolean | null;
   createdAt: string;
+  /** items del run; un evaluador que puntuó menos que esto no representa al run entero */
+  itemCount: number;
   aggregates: GateAggregate[];
 }
 
@@ -47,6 +51,8 @@ export interface GateFailure {
   evaluator: string;
   passRate: number | null;
   target: number;
+  /** el evaluador solo puntuó `scored` de los `items` del run (los demás fallaron antes de evaluarse): el pass rate no vale */
+  incomplete?: { scored: number; items: number };
 }
 
 export interface GateRunResult {
@@ -88,8 +94,14 @@ export function sameRevision(runRevision: string | null, sha: string): boolean {
 export function judgeRun(run: GateRun, targets: ReadonlyMap<string, number>): GateRunResult {
   const booleans = run.aggregates.filter((a) => a.dataType === "boolean");
   const failures: GateFailure[] = booleans
-    .map((a) => ({ evaluator: a.name, passRate: a.passRate, target: targets.get(a.name) ?? DEFAULT_TARGET_PASS_RATE }))
-    .filter((f) => f.passRate === null || f.passRate < f.target);
+    .map((a): GateFailure => ({
+      evaluator: a.name,
+      passRate: a.passRate,
+      target: targets.get(a.name) ?? DEFAULT_TARGET_PASS_RATE,
+      ...(a.count < run.itemCount ? { incomplete: { scored: a.count, items: run.itemCount } } : {}),
+    }))
+    // un pass rate calculado sobre una parte de los items (el resto falló al ejecutarse) no dice nada del run
+    .filter((f) => f.incomplete !== undefined || f.passRate === null || f.passRate < f.target);
   return { runId: run.id, name: run.name, passed: booleans.length > 0 && failures.length === 0, failures };
 }
 
@@ -129,7 +141,13 @@ export function evaluateDeployGate(input: {
   const failing = judged.find((j) => !j.passed);
   if (failing) {
     const why = failing.failures.length
-      ? failing.failures.map((f) => `${f.evaluator} ${f.passRate === null ? "has no results" : `${Math.round(f.passRate * 100)}%`} (target ${Math.round(f.target * 100)}%)`).join(", ")
+      ? failing.failures
+          .map((f) =>
+            f.incomplete
+              ? `${f.evaluator} scored only ${f.incomplete.scored} of ${f.incomplete.items} items (the rest failed to run)`
+              : `${f.evaluator} ${f.passRate === null ? "has no results" : `${Math.round(f.passRate * 100)}%`} (target ${Math.round(f.target * 100)}%)`,
+          )
+          .join(", ")
       : "it has no boolean evaluator to judge";
     return result("failed", `The evaluation "${failing.name}" does not pass: ${why}.`, judged);
   }

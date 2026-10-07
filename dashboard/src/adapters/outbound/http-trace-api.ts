@@ -43,6 +43,7 @@ import type {
   OverviewResponse,
   ProblemDetails,
   RunsListResponse,
+  RevisionsResponse,
   ServicesResponse,
   SpanListResponse,
   StepKindsResponse,
@@ -206,6 +207,10 @@ export class HttpTraceApi implements TraceApi {
 
   getOverviewForExperiment(experimentId: string, params: RangeParams & { service?: string }, signal?: AbortSignal) {
     return this.get<OverviewResponse>(`${this.baseUrl}/experiments/${encodeURIComponent(experimentId)}/metrics/overview`, { ...params }, signal);
+  }
+
+  listRevisions(params: RangeParams, signal?: AbortSignal) {
+    return this.get<RevisionsResponse>(`${this.scopedBase()}/revisions`, { ...params }, signal);
   }
 
   listServices(params: RangeParams, signal?: AbortSignal) {
