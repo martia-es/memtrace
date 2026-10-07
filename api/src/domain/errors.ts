@@ -128,3 +128,30 @@ export class AssistantUpstreamError extends Error {
     this.name = "AssistantUpstreamError";
   }
 }
+
+/** El voto de feedback de usuario final no es válido (ADR-062). HTTP 422. */
+export class UserFeedbackValueError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UserFeedbackValueError";
+  }
+}
+
+/** El gate de despliegue (ADR-064) no deja desplegar este commit. Lleva el veredicto para mostrar por qué. */
+export class DeployBlockedError extends Error {
+  constructor(
+    message: string,
+    readonly gate: unknown,
+  ) {
+    super(message);
+    this.name = "DeployBlockedError";
+  }
+}
+
+/** El proveedor de CI no está configurado en esta instalación (falta la GitHub App) o no está soportado todavía. */
+export class CiUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CiUnavailableError";
+  }
+}

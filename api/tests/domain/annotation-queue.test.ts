@@ -10,6 +10,7 @@ const config = (over: Partial<ScoreConfig> & { id: string }): ScoreConfig => ({
   minValue: 1,
   maxValue: 5,
   categories: null,
+  targetPassRate: null,
   description: null,
   createdBy: "u1",
   createdAt: "",

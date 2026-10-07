@@ -28,6 +28,9 @@ const T3 = randomBytes(16).toString("hex");
 const T4 = randomBytes(16).toString("hex"); // sin conversación
 const T5_OLD = randomBytes(16).toString("hex"); // CONV3, hace 3 días: fuera del rango pero dentro de la retención
 const T6 = randomBytes(16).toString("hex");
+const REV_SERVICE = `${SERVICE}-rev`;
+const REV_A = "a".repeat(40);
+const REV_B = "b".repeat(40);
 const DAY = 24 * 3600_000;
 const hex8 = () => randomBytes(8).toString("hex");
 
@@ -44,6 +47,8 @@ interface Row {
   durationMs: number;
   status?: "OK" | "ERROR";
   attrs?: Record<string, string>;
+  /** atributos de recurso OTel; `vcs.repository.ref.revision` alimenta la columna Revision (ADR-065) */
+  resource?: Record<string, string>;
   events?: { name: string; offsetMs: number; attrs: Record<string, string> }[];
 }
 
@@ -56,6 +61,7 @@ const toRow = (r: Row) => ({
   SpanKind: "SPAN_KIND_INTERNAL",
   ServiceName: r.service ?? SERVICE,
   SpanAttributes: r.attrs ?? {},
+  ResourceAttributes: r.resource ?? {},
   Duration: r.durationMs * 1e6,
   StatusCode: `STATUS_CODE_${r.status ?? "OK"}`,
   StatusMessage: r.status === "ERROR" ? "boom" : "",
@@ -125,6 +131,7 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
     const settings = { mutations_sync: "1" as const };
     await writer.command({ query: `ALTER TABLE ${config.database}.otel_traces DELETE WHERE ServiceName = {s:String}`, query_params: { s: SERVICE }, clickhouse_settings: settings });
     await writer.command({ query: `ALTER TABLE ${config.database}.otel_traces DELETE WHERE ServiceName = {s:String}`, query_params: { s: CONV_SERVICE }, clickhouse_settings: settings });
+    await writer.command({ query: `ALTER TABLE ${config.database}.otel_traces DELETE WHERE ServiceName = {s:String}`, query_params: { s: REV_SERVICE }, clickhouse_settings: settings });
     await writer.command({ query: `ALTER TABLE ${config.database}.otel_traces_trace_id_ts DELETE WHERE TraceId IN {ids:Array(String)}`, query_params: { ids: [TRACE_A, TRACE_B, T1, T2, T3, T4, T5_OLD, T6] }, clickhouse_settings: settings });
     await writer.close();
   });
@@ -303,6 +310,45 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
       expect(first.items).toHaveLength(2);
       const second = await repo.listSpans({ ...q, conversationId: CONV1, limit: 10, cursor: first.nextCursor! });
       expect(second.items.map((s) => s.name)).toEqual(["tool", "llm", "turno-1"]);
+    });
+  });
+  describe("code revision (ADR-065)", () => {
+    const TA = randomBytes(16).toString("hex");
+    const TB = randomBytes(16).toString("hex");
+    const TNONE = randomBytes(16).toString("hex");
+    const CONV = `${SERVICE}-rev-conv`;
+
+    beforeAll(async () => {
+      const rev = (sha: string) => ({ "vcs.repository.ref.revision": sha });
+      await insert([
+        { trace: TA, service: REV_SERVICE, name: "turno", offsetMs: 0, durationMs: 100, resource: rev(REV_A), attrs: { "gen_ai.conversation.id": CONV } },
+        { trace: TB, service: REV_SERVICE, name: "turno", offsetMs: 200, durationMs: 100, resource: rev(REV_B) },
+        { trace: TNONE, service: REV_SERVICE, name: "turno", offsetMs: 400, durationMs: 100 },
+      ]);
+    });
+
+    const traces = async (revision?: string) => (await repo.listTraces({ ...range, service: REV_SERVICE, revision, limit: 20 })).items;
+
+    it("materializes the column from the resource attribute and returns it on each trace", async () => {
+      const byId = new Map((await traces()).map((t) => [t.traceId, t.revision]));
+      expect(byId.get(TA)).toBe(REV_A);
+      expect(byId.get(TB)).toBe(REV_B);
+      expect(byId.get(TNONE)).toBeNull(); // sin commit: versión desconocida
+    });
+
+    it("filters by the full SHA or by a prefix, case-insensitively", async () => {
+      expect((await traces(REV_A)).map((t) => t.traceId)).toEqual([TA]);
+      expect((await traces("bbbbbbb")).map((t) => t.traceId)).toEqual([TB]);
+      expect((await traces("BBBBBBB")).map((t) => t.traceId)).toEqual([TB]);
+      expect(await traces("ccccccc")).toEqual([]);
+    });
+
+    it("filters conversations and spans, and puts the revision on the trace detail", async () => {
+      expect((await repo.listConversations({ ...range, service: REV_SERVICE, revision: "aaaaaaa", limit: 10 })).items.map((c) => c.conversationId)).toEqual([CONV]);
+      expect((await repo.listConversations({ ...range, service: REV_SERVICE, revision: "bbbbbbb", limit: 10 })).items).toEqual([]);
+      expect((await repo.listSpans({ ...range, service: REV_SERVICE, revision: REV_B, limit: 10 })).items.map((s) => s.traceId)).toEqual([TB]);
+      const found = await repo.getTraceSpans(TA, 100);
+      expect(buildTraceDetail(TA, found!.spans, false).revision).toBe(REV_A);
     });
   });
 });

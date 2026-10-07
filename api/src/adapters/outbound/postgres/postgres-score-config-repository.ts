@@ -4,7 +4,7 @@ import type { ScoreDataType } from "@/domain/evaluation";
 import { ScoreConfigInvariantError } from "@/domain/errors";
 import type { NewScoreConfig, ScoreConfig, ScoreConfigCategory, ScoreConfigChanges } from "@/domain/score-config";
 
-const COLUMNS = `id, experiment_id, name, data_type, min_value, max_value, categories, description, created_by, created_at, updated_at, archived_at`;
+const COLUMNS = `id, experiment_id, name, data_type, min_value, max_value, categories, target_pass_rate, description, created_by, created_at, updated_at, archived_at`;
 const UNIQUE_VIOLATION = "23505";
 // un id con otra forma haría fallar el cast a uuid de Postgres (500): desde la API es simplemente "no existe" (404)
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -17,6 +17,7 @@ interface ScoreConfigRow {
   min_value: number | null;
   max_value: number | null;
   categories: ScoreConfigCategory[] | null;
+  target_pass_rate: number | null;
   description: string | null;
   created_by: string;
   created_at: Date | string;
@@ -46,10 +47,10 @@ export class PostgresScoreConfigRepository implements ScoreConfigRepository {
   async create(experimentId: string, createdByUserId: string, input: NewScoreConfig): Promise<ScoreConfig> {
     try {
       const { rows } = await this.pool.query<ScoreConfigRow>(
-        `INSERT INTO score_configs (experiment_id, name, data_type, min_value, max_value, categories, description, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `INSERT INTO score_configs (experiment_id, name, data_type, min_value, max_value, categories, target_pass_rate, description, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          RETURNING ${COLUMNS}`,
-        [experimentId, input.name, input.dataType, input.minValue, input.maxValue, input.categories ? JSON.stringify(input.categories) : null, input.description, createdByUserId],
+        [experimentId, input.name, input.dataType, input.minValue, input.maxValue, input.categories ? JSON.stringify(input.categories) : null, input.targetPassRate ?? null, input.description, createdByUserId],
       );
       return toScoreConfig(rows[0]!);
     } catch (error) {
@@ -61,10 +62,10 @@ export class PostgresScoreConfigRepository implements ScoreConfigRepository {
     if (!UUID.test(configId)) return null;
     const { rows } = await this.pool.query<ScoreConfigRow>(
       `UPDATE score_configs
-          SET description = $3, min_value = $4, max_value = $5, categories = $6, updated_at = now()
+          SET description = $3, min_value = $4, max_value = $5, categories = $6, target_pass_rate = $7, updated_at = now()
         WHERE id = $1 AND experiment_id = $2
         RETURNING ${COLUMNS}`,
-      [configId, experimentId, changes.description, changes.minValue, changes.maxValue, changes.categories ? JSON.stringify(changes.categories) : null],
+      [configId, experimentId, changes.description, changes.minValue, changes.maxValue, changes.categories ? JSON.stringify(changes.categories) : null, changes.targetPassRate],
     );
     return rows[0] ? toScoreConfig(rows[0]) : null;
   }
@@ -106,6 +107,7 @@ function toScoreConfig(row: ScoreConfigRow): ScoreConfig {
     minValue: row.min_value,
     maxValue: row.max_value,
     categories: row.categories ? row.categories.map((c) => ({ label: c.label, value: c.value ?? null })) : null,
+    targetPassRate: row.target_pass_rate,
     description: row.description,
     createdBy: row.created_by,
     createdAt: iso(row.created_at),

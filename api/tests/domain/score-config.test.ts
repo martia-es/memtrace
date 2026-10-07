@@ -12,6 +12,7 @@ const stored = (overrides: Partial<ScoreConfig> = {}): ScoreConfig => ({
   minValue: 1,
   maxValue: 5,
   categories: null,
+  targetPassRate: null,
   description: null,
   createdBy: "u1",
   createdAt: "",
@@ -78,5 +79,25 @@ describe("applyScoreConfigPatch", () => {
 
   it("refuses to edit an archived config", () => {
     expect(() => applyScoreConfigPatch(stored({ archivedAt: "2026-01-01" }), { description: "y" })).toThrow(ScoreConfigInvariantError);
+  });
+});
+
+describe("targetPassRate (ADR-060)", () => {
+  const bool: NewScoreConfig = { name: "ok", dataType: "boolean", minValue: null, maxValue: null, categories: null, description: null };
+
+  it("is optional and only valid on boolean configs within (0, 1]", () => {
+    expect(validateNewScoreConfig(bool).targetPassRate).toBeNull();
+    expect(validateNewScoreConfig({ ...bool, targetPassRate: 0.9 }).targetPassRate).toBe(0.9);
+    expect(() => validateNewScoreConfig({ ...bool, targetPassRate: 0 })).toThrow(ScoreConfigShapeError);
+    expect(() => validateNewScoreConfig({ ...bool, targetPassRate: 1.2 })).toThrow(ScoreConfigShapeError);
+    expect(() => validateNewScoreConfig({ ...base, targetPassRate: 0.9 })).toThrow(ScoreConfigShapeError);
+  });
+
+  it("can be changed or cleared by a patch, but not on non-boolean configs", () => {
+    const current = stored({ dataType: "boolean", minValue: null, maxValue: null, targetPassRate: 0.8 });
+    expect(applyScoreConfigPatch(current, { targetPassRate: 0.95 }).targetPassRate).toBe(0.95);
+    expect(applyScoreConfigPatch(current, { targetPassRate: null }).targetPassRate).toBeNull();
+    expect(applyScoreConfigPatch(current, {}).targetPassRate).toBe(0.8);
+    expect(() => applyScoreConfigPatch(stored(), { targetPassRate: 0.9 })).toThrow(ScoreConfigShapeError);
   });
 });

@@ -109,6 +109,12 @@ function conversationOf(roots: SpanNode[], nodes: SpanNode[]): string | null {
   return pick(roots.filter((r) => r.parentSpanId === null)) ?? pick(nodes) ?? null;
 }
 
+/** El commit lo declara el recurso, igual en todos los spans; se toma el de la raíz y, si no, el de cualquiera. */
+function revisionOf(spans: Span[]): string | null {
+  const pick = (list: Span[]) => list.map((s) => s.revision).find((v) => v !== undefined && v !== null && v !== "");
+  return pick(spans.filter((s) => s.parentSpanId === null)) ?? pick(spans) ?? null;
+}
+
 /** El framework lo declara el span raíz; si no, cualquier span en el que se haya detectado. */
 function frameworkOf(roots: SpanNode[], nodes: SpanNode[]): string | null {
   const pick = (list: SpanNode[]) => list.map((n) => n.framework).find((v) => v !== null);
@@ -134,6 +140,7 @@ export function buildTraceDetail(traceId: string, spans: Span[], truncated: bool
   return {
     traceId,
     conversationId: conversationOf(roots, nodes),
+    revision: revisionOf(spans),
     framework: frameworkOf(roots, nodes),
     startTimeUs,
     durationMs: (endUs - startTimeUs) / 1000,

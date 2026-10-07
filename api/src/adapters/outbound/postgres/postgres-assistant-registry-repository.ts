@@ -29,6 +29,7 @@ import {
   type ObservedConnection,
   type ProbeResult,
   type ProbeTarget,
+  type RepoProvider,
 } from "@/domain/assistant-registry";
 import { AssistantInvariantError } from "@/domain/errors";
 
@@ -49,6 +50,7 @@ interface DeploymentRow {
   api_url: string;
   health_url: string | null;
   version: string | null;
+  deploy_ref: string | null;
   auth_method: Deployment["authMethod"];
   auth_provider: string | null;
   auth_audience: string | null;
@@ -61,7 +63,7 @@ interface DeploymentRow {
   health_consecutive_failures: number;
 }
 
-const DEPLOYMENT_COLUMNS = `d.id, d.experiment_id, d.environment_id, d.api_url, d.health_url, d.version, d.auth_method, d.auth_provider, d.auth_audience,
+const DEPLOYMENT_COLUMNS = `d.id, d.experiment_id, d.environment_id, d.api_url, d.health_url, d.version, d.deploy_ref, d.auth_method, d.auth_provider, d.auth_audience,
   d.health_check_enabled, d.health_interval_seconds, d.health_status, d.health_checked_at, d.health_status_since, d.health_latency_ms, d.health_consecutive_failures`;
 
 function toDeployment(r: DeploymentRow): Deployment {
@@ -72,6 +74,7 @@ function toDeployment(r: DeploymentRow): Deployment {
     apiUrl: r.api_url,
     healthUrl: r.health_url,
     version: r.version,
+    deployRef: r.deploy_ref,
     authMethod: r.auth_method,
     authProvider: r.auth_provider,
     authAudience: r.auth_audience,
@@ -149,6 +152,7 @@ const DEPLOYMENT_PATCH_COLUMNS: Record<keyof DeploymentPatch, string> = {
   apiUrl: "api_url",
   healthUrl: "health_url",
   version: "version",
+  deployRef: "deploy_ref",
   authMethod: "auth_method",
   authProvider: "auth_provider",
   authAudience: "auth_audience",
@@ -197,6 +201,10 @@ export class PostgresAssistantRegistryRepository implements AssistantRegistryRep
       chat_request_field: string;
       chat_response_field: string;
       chat_session_field: string | null;
+      chat_trace_id_field: string | null;
+      repo_url: string | null;
+      repo_provider: RepoProvider | null;
+      deploy_workflow: string | null;
       created_at: Ts;
       updated_at: Ts;
       name: string;
@@ -206,7 +214,8 @@ export class PostgresAssistantRegistryRepository implements AssistantRegistryRep
       owner_image: string | null;
     }>(
       `SELECT e.id AS experiment_id, e.description, e.owner_user_id, e.lifecycle, e.created_at, e.updated_at,
-              e.chat_path, e.chat_request_field, e.chat_response_field, e.chat_session_field,
+              e.chat_path, e.chat_request_field, e.chat_response_field, e.chat_session_field, e.chat_trace_id_field,
+              e.repo_url, e.repo_provider, e.deploy_workflow,
               e.name, e.service_name, u.name AS owner_name, u.email AS owner_email, u.image AS owner_image
          FROM experiments e LEFT JOIN users u ON u.id = e.owner_user_id
         WHERE ${where} ORDER BY e.name`,
@@ -263,8 +272,9 @@ export class PostgresAssistantRegistryRepository implements AssistantRegistryRep
         ownerUserId: r.owner_user_id,
         lifecycle: r.lifecycle,
         chat: r.chat_path
-          ? { path: r.chat_path, requestField: r.chat_request_field, responseField: r.chat_response_field, sessionField: r.chat_session_field }
+          ? { path: r.chat_path, requestField: r.chat_request_field, responseField: r.chat_response_field, sessionField: r.chat_session_field, traceIdField: r.chat_trace_id_field }
           : null,
+        repo: r.repo_url && r.repo_provider ? { url: r.repo_url, provider: r.repo_provider, deployWorkflow: r.deploy_workflow } : null,
         createdAt: iso(r.created_at),
         updatedAt: iso(r.updated_at),
         name: r.name,
@@ -345,6 +355,12 @@ export class PostgresAssistantRegistryRepository implements AssistantRegistryRep
       add("chat_request_field", patch.chat?.requestField ?? "message");
       add("chat_response_field", patch.chat?.responseField ?? "reply");
       add("chat_session_field", patch.chat?.sessionField ?? null);
+      add("chat_trace_id_field", patch.chat?.traceIdField ?? null);
+    }
+    if (patch.repo !== undefined) {
+      add("repo_url", patch.repo?.url ?? null);
+      add("repo_provider", patch.repo?.provider ?? null);
+      add("deploy_workflow", patch.repo?.deployWorkflow ?? null);
     }
     const { rowCount } = await this.pool.query(`UPDATE experiments SET ${[...sets, "updated_at = now()"].join(", ")} WHERE id = $1`, values);
     return rowCount ? this.getCard(experimentId) : null;
@@ -356,12 +372,12 @@ export class PostgresAssistantRegistryRepository implements AssistantRegistryRep
     try {
       // el entorno se resuelve por la organización del experimento: así nunca se usa un entorno de otra organización
       const { rows } = await this.pool.query<{ id: string }>(
-        `INSERT INTO assistant_deployments (experiment_id, environment_id, api_url, health_url, version, auth_method, auth_provider, auth_audience, health_check_enabled, health_interval_seconds)
-         SELECT $1, env.id, $3, $4, $5, $6, $7, $8, $9, $10
+        `INSERT INTO assistant_deployments (experiment_id, environment_id, api_url, health_url, version, auth_method, auth_provider, auth_audience, health_check_enabled, health_interval_seconds, deploy_ref)
+         SELECT $1, env.id, $3, $4, $5, $6, $7, $8, $9, $10, $11
            FROM experiments e JOIN environments env ON env.organization_id = e.organization_id
           WHERE e.id = $1 AND env.key = $2
          RETURNING id`,
-        [experimentId, input.environmentKey, input.apiUrl, input.healthUrl, input.version, input.authMethod, input.authProvider, input.authAudience, input.healthCheckEnabled, input.healthIntervalSeconds],
+        [experimentId, input.environmentKey, input.apiUrl, input.healthUrl, input.version, input.authMethod, input.authProvider, input.authAudience, input.healthCheckEnabled, input.healthIntervalSeconds, input.deployRef],
       );
       const id = rows[0]?.id;
       if (!id) throw new AssistantInvariantError(`Unknown environment "${input.environmentKey}" in this organization`);

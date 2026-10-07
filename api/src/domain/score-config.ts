@@ -16,6 +16,8 @@ export interface ScoreConfig {
   minValue: number | null;
   maxValue: number | null;
   categories: ScoreConfigCategory[] | null;
+  /** Solo boolean: objetivo de pass rate (0-1) que usa el dashboard de evaluaciones; null = valor por defecto. */
+  targetPassRate: number | null;
   description: string | null;
   createdBy: string;
   createdAt: string;
@@ -30,6 +32,7 @@ export interface NewScoreConfig {
   minValue: number | null;
   maxValue: number | null;
   categories: ScoreConfigCategory[] | null;
+  targetPassRate?: number | null;
   description: string | null;
 }
 
@@ -39,6 +42,7 @@ export interface ScoreConfigPatch {
   minValue?: number;
   maxValue?: number;
   categories?: ScoreConfigCategory[];
+  targetPassRate?: number | null;
 }
 
 export interface ScoreConfigChanges {
@@ -46,6 +50,7 @@ export interface ScoreConfigChanges {
   minValue: number | null;
   maxValue: number | null;
   categories: ScoreConfigCategory[] | null;
+  targetPassRate: number | null;
 }
 
 const NAME_MAX = 200;
@@ -61,16 +66,20 @@ export function validateNewScoreConfig(input: NewScoreConfig): NewScoreConfig {
   if (input.dataType === "numeric") {
     if (input.categories) throw new ScoreConfigShapeError("Invalid score config", { categories: "only allowed for categorical configs" });
     assertRange(input.minValue, input.maxValue);
-    return { name, dataType: "numeric", minValue: input.minValue, maxValue: input.maxValue, categories: null, description };
+    assertNoTarget(input.targetPassRate ?? null);
+    return { name, dataType: "numeric", minValue: input.minValue, maxValue: input.maxValue, categories: null, targetPassRate: null, description };
   }
   if (input.minValue !== null || input.maxValue !== null) {
     throw new ScoreConfigShapeError("Invalid score config", { minValue: "only allowed for numeric configs" });
   }
   if (input.dataType === "boolean") {
     if (input.categories) throw new ScoreConfigShapeError("Invalid score config", { categories: "only allowed for categorical configs" });
-    return { name, dataType: "boolean", minValue: null, maxValue: null, categories: null, description };
+    const targetPassRate = input.targetPassRate ?? null;
+    assertTarget(targetPassRate);
+    return { name, dataType: "boolean", minValue: null, maxValue: null, categories: null, targetPassRate, description };
   }
-  return { name, dataType: "categorical", minValue: null, maxValue: null, categories: normalizeCategories(input.categories), description };
+  assertNoTarget(input.targetPassRate ?? null);
+  return { name, dataType: "categorical", minValue: null, maxValue: null, categories: normalizeCategories(input.categories), targetPassRate: null, description };
 }
 
 /**
@@ -80,7 +89,7 @@ export function validateNewScoreConfig(input: NewScoreConfig): NewScoreConfig {
  */
 export function applyScoreConfigPatch(current: ScoreConfig, patch: ScoreConfigPatch): ScoreConfigChanges {
   if (current.archivedAt) throw new ScoreConfigInvariantError("Archived score configs cannot be edited");
-  let { minValue, maxValue, categories } = current;
+  let { minValue, maxValue, categories, targetPassRate } = current;
   const description = patch.description === undefined ? current.description : patch.description?.trim() || null;
 
   if (patch.minValue !== undefined || patch.maxValue !== undefined) {
@@ -105,7 +114,23 @@ export function applyScoreConfigPatch(current: ScoreConfig, patch: ScoreConfigPa
     categories = next;
   }
 
-  return { description, minValue, maxValue, categories };
+  if (patch.targetPassRate !== undefined) {
+    if (current.dataType !== "boolean") throw new ScoreConfigShapeError("Invalid score config", { targetPassRate: "only allowed for boolean configs" });
+    assertTarget(patch.targetPassRate);
+    targetPassRate = patch.targetPassRate;
+  }
+
+  return { description, minValue, maxValue, categories, targetPassRate };
+}
+
+function assertTarget(target: number | null): void {
+  if (target !== null && !(Number.isFinite(target) && target > 0 && target <= 1)) {
+    throw new ScoreConfigShapeError("Invalid score config", { targetPassRate: "must be greater than 0 and at most 1" });
+  }
+}
+
+function assertNoTarget(target: number | null): void {
+  if (target !== null) throw new ScoreConfigShapeError("Invalid score config", { targetPassRate: "only allowed for boolean configs" });
 }
 
 function assertRange(min: number | null, max: number | null): asserts min is number {

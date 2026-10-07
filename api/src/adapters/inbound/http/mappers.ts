@@ -10,6 +10,7 @@ import type { QueueResolution } from "@/domain/queue-results";
 import type { InterAnnotatorResult, JudgeHumanResult } from "@/application/agreement-service";
 import type { TraceJudgments } from "@/application/annotation-service";
 import type { LowRatedSummary } from "@/domain/annotation";
+import type { FeedbackOverview, TraceFeedback } from "@/application/user-feedback-service";
 import type { PromotionResult } from "@/application/dataset-promotion-service";
 import type { ModelPricing } from "@/domain/pricing";
 import type { SpanCursor, SpanRow } from "@/domain/span-row";
@@ -61,6 +62,8 @@ import type {
   ScoreConfigsListResponse,
   LowRatedResponse,
   TraceAnnotationsResponse,
+  TraceFeedbackResponse,
+  FeedbackOverviewResponse,
   SpanListResponse,
   SpanNodeDto,
   StepKindsResponse,
@@ -89,6 +92,7 @@ export function toTraceSummaryDto(t: TraceSummary): TraceSummaryDto {
     output: t.output,
     error: t.error,
     conversationId: t.conversationId,
+    revision: t.revision,
   };
 }
 
@@ -186,6 +190,7 @@ export function toTraceDetailResponse(t: TraceDetail): TraceDetailResponse {
     totalCostUsd: t.totalCostUsd,
     truncated: t.truncated,
     conversationId: t.conversationId,
+    revision: t.revision,
     framework: t.framework,
     roots: toSpanNodeDtos(t.roots),
   };
@@ -367,7 +372,7 @@ export function groupAggregatesByRun(aggregates: ScoreAggregate[]): Map<string, 
 }
 
 export function toDatasetRunSummaryDto(run: DatasetRun, aggregates: ScoreAggregateDto[] = []): DatasetRunSummaryDto {
-  return { id: run.id, name: run.name, versionMajor: run.versionMajor, versionMinor: run.versionMinor, itemCount: run.itemCount, status: run.status, createdAt: run.createdAt, aggregates };
+  return { id: run.id, name: run.name, versionMajor: run.versionMajor, versionMinor: run.versionMinor, itemCount: run.itemCount, status: run.status, createdAt: run.createdAt, revision: run.revision, revisionDirty: run.revisionDirty, aggregates };
 }
 
 export function toDatasetRunsListResponse(runs: DatasetRun[], aggregatesByRun: Map<string, ScoreAggregateDto[]>): DatasetRunsListResponse {
@@ -456,6 +461,7 @@ export function toScoreConfigDto(c: ScoreConfig): ScoreConfigDto {
     minValue: c.minValue,
     maxValue: c.maxValue,
     categories: c.categories,
+    targetPassRate: c.targetPassRate,
     description: c.description,
     createdAt: c.createdAt,
     updatedAt: c.updatedAt,
@@ -550,3 +556,19 @@ export function toJudgeHumanAgreementResponse(result: JudgeHumanResult): JudgeHu
 export function toInterAnnotatorAgreementResponse(result: InterAnnotatorResult): InterAnnotatorAgreementResponse {
   return result;
 }
+
+export function toTraceFeedbackResponse(feedback: TraceFeedback): TraceFeedbackResponse {
+  return {
+    votes: feedback.votes.map((v) => ({
+      rating: v.rating,
+      comment: v.comment,
+      spanId: v.spanId,
+      endUserId: v.endUserId,
+      externalMessageId: v.externalMessageId,
+      createdAt: v.createdAt,
+    })),
+    alignment: feedback.alignment,
+  };
+}
+
+export const toFeedbackOverviewResponse = (overview: FeedbackOverview): FeedbackOverviewResponse => overview;

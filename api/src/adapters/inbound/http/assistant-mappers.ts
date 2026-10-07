@@ -1,8 +1,10 @@
+import type { DeployRun } from "@/domain/deploy";
 import type { AccessGrant, AssistantCard, ConnectionWithUsage, Deployment, Environment, HealthCheck } from "@/domain/assistant-registry";
 import type {
   AccessGrantDto,
   AssistantCardDto,
   ConnectionDto,
+  DeployRunDto,
   DeploymentDto,
   EnvironmentDto,
   HealthCheckDto,
@@ -42,5 +44,20 @@ export const toConnectionDto = (c: ConnectionWithUsage): ConnectionDto => ({
   decidedAt: c.decidedAt,
   note: c.note,
   usage: c.usage,
+});
+export const toDeployRunDto = (r: DeployRun): DeployRunDto => ({
+  id: r.id,
+  deploymentId: r.deploymentId,
+  commitSha: r.commitSha,
+  ref: r.ref,
+  requestedBy: r.requestedBy,
+  status: r.status,
+  gateVerdict: r.gateVerdict,
+  gateBypassed: r.gateBypassed,
+  bypassReason: r.bypassReason,
+  providerRunUrl: r.providerRunUrl,
+  error: r.error,
+  createdAt: r.createdAt,
+  finishedAt: r.finishedAt,
 });
 export const toAccessGrantDto = (g: AccessGrant): AccessGrantDto => g;

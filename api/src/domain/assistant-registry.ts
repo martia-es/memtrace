@@ -46,6 +46,58 @@ export interface ChatConfig {
   responseField: string;
   /** clave que lleva el id de conversación en la petición y en la respuesta; null = el asistente no tiene sesiones */
   sessionField: string | null;
+  /** clave de la respuesta con el id de la traza de esa respuesta (admite ruta con puntos); null = no la devuelve y no se ofrece 👍/👎 (ADR-062) */
+  traceIdField: string | null;
+}
+
+export type RepoProvider = "github" | "gitlab" | "bitbucket";
+
+/** Dónde vive el código del agente (ADR-064). Solo metadatos: las credenciales no se guardan aquí. */
+export interface RepoConfig {
+  /** https, sin credenciales ni query; el host debe ser el del proveedor */
+  url: string;
+  provider: RepoProvider;
+  /** workflow (GitHub Actions) o pipeline que despliega; null = aún no declarado */
+  deployWorkflow: string | null;
+}
+
+const REPO_HOSTS: Record<RepoProvider, string> = { github: "github.com", gitlab: "gitlab.com", bitbucket: "bitbucket.org" };
+const REPO_PROVIDERS = Object.keys(REPO_HOSTS) as RepoProvider[];
+
+/** Proveedor que corresponde a la URL de un repo, o null si el host no es de ninguno conocido. */
+export function detectRepoProvider(url: string): RepoProvider | null {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return REPO_PROVIDERS.find((p) => host === REPO_HOSTS[p] || host.endsWith(`.${REPO_HOSTS[p]}`)) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** URL de un commit en el repo, para enlazar la versión de las trazas (ADR-065); null si no hay repo. */
+export function commitUrl(repo: Pick<RepoConfig, "url" | "provider"> | null, sha: string): string | null {
+  if (!repo) return null;
+  const base = repo.url.replace(/\/+$/, "").replace(/\.git$/, "");
+  return repo.provider === "bitbucket" ? `${base}/commits/${sha}` : repo.provider === "gitlab" ? `${base}/-/commit/${sha}` : `${base}/commit/${sha}`;
+}
+
+export function validateRepoConfig(repo: RepoConfig): void {
+  const errors: Record<string, string> = {};
+  let url: URL | null = null;
+  try {
+    url = new URL(repo.url);
+  } catch {
+    /* se informa abajo */
+  }
+  if (!url || url.protocol !== "https:" || url.username !== "" || url.password !== "" || url.search !== "" || url.hash !== "" || repo.url.length > 500) {
+    errors.url = "Must be an https URL without credentials, query or fragment";
+  } else if (detectRepoProvider(repo.url) !== repo.provider) {
+    errors.url = `The host does not match the provider (${repo.provider})`;
+  }
+  if (repo.deployWorkflow !== null && (repo.deployWorkflow.trim() === "" || repo.deployWorkflow.length > 200 || /[\s]/.test(repo.deployWorkflow))) {
+    errors.deployWorkflow = "Must be a workflow file name or pipeline id without spaces";
+  }
+  if (Object.keys(errors).length > 0) throw new ValidationError("Invalid repository", errors);
 }
 
 /** Lo que describe a un agente. Vive en el propio experimento: un experimento es un agente (ADR-054). */
@@ -56,6 +108,8 @@ export interface Assistant {
   lifecycle: AssistantLifecycle;
   /** null = el agente no declara endpoint de chat */
   chat: ChatConfig | null;
+  /** null = el agente no declara repositorio */
+  repo: RepoConfig | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -68,6 +122,8 @@ export interface Deployment {
   /** null = `apiUrl` + `/health` */
   healthUrl: string | null;
   version: string | null;
+  /** rama o tag que se despliega aquí (ADR-064); null = sin declarar */
+  deployRef: string | null;
   authMethod: AuthMethod;
   authProvider: string | null;
   authAudience: string | null;
@@ -151,10 +207,16 @@ export function buildChatRequest(chat: ChatConfig, message: string, sessionId: s
 }
 
 /** Extrae la respuesta y la sesión del JSON del asistente; `reply` null si la clave no existe o no es texto. */
-export function parseChatResponse(chat: ChatConfig, body: unknown): { reply: string | null; sessionId: string | null } {
+export function parseChatResponse(chat: ChatConfig, body: unknown): { reply: string | null; sessionId: string | null; traceId: string | null } {
   const reply = readPath(body, chat.responseField);
   const session = chat.sessionField === null ? null : readPath(body, chat.sessionField);
-  return { reply: typeof reply === "string" ? reply : null, sessionId: typeof session === "string" ? session : null };
+  const trace = chat.traceIdField === null ? null : readPath(body, chat.traceIdField);
+  return {
+    reply: typeof reply === "string" ? reply : null,
+    sessionId: typeof session === "string" ? session : null,
+    // un id de traza OTel son 32 hex; cualquier otra cosa no sirve para enlazar el voto
+    traceId: typeof trace === "string" && /^[0-9a-f]{32}$/i.test(trace) ? trace.toLowerCase() : null,
+  };
 }
 
 /** Tamaño máximo del mensaje del panel. */
@@ -170,6 +232,7 @@ export function validateChatConfig(chat: ChatConfig): void {
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(chat.requestField)) errors.requestField = "Must be a plain JSON key";
   if (!FIELD.test(chat.responseField)) errors.responseField = "Must be a JSON key or a dotted path";
   if (chat.sessionField !== null && !/^[A-Za-z_][A-Za-z0-9_]*$/.test(chat.sessionField)) errors.sessionField = "Must be a plain JSON key";
+  if (chat.traceIdField !== null && !FIELD.test(chat.traceIdField)) errors.traceIdField = "Must be a JSON key or a dotted path";
   if (Object.keys(errors).length > 0) throw new ValidationError("Invalid chat endpoint", errors);
 }
 
@@ -299,13 +362,14 @@ export interface AgentProfile {
   description: string;
   ownerUserId: string | null;
 }
-export type AssistantPatch = Partial<AgentProfile> & { lifecycle?: AssistantLifecycle; chat?: ChatConfig | null };
+export type AssistantPatch = Partial<AgentProfile> & { lifecycle?: AssistantLifecycle; chat?: ChatConfig | null; repo?: RepoConfig | null };
 
 export interface NewDeployment {
   environmentKey: string;
   apiUrl: string;
   healthUrl: string | null;
   version: string | null;
+  deployRef: string | null;
   authMethod: AuthMethod;
   authProvider: string | null;
   authAudience: string | null;
@@ -362,6 +426,7 @@ function checkDeploymentFields(fields: Partial<NewDeployment>): void {
     errors.healthIntervalSeconds = `Must be at least ${MIN_HEALTH_INTERVAL_SECONDS} seconds`;
   }
   if (fields.authMethod !== undefined && !isAuthMethod(fields.authMethod)) errors.authMethod = "Unknown authentication method";
+  if (fields.deployRef != null && !/^[A-Za-z0-9._/-]{1,200}$/.test(fields.deployRef)) errors.deployRef = "Must be a branch or tag name (letters, digits, . _ / -)";
   if (Object.keys(errors).length > 0) throw new ValidationError("Invalid deployment", errors);
 }
 export const validateNewDeployment = (input: NewDeployment): void => checkDeploymentFields(input);

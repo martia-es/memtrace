@@ -20,6 +20,8 @@ export interface PromotionRequest {
   input?: unknown;
   expectedOutput?: unknown;
   fromConfigId?: string;
+  /** Usa la respuesta del agente que se revisó como `expectedOutput` (ADR-061). Un `expectedOutput` explícito gana. */
+  useObservedOutput?: boolean;
   /** Cola de revisión de la que sale la traza (ADR-050); solo procedencia, queda en `promotedFrom`. */
   queueId?: string;
 }
@@ -76,7 +78,7 @@ export class DatasetPromotionService {
         continue;
       }
       const traceAnnotations = annotationsByTrace.get(request.traceId) ?? [];
-      const expected = resolveExpectedOutput({ expectedOutput: request.expectedOutput, fromConfigId: request.fromConfigId, annotations: traceAnnotations });
+      const expected = resolveExpectedOutput({ expectedOutput: request.expectedOutput, useObservedOutput: request.useObservedOutput, observedOutput: content.output, fromConfigId: request.fromConfigId, annotations: traceAnnotations });
       if (!expected.ok) {
         skipped.push({ traceId: request.traceId, reason: expected.reason });
         continue;

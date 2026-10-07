@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { ValidationError } from "@/domain/errors";
 import {
   applyProbe,
+  commitUrl,
+  detectRepoProvider,
+  validateRepoConfig,
   isBlockedAddress,
   classifyProbe,
   validateDeclaredConnection,
@@ -144,5 +148,48 @@ describe("assistant registry (ADR-053)", () => {
     const allow = { allowPrivateNetworks: true };
     for (const ip of ["127.0.0.1", "10.0.0.5", "192.168.1.9", "::1", "fd00::1", "::ffff:10.0.0.1"]) expect(isBlockedAddress(ip, allow), ip).toBe(false);
     for (const ip of ["169.254.169.254", "169.254.0.1", "fe80::1", "::ffff:169.254.169.254", "not-an-ip"]) expect(isBlockedAddress(ip, allow), ip).toBe(true);
+  });
+});
+
+describe("repositorio del agente (ADR-064)", () => {
+  const repo = { url: "https://github.com/acme/weather", provider: "github" as const, deployWorkflow: "deploy.yml" };
+
+  it("acepta un repo https cuyo host es el del proveedor", () => {
+    expect(() => validateRepoConfig(repo)).not.toThrow();
+    expect(() => validateRepoConfig({ url: "https://gitlab.acme.io/g/p", provider: "gitlab", deployWorkflow: null })).toThrow(ValidationError);
+    expect(() => validateRepoConfig({ url: "https://git.gitlab.com/g/p", provider: "gitlab", deployWorkflow: null })).not.toThrow();
+  });
+
+  it.each([
+    ["http://github.com/acme/weather"],
+    ["https://user:token@github.com/acme/weather"],
+    ["https://github.com/acme/weather?x=1"],
+    ["https://evil.com/github.com/acme"],
+    ["no-es-una-url"],
+  ])("rechaza %s", (url) => {
+    expect(() => validateRepoConfig({ ...repo, url })).toThrow(ValidationError);
+  });
+
+  it("rechaza un workflow con espacios", () => {
+    expect(() => validateRepoConfig({ ...repo, deployWorkflow: "deploy now" })).toThrow(ValidationError);
+  });
+
+  it("detecta el proveedor por el host", () => {
+    expect(detectRepoProvider("https://bitbucket.org/a/b")).toBe("bitbucket");
+    expect(detectRepoProvider("https://example.com/a/b")).toBeNull();
+  });
+
+  it("enlaza un commit según el proveedor", () => {
+    const sha = "a".repeat(40);
+    expect(commitUrl(repo, sha)).toBe(`https://github.com/acme/weather/commit/${sha}`);
+    expect(commitUrl({ url: "https://gitlab.com/a/b.git", provider: "gitlab" }, sha)).toBe(`https://gitlab.com/a/b/-/commit/${sha}`);
+    expect(commitUrl({ url: "https://bitbucket.org/a/b/", provider: "bitbucket" }, sha)).toBe(`https://bitbucket.org/a/b/commits/${sha}`);
+    expect(commitUrl(null, sha)).toBeNull();
+  });
+
+  it("valida la rama del despliegue", () => {
+    expect(() => validateDeploymentPatch({ deployRef: "release/1.2" })).not.toThrow();
+    expect(() => validateDeploymentPatch({ deployRef: "main; rm -rf" })).toThrow(ValidationError);
+    expect(() => validateDeploymentPatch({ deployRef: null })).not.toThrow();
   });
 });

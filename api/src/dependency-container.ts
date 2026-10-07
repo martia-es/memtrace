@@ -16,12 +16,18 @@ import { AnnotationQueueService } from "@/application/annotation-queue-service";
 import { PostgresAnnotationQueueRepository } from "@/adapters/outbound/postgres/postgres-annotation-queue-repository";
 import { AgreementService } from "@/application/agreement-service";
 import { AnnotationService } from "@/application/annotation-service";
+import { UserFeedbackService } from "@/application/user-feedback-service";
+import { ClickHouseUserFeedbackRepository } from "@/adapters/outbound/clickhouse/clickhouse-user-feedback-repository";
 import { DatasetPromotionService } from "@/application/dataset-promotion-service";
 import { EvaluationService } from "@/application/evaluation-service";
 import { ExternalAccessService } from "@/application/external-access-service";
 import type { ExternalIdentityRepository } from "@/application/ports/external-identity-repository";
 import { PostgresExternalIdentityRepository } from "@/adapters/outbound/postgres/postgres-external-identity-repository";
 import type { IdentityRepository } from "@/application/ports/identity-repository";
+import { DeployGateService } from "@/application/deploy-gate-service";
+import { DeployService } from "@/application/deploy-service";
+import { GithubAppDispatcher, UnconfiguredDispatcher } from "@/adapters/outbound/github/github-app-dispatcher";
+import { PostgresDeployRunRepository } from "@/adapters/outbound/postgres/postgres-deploy-run-repository";
 import { PostgresScoreConfigRepository } from "@/adapters/outbound/postgres/postgres-score-config-repository";
 import { PostgresIdentityRepository } from "@/adapters/outbound/postgres/postgres-identity-repository";
 import { configFromEnv as postgresConfigFromEnv, createPool } from "@/adapters/outbound/postgres/client";
@@ -40,10 +46,14 @@ const globalForContainer = globalThis as unknown as {
   __memtraceScoreRepository?: ClickHouseScoreRepository;
   __memtracePostgresPool?: Pool;
   __memtraceAnnotation?: AnnotationService;
+  __memtraceUserFeedback?: UserFeedbackService;
   __memtraceAnnotationQueue?: AnnotationQueueService;
   __memtraceAgreement?: AgreementService;
   __memtracePromotion?: DatasetPromotionService;
   __memtraceAssistantRegistry?: AssistantRegistryService;
+  __memtraceDeployGate?: DeployGateService;
+  __memtraceDeployRuns?: PostgresDeployRunRepository;
+  __memtraceDeploy?: DeployService;
   __memtraceHealthProber?: HealthProber;
   __memtraceChatClient?: ChatClient;
 };
@@ -134,6 +144,20 @@ export function getAnnotation(): AnnotationService {
   return globalForContainer.__memtraceAnnotation;
 }
 
+/** Feedback del usuario final (ADR-062). Escribe en `user_feedback` con el mismo cliente acotado que las anotaciones. */
+export function getUserFeedback(): UserFeedbackService {
+  if (!globalForContainer.__memtraceUserFeedback) {
+    const config = configFromEnv();
+    globalForContainer.__memtraceUserFeedback = new UserFeedbackService(
+      new ClickHouseUserFeedbackRepository(createEvaluationWriteClient(config), createReadOnlyClient(config), config.database, config.maxConcurrentQueries),
+      new ClickHouseAnnotationRepository(createEvaluationWriteClient(config), createReadOnlyClient(config), config.database, config.maxConcurrentQueries),
+      new PostgresScoreConfigRepository(getPostgresPool()),
+      getTraceRepository(),
+    );
+  }
+  return globalForContainer.__memtraceUserFeedback;
+}
+
 /** Colas de anotación (ADR-039). Comparte repositorios con `getAnnotation`: las etiquetas van al mismo almacén. */
 export function getAnnotationQueues(): AnnotationQueueService {
   if (!globalForContainer.__memtraceAnnotationQueue) {
@@ -185,6 +209,35 @@ export function getAssistantRegistry(): AssistantRegistryService {
     });
   }
   return globalForContainer.__memtraceAssistantRegistry;
+}
+
+/** Gate de despliegue (ADR-064): solo lee runs, scores y score configs. */
+export function getDeployGate(): DeployGateService {
+  if (!globalForContainer.__memtraceDeployGate) {
+    globalForContainer.__memtraceDeployGate = new DeployGateService(
+      getIdentity().identityRepository,
+      getScoreRepository(),
+      new PostgresScoreConfigRepository(getPostgresPool()),
+      (experimentId) => getDeployRuns().succeededShas(experimentId),
+    );
+  }
+  return globalForContainer.__memtraceDeployGate;
+}
+
+function getDeployRuns(): PostgresDeployRunRepository {
+  if (!globalForContainer.__memtraceDeployRuns) globalForContainer.__memtraceDeployRuns = new PostgresDeployRunRepository(getPostgresPool());
+  return globalForContainer.__memtraceDeployRuns;
+}
+
+/** Despliegue desde MemTrace (ADR-064). Sin GitHub App en el entorno, el servicio existe pero responde 503 al lanzar. */
+export function getDeploy(): DeployService {
+  if (!globalForContainer.__memtraceDeploy) {
+    const appId = process.env.GITHUB_APP_ID;
+    const privateKey = process.env.GITHUB_APP_PRIVATE_KEY;
+    const dispatcher = appId && privateKey ? new GithubAppDispatcher({ appId, privateKey }) : new UnconfiguredDispatcher();
+    globalForContainer.__memtraceDeploy = new DeployService(getAssistantRegistry(), getDeployGate(), getDeployRuns(), dispatcher);
+  }
+  return globalForContainer.__memtraceDeploy;
 }
 
 /** Sondeo de /health para «Comprobar ahora»; mismo adapter y mismas reglas SSRF que el worker. */

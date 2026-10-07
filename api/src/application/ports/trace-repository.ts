@@ -18,6 +18,8 @@ export interface TraceListQuery extends TimeRange {
   text?: string;
   /** solo los turnos de esta conversación */
   conversationId?: string;
+  /** solo las trazas generadas por este commit (ADR-065) */
+  revision?: string;
   /** desc (defecto): las más recientes primero; asc: cronológico (turnos de una conversación) */
   order?: "asc" | "desc";
   limit: number;
@@ -30,6 +32,8 @@ export interface ConversationListQuery extends TimeRange {
   hasErrors?: boolean;
   /** texto contenido en la entrada o salida capturadas de algún turno (sin distinguir mayúsculas) */
   text?: string;
+  /** solo las conversaciones con algún turno generado por este commit, completo o prefijo (ADR-065) */
+  revision?: string;
   limit: number;
   cursor?: ConversationCursor;
 }
@@ -43,6 +47,7 @@ export interface SpanListQuery extends TimeRange {
   /** texto contenido en la entrada o salida capturadas (sin distinguir mayúsculas) */
   text?: string;
   conversationId?: string;
+  revision?: string;
   limit: number;
   cursor?: SpanCursor;
 }

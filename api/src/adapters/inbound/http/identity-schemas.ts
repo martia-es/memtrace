@@ -27,13 +27,26 @@ export const addOrgAdminBody = z.object({
   email: z.string().trim().email(),
 });
 
-export const organizationThemeBody = z.object({
-  accentColor: z
-    .string()
-    .regex(/^#[0-9a-f]{6}$/i, "Must be a hex color like #1c1f23")
-    .nullable(),
-  radiusPreset: z.enum(["sharp", "soft", "round"]).nullable(),
-});
+const hexColor = z
+  .string()
+  .regex(/^#[0-9a-f]{6}$/i, "Must be a hex color like #1c1f23")
+  .nullable();
+const displayMode = z.enum(["bubble", "dock", "fullscreen"]);
+
+export const organizationThemeBody = z
+  .object({
+    accentColor: hexColor,
+    radiusPreset: z.enum(["sharp", "soft", "round"]).nullable(),
+    secondaryColor: hexColor.default(null),
+    fontPreset: z.enum(["system", "serif", "humanist"]).nullable().default(null),
+    assistantName: z.string().trim().max(40).nullable().default(null),
+    assistantDefaultMode: displayMode.nullable().default(null),
+    assistantAllowedModes: z.array(displayMode).min(1).nullable().default(null),
+  })
+  .refine((t) => !t.assistantDefaultMode || !t.assistantAllowedModes || t.assistantAllowedModes.includes(t.assistantDefaultMode), {
+    message: "The default assistant mode must be one of the allowed modes",
+    path: ["assistantDefaultMode"],
+  });
 
 export async function parseJsonOrThrow<T>(schema: z.ZodType<T>, request: Request): Promise<T> {
   let body: unknown;

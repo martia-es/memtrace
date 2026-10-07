@@ -28,6 +28,7 @@ export const listTracesQuery = z.object({
   minDurationMs: z.coerce.number().min(0).optional(),
   text: z.string().min(1).max(200).optional(),
   conversationId: z.string().min(1).max(200).optional(),
+  revision: z.string().regex(/^[0-9a-fA-F]{7,64}$/).optional(),
   limit: z.coerce.number().int().optional(), // el rango 1..200 lo impone el servicio
   cursor: z.string().max(512).optional(),
 });
@@ -40,6 +41,7 @@ export const listSpansQuery = z.object({
   status: z.enum(["ok", "error"]).optional(),
   text: z.string().min(1).max(200).optional(),
   conversationId: z.string().min(1).max(200).optional(),
+  revision: z.string().regex(/^[0-9a-fA-F]{7,64}$/).optional(),
   limit: z.coerce.number().int().optional(),
   cursor: z.string().max(512).optional(),
 });
@@ -49,6 +51,7 @@ export const listConversationsQuery = z.object({
   service: nonEmpty.optional(),
   hasErrors: boolean.optional(),
   text: z.string().min(1).max(200).optional(),
+  revision: z.string().regex(/^[0-9a-fA-F]{7,64}$/).optional(),
   limit: z.coerce.number().int().optional(),
   cursor: z.string().max(512).optional(),
 });
@@ -141,7 +144,7 @@ export const addDatasetItemsBody = z.object({
 /** Promoción de trazas a items de dataset: una llamada = una versión (ADR-038). */
 export const promoteTracesBody = z.object({
   items: z
-    .array(z.object({ traceId: z.string().min(1), input: z.unknown().optional(), expectedOutput: z.unknown().optional(), fromConfigId: z.string().min(1).optional(), queueId: z.string().uuid().optional() }))
+    .array(z.object({ traceId: z.string().min(1), input: z.unknown().optional(), expectedOutput: z.unknown().optional(), fromConfigId: z.string().min(1).optional(), useObservedOutput: z.boolean().optional(), queueId: z.string().uuid().optional() }))
     .min(1)
     .max(100),
 });
@@ -190,6 +193,8 @@ export const submitDatasetRunBody = z
     datasetVersion: z.string().trim().min(1),
     items: z.array(datasetRunItemBody).max(1000),
     complete: z.boolean().default(true),
+    /** commit del código que se evalúa (ADR-065); el SDK lo manda si lo encuentra */
+    revision: z.object({ sha: z.string().regex(/^[0-9a-fA-F]{7,64}$/), dirty: z.boolean().nullable().default(null) }).nullable().default(null),
   })
   .refine((b) => b.items.length > 0 || !b.complete, { message: "items must not be empty for a completed run", path: ["items"] });
 
@@ -280,6 +285,7 @@ export const createScoreConfigBody = z.object({
   minValue: z.number().nullable().optional().default(null),
   maxValue: z.number().nullable().optional().default(null),
   categories: z.array(scoreConfigCategoryBody).max(100).nullable().optional().default(null),
+  targetPassRate: z.number().nullable().optional().default(null),
   description: z.string().max(2000).nullable().optional().default(null),
 });
 
@@ -288,6 +294,7 @@ export const updateScoreConfigBody = z.object({
   minValue: z.number().optional(),
   maxValue: z.number().optional(),
   categories: z.array(scoreConfigCategoryBody).max(100).optional(),
+  targetPassRate: z.number().nullable().optional(),
 });
 
 /** Anotaciones (ADR-037). `value` acepta número/booleano además de string; el dominio lo valida contra la config. */
@@ -297,6 +304,24 @@ export const saveAnnotationBody = z.object({
   comment: z.string().max(5000).nullable().optional(),
   spanId: z.string().regex(/^[0-9a-f]{16}$/i, "Must be a 16-character hex span id").nullable().optional(),
 });
+
+const spanIdField = z.string().regex(/^[0-9a-f]{16}$/i, "Must be a 16-character hex span id");
+
+/** Voto de feedback de usuario final (ADR-062). `rating` se valida en el dominio para dar un 422 claro. */
+export const submitFeedbackBody = z.object({
+  rating: z.number().int(),
+  comment: z.string().max(5000).nullable().optional(),
+  spanId: spanIdField.nullable().optional(),
+  endUserId: z.string().max(200).nullable().optional(),
+  externalMessageId: z.string().max(200).nullable().optional(),
+});
+
+export const retractFeedbackQuery = z.object({
+  spanId: spanIdField.optional(),
+  endUserId: z.string().max(200).optional(),
+});
+
+export const feedbackOverviewQuery = z.object({ ...timeRangeShape });
 
 export const retractAnnotationQuery = z.object({
   spanId: z.string().regex(/^[0-9a-f]{16}$/i).optional(),

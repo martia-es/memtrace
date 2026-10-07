@@ -82,7 +82,7 @@ describe("AssistantRegistryService (ADR-053)", () => {
   it("validates before touching the repository", async () => {
     const createDeployment = vi.fn();
     const { service } = build({ getCard: async () => ({}) as AssistantCard, createDeployment });
-    const base = { environmentKey: "pro", healthUrl: null, version: null, authMethod: "none" as const, authProvider: null, authAudience: null, healthCheckEnabled: true, healthIntervalSeconds: null };
+    const base = { environmentKey: "pro", healthUrl: null, version: null, authMethod: "none" as const, authProvider: null, authAudience: null, healthCheckEnabled: true, healthIntervalSeconds: null, deployRef: null };
     await expect(service.createDeployment("e1", { ...base, apiUrl: "file:///etc/passwd" })).rejects.toBeInstanceOf(ValidationError);
     expect(createDeployment).not.toHaveBeenCalled();
     await expect(service.addGrant("e1", "d1", { subjectType: "group" }, "u1")).rejects.toBeInstanceOf(ValidationError);
@@ -115,7 +115,7 @@ describe("AssistantRegistryService (ADR-053)", () => {
 });
 
 describe("AssistantRegistryService.chat (ADR-055)", () => {
-  const chatConfig = { path: "/api/chat", requestField: "message", responseField: "reply", sessionField: "session_id" };
+  const chatConfig = { path: "/api/chat", requestField: "message", responseField: "reply", sessionField: "session_id", traceIdField: null };
   const card = (chat: AssistantCard["chat"] = chatConfig) => ({ chat }) as AssistantCard;
   const deployment = (o: Partial<Deployment> = {}) => ({ apiUrl: "https://pro.example.com/", authMethod: "none", ...o }) as Deployment;
   const ok = (body: unknown, httpStatus = 200): ChatCallResult => ({ httpStatus, body, latencyMs: 42, error: null });
@@ -128,7 +128,7 @@ describe("AssistantRegistryService.chat (ADR-055)", () => {
   it("calls the deployment host plus the agent's path with the agent's own field names", async () => {
     const { service } = build({ getCard: async () => card(), getDeployment: async () => deployment() });
     const { client, send } = clientReturning(ok({ reply: "Sunny", session_id: "s2" }));
-    expect(await service.chat("e1", "d1", input, client)).toEqual({ reply: "Sunny", sessionId: "s2", latencyMs: 42 });
+    expect(await service.chat("e1", "d1", input, client)).toEqual({ reply: "Sunny", sessionId: "s2", traceId: null, latencyMs: 42 });
     expect(send).toHaveBeenCalledWith("https://pro.example.com/api/chat", { message: "hola", session_id: "s1" });
   });
 
@@ -137,6 +137,14 @@ describe("AssistantRegistryService.chat (ADR-055)", () => {
     const { client, send } = clientReturning(ok({ data: { answer: "Rain" } }));
     expect(await service.chat("e1", "d1", input, client)).toMatchObject({ reply: "Rain", sessionId: "s1" });
     expect(send).toHaveBeenCalledWith(expect.any(String), { message: "hola" });
+  });
+
+  it("returns the trace id of the answer when the agent declares where it comes", async () => {
+    const trace = "0af7651916cd43dd8448eb211c80319c";
+    const { service } = build({ getCard: async () => card({ ...chatConfig, traceIdField: "meta.trace_id" }), getDeployment: async () => deployment() });
+    expect(await service.chat("e1", "d1", input, clientReturning(ok({ reply: "Sunny", meta: { trace_id: trace.toUpperCase() } })).client)).toMatchObject({ traceId: trace });
+    // un valor que no es un id de traza no sirve para enlazar el voto
+    expect(await service.chat("e1", "d1", input, clientReturning(ok({ reply: "Sunny", meta: { trace_id: "nope" } })).client)).toMatchObject({ traceId: null });
   });
 
   it("refuses when there is no chat endpoint, the deployment needs auth, or the message is empty", async () => {
@@ -160,6 +168,7 @@ describe("AssistantRegistryService.chat (ADR-055)", () => {
     const { service } = build({ update });
     await expect(service.update("e1", { chat: { ...chatConfig, path: "//evil.com/x" } })).rejects.toBeInstanceOf(ValidationError);
     await expect(service.update("e1", { chat: { ...chatConfig, path: "api/chat" } })).rejects.toBeInstanceOf(ValidationError);
+    await expect(service.update("e1", { chat: { ...chatConfig, traceIdField: "bad key" } })).rejects.toBeInstanceOf(ValidationError);
     expect(update).not.toHaveBeenCalled();
   });
 });

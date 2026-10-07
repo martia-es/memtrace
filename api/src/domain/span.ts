@@ -24,6 +24,8 @@ export interface Span {
   status: SpanStatus;
   attributes: Record<string, string>;
   events: SpanEvent[];
+  /** commit del código que generó el span (`vcs.repository.ref.revision`, ADR-065); ausente o null = versión desconocida */
+  revision?: string | null;
 }
 
 export interface GenAiInfo {

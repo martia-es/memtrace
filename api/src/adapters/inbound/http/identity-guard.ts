@@ -3,6 +3,8 @@ import {
   AnnotationForbiddenError,
   AssistantInvariantError,
   AssistantUpstreamError,
+  CiUnavailableError,
+  DeployBlockedError,
   AssistantNotFoundError,
   AnnotationQueueInvariantError,
   AnnotationQueueNotFoundError,
@@ -14,6 +16,7 @@ import {
   ScoreConfigShapeError,
   SpanNotFoundError,
   TraceNotFoundError,
+  UserFeedbackValueError,
   ValidationError,
 } from "@/domain/errors";
 import { problem } from "./problem";
@@ -25,6 +28,7 @@ export async function identityGuard(run: () => Promise<Response>): Promise<Respo
   } catch (error) {
     if (error instanceof TraceNotFoundError || error instanceof SpanNotFoundError || error instanceof DatasetRunNotFoundError) return problem(404, "Not Found", error.message);
     if (error instanceof AnnotationValueError) return problem(422, "Unprocessable Entity", error.message, { value: error.message });
+    if (error instanceof UserFeedbackValueError) return problem(422, "Unprocessable Entity", error.message, { rating: error.message });
     if (error instanceof AnnotationForbiddenError) return problem(403, "Forbidden", error.message);
     if (error instanceof RepositoryUnavailableError) return problem(503, "Service Unavailable", error.message);
     if (error instanceof AnnotationQueueNotFoundError) return problem(404, "Not Found", error.message);
@@ -36,6 +40,14 @@ export async function identityGuard(run: () => Promise<Response>): Promise<Respo
     if (error instanceof AssistantNotFoundError) return problem(404, "Not Found", error.message);
     if (error instanceof AssistantInvariantError) return problem(409, "Conflict", error.message);
     if (error instanceof AssistantUpstreamError) return problem(502, "Bad Gateway", error.message);
+    if (error instanceof CiUnavailableError) return problem(503, "Service Unavailable", error.message);
+    if (error instanceof DeployBlockedError) {
+      // el veredicto del gate viaja en la respuesta para que la pantalla explique por qué
+      return new Response(JSON.stringify({ type: "about:blank", title: "Conflict", status: 409, detail: error.message, gate: error.gate }), {
+        status: 409,
+        headers: { "Content-Type": "application/problem+json", "Cache-Control": "no-store" },
+      });
+    }
     if (error instanceof ValidationError) return problem(400, "Bad Request", error.message, error.fields);
     console.error("[memtrace-api] Unhandled identity error:", error);
     return problem(500, "Internal Server Error");

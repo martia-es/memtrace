@@ -12,6 +12,13 @@ export const chatConfigBody = z.object({
   requestField: jsonKey.default("message"),
   responseField: jsonKey.default("reply"),
   sessionField: jsonKey.nullable().default(null),
+  traceIdField: jsonKey.nullable().default(null),
+});
+
+export const repoConfigBody = z.object({
+  url: text(500).min(1),
+  provider: z.enum(["github", "gitlab", "bitbucket"]),
+  deployWorkflow: nullableText(200).default(null),
 });
 
 export const updateAssistantBody = z
@@ -21,8 +28,15 @@ export const updateAssistantBody = z
     lifecycle: z.enum(["active", "retired"]),
     /** null quita el endpoint de chat */
     chat: chatConfigBody.nullable(),
+    /** null quita el repositorio */
+    repo: repoConfigBody.nullable(),
   })
   .partial();
+
+export const deployBody = z.object({
+  /** solo para saltarse el gate (hotfix): el motivo queda en el historial */
+  bypassReason: z.string().max(500).nullable().default(null),
+});
 
 export const chatBody = z.object({
   message: z.string().min(1).max(8000),
@@ -36,6 +50,7 @@ export const createDeploymentBody = z.object({
   apiUrl: z.string().trim().min(1).max(2000),
   healthUrl: nullableText(2000).default(null),
   version: nullableText(100).default(null),
+  deployRef: nullableText(200).default(null),
   authMethod: authMethod.default("none"),
   authProvider: nullableText(200).default(null),
   authAudience: nullableText(500).default(null),
@@ -48,6 +63,7 @@ export const updateDeploymentBody = z
     apiUrl: text(2000).min(1),
     healthUrl: nullableText(2000),
     version: nullableText(100),
+    deployRef: nullableText(200),
     authMethod,
     authProvider: nullableText(200),
     authAudience: nullableText(500),

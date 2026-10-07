@@ -279,6 +279,10 @@ export class ClickHouseTraceRepository implements TraceRepository {
       where.push(CONTENT_MATCH);
       p.text = q.text;
     }
+    if (q.revision) {
+      where.push("startsWith(Revision, {revision:String})");
+      p.revision = q.revision.toLowerCase();
+    }
     if (q.cursor) {
       where.push("(toUnixTimestamp64Micro(Timestamp), SpanId) < ({cursorUs:Int64}, {cursorSpanId:String})");
       p.cursorUs = q.cursor.startTimeUs;
@@ -354,6 +358,11 @@ export class ClickHouseTraceRepository implements TraceRepository {
       where.push("ConversationId = {conversationId:String}");
       p.conversationId = q.conversationId;
     }
+    if (q.revision) {
+      // el commit completo o un prefijo (el SHA corto que muestra el dashboard)
+      where.push("startsWith(Revision, {revision:String})");
+      p.revision = q.revision.toLowerCase();
+    }
     const dir = q.order === "asc" ? "ASC" : "DESC";
     if (q.cursor) {
       where.push(`(toUnixTimestamp64Micro(Timestamp), TraceId) ${dir === "ASC" ? ">" : "<"} ({cursorUs:Int64}, {cursorTraceId:String})`);
@@ -362,7 +371,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
     }
 
     const roots = await this.rows(
-      `SELECT TraceId, SpanName, ServiceName, ConversationId, toUnixTimestamp64Micro(Timestamp) AS startUs, Duration, StatusCode, StatusMessage
+      `SELECT TraceId, SpanName, ServiceName, ConversationId, Revision, toUnixTimestamp64Micro(Timestamp) AS startUs, Duration, StatusCode, StatusMessage
        FROM ${this.spans} WHERE ${where.join(" AND ")}
        ORDER BY startUs ${dir}, TraceId ${dir} LIMIT {limit:UInt32}`,
       p,
@@ -392,6 +401,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
         output: agg && !noAnswer ? previewOf(agg.outputRaw, "output", agg.outputChat) : null,
         error: status === "error" && r.StatusMessage ? previewOf(String(r.StatusMessage), "output", false) : null,
         conversationId: r.ConversationId ? String(r.ConversationId) : null,
+        revision: r.Revision ? String(r.Revision) : null,
       };
     });
 
@@ -410,7 +420,8 @@ export class ClickHouseTraceRepository implements TraceRepository {
     const { clause, params } = ClickHouseTraceRepository.range(fromMs, toMs);
 
     // Entrada = la del primer span que la tiene; salida = la del último en terminar.
-    const inputExpr = firstOf(["memtrace.input", "gen_ai.input.messages", "gen_ai.tool.call.arguments"]);
+    // `invoke_agent` (Pydantic AI) guarda en gen_ai.input.messages solo el último mensaje enviado, que puede ser la respuesta de una herramienta y no el del usuario: su entrada sale del primer `chat`.
+    const inputExpr = `if(${OP} = 'invoke_agent', ${firstOf(["memtrace.input"])}, ${firstOf(["memtrace.input", "gen_ai.input.messages", "gen_ai.tool.call.arguments"])})`;
     const outputExpr = firstOf(["memtrace.output", "gen_ai.output.messages", "gen_ai.tool.call.result"]);
     const rows = await this.rows(
       `SELECT TraceId, uniqExact(SpanId) AS spanCount, uniqExactIf(SpanId, StatusCode = ${ERROR}) AS errorCount,
@@ -459,6 +470,10 @@ export class ClickHouseTraceRepository implements TraceRepository {
       );
       p.text = q.text;
       p.toWithWindowMs = q.toMs + TRACE_WINDOW_MS;
+    }
+    if (q.revision) {
+      where.push("startsWith(Revision, {revision:String})");
+      p.revision = q.revision.toLowerCase();
     }
     const having = q.cursor ? "HAVING (lastUs, ConversationId) < ({cursorUs:Int64}, {cursorId:String})" : "";
     if (q.cursor) {
@@ -603,7 +618,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
 
     const rows = await this.rows(
       `SELECT SpanId, ParentSpanId, SpanName, ServiceName, ScopeName, toUnixTimestamp64Micro(Timestamp) AS startUs,
-              Duration, StatusCode, StatusMessage, SpanAttributes,
+              Duration, StatusCode, StatusMessage, SpanAttributes, Revision,
               \`Events.Name\` AS evName, \`Events.Attributes\` AS evAttrs,
               arrayMap(t -> toUnixTimestamp64Micro(t), \`Events.Timestamp\`) AS evTs
        FROM ${this.spans}
@@ -628,6 +643,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
         status: { code: toStatus(r.StatusCode), message: r.StatusMessage ? String(r.StatusMessage) : null },
         attributes: (r.SpanAttributes as Record<string, string>) ?? {},
         events: evName.map((name, i) => ({ name, timeUs: num(evTs[i]), attributes: evAttrs[i] ?? {} })),
+        revision: r.Revision ? String(r.Revision) : null,
       };
     });
     return { spans, truncated: rows.length > maxSpans };

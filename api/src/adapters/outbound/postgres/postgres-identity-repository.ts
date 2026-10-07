@@ -29,11 +29,15 @@ import type {
   PendingInvitation,
   PendingInvitationTarget,
   RadiusPreset,
+  AssistantDisplayMode,
+  FontPreset,
   User,
 } from "@/domain/identity";
+import { ASSISTANT_DISPLAY_MODES, type RunRevision } from "@/domain/identity";
 
 const API_KEY_PREFIX = "mtk_";
 const RADIUS_PRESETS = new Set<RadiusPreset>(["sharp", "soft", "round"]);
+const FONT_PRESETS = new Set<FontPreset>(["system", "serif", "humanist"]);
 
 /** Columnas + joins de autoría/edición/borrado comunes a toda lectura de `dataset_items` (ADR-032). */
 const DATASET_ITEM_SELECT = `
@@ -70,7 +74,16 @@ function toOrganizationTheme(raw: unknown): OrganizationTheme {
   const value = (raw ?? {}) as Partial<OrganizationTheme>;
   const accentColor = typeof value.accentColor === "string" ? value.accentColor : null;
   const radiusPreset = RADIUS_PRESETS.has(value.radiusPreset as RadiusPreset) ? (value.radiusPreset as RadiusPreset) : null;
-  return { accentColor, radiusPreset };
+  const allowed = Array.isArray(value.assistantAllowedModes) ? value.assistantAllowedModes.filter((m) => ASSISTANT_DISPLAY_MODES.includes(m)) : [];
+  return {
+    accentColor,
+    radiusPreset,
+    secondaryColor: typeof value.secondaryColor === "string" ? value.secondaryColor : null,
+    fontPreset: FONT_PRESETS.has(value.fontPreset as FontPreset) ? (value.fontPreset as FontPreset) : null,
+    assistantName: typeof value.assistantName === "string" && value.assistantName !== "" ? value.assistantName : null,
+    assistantDefaultMode: ASSISTANT_DISPLAY_MODES.includes(value.assistantDefaultMode as AssistantDisplayMode) ? (value.assistantDefaultMode as AssistantDisplayMode) : null,
+    assistantAllowedModes: allowed.length > 0 ? allowed : null,
+  };
 }
 
 /** Expresión SQL: el `metadata` nuevo, conservando la clave reservada `promotedFrom` (ADR-038) del anterior si la había.
@@ -972,13 +985,13 @@ export class PostgresIdentityRepository implements IdentityRepository {
     }
   }
 
-  async createDatasetRun(id: string, datasetId: string, datasetVersionId: string, name: string, itemCount: number, status: DatasetRunStatus): Promise<DatasetRun> {
-    const { rows } = await this.pool.query<{ id: string; dataset_id: string; dataset_version_id: string; major: number; minor: number; name: string; item_count: number; status: DatasetRunStatus; created_at: string }>(
-      `INSERT INTO dataset_runs (id, dataset_id, dataset_version_id, name, item_count, status) VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING dataset_runs.id, dataset_runs.dataset_id, dataset_runs.dataset_version_id, dataset_runs.name, dataset_runs.item_count, dataset_runs.status, dataset_runs.created_at,
+  async createDatasetRun(id: string, datasetId: string, datasetVersionId: string, name: string, itemCount: number, status: DatasetRunStatus, revision: RunRevision | null = null): Promise<DatasetRun> {
+    const { rows } = await this.pool.query<DatasetRunRow>(
+      `INSERT INTO dataset_runs (id, dataset_id, dataset_version_id, name, item_count, status, revision, revision_dirty) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING dataset_runs.id, dataset_runs.dataset_id, dataset_runs.dataset_version_id, dataset_runs.name, dataset_runs.item_count, dataset_runs.status, dataset_runs.created_at, dataset_runs.revision, dataset_runs.revision_dirty,
                  (SELECT major FROM dataset_versions WHERE id = $3) AS major,
                  (SELECT minor FROM dataset_versions WHERE id = $3) AS minor`,
-      [id, datasetId, datasetVersionId, name, itemCount, status],
+      [id, datasetId, datasetVersionId, name, itemCount, status, revision?.sha ?? null, revision?.dirty ?? null],
     );
     const row = rows[0];
     if (!row) throw new Error("failed to insert dataset run");
@@ -994,8 +1007,8 @@ export class PostgresIdentityRepository implements IdentityRepository {
   }
 
   async listDatasetRuns(datasetId: string): Promise<DatasetRun[]> {
-    const { rows } = await this.pool.query<{ id: string; dataset_id: string; dataset_version_id: string; major: number; minor: number; name: string; item_count: number; status: DatasetRunStatus; created_at: string }>(
-      `SELECT r.id, r.dataset_id, r.dataset_version_id, v.major, v.minor, r.name, r.item_count, r.status, r.created_at
+    const { rows } = await this.pool.query<DatasetRunRow>(
+      `SELECT r.id, r.dataset_id, r.dataset_version_id, v.major, v.minor, r.name, r.item_count, r.status, r.created_at, r.revision, r.revision_dirty
          FROM dataset_runs r JOIN dataset_versions v ON v.id = r.dataset_version_id
         WHERE r.dataset_id = $1
         ORDER BY r.created_at DESC`,
@@ -1005,8 +1018,8 @@ export class PostgresIdentityRepository implements IdentityRepository {
   }
 
   async getDatasetRun(runId: string): Promise<DatasetRun | null> {
-    const { rows } = await this.pool.query<{ id: string; dataset_id: string; dataset_version_id: string; major: number; minor: number; name: string; item_count: number; status: DatasetRunStatus; created_at: string }>(
-      `SELECT r.id, r.dataset_id, r.dataset_version_id, v.major, v.minor, r.name, r.item_count, r.status, r.created_at
+    const { rows } = await this.pool.query<DatasetRunRow>(
+      `SELECT r.id, r.dataset_id, r.dataset_version_id, v.major, v.minor, r.name, r.item_count, r.status, r.created_at, r.revision, r.revision_dirty
          FROM dataset_runs r JOIN dataset_versions v ON v.id = r.dataset_version_id
         WHERE r.id = $1`,
       [runId],
@@ -1025,9 +1038,11 @@ export class PostgresIdentityRepository implements IdentityRepository {
       item_count: number;
       status: DatasetRunStatus;
       created_at: string;
+      revision: string | null;
+      revision_dirty: boolean | null;
       dataset_name: string;
     }>(
-      `SELECT r.id, r.dataset_id, r.dataset_version_id, v.major, v.minor, r.name, r.item_count, r.status, r.created_at, d.name AS dataset_name
+      `SELECT r.id, r.dataset_id, r.dataset_version_id, v.major, v.minor, r.name, r.item_count, r.status, r.created_at, r.revision, r.revision_dirty, d.name AS dataset_name
          FROM dataset_runs r
          JOIN dataset_versions v ON v.id = r.dataset_version_id
          JOIN datasets d ON d.id = r.dataset_id
@@ -1117,7 +1132,21 @@ function toDatasetItem(row: DatasetItemRow): DatasetItem {
   };
 }
 
-function toDatasetRun(row: { id: string; dataset_id: string; dataset_version_id: string; major: number; minor: number; name: string; item_count: number; status: DatasetRunStatus; created_at: string }): DatasetRun {
+interface DatasetRunRow {
+  id: string;
+  dataset_id: string;
+  dataset_version_id: string;
+  major: number;
+  minor: number;
+  name: string;
+  item_count: number;
+  status: DatasetRunStatus;
+  created_at: string;
+  revision: string | null;
+  revision_dirty: boolean | null;
+}
+
+function toDatasetRun(row: DatasetRunRow): DatasetRun {
   return {
     id: row.id,
     datasetId: row.dataset_id,
@@ -1128,6 +1157,8 @@ function toDatasetRun(row: { id: string; dataset_id: string; dataset_version_id:
     itemCount: row.item_count,
     status: row.status,
     createdAt: row.created_at,
+    revision: row.revision,
+    revisionDirty: row.revision_dirty,
   };
 }
 

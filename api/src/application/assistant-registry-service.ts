@@ -12,6 +12,7 @@ import {
   validateDeploymentPatch,
   validateNewDeployment,
   validateNewGrant,
+  validateRepoConfig,
   type AccessGrant,
   type AssistantPerson,
   type AssistantCard,
@@ -70,6 +71,7 @@ export class AssistantRegistryService {
 
   async update(experimentId: string, patch: AssistantPatch): Promise<AssistantCard> {
     if (patch.chat) validateChatConfig(patch.chat);
+    if (patch.repo) validateRepoConfig(patch.repo);
     const card = await this.repo.update(experimentId, patch);
     if (!card) throw new AssistantNotFoundError("Assistant");
     return card;
@@ -120,7 +122,7 @@ export class AssistantRegistryService {
    * Habla con el agente en un entorno (ADR-055): URL = host del despliegue + path del agente, mensaje traducido a su
    * contrato. Solo se admiten despliegues sin autenticación: MemTrace no guarda credenciales de los asistentes.
    */
-  async chat(experimentId: string, deploymentId: string, input: { message: string; sessionId: string | null }, client: ChatClient): Promise<{ reply: string; sessionId: string | null; latencyMs: number }> {
+  async chat(experimentId: string, deploymentId: string, input: { message: string; sessionId: string | null }, client: ChatClient): Promise<{ reply: string; sessionId: string | null; traceId: string | null; latencyMs: number }> {
     const message = input.message.trim();
     if (message === "" || message.length > MAX_CHAT_MESSAGE_LENGTH) throw new ValidationError("Invalid message", { message: `Must be 1-${MAX_CHAT_MESSAGE_LENGTH} characters` });
     const card = await this.getCard(experimentId);
@@ -134,7 +136,7 @@ export class AssistantRegistryService {
     if (result.httpStatus < 200 || result.httpStatus >= 300) throw new AssistantUpstreamError(`The agent answered with HTTP ${result.httpStatus}`);
     const parsed = parseChatResponse(card.chat, result.body);
     if (parsed.reply === null) throw new AssistantUpstreamError(`The agent's response has no text in "${card.chat.responseField}"`);
-    return { reply: parsed.reply, sessionId: parsed.sessionId ?? input.sessionId, latencyMs: result.latencyMs ?? 0 };
+    return { reply: parsed.reply, sessionId: parsed.sessionId ?? input.sessionId, traceId: parsed.traceId, latencyMs: result.latencyMs ?? 0 };
   }
 
   dueProbes(limit: number): Promise<ProbeTarget[]> {

@@ -55,6 +55,8 @@ export interface TraceSummaryDto {
   error: string | null;
   /** conversación a la que pertenece el turno (ADR-012) */
   conversationId: string | null;
+  /** commit del código que generó la traza (ADR-065); null = versión desconocida */
+  revision: string | null;
 }
 
 export interface TraceListResponse {
@@ -128,6 +130,7 @@ export interface TraceDetailResponse {
   totalCostUsd: number;
   truncated: boolean;
   conversationId: string | null;
+  revision: string | null;
   framework: string | null;
   roots: SpanNodeDto[];
 }
@@ -431,7 +434,7 @@ export interface DatasetItemsListResponse {
 
 /** ADR-038. `input` (opcional) sustituye al extraído de la traza. `expectedOutput` explícito gana sobre `fromConfigId` (etiqueta categórica de las anotaciones de la traza). */
 export interface PromoteTracesBody {
-  items: Array<{ traceId: string; input?: unknown; expectedOutput?: unknown; fromConfigId?: string; /** cola de la que sale, para dejarlo en `promotedFrom` */ queueId?: string }>;
+  items: Array<{ traceId: string; input?: unknown; expectedOutput?: unknown; fromConfigId?: string; /** usa la respuesta del agente que se revisó como expectedOutput (ADR-061) */ useObservedOutput?: boolean; /** cola de la que sale, para dejarlo en `promotedFrom` */ queueId?: string }>;
 }
 
 export type PromotionSkipReasonDto = "already_promoted" | "no_content" | "not_found" | "ambiguous_label" | "unsupported_label";
@@ -494,6 +497,10 @@ export interface DatasetRunSummaryDto {
   /** `running` mientras el SDK sigue subiendo lotes (o si el proceso murió a medias), ADR-034. */
   status: "running" | "completed";
   createdAt: string;
+  /** commit del código que se evaluó (ADR-065); null = versión desconocida */
+  revision: string | null;
+  /** el árbol tenía cambios sin commitear; null = no se sabe */
+  revisionDirty: boolean | null;
   aggregates: ScoreAggregateDto[];
 }
 
@@ -545,6 +552,8 @@ export interface ScoreConfigDto {
   minValue: number | null;
   maxValue: number | null;
   categories: ScoreConfigCategoryDto[] | null;
+  /** Solo boolean: objetivo de pass rate (0-1); null = valor por defecto del dashboard. */
+  targetPassRate: number | null;
   description: string | null;
   createdAt: string;
   updatedAt: string;
@@ -583,6 +592,35 @@ export interface TraceScoreDto {
 export interface LowRatedResponse {
   count: number;
   items: Array<{ traceId: string; configName: string; value: string; createdAt: string }>;
+}
+
+/** Voto de feedback de usuario final (ADR-062). */
+export interface UserFeedbackDto {
+  rating: 1 | -1;
+  comment: string | null;
+  spanId: string | null;
+  endUserId: string | null;
+  externalMessageId: string | null;
+  createdAt: string;
+}
+
+/** Votos de una traza y si coinciden con la revisión humana. */
+export interface TraceFeedbackResponse {
+  votes: UserFeedbackDto[];
+  alignment: "aligned" | "misaligned" | "unknown";
+}
+
+/** Votos de las trazas o conversaciones pedidas; solo las que tienen alguno. */
+export interface FeedbackRatingsResponse {
+  items: Array<{ id: string; up: number; down: number }>;
+}
+
+/** Métricas de feedback del rango: totales, serie diaria, alineación y últimas trazas con 👎. */
+export interface FeedbackOverviewResponse {
+  summary: { total: number; up: number; down: number; satisfaction: number | null; ratedTraces: number };
+  days: Array<{ day: string; up: number; down: number }>;
+  alignment: { aligned: number; misaligned: number };
+  recentDown: Array<{ traceId: string; comment: string | null; createdAt: string }>;
 }
 
 /** Estado de anotación de las trazas o conversaciones pedidas; solo las que tienen alguna etiqueta humana. */
@@ -823,6 +861,8 @@ export interface DeploymentDto {
   /** null = `apiUrl` + `/health` */
   healthUrl: string | null;
   version: string | null;
+  /** rama o tag que se despliega en este entorno (ADR-064) */
+  deployRef: string | null;
   authMethod: AuthMethodDto;
   authProvider: string | null;
   authAudience: string | null;
@@ -856,11 +896,22 @@ export interface ChatConfigDto {
   requestField: string;
   responseField: string;
   sessionField: string | null;
+  /** clave de la respuesta con el id de la traza; null = el agente no la devuelve y el panel no ofrece 👍/👎 (ADR-062) */
+  traceIdField: string | null;
+}
+
+/** Dónde vive el código del agente (ADR-064). */
+export interface RepoConfigDto {
+  url: string;
+  provider: "github" | "gitlab" | "bitbucket";
+  deployWorkflow: string | null;
 }
 
 export interface ChatResponseDto {
   reply: string;
   sessionId: string | null;
+  /** traza de esta respuesta, si el agente la devuelve en `traceIdField` */
+  traceId: string | null;
   latencyMs: number;
 }
 
@@ -873,6 +924,8 @@ export interface AssistantCardDto {
   lifecycle: "active" | "retired";
   /** null = el agente no declara endpoint de chat */
   chat: ChatConfigDto | null;
+  /** null = el agente no declara repositorio */
+  repo: RepoConfigDto | null;
   createdAt: string;
   updatedAt: string;
   deployments: DeploymentSummaryDto[];
@@ -882,6 +935,46 @@ export interface AssistantCardDto {
   members: { total: number; preview: AssistantMemberDto[] };
   /** el peor estado de sus despliegues; null si no tiene ninguno */
   status: HealthStatusDto | null;
+}
+
+/** Respuesta del gate de despliegue (ADR-064): si un commit puede desplegarse y por qué. */
+export interface DeployGateDto {
+  allowed: boolean;
+  verdict: "allowed" | "rollback" | "no_evaluation" | "evaluation_running" | "only_dirty_runs" | "failed" | "insufficient_runs";
+  sha: string;
+  requiredRuns: number;
+  reason: string;
+  /** runs completos y limpios del commit que se miraron, el más reciente primero */
+  runs: Array<{ runId: string; name: string; passed: boolean; failures: Array<{ evaluator: string; passRate: number | null; target: number }> }>;
+}
+
+/** Un despliegue lanzado desde MemTrace (ADR-064). */
+export interface DeployRunDto {
+  id: string;
+  deploymentId: string;
+  commitSha: string;
+  ref: string;
+  requestedBy: string | null;
+  status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+  gateVerdict: string;
+  gateBypassed: boolean;
+  bypassReason: string | null;
+  providerRunUrl: string | null;
+  error: string | null;
+  createdAt: string;
+  finishedAt: string | null;
+}
+
+export interface DeployRunsResponse {
+  items: DeployRunDto[];
+}
+
+/** Qué se desplegaría ahora en un entorno y si el gate lo permite. */
+export interface DeployPreviewDto {
+  ref: string;
+  sha: string;
+  environment: string;
+  gate: DeployGateDto;
 }
 
 export interface AssistantCatalogResponse {

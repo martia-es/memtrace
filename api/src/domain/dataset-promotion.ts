@@ -38,12 +38,13 @@ export function extractTraceContent(spans: Span[]): TraceContent | null {
 export type ExpectedOutputResolution = { ok: true; value: unknown } | { ok: false; reason: Extract<PromotionSkipReason, "ambiguous_label" | "unsupported_label"> };
 
 /**
- * Orden de prioridad (ADR-038): 1) `expectedOutput` explícito; 2) etiqueta categórica de `fromConfigId` si todas las
- * anotaciones vigentes de la traza para esa config coinciden; 3) null. Un veredicto numérico o booleano no es una
+ * Orden de prioridad (ADR-038, ADR-061): 1) `expectedOutput` explícito; 2) la respuesta revisada si `useObservedOutput` y la traza tiene una; 3) etiqueta categórica de `fromConfigId` si todas las
+ * anotaciones vigentes de la traza para esa config coinciden; 4) null. Un veredicto numérico o booleano no es una
  * respuesta de referencia, así que una config de esos tipos se rechaza en vez de convertirse en `expectedOutput`.
  */
-export function resolveExpectedOutput(input: { expectedOutput?: unknown; fromConfigId?: string; annotations: Annotation[] }): ExpectedOutputResolution {
+export function resolveExpectedOutput(input: { expectedOutput?: unknown; useObservedOutput?: boolean; observedOutput?: unknown; fromConfigId?: string; annotations: Annotation[] }): ExpectedOutputResolution {
   if (input.expectedOutput !== undefined) return { ok: true, value: input.expectedOutput };
+  if (input.useObservedOutput && isPresent(input.observedOutput)) return { ok: true, value: input.observedOutput };
   if (!input.fromConfigId) return { ok: true, value: null };
   const labels = input.annotations.filter((a) => a.configId === input.fromConfigId && a.spanId === null && !a.datasetRunId);
   if (labels.length === 0) return { ok: true, value: null };

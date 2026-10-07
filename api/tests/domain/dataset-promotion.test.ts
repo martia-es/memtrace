@@ -49,6 +49,14 @@ describe("resolveExpectedOutput", () => {
     expect(resolveExpectedOutput({ expectedOutput: null, fromConfigId: "c1", annotations: [label()] })).toEqual({ ok: true, value: null });
   });
 
+  it("uses the reviewed reply when asked, below an explicit answer and above a label", () => {
+    const annotations = [label()];
+    expect(resolveExpectedOutput({ useObservedOutput: true, observedOutput: "Hola", fromConfigId: "c1", annotations })).toEqual({ ok: true, value: "Hola" });
+    expect(resolveExpectedOutput({ expectedOutput: "typed", useObservedOutput: true, observedOutput: "Hola", annotations })).toEqual({ ok: true, value: "typed" });
+    expect(resolveExpectedOutput({ useObservedOutput: true, observedOutput: null, annotations })).toEqual({ ok: true, value: null });
+    expect(resolveExpectedOutput({ observedOutput: "Hola", annotations })).toEqual({ ok: true, value: null });
+  });
+
   it("uses the categorical label of fromConfigId when annotators agree", () => {
     const annotations = [label(), label({ annotatorId: "u2" })];
     expect(resolveExpectedOutput({ fromConfigId: "c1", annotations })).toEqual({ ok: true, value: "Paris" });

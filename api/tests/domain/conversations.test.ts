@@ -16,3 +16,16 @@ describe("trace conversation id", () => {
     expect(buildTraceDetail("t", [span()], false).conversationId).toBeNull();
   });
 });
+
+describe("trace revision (ADR-065)", () => {
+  it("comes from the root span and falls back to any span", () => {
+    const root = span({ spanId: "r", revision: "a".repeat(40) });
+    const child = span({ parentSpanId: "r", revision: "b".repeat(40) });
+    expect(buildTraceDetail("t", [child, root], false).revision).toBe("a".repeat(40));
+    expect(buildTraceDetail("t", [span({ spanId: "r" }), span({ parentSpanId: "r", revision: "c".repeat(40) })], false).revision).toBe("c".repeat(40));
+  });
+
+  it("is null when no span carries it", () => {
+    expect(buildTraceDetail("t", [span({ spanId: "r", revision: null })], false).revision).toBeNull();
+  });
+});

@@ -21,7 +21,7 @@ describe.skipIf(!url)("assistant registry (postgres)", () => {
   let peerId: string;
   let userId: string;
   const stamp = Date.now();
-  const base = { healthUrl: null, version: "v1", authMethod: "oauth2" as const, authProvider: "Entra ID", authAudience: "api://x", healthCheckEnabled: true, healthIntervalSeconds: null };
+  const base = { healthUrl: null, version: "v1", authMethod: "oauth2" as const, authProvider: "Entra ID", authAudience: "api://x", healthCheckEnabled: true, healthIntervalSeconds: null, deployRef: null };
   const ok = { httpStatus: 200, latencyMs: 80, error: null };
   const fail = { httpStatus: null, latencyMs: null, error: "timeout" };
 

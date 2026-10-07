@@ -1,3 +1,5 @@
+import type { UserFeedbackRepository } from "@/application/ports/user-feedback-repository";
+import type { UserFeedback } from "@/domain/user-feedback";
 import type { ConversationListQuery, SpanListQuery, TraceListQuery, TraceRepository, TraceSpans } from "@/application/ports/trace-repository";
 import type { ConversationCursor, ConversationSummary, ConversationUsage } from "@/domain/conversation";
 import type { ChatSpanRecord } from "@/domain/transcript";
@@ -188,7 +190,7 @@ export class FakeScoreConfigRepository implements ScoreConfigRepository {
     if (this.nameTaken(experimentId, input.name)) throw new ScoreConfigInvariantError(`name "${input.name}" taken`);
     this.seq += 1;
     const now = "2026-10-03T00:00:00.000Z";
-    const config: ScoreConfig = { ...input, id: `cfg-${this.seq}`, experimentId, createdBy: createdByUserId, createdAt: now, updatedAt: now, archivedAt: null };
+    const config: ScoreConfig = { ...input, targetPassRate: input.targetPassRate ?? null, id: `cfg-${this.seq}`, experimentId, createdBy: createdByUserId, createdAt: now, updatedAt: now, archivedAt: null };
     this.configs.push(config);
     return config;
   }
@@ -244,6 +246,57 @@ export class FakeAnnotationRepository implements AnnotationRepository {
     return this.rows
       .filter((r) => r.serviceName === serviceName && !r.isDeleted && !r.annotation.datasetRunId && r.annotation.spanId === null && traceIds.includes(r.annotation.traceId) && (configName === undefined || r.annotation.configName === configName))
       .map((r) => r.annotation);
+  }
+}
+
+/** Feedback de usuario final en memoria con la misma semántica de clave que la tabla: (traza, span, usuario final), la última escritura gana. */
+export class FakeUserFeedbackRepository implements UserFeedbackRepository {
+  rows: Array<{ serviceName: string; feedback: UserFeedback; isDeleted: boolean }> = [];
+
+  private put(serviceName: string, feedback: UserFeedback, isDeleted: boolean) {
+    this.rows = this.rows.filter((r) => !(r.serviceName === serviceName && r.feedback.traceId === feedback.traceId && r.feedback.spanId === feedback.spanId && r.feedback.endUserId === feedback.endUserId));
+    this.rows.push({ serviceName, feedback, isDeleted });
+  }
+  private live(serviceName: string) {
+    return this.rows.filter((r) => r.serviceName === serviceName && !r.isDeleted).map((r) => r.feedback);
+  }
+  async upsert(serviceName: string, feedback: UserFeedback) {
+    this.put(serviceName, feedback, false);
+  }
+  async retract(serviceName: string, feedback: UserFeedback) {
+    this.put(serviceName, feedback, true);
+  }
+  async listForTrace(serviceName: string, traceId: string) {
+    return this.live(serviceName).filter((f) => f.traceId === traceId);
+  }
+  async listForTraces(serviceName: string, traceIds: string[]) {
+    return this.live(serviceName).filter((f) => traceIds.includes(f.traceId));
+  }
+  private inRange(serviceName: string, fromMs: number, toMs: number) {
+    return this.live(serviceName).filter((f) => Date.parse(f.createdAt) >= fromMs && Date.parse(f.createdAt) < toMs);
+  }
+  async summarize(serviceName: string, fromMs: number, toMs: number) {
+    const votes = this.inRange(serviceName, fromMs, toMs);
+    const up = votes.filter((v) => v.rating === 1).length;
+    const total = votes.length;
+    return { total, up, down: total - up, satisfaction: total === 0 ? null : Math.round((up / total) * 1000) / 10, ratedTraces: new Set(votes.map((v) => v.traceId)).size };
+  }
+  async daily(serviceName: string, fromMs: number, toMs: number) {
+    const byDay = new Map<string, { up: number; down: number }>();
+    for (const v of this.inRange(serviceName, fromMs, toMs)) {
+      const day = v.createdAt.slice(0, 10);
+      const entry = byDay.get(day) ?? { up: 0, down: 0 };
+      if (v.rating === 1) entry.up += 1;
+      else entry.down += 1;
+      byDay.set(day, entry);
+    }
+    return [...byDay].sort(([a], [b]) => a.localeCompare(b)).map(([day, c]) => ({ day, ...c }));
+  }
+  async listRecent(serviceName: string, fromMs: number, toMs: number, limit: number, rating?: 1 | -1) {
+    return this.inRange(serviceName, fromMs, toMs)
+      .filter((v) => rating === undefined || v.rating === rating)
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+      .slice(0, limit);
   }
 }
 

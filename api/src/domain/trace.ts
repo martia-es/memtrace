@@ -19,6 +19,8 @@ export interface TraceSummary {
   error: string | null;
   /** conversación a la que pertenece el turno (ADR-012) */
   conversationId: string | null;
+  /** commit del código que generó la traza (ADR-065); null = versión desconocida */
+  revision: string | null;
 }
 
 export interface TraceDetail {
@@ -33,6 +35,8 @@ export interface TraceDetail {
   totalCostUsd: number;
   truncated: boolean;
   conversationId: string | null;
+  /** commit del código que generó la traza (ADR-065); null = versión desconocida */
+  revision: string | null;
   /** framework de agentes detectado en la traza, si lo hay (ADR-011) */
   framework: string | null;
   roots: SpanNode[];

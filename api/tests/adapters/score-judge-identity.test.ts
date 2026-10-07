@@ -18,6 +18,13 @@ describe("judge identity on scores (ADR-043)", () => {
     expect(code).toMatchObject({ judgeModel: null, judgePromptHash: null });
   });
 
+  it("accepts the evaluated commit on a run and defaults it to null (ADR-065)", () => {
+    const body = { name: "r", datasetVersion: "1.0", items: [{ input: "q", scores: [] }] };
+    expect(submitDatasetRunBody.parse(body).revision).toBeNull();
+    expect(submitDatasetRunBody.parse({ ...body, revision: { sha: "a".repeat(40) } }).revision).toEqual({ sha: "a".repeat(40), dirty: null });
+    expect(() => submitDatasetRunBody.parse({ ...body, revision: { sha: "not-a-sha" } })).toThrow();
+  });
+
   it("writes JudgeModel/JudgePromptHash and the typed ValueNum on eval_scores, and the item text once on eval_items", async () => {
     const inserted: Record<string, Array<Record<string, unknown>>> = {};
     const writeClient = { insert: async (args: { table: string; values: Array<Record<string, unknown>> }) => void (inserted[args.table] = args.values) } as unknown as ClickHouseClient;

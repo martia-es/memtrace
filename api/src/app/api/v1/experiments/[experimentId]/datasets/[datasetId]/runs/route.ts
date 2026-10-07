@@ -44,7 +44,7 @@ export async function POST(request: Request, context: { params: Promise<{ experi
     const dataset = await identityRepository.getDataset(datasetId);
     if (!dataset || dataset.experimentId !== experimentId) return problem(404, "Not Found", "Dataset not found");
 
-    const { name, items, datasetVersion, complete } = await parseJsonOrThrow(submitDatasetRunBody, request);
+    const { name, items, datasetVersion, complete, revision } = await parseJsonOrThrow(submitDatasetRunBody, request);
     const run = await getEvaluation().submitDatasetRun(
       access.serviceName,
       datasetId,
@@ -59,6 +59,7 @@ export async function POST(request: Request, context: { params: Promise<{ experi
       })),
       datasetVersion,
       complete,
+      revision ? { sha: revision.sha.toLowerCase(), dirty: revision.dirty } : null,
     );
     return json(toDatasetRunSummaryDto(run), 201);
   });

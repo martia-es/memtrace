@@ -69,7 +69,7 @@ export async function requireExperimentRead(experimentId: string): Promise<{ ser
  * `createdByUserId` es quien queda como autor de lo creado vía esta ruta: el usuario de la sesión,
  * o quien creó la API key si no hay sesión (un agente no tiene usuario propio).
  */
-export async function requireExperimentAccess(experimentId: string, request: Request): Promise<{ serviceName: string; createdByUserId: string } | Response> {
+export async function requireExperimentAccess(experimentId: string, request: Request, writePermission: Permission = "dataset:write"): Promise<{ serviceName: string; createdByUserId: string } | Response> {
   const { identityRepository } = getIdentity();
   const bearer = request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
   if (bearer) {
@@ -79,7 +79,7 @@ export async function requireExperimentAccess(experimentId: string, request: Req
     return { serviceName: access.serviceName, createdByUserId: access.createdByUserId };
   }
 
-  const ctx = await requirePermission(experimentId, request.method === "GET" || request.method === "HEAD" ? "experiment:read" : "dataset:write");
+  const ctx = await requirePermission(experimentId, request.method === "GET" || request.method === "HEAD" ? "experiment:read" : writePermission);
   if (ctx instanceof Response) return ctx;
   return { serviceName: ctx.serviceName, createdByUserId: ctx.user.id };
 }
@@ -124,3 +124,5 @@ export async function requireOrganizationPermission(organizationId: string, perm
 export const ASSISTANT_READ: Permission[] = ["governance:read", "assistant:manage"];
 export const ASSISTANT_WRITE: Permission[] = ["assistant:manage", "governance:manage"];
 export const ASSISTANT_GOVERN: Permission[] = ["governance:manage"];
+/** Quién puede lanzar un despliegue desde MemTrace (ADR-064). Saltarse el gate exige además `governance:manage`. */
+export const DEPLOY_RUN: Permission[] = ["deploy:run", "governance:manage"];

@@ -18,9 +18,22 @@ export interface User {
  * sistema de theming completo. `null` en cada campo significa "usar el default de app.css".
  */
 export type RadiusPreset = "sharp" | "soft" | "round";
+export type FontPreset = "system" | "serif" | "humanist";
+/** Formas de ver el asistente (ADR-063): burbuja flotante, panel lateral o pantalla completa en una pestaña nueva. */
+export type AssistantDisplayMode = "bubble" | "dock" | "fullscreen";
+export const ASSISTANT_DISPLAY_MODES: readonly AssistantDisplayMode[] = ["bubble", "dock", "fullscreen"];
 export interface OrganizationTheme {
   accentColor: string | null;
   radiusPreset: RadiusPreset | null;
+  /** acento cálido secundario (resaltados); null = el de MemTrace (ADR-063) */
+  secondaryColor: string | null;
+  /** lista cerrada de pilas del sistema, sin cargar fuentes externas; null = Plus Jakarta Sans */
+  fontPreset: FontPreset | null;
+  /** nombre visible del asistente en el chat; null = el del agente */
+  assistantName: string | null;
+  /** modo por defecto y modos permitidos; null = burbuja y todos los modos */
+  assistantDefaultMode: AssistantDisplayMode | null;
+  assistantAllowedModes: AssistantDisplayMode[] | null;
 }
 
 export interface Organization {
@@ -205,6 +218,16 @@ export interface DatasetRun {
   /** `running` mientras el SDK sigue subiendo items por lotes (o si el proceso murió a medias), ADR-034. */
   status: DatasetRunStatus;
   createdAt: string;
+  /** commit del código que se evaluó (ADR-065); null = versión desconocida */
+  revision: string | null;
+  /** el árbol tenía cambios sin commitear; null = no se sabe (el commit vino del CI) */
+  revisionDirty: boolean | null;
+}
+
+/** Commit evaluado, tal como lo manda el SDK al abrir un run. */
+export interface RunRevision {
+  sha: string;
+  dirty: boolean | null;
 }
 
 /** Una fila de la vista global de runs (ADR-031): igual que `DatasetRun`, con el nombre del
