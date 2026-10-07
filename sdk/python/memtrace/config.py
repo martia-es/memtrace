@@ -1,4 +1,6 @@
 import os
+import re
+import subprocess
 from typing import Dict, Optional, Tuple
 
 _TRUE = ("1", "true", "yes", "on")
@@ -9,6 +11,45 @@ _DEFAULT_ENDPOINTS = {
     PROTOCOL_GRPC: "http://localhost:4317",
     PROTOCOL_HTTP: "http://localhost:4318",
 }
+
+
+# Variables que fijan el commit, por orden de prioridad (ADR-065): la explícita, la que inyecta el CI en el build y
+# las de las plataformas que ya la exponen.
+REVISION_ENV_VARS = (
+    "MEMTRACE_GIT_SHA",
+    "GIT_SHA",
+    "GITHUB_SHA",
+    "CI_COMMIT_SHA",
+    "VERCEL_GIT_COMMIT_SHA",
+    "RENDER_GIT_COMMIT",
+    "HEROKU_SLUG_COMMIT",
+)
+_SHA = re.compile(r"^[0-9a-f]{7,64}$")
+
+
+def _git(*args: str) -> Optional[str]:
+    try:
+        out = subprocess.run(["git", *args], capture_output=True, text=True, timeout=2, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return out.stdout.strip() if out.returncode == 0 else None
+
+
+def resolve_revision() -> Tuple[Optional[str], Optional[bool]]:
+    """Commit del código que se ejecuta y si tiene cambios sin commitear (ADR-065).
+
+    Primero las variables de entorno (el `dirty` es desconocido: `None`); si no hay ninguna, `git` en el directorio
+    actual (desarrollo local, donde sí se sabe si el árbol está sucio). Nunca falla: sin commit devuelve `(None, None)`.
+    """
+    for name in REVISION_ENV_VARS:
+        value = (os.getenv(name) or "").strip().lower()
+        if _SHA.match(value):
+            return value, None
+    sha = (_git("rev-parse", "HEAD") or "").lower()
+    if not _SHA.match(sha):
+        return None, None
+    status = _git("status", "--porcelain")
+    return sha, (None if status is None else status != "")
 
 
 def default_endpoint(protocol: str) -> str:
@@ -71,6 +112,11 @@ class Settings:
     @property
     def environment(self) -> Optional[str]:
         return os.getenv("MEMTRACE_ENVIRONMENT")
+
+    @property
+    def revision(self) -> Tuple[Optional[str], Optional[bool]]:
+        """(commit, dirty) del código en ejecución; ver `resolve_revision`."""
+        return resolve_revision()
 
     @property
     def capture_content(self) -> bool:

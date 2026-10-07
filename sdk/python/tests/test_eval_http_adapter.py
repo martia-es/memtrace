@@ -4,6 +4,7 @@ import json
 import httpx
 import pytest
 
+from memtrace import config
 from memtrace.adapters.outbound.http.eval_api_client import MemTraceDatasetSource, MemTraceResultsSink
 from memtrace.domain.evaluation import EvalItem, EvalItemResult, ExperimentResult, Score
 
@@ -61,6 +62,19 @@ def _result(n, version="1.0"):
 
 def _sink(api, **kwargs):
     return MemTraceResultsSink("ds-1", base_url="http://memtrace.test", transport=httpx.MockTransport(api), **kwargs)
+
+
+@pytest.fixture(autouse=True)
+def _no_revision(monkeypatch):
+    """The commit is read from the environment or git; tests that don't care must not depend on either."""
+    monkeypatch.setattr(config, "resolve_revision", lambda: (None, None))
+
+
+def test_run_records_the_evaluated_commit(monkeypatch):
+    monkeypatch.setattr(config, "resolve_revision", lambda: ("a" * 40, False))
+    api = _FakeApi()
+    _sink(api).save(_result(1, version="2.1"))
+    assert api.calls[0][1]["revision"] == {"sha": "a" * 40, "dirty": False}
 
 
 def test_save_opens_the_run_with_its_version_then_uploads_and_completes_it():

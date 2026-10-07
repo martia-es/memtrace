@@ -4,6 +4,7 @@ from memtrace.application.context import get_current_run_id, session
 from memtrace.dependency_container import flush, init_tracer, shutdown
 from memtrace.langchain import MemTraceCallbackHandler, enable_langchain_instrumentation
 from memtrace.pydantic_ai import enable_pydantic_ai_instrumentation
+from memtrace.user_feedback import current_trace_id, feedback, retract_feedback
 
 __all__ = [
     "__version__",
@@ -16,6 +17,9 @@ __all__ = [
     "trace_llm_call",
     "record_retrieved_chunks",
     "get_current_run_id",
+    "current_trace_id",
+    "feedback",
+    "retract_feedback",
     "MemTraceCallbackHandler",
     "enable_langchain_instrumentation",
     "enable_pydantic_ai_instrumentation",

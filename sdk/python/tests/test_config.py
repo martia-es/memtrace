@@ -47,3 +47,27 @@ def test_settings_read_environment_live(monkeypatch):
     assert s.otlp_headers == {"authorization": "Bearer k"}
     assert s.max_active_runs == 5
     assert s.redact_keys == ("foo", "bar")
+
+
+def test_revision_from_ci_variable_wins_over_platform_ones(monkeypatch):
+    for name in config.REVISION_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("GITHUB_SHA", "b" * 40)
+    monkeypatch.setenv("GIT_SHA", "A" * 40)
+    assert config.resolve_revision() == ("a" * 40, None)
+
+
+def test_revision_ignores_values_that_are_not_a_sha(monkeypatch):
+    for name in config.REVISION_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("GIT_SHA", "latest")
+    monkeypatch.setattr(config, "_git", lambda *a: None)
+    assert config.resolve_revision() == (None, None)
+
+
+def test_revision_falls_back_to_git_and_reports_dirty(monkeypatch):
+    for name in config.REVISION_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
+    answers = {"rev-parse": "c" * 40, "status": " M app.py"}
+    monkeypatch.setattr(config, "_git", lambda *a: answers[a[0]])
+    assert config.resolve_revision() == ("c" * 40, True)

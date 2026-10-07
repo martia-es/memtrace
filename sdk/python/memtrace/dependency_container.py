@@ -39,6 +39,7 @@ def _build_port(
         from memtrace.adapters.outbound.otel.switchable_provider import SHARED_PROVIDER
 
         proto = protocol or settings.protocol
+        revision, revision_dirty = settings.revision
         config = OtelConfig(
             service_name=service_name or settings.service_name,
             endpoint=endpoint or settings.otlp_endpoint or default_endpoint(proto),
@@ -46,6 +47,8 @@ def _build_port(
             headers=dict(headers) if headers is not None else (settings.otlp_headers or None),
             service_version=settings.service_version,
             environment=settings.environment,
+            revision=revision,
+            revision_dirty=revision_dirty,
             export_timeout_ms=settings.export_timeout_ms,
             batch_max_queue_size=settings.batch_max_queue_size,
             batch_schedule_delay_ms=settings.batch_schedule_delay_ms,

@@ -12,6 +12,11 @@
 - The `otel-langchain` extra installs `langchain-core` and, on Python 3.9, `wrapt<2`.
 
 ### Added
+- Every trace carries the commit of the running code as the resource attribute `vcs.repository.ref.revision` (and `memtrace.revision.dirty` when known). Read from `MEMTRACE_GIT_SHA`, `GIT_SHA`, CI/platform variables or `git`. See ADR-065.
+- `MemTraceResultsSink` records the evaluated commit (and whether the working tree had uncommitted changes) on each run, so a deployment can require an evaluation of exactly the commit it ships. See ADR-064/065.
+- End-user feedback: `memtrace.feedback(trace_id, "up" | "down", end_user_id=..., comment=...)` sends a 👍/👎 about an
+  answer and links it to its trace, `memtrace.retract_feedback(...)` withdraws it, and `memtrace.current_trace_id()` gives the
+  trace id to hand back to the UI with the answer. Needs the `eval` extra, `MEMTRACE_API_URL` and `MEMTRACE_API_KEY`. See ADR-062.
 - MCP tool spans carry `memtrace.mcp_server`: `enable_pydantic_ai_instrumentation()` names the server (toolset `id`,
   else the name the server announces) on the tool span, so the assistant registry detects MCP servers and measures
   their calls and errors. Other frameworks set it with `trace_step(..., attributes={"memtrace.mcp_server": ...})`. See ADR-056.

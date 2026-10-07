@@ -21,6 +21,8 @@ class OtelConfig:
     headers: Optional[Dict[str, str]] = None
     service_version: Optional[str] = None
     environment: Optional[str] = None
+    revision: Optional[str] = None
+    revision_dirty: Optional[bool] = None
     export_timeout_ms: int = 5000
     batch_max_queue_size: int = 2048
     batch_schedule_delay_ms: int = 5000
@@ -44,6 +46,10 @@ def create_otel_adapter(
     attrs: Dict[str, str] = {"service.name": config.service_name, **config.resource_attributes}
     if config.service_version:
         attrs["service.version"] = config.service_version
+    if config.revision:
+        attrs["vcs.repository.ref.revision"] = config.revision
+        if config.revision_dirty is not None:
+            attrs["memtrace.revision.dirty"] = "true" if config.revision_dirty else "false"
     if config.environment:
         attrs["deployment.environment.name"] = config.environment
 

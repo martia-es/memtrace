@@ -131,7 +131,10 @@ class MemTraceResultsSink:
             )
         self._version = version
         self._pending = []
-        body = {"name": name, "datasetVersion": version, "complete": False, "items": []}
+        body: Dict[str, Any] = {"name": name, "datasetVersion": version, "complete": False, "items": []}
+        revision, dirty = settings.revision
+        if revision:  # the commit that was evaluated (ADR-065); the API lets the deploy gate ask for it
+            body["revision"] = {"sha": revision, "dirty": dirty}
         with _client(self._base_url, self._api_key, self._transport) as client:
             response = client.post(f"/datasets/{self._dataset_id}/runs", json=body)
             response.raise_for_status()

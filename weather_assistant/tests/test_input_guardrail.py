@@ -89,6 +89,9 @@ def test_blocked_message_never_reaches_the_agent_or_the_history(client):
 def test_allowed_message_reaches_the_agent(client):
     body = client.post("/api/chat", json={"session_id": "s1", "message": "¿Qué tiempo hace en Madrid?"}).json()
 
+    # la traza de la respuesta (32 hex) solo existe si el trazado está activo
+    trace_id = body.pop("trace_id")
+    assert trace_id is None or len(trace_id) == 32
     assert body == {"session_id": "s1", "reply": "Soleado, 21 °C", "blocked": False}
     assert client.app.state.agent.calls == ["¿Qué tiempo hace en Madrid?"]
 

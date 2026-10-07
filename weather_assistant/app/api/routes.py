@@ -1,13 +1,18 @@
+import asyncio
+import logging
 import uuid
 
+import httpx
+import memtrace
 from fastapi import APIRouter, HTTPException, Request
 from memtrace import trace_step_context
 
 from app.agents.deps import AssistantDeps
-from app.api.schemas import CapabilityInfo, ChatRequest, ChatResponse
+from app.api.schemas import CapabilityInfo, ChatRequest, ChatResponse, FeedbackRequest
 from app.guardrails.input import run_input_guardrail
 
 router = APIRouter(prefix="/api")
+logger = logging.getLogger(__name__)
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -17,17 +22,40 @@ async def chat(payload: ChatRequest, request: Request) -> ChatResponse:
 
     # Un solo span para el turno: el guardarraíl y el agente cuelgan de la misma traza (ADR-026).
     with trace_step_context("conversation_turn", step_type="chain"):
+        trace_id = memtrace.current_trace_id()
         verdict = run_input_guardrail(payload.message)
         if verdict.blocked:
             # el mensaje bloqueado no llega al agente ni se guarda en el historial
-            return ChatResponse(session_id=session_id, reply=verdict.reply, blocked=True)
+            return ChatResponse(session_id=session_id, reply=verdict.reply, blocked=True, trace_id=trace_id)
 
         history = await state.sessions.get_history(session_id)
         deps = AssistantDeps(weather=state.weather)
         result = await state.agent.run(payload.message, message_history=history, deps=deps)
         await state.sessions.save_history(session_id, result.all_messages())
 
-    return ChatResponse(session_id=session_id, reply=result.output)
+    return ChatResponse(session_id=session_id, reply=result.output, trace_id=trace_id)
+
+
+@router.post("/chat/feedback", status_code=204)
+async def chat_feedback(payload: FeedbackRequest) -> None:
+    """Guarda en MemTrace el 👍/👎 del usuario sobre la traza de una respuesta (ADR-062).
+
+    Usa `MEMTRACE_API_URL` (con el id del experimento) y `MEMTRACE_API_KEY`: la clave se queda en el servidor, nunca llega al navegador.
+    """
+    try:
+        # `memtrace.feedback` es síncrona (httpx): fuera del bucle de eventos para no bloquear el chat
+        await asyncio.to_thread(
+            memtrace.feedback,
+            payload.trace_id,
+            payload.rating,
+            end_user_id=payload.session_id,
+            comment=payload.comment,
+        )
+    except ValueError as error:  # falta MEMTRACE_API_URL
+        raise HTTPException(status_code=503, detail="El feedback no está configurado") from error
+    except httpx.HTTPError as error:
+        logger.warning("MemTrace rechazó el feedback: %s", error)
+        raise HTTPException(status_code=502, detail="No se pudo guardar el feedback") from error
 
 
 @router.delete("/sessions/{session_id}", status_code=204)

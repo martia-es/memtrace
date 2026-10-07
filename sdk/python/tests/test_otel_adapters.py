@@ -52,3 +52,17 @@ def test_session_processor_tags_foreign_spans_and_leaves_memtrace_spans_alone():
     foreign.start_span("outside").end()
     got = {s.name: s.attributes.get("gen_ai.conversation.id") for s in exporter.get_finished_spans()}
     assert got == {"plain": "s-1", "library-own-id": "s-1", "explicit": "mine", "outside": None}
+
+
+def test_revision_is_a_resource_attribute():
+    from memtrace.adapters.outbound.otel.factory import OtelConfig, create_otel_adapter
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+    exporter = InMemorySpanExporter()
+    adapter = create_otel_adapter(
+        OtelConfig(service_name="svc", endpoint="x", protocol="grpc", revision="a" * 40, revision_dirty=False), exporter
+    )
+    adapter._provider.get_tracer("t").start_span("s").end()
+    attrs = exporter.get_finished_spans()[0].resource.attributes
+    assert attrs["vcs.repository.ref.revision"] == "a" * 40
+    assert attrs["memtrace.revision.dirty"] == "false"
