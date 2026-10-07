@@ -28,6 +28,8 @@ configMapGenerator:
       - migrations/clickhouse/007_annotations.sql
       - migrations/clickhouse/008_eval_items_and_scores.sql
       - migrations/clickhouse/009_eval_partitions_ttl_and_run_summaries.sql
+      - migrations/clickhouse/010_user_feedback.sql
+      - migrations/clickhouse/011_revision.sql
     options:
       disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
   - name: postgres-migrations
@@ -58,6 +60,11 @@ configMapGenerator:
       - migrations/postgres/024_experiment_is_agent.sql
       - migrations/postgres/025_drop_experiment_team.sql
       - migrations/postgres/026_assistant_chat.sql
+      - migrations/postgres/027_score_config_target.sql
+      - migrations/postgres/028_assistant_chat_trace_id.sql
+      - migrations/postgres/029_assistant_repo.sql
+      - migrations/postgres/030_dataset_run_revision.sql
+      - migrations/postgres/031_deploy_runs.sql
     options:
       disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
   - name: clickhouse-config

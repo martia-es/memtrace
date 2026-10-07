@@ -1,0 +1,34 @@
+name: Weather assistant deploy
+
+# Lo lanza MemTrace (botón Deploy, ADR-064) con el commit exacto que pasó la evaluación. `run-name` lleva el id del
+# despliegue (`deploy:<uuid>`): es lo único que el webhook de GitHub devuelve, y con ello MemTrace enlaza el resultado.
+run-name: Deploy ${{ inputs.deploy_id }} to ${{ inputs.environment }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha: { description: Commit to deploy, required: true }
+      environment: { description: dev, pre or pro, required: true }
+      deploy_id: { description: Marker MemTrace puts in the run name, required: true }
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}   # reglas de protección de GitHub (aprobaciones) por entorno
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Build the image with the commit baked in
+        run: docker build -f weather_assistant/Dockerfile --build-arg GIT_SHA=${{ inputs.sha }} -t weather-assistant:${{ inputs.sha }} .
+
+      # PENDIENTE: el destino de despliegue aún no está decidido (k3d local o nube). Hasta que lo esté, este paso FALLA a
+      # propósito: si terminara en verde, MemTrace marcaría como «Deployed» algo que nadie desplegó.
+      - name: Push the image and deploy it to ${{ inputs.environment }}
+        run: |
+          echo "::error::No deploy target configured for the weather assistant. Replace this step with the push + rollout to ${{ inputs.environment }}."
+          exit 1

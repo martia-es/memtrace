@@ -47,7 +47,7 @@ spec:
           # Idempotente: CREATE + ALTER dejan la contraseña del secreto aunque el usuario ya existiera.
           $CH --query "CREATE USER IF NOT EXISTS api_writer IDENTIFIED WITH sha256_password BY '$CLICKHOUSE_WRITER_PASSWORD'"
           $CH --query "ALTER USER api_writer IDENTIFIED WITH sha256_password BY '$CLICKHOUSE_WRITER_PASSWORD'"
-          for t in eval_items eval_scores eval_run_summaries annotations; do
+          for t in eval_items eval_scores eval_run_summaries annotations user_feedback; do
             $CH --query "GRANT INSERT ON memtrace.$t TO api_writer"
           done
         volumeMounts:

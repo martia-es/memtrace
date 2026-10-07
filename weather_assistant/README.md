@@ -37,7 +37,8 @@ Abre http://localhost:8000 para la UI.
 
 | Método | Ruta | Descripción |
 |---|---|---|
-| `POST` | `/api/chat` | Body `{"message": "...", "session_id": "opcional"}`. Devuelve `{"session_id", "reply"}` |
+| `POST` | `/api/chat` | Body `{"message": "...", "session_id": "opcional"}`. Devuelve `{"session_id", "reply", "trace_id"}`; `trace_id` es la traza de esa respuesta (`null` con el trazado apagado) |
+| `POST` | `/api/chat/feedback` | Body `{"trace_id": "...", "rating": "up" \| "down", "session_id": "opcional", "comment": "opcional"}`. Guarda el 👍/👎 en MemTrace sobre esa traza (`204`); `503` si no hay `MEMTRACE_API_URL` |
 | `DELETE` | `/api/sessions/{session_id}` | Borra el historial de una sesión |
 | `GET` | `/api/capabilities` | Lista las capabilities activas |
 | `GET` | `/health` | Abierto, sin credenciales: `200 {"status":"ok"}` cuando el agente está construido, `503` mientras arranca. Lo sondea el catálogo de asistentes de MemTrace |
@@ -79,6 +80,25 @@ uv run python evals/run_eval.py --min-pass-rate 0.9   # código de salida 1 si b
 
 Para guardarlo todo en MemTrace (trazas, dataset y run con scores), define en el `.env` de la raíz las variables de la cabecera de `run_eval.py`: `WEATHER_ASSISTANT_MEMTRACE_HEADERS`, `WEATHER_ASSISTANT_SERVICE_NAME` (el del experimento), `MEMTRACE_API_URL` y `MEMTRACE_API_KEY`. Con ellas, `run_eval.py` crea el dataset y sube el run; `--dataset-id` repite sobre uno existente y `--local` desactiva la subida.
 
+**Feedback del usuario.** Cada respuesta del chat lleva su `trace_id` y la UI muestra 👍/👎 debajo. El voto va a `POST /api/chat/feedback`, que llama a `memtrace.feedback(...)` con `MEMTRACE_API_URL` y `MEMTRACE_API_KEY` (la clave se queda en el servidor); el `session_id` identifica a quien vota, así que cambiar de opinión sustituye el voto. Para que el panel «Talk» de MemTrace también ofrezca 👍/👎, en la ficha del agente pon *Trace id field* = `trace_id`.
+
 Evaluadores: `tool_calls` (localidad y `days` correctos, y sin llamar a la tool cuando no toca) y `response_checks` (cifras presentes, nada inventado ni filtrado). Cada fila del dataset lo declara en `metadata`. `uv run pytest` valida el dataset y los evaluadores sin LLM.
 
 Decisión de arquitectura: [ADR-047](../docs/adrs/assistant/adr-047-weather-assistant-architecture.md).
+
+## Versión del código y despliegue (ADR-064, ADR-065)
+
+Es el agente de referencia del flujo completo: cada traza y cada evaluación llevan el commit con el que se generaron, y MemTrace
+solo despliega un commit que haya pasado la evaluación.
+
+- `Dockerfile`: se construye desde la **raíz del repo** (el SDK es una dependencia local) y recibe el commit como `GIT_SHA`:
+  `docker build -f weather_assistant/Dockerfile --build-arg GIT_SHA=$(git rev-parse HEAD) -t weather-assistant .`.
+  El SDK lo lee y lo pone en todas las trazas (`vcs.repository.ref.revision`).
+- `.github/workflows/weather-assistant-eval.yml`: en cada push/PR pasa los tests y evalúa el commit con `evals/run_eval.py`,
+  subiendo el run a MemTrace (el SDK toma `GITHUB_SHA`). Variables del repo: `MEMTRACE_API_URL`, `MEMTRACE_SERVICE_NAME`,
+  `MEMTRACE_DATASET_ID`; secretos: `MEMTRACE_API_KEY`, `GOOGLE_API_KEY`. Sin ellos solo corren los tests.
+- `.github/workflows/weather-assistant-deploy.yml`: lo lanza el botón **Deploy** de MemTrace con `sha`, `environment` y `deploy_id`.
+  Construye la imagen con ese commit. **El último paso (publicar y desplegar) falla a propósito hasta que se decida el destino**
+  (k3d local o nube): terminar en verde sin desplegar haría que MemTrace marcara como «Deployed» algo que nadie desplegó.
+- En MemTrace, edita el agente: repositorio `https://github.com/<org>/<repo>`, workflow `weather-assistant-deploy.yml`, y en cada
+  entorno la rama (`develop` en DEV, `main` en PRO).

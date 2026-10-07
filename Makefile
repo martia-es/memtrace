@@ -165,3 +165,9 @@ weather-bg: weather-stop ## Arranca el asistente del tiempo en segundo plano (lo
 diagrams:
 	cd docs/architecture && env -u GEMINI_API_KEY npx likec4@1.59.2 serve
 
+NGROK_DOMAIN ?= data-unsealed-resigned.ngrok-free.dev
+
+tunel: ## Expone la API (puerto 3001) en un dominio público fijo de ngrok: lo necesita el webhook de la GitHub App (ADR-064)
+	@command -v ngrok >/dev/null 2>&1 || { echo "Falta 'ngrok': brew install ngrok"; exit 1; }
+	@echo "Webhook URL de la GitHub App: https://$(NGROK_DOMAIN)/api/v1/webhooks/github"
+	ngrok http --url=$(NGROK_DOMAIN) 3001

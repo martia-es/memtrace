@@ -1,0 +1,45 @@
+name: Weather assistant evaluation
+
+# Evalúa el commit y sube el run a MemTrace. El SDK lee GITHUB_SHA y lo guarda en el run (ADR-065): el gate de despliegue
+# (ADR-064) exige una evaluación exitosa de exactamente el commit que se va a desplegar.
+on:
+  pull_request:
+    paths:
+      - "weather_assistant/**"
+      - "sdk/python/**"
+      - ".github/workflows/weather-assistant-eval.yml"
+  push:
+    branches: [main, develop]
+    paths:
+      - "weather_assistant/**"
+      - "sdk/python/**"
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: weather_assistant
+    env:
+      # Variables del repo (Settings → Secrets and variables → Actions)
+      WEATHER_ASSISTANT_SERVICE_NAME: ${{ vars.MEMTRACE_SERVICE_NAME }}
+      MEMTRACE_API_URL: ${{ vars.MEMTRACE_API_URL }}   # https://<memtrace>/api/v1/experiments/<experimentId>
+      MEMTRACE_DATASET_ID: ${{ vars.MEMTRACE_DATASET_ID }}
+      MEMTRACE_API_KEY: ${{ secrets.MEMTRACE_API_KEY }}
+      WEATHER_ASSISTANT_MEMTRACE_HEADERS: authorization=Bearer ${{ secrets.MEMTRACE_API_KEY }}
+      GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --all-groups --frozen
+
+      - name: Tests
+        run: uv run pytest -q
+
+      # Los PR de forks no reciben secretos: ahí solo corren los tests.
+      - name: Evaluate and upload the run to MemTrace
+        if: env.MEMTRACE_API_KEY != '' && env.GOOGLE_API_KEY != '' && env.MEMTRACE_DATASET_ID != ''
+        run: uv run python evals/run_eval.py --name "${GITHUB_SHA::7}" --dataset-id "$MEMTRACE_DATASET_ID" --min-pass-rate 0.8

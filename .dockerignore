@@ -1,6 +1,6 @@
-# El dashboard se construye con el repo entero como contexto (necesita el contrato de la API): se excluye el resto
+# El dashboard y el asistente del tiempo se construyen con el repo entero como contexto (el dashboard necesita el contrato
+# de la API; el asistente, el SDK): se excluye el resto
 .git
-sdk
 docs
 k8s
 examples
@@ -9,3 +9,6 @@ migrations
 **/.next
 **/dist
 **/.env*
+**/.venv
+**/__pycache__
+**/.pytest_cache

@@ -2,3 +2,7 @@
 # Secretos reales (OAuth client secrets, etc.) para el Secret generado por kustomize (ADR-013). Nunca commitear.
 k8s/secrets/*.env
 weather_assistant/uvicorn.log
+
+# credenciales por experimento para ejemplos
+examples/.env.*
+scripts/entra-groups-check.env
