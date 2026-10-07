@@ -8,10 +8,10 @@ All under `/api/v1/experiments/{experimentId}`:
 
 | Endpoint | Description |
 |---|---|
-| `GET /traces` | Paginated trace list. Params: `from`, `to`, `service`, `status`, `hasErrors`, `minDurationMs`, `text`, `limit`, `cursor` |
+| `GET /traces` | Paginated trace list. Params: `from`, `to`, `service`, `status`, `hasErrors`, `minDurationMs`, `text`, `revision`, `limit`, `cursor`. Each trace carries `revision`, the commit of the code that produced it (`null` if the agent does not send it); `revision=` keeps the traces of that commit, full or a prefix such as the 7-character short SHA |
 | `GET /traces/{traceId}` | A trace with its span tree |
-| `GET /spans` | Flat, paginated span list |
-| `GET /conversations` | Paginated conversations; `text=` keeps only those with a turn whose captured input or output contains it (case-insensitive). Each one carries `title` (the user's first message, up to 120 characters, `null` if the agent did not capture content) and `costUsd` (`null` if none of its models has a known price) |
+| `GET /spans` | Flat, paginated span list; `revision=` keeps the spans of one commit |
+| `GET /conversations` | Paginated conversations; `revision=` keeps those with a turn produced by that commit; `text=` keeps only those with a turn whose captured input or output contains it (case-insensitive). Each one carries `title` (the user's first message, up to 120 characters, `null` if the agent did not capture content) and `costUsd` (`null` if none of its models has a known price) |
 | `GET /conversations/{conversationId}` | Same summary and turns in chronological order |
 | `GET /conversations/{conversationId}/transcript` | User/assistant messages per turn (needs captured content) |
 | `GET /conversations/{conversationId}/tree` | Span tree of each turn |
@@ -29,7 +29,7 @@ Also under `/api/v1/experiments/{experimentId}`. Unlike every other endpoint on 
 | `GET /datasets/{datasetId}` | session | Dataset detail: name, run count, version count |
 | `DELETE /datasets/{datasetId}` | session | Delete a dataset and, in cascade, its versions/items/runs |
 | `GET, POST /datasets/{datasetId}/items` | session or API key | Items of the dataset's **latest version** (resolved server-side), or of an exact one with `?version=major.minor` (e.g. `?version=2.1`; 404 if it doesn't exist) — the only items endpoint the SDK calls. `POST` adds items and bumps the **major** version automatically (ADR-032) |
-| `POST /datasets/{datasetId}/items/from-traces` | session | Promote traces to dataset items (ADR-038): body `{ items: [{ traceId, input?, expectedOutput?, fromConfigId?, queueId? }] }` (`queueId`: the review queue it comes from, stored in `promotedFrom.queueId`) (1–100). **One** new major version per call, however many traces. `input` defaults to the trace's captured input (first span that has it); `expectedOutput` is, in order, the one you send, the categorical label of `fromConfigId` when every annotator agrees, or `null`. The agent's actual answer goes to `metadata.promotedFrom.observedOutput`, together with `traceId`, `promotedBy`, `promotedAt` and a snapshot of the trace's labels. Returns `{ added, skipped: [{ traceId, reason }], version }` (`201`, or `200` when nothing was added and no version was created); `reason` is `already_promoted`, `no_content` (no input captured and none sent), `not_found` (unknown trace, or another experiment's), `ambiguous_label` or `unsupported_label` (`fromConfigId` is not categorical) |
+| `POST /datasets/{datasetId}/items/from-traces` | session | Promote traces to dataset items (ADR-038): body `{ items: [{ traceId, input?, expectedOutput?, fromConfigId?, useObservedOutput?, queueId? }] }` (`queueId`: the review queue it comes from, stored in `promotedFrom.queueId`) (1–100). **One** new major version per call, however many traces. `input` defaults to the trace's captured input (first span that has it); `expectedOutput` is, in order, the one you send, the agent's reviewed answer when `useObservedOutput` is `true` and the trace has one, the categorical label of `fromConfigId` when every annotator agrees, or `null`. The agent's actual answer goes to `metadata.promotedFrom.observedOutput`, together with `traceId`, `promotedBy`, `promotedAt` and a snapshot of the trace's labels. Returns `{ added, skipped: [{ traceId, reason }], version }` (`201`, or `200` when nothing was added and no version was created); `reason` is `already_promoted`, `no_content` (no input captured and none sent), `not_found` (unknown trace, or another experiment's), `ambiguous_label` or `unsupported_label` (`fromConfigId` is not categorical) |
 | `PUT, DELETE /datasets/{datasetId}/items/{itemId}` | session | Edit (bumps **minor**) or delete (bumps **major**) a single item — each one creates its own version automatically, there is no separate "create version" call |
 | `POST /datasets/{datasetId}/changes` | session | Publish an editing session as **one** version: body `{ add: [{input, expectedOutput?, metadata?}], update: [{id, input?, expectedOutput?, metadata?}], remove: [id] }` (ids are item ids from the latest version). Bumps **major** if anything is added/removed, **minor** if only edits; the description is generated (`Added 3 · Edited 2 · Removed 1`). All-or-nothing: if an id is no longer in the latest version (someone published first) it returns 400 and writes nothing. Returns the new items and `version`. This is what the dashboard's Publish button calls |
 | `GET /datasets/{datasetId}/versions` | session | Read-only version history: `major.minor`, an auto-generated description of what changed, who, and when, plus the real `addedCount` / `modifiedCount` / `removedCount` against the previous version |
@@ -49,8 +49,8 @@ Rubrics for human annotation, under `/api/v1/experiments/{experimentId}`. Anyone
 | Endpoint | Description |
 |---|---|
 | `GET /score-configs` | List the experiment's configs; `?includeArchived=true` includes archived ones |
-| `POST /score-configs` | Create one: `{ name, dataType: "numeric" \| "boolean" \| "categorical", minValue, maxValue, categories: [{label, value?}], description? }`. `minValue`/`maxValue` are required for `numeric` only, `categories` (at least 2, unique labels) for `categorical` only |
-| `PATCH /score-configs/{configId}` | Change `description`, **widen** the range (`minValue` can only go down, `maxValue` only up) or **add** categories (send the full list; existing labels and values must be unchanged) |
+| `POST /score-configs` | Create one: `{ name, dataType: "numeric" \| "boolean" \| "categorical", minValue, maxValue, categories: [{label, value?}], targetPassRate?, description? }`. `minValue`/`maxValue` are required for `numeric` only, `categories` (at least 2, unique labels) for `categorical` only. `targetPassRate` (greater than 0, at most 1; default none = 80% in the dashboard) is allowed for `boolean` only |
+| `PATCH /score-configs/{configId}` | Change `description`, **widen** the range (`minValue` can only go down, `maxValue` only up) **add** categories (send the full list; existing labels and values must be unchanged) or set/clear `targetPassRate` (`null` clears it; boolean only) |
 | `POST /score-configs/{configId}/archive`, `.../unarchive` | Hide / restore a config. Archived configs stay readable but can't receive new annotations |
 
 `name` and `dataType` never change: to "change" them, archive and create a new config (an archived name can be reused). Errors: `409` when a rule is violated (name already used by an active config, narrowing a range, removing a category, editing an archived config), `422` when the config's shape is invalid for its type, `403` for non-admins.
@@ -70,6 +70,23 @@ Not under a trace: `GET /api/v1/experiments/{experimentId}/annotations/low-rated
 `GET /api/v1/experiments/{experimentId}/annotations/ratings?traceIds=a,b` (or `?conversationIds=a,b`, up to 200 ids, exactly one of the two) returns the annotation state of those rows, for the **Annotation** column of the Conversations list: `{ items: [{ id, labels, low }] }`. Only ids with at least one human label appear; a conversation counts the labels of all its turns and is `low` if any turn is. Any member.
 
 `value` must fit the [score config](#score-configs-adr-036): a number inside its range, `true`/`false`, or one of its category labels. Errors: `422` invalid value, `404` unknown config, unknown trace, a trace of another experiment, or a span not in the trace; `409` archived config; `403` retracting someone else's label without being admin. Editing replaces your previous label for the same trace, span and config; labels from different people coexist.
+
+## User feedback (ADR-062)
+
+👍/👎 from the people who use your agent, saved on the trace of the answer, under `/api/v1/experiments/{experimentId}/traces/{traceId}/feedback`. Unlike annotations, the writes accept an **agent API key** (`Authorization: Bearer <key>`, the same one used for ingestion): the agent calls MemTrace from its server and the end user's browser never sees the key. With a session (a member trying the chat from the dashboard) the voter is that person.
+
+| Endpoint | Auth | Description |
+|---|---|---|
+| `POST /feedback` | session or API key | Create or change a vote: `{ rating, comment?, spanId?, endUserId?, externalMessageId? }`. `rating` is `1` (👍) or `-1` (👎). The same `endUserId` voting again on the same trace and span **replaces** their vote; without `endUserId` the vote is anonymous (one per trace). Returns the trace's votes (`201`) |
+| `GET /feedback` | session | `{ votes: [{ rating, comment, spanId, endUserId, externalMessageId, createdAt }], alignment }`. `alignment` is `aligned`, `misaligned` or `unknown`: the majority vote against the verdict of the human labels on the trace (a low label is a "bad" verdict). `unknown` without labels or on a tie |
+| `DELETE /feedback?endUserId=&spanId=` | session or API key | Withdraw the vote (`204`, idempotent) |
+
+Not under a trace, session only, any member:
+
+- `GET /api/v1/experiments/{experimentId}/feedback/ratings?traceIds=a,b` (or `?conversationIds=a,b`, up to 200 ids) returns `{ items: [{ id, up, down }] }` for the **User feedback** column. Only ids with votes appear; a conversation adds up the votes of all its turns.
+- `GET /api/v1/experiments/{experimentId}/feedback/overview?from=&to=` returns `{ summary: { total, up, down, satisfaction, ratedTraces }, days: [{ day, up, down }], alignment: { aligned, misaligned }, recentDown: [{ traceId, comment, createdAt }] }`. `satisfaction` is the % of 👍 (`null` without votes). `alignment` counts traces among the latest 500 votes of the range.
+
+Errors: `422` invalid `rating`, `404` the trace belongs to another experiment (a trace that is not ingested yet is accepted: the vote usually arrives a few seconds before the spans), `401`/`403` invalid API key or one from another experiment. From Python, use [`memtrace.feedback`](/library/feedback).
 
 ## Annotation queues (ADR-039)
 

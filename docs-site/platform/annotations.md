@@ -2,6 +2,22 @@
 
 Human labels on traces: rubrics (score configs) that define what can be scored, the **Annotate** panel where people label a trace, review queues that distribute traces to a team, and promoting a reviewed trace into a dataset.
 
+## The whole flow in one page
+
+From a slow or failing trace to a regression test, who does what:
+
+| # | Who | Where | What happens |
+|---|---|---|---|
+| 1 | Technical | Conversations / Traces | Spot traces that are slow, fail or look wrong. |
+| 2 | Technical | **Review → New queue** | Create a queue: rubric (score configs), who can annotate, reviews needed per trace. Add the traces (**Add to queue**, or a filter in **Add traces**). |
+| 3 | Business (and technical, if listed) | **Review → My inbox** | Label each trace **independently** against the rubric. Nobody sees the others' answers. |
+| 4 | Technical | **Review → queue → Results** | See all answers side by side. Rows where reviewers disagree are highlighted. |
+| 5 | Technical | **Resolve** (a row) | Give a **Verdict** per criterion (and optionally a **Correct answer**). Reviewers' labels are never changed. |
+| 6 | Technical | Bottom bar of **Results** | Tick the rows, choose a dataset and the source of the **expected output**, press **Add to dataset**. |
+| 7 | Technical | SDK / **Evaluations** | Run `run_experiment` against the dataset on every change of the agent and compare runs in **Evaluations → Offline evals**. |
+
+A row can only be ticked when it has all its reviews and no open disagreement. Business profiles label; they never see the Results tab, other reviewers' answers or the dataset.
+
 ## Score configs
 
 A score config fixes what can be scored and how. Without one, two people who both type `tone` may mean a 1-5 scale and a `formal`/`casual` choice, and their labels can't be compared.
@@ -10,7 +26,8 @@ Each config has:
 
 - a `name`,
 - a type that matches the scores you already produce: `numeric` (with a min and max range), `boolean`, or `categorical` (at least two labels, each optionally carrying a number for ordinal scales such as `bad=0, ok=1, good=2`),
-- an optional guideline for whoever annotates.
+- an optional guideline for whoever annotates,
+- for `boolean` configs, an optional **target pass rate** (in %). Evaluators with the same name are judged against it in **Evaluations → Trends**; without one the target is 80%.
 
 Technical profiles manage them in **Admin → experiment → Score configs**, or with **New score config** in a trace's Annotate panel. Everyone with access to the experiment can read them.
 
@@ -28,6 +45,8 @@ Give a config the same `name` and type as one of your evaluators (say `correctne
 ## Annotating a trace
 
 Open any trace and press **Annotate**; in a conversation's **Table** view every turn has its own **Annotate** button, so you can label a turn without leaving the conversation. Every score config of the experiment appears with its guideline and the right control: buttons for yes/no and categories, a short numeric scale, or a number field for wide ranges. Pick a value, add an optional comment and press **Save**. You can score the whole trace or, with **Selected span**, the span highlighted in the tree, for example one wrong tool call.
+
+The trace page also shows a **summary panel** on the right, in both the Conversation and the Technical trace views: the **Human labels** (value, who gave it, span and comment, or "Not annotated yet"), the automatic **Evaluations** (code or LLM judge scores, with their source; only shown for traces that were evaluated in a dataset run) and the **Review queues** that contain the trace with the status of its item.
 
 - Your label is yours. Saving again edits it, and **Retract** removes it.
 - Other people's labels are listed with their author. Several people can label the same trace and config.
@@ -72,10 +91,43 @@ To promote many at once, open a queue (**Review → Details → Results**). Only
 
 **Results** has one row per item and one column per criterion of the rubric. Each cell lists what every reviewer answered (hover a name to read their comment; people who were later removed from the queue are greyed out). Where reviewers disagree, the cell is highlighted. **Only disagreements** filters to those rows.
 
-- Press **Open** on a row (**Resolve** when reviewers disagree) to see the conversation that was evaluated, shown as a chat, together with what each reviewer answered. For each criterion you can pick the **final value** and, optionally, type the **correct answer** (what the agent should have said). **Save decision** stores it as your decision; reviewers' labels are never changed, so the agreement figures stay honest. **Clear decision** removes it.
-- Tick the rows you want and press **Add to dataset**. Only reviewed rows without an open disagreement can be ticked; **Select all ready** ticks them all. The expected output of each item is the correct answer you typed or, if you chose a categorical criterion in "Expected output from", the agreed (or resolved) label. Without either, the item has no expected output.
+### Step 5: Resolve a row
+
+Press **Open** on a row (**Resolve** when reviewers disagree). A full-size window shows the conversation that was evaluated, as a chat, next to what each reviewer answered per criterion. For each criterion you can set two different things:
+
+| Field | What it is | Required | Used for |
+|---|---|---|---|
+| **Verdict** | Your final label for the criterion, for example "Concise: No" or "Tone: 3". | Yes, to settle a disagreement | Unlocks the row so it can be ticked. With "the label of…" below it becomes the expected output. |
+| **Correct answer** | The text the agent should have said. | No | Becomes the dataset item's **expected output**, whatever you choose in the bottom bar. |
+
+**Save decision** stores them; **Clear decision** removes them. Reviewers' labels are never changed, so the agreement figures (kappa, Judge verdict) stay honest, and the record of who said what is kept. Rows where everyone agrees need no decision.
+
+### Step 6: Add to dataset
+
+Tick the rows you want (**Select all ready** ticks every row that can be added) and fill the bar at the bottom. The button stays disabled, with a line telling you why, until at least one row is ticked and a dataset is chosen.
+
+1. **Choose a dataset…**: where the items go. Create it first in **Evaluations → Datasets** if you have none.
+2. **Expected output**: what each new item will treat as the right answer. A reviewer's label is a verdict ("Yes", "5"), not a sentence, so you decide where the answer comes from. **A Correct answer you typed in Resolve always wins on its row**; the option only decides the rows without one.
+
+| Option in the list | Rows without a typed Correct answer get… | Use it when |
+|---|---|---|
+| **Expected output: only the correct answer I typed** (default) | No expected output. Only evaluators that need no reference (such as LLM-as-judge) can score them. | You judge by criteria (tone, conciseness) and have no single right answer. |
+| **Expected output: the reply that was reviewed (unless I typed one)** | The agent's reply that reviewers judged, copied as it was. | The reviewed replies are good and you want them as the reference. Type a Correct answer on the ones that are not. |
+| **Expected output: the label of "&lt;criterion&gt;" (unless I typed one)** (one entry per categorical criterion) | The agreed or resolved label of that criterion, for example `Yes`. | The criterion is itself the answer, such as a classification. Numeric and boolean criteria are not offered: a score is not a reference answer. |
+
+3. **Add to dataset**: creates the items. You get a notice with how many were added and why any were skipped.
+
+What to expect afterwards:
+
+- Items are **copies**, so they survive trace retention. Each batch of 100 items is **one new dataset version**.
+- Each row then shows a link to the dataset it went into ("→ Regression v3.0"). The item remembers its queue (`promotedFrom.queueId`) and the agent's original reply (`promotedFrom.observedOutput`), even when the reply was not used as expected output.
+- Skipped, with the reason in the notice: traces already in the dataset, and traces with no saved input (`MEMTRACE_CAPTURE_CONTENT=true` on the agent saves it).
+
+### Step 7: Use the dataset
+
+Open it in **Evaluations → Datasets** to check or edit the items. Run `run_experiment` against it from your code or CI (you can pin a version with `dataset_version="2.1"`); results appear in **Evaluations → Offline evals**. See [Evaluation](/library/evaluation).
+
 - A row whose trace is already in a dataset shows a link ("→ Regression v3.0") to it. The new items remember which queue they came from (`promotedFrom.queueId`).
-- Items that are already in the dataset or have no saved input are skipped and counted in the notice. Each batch of 100 items is one new dataset version.
 
 Once a judge's items have been labelled, **Judge verdict** in the **Summary** tab says in plain words whether the judge matches your reviewers: trust it, check its rubric, or do not use its score.
 

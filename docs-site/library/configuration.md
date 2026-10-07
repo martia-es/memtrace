@@ -7,6 +7,7 @@ Settings can be passed to `init_tracer` or set as environment variables.
 | `MEMTRACE_ENABLED` | `true` | `false` turns the SDK into a no-op |
 | `MEMTRACE_SERVICE_NAME` | `default-agent` | OTel `service.name` |
 | `MEMTRACE_SERVICE_VERSION`, `MEMTRACE_ENVIRONMENT` | none | Resource attributes |
+| `MEMTRACE_GIT_SHA` | auto | Commit of the code that runs. If unset, the SDK reads `GIT_SHA`, `GITHUB_SHA`, `CI_COMMIT_SHA`, `VERCEL_GIT_COMMIT_SHA`, `RENDER_GIT_COMMIT` or `HEROKU_SLUG_COMMIT`, and as a last resort `git rev-parse HEAD`. Sent on every trace as `vcs.repository.ref.revision` |
 | `MEMTRACE_OTLP_ENDPOINT` | `http://localhost:4317` (grpc), `:4318` (http) | Where to send traces |
 | `MEMTRACE_OTLP_PROTOCOL` | `grpc` | Or `http/protobuf` (needs the `http` extra) |
 | `MEMTRACE_OTLP_HEADERS` | none | `k1=v1,k2=v2` |
@@ -46,3 +47,19 @@ init_tracer(redact=lambda content: scrub_pii(content))
 ```
 
 If the hook raises, MemTrace stores a placeholder instead of the raw content.
+
+## Code version on every trace
+
+Every trace carries the commit of the code that produced it (`vcs.repository.ref.revision`), so you can tell which version answered what. The SDK finds the commit by itself; in a Docker image built by your CI you only need to pass it once:
+
+```dockerfile
+ARG GIT_SHA
+ENV GIT_SHA=$GIT_SHA
+```
+
+```yaml
+# GitHub Actions: the value is the commit being built, so it changes on every build
+docker build --build-arg GIT_SHA=${{ github.sha }} -t my-assistant .
+```
+
+Platforms that already expose the commit (Vercel, Render, Heroku) need nothing. When running from a local checkout, the SDK also marks traces with `memtrace.revision.dirty` if there are uncommitted changes. Without a commit the traces are still sent, just without a version.

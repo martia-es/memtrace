@@ -23,6 +23,8 @@ By default the list shows one row per conversation: traces that share the same c
 - **Quick views.** **All**, **With errors** and, in the Traces view, **Slow (≥ 5 s)** are shortcuts to the filters you use most. The time range, live refresh and the summary figures sit above the list.
 - **Readable rows.** Each conversation is named after the user's first message (the id stays underneath) and shows its cost. If the agent did not capture content, the id is the name and the cost shows only when the model has a known price.
 - **Preview.** Click a row to read it in a panel on the right without leaving the list: the messages of a conversation (requires [content capture](/library/configuration#privacy-and-content-capture)) or the input and output of a trace, with its main figures. Double-click a row, press Enter, or choose **Open full view** to open it.
+- **Resizable preview.** Drag the left edge of the panel to make it wider (or focus it and use the left/right arrow keys); double-click the edge to go back to the default width. The width is remembered in your browser.
+- **Timeline under each reply.** Below every assistant reply, a thin line shows where the time of that turn went, as sequential steps: guardrails, model calls, tools. Each step is as wide as its duration, with its name and time underneath; hover a step for details. Click the line (or the **Timeline** header) to expand it into the steps with what ran inside each one — for example the checks of a guardrail — a time axis, and the slowest step highlighted. **Open in trace** jumps to the full trace. Wrapper spans such as the agent run are looked through, and a guardrail counts as one step when its name or `step_type` contains `guardrail` (see [Tracing steps](/library/tracing)).
 
 Open a conversation to see its turns in order, as a table or as a unified span tree.
 
@@ -36,6 +38,8 @@ A trace has two tabs:
 - **Technical trace** is the span tree with timings and, next to it, the selected span's input, output and metadata. This is the default.
 
 **Annotate**, **Add to queue** and **Add to dataset** are available from the header.
+
+If the people using your agent voted 👍/👎 on the answer (see [User feedback](/library/feedback)), a colored strip under the header shows the votes and their comments: green when 👍 win, red when 👎 win. A badge tells you whether the users agree with your reviewers; **Disagrees with the reviewers** is the most interesting case, because it can mean your review rubric misses what users care about. The Traces and Conversations lists have a **User feedback** column, and the Summary shows **User satisfaction** (% of 👍) with *Needs attention* items for 👎 and for those disagreements.
 
 ## Spans
 
@@ -57,7 +61,12 @@ At the bottom, three cards: **Models** (p95 latency and cost per model), **Human
 
 ### Compare
 
-Side by side comparison of the selected agent against a second agent of your choice, over the same time range: a table (executions, conversations, operations, error rate, latency percentiles, tokens, cost) plus overlaid charts for executions, tokens and latency p95. Requires access to at least 2 agents.
+Compares the selected agent (**A**, the baseline) against a second agent of your choice (**B**, the candidate) over the same time range. Use the swap button to exchange them. It requires access to at least 2 agents.
+
+- **Verdict**: one sentence on how B differs from A (for example "B is cheaper and faster, but failing more often") and how many metrics are better, worse or neutral.
+- **What changed from A to B**: one bar per metric (cost, tokens, latency p50/p95/p99, error rate, conversations, executions) showing the % change. Green is better, red is worse, grey is neutral. Lower cost, tokens, latency and error rate count as better; conversations and executions are volume, so they are never good or bad. Changes under 5% are shown as neutral to avoid highlighting noise.
+- **Cost per execution** and **Input vs output tokens** (for each agent, what share of its tokens is the prompt and what share is the answer).
+- Overlaid charts for executions, tokens and latency p95: A is a solid line, B a dashed one.
 
 ### Custom charts
 
@@ -91,4 +100,17 @@ Click **Edit layout** on a report's page to drag and resize its charts, or add m
 
 ## Theme
 
-The dashboard supports light and dark themes, switched from the user menu. An `org_admin` can set an accent color and corner style for their organization (**Default**, **Sharp**, **Soft** or **Round**).
+The dashboard supports light and dark themes, switched from the user menu.
+
+An `org_admin` can brand the dashboard for the whole organization in **Settings → Organization → Appearance**, with a live preview:
+
+- **Accent color** and **secondary color** (used for highlights).
+- **Corner style**: **Default**, **Sharp**, **Soft** or **Round**.
+- **Font**: **Default**, **System**, **Serif** or **Humanist** (system fonts, nothing is downloaded).
+- **Assistant**: the name shown in the chat, which views are available and which one opens by default.
+
+The MemTrace logo and the colors of charts and spans do not change. The chat with an assistant uses the same colors, corners and font.
+
+### Assistant views
+
+The chat with an assistant (the **Talk** button) can be shown in three ways: a floating **bubble**, a **side panel** that moves the page aside instead of covering it, or **full screen** in a new browser tab. Use the icons in the chat header to switch between the views your organization allows; your choice is remembered in this browser. Switching to full screen keeps the current conversation.

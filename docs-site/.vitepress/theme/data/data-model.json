@@ -1205,6 +1205,48 @@
      "type": "UInt8"
     }
    ]
+  },
+  "user_feedback": {
+   "store": "clickhouse",
+   "fields": [
+    {
+     "name": "ServiceName",
+     "type": "LowCard"
+    },
+    {
+     "name": "TraceId",
+     "type": "String",
+     "mark": "rf"
+    },
+    {
+     "name": "SpanId",
+     "type": "String"
+    },
+    {
+     "name": "EndUserId",
+     "type": "String"
+    },
+    {
+     "name": "Rating",
+     "type": "Int8"
+    },
+    {
+     "name": "Comment",
+     "type": "Nullable"
+    },
+    {
+     "name": "ExternalMessageId",
+     "type": "String"
+    },
+    {
+     "name": "CreatedAt",
+     "type": "DateTime64"
+    },
+    {
+     "name": "IsDeleted",
+     "type": "UInt8"
+    }
+   ]
   }
  },
  "pos": {
@@ -1354,6 +1396,10 @@
   ],
   "annotations": [
    7,
+   5
+  ],
+  "user_feedback": [
+   8,
    5
   ]
  },

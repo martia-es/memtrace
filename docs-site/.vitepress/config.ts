@@ -25,6 +25,7 @@ export default defineConfig({
             { text: "Configuration", link: "/library/configuration" },
             { text: "Personal data (PII)", link: "/library/pii" },
             { text: "Offline evaluation", link: "/library/evaluation" },
+            { text: "User feedback", link: "/library/feedback" },
             { text: "Authentication", link: "/library/authentication" },
           ],
         },

@@ -145,6 +145,15 @@
         "Deployments per environment: API, health URL, version and authentication method",
         "Declaring the connections the assistant is meant to use"
       ]
+    },
+    {
+      "id": "deploy:run",
+      "group": "Governance",
+      "description": "Deploy the assistant you work on from MemTrace.",
+      "unlocks": [
+        "The Deploy button of each environment, once the agent has its repository and the commit has a passing evaluation",
+        "Seeing the deployment history of each environment"
+      ]
     }
   ],
   "roles": [
@@ -188,7 +197,8 @@
         "scoreconfig:manage",
         "dataset:write",
         "apikey:manage_own",
-        "assistant:manage"
+        "assistant:manage",
+        "deploy:run"
       ]
     },
     {
@@ -286,6 +296,10 @@
     {
       "label": "Edit my assistant's card and deployments",
       "permission": "assistant:manage"
+    },
+    {
+      "label": "Deploy my assistant to an environment",
+      "permission": "deploy:run"
     }
   ],
   "presets": [

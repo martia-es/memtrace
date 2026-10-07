@@ -38,6 +38,8 @@ Looking at traces by eye does not scale. To review them in series there are five
 
 When someone reviews, their answer is stored as an **annotation** in ClickHouse (`annotations`). The detail of each answer lives there; PostgreSQL only carries the workflow.
 
+The 👍/👎 that **end users** give to an answer are a different thing: they are stored in ClickHouse as **user feedback** (`user_feedback`), tied to the trace of the answer, and have no rubric or MemTrace user behind them.
+
 ### 5. Turning what was reviewed into a dataset
 
 A **dataset** (`datasets`) is a set of examples to evaluate the agent: an input and, optionally, the expected output. Every time you edit it a new **version** is created (`dataset_versions`), and the examples live inside that version (`dataset_items`). An old version never changes.

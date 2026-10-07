@@ -293,4 +293,14 @@ export const TEXT: Record<string, TableText> = {
       ["withdrawn", "IsDeleted = 1: it was withdrawn. Reads ignore it."],
     ],
   },
+  user_feedback: {
+    short: "End-user 👍/👎 · no TTL",
+    what: "One thumbs up or down that an end user gave to an answer of the agent.",
+    why: "It tells you what the people using the agent think, next to what reviewers think. A person voting again on the same answer replaces their vote; withdrawing it marks IsDeleted. It never expires.",
+    relations: ["TraceId points to the trace of the answer.", "EndUserId is a pseudonym the agent sends, not a MemTrace user."],
+    states: [
+      ["current", "IsDeleted = 0: it is that person's current vote."],
+      ["withdrawn", "IsDeleted = 1: it was withdrawn. Reads ignore it."],
+    ],
+  },
 };
