@@ -55,7 +55,7 @@ jobs:
       # …push the image and deploy it to ${{ inputs.environment }}
 ```
 
-Deploying from MemTrace works with GitHub for now, and your administrator must set it up once: create a GitHub App with *Contents: read*, *Actions: write* and *Metadata: read*, install it on the repositories of your assistants and point its webhook (event *Workflow runs*) to `/api/v1/webhooks/github`. Its credentials live in the server's environment (`GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_WEBHOOK_SECRET`), never in the database or the browser. Without them everything else works and **Deploy** says it is not configured.
+Deploying from MemTrace works with GitHub for now, and your administrator must set it up once (the full step-by-step guide, including the public address for local use, is [Set up deploys from MemTrace](./deploy-setup)): create a GitHub App with *Contents: read*, *Actions: write* and *Metadata: read*, install it on the repositories of your assistants and point its webhook (event *Workflow runs*) to `/api/v1/webhooks/github`. Its credentials live in the server's environment (`GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_WEBHOOK_SECRET`), never in the database or the browser. Without them everything else works and **Deploy** says it is not configured.
 
 ## API
 
