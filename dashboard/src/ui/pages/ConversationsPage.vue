@@ -11,6 +11,7 @@ import OnboardingGuide from "../components/OnboardingGuide.vue";
 import ConversationPreview from "../components/ConversationPreview.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import AnnotationChip from "../components/AnnotationChip.vue";
+import FeedbackChip from "../components/FeedbackChip.vue";
 import AddToDatasetModal from "../components/AddToDatasetModal.vue";
 import AddToQueueModal from "../components/AddToQueueModal.vue";
 import Modal from "../components/Modal.vue";
@@ -23,6 +24,7 @@ import { useFilters } from "../composables/useFilters";
 import { useLiveRefresh } from "../composables/useLiveRefresh";
 import { usePagedList } from "../composables/usePagedList";
 import { useTraceApi } from "../composables/useTraceApi";
+import { useExperimentRepo } from "../composables/useExperimentRepo";
 
 const PAGE_SIZE = 50;
 const api = useTraceApi();
@@ -36,13 +38,13 @@ const grouped = computed(() => f.group.value === "conversation");
 // Ungrouped (default): all traces. Grouped: one row per conversation.
 const traces = usePagedList<TraceSummaryDto>({
   key: (t) => t.traceId,
-  load: (cursor, signal) => api.listTraces({ ...f.resolve(), service: f.service.value, hasErrors: f.hasErrors.value || undefined, minDurationMs: f.minDurationMs.value, text: f.text.value, limit: PAGE_SIZE, cursor }, signal),
+  load: (cursor, signal) => api.listTraces({ ...f.resolve(), service: f.service.value, hasErrors: f.hasErrors.value || undefined, minDurationMs: f.minDurationMs.value, text: f.text.value, revision: f.revision.value, limit: PAGE_SIZE, cursor }, signal),
   merge: mergeLatestTraces,
   onLoaded: () => liveRefresh.touch(),
 });
 const conversations = usePagedList<ConversationSummaryDto>({
   key: (c) => c.conversationId,
-  load: (cursor, signal) => api.listConversations({ ...f.resolve(), service: f.service.value, hasErrors: f.hasErrors.value || undefined, text: f.text.value, limit: PAGE_SIZE, cursor }, signal),
+  load: (cursor, signal) => api.listConversations({ ...f.resolve(), service: f.service.value, hasErrors: f.hasErrors.value || undefined, text: f.text.value, revision: f.revision.value, limit: PAGE_SIZE, cursor }, signal),
   merge: mergeLatestConversations,
   onLoaded: () => liveRefresh.touch(),
 });
@@ -72,7 +74,7 @@ const liveRefresh = useLiveRefresh(
   },
   { isBusy: () => active.value.loading.value || active.value.moreLoading.value },
 );
-watch([f.rangeSig, f.service, f.hasErrors, f.minDurationMs, f.text, grouped], reload, { immediate: true });
+watch([f.rangeSig, f.service, f.hasErrors, f.minDurationMs, f.text, f.revision, grouped], reload, { immediate: true });
 
 const convStatus = (c: ConversationSummaryDto) => (c.errorTurns > 0 ? "error" : c.failedSpans > 0 ? "warn" : "ok");
 /** barra de color a la izquierda de la fila (diseño): error y valoración baja destacan; con fallos internos, aviso */
@@ -81,6 +83,7 @@ const STATUS_LABEL = { ok: "OK", error: "Error", warn: "With failures" } as cons
 
 // ---- columna Annotation: etiquetas humanas de las filas cargadas (se piden por lote, solo las que faltan) ----
 const ratings = ref(new Map<string, { labels: number; low: boolean }>());
+const feedback = ref(new Map<string, { up: number; down: number }>());
 const rated = new Set<string>();
 const ratingIds = computed(() => (grouped.value ? conversations.items.value.map((c) => c.conversationId) : traces.items.value.map((t) => t.traceId)));
 async function loadRatings(ids: string[]) {
@@ -92,6 +95,13 @@ async function loadRatings(ids: string[]) {
     ratings.value = new Map([...ratings.value, ...items.map((r) => [r.id, r] as const)]);
   } catch {
     missing.forEach((id) => rated.delete(id)); // sin dato la columna muestra "–"; se reintenta en la próxima carga
+  }
+  // 👍/👎 de usuario final (ADR-062): carga aparte, si falla solo se omite su columna
+  try {
+    const { items } = await api.getFeedbackRatings(grouped.value ? { conversationIds: missing } : { traceIds: missing });
+    feedback.value = new Map([...feedback.value, ...items.map((r) => [r.id, r] as const)]);
+  } catch {
+    /* sin dato la columna muestra "–" */
   }
 }
 watch([ratingIds, grouped], ([ids]) => void loadRatings(ids));
@@ -118,6 +128,18 @@ watch(search, (v) => {
 });
 onBeforeUnmount(() => clearTimeout(searchTimer));
 
+// ---- versión del código (ADR-065): SHA completo o prefijo ----
+const version = ref(f.revision.value ?? "");
+watch(f.revision, (v) => (version.value = v ?? ""));
+let versionTimer: ReturnType<typeof setTimeout> | undefined;
+watch(version, (v) => {
+  clearTimeout(versionTimer);
+  // solo hexadecimales y al menos 7 caracteres: antes de eso el filtro no es un SHA y no se aplica
+  versionTimer = setTimeout(() => f.setRevision(/^[0-9a-f]{7,64}$/i.test(v.trim()) ? v : ""), 400);
+});
+onBeforeUnmount(() => clearTimeout(versionTimer));
+const repo = useExperimentRepo(experimentId);
+
 // ---- vistas rápidas (ADR-048): atajos a los filtros que más se usan ----
 const SLOW_MS = 5000;
 const quick = computed<"all" | "errors" | "slow">(() => (f.hasErrors.value ? "errors" : (f.minDurationMs.value ?? 0) >= SLOW_MS ? "slow" : "all"));
@@ -132,7 +154,7 @@ const quickViews = computed(() => {
 
 // ---- vista previa: un clic selecciona, doble clic o Enter abre el detalle ----
 const selected = ref<{ kind: "conversation" | "trace"; id: string } | null>(null);
-watch([grouped, f.rangeSig, f.service, f.hasErrors, f.minDurationMs, f.text], () => (selected.value = null));
+watch([grouped, f.rangeSig, f.service, f.hasErrors, f.minDurationMs, f.text, f.revision], () => (selected.value = null));
 const transcript = useAsync((signal) => api.getTranscript(selected.value!.id, signal));
 watch(selected, (s) => {
   if (s?.kind === "conversation") void transcript.run();
@@ -145,7 +167,7 @@ const preview = computed(() => {
     const turns = transcript.data.value?.turns ?? [];
     const messages = turns.flatMap((t) => [
       ...(t.user ? [{ role: "user" as const, text: t.user }] : []),
-      ...(t.assistant ? [{ role: "assistant" as const, text: t.assistant }] : []),
+      ...(t.assistant ? [{ role: "assistant" as const, text: t.assistant, traceId: t.traceId }] : []),
     ]);
     return {
       title: c.title ?? c.conversationId,
@@ -170,7 +192,7 @@ const preview = computed(() => {
         { k: "TOKENS", v: t.totalTokens ? formatCount(t.totalTokens) : "–" },
         { k: "SPANS", v: formatCount(t.spanCount) },
       ],
-      messages: [...(t.input ? [{ role: "user" as const, text: t.input }] : []), ...(t.output ? [{ role: "assistant" as const, text: t.output }] : [])],
+      messages: [...(t.input ? [{ role: "user" as const, text: t.input }] : []), ...(t.output ? [{ role: "assistant" as const, text: t.output, traceId: t.traceId }] : [])],
       loading: false,
       emptyHint: undefined,
     };
@@ -228,6 +250,7 @@ const footer = computed(() => {
           {{ v.label }}<span v-if="v.count !== null" class="quick-count mono">{{ v.count }}</span>
         </button>
       </div>
+      <TextInput type="search" v-model="version" placeholder="Code version (SHA)…" class="version" aria-label="Filter by code version" data-testid="revision-filter" />
       <TextInput type="search" v-model="search" placeholder="Search input / output…" class="search" aria-label="Search input and output" />
     </div>
 
@@ -238,7 +261,7 @@ const footer = computed(() => {
         <div class="list">
           <table v-if="grouped && conversations.items.value.length" class="conversations">
             <thead>
-              <tr><th>Conversation</th><th>Last activity</th><th class="num">Turns</th><th class="num">Active time</th><th class="num">Tokens</th><th class="num">Cost</th><th>Status</th><th>Annotation</th></tr>
+              <tr><th>Conversation</th><th>Last activity</th><th class="num">Turns</th><th class="num">Active time</th><th class="num">Tokens</th><th class="num">Cost</th><th>Status</th><th>Annotation</th><th>User feedback</th></tr>
             </thead>
             <tbody>
               <tr
@@ -262,6 +285,7 @@ const footer = computed(() => {
                 <td class="num mono">{{ formatCostUsd(c.costUsd) ?? "–" }}</td>
                 <td><StatusChip :tone="convStatus(c)" :label="STATUS_LABEL[convStatus(c)]" /></td>
                 <td><AnnotationChip :rating="ratings.get(c.conversationId)" /></td>
+                <td><FeedbackChip :feedback="feedback.get(c.conversationId)" /></td>
               </tr>
             </tbody>
           </table>
@@ -271,6 +295,8 @@ const footer = computed(() => {
             :new-keys="traces.newKeys.value"
             :selected-id="selected?.kind === 'trace' ? selected.id : null"
             :ratings="ratings"
+            :feedback="feedback"
+            :repo="repo"
             selectable
             show-conversation
             @select="(id: string) => (selected = { kind: 'trace', id })"
@@ -383,6 +409,7 @@ const footer = computed(() => {
 .views-row .mt-segmented {
   margin-bottom: 6px;
 }
+.version { width: 170px; }
 .search {
   margin: 0 0 6px auto;
   width: 280px;

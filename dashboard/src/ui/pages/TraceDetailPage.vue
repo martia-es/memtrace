@@ -14,18 +14,23 @@ import Modal from "../components/Modal.vue";
 import AddToDatasetModal from "../components/AddToDatasetModal.vue";
 import AddToQueueModal from "../components/AddToQueueModal.vue";
 import TraceAnnotationsPanel from "../components/TraceAnnotationsPanel.vue";
+import TraceFeedbackStrip from "../components/TraceFeedbackStrip.vue";
+import TraceSummaryPanel from "../components/TraceSummaryPanel.vue";
 import StatusBadge from "../components/StatusBadge.vue";
 import { usePermissions } from "../composables/usePermissions";
 import { useAsync } from "../composables/useAsync";
 import { useFilters } from "../composables/useFilters";
 import { useLiveRefresh } from "../composables/useLiveRefresh";
 import { useTraceApi } from "../composables/useTraceApi";
+import { useExperimentRepo } from "../composables/useExperimentRepo";
+import CommitLink from "../components/CommitLink.vue";
 
 const props = defineProps<{ traceId: string }>();
 const api = useTraceApi();
 const route = useRoute();
 const router = useRouter();
 const experimentId = computed(() => route.params.experimentId as string);
+const repo = useExperimentRepo(experimentId);
 const f = useFilters();
 
 const trace = useAsync((signal) => api.getTrace(props.traceId, signal));
@@ -61,6 +66,11 @@ const turns = computed(() => conversationTurns(traceThread(roots.value)));
 
 // ---- human annotation (ADR-037) ----
 const annotating = ref(false);
+const labelsVersion = ref(0);
+const closeAnnotate = () => {
+  annotating.value = false;
+  labelsVersion.value++;
+};
 const addingToQueue = ref(false);
 const addingToDataset = ref(false);
 
@@ -94,6 +104,7 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
           <h1 :title="rootName">{{ rootName }}</h1>
           <StatusBadge :status="trace.data.value.status" show-label />
           <span v-if="trace.data.value.framework" class="mt-pill unset">{{ trace.data.value.framework }}</span>
+          <CommitLink :revision="trace.data.value.revision" :repo="repo" data-testid="trace-revision" />
           <div class="actions">
             <button type="button" class="btn" aria-label="Copy trace ID" @click="copyId">Copy ID</button>
             <button type="button" class="btn" data-testid="add-to-dataset-btn" @click="addingToDataset = true">Add to dataset</button>
@@ -111,6 +122,10 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
         </div>
       </header>
 
+      <TraceFeedbackStrip :trace-id="traceId" />
+
+      <div class="body">
+      <div class="main">
       <div class="tabs" role="tablist" aria-label="Trace views">
         <button type="button" role="tab" class="tab" :class="{ active: tab === 'conversation' }" :aria-selected="tab === 'conversation'" data-testid="tab-conversation" @click="setTab('conversation')">Conversation</button>
         <button v-if="canTechnical" type="button" role="tab" class="tab" :class="{ active: tab === 'trace' }" :aria-selected="tab === 'trace'" data-testid="tab-trace" @click="setTab('trace')">
@@ -148,10 +163,14 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
         <section v-else class="mt-card empty-card">This trace has no spans to show.</section>
       </div>
 
+      </div>
+      <TraceSummaryPanel :trace-id="traceId" :refresh-key="labelsVersion" />
+      </div>
+
       <AddToDatasetModal v-if="addingToDataset" :trace-id="traceId" :roots="roots" @close="addingToDataset = false" />
       <AddToQueueModal v-if="addingToQueue" :trace-id="traceId" @close="addingToQueue = false" />
 
-      <Modal v-if="annotating" title="Annotate trace" wide @close="annotating = false">
+      <Modal v-if="annotating" title="Annotate trace" wide @close="closeAnnotate">
         <TraceAnnotationsPanel :trace-id="traceId" :experiment-id="experimentId" :span="selectedNode ? { spanId: selectedNode.spanId, name: selectedNode.name } : null" />
       </Modal>
     </template>
@@ -345,6 +364,21 @@ h2 {
   padding: 24px;
   text-align: center;
 }
+/* contenido a la izquierda, resumen de la traza a la derecha */
+.body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  min-width: 0;
+}
 /* árbol ~40 % · inspector ~60 % */
 .cols {
   display: grid;
@@ -397,6 +431,9 @@ h2 {
   color: var(--mt-muted);
 }
 @media (max-width: 1100px) {
+  .body {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .cols {
     grid-template-columns: minmax(0, 1fr);
     overflow-y: auto;

@@ -19,6 +19,9 @@ import type {
   ConversationListResponse,
   LowRatedResponse,
   AnnotationRatingsResponse,
+  FeedbackOverviewResponse,
+  FeedbackRatingsResponse,
+  TraceFeedbackResponse,
   ConversationTreeResponse,
   CustomMetricDefinitionDto,
   CustomMetricResultResponse,
@@ -60,6 +63,8 @@ export interface ListTracesParams extends RangeParams {
   /** texto contenido en la entrada o salida capturadas */
   text?: string;
   conversationId?: string;
+  /** solo las trazas generadas por este commit (completo o prefijo, ADR-065) */
+  revision?: string;
   limit?: number;
   cursor?: string;
 }
@@ -81,6 +86,8 @@ export interface ListConversationsParams extends RangeParams {
   hasErrors?: boolean;
   /** texto contenido en la entrada o salida capturadas */
   text?: string;
+  /** solo lo generado por este commit (completo o prefijo, ADR-065) */
+  revision?: string;
   limit?: number;
   cursor?: string;
 }
@@ -154,6 +161,12 @@ export interface TraceApi {
   listAnnotationQueues(includeArchived?: boolean, signal?: AbortSignal): Promise<AnnotationQueuesListResponse>;
   /** trazas con alguna valoración humana baja en el rango, para "Needs attention" (ADR-049) */
   getLowRated(params: RangeParams, signal?: AbortSignal): Promise<LowRatedResponse>;
+  /** Votos 👍/👎 de usuario final de la traza y si coinciden con la revisión humana (ADR-062). */
+  getTraceFeedback(traceId: string, signal?: AbortSignal): Promise<TraceFeedbackResponse>;
+  /** Votos de usuario final de las trazas o conversaciones de una página de lista. */
+  getFeedbackRatings(target: { traceIds: string[] } | { conversationIds: string[] }, signal?: AbortSignal): Promise<FeedbackRatingsResponse>;
+  /** Satisfacción, serie diaria, alineación y últimas trazas con 👎 del rango. */
+  getFeedbackOverview(params: RangeParams, signal?: AbortSignal): Promise<FeedbackOverviewResponse>;
   /** etiquetas humanas (y si alguna es baja) de las trazas o conversaciones de una página de lista; solo vuelven las que tienen alguna */
   getAnnotationRatings(target: { traceIds: string[] } | { conversationIds: string[] }, signal?: AbortSignal): Promise<AnnotationRatingsResponse>;
   createAnnotationQueue(body: NewAnnotationQueueBody, signal?: AbortSignal): Promise<AnnotationQueueDto>;

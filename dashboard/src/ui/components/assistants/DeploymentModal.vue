@@ -25,6 +25,7 @@ const form = reactive({
   apiUrl: d?.apiUrl ?? "",
   healthUrl: d?.healthUrl ?? "",
   version: d?.version ?? "",
+  deployRef: d?.deployRef ?? "",
   authMethod: (d?.authMethod ?? "none") as AuthMethodDto,
   authProvider: d?.authProvider ?? "",
   authAudience: d?.authAudience ?? "",
@@ -43,6 +44,7 @@ function toInput(): DeploymentInput {
     apiUrl: form.apiUrl.trim(),
     healthUrl: text(form.healthUrl),
     version: text(form.version),
+    deployRef: text(form.deployRef),
     authMethod: form.authMethod,
     authProvider: text(form.authProvider),
     authAudience: text(form.authAudience),
@@ -92,6 +94,11 @@ const authOptions = Object.entries(AUTH_LABEL).map(([value, label]) => ({ label,
       </label>
       <div class="row">
         <label class="field"><span>Version</span><TextInput v-model="form.version" placeholder="v1.4.0" /></label>
+        <label class="field">
+          <span>Branch or tag to deploy (optional)</span>
+          <TextInput v-model="form.deployRef" :invalid="!!fieldErrors.deployRef" placeholder="main" data-testid="deploy-ref" />
+          <span v-if="fieldErrors.deployRef" class="field-error">{{ fieldErrors.deployRef }}</span>
+        </label>
         <label class="field">
           <span>Authentication</span>
           <Select v-model="form.authMethod" :options="authOptions" />

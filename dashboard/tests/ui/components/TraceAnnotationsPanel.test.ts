@@ -14,6 +14,7 @@ const config = (overrides: Partial<ScoreConfigDto> = {}): ScoreConfigDto => ({
   minValue: 1,
   maxValue: 5,
   categories: null,
+  targetPassRate: null,
   description: "How polite was the answer?",
   createdAt: "",
   updatedAt: "",

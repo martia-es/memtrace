@@ -11,6 +11,7 @@ import { useFilters } from "../composables/useFilters";
  */
 const route = useRoute();
 const f = useFilters();
+const experimentId = computed(() => route.params.experimentId as string);
 const range = computed(() => f.resolve());
 const compareIds = computed<[string, string] | null>(() => {
   const [a, b] = String(route.query.compare ?? "").split(",");
@@ -21,7 +22,7 @@ const compareIds = computed<[string, string] | null>(() => {
 <template>
   <div class="page">
     <PageHeader :crumbs="[{ label: 'Evaluations' }, { label: 'Trends' }]" icon="M3 3v18h18M7 14l4-4 3 3 5-6" title="Trends" />
-    <OfflineEvalPanel :range="range" :compare-ids="compareIds" />
+    <OfflineEvalPanel :experiment-id="experimentId" :range="range" :compare-ids="compareIds" />
   </div>
 </template>
 

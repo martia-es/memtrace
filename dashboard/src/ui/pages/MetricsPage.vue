@@ -5,7 +5,9 @@ import { computed, ref, watch } from "vue";
 import { chartColors } from "../chart-theme";
 import { formatCostUsd, formatCount, formatDuration, formatPercent, formatRelativeTime } from "@/domain/format";
 import { aggregateTone, aggregateValueLabel } from "@/domain/evaluation";
+import { formatSatisfaction } from "@/domain/feedback";
 import { useQuasar } from "quasar";
+import AgentCompareView from "../components/AgentCompareView.vue";
 import CustomChartsPanel from "../components/CustomChartsPanel.vue";
 import MetricReportView from "../components/MetricReportView.vue";
 import ReportCard from "../components/ReportCard.vue";
@@ -13,7 +15,6 @@ import EChart from "../components/EChart.vue";
 import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import PageHeader from "../components/PageHeader.vue";
-import Select from "../components/Select.vue";
 import { useAsync } from "../composables/useAsync";
 import { useLiveRefresh } from "../composables/useLiveRefresh";
 import { useFilters } from "../composables/useFilters";
@@ -40,8 +41,11 @@ const goToErrors = () => {
 const overview = useAsync((signal) => api.getOverview({ ...f.resolve(), service: f.service.value }, signal));
 // valoraciones humanas bajas del mismo rango, para "Needs attention" (ADR-049); si falla, simplemente no se muestran
 const lowRated = useAsync((signal) => api.getLowRated(f.resolve(), signal));
+// 👍/👎 de usuario final del mismo rango (ADR-062); sin votos o si falla, no aparece ni el KPI ni los avisos
+const feedback = useAsync((signal) => api.getFeedbackOverview(f.resolve(), signal));
 async function loadOverview() {
   void lowRated.run();
+  void feedback.run();
   if (await overview.run()) liveRefresh.touch();
 }
 const liveRefresh = useLiveRefresh(loadOverview, { isBusy: () => overview.loading.value });
@@ -93,20 +97,50 @@ const attention = computed(() => {
       go: () => void router.push({ name: "trace", params: { experimentId: experimentId.value, traceId: latest.traceId } }),
     });
   }
+  const votes = feedback.data.value;
+  if (votes && votes.summary.down > 0 && votes.recentDown.length > 0) {
+    const latest = votes.recentDown[0]!;
+    items.push({
+      key: "thumbs-down",
+      tone: "warn",
+      title: `${formatCount(votes.summary.down)} ${votes.summary.down === 1 ? "answer got" : "answers got"} a thumbs down from users`,
+      text: latest.comment ? `Latest: “${latest.comment}”` : "Open the latest one to see what happened.",
+      cta: "Open latest",
+      go: () => void router.push({ name: "trace", params: { experimentId: experimentId.value, traceId: latest.traceId } }),
+    });
+  }
+  if (votes && votes.alignment.misaligned > 0) {
+    items.push({
+      key: "feedback-misaligned",
+      tone: "info",
+      title: `Users and reviewers disagree on ${formatCount(votes.alignment.misaligned)} ${votes.alignment.misaligned === 1 ? "answer" : "answers"}`,
+      text: "Good to check whether the review rubric misses what users care about.",
+      cta: "Review",
+      go: goToReview,
+    });
+  }
   if (pendingReviews.value > 0) {
     items.push({ key: "review", tone: "info", title: `${formatCount(pendingReviews.value)} ${pendingReviews.value === 1 ? "item is" : "items are"} waiting for review`, text: "Conversations queued for human review.", cta: "Start", go: goToReview });
   }
   return items;
 });
+/** KPI de satisfacción de usuario final: solo si hay votos en el rango. Verde ≥ 80 %, ámbar ≥ 60 %, rojo por debajo. */
+const satisfactionKpi = computed(() => {
+  const s = feedback.data.value?.summary;
+  if (!s || s.total === 0) return [];
+  const tone = s.satisfaction === null ? "" : s.satisfaction >= 80 ? "good" : s.satisfaction >= 60 ? "warn" : "error";
+  return [{ key: "satisfaction", label: "USER SATISFACTION", value: formatSatisfaction(s.satisfaction), sub: `${formatCount(s.up)} positive · ${formatCount(s.down)} negative from ${formatCount(s.ratedTraces)} ${s.ratedTraces === 1 ? "answer" : "answers"}`, tone, link: false }];
+});
 const kpis = computed(() => {
   const d = data.value;
   if (!d) return [];
   return [
-    { key: "conversations", label: "CONVERSATIONS", value: formatCount(d.totals.conversations), sub: `${formatCount(d.totals.traces)} executions`, tone: "", spark: true },
-    { key: "success", label: "SUCCESS RATE", value: formatPercent(successRate.value), sub: health.value.title, tone: health.value.key === "ok" ? "good" : health.value.key },
+    { key: "conversations", label: "CONVERSATIONS", value: formatCount(d.totals.conversations), sub: `${formatCount(d.totals.traces)} executions`, tone: "", spark: true, link: false },
+    { key: "success", label: "SUCCESS RATE", value: formatPercent(successRate.value), sub: health.value.title, tone: health.value.key === "ok" ? "good" : health.value.key, link: false },
     { key: "latency", label: "RESPONSE TIME P95", value: formatDuration(d.latencyMs.p95), sub: `median ${formatDuration(d.latencyMs.p50)}`, tone: "" },
     { key: "errors", label: "ERRORS", value: formatCount(d.totals.errorTraces), sub: `${formatPercent(d.totals.errorRate)} of executions`, tone: d.totals.errorTraces > 0 ? "error" : "", link: d.totals.errorTraces > 0 },
     { key: "cost", label: "COST", value: formatCostUsd(d.totals.costUsd) ?? "–", sub: `${formatCount(d.totals.totalTokens)} tokens`, tone: "" },
+    ...satisfactionKpi.value,
   ];
 });
 const tokenSplit = computed(() => {
@@ -245,6 +279,7 @@ const kpiCards = computed(() => {
     latency: series.map((p) => p.p95Ms),
     errors: series.map((p) => p.errorTraces),
     cost: series.map((p) => p.totalTokens),
+    satisfaction: (feedback.data.value?.days ?? []).map((d) => (d.up + d.down ? d.up / (d.up + d.down) : 1)),
   };
   return kpis.value.map((k) => ({ ...k, points: sparkPoints(sparks[k.key] ?? []), stroke: tonePalette(k.key === "errors" && k.tone === "error" ? "error" : "") }));
 });
@@ -320,53 +355,13 @@ watch([activePanel, compareOptions], ([panel]) => {
   if (panel === "compare" && !compareAgentId.value) compareAgentId.value = compareOptions.value[0]?.value ?? null;
 });
 
-const compareRows = computed(() => {
-  const a = data.value;
-  const b = compareData.value;
-  if (!a || !b) return [];
-  return [
-    { label: "Executions", a: formatCount(a.totals.traces), b: formatCount(b.totals.traces) },
-    { label: "Conversations", a: formatCount(a.totals.conversations), b: formatCount(b.totals.conversations) },
-    { label: "Operations", a: formatCount(a.totals.spans), b: formatCount(b.totals.spans) },
-    { label: "Error rate", a: formatPercent(a.totals.errorRate), b: formatPercent(b.totals.errorRate) },
-    { label: "Latency p50", a: formatDuration(a.latencyMs.p50), b: formatDuration(b.latencyMs.p50) },
-    { label: "Latency p95", a: formatDuration(a.latencyMs.p95), b: formatDuration(b.latencyMs.p95) },
-    { label: "Latency p99", a: formatDuration(a.latencyMs.p99), b: formatDuration(b.latencyMs.p99) },
-    { label: "Total tokens", a: formatCount(a.totals.totalTokens), b: formatCount(b.totals.totalTokens) },
-    { label: "Input tokens", a: formatCount(a.totals.inputTokens), b: formatCount(b.totals.inputTokens) },
-    { label: "Output tokens", a: formatCount(a.totals.outputTokens), b: formatCount(b.totals.outputTokens) },
-    { label: "Total cost", a: formatCostUsd(a.totals.costUsd) ?? "–", b: formatCostUsd(b.totals.costUsd) ?? "–" },
-  ];
-});
-
-const compareLabels = computed(() => data.value?.timeseries.map((p) => label(p.bucketStart)) ?? []);
-function compareLineOption(aValues: number[], bValues: number[], valueFormatter?: (v: number) => string): EChartsCoreOption {
-  const c = chartColors($q.dark.isActive);
-  const a = axisBase();
-  return {
-    backgroundColor: "transparent",
-    textStyle: { color: c.text },
-    animationDuration: 400,
-    grid: { left: 6, right: 6, top: 34, bottom: 6, containLabel: true },
-    legend: { data: [agentAName.value, agentBName.value], top: 0, textStyle: { color: c.text, fontSize: 11 } },
-    tooltip: tooltip(),
-    xAxis: { type: "category", boundaryGap: false, data: compareLabels.value, ...a, splitLine: { show: false }, axisLine: { lineStyle: { color: c.grid } } },
-    yAxis: { type: "value", ...a, axisLabel: valueFormatter ? { ...a.axisLabel, formatter: (v: number) => valueFormatter(v) } : a.axisLabel },
-    series: [
-      { name: agentAName.value, type: "line", smooth: 0.35, showSymbol: false, lineStyle: { width: 2.5, color: c.primary }, data: aValues },
-      { name: agentBName.value, type: "line", smooth: 0.35, showSymbol: false, lineStyle: { width: 2.5, color: c.series[2], type: "dashed" }, data: bValues },
-    ],
-  };
+function swapAgents() {
+  const previousA = experimentId.value;
+  if (!compareAgentId.value) return;
+  const nextA = compareAgentId.value;
+  compareAgentId.value = previousA;
+  void router.push({ name: "overview-compare", params: { experimentId: nextA }, query: route.query });
 }
-const compareActivityOption = computed<EChartsCoreOption>(() =>
-  compareLineOption(data.value?.timeseries.map((p) => p.traces) ?? [], compareData.value?.timeseries.map((p) => p.traces) ?? []),
-);
-const compareTokensOption = computed<EChartsCoreOption>(() =>
-  compareLineOption(data.value?.timeseries.map((p) => p.totalTokens) ?? [], compareData.value?.timeseries.map((p) => p.totalTokens) ?? [], formatCount),
-);
-const compareLatencyOption = computed<EChartsCoreOption>(() =>
-  compareLineOption(data.value?.timeseries.map((p) => p.p95Ms) ?? [], compareData.value?.timeseries.map((p) => p.p95Ms) ?? [], formatDuration),
-);
 </script>
 
 <template>
@@ -486,63 +481,20 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
       </q-tab-panel>
 
       <q-tab-panel name="compare" class="metrics-tab-panel">
-        <section class="detail-panel compare-panel">
-          <div class="panel-header">
-            <h3>Compare agents</h3>
-          </div>
-
-          <div class="compare-selectors">
-            <div class="compare-slot">
-              <label>Agent A</label>
-              <div class="compare-slot-fixed">{{ agentAName }}</div>
-              <span class="compare-slot-hint">Set via the agent selector above</span>
-            </div>
-            <div class="compare-vs">vs</div>
-            <div class="compare-slot">
-              <label>Agent B</label>
-              <Select :model-value="compareAgentId" :options="compareOptions" placeholder="Choose an agent to compare" @update:model-value="(id) => (compareAgentId = id)" />
-            </div>
-          </div>
-
-          <EmptyState v-if="!compareAgentId" icon="compare_arrows" title="Pick an agent to compare">Choose Agent B above to compare it against {{ agentAName }}.</EmptyState>
-          <ErrorBanner v-else-if="compareB.error.value" :error="compareB.error.value" @retry="loadCompare" />
-          <div v-else-if="compareB.loading.value && !compareData" class="loading-box">
-            <q-spinner size="32px" color="primary" />
-          </div>
-          <template v-else-if="compareData">
-            <table class="compare-table">
-              <thead>
-                <tr>
-                  <th></th>
-                  <th>{{ agentAName }}</th>
-                  <th>{{ agentBName }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="row in compareRows" :key="row.label">
-                  <td class="compare-row-label">{{ row.label }}</td>
-                  <td>{{ row.a }}</td>
-                  <td>{{ row.b }}</td>
-                </tr>
-              </tbody>
-            </table>
-
-            <div class="compare-charts">
-              <div class="compare-chart-box">
-                <div class="compare-chart-title">Executions</div>
-                <EChart :option="compareActivityOption" height="220px" label="Executions comparison" />
-              </div>
-              <div class="compare-chart-box">
-                <div class="compare-chart-title">Total tokens</div>
-                <EChart :option="compareTokensOption" height="220px" label="Tokens comparison" />
-              </div>
-              <div class="compare-chart-box">
-                <div class="compare-chart-title">Latency p95</div>
-                <EChart :option="compareLatencyOption" height="220px" label="Latency comparison" />
-              </div>
-            </div>
-          </template>
-        </section>
+        <AgentCompareView
+          :name-a="agentAName"
+          :name-b="agentBName"
+          :a="data"
+          :b="compareData"
+          :options="compareOptions"
+          :agent-b-id="compareAgentId"
+          :loading="compareB.loading.value"
+          :error="compareB.error.value"
+          :long-range="longRange"
+          @update:agent-b-id="(id) => (compareAgentId = id)"
+          @swap="swapAgents"
+          @retry="loadCompare"
+        />
       </q-tab-panel>
 
       <q-tab-panel name="custom" class="metrics-tab-panel">
@@ -698,7 +650,7 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
 
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 12px;
 }
 .kpi {
@@ -846,125 +798,6 @@ const compareLatencyOption = computed<EChartsCoreOption>(() =>
   font-size: 20px;
   font-weight: 800;
   color: var(--mt-accent);
-}
-
-.compare-panel {
-  margin-bottom: 16px;
-}
-
-.compare-panel .panel-header {
-  flex-wrap: wrap;
-}
-
-.compare-selectors {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  padding: 16px 20px;
-  margin-bottom: 20px;
-  border-radius: var(--mt-radius-lg);
-  background: var(--mt-soft);
-}
-
-.compare-slot {
-  flex: 1 1 260px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.compare-slot label {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--mt-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.compare-slot-fixed {
-  height: 36px;
-  display: flex;
-  align-items: center;
-  padding: 0 12px;
-  border-radius: var(--mt-radius-sm, 8px);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--mt-ink);
-}
-
-.compare-slot-hint {
-  font-size: 11px;
-  color: var(--mt-muted);
-}
-
-.compare-vs {
-  flex: 0 0 auto;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--mt-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-top: 18px;
-}
-
-.compare-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-bottom: 20px;
-  font-size: 13px;
-}
-
-.compare-table th,
-.compare-table td {
-  padding: 8px 12px;
-  text-align: right;
-  border-bottom: 1px solid var(--mt-soft);
-}
-
-.compare-table th:first-child,
-.compare-table td:first-child {
-  text-align: left;
-}
-
-.compare-table th {
-  color: var(--mt-muted);
-  font-weight: 700;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-}
-
-.compare-row-label {
-  color: var(--mt-muted);
-  font-weight: 500;
-}
-
-.compare-table td:not(.compare-row-label) {
-  font-weight: 700;
-  color: var(--mt-ink);
-}
-
-.compare-charts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 16px;
-}
-
-.compare-chart-box {
-  background: var(--mt-soft);
-  border-radius: var(--mt-radius-sm);
-  padding: 12px;
-}
-
-.compare-chart-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--mt-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  margin-bottom: 8px;
 }
 
 .empty-state {

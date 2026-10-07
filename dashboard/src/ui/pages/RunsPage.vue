@@ -14,12 +14,15 @@ import FilterPill from "../components/FilterPill.vue";
 import PageHeader from "../components/PageHeader.vue";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
+import { useExperimentRepo } from "../composables/useExperimentRepo";
+import CommitLink from "../components/CommitLink.vue";
 
 const PAGE_SIZE = 20;
 
 const api = useTraceApi();
 const router = useRouter();
 const route = useRoute();
+const repo = useExperimentRepo(() => route.params.experimentId as string);
 
 const $q = useQuasar();
 
@@ -129,6 +132,7 @@ function openRun(run: RunListItemDto) {
             <th class="pick" />
             <th>Run</th>
             <th>Dataset</th>
+            <th>Code version</th>
             <th>When</th>
             <th v-for="m in metricNames" :key="m" class="center">{{ m }}</th>
             <th class="num">Items</th>
@@ -151,6 +155,7 @@ function openRun(run: RunListItemDto) {
             </td>
             <td class="name">{{ r.name }}</td>
             <td class="muted">{{ r.datasetName }} <span class="mono faint">v{{ r.versionMajor }}.{{ r.versionMinor }}</span></td>
+            <td @click.stop><CommitLink :revision="r.revision" :repo="repo" :dirty="r.revisionDirty" /></td>
             <td class="muted">{{ formatDateTime(r.createdAt) }}</td>
             <td v-for="m in metricNames" :key="m" class="center">
               <span v-if="metricCell(r, m)" class="mt-pill" :class="{ ok: aggregateTone(metricCell(r, m)!) === 'positive', warn: aggregateTone(metricCell(r, m)!) === 'warning', error: aggregateTone(metricCell(r, m)!) === 'negative', unset: aggregateTone(metricCell(r, m)!) === 'default' }">

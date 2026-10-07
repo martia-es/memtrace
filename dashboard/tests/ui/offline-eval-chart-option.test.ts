@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { buildOfflineSeries, judgeChangeNotices, offlineAttention, offlineVerdict, passFailChartOption, selectOfflineRuns, summarizeEvaluators } from "@/ui/offline-eval-chart-option";
 
 function run(id: string, createdAt: string, over: Partial<RunListItemDto> = {}): RunListItemDto {
-  return { id, name: id, versionMajor: 1, versionMinor: 0, itemCount: 2, status: "completed", createdAt, aggregates: [], datasetId: "d1", datasetName: "D1", ...over };
+  return { id, name: id, versionMajor: 1, versionMinor: 0, itemCount: 2, status: "completed", createdAt, revision: null, revisionDirty: null, aggregates: [], datasetId: "d1", datasetName: "D1", ...over };
 }
 const range = { from: "2026-01-01T00:00:00Z", to: "2026-12-31T00:00:00Z" };
 
@@ -128,5 +128,20 @@ describe("offlineAttention", () => {
   it("flags a regression with the previous and latest runs to compare", () => {
     const items = attentionOf(run("a", "2026-03-01T00:00:00Z", { aggregates: [agg("exact", 0.95)] }), run("b", "2026-03-02T00:00:00Z", { aggregates: [agg("exact", 0.85)] }));
     expect(items).toMatchObject([{ key: "regressing:exact", compare: ["a", "b"] }]);
+  });
+});
+
+describe("per-evaluator target (ADR-060)", () => {
+  const runs = [run("a", "2026-03-01T00:00:00Z", { aggregates: [{ name: "exact", dataType: "boolean", passRate: 0.9, average: null, count: 10, judges: [] }] })];
+
+  it("judges each evaluator against its own target, defaulting to 80%", () => {
+    expect(summarizeEvaluators(runs)[0]).toMatchObject({ target: 0.8, tone: "positive" });
+    expect(summarizeEvaluators(runs, { exact: 0.95 })[0]).toMatchObject({ target: 0.95, tone: "warning" });
+  });
+
+  it("names the configured target in the attention list and the verdict", () => {
+    const summary = summarizeEvaluators(runs, { exact: 0.95 });
+    expect(offlineVerdict(summary).level).toBe("attention");
+    expect(offlineAttention(runs, summary)[0]!.title).toBe("exact is below the 95% target");
   });
 });

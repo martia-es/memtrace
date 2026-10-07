@@ -6,6 +6,7 @@ import { useAsync } from "../composables/useAsync";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import { applyOrganizationTheme } from "../composables/useOrganizationTheme";
+import { setKnownThemes } from "../composables/useAssistantDisplay";
 import { CURRENT_EXPERIMENT } from "@/dependency-container";
 import ExperimentSelect from "../components/ExperimentSelect.vue";
 import { hasPermission } from "../composables/usePermissions";
@@ -23,7 +24,7 @@ const { shared } = f;
 const identityApi = useIdentityApi();
 const isCollapsed = ref(false);
 const experiments = useAsync((signal) => identityApi.listExperiments(signal));
-void experiments.run();
+void experiments.run().then(() => setKnownThemes(experiments.data.value ?? []));
 // el catálogo de asistentes (ADR-053) pide `governance:read` en alguna organización
 const organizations = useAsync((signal) => identityApi.listOrganizations(signal));
 void organizations.run();
@@ -133,7 +134,7 @@ function switchExperiment(experimentId: string | null) {
   <div class="shell">
     <aside class="sidebar" :class="{ collapsed: isCollapsed }">
       <div class="sidebar-header">
-        <router-link :to="navExperimentId ? { name: 'overview', params: { experimentId: navExperimentId } } : { name: 'admin' }" class="brand" aria-label="MemTrace">
+        <router-link :to="navExperimentId ? { name: 'overview', params: { experimentId: navExperimentId }, query: shared } : { name: 'admin' }" class="brand" aria-label="MemTrace">
           <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
             <rect x="1" y="3" width="12" height="4.5" rx="2.25" fill="var(--mt-brand)" /><rect x="6" y="9" width="15" height="4.5" rx="2.25" fill="var(--mt-highlight)" /><rect x="3" y="15" width="9" height="4.5" rx="2.25" fill="var(--mt-brand)" opacity="0.5" />
           </svg>

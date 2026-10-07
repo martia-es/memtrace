@@ -274,7 +274,7 @@ describe("Queue results (ADR-050)", () => {
     await click(body().querySelector('[data-testid="tab-results"]'));
     await click([...body().querySelectorAll('[data-testid="resolve-btn"]')][1]);
     await click([...body().querySelectorAll('[data-testid="choice"]')].find((b) => b.textContent === "bad"));
-    await setValue(body().querySelector('textarea[aria-label="Expected output"]'), "Mañana a las 18h");
+    await setValue(body().querySelector('textarea[aria-label="Correct answer"]'), "Mañana a las 18h");
     await click(body().querySelector('[data-testid="save-resolution"]'));
     expect(api.resolutions).toEqual([{ queueId: "q-1", itemId: "i2", configId: "cfg-1", body: { value: "bad", expectedOutput: "Mañana a las 18h" } }]);
   });
@@ -292,10 +292,27 @@ describe("Queue results (ADR-050)", () => {
     expect(boxes.map((b) => b.disabled)).toEqual([false, true]);
     await click(body().querySelector('[data-testid="select-ready"]'));
     await chooseOption(body(), '[data-testid="promote-dataset"]', "Regression");
-    await chooseOption(body(), '[data-testid="promote-config"]', "Expected output from “correct”");
+    await chooseOption(body(), '[data-testid="promote-config"]', "Expected output: the label of “correct” (unless I typed one)");
     await flushPromises();
     await click(body().querySelector('[data-testid="promote-run"]'));
     expect(promoted).toEqual([{ items: [{ traceId: "trace-ok", expectedOutput: "good", queueId: "q-1" }] }]);
+  });
+
+  it("can ask for the reviewed reply as the expected output of rows without a typed answer", async () => {
+    const api = await openResults();
+    const promoted: unknown[] = [];
+    api.promoteTracesToDataset = async (_datasetId, bodyArg) => {
+      promoted.push(bodyArg);
+      return { added: bodyArg.items.map(() => ({}) as never), skipped: [], version: null } as never;
+    };
+    api.datasets = { items: [{ id: "d1", name: "Regression" }] } as never;
+    await click(body().querySelector('[data-testid="tab-results"]'));
+    await click(body().querySelector('[data-testid="select-ready"]'));
+    await chooseOption(body(), '[data-testid="promote-dataset"]', "Regression");
+    await chooseOption(body(), '[data-testid="promote-config"]', "Expected output: the reply that was reviewed (unless I typed one)");
+    await flushPromises();
+    await click(body().querySelector('[data-testid="promote-run"]'));
+    expect(promoted).toEqual([{ items: [{ traceId: "trace-ok", useObservedOutput: true, queueId: "q-1" }] }]);
   });
 
   it("links each row to the dataset that already holds an item promoted from it", async () => {

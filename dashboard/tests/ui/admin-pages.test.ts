@@ -5,14 +5,14 @@ import { defineComponent, h } from "vue";
 import { describe, expect, it } from "vitest";
 import { createMemoryHistory, createRouter } from "vue-router";
 import { IDENTITY_API, TRACE_API } from "@/dependency-container";
-import type { ExperimentDto, OrganizationDto } from "@/application/identity-api";
+import { EMPTY_THEME, type ExperimentDto, type OrganizationDto } from "@/application/identity-api";
 import AdminHomePage from "@/ui/pages/admin/AdminHomePage.vue";
 import AdminOrganizationPage from "@/ui/pages/admin/AdminOrganizationPage.vue";
 import AdminExperimentPage from "@/ui/pages/admin/AdminExperimentPage.vue";
 import { chooseOption, optionLabels } from "./select";
 import { FakeIdentityApi, FakeTraceApi } from "../fakes";
 
-const THEME = { accentColor: null, radiusPreset: null };
+const THEME = EMPTY_THEME;
 
 class AdminFakeIdentityApi extends FakeIdentityApi {
   constructor(

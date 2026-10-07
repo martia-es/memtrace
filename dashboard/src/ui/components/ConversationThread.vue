@@ -77,6 +77,7 @@ defineProps<{ turns: Turn[]; answerLabel?: string }>();
 .turn.answer {
   max-width: 90%;
 }
+.turn.assistant p,
 .turn.answer p {
   background: var(--mt-accent-tint);
   border-color: var(--mt-accent-soft);

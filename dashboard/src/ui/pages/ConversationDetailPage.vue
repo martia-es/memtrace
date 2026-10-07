@@ -15,12 +15,14 @@ import { useAsync } from "../composables/useAsync";
 import { useFilters } from "../composables/useFilters";
 import { useLiveRefresh } from "../composables/useLiveRefresh";
 import { useTraceApi } from "../composables/useTraceApi";
+import { useExperimentRepo } from "../composables/useExperimentRepo";
 
 const props = defineProps<{ conversationId: string }>();
 const api = useTraceApi();
 const router = useRouter();
 const route = useRoute();
 const experimentId = computed(() => route.params.experimentId as string);
+const repo = useExperimentRepo(experimentId);
 const f = useFilters();
 
 const PAGE = 100;
@@ -145,7 +147,7 @@ const backToList = () => void router.push({ name: "conversations", params: { exp
       </header>
 
       <section v-if="view === 'table'" class="mt-card list" aria-label="Conversation traces">
-        <TraceTable v-if="traces.length" :items="traces" :labels="labels" annotatable @open="openTrace" @annotate="annotatingTrace = $event" />
+        <TraceTable v-if="traces.length" :items="traces" :labels="labels" :repo="repo" annotatable @open="openTrace" @annotate="annotatingTrace = $event" />
         <p v-else class="muted empty">This conversation has no traces to show.</p>
         <button v-if="cursor" type="button" class="more" :disabled="more.loading.value" @click="loadMore">{{ more.loading.value ? "Loading…" : "Load more traces" }}</button>
         <ErrorBanner v-if="more.error.value" :error="more.error.value" @retry="loadMore" />

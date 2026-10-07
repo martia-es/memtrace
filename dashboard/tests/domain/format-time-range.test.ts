@@ -51,3 +51,12 @@ describe("time range", () => {
     expect(isRangeKey("2h")).toBe(false);
   });
 });
+
+describe("shortRevision (ADR-065)", () => {
+  it("shows 7 characters, or a dash when the trace has no version", async () => {
+    const { shortRevision } = await import("@/domain/format");
+    expect(shortRevision("3a08213f9b1c2d4e5f60718293a4b5c6d7e8f901")).toBe("3a08213");
+    expect(shortRevision(null)).toBe("–");
+    expect(shortRevision(undefined)).toBe("–");
+  });
+});

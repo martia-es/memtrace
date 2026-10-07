@@ -219,6 +219,16 @@ function single(label: string, value: unknown): IoBlock[] {
   return [{ label, text, structured, role: "other", calls: [] }];
 }
 
+/** A flat object of simple values (what `@trace_step` records: `{"message": "..."}`) as one labelled block per key.
+ * Nested values keep the generic JSON rendering; the JSON tab always shows the raw data. */
+function fromFlatObject(value: unknown): IoBlock[] | null {
+  const obj = typeof value === "string" && value.trimStart().startsWith("{") ? asObject(value) : value;
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return null;
+  const entries = Object.entries(obj as Record<string, unknown>);
+  if (entries.length === 0 || entries.some(([, v]) => v !== null && typeof v === "object")) return null;
+  return entries.map(([key, v]) => ({ label: key, text: v === null ? "null" : String(v), structured: false, role: "other", calls: [] }));
+}
+
 function messagesIn(value: unknown): unknown {
   const obj = typeof value === "string" && value.trimStart().startsWith("{") ? asObject(value) : value;
   return obj && typeof obj === "object" && "messages" in obj ? (obj as { messages: unknown }).messages : undefined;
@@ -242,12 +252,13 @@ export function spanIo(node: SpanNodeDto): SpanIo {
       if (Array.isArray(parsed) && parsed.length > 0) {
         const blocks = fromMessages(parsed) ?? [];
         if (blocks.length > 0) {
-          const userBlocks = blocks.filter((b) => b.role === "user" || b.role === "system");
-          const nonUserBlocks = blocks.filter((b) => b.role !== "user" && b.role !== "system");
+          // input = the history up to the user's last message, output = what the agent did after it: both keep the real order
+          const lastUser = blocks.map((b) => b.role).lastIndexOf("user");
+          const split = lastUser >= 0 && lastUser < blocks.length - 1 ? lastUser + 1 : Math.max(1, blocks.length - 1);
           return {
             ordered: blocks,
-            input: userBlocks.length > 0 ? userBlocks : [blocks[0]!],
-            output: nonUserBlocks.length > 0 ? nonUserBlocks : blocks.slice(1),
+            input: blocks.slice(0, split),
+            output: blocks.slice(split),
             inputJson: pretty(parsed),
             outputJson: pretty(parsed),
           };
@@ -263,7 +274,7 @@ export function spanIo(node: SpanNodeDto): SpanIo {
   const pick = (messages: unknown, tool: unknown, generic: unknown, toolLabel: string, genericLabel: string) => {
     if (messages !== undefined) return { blocks: fromMessages(messages) ?? single("messages", messages), raw: messages };
     if (tool !== undefined) return { blocks: single(toolLabel, tool), raw: tool };
-    if (generic !== undefined) return { blocks: fromMessages(messagesIn(generic)) ?? single(genericLabel, generic), raw: generic };
+    if (generic !== undefined) return { blocks: fromMessages(messagesIn(generic)) ?? fromFlatObject(generic) ?? single(genericLabel, generic), raw: generic };
     return { blocks: [], raw: undefined };
   };
   const input = pick(c.inputMessages, c.toolArguments, c.input, "arguments", "input");

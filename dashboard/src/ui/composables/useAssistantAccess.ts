@@ -18,7 +18,8 @@ export function useAssistantAccess(experimentId: MaybeRefOrGetter<string>) {
   const governs = computed(() => hasPermission(experiment.value, "governance:manage") || (organizations.data.value ?? []).some((o) => hasPermission(o, "governance:manage")));
   const canGovern = computed(() => governs.value);
   const canManage = computed(() => governs.value || hasPermission(experiment.value, "assistant:manage"));
+  const canDeploy = computed(() => governs.value || hasPermission(experiment.value, "deploy:run"));
   // quién forma parte del agente se elige en los miembros del experimento (Settings): hace falta `member:manage`
   const canManagePeople = computed(() => hasPermission(experiment.value, "member:manage"));
-  return { canManage, canGovern, canManagePeople, loading: computed(() => experiments.loading.value || organizations.loading.value) };
+  return { canManage, canGovern, canDeploy, canManagePeople, loading: computed(() => experiments.loading.value || organizations.loading.value) };
 }

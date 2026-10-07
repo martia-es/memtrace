@@ -4,7 +4,7 @@ import { computed, reactive, ref } from "vue";
 import { useQuasar } from "quasar";
 import type { ScoreConfigDto } from "@contract";
 import { useIdentityApi } from "../composables/useIdentityApi";
-import { parseCategories } from "../score-config-form";
+import { parseCategories, parseTargetPercent } from "../score-config-form";
 import Modal from "./Modal.vue";
 import Select from "./Select.vue";
 
@@ -22,12 +22,13 @@ const TYPE_OPTIONS = [
 ];
 
 const saving = ref(false);
-const form = reactive({ name: "", dataType: "numeric" as ScoreConfigDto["dataType"], min: "1", max: "5", categories: "", description: "" });
+const form = reactive({ name: "", dataType: "numeric" as ScoreConfigDto["dataType"], min: "1", max: "5", categories: "", target: "", description: "" });
 
 const canCreate = computed(() => {
   if (!form.name.trim()) return false;
   if (form.dataType === "numeric") return form.min.trim() !== "" && form.max.trim() !== "" && Number(form.min) < Number(form.max);
   if (form.dataType === "categorical") return parseCategories(form.categories).length >= 2;
+  if (form.dataType === "boolean") return !Number.isNaN(parseTargetPercent(form.target));
   return true;
 });
 
@@ -40,6 +41,7 @@ async function create() {
       minValue: form.dataType === "numeric" ? Number(form.min) : null,
       maxValue: form.dataType === "numeric" ? Number(form.max) : null,
       categories: form.dataType === "categorical" ? parseCategories(form.categories) : null,
+      targetPassRate: form.dataType === "boolean" ? parseTargetPercent(form.target) : null,
       description: form.description.trim() || null,
     });
     emit("created", config);
@@ -62,6 +64,10 @@ async function create() {
         <TextInput v-model="form.min" type="number" step="any" placeholder="Min" />
         <TextInput v-model="form.max" type="number" step="any" placeholder="Max" />
       </div>
+      <template v-if="form.dataType === 'boolean'">
+        <TextInput v-model="form.target" type="number" step="any" min="1" max="100" placeholder="Target pass rate in % (optional, default 80)" />
+        <p class="hint">Evaluators with this name are judged against this target in Evaluations → Trends.</p>
+      </template>
       <template v-if="form.dataType === 'categorical'">
         <TextInput multiline v-model="form.categories" :rows="4" placeholder="One category per line (at least 2)&#10;bad=0&#10;ok=1&#10;good=2" />
         <p class="hint">Optional <code>=number</code> after a label gives it a value, used for correlation with judge scores.</p>

@@ -53,6 +53,11 @@ export function shortId(id: string): string {
   return id.slice(0, 8);
 }
 
+/** SHA corto de un commit (7 caracteres, como en git); "–" si la traza no lleva versión (ADR-065). */
+export function shortRevision(revision: string | null | undefined): string {
+  return revision ? revision.slice(0, 7) : "–";
+}
+
 const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 /** Precios de un único span suelen ser fracciones de centavo: más decimales para no redondear a $0.00. */
 const usdPrecise = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 4, maximumFractionDigits: 6 });

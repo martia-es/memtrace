@@ -44,3 +44,14 @@ export function valueChoices(config: Pick<ScoreConfigDto, "dataType" | "minValue
   if (config.dataType === "categorical") return (config.categories ?? []).map((c) => ({ value: c.label, label: c.label }));
   return numericChoices(config)?.map((n) => ({ value: String(n), label: String(n) })) ?? null;
 }
+
+/** Porcentaje escrito en el formulario ("90") → fracción 0-1 para la API; vacío = sin objetivo propio. NaN si no es válido. */
+export function parseTargetPercent(text: string): number | null {
+  if (text.trim() === "") return null;
+  const n = Number(text);
+  return Number.isFinite(n) && n > 0 && n <= 100 ? n / 100 : NaN;
+}
+
+export function formatTargetPercent(target: number | null): string {
+  return target === null ? "" : String(Math.round(target * 1000) / 10);
+}

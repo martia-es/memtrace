@@ -1,13 +1,16 @@
 import type { ScoreAggregateDto } from "@contract";
 import { formatPercent } from "./format";
 
-/** Umbral compartido por las tarjetas KPI y las pills: ≥80% ok, <50% mal, si no aviso. */
+/** Objetivo de pass rate cuando el evaluador no tiene score config con `targetPassRate` propio (ADR-060). */
+export const DEFAULT_TARGET_PASS_RATE = 0.8;
+
+/** Umbral compartido por las tarjetas KPI y las pills: ≥objetivo ok, <50% (o el objetivo, si es menor) mal, si no aviso. */
 export type AggregateTone = "positive" | "warning" | "negative" | "default";
 
-export function aggregateTone(a: ScoreAggregateDto): AggregateTone {
+export function aggregateTone(a: ScoreAggregateDto, target: number = DEFAULT_TARGET_PASS_RATE): AggregateTone {
   if (a.passRate === null) return "default";
-  if (a.passRate >= 0.8) return "positive";
-  if (a.passRate < 0.5) return "negative";
+  if (a.passRate >= target) return "positive";
+  if (a.passRate < Math.min(0.5, target)) return "negative";
   return "warning";
 }
 

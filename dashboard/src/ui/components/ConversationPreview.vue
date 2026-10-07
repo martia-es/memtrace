@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { onBeforeUnmount, ref } from "vue";
+import TraceTimeline from "./TraceTimeline.vue";
+
 /**
  * Panel de vista previa de la lista de Conversations (ADR-048): permite leer una conversación o una traza sin
  * salir de la lista. Es presentacional: la página decide qué cargar y qué mostrar.
@@ -6,6 +9,8 @@
 export interface PreviewMessage {
   role: "user" | "assistant";
   text: string;
+  /** trace of the turn this assistant reply belongs to: its timeline is shown under the reply */
+  traceId?: string;
 }
 export interface PreviewStat {
   k: string;
@@ -27,10 +32,75 @@ defineProps<{
   showActions?: boolean;
 }>();
 defineEmits<{ open: []; close: []; annotate: []; addToQueue: []; addToDataset: [] }>();
+
+// The panel can be widened by dragging its left edge (or with the arrow keys); the width is remembered per browser.
+const DEFAULT_WIDTH = 500;
+const MIN_WIDTH = 400;
+const STORAGE_KEY = "mt.preview.width";
+const maxWidth = () => Math.max(MIN_WIDTH, Math.min(1100, Math.round(window.innerWidth * 0.75)));
+const clampWidth = (w: number) => Math.min(Math.max(Math.round(w), MIN_WIDTH), maxWidth());
+const stored = (() => {
+  try {
+    const n = Number(localStorage.getItem(STORAGE_KEY));
+    return Number.isFinite(n) && n > 0 ? clampWidth(n) : DEFAULT_WIDTH;
+  } catch {
+    return DEFAULT_WIDTH;
+  }
+})();
+const width = ref(stored);
+const dragging = ref(false);
+function remember() {
+  try {
+    localStorage.setItem(STORAGE_KEY, String(width.value));
+  } catch {
+    /* private mode: the width just is not remembered */
+  }
+}
+let startX = 0;
+let startWidth = 0;
+const onMove = (e: PointerEvent) => (width.value = clampWidth(startWidth + (startX - e.clientX)));
+function stopDrag() {
+  if (!dragging.value) return;
+  dragging.value = false;
+  window.removeEventListener("pointermove", onMove);
+  window.removeEventListener("pointerup", stopDrag);
+  remember();
+}
+function startDrag(e: PointerEvent) {
+  startX = e.clientX;
+  startWidth = width.value;
+  dragging.value = true;
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", stopDrag);
+}
+function nudge(delta: number) {
+  width.value = clampWidth(width.value + delta);
+  remember();
+}
+function reset() {
+  width.value = DEFAULT_WIDTH;
+  remember();
+}
+onBeforeUnmount(stopDrag);
 </script>
 
 <template>
-  <aside class="preview mt-card" aria-label="Preview">
+  <aside class="preview mt-card" :class="{ dragging }" :style="{ width: `${width}px` }" aria-label="Preview">
+    <div
+      class="resize"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize preview"
+      :aria-valuenow="width"
+      :aria-valuemin="MIN_WIDTH"
+      tabindex="0"
+      title="Drag to resize · double-click to reset"
+      data-testid="preview-resize"
+      @pointerdown.prevent="startDrag"
+      @dblclick="reset"
+      @keydown.left.prevent="nudge(40)"
+      @keydown.right.prevent="nudge(-40)"
+    />
     <header class="head">
       <div class="head-top">
         <span class="eyebrow">PREVIEW</span>
@@ -47,6 +117,7 @@ defineEmits<{ open: []; close: []; annotate: []; addToQueue: []; addToDataset: [
         <div v-for="(m, i) in messages" :key="i" class="bubble" :class="m.role">
           <span class="who">{{ m.role === "user" ? "USER" : "ASSISTANT" }}</span>
           <p>{{ m.text }}</p>
+          <TraceTimeline v-if="m.role === 'assistant' && m.traceId" :key="m.traceId" :trace-id="m.traceId" />
         </div>
       </template>
       <p v-else class="state muted">{{ emptyHint ?? "No content was captured for this item." }}</p>
@@ -68,13 +139,32 @@ defineEmits<{ open: []; close: []; annotate: []; addToQueue: []; addToDataset: [
 
 <style scoped>
 .preview {
-  width: 400px;
+  position: relative;
   flex-shrink: 0;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   border-radius: var(--mt-radius-lg);
+}
+.resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 2;
+  width: 6px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.resize:hover,
+.resize:focus-visible,
+.dragging .resize {
+  background: var(--mt-accent-soft);
+  outline: none;
+}
+.dragging {
+  user-select: none;
 }
 .head {
   display: flex;
@@ -144,6 +234,13 @@ defineEmits<{ open: []; close: []; annotate: []; addToQueue: []; addToDataset: [
   flex-direction: column;
   gap: 4px;
   max-width: 90%;
+}
+.bubble.assistant {
+  max-width: 100%;
+}
+.bubble.assistant p {
+  align-self: flex-start;
+  max-width: 92%;
 }
 .bubble.user {
   align-self: flex-end;

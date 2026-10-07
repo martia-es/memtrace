@@ -5,6 +5,7 @@ export const PALETTE = {
   deepSea: "#0a5c8f",
   sun: "#c9971f",
   slate: "#64748b",
+  indigo: "#818cf8", // guardarraíles
   ink: "#4d6a67", // agentes (neutro)
   mist: "#8fa3a0", // desconocido
 } as const;
@@ -16,6 +17,7 @@ export const SPAN_COLORS = {
   chain: PALETTE.deepSea,
   retriever: PALETTE.sun,
   embedding: PALETTE.slate,
+  guardrail: PALETTE.indigo,
   unknown: PALETTE.mist,
 } as const;
 

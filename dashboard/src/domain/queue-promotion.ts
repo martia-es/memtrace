@@ -34,11 +34,15 @@ export function expectedOutputFor(row: QueueResultItemDto, reference?: Pick<Scor
   return finalValue(row, reference.id, reference) ?? undefined;
 }
 
-/** Cuerpos para `from-traces`: solo las filas listas, en tandas de `PROMOTE_BATCH_SIZE`. `queueId` deja la cola de origen en `promotedFrom`. */
-export function promotionBatches(rows: QueueResultItemDto[], reference?: Pick<ScoreConfigDto, "id" | "dataType">, queueId?: string): PromoteTracesBody[] {
+/**
+ * Cuerpos para `from-traces`: solo las filas listas, en tandas de `PROMOTE_BATCH_SIZE`. `queueId` deja la cola de origen en `promotedFrom`.
+ * Con `useReply`, las filas sin respuesta escrita piden al servidor la respuesta del agente que se revisó (ADR-061).
+ */
+export function promotionBatches(rows: QueueResultItemDto[], reference?: Pick<ScoreConfigDto, "id" | "dataType">, queueId?: string, useReply = false): PromoteTracesBody[] {
   const items = [...new Map(rows.filter((r) => rowReadiness(r) === "ready").map((r) => [r.traceId!, r])).values()].map((r) => {
-    const expectedOutput = expectedOutputFor(r, reference);
-    return { traceId: r.traceId!, ...(expectedOutput !== undefined ? { expectedOutput } : {}), ...(queueId ? { queueId } : {}) };
+    const expectedOutput = expectedOutputFor(r, useReply ? undefined : reference);
+    const fromReply = useReply && expectedOutput === undefined;
+    return { traceId: r.traceId!, ...(expectedOutput !== undefined ? { expectedOutput } : {}), ...(fromReply ? { useObservedOutput: true } : {}), ...(queueId ? { queueId } : {}) };
   });
   const batches: PromoteTracesBody[] = [];
   for (let i = 0; i < items.length; i += PROMOTE_BATCH_SIZE) batches.push({ items: items.slice(i, i + PROMOTE_BATCH_SIZE) });

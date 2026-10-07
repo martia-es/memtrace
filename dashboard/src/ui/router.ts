@@ -17,6 +17,8 @@ export const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: "/login", name: "login", component: () => import("./pages/LoginPage.vue"), meta: { title: "Login", bare: true, public: true } },
+    // chat del asistente a pantalla completa, en su propia pestaña (ADR-063): requiere sesión pero no lleva sidebar
+    { path: "/assistant", name: "assistant-fullscreen", component: () => import("./pages/AssistantFullscreenPage.vue"), meta: { title: "Assistant", bare: true } },
     // nunca se renderiza: beforeEach siempre la resuelve a /e/:id/conversations o /admin
     { path: "/", name: "home", component: { render: () => null } },
     // área de administración (ADR-037): organización → experimento, con una pestaña por paso de configuración

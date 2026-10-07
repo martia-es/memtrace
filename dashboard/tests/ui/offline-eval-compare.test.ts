@@ -4,7 +4,7 @@ import { datasetChangeFor, evaluatorDeltas, itemFlips, pairItems, percentile, su
 
 const bool = (name: string, value: boolean): ScoreDto => ({ name, value: String(value), dataType: "boolean", source: "code", comment: null });
 const item = (itemIndex: number, input: unknown, scores: ScoreDto[] = [], traceId: string | null = null): DatasetRunItemResultDto => ({ itemIndex, input, expectedOutput: null, output: null, traceId, error: null, scores, telemetry: null });
-const summary = (aggregates: DatasetRunSummaryDto["aggregates"]): DatasetRunSummaryDto => ({ id: "r", name: "r", versionMajor: 1, versionMinor: 0, itemCount: 1, status: "completed", createdAt: "2026-01-01T00:00:00Z", aggregates });
+const summary = (aggregates: DatasetRunSummaryDto["aggregates"]): DatasetRunSummaryDto => ({ id: "r", name: "r", versionMajor: 1, versionMinor: 0, itemCount: 1, status: "completed", createdAt: "2026-01-01T00:00:00Z", revision: null, revisionDirty: null, aggregates });
 
 describe("pairItems", () => {
   it("pairs by input content regardless of index and reports unmatched sides", () => {

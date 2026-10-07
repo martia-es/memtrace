@@ -32,6 +32,16 @@ describe("queue promotion from Results (ADR-050)", () => {
     expect(expectedOutputFor(row(), { id: "c1", dataType: "numeric" })).toBeUndefined();
   });
 
+  it("asks for the reviewed reply only on rows without a typed answer", () => {
+    const typed = row({ id: "a", traceId: "a", criteria: [criterion({ resolution: { value: "good", expectedOutput: "Hoy no llueve", resolvedBy: "u", resolvedAt: "" } })] });
+    const plain = row({ id: "b", traceId: "b" });
+    const [batch] = promotionBatches([typed, plain], categorical, "q1", true);
+    expect(batch!.items).toEqual([
+      { traceId: "a", expectedOutput: "Hoy no llueve", queueId: "q1" },
+      { traceId: "b", useObservedOutput: true, queueId: "q1" },
+    ]);
+  });
+
   it("promotes only ready rows, once per trace, in batches of 100 with the expected output", () => {
     const rows = Array.from({ length: 250 }, (_, i) => row({ id: `i${i}`, traceId: `t${i}` }));
     const batches = promotionBatches([...rows, row({ id: "dup", traceId: "t0" }), row({ id: "p", traceId: "p", status: "pending" }), row({ id: "d", traceId: "d", needsResolution: true })], categorical);

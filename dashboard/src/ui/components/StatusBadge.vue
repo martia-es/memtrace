@@ -12,7 +12,8 @@ const chip = computed(() => {
     case "error":
       return { tone: "error" as const, label: "Error" };
     default:
-      return { tone: "neutral" as const, label: "Unset" };
+      // OTel "unset": la instrumentación (p. ej. Pydantic AI) no marcó el span; sin error, terminó bien
+      return { tone: "ok" as const, label: "OK" };
   }
 });
 </script>

@@ -4,6 +4,15 @@ export interface ChatMessage {
   id: number;
   role: "user" | "agent" | "error";
   text: string;
+  /** traza de la respuesta (solo si el agente declara dónde viene): permite votar 👍/👎 (ADR-062) */
+  traceId?: string | null;
+  /** voto de quien prueba el chat sobre esta respuesta; null/ausente = sin votar */
+  vote?: 1 | -1 | null;
+}
+
+/** Al pulsar el mismo botón otra vez se retira el voto; el otro botón lo cambia. */
+export function nextVote(current: 1 | -1 | null | undefined, clicked: 1 | -1): 1 | -1 | null {
+  return current === clicked ? null : clicked;
 }
 
 /** Texto listo para enviar, o null si no hay nada que enviar. */

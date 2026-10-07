@@ -1,10 +1,10 @@
 import { DOMWrapper, flushPromises, mount } from "@vue/test-utils";
 import { Dark, Notify, QLayout, QPageContainer, Quasar } from "quasar";
 import { defineComponent, h } from "vue";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { createMemoryHistory, createRouter } from "vue-router";
 import { ASSISTANT_API, IDENTITY_API, TRACE_API } from "@/dependency-container";
-import type { ExperimentDto, OrganizationDto } from "@/application/identity-api";
+import { EMPTY_THEME, type ExperimentDto, type OrganizationDto } from "@/application/identity-api";
 import AssistantsPage from "@/ui/pages/AssistantsPage.vue";
 import AssistantDetailPage from "@/ui/pages/AssistantDetailPage.vue";
 import AssistantChatDock from "@/ui/components/AssistantChatDock.vue";
@@ -13,7 +13,7 @@ import { permissionsOf } from "../permissions";
 import { chooseOption } from "./select";
 import { FakeAssistantApi, FakeIdentityApi, FakeTraceApi, assistantCard, connectionDto, deploymentDto } from "../fakes";
 
-const THEME = { accentColor: null, radiusPreset: null };
+const THEME = EMPTY_THEME;
 const org = (role: string): OrganizationDto => ({ id: "org-1", name: "Acme", myRole: role === "org_admin" ? "org_admin" : null, permissions: permissionsOf(role), theme: THEME });
 const exp = (role: string): ExperimentDto => ({ id: "exp-1", organizationId: "org-1", name: "weather", serviceName: "weather-assistant", myRole: role, permissions: permissionsOf(role), organizationTheme: THEME });
 
@@ -276,7 +276,7 @@ describe("assistant detail (ADR-053)", () => {
 });
 
 describe("chat with an agent (ADR-055)", () => {
-  const chat = { path: "/api/chat", requestField: "message", responseField: "reply", sessionField: "session_id" };
+  const chat = { path: "/api/chat", requestField: "message", responseField: "reply", sessionField: "session_id", traceIdField: null };
   const open = (key: string) => deploymentDto(key, "up", { authMethod: "none" });
   const owner = () => new Identity([org("technical")], [exp("technical")]);
 
@@ -336,6 +336,34 @@ describe("chat with an agent (ADR-055)", () => {
     useChatDock().close();
   });
 
+  it("offers thumbs only when the agent returns the trace id, and saves the vote on that trace (ADR-062)", async () => {
+    const trace = "0af7651916cd43dd8448eb211c80319c";
+    const api = new FakeAssistantApi();
+    useChatDock().open({ experimentId: "exp-1", deploymentId: "dep-dev", agentName: "weather-assistant", environmentLabel: "DEV" });
+    const dock = await setup(AssistantChatDock, "/assistants/exp-1", api, owner());
+    const ask = async (text: string) => {
+      await dock.wrapper.get("[data-testid='chat-input']").setValue(text);
+      await dock.wrapper.get("[data-testid='chat-send']").trigger("click");
+      await flushPromises();
+    };
+
+    await ask("sin traza");
+    expect(dock.wrapper.find("[data-testid='vote-up']").exists()).toBe(false);
+
+    api.chatTraceId = trace;
+    await ask("con traza");
+    await dock.wrapper.get("[data-testid='vote-down']").trigger("click");
+    await flushPromises();
+    expect(api.calls.filter((c) => c.method === "sendFeedback").map((c) => c.args)).toEqual([["exp-1", trace, -1]]);
+    expect(dock.wrapper.get("[data-testid='vote-down']").classes()).toContain("on");
+
+    await dock.wrapper.get("[data-testid='vote-up']").trigger("click"); // cambiar de opinión
+    await flushPromises();
+    expect(api.calls.filter((c) => c.method === "sendFeedback").map((c) => c.args[2])).toEqual([-1, 1]);
+    expect(dock.wrapper.get("[data-testid='vote-up']").classes()).toContain("on");
+    useChatDock().close();
+  });
+
   it("maximizes the dock into a full-screen popup and restores it", async () => {
     useChatDock().open({ experimentId: "exp-1", deploymentId: "dep-dev", agentName: "weather-assistant", environmentLabel: "DEV" });
     const dock = await setup(AssistantChatDock, "/assistants/exp-1", new FakeAssistantApi(), owner());
@@ -346,5 +374,88 @@ describe("chat with an agent (ADR-055)", () => {
     await dock.wrapper.get("[data-testid='chat-maximize']").trigger("click");
     expect(dock.wrapper.get("[data-testid='chat-dock']").classes()).not.toContain("max");
     useChatDock().close();
+  });
+});
+
+describe("deploy from MemTrace (ADR-064)", () => {
+  beforeEach(() => void (document.body.innerHTML = "")); // los modales de otros tests quedan en el body
+  const repo = { url: "https://github.com/acme/weather", provider: "github" as const, deployWorkflow: "deploy.yml" };
+  const card = (over = {}) => assistantCard({ repo, deployments: [deploymentDto("pro", "up", { deployRef: "main" })], ...over });
+  const technical = () => new Identity([org("technical")], [{ ...exp("technical"), permissions: permissionsOf("technical") }]);
+
+  it("offers Deploy only with a repository, a workflow and a branch for the environment", async () => {
+    const full = new FakeAssistantApi();
+    full.card = card();
+    expect((await setup(AssistantDetailPage, "/assistants/exp-1", full, technical(), { experimentId: "exp-1" })).wrapper.find("[data-testid='deploy']").exists()).toBe(true);
+
+    for (const missing of [{ repo: null }, { repo: { ...repo, deployWorkflow: null } }, { deployments: [deploymentDto("pro", "up")] }, { repo: { ...repo, provider: "gitlab" as const, url: "https://gitlab.com/a/b" } }]) {
+      const api = new FakeAssistantApi();
+      api.card = card(missing);
+      expect((await setup(AssistantDetailPage, "/assistants/exp-1", api, technical(), { experimentId: "exp-1" })).wrapper.find("[data-testid='deploy']").exists()).toBe(false);
+    }
+  });
+
+  it("does not offer Deploy to someone without deploy:run", async () => {
+    const api = new FakeAssistantApi();
+    api.card = card();
+    const business = new Identity([org("business")], [{ ...exp("business"), permissions: permissionsOf("business") }]);
+    expect((await setup(AssistantDetailPage, "/assistants/exp-1", api, business, { experimentId: "exp-1" })).wrapper.find("[data-testid='deploy']").exists()).toBe(false);
+  });
+
+  it("shows the commit and the verdict, and deploys when the evaluation passed", async () => {
+    const api = new FakeAssistantApi();
+    api.card = card();
+    const { wrapper } = await setup(AssistantDetailPage, "/assistants/exp-1", api, technical(), { experimentId: "exp-1" });
+    await wrapper.get("[data-testid='deploy']").trigger("click");
+    await flushPromises();
+    const modal = new DOMWrapper(document.body).get("[data-testid='deploy-modal']");
+    expect(modal.text()).toContain("3a08213");
+    expect(modal.get("[data-testid='gate-verdict']").text()).toBe("Evaluation passed");
+    await modal.get("[data-testid='deploy-confirm']").trigger("click");
+    await flushPromises();
+    expect(api.calls.find((c) => c.method === "deploy")?.args).toEqual(["exp-1", "dep-pro", null]);
+  });
+
+  it("blocks a commit that was not evaluated, and says what to do", async () => {
+    const api = new FakeAssistantApi();
+    api.card = card();
+    api.preview = { ref: "main", sha: "3a08213f9b1c2d4e5f60718293a4b5c6d7e8f901", environment: "pro", gate: { allowed: false, verdict: "no_evaluation", sha: "3a08213f9b1c2d4e5f60718293a4b5c6d7e8f901", requiredRuns: 1, reason: "No offline evaluation was run on this commit.", runs: [] } };
+    const { wrapper } = await setup(AssistantDetailPage, "/assistants/exp-1", api, technical(), { experimentId: "exp-1" });
+    await wrapper.get("[data-testid='deploy']").trigger("click");
+    await flushPromises();
+    const modal = new DOMWrapper(document.body).get("[data-testid='deploy-modal']");
+    expect(modal.get("[data-testid='gate-verdict']").text()).toBe("Not evaluated");
+    expect(modal.text()).toContain("No offline evaluation");
+    expect((modal.get("[data-testid='deploy-confirm']").element as HTMLButtonElement).disabled).toBe(true);
+    expect(modal.find("[data-testid='bypass-toggle']").exists()).toBe(false); // un técnico no puede saltarse el gate
+  });
+
+  it("lets governance skip the gate only with a written reason", async () => {
+    const api = new FakeAssistantApi();
+    api.card = card();
+    api.preview = { ref: "main", sha: "3a08213f9b1c2d4e5f60718293a4b5c6d7e8f901", environment: "pro", gate: { allowed: false, verdict: "failed", sha: "3a08213f9b1c2d4e5f60718293a4b5c6d7e8f901", requiredRuns: 1, reason: "The evaluation does not pass.", runs: [{ runId: "r1", name: "weather", passed: false, failures: [{ evaluator: "exact_match", passRate: 0.6, target: 0.8 }] }] } };
+    const { wrapper } = await setup(AssistantDetailPage, "/assistants/exp-1", api, new Identity([org("org_admin")], [{ ...exp("technical"), permissions: [...permissionsOf("technical"), "governance:manage"] }]), { experimentId: "exp-1" });
+    await wrapper.get("[data-testid='deploy']").trigger("click");
+    await flushPromises();
+    const modal = new DOMWrapper(document.body).get("[data-testid='deploy-modal']");
+    expect(modal.text()).toContain("exact_match");
+    expect(modal.text()).toContain("60%");
+    const confirm = () => modal.get("[data-testid='deploy-confirm']").element as HTMLButtonElement;
+    expect(confirm().disabled).toBe(true);
+    await modal.get("[data-testid='bypass-toggle']").setValue(true);
+    expect(confirm().disabled).toBe(true); // falta el motivo
+    await modal.get("[data-testid='bypass-reason'] textarea, textarea[data-testid='bypass-reason']").setValue("prod is down, hotfix");
+    expect(confirm().disabled).toBe(false);
+    await modal.get("[data-testid='deploy-confirm']").trigger("click");
+    await flushPromises();
+    expect(api.calls.find((c) => c.method === "deploy")?.args).toEqual(["exp-1", "dep-pro", "prod is down, hotfix"]);
+  });
+
+  it("shows the last deployment on the environment", async () => {
+    const api = new FakeAssistantApi();
+    api.card = card();
+    api.deploys = [{ id: "d1", deploymentId: "dep-pro", commitSha: "3a08213f9b1c2d4e5f60718293a4b5c6d7e8f901", ref: "main", requestedBy: "u1", status: "succeeded", gateVerdict: "allowed", gateBypassed: false, bypassReason: null, providerRunUrl: null, error: null, createdAt: "2026-10-05T11:00:00.000Z", finishedAt: "2026-10-05T11:05:00.000Z" }];
+    const { wrapper } = await setup(AssistantDetailPage, "/assistants/exp-1", api, technical(), { experimentId: "exp-1" });
+    expect(wrapper.get("[data-testid='deployment-pro']").text()).toMatch(/Deployed · 3a08213/);
   });
 });

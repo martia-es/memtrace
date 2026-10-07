@@ -8,10 +8,13 @@ import type {
   ConnectionDto,
   ConnectionKindDto,
   ConnectionStatusDto,
+  DeployPreviewDto,
+  DeployRunDto,
   DeploymentDto,
   EnvironmentDto,
   GrantSubjectTypeDto,
   HealthCheckDto,
+  RepoConfigDto,
 } from "@contract";
 
 /** Puerto de salida: registro de asistentes para gobernanza (ADR-053). Otro dominio que trazas e identidad. */
@@ -22,12 +25,15 @@ export interface AssistantPatchInput {
   lifecycle?: "active" | "retired";
   /** null quita el endpoint de chat */
   chat?: ChatConfigDto | null;
+  /** null quita el repositorio */
+  repo?: RepoConfigDto | null;
 }
 
 export interface DeploymentInput {
   apiUrl: string;
   healthUrl: string | null;
   version: string | null;
+  deployRef: string | null;
   authMethod: AuthMethodDto;
   authProvider: string | null;
   authAudience: string | null;
@@ -54,6 +60,13 @@ export interface AssistantApi {
   deleteDeployment(experimentId: string, deploymentId: string, signal?: AbortSignal): Promise<void>;
   /** Habla con el agente en un entorno, a través del proxy de la API (ADR-055). */
   chat(experimentId: string, deploymentId: string, message: string, sessionId: string | null, signal?: AbortSignal): Promise<ChatResponseDto>;
+  /** 👍 (1) / 👎 (-1) de quien prueba el chat sobre la traza de una respuesta (ADR-062). Con sesión, el voto es de quien está conectado. */
+  sendFeedback(experimentId: string, traceId: string, rating: 1 | -1, signal?: AbortSignal): Promise<void>;
+  /** Qué se desplegaría ahora en un entorno (rama → commit) y si el gate lo permite (ADR-064). */
+  previewDeploy(experimentId: string, deploymentId: string, signal?: AbortSignal): Promise<DeployPreviewDto>;
+  /** Dispara el CI del repo del agente. `bypassReason` solo para saltarse el gate (exige permiso de gobernanza). */
+  deploy(experimentId: string, deploymentId: string, bypassReason: string | null, signal?: AbortSignal): Promise<DeployRunDto>;
+  listDeploys(experimentId: string, deploymentId: string, signal?: AbortSignal): Promise<DeployRunDto[]>;
   /** Sondea /health ahora; si se comprobó hace menos de 10 s devuelve el estado actual. */
   checkDeploymentNow(experimentId: string, deploymentId: string, signal?: AbortSignal): Promise<DeploymentDto>;
   getHealthHistory(experimentId: string, deploymentId: string, hours: number, signal?: AbortSignal): Promise<HealthCheckDto[]>;

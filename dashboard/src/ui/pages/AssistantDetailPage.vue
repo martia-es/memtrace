@@ -9,6 +9,7 @@ import PersonAvatar from "../components/assistants/PersonAvatar.vue";
 import AssistantConnections from "../components/assistants/AssistantConnections.vue";
 import AssistantEnvironments from "../components/assistants/AssistantEnvironments.vue";
 import EditAssistantModal from "../components/assistants/EditAssistantModal.vue";
+import CiSetup from "../components/assistants/CiSetup.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import PageHeader from "../components/PageHeader.vue";
 import StatusChip from "../components/StatusChip.vue";
@@ -22,7 +23,7 @@ const REFRESH_MS = 30_000;
 const route = useRoute();
 const router = useRouter();
 const api = useAssistantApi();
-const { canManage, canGovern, canManagePeople } = useAssistantAccess(() => props.experimentId);
+const { canManage, canGovern, canDeploy, canManagePeople } = useAssistantAccess(() => props.experimentId);
 
 const card = useAsync((signal) => api.getAssistant(props.experimentId, signal));
 void card.run();
@@ -82,6 +83,10 @@ const editing = ref(false);
                 <router-link :to="{ name: 'overview', params: { experimentId } }" class="traces">Open traces →</router-link>
               </dd>
             </div>
+            <div v-if="card.data.value.repo" class="fact" data-testid="repo">
+              <dt>Repository</dt>
+              <dd><a :href="card.data.value.repo.url" target="_blank" rel="noopener noreferrer" class="mono">{{ card.data.value.repo.url.replace(/^https:\/\//, "") }}</a></dd>
+            </div>
             <div class="fact people" data-testid="people">
               <dt>People</dt>
               <dd>
@@ -100,8 +105,10 @@ const editing = ref(false);
         </div>
       </section>
 
+      <CiSetup :repo="card.data.value.repo" />
+
       <TabBar :tabs="tabs" :model-value="tab" @update:model-value="selectTab" />
-      <AssistantEnvironments v-if="tab === 'environments'" :card="card.data.value" :can-manage="canManage" :can-govern="canGovern" :now-ms="nowMs" @changed="card.run()" />
+      <AssistantEnvironments v-if="tab === 'environments'" :card="card.data.value" :can-manage="canManage" :can-govern="canGovern" :can-deploy="canDeploy" :now-ms="nowMs" @changed="card.run()" />
       <AssistantConnections v-else :card="card.data.value" :can-manage="canManage" :can-govern="canGovern" :now-ms="nowMs" @changed="card.run()" />
     </template>
 

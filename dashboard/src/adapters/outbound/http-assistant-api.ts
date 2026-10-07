@@ -1,4 +1,4 @@
-import type { AccessGrantDto, AssistantPersonDto, AssistantCardDto, ChatResponseDto, ConnectionDto, ConnectionKindDto, ConnectionStatusDto, DeploymentDto, EnvironmentDto, HealthCheckDto } from "@contract";
+import type { AccessGrantDto, AssistantPersonDto, AssistantCardDto, ChatResponseDto, ConnectionDto, ConnectionKindDto, ConnectionStatusDto, DeployPreviewDto, DeployRunDto, DeploymentDto, EnvironmentDto, HealthCheckDto } from "@contract";
 import type { AssistantApi, AssistantPatchInput, DeploymentInput, NewGrantInput } from "@/application/assistant-api";
 import { ApiError } from "@/application/trace-api";
 
@@ -36,6 +36,18 @@ export class HttpAssistantApi implements AssistantApi {
   }
   chat(experimentId: string, deploymentId: string, message: string, sessionId: string | null, signal?: AbortSignal): Promise<ChatResponseDto> {
     return this.request("POST", `${this.assistant(experimentId)}/deployments/${e(deploymentId)}/chat`, { message, sessionId }, signal);
+  }
+  async sendFeedback(experimentId: string, traceId: string, rating: 1 | -1, signal?: AbortSignal): Promise<void> {
+    await this.request("POST", `/api/v1/experiments/${e(experimentId)}/traces/${e(traceId)}/feedback`, { rating }, signal);
+  }
+  previewDeploy(experimentId: string, deploymentId: string, signal?: AbortSignal): Promise<DeployPreviewDto> {
+    return this.request("GET", `${this.assistant(experimentId)}/deployments/${e(deploymentId)}/deploy`, undefined, signal);
+  }
+  deploy(experimentId: string, deploymentId: string, bypassReason: string | null, signal?: AbortSignal): Promise<DeployRunDto> {
+    return this.request("POST", `${this.assistant(experimentId)}/deployments/${e(deploymentId)}/deploy`, { bypassReason }, signal);
+  }
+  async listDeploys(experimentId: string, deploymentId: string, signal?: AbortSignal): Promise<DeployRunDto[]> {
+    return (await this.request<{ items: DeployRunDto[] }>("GET", `${this.assistant(experimentId)}/deployments/${e(deploymentId)}/deploys?limit=5`, undefined, signal)).items;
   }
   checkDeploymentNow(experimentId: string, deploymentId: string, signal?: AbortSignal): Promise<DeploymentDto> {
     return this.request("POST", `${this.assistant(experimentId)}/deployments/${e(deploymentId)}/health/check`, undefined, signal);

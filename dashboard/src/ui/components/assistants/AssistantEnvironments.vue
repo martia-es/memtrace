@@ -4,16 +4,17 @@ import type { AssistantCardDto, DeploymentSummaryDto, EnvironmentDto } from "@co
 import { useAsync } from "../../composables/useAsync";
 import { useAssistantApi } from "../../composables/useAssistantApi";
 import { formatRelativeTime } from "@/domain/format";
-import { productionDeployment } from "@/domain/assistants";
+import { canDeploy as canDeployTo, productionDeployment } from "@/domain/assistants";
 import { canTalkTo } from "@/domain/chat-dock";
 import { useChatDock } from "../../composables/useChatDock";
 import EmptyState from "../EmptyState.vue";
 import AccessPanel from "./AccessPanel.vue";
 import DeploymentCard from "./DeploymentCard.vue";
 import DeploymentModal from "./DeploymentModal.vue";
+import DeployModal from "./DeployModal.vue";
 
 /** Pestaña «Environments» de la ficha: un despliegue por entorno y, debajo, quién puede llamar al seleccionado (ADR-053). */
-const props = defineProps<{ card: AssistantCardDto; canManage: boolean; canGovern: boolean; nowMs: number }>();
+const props = defineProps<{ card: AssistantCardDto; canManage: boolean; canGovern: boolean; canDeploy?: boolean; nowMs: number }>();
 const emit = defineEmits<{ changed: [] }>();
 
 const api = useAssistantApi();
@@ -26,6 +27,8 @@ const selected = computed<DeploymentSummaryDto | null>(
 );
 const free = computed<EnvironmentDto[]>(() => (environments.data.value ?? []).filter((e) => !props.card.deployments.some((d) => d.environment.key === e.key)));
 const modal = ref<{ deployment?: DeploymentSummaryDto } | null>(null);
+const deploying = ref<DeploymentSummaryDto | null>(null);
+const deployTick = ref(0);
 const chatDock = useChatDock();
 const talk = (d: DeploymentSummaryDto) =>
   chatDock.open({ experimentId: props.card.experimentId, deploymentId: d.id, agentName: props.card.name, environmentLabel: d.environment.label });
@@ -54,6 +57,9 @@ const lastCheck = computed(() => props.card.deployments.map((d) => d.healthCheck
           :now-ms="nowMs"
           :chat-path="card.chat?.path ?? null"
           :talkable="canTalkTo(card, d)"
+          :deployable="props.canDeploy === true && canDeployTo(card, d)"
+          :refresh-key="deployTick"
+          @deploy="deploying = d"
           @talk="talk(d)"
           @select="selectedId = d.id"
           @edit="modal = { deployment: d }"
@@ -62,6 +68,7 @@ const lastCheck = computed(() => props.card.deployments.map((d) => d.healthCheck
       </div>
       <AccessPanel v-if="selected" :experiment-id="card.experimentId" :deployment="selected" :can-govern="canGovern" :now-ms="nowMs" @changed="emit('changed')" />
     </template>
+    <DeployModal v-if="deploying" :experiment-id="card.experimentId" :deployment="deploying" :repo="card.repo" :can-bypass="canGovern" @close="deploying = null" @deployed="deployTick++" />
     <DeploymentModal v-if="modal" :experiment-id="card.experimentId" :deployment="modal.deployment" :environments="free" @close="modal = null" @saved="emit('changed')" />
   </div>
 </template>

@@ -221,7 +221,7 @@ describe("TraceDetailPage", () => {
     });
     const tool = node({ spanId: "c2", parentSpanId: "r", name: "tool.add_baggage", kind: "tool", offsetMs: 30, durationMs: 15, status: { code: "error", message: "TimeoutError: 30000 ms" }, content: { toolArguments: { bags: 1 } }, events: [{ name: "exception", time: "2026-09-26T12:00:00.040Z", attributes: { "exception.message": "boom" } }] });
     const root = node({ spanId: "r", name: "raiz", kind: "agent", durationMs: 50, children: [llm, tool] });
-    return { traceId: T, conversationId: "conv-3" as string | null, startTime: "2026-09-26T12:00:00.000Z", durationMs: 50, status: "ok" as const, spanCount: 3, errorCount: 1, totalTokens: 0, totalCostUsd: 0, truncated: false, framework: null, roots: [root] };
+    return { traceId: T, conversationId: "conv-3" as string | null, startTime: "2026-09-26T12:00:00.000Z", durationMs: 50, status: "ok" as const, spanCount: 3, errorCount: 1, totalTokens: 0, totalCostUsd: 0, truncated: false, framework: null, revision: null as string | null, roots: [root] };
   };
   const open = (path = `/traces/${T}`, tweak: (api: FakeTraceApi) => void = () => {}, role = "technical") => {
     const api = new FakeTraceApi();

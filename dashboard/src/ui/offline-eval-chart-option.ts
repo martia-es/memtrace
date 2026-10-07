@@ -1,10 +1,19 @@
 import type { RunListItemDto } from "@contract";
 import type { EChartsCoreOption } from "echarts/core";
-import { aggregateTone, judgeChanged, judgeSignature, type AggregateTone } from "@/domain/evaluation";
+import { aggregateTone, DEFAULT_TARGET_PASS_RATE, judgeChanged, judgeSignature, type AggregateTone } from "@/domain/evaluation";
 import { formatPercent } from "@/domain/format";
 import { chartColors } from "./chart-theme";
 
 export type OfflineMetricKind = "passRate" | "average";
+
+/** Objetivo de pass rate por nombre de evaluador (de sus score configs, ADR-060); los ausentes usan el valor por defecto. */
+export type EvaluatorTargets = Readonly<Record<string, number>>;
+
+export function targetFor(targets: EvaluatorTargets | undefined, name: string): number {
+  return targets?.[name] ?? DEFAULT_TARGET_PASS_RATE;
+}
+
+const pct = (v: number) => `${Math.round(v * 1000) / 10}%`;
 
 export interface OfflineSeries {
   name: string;
@@ -79,14 +88,16 @@ export function offlineRunLabel(r: RunListItemDto): string {
   return `${r.name} · v${r.versionMajor}.${r.versionMinor}`;
 }
 
-export function offlineEvalChartOption(runs: RunListItemDto[], series: OfflineSeries[], kind: OfflineMetricKind, isDark: boolean): EChartsCoreOption {
+export function offlineEvalChartOption(runs: RunListItemDto[], series: OfflineSeries[], kind: OfflineMetricKind, isDark: boolean, targets?: EvaluatorTargets): EChartsCoreOption {
   const c = chartColors(isDark);
   const isRate = kind === "passRate";
   const fmt = (v: number) => (isRate ? `${(v * 100).toFixed(1)} %` : v.toFixed(2));
+  // una línea de objetivo por valor distinto: evaluadores con el mismo objetivo comparten línea
+  const drawnTargets = new Set<number>();
   return {
     backgroundColor: "transparent",
     textStyle: { color: c.text },
-    grid: { left: 6, right: 12, top: 32, bottom: 6, containLabel: true },
+    grid: { left: 6, right: 56, top: 32, bottom: 6, containLabel: true },
     legend: { top: 0, textStyle: { color: c.text, fontSize: 11 } },
     tooltip: {
       trigger: "axis",
@@ -104,19 +115,24 @@ export function offlineEvalChartOption(runs: RunListItemDto[], series: OfflineSe
       axisLabel: { color: c.muted, fontSize: 11, formatter: (v: number) => (isRate ? `${Math.round(v * 100)} %` : String(v)) },
       splitLine: { lineStyle: { color: c.grid, type: "dashed" } },
     },
-    series: series.map((s, i) => ({
+    series: series.map((s, i) => {
+      const target = targetFor(targets, s.name);
+      const drawTarget = isRate && !drawnTargets.has(target);
+      if (drawTarget) drawnTargets.add(target);
+      return {
       name: s.name,
       type: "line",
       connectNulls: false,
       symbolSize: 7,
       lineStyle: { width: 2.5, color: c.series[i % c.series.length] },
       itemStyle: { color: c.series[i % c.series.length] },
-      ...(isRate && i === 0
-        ? { markLine: { silent: true, symbol: "none", label: { color: c.muted, fontSize: 10, formatter: "{c}" }, lineStyle: { color: c.ok, type: "dashed", opacity: 0.6 }, data: [{ yAxis: 0.8, label: { formatter: "80% target" } }] } }
+      ...(drawTarget
+        ? { markLine: { silent: true, symbol: "none", label: { color: c.muted, fontSize: 10, position: "insideEndTop", formatter: `${pct(target)} target` }, lineStyle: { color: c.ok, type: "dashed", opacity: 0.6 }, data: [{ yAxis: target }] } }
         : {}),
       // un rombo en el color de peligro marca dónde cambió el juez (ADR-043)
       data: s.values.map((value, idx) => (s.judgeChanged[idx] && value !== null ? { value, symbol: "diamond", symbolSize: 13, itemStyle: { color: c.danger } } : value)),
-    })),
+      };
+    }),
   };
 }
 
@@ -130,7 +146,9 @@ export interface EvaluatorSummary {
   previous: number | null;
   delta: number | null;
   status: EvaluatorStatus;
-  /** Mismo umbral que las tarjetas KPI (≥80% ok, <50% mal). Los promedios no tienen escala conocida: `default`. */
+  /** Objetivo de pass rate de este evaluador (su score config, o el 80% por defecto). Solo tiene sentido en `passRate`. */
+  target: number;
+  /** Mismo umbral que las tarjetas KPI (≥objetivo ok, <50% mal). Los promedios no tienen escala conocida: `default`. */
   tone: AggregateTone;
   /** Scores del último run (items evaluados). */
   count: number;
@@ -145,7 +163,7 @@ export interface EvaluatorSummary {
 const STABLE_EPSILON = 0.005;
 
 /** Resumen por evaluador: el último valor frente al anterior. Pensado para la tabla de cabecera, no para gráficas. */
-export function summarizeEvaluators(runs: RunListItemDto[]): EvaluatorSummary[] {
+export function summarizeEvaluators(runs: RunListItemDto[], targets?: EvaluatorTargets): EvaluatorSummary[] {
   const names = new Set<string>();
   for (const r of runs) for (const a of r.aggregates) names.add(a.name);
   const out: EvaluatorSummary[] = [];
@@ -173,7 +191,8 @@ export function summarizeEvaluators(runs: RunListItemDto[]): EvaluatorSummary[] 
       previous,
       delta,
       status,
-      tone: aggregateTone(latestAgg),
+      target: targetFor(targets, name),
+      tone: aggregateTone(latestAgg, targetFor(targets, name)),
       count: latestAgg.count,
       passed,
       failed: passed === null ? null : latestAgg.count - passed,
@@ -201,8 +220,8 @@ export function offlineVerdict(summary: EvaluatorSummary[]): OfflineVerdict {
   const names = (list: EvaluatorSummary[]) => list.map((s) => s.name).join(", ");
   if (failing.length) return { level: "failing", title: "Failing", detail: `Below 50% pass rate: ${names(failing)}.` };
   if (regressing.length) return { level: "attention", title: "Regressing", detail: `Lower than the previous run: ${names(regressing)}.` };
-  if (weak.length) return { level: "attention", title: "Needs attention", detail: `Between 50% and 80%: ${names(weak)}.` };
-  return { level: "healthy", title: "Healthy", detail: "Every pass/fail evaluator is at 80% or above." };
+  if (weak.length) return { level: "attention", title: "Needs attention", detail: `Below target: ${names(weak)}.` };
+  return { level: "healthy", title: "Healthy", detail: "Every pass/fail evaluator meets its target." };
 }
 
 export interface OfflineAttentionItem {
@@ -231,7 +250,7 @@ export function offlineAttention(runs: RunListItemDto[], summary: EvaluatorSumma
     } else if (s.status === "regressing" && prev) {
       items.push({ key: `regressing:${s.name}`, tone: "warn", title: `${s.name} dropped since the previous run`, text: `${label} is lower than ${offlineRunLabel(prev)}.`, cta: "Compare", runId: latest.id, compare: [prev.id, latest.id] });
     } else if (s.kind === "passRate" && s.tone === "warning") {
-      items.push({ key: `weak:${s.name}`, tone: "warn", title: `${s.name} is below the 80% target`, text: `${formatPercent(s.latest ?? 0)} pass rate; ${s.failed} of ${s.count} items failed.`, cta: "Inspect", runId: latest.id });
+      items.push({ key: `weak:${s.name}`, tone: "warn", title: `${s.name} is below the ${pct(s.target)} target`, text: `${formatPercent(s.latest ?? 0)} pass rate; ${s.failed} of ${s.count} items failed.`, cta: "Inspect", runId: latest.id });
     }
     if (s.status === "judge-changed" && prev) {
       items.push({ key: `judge:${s.name}`, tone: "warn", title: `The judge for ${s.name} changed`, text: "Results are not comparable with the previous run.", cta: "Compare", runId: latest.id, compare: [prev.id, latest.id] });

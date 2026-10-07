@@ -13,21 +13,22 @@ import {
   passFailChartOption,
   summarizeEvaluators,
   type EvaluatorStatus,
+  type EvaluatorTargets,
   type EvaluatorSummary,
 } from "../offline-eval-chart-option";
 import EChart from "./EChart.vue";
 
-const props = defineProps<{ runs: RunListItemDto[] }>();
+const props = defineProps<{ runs: RunListItemDto[]; targets?: EvaluatorTargets }>();
 const emit = defineEmits<{ "open-run": [run: RunListItemDto]; compare: [ids: [string, string]] }>();
 
 const $q = useQuasar();
 
 const passRateSeries = computed(() => buildOfflineSeries(props.runs, "passRate"));
 const averageSeries = computed(() => buildOfflineSeries(props.runs, "average"));
-const passRateOption = computed(() => offlineEvalChartOption(props.runs, passRateSeries.value, "passRate", $q.dark.isActive));
+const passRateOption = computed(() => offlineEvalChartOption(props.runs, passRateSeries.value, "passRate", $q.dark.isActive, props.targets));
 const averageOption = computed(() => offlineEvalChartOption(props.runs, averageSeries.value, "average", $q.dark.isActive));
 
-const summary = computed(() => summarizeEvaluators(props.runs));
+const summary = computed(() => summarizeEvaluators(props.runs, props.targets));
 const verdict = computed(() => offlineVerdict(summary.value));
 const attention = computed(() => offlineAttention(props.runs, summary.value));
 function goToAttention(a: (typeof attention.value)[number]) {
@@ -122,7 +123,7 @@ function openAt(index: number) {
         </div>
         <div v-if="s.kind === 'passRate'" class="bar" role="img" :aria-label="`${fmt(s.latest, s.kind)} pass rate`">
           <span class="bar-fill" :style="{ width: `${(s.latest ?? 0) * 100}%` }" />
-          <span class="bar-target" title="80% target" />
+          <span class="bar-target" :style="{ left: `${s.target * 100}%` }" :title="`${Math.round(s.target * 100)}% target`" />
         </div>
         <footer class="score-foot">
           <span class="muted">{{ itemsLabel(s) }}</span>

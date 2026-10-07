@@ -8,7 +8,7 @@ import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
 
 /** La conversación de una traza leída como un chat, para ver qué se evaluó sin salir de la pantalla (ADR-050). */
-const props = defineProps<{ traceId: string }>();
+const props = defineProps<{ traceId: string; /** ocupa todo el alto disponible en vez de limitarse a 320px */ fill?: boolean }>();
 
 const api = useTraceApi();
 const trace = useAsync((signal) => api.getTrace(props.traceId, signal));
@@ -17,7 +17,7 @@ const turns = computed(() => conversationTurns(traceThread(trace.data.value?.roo
 </script>
 
 <template>
-  <div class="preview" data-testid="trace-preview">
+  <div class="preview" :class="{ fill }" data-testid="trace-preview">
     <ErrorBanner v-if="trace.error.value" :error="trace.error.value" @retry="trace.run()" />
     <div v-else-if="!trace.data.value" class="loading"><q-spinner size="20px" color="primary" /></div>
     <p v-else-if="!turns.length" class="empty">This trace has no content saved.</p>
@@ -34,6 +34,11 @@ const turns = computed(() => conversationTurns(traceThread(trace.data.value?.roo
   border: 1px solid var(--mt-line);
   border-radius: var(--mt-radius-sm);
   background: var(--mt-card);
+}
+.preview.fill {
+  max-height: none;
+  height: 100%;
+  margin-bottom: 0;
 }
 .loading {
   display: flex;

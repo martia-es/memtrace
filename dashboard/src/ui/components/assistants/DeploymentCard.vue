@@ -7,19 +7,24 @@ import { useAsync } from "../../composables/useAsync";
 import { useAssistantApi } from "../../composables/useAssistantApi";
 import { chatUrl } from "@/domain/chat-dock";
 import { formatDuration, formatRelativeTime } from "@/domain/format";
-import { HEALTH_LABEL, HEALTH_TONE, accessSummary, authSummary, formatUptime, uptimePercent } from "@/domain/assistants";
+import { DEPLOY_STATUS, HEALTH_LABEL, HEALTH_TONE, accessSummary, authSummary, formatUptime, uptimePercent } from "@/domain/assistants";
 import StatusChip from "../StatusChip.vue";
 import HealthBars from "./HealthBars.vue";
 
 /** Un entorno de un asistente: estado de /health, disponibilidad de 24 h y datos del despliegue (ADR-053). */
-const props = defineProps<{ experimentId: string; deployment: DeploymentSummaryDto; selected: boolean; canManage: boolean; nowMs: number; chatPath?: string | null; talkable?: boolean }>();
-const emit = defineEmits<{ select: []; edit: []; checked: []; talk: [] }>();
+const props = defineProps<{ experimentId: string; deployment: DeploymentSummaryDto; selected: boolean; canManage: boolean; nowMs: number; chatPath?: string | null; talkable?: boolean; deployable?: boolean; refreshKey?: number }>();
+const emit = defineEmits<{ select: []; edit: []; checked: []; talk: []; deploy: [] }>();
 
 const api = useAssistantApi();
 const $q = useQuasar();
 const checking = ref(false);
 const history = useAsync((signal) => api.getHealthHistory(props.experimentId, props.deployment.id, 24, signal));
 onMounted(() => void history.run());
+// último despliegue lanzado desde MemTrace (ADR-064); se vuelve a leer tras lanzar uno
+const deploys = useAsync((signal) => api.listDeploys(props.experimentId, props.deployment.id, signal));
+onMounted(() => void deploys.run().catch(() => undefined));
+watch(() => props.refreshKey, () => void deploys.run());
+const lastDeploy = computed(() => deploys.data.value?.[0] ?? null);
 // un sondeo nuevo cambia `healthCheckedAt`: se vuelve a leer el historial
 watch(() => props.deployment.healthCheckedAt, () => void history.run());
 
@@ -43,10 +48,12 @@ const rows = computed<Array<[string, string]>>(() => [
   ["Latency", d.value.healthLatencyMs !== null ? `${formatDuration(d.value.healthLatencyMs)}${d.value.healthCheckedAt ? ` · ${formatRelativeTime(d.value.healthCheckedAt, props.nowMs)}` : ""}` : d.value.healthCheckEnabled ? "No check yet" : "Checks off"],
   ...(props.chatPath ? ([["Chat", chatUrl(d.value.apiUrl, props.chatPath)]] as Array<[string, string]>) : []),
   ["Version", d.value.version ?? "–"],
+  ...(lastDeploy.value ? ([["Last deploy", `${DEPLOY_STATUS[lastDeploy.value.status]?.label ?? lastDeploy.value.status} · ${lastDeploy.value.commitSha.slice(0, 7)} · ${formatRelativeTime(lastDeploy.value.createdAt, props.nowMs)}${lastDeploy.value.gateBypassed ? " · evaluation skipped" : ""}`]] as Array<[string, string]>) : []),
+  ...(d.value.deployRef ? ([["Deploys from", d.value.deployRef]] as Array<[string, string]>) : []),
   ["Auth", authSummary(d.value)],
   ["Access", accessSummary(d.value)],
 ]);
-const mono = new Set(["API", "Health", "Chat", "Latency", "Version"]);
+const mono = new Set(["API", "Health", "Chat", "Latency", "Version", "Deploys from", "Last deploy"]);
 </script>
 
 <template>
@@ -55,9 +62,10 @@ const mono = new Set(["API", "Health", "Chat", "Latency", "Version"]);
       <span class="key">{{ deployment.environment.label }}</span>
       <StatusChip :tone="HEALTH_TONE[deployment.healthStatus]" :label="HEALTH_LABEL[deployment.healthStatus]" />
       <div class="spacer" />
-      <button v-if="talkable" type="button" class="talk" data-testid="talk" @click="emit('talk')">Talk</button>
-      <button v-if="canManage" type="button" class="link" :disabled="checking" data-testid="check-now" @click="checkNow">{{ checking ? "Checking…" : "Check now" }}</button>
-      <button v-if="canManage" type="button" class="link" @click="emit('edit')">Edit</button>
+      <button v-if="deployable" type="button" class="talk" data-testid="deploy" @click="emit('deploy')"><q-icon name="rocket_launch" size="14px" />Deploy</button>
+      <button v-if="talkable" type="button" class="talk" data-testid="talk" @click="emit('talk')"><q-icon name="chat_bubble_outline" size="14px" />Chat</button>
+      <button v-if="canManage" type="button" class="link" :disabled="checking" data-testid="check-now" @click="checkNow"><q-icon name="sync" size="14px" :class="{ spin: checking }" />{{ checking ? "Syncing…" : "Sync" }}</button>
+      <button v-if="canManage" type="button" class="link" @click="emit('edit')"><q-icon name="edit" size="14px" />Edit</button>
     </header>
     <div class="uptime">
       <HealthBars :checks="checks" :now-ms="nowMs" />
@@ -79,6 +87,10 @@ const mono = new Set(["API", "Health", "Chat", "Latency", "Version"]);
 .head { display: flex; align-items: center; gap: 10px; }
 .key { font-family: var(--mt-mono); font-size: 14px; font-weight: 500; letter-spacing: 0.02em; }
 .spacer { flex: 1; }
+.link { display: inline-flex; align-items: center; gap: 4px; }
+.talk { display: inline-flex; align-items: center; gap: 5px; }
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .link, .select { font: inherit; font-size: 12px; font-weight: 700; color: var(--mt-accent-text); background: none; border: none; padding: 0; cursor: pointer; }
 .talk { height: 26px; padding: 0 12px; font: inherit; font-size: 12px; font-weight: 700; color: var(--mt-accent-ink); background: var(--mt-accent); border: none; border-radius: var(--mt-radius-sm); cursor: pointer; }
 .talk:focus-visible { outline: 2px solid var(--mt-accent); outline-offset: 2px; }

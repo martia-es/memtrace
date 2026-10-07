@@ -10,6 +10,9 @@ import type {
   AnnotationQueuesListResponse,
   ReviewerCandidatesResponse,
   LowRatedResponse,
+  FeedbackOverviewResponse,
+  FeedbackRatingsResponse,
+  TraceFeedbackResponse,
   AnnotationRatingsResponse,
   NextQueueItemResponse,
   QueueItemDto,
@@ -60,25 +63,26 @@ import type {
   TranscriptResponse,
 } from "@contract";
 import type { ListConversationsParams, ListSpansParams, ListTracesParams, RangeParams, SaveAnnotationBody, TraceApi, AddQueueItemsBody, AnnotationQueuePatchBody, NewAnnotationQueueBody, QueueLabelBody, AgreementScope } from "@/application/trace-api";
-import type {
-  ApiKeyDto,
-  CurrentUser,
-  ExperimentDto,
-  ExternalMappingDto,
-  IdentityApi,
-  MembersResponseDto,
-  MetricReportDto,
-  NewScoreConfigInput,
-  ScoreConfigPatchInput,
-  MetricReportSummaryDto,
-  OrganizationDto,
-  OrganizationIdentityDto,
-  ScimTokenDto,
-  OrganizationThemeDto,
-  SavedCustomMetricDto,
+import {
+  EMPTY_THEME,
+  type ApiKeyDto,
+  type CurrentUser,
+  type ExperimentDto,
+  type ExternalMappingDto,
+  type IdentityApi,
+  type MembersResponseDto,
+  type MetricReportDto,
+  type NewScoreConfigInput,
+  type ScoreConfigPatchInput,
+  type MetricReportSummaryDto,
+  type OrganizationDto,
+  type OrganizationIdentityDto,
+  type ScimTokenDto,
+  type OrganizationThemeDto,
+  type SavedCustomMetricDto,
 } from "@/application/identity-api";
 
-const NO_THEME: OrganizationThemeDto = { accentColor: null, radiusPreset: null };
+const NO_THEME: OrganizationThemeDto = EMPTY_THEME;
 
 /** Puerto de identidad (ADR-013): usada solo por OnboardingGuide en estas pruebas de UI, sin sesión real. */
 export class FakeIdentityApi implements IdentityApi {
@@ -161,6 +165,7 @@ export class FakeIdentityApi implements IdentityApi {
       minValue: input.minValue ?? null,
       maxValue: input.maxValue ?? null,
       categories: input.categories ?? null,
+      targetPassRate: input.targetPassRate ?? null,
       description: input.description ?? null,
       createdAt: now,
       updatedAt: now,
@@ -217,7 +222,7 @@ export function summary(overrides: Partial<TraceSummaryDto> = {}): TraceSummaryD
     input: null,
     output: null,
     error: null,
-    conversationId: null,
+    conversationId: null, revision: null,
     ...overrides,
   };
 }
@@ -294,7 +299,7 @@ export function traceDetail(overrides: Partial<TraceDetailResponse> = {}): Trace
     totalTokens: 0,
     totalCostUsd: 0,
     truncated: false,
-    conversationId: null,
+    conversationId: null, revision: null,
     framework: null,
     roots: [node()],
     ...overrides,
@@ -341,7 +346,7 @@ export function datasetItemDto(overrides: Partial<DatasetItemDto> = {}): Dataset
 }
 
 export function datasetRunSummary(overrides: Partial<DatasetRunSummaryDto> = {}): DatasetRunSummaryDto {
-  return { id: "run-1", name: "toy-agent-v1", versionMajor: 1, versionMinor: 0, itemCount: 3, status: "completed", createdAt: "2026-09-30T22:45:54Z", aggregates: [scoreAggregate()], ...overrides };
+  return { id: "run-1", name: "toy-agent-v1", versionMajor: 1, versionMinor: 0, itemCount: 3, status: "completed", createdAt: "2026-09-30T22:45:54Z", revision: null, revisionDirty: null, aggregates: [scoreAggregate()], ...overrides };
 }
 
 export function runListItem(overrides: Partial<RunListItemDto> = {}): RunListItemDto {
@@ -432,6 +437,18 @@ export class FakeTraceApi implements TraceApi {
   ratings: AnnotationRatingsResponse["items"] = [];
   async getAnnotationRatings(): Promise<AnnotationRatingsResponse> {
     return { items: this.ratings };
+  }
+  feedback: TraceFeedbackResponse = { votes: [], alignment: "unknown" };
+  feedbackRatings: FeedbackRatingsResponse["items"] = [];
+  feedbackOverview: FeedbackOverviewResponse = { summary: { total: 0, up: 0, down: 0, satisfaction: null, ratedTraces: 0 }, days: [], alignment: { aligned: 0, misaligned: 0 }, recentDown: [] };
+  async getTraceFeedback(): Promise<TraceFeedbackResponse> {
+    return this.feedback;
+  }
+  async getFeedbackRatings(): Promise<FeedbackRatingsResponse> {
+    return { items: this.feedbackRatings };
+  }
+  async getFeedbackOverview(): Promise<FeedbackOverviewResponse> {
+    return this.feedbackOverview;
   }
   async getLowRated(): Promise<LowRatedResponse> {
     return this.lowRated;
@@ -676,7 +693,7 @@ export function queueSummary(overrides: Partial<AnnotationQueueListItemDto> = {}
 }
 
 export function scoreConfigDto(overrides: Partial<ScoreConfigDto> = {}): ScoreConfigDto {
-  return { id: "cfg-1", name: "tone", dataType: "numeric", minValue: 1, maxValue: 5, categories: null, description: null, createdAt: "", updatedAt: "", archivedAt: null, ...overrides };
+  return { id: "cfg-1", name: "tone", dataType: "numeric", minValue: 1, maxValue: 5, categories: null, targetPassRate: null, description: null, createdAt: "", updatedAt: "", archivedAt: null, ...overrides };
 }
 
 export function queueDetail(overrides: Partial<AnnotationQueueDetailResponse> = {}): AnnotationQueueDetailResponse {
@@ -685,12 +702,12 @@ export function queueDetail(overrides: Partial<AnnotationQueueDetailResponse> = 
 
 // ── Registro de asistentes (ADR-053) ───────────────────────────────────────────────────────────────────────────
 import type { AssistantApi } from "@/application/assistant-api";
-import type { AccessGrantDto, AssistantPersonDto, AssistantCardDto, ConnectionDto, DeploymentSummaryDto, HealthCheckDto, HealthStatusDto } from "@contract";
+import type { AccessGrantDto, AssistantPersonDto, AssistantCardDto, ConnectionDto, DeployPreviewDto, DeployRunDto, DeploymentSummaryDto, HealthCheckDto, HealthStatusDto } from "@contract";
 
 export function deploymentDto(key: string, status: HealthStatusDto, overrides: Partial<DeploymentSummaryDto> = {}): DeploymentSummaryDto {
   const isProduction = key === "pro";
   return {
-    id: `dep-${key}`, experimentId: "exp-1", environmentId: `env-${key}`, apiUrl: `https://${key}.acme.test/weather`, healthUrl: null, version: "v1.0.0",
+    id: `dep-${key}`, experimentId: "exp-1", environmentId: `env-${key}`, apiUrl: `https://${key}.acme.test/weather`, healthUrl: null, version: "v1.0.0", deployRef: null,
     authMethod: "oauth2", authProvider: "Entra ID", authAudience: null, healthCheckEnabled: true, healthIntervalSeconds: null, healthStatus: status,
     healthCheckedAt: "2026-10-05T11:59:30.000Z", healthStatusSince: "2026-10-05T10:00:00.000Z", healthLatencyMs: 112, healthConsecutiveFailures: 0,
     environment: { id: `env-${key}`, key, label: key.toUpperCase(), position: ["dev", "pre", "pro"].indexOf(key), isProduction, healthIntervalSeconds: 60 },
@@ -704,7 +721,7 @@ export function assistantCard(overrides: Partial<AssistantCardDto> = {}): Assist
   const deployments = overrides.deployments ?? [deploymentDto("dev", "up"), deploymentDto("pro", "up")];
   return {
     experimentId: "exp-1", name: "weather-assistant", serviceName: "weather-assistant", description: "Answers forecast questions", owner: { id: "u1", name: "Marta F.", email: "m@acme.test", image: null },
-    lifecycle: "active", chat: null, createdAt: "2026-09-12T00:00:00.000Z", updatedAt: "2026-09-12T00:00:00.000Z",
+    lifecycle: "active", chat: null, repo: null, createdAt: "2026-09-12T00:00:00.000Z", updatedAt: "2026-09-12T00:00:00.000Z",
     connectionCounts: { mcpServers: 2, tools: 7, agents: 1, toReview: 0 }, mcpServerNames: ["weather-mcp", "geocoding-mcp"], members: { total: 2, preview: [{ userId: "u1", name: "Marta Fernández", email: "m@acme.test", image: "https://photos.example/marta.png", role: "technical" }, { userId: "u2", name: null, email: "luis@acme.test", image: null, role: "business" }] }, status: "up", ...overrides, deployments,
   };
 }
@@ -738,8 +755,18 @@ export class FakeAssistantApi implements AssistantApi {
   async chat(experimentId: string, deploymentId: string, message: string, sessionId: string | null) {
     this.record("chat", experimentId, deploymentId, message, sessionId);
     if (this.chatReply instanceof Error) throw this.chatReply;
-    return { reply: this.chatReply, sessionId: "s-1", latencyMs: 30 };
+    return { reply: this.chatReply, sessionId: "s-1", traceId: this.chatTraceId, latencyMs: 30 };
   }
+  chatTraceId: string | null = null;
+  async sendFeedback(experimentId: string, traceId: string, rating: 1 | -1) { this.record("sendFeedback", experimentId, traceId, rating); }
+  preview: DeployPreviewDto | Error = { ref: "main", sha: "3a08213f9b1c2d4e5f60718293a4b5c6d7e8f901", environment: "pro", gate: { allowed: true, verdict: "allowed", sha: "3a08213f9b1c2d4e5f60718293a4b5c6d7e8f901", requiredRuns: 1, reason: "The evaluation of this commit passes.", runs: [] } };
+  deploys: DeployRunDto[] = [];
+  async previewDeploy(experimentId: string, id: string) { this.record("previewDeploy", experimentId, id); if (this.preview instanceof Error) throw this.preview; return this.preview; }
+  async deploy(experimentId: string, id: string, bypassReason: string | null): Promise<DeployRunDto> {
+    this.record("deploy", experimentId, id, bypassReason);
+    return { id: "dr-1", deploymentId: id, commitSha: "3a08213f9b1c2d4e5f60718293a4b5c6d7e8f901", ref: "main", requestedBy: "u1", status: "running", gateVerdict: "allowed", gateBypassed: bypassReason !== null, bypassReason, providerRunUrl: null, error: null, createdAt: "2026-10-07T10:00:00Z", finishedAt: null };
+  }
+  async listDeploys() { return this.deploys; }
   async checkDeploymentNow(experimentId: string, id: string) { this.record("checkDeploymentNow", experimentId, id); return deploymentDto("pro", "up"); }
   async getHealthHistory() { return this.history; }
   async listGrants() { return this.grants; }

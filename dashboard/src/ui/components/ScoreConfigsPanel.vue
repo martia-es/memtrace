@@ -4,7 +4,7 @@ import { computed, reactive, ref } from "vue";
 import { useQuasar } from "quasar";
 import type { ScoreConfigDto } from "@contract";
 import { useIdentityApi } from "../composables/useIdentityApi";
-import { formatCategories, describeScale, parseCategories } from "../score-config-form";
+import { formatCategories, formatTargetPercent, describeScale, parseCategories, parseTargetPercent } from "../score-config-form";
 import Modal from "./Modal.vue";
 import NewScoreConfigModal from "./NewScoreConfigModal.vue";
 
@@ -50,7 +50,7 @@ const saving = ref(false);
 
 // ---- edit: only what the invariants allow (description, widen range, add categories) ----
 const editing = ref<ScoreConfigDto | null>(null);
-const edit = reactive({ description: "", min: "", max: "", categories: "" });
+const edit = reactive({ description: "", min: "", max: "", categories: "", target: "" });
 
 function openEdit(config: ScoreConfigDto) {
   editing.value = config;
@@ -59,6 +59,7 @@ function openEdit(config: ScoreConfigDto) {
     min: config.minValue === null ? "" : String(config.minValue),
     max: config.maxValue === null ? "" : String(config.maxValue),
     categories: formatCategories(config.categories),
+    target: formatTargetPercent(config.targetPassRate),
   });
 }
 
@@ -71,6 +72,7 @@ async function saveEdit() {
       description: edit.description.trim() || null,
       ...(config.dataType === "numeric" ? { minValue: Number(edit.min), maxValue: Number(edit.max) } : {}),
       ...(config.dataType === "categorical" ? { categories: parseCategories(edit.categories) } : {}),
+      ...(config.dataType === "boolean" ? { targetPassRate: parseTargetPercent(edit.target) } : {}),
     });
     editing.value = null;
     await load();
@@ -103,7 +105,7 @@ async function setArchived(config: ScoreConfigDto, archived: boolean) {
       <li v-for="c in configs" :key="c.id" class="config-row" :class="{ archived: c.archivedAt }" data-testid="score-config-row">
         <div class="config-info">
           <span class="config-name">{{ c.name }}</span>
-          <span class="config-scale">{{ describeScale(c) }}</span>
+          <span class="config-scale">{{ describeScale(c) }}<template v-if="c.targetPassRate !== null"> · target {{ formatTargetPercent(c.targetPassRate) }}%</template></span>
           <span v-if="c.description" class="config-desc">{{ c.description }}</span>
         </div>
         <span class="type-pill">{{ TYPE_LABEL[c.dataType] }}</span>
@@ -132,12 +134,15 @@ async function setArchived(config: ScoreConfigDto, archived: boolean) {
           <TextInput v-model="edit.min" type="number" step="any" :max="editing.minValue ?? undefined" aria-label="Min (can only be lowered)" />
           <TextInput v-model="edit.max" type="number" step="any" :min="editing.maxValue ?? undefined" aria-label="Max (can only be raised)" />
         </div>
+        <template v-if="editing.dataType === 'boolean'">
+          <TextInput v-model="edit.target" type="number" step="any" min="1" max="100" placeholder="Target pass rate in % (empty = default 80)" aria-label="Target pass rate (%)" />
+        </template>
         <template v-if="editing.dataType === 'categorical'">
           <TextInput multiline v-model="edit.categories" :rows="5" />
           <p class="hint">Add lines to add categories. Existing ones can't be removed, renamed or re-valued.</p>
         </template>
         <TextInput multiline v-model="edit.description" :rows="2" placeholder="Guideline shown to the annotator (optional)" />
-        <button type="submit" class="primary-btn" :disabled="saving">Save</button>
+        <button type="submit" class="primary-btn" :disabled="saving || (editing.dataType === 'boolean' && Number.isNaN(parseTargetPercent(edit.target)))">Save</button>
       </form>
     </Modal>
   </div>

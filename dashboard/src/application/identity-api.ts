@@ -13,7 +13,27 @@ export interface CurrentUser {
 export interface OrganizationThemeDto {
   accentColor: string | null;
   radiusPreset: "sharp" | "soft" | "round" | null;
+  /** acento cálido secundario (ADR-063) */
+  secondaryColor: string | null;
+  /** lista cerrada de pilas del sistema; null = Plus Jakarta Sans */
+  fontPreset: "system" | "serif" | "humanist" | null;
+  /** nombre visible del asistente; null = el del agente */
+  assistantName: string | null;
+  assistantDefaultMode: "bubble" | "dock" | "fullscreen" | null;
+  /** null = todos los modos */
+  assistantAllowedModes: Array<"bubble" | "dock" | "fullscreen"> | null;
 }
+
+/** Tema sin ningún override: todo cae en los defaults de app.css. */
+export const EMPTY_THEME: OrganizationThemeDto = {
+  accentColor: null,
+  radiusPreset: null,
+  secondaryColor: null,
+  fontPreset: null,
+  assistantName: null,
+  assistantDefaultMode: null,
+  assistantAllowedModes: null,
+};
 
 export interface OrganizationDto {
   id: string;
@@ -73,6 +93,8 @@ export interface NewScoreConfigInput {
   minValue?: number | null;
   maxValue?: number | null;
   categories?: Array<{ label: string; value: number | null }> | null;
+  /** Solo boolean: objetivo de pass rate (0-1) para el dashboard de evaluaciones. */
+  targetPassRate?: number | null;
   description?: string | null;
 }
 
@@ -81,6 +103,7 @@ export interface ScoreConfigPatchInput {
   minValue?: number;
   maxValue?: number;
   categories?: Array<{ label: string; value: number | null }>;
+  targetPassRate?: number | null;
 }
 
 /** Gráfico custom guardado por el usuario (ADR-027); su definición usa la misma forma que el query de ClickHouse. */

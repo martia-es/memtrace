@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import type { TraceSummaryDto } from "@contract";
 import { formatCount, formatDateTime, formatDuration } from "@/domain/format";
+import type { RepoConfigDto } from "@contract";
+import CommitLink from "./CommitLink.vue";
 import StatusBadge from "./StatusBadge.vue";
 import AnnotationChip from "./AnnotationChip.vue";
+import FeedbackChip from "./FeedbackChip.vue";
 
 const props = defineProps<{
   items: TraceSummaryDto[];
@@ -17,6 +20,10 @@ const props = defineProps<{
   annotatable?: boolean;
   /** con `ratings` aparece la columna Annotation; una traza sin entrada no tiene etiquetas humanas */
   ratings?: Map<string, { labels: number; low: boolean }>;
+  /** con `feedback` aparece la columna User feedback (👍/👎 de usuario final, ADR-062) */
+  feedback?: Map<string, { up: number; down: number }>;
+  /** repositorio del agente: con él, la versión de cada traza enlaza a su commit (ADR-065) */
+  repo?: RepoConfigDto | null;
 }>();
 const emit = defineEmits<{ open: [traceId: string]; select: [traceId: string]; openConversation: [conversationId: string]; annotate: [traceId: string] }>();
 
@@ -35,6 +42,7 @@ const activate = (traceId: string) => (props.selectable ? emit("select", traceId
         <th class="num">Tokens</th>
         <th>Status</th>
         <th v-if="ratings">Annotation</th>
+        <th v-if="feedback">User feedback</th>
         <th v-if="showConversation">Conversation</th>
         <th v-if="annotatable" />
       </tr>
@@ -53,6 +61,7 @@ const activate = (traceId: string) => (props.selectable ? emit("select", traceId
         <td class="name-cell">
           <span class="name" :title="labels?.get(t.traceId) ?? t.rootSpanName">{{ labels?.get(t.traceId) ?? t.rootSpanName }}</span>
           <span class="mono id" :title="t.traceId">{{ t.traceId }}</span>
+          <CommitLink v-if="t.revision" :revision="t.revision" :repo="repo" data-testid="row-revision" />
         </td>
         <td class="preview" :title="t.input ?? undefined">{{ t.input ?? "–" }}</td>
         <td v-if="t.output === null && t.error" class="preview error-text" :title="t.error">{{ t.error }}</td>
@@ -62,6 +71,7 @@ const activate = (traceId: string) => (props.selectable ? emit("select", traceId
         <td class="num mono">{{ t.totalTokens ? formatCount(t.totalTokens) : "–" }}</td>
         <td><StatusBadge :status="t.status" :error-count="t.errorCount" /></td>
         <td v-if="ratings"><AnnotationChip :rating="ratings.get(t.traceId)" /></td>
+        <td v-if="feedback"><FeedbackChip :feedback="feedback.get(t.traceId)" /></td>
         <td v-if="showConversation">
           <a v-if="t.conversationId" class="conv-link mono" href="#" @click.prevent.stop="$emit('openConversation', t.conversationId)">{{ t.conversationId }}</a>
           <span v-else class="muted">–</span>

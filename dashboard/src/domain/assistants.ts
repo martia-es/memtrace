@@ -1,5 +1,5 @@
 /** Reglas de presentación del registro de asistentes (ADR-053): estado global, uptime y origen de las conexiones. Sin Vue ni HTTP. */
-import type { AssistantCardDto, ConnectionDto, DeploymentSummaryDto, HealthCheckDto, HealthStatusDto } from "@contract";
+import type { AssistantCardDto, ConnectionDto, DeploymentSummaryDto, HealthCheckDto, HealthStatusDto, RepoConfigDto } from "@contract";
 
 export type Tone = "ok" | "error" | "warn" | "neutral";
 
@@ -139,3 +139,34 @@ export function personInitials(p: PersonLike): string {
 }
 
 export const ROLE_LABEL: Record<string, string> = { technical: "Technical", business: "Business" };
+
+/** Enlace al commit en el repositorio del agente, para la versión de una traza o una evaluación (ADR-065); null si no hay repo. */
+export function commitUrl(repo: Pick<RepoConfigDto, "url" | "provider"> | null | undefined, sha: string): string | null {
+  if (!repo) return null;
+  const base = repo.url.replace(/\/+$/, "").replace(/\.git$/, "");
+  return repo.provider === "bitbucket" ? `${base}/commits/${sha}` : repo.provider === "gitlab" ? `${base}/-/commit/${sha}` : `${base}/commit/${sha}`;
+}
+
+/** Frase del veredicto del gate (ADR-064) para el modal de despliegue. */
+export const GATE_LABEL: Record<string, { label: string; tone: Tone }> = {
+  allowed: { label: "Evaluation passed", tone: "ok" },
+  rollback: { label: "Already deployed before", tone: "ok" },
+  no_evaluation: { label: "Not evaluated", tone: "error" },
+  evaluation_running: { label: "Evaluation running", tone: "warn" },
+  only_dirty_runs: { label: "Only local evaluations", tone: "error" },
+  failed: { label: "Evaluation failed", tone: "error" },
+  insufficient_runs: { label: "More evaluations needed", tone: "warn" },
+};
+
+export const DEPLOY_STATUS: Record<string, { label: string; tone: Tone }> = {
+  queued: { label: "Queued", tone: "neutral" },
+  running: { label: "Deploying", tone: "warn" },
+  succeeded: { label: "Deployed", tone: "ok" },
+  failed: { label: "Failed", tone: "error" },
+  cancelled: { label: "Cancelled", tone: "neutral" },
+};
+
+/** ¿Se puede lanzar un despliegue? Hace falta repo, workflow de GitHub y rama del entorno (ADR-064). */
+export function canDeploy(card: Pick<AssistantCardDto, "repo">, deployment: Pick<DeploymentSummaryDto, "deployRef">): boolean {
+  return card.repo !== null && card.repo.provider === "github" && !!card.repo.deployWorkflow && !!deployment.deployRef;
+}

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import TextInput from "@/ui/components/TextInput.vue";
+import Modal from "./Modal.vue";
 import Select from "./Select.vue";
 import { computed, reactive, ref, watch } from "vue";
 import { useRoute } from "vue-router";
@@ -52,12 +53,15 @@ const rows = computed(() => results.data.value?.items ?? []);
 const configById = computed(() => new Map(configs.value.map((c) => [c.id, c])));
 const categorical = computed(() => configs.value.filter((c) => c.dataType === "categorical" && !c.archivedAt));
 const datasetOptions = computed(() => (datasets.data.value?.items ?? []).map((d) => ({ label: d.name, value: d.id })));
+const REPLY = "__reply";
 const referenceOptions = computed(() => [
-  { label: "Expected output: only what I typed", value: "" },
-  ...categorical.value.map((c) => ({ label: `Expected output from “${c.name}”`, value: c.id })),
+  { label: "Expected output: only the correct answer I typed", value: "" },
+  { label: "Expected output: the reply that was reviewed (unless I typed one)", value: REPLY },
+  ...categorical.value.map((c) => ({ label: `Expected output: the label of “${c.name}” (unless I typed one)`, value: c.id })),
 ]);
 
 const openRow = ref<string | null>(null);
+const openedRow = computed(() => rows.value.find((r) => r.id === openRow.value));
 const drafts = reactive<Record<string, { value: string; expected: string }>>({});
 const selected = reactive(new Set<string>());
 const datasetId = ref<string | null>(null);
@@ -66,6 +70,18 @@ const busy = ref(false);
 
 const readyRows = computed(() => rows.value.filter((r) => rowReadiness(r) === "ready"));
 const chosen = computed(() => rows.value.filter((r) => selected.has(r.id) && rowReadiness(r) === "ready"));
+const referenceHelp = computed(() => {
+  if (useReply.value) return "Rows where you typed a correct answer use it. The rest get the agent's reply that reviewers judged, so choose this only if those replies are good.";
+  if (reference.value) return `Rows where you typed a correct answer use it. The rest get the agreed or resolved label of “${reference.value.name}” (a label, not a sentence).`;
+  return "Only the correct answers you typed in Resolve are used. Rows without one are added with no expected output, so only evaluators that need no reference (LLM-as-judge) can score them.";
+});
+const promoteHint = computed(() => {
+  if (!readyRows.value.length) return "No row is ready: every row needs all its reviews and no open disagreement.";
+  if (!chosen.value.length) return "Tick the rows to add, or press “Select all ready”.";
+  if (!datasetId.value) return "Choose a dataset to enable “Add to dataset”.";
+  return "";
+});
+const useReply = computed(() => referenceId.value === REPLY);
 const reference = computed(() => categorical.value.find((c) => c.id === referenceId.value));
 const canPromote = computed(() => !!datasetId.value && chosen.value.length > 0 && !busy.value);
 
@@ -85,7 +101,7 @@ function toggle(row: QueueResultItemDto) {
 }
 
 function open(row: QueueResultItemDto) {
-  openRow.value = openRow.value === row.id ? null : row.id;
+  openRow.value = row.id;
   for (const c of row.criteria) {
     drafts[key(row, c.configId)] ??= { value: c.resolution?.value ?? "", expected: c.resolution?.expectedOutput ?? "" };
   }
@@ -118,7 +134,7 @@ async function promote() {
   let added = 0;
   const skipped: Array<{ reason: PromotionSkipReasonDto }> = [];
   try {
-    for (const body of promotionBatches(chosen.value, reference.value, props.queueId)) {
+    for (const body of promotionBatches(chosen.value, reference.value, props.queueId, useReply.value)) {
       const result = await api.promoteTracesToDataset(datasetId.value, body);
       added += result.added.length;
       skipped.push(...result.skipped);
@@ -137,7 +153,7 @@ async function promote() {
 <template>
   <section class="results" data-testid="queue-results">
     <p class="intro" data-testid="results-intro">
-      <strong>Your task:</strong> check what reviewers answered, settle any disagreement, then tick the good rows and add them to a dataset.
+      <strong>Your task:</strong> 1) settle every disagreement (<em>Resolve</em>), 2) tick the rows that are good, 3) choose the dataset and where the expected output comes from, 4) press <em>Add to dataset</em>.
       Open a row to read the conversation that was evaluated next to the reviewers' answers.
     </p>
     <div class="toolbar">
@@ -182,42 +198,9 @@ async function promote() {
                 <span v-else-if="crit.status === 'disagreement'" class="pill warn">disagreement</span>
               </template>
             </td>
-            <td><button type="button" class="small-btn" data-testid="resolve-btn" @click="open(row)">{{ openRow === row.id ? "Close" : row.needsResolution ? "Resolve" : "Open" }}</button></td>
+            <td><button type="button" class="small-btn" data-testid="resolve-btn" @click="open(row)">{{ row.needsResolution ? "Resolve" : "Open" }}</button></td>
           </tr>
 
-          <tr v-if="openRow === row.id" class="panel" data-testid="resolve-panel">
-            <td :colspan="configs.length + 3">
-              <TraceThreadPreview v-if="row.traceId" :trace-id="row.traceId" />
-              <p class="muted">Reviewers' answers and your final decision. Saving a decision never changes what reviewers answered.</p>
-              <div v-for="crit in row.criteria" :key="crit.configId" class="crit">
-                <h4>{{ configById.get(crit.configId)?.name }}</h4>
-                <ul class="plain">
-                  <li v-for="l in crit.labels" :key="l.userId"><strong>{{ l.name ?? "Former member" }}</strong> {{ show(configById.get(crit.configId), l.value) }}<span v-if="l.comment" class="muted"> — “{{ l.comment }}”</span></li>
-                  <li v-if="!crit.labels.length" class="muted">Nobody labelled this criterion.</li>
-                </ul>
-                <div v-if="drafts[key(row, crit.configId)] && configById.get(crit.configId)" class="decide">
-                  <span class="muted">Your final value</span>
-                  <template v-if="valueChoices(configById.get(crit.configId)!)">
-                    <button
-                      v-for="c in valueChoices(configById.get(crit.configId)!)"
-                      :key="c.value"
-                      type="button"
-                      class="choice"
-                      :class="{ on: drafts[key(row, crit.configId)]!.value === c.value }"
-                      data-testid="choice"
-                      @click="drafts[key(row, crit.configId)]!.value = c.value"
-                    >{{ c.label }}</button>
-                  </template>
-                  <TextInput v-else v-model="drafts[key(row, crit.configId)]!.value" type="number" aria-label="Final value" />
-                </div>
-                <TextInput multiline class="expected" v-if="drafts[key(row, crit.configId)]" v-model="drafts[key(row, crit.configId)]!.expected" :rows="2" placeholder="Correct answer (optional): what the agent should have said" aria-label="Expected output" />
-                <div class="decide">
-                  <button type="button" class="small-btn" :disabled="!drafts[key(row, crit.configId)]?.value" data-testid="save-resolution" @click="save(row, crit)">Save decision</button>
-                  <button v-if="crit.resolution" type="button" class="small-btn" data-testid="clear-resolution" @click="clear(row, crit)">Clear decision</button>
-                </div>
-              </div>
-            </td>
-          </tr>
         </tbody>
       </table>
     </div>
@@ -227,8 +210,50 @@ async function promote() {
       <Select v-model="datasetId" :options="datasetOptions" placeholder="Choose a dataset…" aria-label="Dataset" data-testid="promote-dataset" />
       <Select v-model="referenceId" :options="referenceOptions" aria-label="Expected output from" data-testid="promote-config" />
       <button type="button" class="small-btn primary" data-testid="promote-run" :disabled="!canPromote" @click="promote">Add to dataset</button>
+      <p class="muted" data-testid="promote-help">{{ referenceHelp }}</p>
+      <p v-if="promoteHint" class="muted hint" data-testid="promote-hint">{{ promoteHint }}</p>
       <p class="muted">Items are copies and each batch of 100 creates one new dataset version. Rows where reviewers disagree can’t be selected until you resolve them.</p>
     </div>
+
+    <Modal v-if="openedRow" full :title="openedRow.traceId ? `Trace ${shortId(openedRow.traceId)}` : `Run item ${openedRow.itemIndex}`" @close="openRow = null">
+      <div class="split" data-testid="resolve-panel">
+        <div class="conversation">
+          <h3>Conversation that was evaluated</h3>
+          <TraceThreadPreview v-if="openedRow.traceId" :trace-id="openedRow.traceId" fill />
+        </div>
+        <div class="decisions">
+          <p class="muted">Each reviewer’s answer and your decision. Saving a decision never changes what reviewers answered.</p>
+          <div v-for="crit in openedRow.criteria" :key="crit.configId" class="crit">
+            <h4>{{ configById.get(crit.configId)?.name }}</h4>
+            <p v-if="configById.get(crit.configId)?.description" class="muted">{{ configById.get(crit.configId)?.description }}</p>
+            <ul class="plain">
+              <li v-for="l in crit.labels" :key="l.userId"><strong>{{ l.name ?? "Former member" }}</strong> {{ show(configById.get(crit.configId), l.value) }}<span v-if="l.comment" class="muted"> — “{{ l.comment }}”</span></li>
+              <li v-if="!crit.labels.length" class="muted">Nobody labelled this criterion.</li>
+            </ul>
+            <div v-if="drafts[key(openedRow, crit.configId)] && configById.get(crit.configId)" class="decide">
+              <span class="muted">Verdict (settles the disagreement)</span>
+              <template v-if="valueChoices(configById.get(crit.configId)!)">
+                <button
+                  v-for="c in valueChoices(configById.get(crit.configId)!)"
+                  :key="c.value"
+                  type="button"
+                  class="choice"
+                  :class="{ on: drafts[key(openedRow, crit.configId)]!.value === c.value }"
+                  data-testid="choice"
+                  @click="drafts[key(openedRow, crit.configId)]!.value = c.value"
+                >{{ c.label }}</button>
+              </template>
+              <TextInput v-else v-model="drafts[key(openedRow, crit.configId)]!.value" type="number" aria-label="Final value" />
+            </div>
+            <TextInput multiline class="expected" v-if="drafts[key(openedRow, crit.configId)]" v-model="drafts[key(openedRow, crit.configId)]!.expected" :rows="3" placeholder="Correct answer (optional): what the agent should have said. It becomes the dataset item’s expected output." aria-label="Correct answer" />
+            <div class="decide">
+              <button type="button" class="small-btn" :disabled="!drafts[key(openedRow, crit.configId)]?.value" data-testid="save-resolution" @click="save(openedRow, crit)">Save decision</button>
+              <button v-if="crit.resolution" type="button" class="small-btn" data-testid="clear-resolution" @click="clear(openedRow, crit)">Clear decision</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Modal>
   </section>
 </template>
 
@@ -319,8 +344,35 @@ td.disagree {
 .pill.warn {
   color: var(--mt-err-ink);
 }
-.panel td {
-  background: var(--mt-soft);
+.split {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(320px, 2fr);
+  gap: 20px;
+}
+.conversation {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.conversation h3 {
+  margin: 0 0 8px;
+  font-size: 12.5px;
+}
+.conversation :deep(.preview) {
+  flex: 1;
+  min-height: 0;
+}
+.decisions {
+  min-height: 0;
+  overflow: auto;
+}
+@media (max-width: 900px) {
+  .split {
+    grid-template-columns: 1fr;
+    overflow: auto;
+  }
 }
 .crit {
   padding: 8px 0;
@@ -366,6 +418,10 @@ h4 {
   align-items: center;
   gap: 8px;
   margin-top: 10px;
+}
+.promote .hint {
+  color: var(--mt-accent);
+  font-weight: 600;
 }
 .promote .muted {
   flex-basis: 100%;

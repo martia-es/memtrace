@@ -4,7 +4,7 @@ import { personInitials, personLabel, accessSummary, authSummary, cardTone, feat
 
 const dep = (key: string, status: HealthStatusDto, isProduction = false, access = { everyone: false, groups: 0, users: 0 }): DeploymentSummaryDto =>
   ({
-    id: key, experimentId: "e1", environmentId: key, apiUrl: "https://x", healthUrl: null, version: null, authMethod: "none", authProvider: null, authAudience: null,
+    id: key, experimentId: "e1", environmentId: key, apiUrl: "https://x", healthUrl: null, version: null, deployRef: null, authMethod: "none", authProvider: null, authAudience: null,
     healthCheckEnabled: true, healthIntervalSeconds: null, healthStatus: status, healthCheckedAt: null, healthStatusSince: null, healthLatencyMs: null, healthConsecutiveFailures: 0,
     environment: { id: key, key, label: key.toUpperCase(), position: ({ dev: 0, pre: 1, pro: 2 } as Record<string, number>)[key] ?? 0, isProduction, healthIntervalSeconds: 60 }, access,
     recent: { buckets: [], uptimePercent: null },

@@ -184,10 +184,10 @@ describe("RunsPage", () => {
 
     const { wrapper, router } = await setup(RunsPage, api, "/runs");
     const headers = wrapper.findAll("th").map((th) => th.text());
-    expect(headers).toEqual(["", "Run", "Dataset", "When", "exact_match", "Items", "Status"]);
+    expect(headers).toEqual(["", "Run", "Dataset", "Code version", "When", "exact_match", "Items", "Status"]);
     expect(wrapper.find("tbody tr").text()).toContain("toy-agent-v1");
     expect(wrapper.find("tbody tr").text()).toContain("toy-agent-smoke-test");
-    expect(wrapper.find("tbody tr .mt-pill").text()).toContain("66%");
+    expect(wrapper.find("tbody tr td.center .mt-pill").text()).toContain("66%");
 
     await wrapper.find("tbody tr").trigger("click");
     await flushPromises();

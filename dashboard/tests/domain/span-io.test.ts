@@ -29,6 +29,19 @@ describe("spanIo", () => {
     expect(io.output[0]).toMatchObject({ label: "output", text: "respuesta" });
   });
 
+  it("shows a flat object of simple values as one labelled block per key, not as JSON", () => {
+    const io = spanIo(node({ content: { input: '{"message":"Where is the branch?","max":3}', output: false } }));
+    expect(io.input.map((b) => [b.label, b.text, b.structured])).toEqual([["message", "Where is the branch?", false], ["max", "3", false]]);
+    expect(JSON.parse(io.inputJson)).toEqual({ message: "Where is the branch?", max: 3 });
+    expect(io.output[0]).toMatchObject({ label: "output", text: "false" });
+  });
+
+  it("keeps nested objects as structured JSON", () => {
+    const io = spanIo(node({ content: { input: { filters: { city: "Malaga" } } } }));
+    expect(io.input).toHaveLength(1);
+    expect(io.input[0]).toMatchObject({ label: "input", structured: true });
+  });
+
   it("extracts chat messages from a chain input shaped as {messages: [...]}", () => {
     const io = spanIo(node({ content: { input: { messages: [{ role: "human", content: "hola" }] } } }));
     expect(io.input[0]).toMatchObject({ label: "human", role: "user", text: "hola" });

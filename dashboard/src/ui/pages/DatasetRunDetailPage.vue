@@ -12,9 +12,12 @@ import KpiCard from "../components/KpiCard.vue";
 import PageHeader from "../components/PageHeader.vue";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
+import { useExperimentRepo } from "../composables/useExperimentRepo";
+import CommitLink from "../components/CommitLink.vue";
 
 const api = useTraceApi();
 const route = useRoute();
+const repo = useExperimentRepo(() => route.params.experimentId as string);
 const datasetId = computed(() => route.params.datasetId as string);
 const runId = computed(() => route.params.runId as string);
 
@@ -66,6 +69,7 @@ function sourceSuffix(s: ScoreDto): string | null {
       <div class="artifacts">
         <span class="artifact">Dataset: <router-link :to="{ name: 'dataset', params: { datasetId } }">{{ run.data.value!.dataset.name }}</router-link></span>
         <span class="artifact">Agent version: <strong>{{ run.data.value!.run.name }}</strong></span>
+        <span v-if="run.data.value!.run.revision" class="artifact">Code version: <CommitLink :revision="run.data.value!.run.revision" :repo="repo" :dirty="run.data.value!.run.revisionDirty" /></span>
         <span class="artifact">{{ run.data.value!.run.itemCount }} items</span>
         <span v-if="run.data.value!.run.status === 'running'" class="artifact mt-pill warn" title="Still receiving results, or the process stopped before finishing">running</span>
         <span class="artifact">{{ formatDateTime(run.data.value!.run.createdAt) }}</span>

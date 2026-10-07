@@ -2,8 +2,9 @@
 import type { RunListItemDto } from "@contract";
 import { computed, ref } from "vue";
 import type { RangeParams } from "@/application/trace-api";
-import { selectOfflineRuns } from "../offline-eval-chart-option";
+import { selectOfflineRuns, type EvaluatorTargets } from "../offline-eval-chart-option";
 import { useAsync } from "../composables/useAsync";
+import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import EmptyState from "./EmptyState.vue";
 import ErrorBanner from "./ErrorBanner.vue";
@@ -12,9 +13,19 @@ import OfflineCompareView from "./OfflineCompareView.vue";
 import OfflineRunView from "./OfflineRunView.vue";
 import OfflineTrendView from "./OfflineTrendView.vue";
 
-const props = defineProps<{ range: RangeParams; /** baseline and candidate to compare, from the Evaluations run list */ compareIds?: [string, string] | null }>();
+const props = defineProps<{ experimentId: string; range: RangeParams; /** baseline and candidate to compare, from the Evaluations run list */ compareIds?: [string, string] | null }>();
 
 const api = useTraceApi();
+const identityApi = useIdentityApi();
+
+/** Objetivo de pass rate por evaluador, de las score configs del experimento (ADR-060). Si no se pueden leer, se usa el valor por defecto. */
+const targets = useAsync(async (signal) => {
+  const configs = await identityApi.listScoreConfigs(props.experimentId, false, signal).catch(() => []);
+  const byName: Record<string, number> = {};
+  for (const c of configs) if (c.targetPassRate !== null) byName[c.name] = c.targetPassRate;
+  return byName as EvaluatorTargets;
+});
+void targets.run();
 
 const runs = useAsync((signal) => api.listRuns(signal));
 void runs.run();
@@ -72,7 +83,7 @@ function openRun(run: RunListItemDto) {
     <EmptyState v-else-if="!allCompleted.length" icon="science" title="No offline evaluation runs">No completed runs yet. Run <code>run_experiment</code> against a MemTrace dataset to see them here.</EmptyState>
 
     <template v-else>
-      <OfflineTrendView v-if="view === 'trend'" :runs="inRange" @open-run="openRun" @compare="openCompare" />
+      <OfflineTrendView v-if="view === 'trend'"   :runs="inRange" :targets="targets.data.value ?? undefined" @open-run="openRun" @compare="openCompare" />
       <OfflineRunView v-else-if="view === 'run'" :runs="allCompleted" :run-id="runId" @update:run-id="runId = $event" />
       <OfflineCompareView v-else :runs="allCompleted" :initial-ids="seedIds" />
     </template>

@@ -1,5 +1,5 @@
 <script setup lang="ts" generic="T extends string | number">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 
 defineOptions({ inheritAttrs: false });
 
@@ -25,59 +25,114 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{ "update:modelValue": [value: T] }>();
 
 const isOpen = ref(false);
+const root = ref<HTMLElement | null>(null);
+const trigger = ref<HTMLButtonElement | null>(null);
+const menu = ref<HTMLElement | null>(null);
+/** El menú es `fixed` para que ningún contenedor con scroll (p. ej. un modal) lo recorte. */
+const menuStyle = ref<Record<string, string>>({});
 
-const selectedLabel = computed(() => {
-  const option = props.options.find((o) => o.value === props.modelValue);
-  return option?.label || props.placeholder;
-});
+const selectedOption = computed(() => props.options.find((o) => o.value === props.modelValue));
+const hasValue = computed(() => selectedOption.value !== undefined);
+const selectedLabel = computed(() => selectedOption.value?.label || props.placeholder);
+
+function place() {
+  const rect = trigger.value?.getBoundingClientRect();
+  if (!rect) return;
+  const below = window.innerHeight - rect.bottom - 12;
+  const up = below < 200 && rect.top > below;
+  menuStyle.value = {
+    left: `${rect.left}px`,
+    width: `${rect.width}px`,
+    maxHeight: `${Math.max(120, Math.min(280, up ? rect.top - 12 : below))}px`,
+    ...(up ? { bottom: `${window.innerHeight - rect.top + 4}px` } : { top: `${rect.bottom + 4}px` }),
+  };
+}
+
+const optionEls = () => [...(menu.value?.querySelectorAll<HTMLElement>(".select-option") ?? [])];
+
+async function open(focus: "selected" | "first" | "last" | null = null) {
+  if (props.disabled || props.loading) return;
+  place();
+  isOpen.value = true;
+  if (!focus) return;
+  await nextTick();
+  const items = optionEls();
+  (focus === "last" ? items.at(-1) : focus === "first" ? items[0] : (items.find((o) => o.classList.contains("selected")) ?? items[0]))?.focus();
+}
+
+const closeMenu = (refocus = false) => {
+  isOpen.value = false;
+  if (refocus) trigger.value?.focus();
+};
 
 const handleSelect = (value: T) => {
   emit("update:modelValue", value);
-  isOpen.value = false;
+  closeMenu(true);
 };
 
-const closeMenu = () => {
-  isOpen.value = false;
-};
+function onTriggerKey(event: KeyboardEvent) {
+  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+    event.preventDefault();
+    void open(event.key === "ArrowUp" ? "last" : "selected");
+  }
+}
 
-const root = ref<HTMLElement | null>(null);
+function onMenuKey(event: KeyboardEvent) {
+  const items = optionEls();
+  const at = items.indexOf(document.activeElement as HTMLElement);
+  const go = (i: number) => {
+    event.preventDefault();
+    items[(i + items.length) % items.length]?.focus();
+  };
+  if (event.key === "ArrowDown") go(at + 1);
+  else if (event.key === "ArrowUp") go(at - 1);
+  else if (event.key === "Home") go(0);
+  else if (event.key === "End") go(items.length - 1);
+  else if (event.key === "Tab") closeMenu();
+}
+
 const onOutsideClick = (event: MouseEvent) => {
-  if (isOpen.value && root.value && !root.value.contains(event.target as Node)) closeMenu();
+  const target = event.target as Node;
+  if (isOpen.value && !root.value?.contains(target) && !menu.value?.contains(target)) closeMenu();
 };
-onMounted(() => document.addEventListener("click", onOutsideClick));
-onBeforeUnmount(() => document.removeEventListener("click", onOutsideClick));
+const onScroll = (event: Event) => {
+  if (isOpen.value && !menu.value?.contains(event.target as Node)) closeMenu();
+};
+onMounted(() => {
+  document.addEventListener("click", onOutsideClick);
+  window.addEventListener("scroll", onScroll, true);
+  window.addEventListener("resize", () => closeMenu());
+});
+onBeforeUnmount(() => {
+  document.removeEventListener("click", onOutsideClick);
+  window.removeEventListener("scroll", onScroll, true);
+});
 </script>
 
 <template>
-  <div ref="root" class="select" @keydown.escape="closeMenu">
+  <div ref="root" class="select" @keydown.escape.stop="closeMenu(true)">
     <button
       v-bind="$attrs"
+      ref="trigger"
       type="button"
       class="select-trigger"
-      :class="{ open: isOpen, active: modelValue !== null && modelValue !== '' }"
+      :class="{ open: isOpen, active: hasValue, empty: !hasValue }"
       aria-haspopup="listbox"
       :aria-expanded="isOpen"
       :disabled="loading || disabled"
-      @click="isOpen = !isOpen"
+      @click="isOpen ? closeMenu() : open()"
+      @keydown="onTriggerKey"
     >
       <span class="select-label">{{ selectedLabel }}</span>
-      <svg
-        class="select-icon"
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <polyline points="6 9 12 15 18 9"></polyline>
-      </svg>
+      <span class="select-chevron" aria-hidden="true">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </span>
     </button>
 
     <transition name="dropdown">
-      <div v-if="isOpen" class="select-menu">
+      <div v-if="isOpen" ref="menu" class="select-menu" role="listbox" :style="menuStyle" @keydown="onMenuKey">
         <div v-if="loading" class="select-loading">
           <div class="spinner"></div>
           Loading...
@@ -87,11 +142,13 @@ onBeforeUnmount(() => document.removeEventListener("click", onOutsideClick));
             v-for="option in options"
             :key="option.value"
             type="button"
+            role="option"
             class="select-option"
             :class="{ selected: modelValue === option.value }"
+            :aria-selected="modelValue === option.value"
             @click="handleSelect(option.value)"
           >
-            {{ option.label }}
+            <span class="option-text">{{ option.label }}</span>
             <svg
               v-if="modelValue === option.value"
               width="14"
@@ -102,6 +159,7 @@ onBeforeUnmount(() => document.removeEventListener("click", onOutsideClick));
               stroke-width="3"
               stroke-linecap="round"
               stroke-linejoin="round"
+              aria-hidden="true"
             >
               <polyline points="20 6 9 17 4 12"></polyline>
             </svg>
@@ -119,6 +177,7 @@ onBeforeUnmount(() => document.removeEventListener("click", onOutsideClick));
   font-size: 13px;
 }
 
+/* Mismo lenguaje que TextInput: borde fino, fondo de tarjeta y un chevron discreto. */
 .select-trigger {
   width: 100%;
   display: flex;
@@ -126,32 +185,30 @@ onBeforeUnmount(() => document.removeEventListener("click", onOutsideClick));
   justify-content: space-between;
   gap: 8px;
   height: 36px;
-  padding: 0 12px;
+  padding: 0 10px 0 12px;
   background: var(--mt-card);
-  border: 1px solid var(--mt-border);
+  border: 1px solid var(--mt-line);
   border-radius: var(--mt-radius-sm);
-  color: var(--mt-text);
+  color: var(--mt-ink);
+  font: inherit;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: border-color 0.15s ease;
 }
 
 .select-trigger:hover:not(:disabled) {
-  border-color: var(--mt-accent);
-  background: var(--mt-soft);
+  border-color: var(--mt-muted);
 }
 
-.select-trigger.active {
-  border-color: var(--mt-accent);
-  color: var(--mt-accent);
-}
-
+.select-trigger:focus-visible,
 .select-trigger.open {
+  outline: none;
   border-color: var(--mt-accent);
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
-  background: var(--mt-card);
+}
+
+.select-trigger.empty .select-label {
+  color: var(--mt-muted);
 }
 
 .select-trigger:disabled {
@@ -161,6 +218,7 @@ onBeforeUnmount(() => document.removeEventListener("click", onOutsideClick));
 
 .select-label {
   flex: 1;
+  min-width: 0;
   text-align: left;
   color: inherit;
   white-space: nowrap;
@@ -168,31 +226,29 @@ onBeforeUnmount(() => document.removeEventListener("click", onOutsideClick));
   text-overflow: ellipsis;
 }
 
-.select-icon {
+.select-chevron {
   flex-shrink: 0;
+  display: flex;
   color: var(--mt-muted);
-  transition: transform 0.2s ease;
 }
 
-.select-trigger.open .select-icon {
+.select-chevron svg {
+  transition: transform 0.15s ease;
+}
+
+.select-trigger.open .select-chevron svg {
   transform: rotate(180deg);
 }
 
 .select-menu {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
+  position: fixed;
   background: var(--mt-card);
-  border: 1px solid var(--mt-border);
-  border-top: none;
-  border-bottom-left-radius: 8px;
-  border-bottom-right-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-  z-index: 100;
-  max-height: 280px;
+  border: 1px solid var(--mt-line);
+  border-radius: var(--mt-radius-sm);
+  box-shadow: 0 6px 18px rgba(10, 35, 33, 0.1);
+  z-index: 1100;
   overflow-y: auto;
-  padding: 4px 0;
+  padding: 4px;
 }
 
 .select-loading {
@@ -208,7 +264,7 @@ onBeforeUnmount(() => document.removeEventListener("click", onOutsideClick));
 .spinner {
   width: 12px;
   height: 12px;
-  border: 1.5px solid var(--mt-border);
+  border: 1.5px solid var(--mt-line);
   border-top-color: var(--mt-accent);
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
@@ -226,33 +282,41 @@ onBeforeUnmount(() => document.removeEventListener("click", onOutsideClick));
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  height: 36px;
-  padding: 0 12px;
+  min-height: 34px;
+  padding: 6px 10px;
   background: transparent;
   border: none;
-  color: var(--mt-text);
+  border-radius: 6px;
+  color: var(--mt-ink);
+  font: inherit;
   font-size: 13px;
   cursor: pointer;
-  transition: background 0.15s ease;
   text-align: left;
 }
 
-.select-option:hover {
+.option-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.select-option:hover,
+.select-option:focus-visible {
+  outline: none;
   background: var(--mt-soft);
 }
 
 .select-option.selected {
-  background: rgba(127, 207, 74, 0.08);
+  background: var(--mt-soft);
   color: var(--mt-accent);
   font-weight: 600;
 }
 
 .dropdown-enter-active {
-  animation: slideDown 0.2s ease;
+  animation: slideDown 0.15s ease;
 }
 
 .dropdown-leave-active {
-  animation: slideDown 0.2s ease reverse;
+  animation: slideDown 0.15s ease reverse;
 }
 
 @keyframes slideDown {

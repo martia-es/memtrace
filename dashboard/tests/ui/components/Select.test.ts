@@ -165,4 +165,19 @@ describe("Select", () => {
     const trigger = wrapper.find(".select-trigger");
     expect(trigger.text()).toContain("1 second");
   });
+
+  it("opens with the arrow keys and closes with Escape", async () => {
+    const wrapper = mount(Select, { props: { modelValue: null, options: [{ label: "Option 1", value: "opt1" }] }, attachTo: document.body });
+    await wrapper.find(".select-trigger").trigger("keydown", { key: "ArrowDown" });
+    expect(wrapper.find(".select-menu").exists()).toBe(true);
+    await wrapper.find(".select").trigger("keydown", { key: "Escape" });
+    expect(wrapper.find(".select-menu").exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it("looks like a field: a chevron button is always visible, even with no value", () => {
+    const wrapper = mount(Select, { props: { modelValue: null, options: [] } });
+    expect(wrapper.find(".select-chevron").exists()).toBe(true);
+    expect(wrapper.find(".select-trigger").classes()).toContain("empty");
+  });
 });
