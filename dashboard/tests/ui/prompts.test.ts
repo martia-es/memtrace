@@ -112,6 +112,38 @@ describe("prompt detail (ADR-067)", () => {
     expect(wrapper.find("[data-testid='tag-events']").text()).toContain("ready to test");
   });
 
+  it("shows which version each agent really runs, and flags the ones that have not caught up with the tag", async () => {
+    const api = new FakePromptApi();
+    const seen = (extra: object) => ({ experimentId: "exp-1", environment: "dev", tag: "dev", version: 2, lastSeenAt: new Date().toISOString(), active: true, ...extra });
+    api.detail = promptDetail({ usage: [seen({}), seen({ environment: "pro", tag: "pro", version: 1 }), seen({ environment: "pre", tag: "pre", version: 1, active: false })] });
+    const { wrapper } = await setup(PromptDetailPage, "technical", api, { promptId: "p1" });
+    // la lista de versiones marca dónde corre cada una
+    expect(wrapper.find("[data-testid='running-2']").text()).toBe("Running in dev");
+    expect(wrapper.find("[data-testid='running-1']").text()).toBe("Running in pro"); // "pre" no informa: no cuenta
+    await wrapper.findAll("[role='tab']")[2]!.trigger("click");
+    const table = wrapper.find("[data-testid='usage-table']");
+    expect(table.find("[data-testid='usage-dev-v2']").text()).toContain("Up to date");
+    expect(table.find("[data-testid='usage-pre-v1']").text()).toContain("Not reporting");
+    // el tag "pro" no existe en el detalle de prueba: no hay nada con lo que desfasarse
+    expect(table.find("[data-testid='usage-pro-v1']").text()).toContain("Up to date");
+  });
+
+  it("flags an agent that still runs an older version than its tag points to", async () => {
+    const api = new FakePromptApi();
+    api.detail = promptDetail({ usage: [{ experimentId: "exp-1", environment: "dev", tag: "dev", version: 1, lastSeenAt: new Date().toISOString(), active: true }] });
+    const { wrapper } = await setup(PromptDetailPage, "technical", api, { promptId: "p1" });
+    await wrapper.findAll("[role='tab']")[2]!.trigger("click");
+    const row = wrapper.find("[data-testid='usage-dev-v1']");
+    expect(row.text()).toContain("Catching up");
+    expect(row.text()).toContain("now points to v2");
+  });
+
+  it("explains how an agent shows up when none has reported yet", async () => {
+    const { wrapper } = await setup(PromptDetailPage, "technical", new FakePromptApi(), { promptId: "p1" });
+    await wrapper.findAll("[role='tab']")[2]!.trigger("click");
+    expect(wrapper.find("[data-testid='usage-empty']").text()).toContain("prompts.get()");
+  });
+
   it("hides the environment controls from people without the promote permission", async () => {
     const { wrapper } = await setup(PromptDetailPage, "business", new FakePromptApi(), { promptId: "p1" });
     await wrapper.findAll("[role='tab']")[2]!.trigger("click");

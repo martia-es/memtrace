@@ -4,7 +4,8 @@ import { useRoute } from "vue-router";
 import { useQuasar } from "quasar";
 import type { PromptDetailDto, PromptVersionDto } from "@contract";
 import { describeApiError } from "@/application/describe-api-error";
-import { formatDateTime } from "@/domain/format";
+import { formatDateTime, formatRelativeTime } from "@/domain/format";
+import { describeUsage, environmentsRunning, type UsageState } from "@/domain/prompt-usage";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import PageHeader from "../components/PageHeader.vue";
 import PromptDiff from "../components/PromptDiff.vue";
@@ -36,6 +37,11 @@ watch(versions, (list) => {
   if (list.length > 0 && (selected.value === null || !list.some((v) => v.version === selected.value))) selected.value = list[0]!.version;
 }, { immediate: true });
 const selectedVersion = computed<PromptVersionDto | null>(() => versions.value.find((v) => v.version === selected.value) ?? null);
+
+const usageRows = computed(() => describeUsage(data.value?.usage ?? [], data.value?.tags ?? []));
+const running = (version: number) => environmentsRunning(data.value?.usage ?? [], version);
+const USAGE_LABEL: Record<UsageState, string> = { in_sync: "Up to date", behind: "Catching up", pinned: "Fixed version", stale: "Not reporting" };
+const nowMs = Date.now();
 
 const tagsByVersion = computed(() => {
   const map = new Map<number, string[]>();
@@ -172,6 +178,7 @@ const asVariable = (name: string) => `{{${name}}}`;
               <strong class="mono">v{{ v.version }}</strong>
               <span v-for="tag in tagsByVersion.get(v.version) ?? []" :key="tag" class="mt-pill tag">{{ tag }}</span>
             </span>
+            <span v-if="running(v.version).length > 0" class="running" :data-testid="`running-${v.version}`">Running in {{ running(v.version).join(", ") }}</span>
             <span class="version-msg">{{ v.message || "No message" }}</span>
             <span class="muted version-date mono">{{ formatDateTime(v.createdAt) }}</span>
           </button>
@@ -213,6 +220,23 @@ const asVariable = (name: string) => `{{${name}}}`;
           </div>
 
           <div v-else-if="tab === 'tags'" class="pane" data-testid="pane-tags">
+            <h3>In use right now</h3>
+            <p v-if="usageRows.length === 0" class="muted small" data-testid="usage-empty">
+              No agent has reported this prompt yet. It shows up here once an agent loads it with <code>memtrace.prompts.get()</code>.
+            </p>
+            <table v-else class="tags" data-testid="usage-table">
+              <tbody>
+                <tr v-for="u in usageRows" :key="`${u.experimentId}-${u.environment}-${u.tag}-${u.version}`" :data-testid="`usage-${u.environment || 'none'}-v${u.version}`">
+                  <td class="mono tag-name">{{ u.environment || "no environment" }}</td>
+                  <td class="mono">v{{ u.version }}</td>
+                  <td class="muted">{{ u.tag ? `follows “${u.tag}”` : "fixed version" }}</td>
+                  <td><span class="mt-pill usage" :class="u.state">{{ USAGE_LABEL[u.state] }}</span></td>
+                  <td v-if="u.state === 'behind'" class="muted small">“{{ u.tag }}” now points to v{{ u.tagVersion }}</td>
+                  <td v-else class="muted small">{{ formatRelativeTime(u.lastSeenAt, nowMs) }}</td>
+                </tr>
+              </tbody>
+            </table>
+
             <h3>Environments</h3>
             <p class="muted small">The tag decides which version each environment uses. Moving one needs the promote permission.</p>
             <TextInput v-if="canPromote || canWrite" v-model="reason" placeholder="Reason for the change (optional, saved in the history)" data-testid="tag-reason" />
@@ -347,6 +371,27 @@ const asVariable = (name: string) => `{{${name}}}`;
   background: var(--mt-card);
 }
 .archived {
+  background: var(--mt-soft);
+  color: var(--mt-muted);
+}
+.running {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--mt-ok-ink);
+}
+.usage.in_sync {
+  background: var(--mt-ok-bg);
+  color: var(--mt-ok-ink);
+}
+.usage.behind {
+  background: var(--mt-warn-bg);
+  color: var(--mt-warn-ink);
+}
+.usage.pinned {
+  background: var(--mt-accent-soft);
+  color: var(--mt-accent-text);
+}
+.usage.stale {
   background: var(--mt-soft);
   color: var(--mt-muted);
 }
