@@ -2,17 +2,18 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { useQuasar } from "quasar";
 import { describeApiError } from "@/application/describe-api-error";
-import type { DeploymentSummaryDto } from "@contract";
+import type { DeploymentSummaryDto, RepoConfigDto } from "@contract";
 import { useAsync } from "../../composables/useAsync";
 import { useAssistantApi } from "../../composables/useAssistantApi";
 import { chatUrl } from "@/domain/chat-dock";
 import { formatDuration, formatRelativeTime } from "@/domain/format";
 import { DEPLOY_STATUS, HEALTH_LABEL, HEALTH_TONE, accessSummary, authSummary, formatUptime, uptimePercent } from "@/domain/assistants";
+import CommitLink from "../CommitLink.vue";
 import StatusChip from "../StatusChip.vue";
 import HealthBars from "./HealthBars.vue";
 
 /** Un entorno de un asistente: estado de /health, disponibilidad de 24 h y datos del despliegue (ADR-053). */
-const props = defineProps<{ experimentId: string; deployment: DeploymentSummaryDto; selected: boolean; canManage: boolean; nowMs: number; chatPath?: string | null; talkable?: boolean; deployable?: boolean; refreshKey?: number }>();
+const props = defineProps<{ experimentId: string; deployment: DeploymentSummaryDto; selected: boolean; canManage: boolean; nowMs: number; chatPath?: string | null; talkable?: boolean; deployable?: boolean; refreshKey?: number; repo?: RepoConfigDto | null }>();
 const emit = defineEmits<{ select: []; edit: []; checked: []; talk: []; deploy: [] }>();
 
 const api = useAssistantApi();
@@ -25,6 +26,8 @@ const deploys = useAsync((signal) => api.listDeploys(props.experimentId, props.d
 onMounted(() => void deploys.run().catch(() => undefined));
 watch(() => props.refreshKey, () => void deploys.run());
 const lastDeploy = computed(() => deploys.data.value?.[0] ?? null);
+// el commit que corre hoy en el entorno: el último despliegue que terminó bien (el último intento puede estar en curso o haber fallado)
+const deployed = computed(() => deploys.data.value?.find((x) => x.status === "succeeded") ?? null);
 // un sondeo nuevo cambia `healthCheckedAt`: se vuelve a leer el historial
 watch(() => props.deployment.healthCheckedAt, () => void history.run());
 
@@ -48,12 +51,13 @@ const rows = computed<Array<[string, string]>>(() => [
   ["Latency", d.value.healthLatencyMs !== null ? `${formatDuration(d.value.healthLatencyMs)}${d.value.healthCheckedAt ? ` · ${formatRelativeTime(d.value.healthCheckedAt, props.nowMs)}` : ""}` : d.value.healthCheckEnabled ? "No check yet" : "Checks off"],
   ...(props.chatPath ? ([["Chat", chatUrl(d.value.apiUrl, props.chatPath)]] as Array<[string, string]>) : []),
   ["Version", d.value.version ?? "–"],
+  ...(deployed.value ? ([["Deployed", formatRelativeTime(deployed.value.createdAt, props.nowMs)]] as Array<[string, string]>) : []),
   ...(lastDeploy.value ? ([["Last deploy", `${DEPLOY_STATUS[lastDeploy.value.status]?.label ?? lastDeploy.value.status} · ${lastDeploy.value.commitSha.slice(0, 7)} · ${formatRelativeTime(lastDeploy.value.createdAt, props.nowMs)}${lastDeploy.value.gateBypassed ? " · evaluation skipped" : ""}`]] as Array<[string, string]>) : []),
   ...(d.value.deployRef ? ([["Deploys from", d.value.deployRef]] as Array<[string, string]>) : []),
   ["Auth", authSummary(d.value)],
   ["Access", accessSummary(d.value)],
 ]);
-const mono = new Set(["API", "Health", "Chat", "Latency", "Version", "Deploys from", "Last deploy"]);
+const mono = new Set(["API", "Health", "Chat", "Latency", "Version", "Deploys from", "Last deploy", "Deployed"]);
 </script>
 
 <template>
@@ -74,7 +78,8 @@ const mono = new Set(["API", "Health", "Chat", "Latency", "Version", "Deploys fr
     <dl class="rows">
       <template v-for="[label, value] in rows" :key="label">
         <dt>{{ label }}</dt>
-        <dd :class="{ mono: mono.has(label) }" :title="value">{{ value }}</dd>
+        <dd v-if="label === 'Deployed' && deployed" class="deployed" data-testid="deployed-commit"><CommitLink :revision="deployed.commitSha" :repo="repo" /><span class="muted">{{ value }}</span></dd>
+        <dd v-else :class="{ mono: mono.has(label) }" :title="value">{{ value }}</dd>
       </template>
     </dl>
     <button type="button" class="select" :aria-pressed="selected" @click="emit('select')">{{ selected ? "Showing who can call it" : "Show who can call it" }}</button>
@@ -104,6 +109,8 @@ const mono = new Set(["API", "Health", "Chat", "Latency", "Version", "Deploys fr
 .uptime-legend b { font-family: var(--mt-mono); font-weight: 500; color: var(--mt-ink); }
 .rows { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 7px 10px; margin: 0; padding-top: 8px; border-top: 1px solid var(--mt-line-2); font-size: 12px; }
 dt { color: var(--mt-muted); }
+.deployed { display: flex; align-items: center; gap: 8px; }
+.muted { color: var(--mt-muted); }
 dd { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 dd.mono { font-family: var(--mt-mono); font-size: 11.5px; }
 </style>

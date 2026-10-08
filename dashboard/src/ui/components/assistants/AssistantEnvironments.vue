@@ -59,6 +59,7 @@ const lastCheck = computed(() => props.card.deployments.map((d) => d.healthCheck
           :talkable="canTalkTo(card, d)"
           :deployable="props.canDeploy === true && canDeployTo(card, d)"
           :refresh-key="deployTick"
+          :repo="card.repo"
           @deploy="deploying = d"
           @talk="talk(d)"
           @select="selectedId = d.id"
