@@ -1,3 +1,4 @@
+from memtrace import prompts
 from memtrace._version import __version__
 from memtrace.adapters.inbound.manual import record_retrieved_chunks, trace_llm_call, trace_step, trace_step_context
 from memtrace.application.context import get_current_run_id, session
@@ -20,6 +21,7 @@ __all__ = [
     "current_trace_id",
     "feedback",
     "retract_feedback",
+    "prompts",
     "MemTraceCallbackHandler",
     "enable_langchain_instrumentation",
     "enable_pydantic_ai_instrumentation",
