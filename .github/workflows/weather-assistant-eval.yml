@@ -15,6 +15,7 @@ on:
     paths:
       - "weather_assistant/**"
       - "sdk/python/**"
+      - ".github/workflows/weather-assistant-eval.yml"
 
 permissions:
   contents: read
