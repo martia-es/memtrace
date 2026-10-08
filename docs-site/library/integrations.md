@@ -29,6 +29,18 @@ chain.invoke(x)   # captured automatically
 
 Requires `pip install "memtrace-ai[otel-langchain]"`. It is safe to call again after `shutdown()` and `init_tracer()` (notebooks, tests). Do not combine it with `MemTraceCallbackHandler`: every run would be traced twice. Prompts and completions are recorded only with [content capture](./configuration#privacy-and-content-capture) on.
 
+### Prompts from the registry
+
+To use a [registry prompt](./prompts) as the system prompt of a `create_agent` agent (LangChain 1.x), add the middleware. It resolves the prompt on every model call, so the agent follows its tag without being rebuilt:
+
+```python
+from memtrace.langchain import prompt_middleware
+
+agent = create_agent(model, tools, middleware=[prompt_middleware(weather, city="Sevilla")])
+```
+
+Requires `pip install "memtrace-ai[langchain-agents]"` (Python 3.10+). See [Prompts](./prompts#frameworks-that-freeze-the-prompt) for variables that depend on the run and for other frameworks.
+
 ## Pydantic AI
 
 ```python
