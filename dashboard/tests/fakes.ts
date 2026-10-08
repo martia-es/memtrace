@@ -10,6 +10,7 @@ import type {
   AnnotationQueuesListResponse,
   ReviewerCandidatesResponse,
   LowRatedResponse,
+  ErrorOverviewResponse,
   FeedbackOverviewResponse,
   FeedbackRatingsResponse,
   TraceFeedbackResponse,
@@ -447,6 +448,10 @@ export class FakeTraceApi implements TraceApi {
   }
   async getFeedbackRatings(): Promise<FeedbackRatingsResponse> {
     return { items: this.feedbackRatings };
+  }
+  errorOverview: ErrorOverviewResponse = { range: { from: "", to: "" }, previousRange: null, totals: { occurrences: 0, tracesWithErrors: 0, conversationsWithErrors: 0, totalTraces: 0, totalConversations: 0 }, categories: [] };
+  async getErrorOverview(): Promise<ErrorOverviewResponse> {
+    return this.errorOverview;
   }
   async getFeedbackOverview(): Promise<FeedbackOverviewResponse> {
     return this.feedbackOverview;

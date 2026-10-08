@@ -11,6 +11,7 @@ import {
   type ServiceUsage,
   type StepKindCount,
 } from "@/domain/metrics";
+import { summarizeErrors, type ErrorOverview } from "@/domain/error-categories";
 import { MAX_RANGE_MS, resolveTimeRange } from "@/domain/time-range";
 import { toSpanRow, type SpanCursor, type SpanRow } from "@/domain/span-row";
 import { buildTranscript, lastOf, parseMessages, type Transcript } from "@/domain/transcript";
@@ -235,6 +236,19 @@ export class TraceQueryService {
       fromMs,
       toMs,
     };
+  }
+
+  /** Errores del rango en lenguaje de negocio (ADR-066), comparados con el periodo anterior de igual duración. */
+  async getErrorOverview(input: { from?: Date; to?: Date; service?: string }): Promise<ErrorOverview> {
+    const range = resolveTimeRange(input, this.now());
+    const candidate = { fromMs: range.fromMs - (range.toMs - range.fromMs), toMs: range.fromMs };
+    // más allá de la retención no hay datos y "0 antes" haría parecer nuevo cualquier error
+    const previousRange = candidate.fromMs >= this.now() - MAX_RANGE_MS ? candidate : null;
+    const [current, previous] = await Promise.all([
+      this.repository.listErrorGroups({ ...range, service: input.service }),
+      previousRange ? this.repository.listErrorGroups({ ...previousRange, service: input.service }) : null,
+    ]);
+    return summarizeErrors(current, previous, range, previousRange);
   }
 
   /** Commits vistos en el rango (para elegirlos en el filtro de versión). */

@@ -1,6 +1,7 @@
 import type { ClickHouseClient } from "@clickhouse/client";
 import { RepositoryUnavailableError } from "@/application/errors";
 import type { ConversationListQuery, RevisionSummary, SpanListQuery, TraceListQuery, TraceRepository, TraceSpans } from "@/application/ports/trace-repository";
+import type { ErrorGroupsResult } from "@/domain/error-categories";
 import type { ConversationCursor, ConversationSummary, ConversationUsage } from "@/domain/conversation";
 import type { ModelPricing } from "@/domain/pricing";
 import { previewOf, type SpanCursor, type SpanRecord } from "@/domain/span-row";
@@ -132,6 +133,47 @@ export class ClickHouseTraceRepository implements TraceRepository {
    * Calcula un gráfico custom (ADR-027/030). `metric`/`chartType` son un enum cerrado elegido por el
    * servidor; `filters`/`groupByAttribute` son siempre parámetros ligados, nunca concatenados al SQL.
    */
+  async listErrorGroups({ fromMs, toMs, service }: TimeRange & { service?: string }): Promise<ErrorGroupsResult> {
+    const { clause, params } = ClickHouseTraceRepository.range(fromMs, toMs);
+    const svc = service ? " AND ServiceName = {service:String}" : "";
+    const p: Params = { ...params, ...(service ? { service } : {}) };
+    const base = `FROM ${this.spans} WHERE ${clause}${svc}`;
+    const failed = `${base} AND StatusCode = ${ERROR}`;
+    // solo el fallo más profundo: un span cuyo hijo también falla es una propagación del mismo error
+    const leaf = `${failed} AND (TraceId, SpanId) NOT IN (SELECT TraceId, ParentSpanId ${failed} AND ParentSpanId != '')`;
+    const exceptionType = "arrayElement(arrayMap(a -> a['exception.type'], `Events.Attributes`), indexOf(`Events.Name`, 'exception'))";
+
+    const [groups, failedTotals, totals] = await Promise.all([
+      this.rows(
+        `SELECT ${KIND} AS kind, if(${attr("gen_ai.tool.name")} != '', ${attr("gen_ai.tool.name")}, SpanName) AS errName,
+                substring(StatusMessage, 1, 300) AS message, ${exceptionType} AS exceptionType,
+                count() AS occurrences, uniqExact(TraceId) AS traces, uniqExactIf(ConversationId, ConversationId != '') AS conversations,
+                toUnixTimestamp64Milli(min(Timestamp)) AS firstMs, toUnixTimestamp64Milli(max(Timestamp)) AS lastMs
+         ${leaf} GROUP BY kind, errName, message, exceptionType ORDER BY occurrences DESC LIMIT 500`,
+        p,
+      ),
+      this.rows(`SELECT uniqExact(TraceId) AS traces, uniqExactIf(ConversationId, ConversationId != '') AS conversations ${failed}`, p),
+      this.rows(`SELECT uniqExact(TraceId) AS traces, uniqExactIf(ConversationId, ConversationId != '') AS conversations ${base}`, p),
+    ]);
+    return {
+      groups: groups.map((r) => ({
+        kind: String(r.kind),
+        name: String(r.errName),
+        message: String(r.message),
+        exceptionType: String(r.exceptionType ?? ""),
+        occurrences: num(r.occurrences),
+        traces: num(r.traces),
+        conversations: num(r.conversations),
+        firstSeenMs: num(r.firstMs),
+        lastSeenMs: num(r.lastMs),
+      })),
+      tracesWithErrors: num(failedTotals[0]?.traces),
+      conversationsWithErrors: num(failedTotals[0]?.conversations),
+      totalTraces: num(totals[0]?.traces),
+      totalConversations: num(totals[0]?.conversations),
+    };
+  }
+
   async getCustomMetric(q: CustomMetricQuery): Promise<CustomMetricResult> {
     const { clause, params } = ClickHouseTraceRepository.range(q.fromMs, q.toMs);
     const svc = q.service ? " AND ServiceName = {service:String}" : "";

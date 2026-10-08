@@ -1,3 +1,4 @@
+import type { ErrorGroupsResult } from "@/domain/error-categories";
 import type { ConversationCursor, ConversationSummary, ConversationUsage } from "@/domain/conversation";
 import type { AttributeKeyCount, AttributeValueCount, CustomMetricQuery, CustomMetricResult, MetricsOverview, MetricsQuery, ServiceUsage, StepKindCount } from "@/domain/metrics";
 import type { ModelPricing } from "@/domain/pricing";
@@ -107,6 +108,9 @@ export interface TraceRepository {
   getAttributeKeys(query: TimeRange & { service?: string; stepTypes: string[] }): Promise<AttributeKeyCount[]>;
   /** calcula un gráfico custom (ADR-027); la forma de la consulta es un enum cerrado, nunca SQL del usuario */
   getCustomMetric(query: CustomMetricQuery): Promise<CustomMetricResult>;
+
+  /** spans fallidos más profundos (los que no tienen un hijo fallido) agrupados por señal técnica, más los totales del rango (ADR-066) */
+  listErrorGroups(query: TimeRange & { service?: string }): Promise<ErrorGroupsResult>;
 
   ping(): Promise<void>;
 }

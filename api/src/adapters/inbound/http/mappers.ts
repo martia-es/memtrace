@@ -1,4 +1,5 @@
 import type { ConversationCursor, ConversationListItem } from "@/domain/conversation";
+import type { ErrorOverview } from "@/domain/error-categories";
 import type { AttributeKeyCount, AttributeValueCount, CustomMetricResult, MetricsOverview, ServiceUsage, StepKindCount } from "@/domain/metrics";
 import type { DatasetVersionDiff } from "@/domain/dataset-diff";
 import type { CustomMetric, Dataset, DatasetItem, DatasetRun, DatasetRunWithDataset, DatasetVersion, MetricReport, MetricReportWithCharts } from "@/domain/identity";
@@ -49,6 +50,7 @@ import type {
   MetricReportSummaryDto,
   ModelPricingResponse,
   OverviewResponse,
+  ErrorOverviewResponse,
   SavedCustomMetricDto,
   ScoreConfigDto,
   AnnotationQueueDetailResponse,
@@ -209,6 +211,16 @@ export function toOverviewResponse(o: MetricsOverview & { fromMs: number; toMs: 
     byModel: o.byModel,
     byTool: o.byTool,
     byTopic: o.byTopic,
+  };
+}
+
+export function toErrorOverviewResponse(o: ErrorOverview): ErrorOverviewResponse {
+  const iso = (r: { fromMs: number; toMs: number }) => ({ from: isoFromMs(r.fromMs), to: isoFromMs(r.toMs) });
+  return {
+    range: iso(o.range),
+    previousRange: o.previousRange ? iso(o.previousRange) : null,
+    totals: o.totals,
+    categories: o.categories.map(({ firstSeenMs, lastSeenMs, ...c }) => ({ ...c, firstSeen: isoFromMs(firstSeenMs), lastSeen: isoFromMs(lastSeenMs) })),
   };
 }
 

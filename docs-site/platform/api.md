@@ -17,6 +17,7 @@ All under `/api/v1/experiments/{experimentId}`:
 | `GET /conversations/{conversationId}/transcript` | User/assistant messages per turn (needs captured content) |
 | `GET /conversations/{conversationId}/tree` | Span tree of each turn |
 | `GET /metrics/overview` | Totals, latency, time series, tokens per model, tools |
+| `GET /errors/overview` | Failures grouped by business cause (title, explanation, suggested action, severity), with conversations affected and the change against the previous period of the same length (`previousRange` is `null` when that period is older than the retention) |
 
 Lists are cursor-paginated: pass the `nextCursor` of a response as `cursor` to get the next page.
 

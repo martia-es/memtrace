@@ -128,4 +128,34 @@ describe("AnnotationQueuesPage inbox", () => {
     expect(wrapper.find('[data-testid="inbox"]').exists()).toBe(false);
     expect(wrapper.text()).toContain("You are all caught up");
   });
+  it("explains the failures by business cause and expands the detail", async () => {
+    const api = new FakeTraceApi();
+    api.overview = overview({ errorTraces: 4, errorRate: 0.04 });
+    api.errorOverview = {
+      range: { from: "", to: "" },
+      previousRange: { from: "", to: "" },
+      totals: { occurrences: 9, tracesWithErrors: 4, conversationsWithErrors: 4, totalTraces: 100, totalConversations: 40 },
+      categories: [{
+        id: "quota_exceeded", title: "AI provider usage limit reached", explanation: "The provider rejected requests.", action: "Ask the platform team to raise the quota.",
+        severity: "high", occurrences: 9, previousOccurrences: 3, traces: 4, conversations: 4, firstSeen: "2026-10-01T00:00:00.000Z", lastSeen: "2026-10-01T00:00:00.000Z",
+        affected: [{ kind: "llm", name: "gemini", occurrences: 9 }], sample: "429 Too Many Requests",
+      }],
+    };
+    const { wrapper } = await setup(MetricsPage, api, "/overview");
+    const card = wrapper.get('[data-testid="error-category"]');
+    expect(card.text()).toContain("AI provider usage limit reached");
+    expect(card.text()).toContain("4 conversations (10%)");
+    expect(wrapper.get('[data-testid="error-trend"]').text()).toContain("▲");
+    expect(card.text()).not.toContain("Ask the platform team");
+    await card.get("button").trigger("click");
+    expect(card.text()).toContain("Ask the platform team to raise the quota.");
+    expect(card.text()).toContain("429 Too Many Requests");
+  });
+
+  it("shows no causes card when nothing failed", async () => {
+    const api = new FakeTraceApi();
+    api.overview = overview();
+    const { wrapper } = await setup(MetricsPage, api, "/overview");
+    expect(wrapper.find('[data-testid="error-overview"]').exists()).toBe(false);
+  });
 });

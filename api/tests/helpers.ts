@@ -1,3 +1,4 @@
+import type { ErrorGroupsResult } from "@/domain/error-categories";
 import type { UserFeedbackRepository } from "@/application/ports/user-feedback-repository";
 import type { UserFeedback } from "@/domain/user-feedback";
 import type { ConversationListQuery, SpanListQuery, TraceListQuery, TraceRepository, TraceSpans } from "@/application/ports/trace-repository";
@@ -155,6 +156,13 @@ export class FakeTraceRepository implements TraceRepository {
   async getModelPricing() {
     this.check();
     return this.modelPricing;
+  }
+  errorGroups: ErrorGroupsResult = { groups: [], tracesWithErrors: 0, conversationsWithErrors: 0, totalTraces: 0, totalConversations: 0 };
+  lastErrorQueries: (TimeRange & { service?: string })[] = [];
+  async listErrorGroups(query: TimeRange & { service?: string }) {
+    this.check();
+    this.lastErrorQueries.push(query);
+    return this.errorGroups;
   }
   async getStepKinds() {
     this.check();

@@ -28,6 +28,7 @@ const T3 = randomBytes(16).toString("hex");
 const T4 = randomBytes(16).toString("hex"); // sin conversación
 const T5_OLD = randomBytes(16).toString("hex"); // CONV3, hace 3 días: fuera del rango pero dentro de la retención
 const T6 = randomBytes(16).toString("hex");
+const ERR_SERVICE = `${SERVICE}-err`;
 const REV_SERVICE = `${SERVICE}-rev`;
 const REV_A = "a".repeat(40);
 const REV_B = "b".repeat(40);
@@ -46,6 +47,7 @@ interface Row {
   offsetMs: number;
   durationMs: number;
   status?: "OK" | "ERROR";
+  message?: string;
   attrs?: Record<string, string>;
   /** atributos de recurso OTel; `vcs.repository.ref.revision` alimenta la columna Revision (ADR-065) */
   resource?: Record<string, string>;
@@ -64,7 +66,7 @@ const toRow = (r: Row) => ({
   ResourceAttributes: r.resource ?? {},
   Duration: r.durationMs * 1e6,
   StatusCode: `STATUS_CODE_${r.status ?? "OK"}`,
-  StatusMessage: r.status === "ERROR" ? "boom" : "",
+  StatusMessage: r.status === "ERROR" ? (r.message ?? "boom") : "",
   "Events.Timestamp": (r.events ?? []).map((e) => ts(e.offsetMs)),
   "Events.Name": (r.events ?? []).map((e) => e.name),
   "Events.Attributes": (r.events ?? []).map((e) => e.attrs),
@@ -131,6 +133,7 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
     const settings = { mutations_sync: "1" as const };
     await writer.command({ query: `ALTER TABLE ${config.database}.otel_traces DELETE WHERE ServiceName = {s:String}`, query_params: { s: SERVICE }, clickhouse_settings: settings });
     await writer.command({ query: `ALTER TABLE ${config.database}.otel_traces DELETE WHERE ServiceName = {s:String}`, query_params: { s: CONV_SERVICE }, clickhouse_settings: settings });
+    await writer.command({ query: `ALTER TABLE ${config.database}.otel_traces DELETE WHERE ServiceName = {s:String}`, query_params: { s: ERR_SERVICE }, clickhouse_settings: settings });
     await writer.command({ query: `ALTER TABLE ${config.database}.otel_traces DELETE WHERE ServiceName = {s:String}`, query_params: { s: REV_SERVICE }, clickhouse_settings: settings });
     await writer.command({ query: `ALTER TABLE ${config.database}.otel_traces_trace_id_ts DELETE WHERE TraceId IN {ids:Array(String)}`, query_params: { ids: [TRACE_A, TRACE_B, T1, T2, T3, T4, T5_OLD, T6] }, clickhouse_settings: settings });
     await writer.close();
@@ -356,5 +359,25 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
       const found = await repo.getTraceSpans(TA, 100);
       expect(buildTraceDetail(TA, found!.spans, false).revision).toBe(REV_A);
     });
+  });
+  it("groups only the deepest failing spans and reports totals (ADR-066)", async () => {
+    const trace = randomBytes(16).toString("hex");
+    const okTrace = randomBytes(16).toString("hex");
+    const root = hex8();
+    const mid = hex8();
+    const tool = { "memtrace.step_type": "tool", "gen_ai.operation.name": "execute_tool", "gen_ai.tool.name": "get_weather", "gen_ai.conversation.id": `${ERR_SERVICE}-c` };
+    await insert([
+      { trace, service: ERR_SERVICE, spanId: root, name: "agent", offsetMs: 0, durationMs: 900, status: "ERROR", message: "429 Too Many Requests", attrs: { "gen_ai.conversation.id": `${ERR_SERVICE}-c` } },
+      { trace, service: ERR_SERVICE, spanId: mid, parent: root, name: "node", offsetMs: 10, durationMs: 800, status: "ERROR", message: "429 Too Many Requests" },
+      {
+        trace, service: ERR_SERVICE, parent: mid, name: "get_weather", offsetMs: 20, durationMs: 700, status: "ERROR", message: "429 Too Many Requests", attrs: tool,
+        events: [{ name: "exception", offsetMs: 30, attrs: { "exception.type": "httpx.HTTPStatusError" } }],
+      },
+      { trace: okTrace, service: ERR_SERVICE, name: "agent", offsetMs: 2000, durationMs: 100, attrs: { "gen_ai.conversation.id": `${ERR_SERVICE}-ok` } },
+    ]);
+    const result = await repo.listErrorGroups({ ...range, service: ERR_SERVICE });
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0]).toMatchObject({ kind: "tool", name: "get_weather", message: "429 Too Many Requests", exceptionType: "httpx.HTTPStatusError", occurrences: 1, traces: 1 });
+    expect(result).toMatchObject({ tracesWithErrors: 1, totalTraces: 2 });
   });
 });

@@ -12,6 +12,7 @@ import {
   toExperimentUsageResponse,
   toModelPricingResponse,
   toOverviewResponse,
+  toErrorOverviewResponse,
   toSpanListResponse,
   toStepKindsResponse,
   toTraceDetailResponse,
@@ -31,6 +32,7 @@ import {
   listSpansQuery,
   listTracesQuery,
   overviewQuery,
+  errorOverviewQuery,
   parseOrThrow,
   queryToObject,
   servicesQuery,
@@ -117,6 +119,10 @@ export function createHandlers(service: TraceQueryService) {
 
     overview: (request: Request) =>
       guard(async () => json(toOverviewResponse(await service.getOverview(parseOrThrow(overviewQuery, query(request)))))),
+
+    /** errores del rango en lenguaje de negocio (ADR-066) */
+    errorOverview: (request: Request) =>
+      guard(async () => json(toErrorOverviewResponse(await service.getErrorOverview(parseOrThrow(errorOverviewQuery, query(request)))))),
 
     services: (request: Request) =>
       guard(async () => {

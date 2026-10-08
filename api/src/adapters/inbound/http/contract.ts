@@ -201,6 +201,38 @@ export interface OverviewResponse {
   byTopic: { topic: string; responses: number; avgConfidence: number }[];
 }
 
+/** Errores en lenguaje de negocio, agrupados por categoría (ADR-066). */
+export interface ErrorCategoryDto {
+  id: string;
+  title: string;
+  explanation: string;
+  action: string;
+  severity: "high" | "medium" | "low";
+  occurrences: number;
+  previousOccurrences: number;
+  traces: number;
+  conversations: number;
+  firstSeen: string;
+  lastSeen: string;
+  affected: { kind: string; name: string; occurrences: number }[];
+  /** mensaje técnico más frecuente, normalizado */
+  sample: string;
+}
+
+export interface ErrorOverviewResponse {
+  range: { from: string; to: string };
+  /** null si el periodo anterior queda fuera de la retención */
+  previousRange: { from: string; to: string } | null;
+  totals: {
+    occurrences: number;
+    tracesWithErrors: number;
+    conversationsWithErrors: number;
+    totalTraces: number;
+    totalConversations: number;
+  };
+  categories: ErrorCategoryDto[];
+}
+
 /** Versiones del código (commits) vistas en trazas (ADR-065). */
 export interface RevisionDto {
   revision: string;
