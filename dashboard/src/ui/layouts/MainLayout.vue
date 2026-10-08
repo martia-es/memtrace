@@ -60,6 +60,7 @@ const NAV: readonly NavGroup[] = [
       { name: "annotation-queues-archived", label: "Archived", sections: ["review-archived"] },
     ],
   },
+  { id: "prompts", label: "Prompts", icon: "M4 6h16M4 12h16M4 18h10", children: [{ name: "prompts", label: "Prompts", sections: ["prompts"] }] },
   {
     id: "evaluations",
     label: "Evaluations",
