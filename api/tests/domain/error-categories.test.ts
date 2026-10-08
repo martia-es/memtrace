@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { classifyError, extractHttpStatus, normalizeMessage, summarizeErrors, type ErrorGroup, type ErrorGroupsResult } from "@/domain/error-categories";
 
-const signal = (message: string, kind = "tool", exceptionType = "") => ({ kind, message, exceptionType });
+const signal = (message: string, kind = "tool", exceptionType = "", exceptionMessage = "") => ({ kind, message, exceptionType, exceptionMessage });
 
 describe("extractHttpStatus", () => {
   it("reads explicit statuses only", () => {
@@ -27,8 +27,14 @@ describe("classifyError", () => {
     ["status 404 not found", "tool", "", "not_found"],
     ["HTTP 422 validation error", "tool", "", "invalid_request"],
     ["", "tool", "asyncio.CancelledError", "cancelled"],
+    ["", "tool", "pydantic_ai.exceptions.ToolRetryError", "tool_retry"],
+    ["ModelHTTPError: status_code: 503, body: This model is currently experiencing high demand", "llm", "", "service_unavailable"],
   ])("%j (%s, %s) -> %s", (message, kind, exceptionType, expected) => {
     expect(classifyError(signal(message, kind, exceptionType)).id).toBe(expected);
+  });
+
+  it("reads the exception message when the status message is empty", () => {
+    expect(classifyError(signal("", "tool", "pydantic_ai.exceptions.ToolRetryError", "Upstream request timed out, please retry")).id).toBe("timeout");
   });
 
   it("prefers quota over a generic 4xx and timeout over 5xx", () => {
@@ -50,7 +56,7 @@ describe("normalizeMessage", () => {
 });
 
 const group = (over: Partial<ErrorGroup>): ErrorGroup => ({
-  kind: "tool", name: "get_weather", message: "boom", exceptionType: "", occurrences: 1, traces: 1, conversations: 1, firstSeenMs: 100, lastSeenMs: 200, ...over,
+  kind: "tool", name: "get_weather", message: "boom", exceptionType: "", exceptionMessage: "", occurrences: 1, traces: 1, conversations: 1, firstSeenMs: 100, lastSeenMs: 200, ...over,
 });
 const result = (groups: ErrorGroup[], extra: Partial<ErrorGroupsResult> = {}): ErrorGroupsResult => ({
   groups, tracesWithErrors: 10, conversationsWithErrors: 8, totalTraces: 100, totalConversations: 50, ...extra,

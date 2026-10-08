@@ -141,15 +141,15 @@ export class ClickHouseTraceRepository implements TraceRepository {
     const failed = `${base} AND StatusCode = ${ERROR}`;
     // solo el fallo más profundo: un span cuyo hijo también falla es una propagación del mismo error
     const leaf = `${failed} AND (TraceId, SpanId) NOT IN (SELECT TraceId, ParentSpanId ${failed} AND ParentSpanId != '')`;
-    const exceptionType = "arrayElement(arrayMap(a -> a['exception.type'], `Events.Attributes`), indexOf(`Events.Name`, 'exception'))";
+    const exceptionAttr = (key: string) => `arrayElement(arrayMap(a -> a['${key}'], \`Events.Attributes\`), indexOf(\`Events.Name\`, 'exception'))`;
 
     const [groups, failedTotals, totals] = await Promise.all([
       this.rows(
-        `SELECT ${KIND} AS kind, if(${attr("gen_ai.tool.name")} != '', ${attr("gen_ai.tool.name")}, SpanName) AS errName,
-                substring(StatusMessage, 1, 300) AS message, ${exceptionType} AS exceptionType,
+        `SELECT ${KIND} AS kind, multiIf(${attr("gen_ai.tool.name")} != '', ${attr("gen_ai.tool.name")}, ${attr("gen_ai.request.model")} != '', ${attr("gen_ai.request.model")}, SpanName) AS errName,
+                substring(StatusMessage, 1, 300) AS message, ${exceptionAttr("exception.type")} AS exceptionType, substring(${exceptionAttr("exception.message")}, 1, 300) AS exceptionMessage,
                 count() AS occurrences, uniqExact(TraceId) AS traces, uniqExactIf(ConversationId, ConversationId != '') AS conversations,
                 toUnixTimestamp64Milli(min(Timestamp)) AS firstMs, toUnixTimestamp64Milli(max(Timestamp)) AS lastMs
-         ${leaf} GROUP BY kind, errName, message, exceptionType ORDER BY occurrences DESC LIMIT 500`,
+         ${leaf} GROUP BY kind, errName, message, exceptionType, exceptionMessage ORDER BY occurrences DESC LIMIT 500`,
         p,
       ),
       this.rows(`SELECT uniqExact(TraceId) AS traces, uniqExactIf(ConversationId, ConversationId != '') AS conversations ${failed}`, p),
@@ -161,6 +161,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
         name: String(r.errName),
         message: String(r.message),
         exceptionType: String(r.exceptionType ?? ""),
+        exceptionMessage: String(r.exceptionMessage ?? ""),
         occurrences: num(r.occurrences),
         traces: num(r.traces),
         conversations: num(r.conversations),
