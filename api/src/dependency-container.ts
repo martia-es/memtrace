@@ -31,6 +31,7 @@ import { PostgresDeployRunRepository } from "@/adapters/outbound/postgres/postgr
 import { PostgresPromptRepository } from "@/adapters/outbound/postgres/postgres-prompt-repository";
 import { PromptService } from "@/application/prompt-service";
 import { PromptEvidenceService } from "@/application/prompt-evidence-service";
+import { PromptGateService } from "@/application/prompt-gate-service";
 import { ClickHousePromptEvidenceRepository } from "@/adapters/outbound/clickhouse/clickhouse-prompt-evidence-repository";
 import { PostgresScoreConfigRepository } from "@/adapters/outbound/postgres/postgres-score-config-repository";
 import { PostgresIdentityRepository } from "@/adapters/outbound/postgres/postgres-identity-repository";
@@ -60,6 +61,9 @@ const globalForContainer = globalThis as unknown as {
   __memtraceDeploy?: DeployService;
   __memtracePrompts?: PromptService;
   __memtracePromptEvidence?: PromptEvidenceService;
+  __memtracePromptGate?: PromptGateService;
+  __memtracePromptEvidenceRepository?: ClickHousePromptEvidenceRepository;
+  __memtracePromptRepository?: PostgresPromptRepository;
   __memtraceHealthProber?: HealthProber;
   __memtraceChatClient?: ChatClient;
 };
@@ -246,20 +250,43 @@ export function getDeploy(): DeployService {
   return globalForContainer.__memtraceDeploy;
 }
 
-/** Registro de prompts (ADR-067). */
+function getPromptRepository(): PostgresPromptRepository {
+  if (!globalForContainer.__memtracePromptRepository) globalForContainer.__memtracePromptRepository = new PostgresPromptRepository(getPostgresPool());
+  return globalForContainer.__memtracePromptRepository;
+}
+
+function getPromptEvidenceRepository(): ClickHousePromptEvidenceRepository {
+  if (!globalForContainer.__memtracePromptEvidenceRepository) {
+    const config = configFromEnv();
+    globalForContainer.__memtracePromptEvidenceRepository = new ClickHousePromptEvidenceRepository(createReadOnlyClient(config), config.database, config.maxConcurrentQueries);
+  }
+  return globalForContainer.__memtracePromptEvidenceRepository;
+}
+
+/** Gate de promoción de prompts y su política (ADR-070): evaluaciones de la versión, agregados y objetivos de las score configs. */
+export function getPromptGate(): PromptGateService {
+  if (!globalForContainer.__memtracePromptGate) {
+    globalForContainer.__memtracePromptGate = new PromptGateService(
+      getPromptRepository(),
+      getIdentity().identityRepository,
+      getScoreRepository(),
+      new PostgresScoreConfigRepository(getPostgresPool()),
+      getPromptEvidenceRepository(),
+    );
+  }
+  return globalForContainer.__memtracePromptGate;
+}
+
+/** Registro de prompts (ADR-067). Mover un tag de entorno pasa por el gate de promoción (ADR-070). */
 export function getPrompts(): PromptService {
-  if (!globalForContainer.__memtracePrompts) globalForContainer.__memtracePrompts = new PromptService(new PostgresPromptRepository(getPostgresPool()));
+  if (!globalForContainer.__memtracePrompts) globalForContainer.__memtracePrompts = new PromptService(getPromptRepository(), getPromptGate());
   return globalForContainer.__memtracePrompts;
 }
 
 /** Evidencia por versión de un prompt (ADR-069): trazas, feedback y scores, con los precios del catálogo. */
 export function getPromptEvidence(): PromptEvidenceService {
   if (!globalForContainer.__memtracePromptEvidence) {
-    const config = configFromEnv();
-    globalForContainer.__memtracePromptEvidence = new PromptEvidenceService(
-      new ClickHousePromptEvidenceRepository(createReadOnlyClient(config), config.database, config.maxConcurrentQueries),
-      () => getTraceQueryService().getPricingCatalog(),
-    );
+    globalForContainer.__memtracePromptEvidence = new PromptEvidenceService(getPromptEvidenceRepository(), () => getTraceQueryService().getPricingCatalog());
   }
   return globalForContainer.__memtracePromptEvidence;
 }

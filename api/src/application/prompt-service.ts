@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
+import type { PromptGatePort } from "@/application/prompt-gate-service";
 import type { PromptRepository } from "@/application/ports/prompt-repository";
-import { PromptInvariantError, PromptNotFoundError, PromptPromoteForbiddenError, ValidationError } from "@/domain/errors";
+import { validateBypassReason } from "@/domain/deploy";
+import { PromptGateBlockedError, PromptInvariantError, PromptNotFoundError, PromptPromoteForbiddenError, ValidationError } from "@/domain/errors";
+import { gatedEnvironments, type PromptPolicy } from "@/domain/prompt-gate";
 import {
   MAX_DESCRIPTION,
   MAX_USAGE_ITEMS,
@@ -11,6 +14,7 @@ import {
   validateMessage,
   validatePromptName,
   validateTag,
+  type GateRecord,
   type Prompt,
   type PromptSummary,
   type PromptTag,
@@ -29,6 +33,10 @@ export interface PromptDetail {
   usage: PromptUsage[];
   /** claves de entorno de la organización: los tags con ese nombre solo los mueve quien tiene `prompt:promote` */
   environmentKeys: string[];
+  /** entornos que exigen pasar la política para mover su tag (ADR-070): todos menos el primero */
+  gatedEnvironments: string[];
+  /** política de promoción del prompt; null = sin política, todo se mueve libremente */
+  policy: PromptPolicy | null;
 }
 
 const EVENTS_LIMIT = 100;
@@ -41,7 +49,11 @@ const hash = (content: string): string => createHash("sha256").update(content).d
  * leer, escribir o promover) la decide la ruta; aquí solo se aplican las reglas del dominio.
  */
 export class PromptService {
-  constructor(private readonly repo: PromptRepository) {}
+  constructor(
+    private readonly repo: PromptRepository,
+    /** gate de promoción (ADR-070); sin él, los tags se mueven sin comprobar nada */
+    private readonly gate?: PromptGatePort,
+  ) {}
 
   async create(
     organizationId: string,
@@ -71,14 +83,15 @@ export class PromptService {
 
   async detail(promptId: string): Promise<PromptDetail> {
     const prompt = await this.get(promptId);
-    const [versions, tags, events, usage, environmentKeys] = await Promise.all([
+    const [versions, tags, events, usage, environmentKeys, policy] = await Promise.all([
       this.repo.listVersions(promptId),
       this.repo.listTags(promptId),
       this.repo.tagEvents(promptId, EVENTS_LIMIT),
       this.repo.listUsage(promptId),
       this.repo.environmentKeys(prompt.organizationId),
+      this.repo.getPolicy(promptId),
     ]);
-    return { prompt, versions, tags, events, usage, environmentKeys };
+    return { prompt, versions, tags, events, usage, environmentKeys, gatedEnvironments: gatedEnvironments(environmentKeys), policy };
   }
 
   /** Cambia la descripción, archiva/restaura o sustituye los agentes. Los nombres no se cambian: las versiones y las trazas los referencian. */
@@ -113,13 +126,33 @@ export class PromptService {
 
   /**
    * Apunta el tag a una versión (`version = null` lo quita). Los tags de entorno exigen `canPromote`; los libres, solo poder escribir.
+   * Con una política (ADR-070), mover un entorno protegido a una versión exige una evaluación exitosa de ella; saltarse
+   * ese gate (`bypassReason`) exige `canBypass` (gobernanza) y un motivo, que queda en el historial.
    */
-  async moveTag(promptId: string, userId: string, input: { tag: string; version: number | null; reason?: string }, canPromote: boolean): Promise<PromptTagEvent> {
+  async moveTag(
+    promptId: string,
+    userId: string,
+    input: { tag: string; version: number | null; reason?: string; bypassReason?: string | null },
+    canPromote: boolean,
+    canBypass = false,
+  ): Promise<PromptTagEvent> {
     const prompt = await this.get(promptId);
     if (prompt.archivedAt) throw new PromptInvariantError("The prompt is archived; restore it before moving tags");
     const tag = validateTag(input.tag);
-    if (isEnvironmentTag(tag, await this.repo.environmentKeys(prompt.organizationId)) && !canPromote) throw new PromptPromoteForbiddenError(tag);
-    const event = await this.repo.moveTag(promptId, tag, input.version, userId, validateMessage(input.reason));
+    const isEnvironment = isEnvironmentTag(tag, await this.repo.environmentKeys(prompt.organizationId));
+    if (isEnvironment && !canPromote) throw new PromptPromoteForbiddenError(tag);
+
+    let record: GateRecord = { verdict: "not_gated", bypassed: false, bypassReason: null };
+    if (isEnvironment && input.version !== null && this.gate) {
+      const gate = await this.gate.check(prompt, tag, input.version);
+      record = { verdict: gate.verdict, bypassed: false, bypassReason: null };
+      if (!gate.allowed) {
+        if (input.bypassReason === undefined || input.bypassReason === null) throw new PromptGateBlockedError(gate.reason, gate);
+        if (!canBypass) throw new PromptGateBlockedError(`${gate.reason} Skipping the evaluation requires the governance permission.`, gate);
+        record = { verdict: gate.verdict, bypassed: true, bypassReason: validateBypassReason(input.bypassReason) };
+      }
+    }
+    const event = await this.repo.moveTag(promptId, tag, input.version, userId, validateMessage(input.reason), record);
     if (!event) throw new PromptNotFoundError(`Version ${input.version}`);
     return event;
   }

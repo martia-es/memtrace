@@ -7,7 +7,7 @@ import { ERROR, KIND, OP, TRACE_WINDOW_MS, attr, attrNum, nsToMs, num } from "./
 import { QueryLimiter } from "./query-limiter";
 
 type Row = Record<string, unknown>;
-type Params = Record<string, string | number>;
+type Params = Record<string, string | number | string[]>;
 
 const exceptionAttr = (key: string) => `arrayElement(arrayMap(a -> a['${key}'], \`Events.Attributes\`), indexOf(\`Events.Name\`, 'exception'))`;
 
@@ -128,6 +128,22 @@ export class ClickHousePromptEvidenceRepository implements PromptEvidenceReposit
         average: r.average === null || r.average === undefined || Number.isNaN(Number(r.average)) ? null : Number(r.average),
       })),
     };
+  }
+
+  async runsUsingVersion({ service, promptName, version, runIds }: { service: string; promptName: string; version: number; runIds: string[] }): Promise<string[]> {
+    if (runIds.length === 0) return [];
+    // las trazas viven 30 días (ADR-003): más atrás no hay marca que leer
+    const rows = await this.rows(
+      `SELECT i.DatasetRunId AS runId, countIf(used.version = {version:UInt32}) AS onVersion, countIf(used.version != {version:UInt32}) AS onOther
+       FROM (SELECT DatasetRunId, assumeNotNull(TraceId) AS TraceId FROM ${this.evalItems} FINAL
+              WHERE ServiceName = {service:String} AND DatasetRunId IN {runIds:Array(String)} AND TraceId IS NOT NULL) AS i
+       INNER JOIN (SELECT TraceId, PromptVersion AS version FROM ${this.spans}
+                    WHERE PromptName = {promptName:String} AND ServiceName = {service:String} AND Timestamp >= now() - INTERVAL 31 DAY
+                    GROUP BY TraceId, PromptVersion) AS used ON i.TraceId = used.TraceId
+       GROUP BY runId HAVING onVersion > 0 AND onOther = 0`,
+      { service, promptName, version, runIds },
+    );
+    return rows.map((r) => String(r.runId));
   }
 
   private async rows(query: string, params: Params): Promise<Row[]> {

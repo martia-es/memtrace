@@ -59,6 +59,18 @@ export interface PromptTagEvent {
   changedBy: string | null;
   reason: string;
   createdAt: string;
+  /** lo que dijo el gate de promoción (ADR-070); null en los movimientos anteriores al gate */
+  gateVerdict: string | null;
+  /** alguien con permiso de gobernanza se saltó el gate; `bypassReason` lo justifica */
+  gateBypassed: boolean;
+  bypassReason: string | null;
+}
+
+/** Cómo salió el gate al mover un tag: se guarda en el historial para que se pueda auditar. */
+export interface GateRecord {
+  verdict: string;
+  bypassed: boolean;
+  bypassReason: string | null;
 }
 
 /** Qué versión de un prompt informa un agente que está usando, y desde qué entorno (ADR-068). */

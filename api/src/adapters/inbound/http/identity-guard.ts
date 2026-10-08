@@ -5,6 +5,7 @@ import {
   AssistantUpstreamError,
   CiUnavailableError,
   DeployBlockedError,
+  PromptGateBlockedError,
   PromptInvariantError,
   PromptNotFoundError,
   PromptPromoteForbiddenError,
@@ -48,6 +49,13 @@ export async function identityGuard(run: () => Promise<Response>): Promise<Respo
     if (error instanceof AssistantUpstreamError) return problem(502, "Bad Gateway", error.message);
     if (error instanceof CiUnavailableError) return problem(503, "Service Unavailable", error.message);
     if (error instanceof DeployBlockedError) {
+      // el veredicto del gate viaja en la respuesta para que la pantalla explique por qué
+      return new Response(JSON.stringify({ type: "about:blank", title: "Conflict", status: 409, detail: error.message, gate: error.gate }), {
+        status: 409,
+        headers: { "Content-Type": "application/problem+json", "Cache-Control": "no-store" },
+      });
+    }
+    if (error instanceof PromptGateBlockedError) {
       // el veredicto del gate viaja en la respuesta para que la pantalla explique por qué
       return new Response(JSON.stringify({ type: "about:blank", title: "Conflict", status: 409, detail: error.message, gate: error.gate }), {
         status: 409,

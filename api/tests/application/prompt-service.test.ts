@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { PromptService } from "@/application/prompt-service";
 import type { PromptRepository } from "@/application/ports/prompt-repository";
-import { PromptInvariantError, PromptNotFoundError, PromptPromoteForbiddenError, ValidationError } from "@/domain/errors";
-import type { NewPrompt, NewPromptVersion, Prompt, PromptSummary, PromptTag, PromptTagEvent, PromptUsage, PromptVersion, UsageItem } from "@/domain/prompt";
+import { PromptGateBlockedError, PromptInvariantError, PromptNotFoundError, PromptPromoteForbiddenError, ValidationError } from "@/domain/errors";
+import type { GateRecord, NewPrompt, NewPromptVersion, Prompt, PromptSummary, PromptTag, PromptTagEvent, PromptUsage, PromptVersion, UsageItem } from "@/domain/prompt";
+import type { PromptGateResult, PromptPolicy } from "@/domain/prompt-gate";
 
 const ORG = "org-1";
 const USER = "user-1";
@@ -17,6 +18,7 @@ function fakeRepo() {
   const tags = new Map<string, Map<string, number>>();
   const events = new Map<string, PromptTagEvent[]>();
   const usage: Array<UsageItem & { experimentId: string; environment: string }> = [];
+  const policies = new Map<string, PromptPolicy>();
   let seq = 0;
 
   const repo: PromptRepository = {
@@ -67,16 +69,29 @@ function fakeRepo() {
       return n === undefined ? null : (versions.get(id)!.find((v) => v.version === n) ?? null);
     },
     listTags: async (id): Promise<PromptTag[]> => [...(tags.get(id) ?? [])].map(([tag, version]) => ({ tag, version, updatedBy: USER, updatedAt: "t" })),
-    moveTag: async (id, tag, version, userId, reason) => {
+    moveTag: async (id, tag, version, userId, reason, gate: GateRecord) => {
       if (version !== null && !versions.get(id)!.some((v) => v.version === version)) return null;
       const from = tags.get(id)!.get(tag) ?? null;
       if (version === null) tags.get(id)!.delete(tag);
       else tags.get(id)!.set(tag, version);
-      const event: PromptTagEvent = { id: `e${++seq}`, tag, fromVersion: from, toVersion: version, changedBy: userId, reason, createdAt: "t" };
+      const event: PromptTagEvent = {
+        id: `e${++seq}`, tag, fromVersion: from, toVersion: version, changedBy: userId, reason, createdAt: "t",
+        gateVerdict: gate.verdict, gateBypassed: gate.bypassed, bypassReason: gate.bypassReason,
+      };
       events.get(id)!.unshift(event);
       return event;
     },
     tagEvents: async (id) => events.get(id) ?? [],
+    wasServed: async (id, tag, version) => (events.get(id) ?? []).some((e) => e.tag === tag && e.toVersion === version && !e.gateBypassed),
+    getPolicy: async (id) => policies.get(id) ?? null,
+    setPolicy: async (id, policy, userId) => {
+      const saved: PromptPolicy = { promptId: id, datasetId: policy.datasetId, requiredRuns: policy.requiredRuns, updatedBy: userId, updatedAt: "t" };
+      policies.set(id, saved);
+      return saved;
+    },
+    deletePolicy: async (id) => {
+      policies.delete(id);
+    },
     recordUsage: async (experimentId, environment, items) => {
       for (const item of items) usage.push({ ...item, experimentId, environment });
     },
@@ -252,5 +267,95 @@ describe("PromptService (ADR-067)", () => {
       await service.recordUsage(AGENT_A, ORG, "", [{ name: "weather-system", tag: null, version: 1 }]);
       expect((await service.detail(id)).usage[0]).toMatchObject({ environment: "", tag: "" });
     });
+  });
+});
+
+describe("promotion gate in PromptService (ADR-070)", () => {
+  const verdict = (extra: Partial<PromptGateResult> = {}): PromptGateResult => ({
+    allowed: false, verdict: "failed", tag: "pro", version: 1, requiredRuns: 1, runs: [], reason: "The evaluation \"run 1\" does not pass: accurate 70% (target 80%).", ...extra,
+  });
+
+  async function withGate(result: PromptGateResult) {
+    const calls: Array<{ tag: string; version: number }> = [];
+    const service = new PromptService(fakeRepo(), {
+      check: async (_prompt, tag, version) => {
+        calls.push({ tag, version });
+        return result;
+      },
+    });
+    const detail = await service.create(ORG, USER, { name: "gated", content: "uno", experimentIds: [AGENT_A] });
+    return { service, id: detail.prompt.id, calls };
+  }
+
+  it("refuses to move a protected environment when the gate says no, and leaves the tag where it was", async () => {
+    const { service, id } = await withGate(verdict());
+    const error = await service.moveTag(id, USER, { tag: "pro", version: 1 }, true).catch((e) => e);
+    expect(error).toBeInstanceOf(PromptGateBlockedError);
+    expect(error.message).toContain("accurate 70%");
+    expect(error.gate).toMatchObject({ verdict: "failed" });
+    expect((await service.detail(id)).tags).toEqual([]);
+    expect((await service.detail(id)).events).toEqual([]);
+  });
+
+  it("moves it when the gate allows and records what the gate said", async () => {
+    const { service, id } = await withGate(verdict({ allowed: true, verdict: "allowed" }));
+    const event = await service.moveTag(id, USER, { tag: "pro", version: 1 }, true);
+    expect(event).toMatchObject({ gateVerdict: "allowed", gateBypassed: false, bypassReason: null });
+  });
+
+  it("only asks the gate when promoting an environment to a version, not for free tags or when removing a tag", async () => {
+    const { service, id, calls } = await withGate(verdict({ allowed: true, verdict: "allowed" }));
+    await service.moveTag(id, USER, { tag: "stable", version: 1 }, true);
+    await service.moveTag(id, USER, { tag: "pro", version: 1 }, true);
+    await service.moveTag(id, USER, { tag: "pro", version: null }, true);
+    expect(calls).toEqual([{ tag: "pro", version: 1 }]);
+  });
+
+  it("lets someone with governance skip the gate with a reason, and keeps that in the history", async () => {
+    const { service, id } = await withGate(verdict());
+    const event = await service.moveTag(id, USER, { tag: "pro", version: 1, bypassReason: "Hotfix for the outage of the 8th" }, true, true);
+    expect(event).toMatchObject({ gateVerdict: "failed", gateBypassed: true, bypassReason: "Hotfix for the outage of the 8th" });
+    expect((await service.detail(id)).events[0]).toMatchObject({ gateBypassed: true });
+  });
+
+  it("does not let anyone else skip it, even asking nicely", async () => {
+    const { service, id } = await withGate(verdict());
+    const error = await service.moveTag(id, USER, { tag: "pro", version: 1, bypassReason: "I am in a hurry" }, true, false).catch((e) => e);
+    expect(error).toBeInstanceOf(PromptGateBlockedError);
+    expect(error.message).toContain("governance permission");
+  });
+
+  it("wants a real reason to skip the gate", async () => {
+    const { service, id } = await withGate(verdict());
+    await expect(service.moveTag(id, USER, { tag: "pro", version: 1, bypassReason: "no" }, true, true)).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("does not record a bypass when the gate would have allowed it anyway", async () => {
+    const { service, id } = await withGate(verdict({ allowed: true, verdict: "allowed" }));
+    const event = await service.moveTag(id, USER, { tag: "pro", version: 1, bypassReason: "just in case" }, true, true);
+    expect(event.gateBypassed).toBe(false);
+  });
+
+  it("still needs the promote permission before the gate is even consulted", async () => {
+    const { service, id, calls } = await withGate(verdict({ allowed: true, verdict: "allowed" }));
+    await expect(service.moveTag(id, USER, { tag: "pro", version: 1 }, false)).rejects.toBeInstanceOf(PromptPromoteForbiddenError);
+    expect(calls).toEqual([]);
+  });
+
+  it("without a gate wired, tags move as before", async () => {
+    const service = new PromptService(fakeRepo());
+    const detail = await service.create(ORG, USER, { name: "free", content: "uno" });
+    await expect(service.moveTag(detail.prompt.id, USER, { tag: "pro", version: 1 }, true)).resolves.toMatchObject({ gateVerdict: "not_gated" });
+  });
+
+  it("shows the policy and the protected environments in the detail", async () => {
+    const repo = fakeRepo();
+    const service = new PromptService(repo);
+    const created = await service.create(ORG, USER, { name: "with-policy", content: "uno" });
+    expect((await service.detail(created.prompt.id)).policy).toBeNull();
+    await repo.setPolicy(created.prompt.id, { datasetId: "d1", requiredRuns: 2 }, USER);
+    const detail = await service.detail(created.prompt.id);
+    expect(detail.policy).toMatchObject({ datasetId: "d1", requiredRuns: 2 });
+    expect(detail.gatedEnvironments).toEqual(["pre", "pro"]);
   });
 });

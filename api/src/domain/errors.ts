@@ -153,6 +153,17 @@ export class PromptPromoteForbiddenError extends Error {
   }
 }
 
+/** El gate de promoción (ADR-070) no deja mover el tag a esa versión. Lleva el veredicto para mostrar por qué. HTTP 409. */
+export class PromptGateBlockedError extends Error {
+  constructor(
+    message: string,
+    readonly gate: unknown,
+  ) {
+    super(message);
+    this.name = "PromptGateBlockedError";
+  }
+}
+
 /** El voto de feedback de usuario final no es válido (ADR-062). HTTP 422. */
 export class UserFeedbackValueError extends Error {
   constructor(message: string) {

@@ -9,4 +9,11 @@ import type { TimeRange } from "@/domain/time-range";
 export interface PromptEvidenceRepository {
   /** Agregados por versión de las trazas del servicio que usaron `promptName` en el rango. Las versiones sin tráfico no aparecen. */
   rowsFor(query: TimeRange & { service: string; promptName: string }): Promise<PromptEvidenceRows>;
+
+  /**
+   * De esos runs de evaluación, los que evaluaron EXACTAMENTE esta versión (ADR-070): todos sus items con traza usaron
+   * `version` y ninguno otra versión del prompt. Un run mixto no demuestra nada de una versión concreta, así que se excluye.
+   * El vínculo es item → traza → marca de prompt (ADR-068).
+   */
+  runsUsingVersion(query: { service: string; promptName: string; version: number; runIds: string[] }): Promise<string[]>;
 }
