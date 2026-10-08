@@ -87,6 +87,30 @@ run_experiment(data="<dataset id>", task=task, evaluators=[...], name="v7 before
 
 Pinning `version=` guarantees every item of the run used that version. A run that mixes versions does not count for any of them.
 
+## Try a version in the real agent
+
+MemTrace's **Try it** tab runs a version of the prompt in *your running agent* —with its tools and knowledge— for one message, without moving any tag. For that, the non-production agent has to accept the request:
+
+1. Read the prompt with `memtrace.prompts` (as above).
+2. Set `MEMTRACE_ALLOW_PROMPT_OVERRIDE=true` (off by default; do not set it in production).
+3. Install the middleware, so the token MemTrace sends reaches your prompts:
+
+```python
+from memtrace.prompts import PromptOverrideMiddleware
+
+app = FastAPI(...)
+app.add_middleware(PromptOverrideMiddleware)        # any ASGI app: FastAPI, Starlette, Quart…
+```
+
+Without ASGI (Flask, Django, a queue worker), wrap the handling of the request yourself:
+
+```python
+with prompts.override(request.headers.get("x-memtrace-prompt-override")):
+    answer = run_agent(...)
+```
+
+How it works: MemTrace calls your agent's chat endpoint with a token that lives two minutes. When your code calls `compile()`, the SDK presents the token to MemTrace (with your API key) and uses the version it grants **for that request only**; the next request goes back to the tag. A token MemTrace does not recognize, one for another agent or prompt, or MemTrace being unreachable, all serve the normal version: a test can never break a request. Spans of the test carry `memtrace.playground=true` and do not count as [evidence](../platform/prompts#evidence-what-each-version-did) or toward the promotion gate.
+
 ## Link traces to the prompt version
 
 Every `compile()` writes `memtrace.prompt.name` and `memtrace.prompt.version` on the **current span**, so call it inside the step that uses the prompt (a `trace_step`, or inside an auto-instrumented run). In MemTrace you can then filter the traces and spans of one version (`promptName` / `promptVersion` in the [Query API](../platform/api)). Outside any span nothing is written and nothing fails. The `default=` text has no version, so it is never written.

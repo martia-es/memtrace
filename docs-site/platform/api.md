@@ -38,6 +38,8 @@ The prompt registry. Session only. A prompt belongs to the organization and to o
 | `PUT /api/v1/prompts/{promptId}/tags/{tag}` | Points the tag to a version: `{ version, reason? }`; `version: null` removes it. Returns the history event. Environment tags (`dev`, `pre`, `pro`…) need `prompt:promote` (`403` otherwise); the rest, `prompt:write` |
 | `DELETE /api/v1/prompts/{promptId}/tags/{tag}?reason=` | Removes the tag (it stays in the history). Same permissions as moving it |
 
+`POST /api/v1/experiments/{experimentId}/prompts/{promptId}/playground` runs a version in the real agent without moving any tag: `{ deploymentId, version, message }` → `{ reply, sessionId, traceId, latencyMs, version, applied }`. Only non-production deployments without authentication; `409` otherwise. `applied: false` means the agent answered without using that version. Needs `experiment:read` and `prompt:write`.
+
 **Promotion policy** (see [Prompts](./prompts#promotion-policy-evaluate-before-you-promote)). `GET /api/v1/prompts/{promptId}` returns `policy` (`null` if none: `{ datasetId, requiredRuns, updatedBy, updatedAt }`, `datasetId` is `null` if the dataset was deleted) and `gatedEnvironments` (every environment but the first). Every tag event carries `gateVerdict`, `gateBypassed` and `bypassReason`.
 
 | Endpoint | Description |
@@ -57,7 +59,7 @@ What the [SDK](/library/prompts) calls. Both accept the **agent API key** (`Auth
 
 | Endpoint | Description |
 |---|---|
-| `GET /api/v1/experiments/{experimentId}/prompts/resolve?name=&tag=` (or `&version=`) | The version a tag points to, or an exact one: `{ name, version, tag, content, variables, contentHash, archived }` with an `ETag`. Send it back as `If-None-Match` to get an empty `304` while nothing changed. `404` if the prompt, tag or version does not exist for that agent; `400` unless exactly one of `tag` and `version` is sent. An archived prompt keeps being served |
+| `GET /api/v1/experiments/{experimentId}/prompts/resolve?name=&tag=` (or `&version=`) | The version a tag points to, or an exact one: `{ name, version, tag, content, variables, contentHash, archived }` with an `ETag`. Send it back as `If-None-Match` to get an empty `304` while nothing changed. `404` if the prompt, tag or version does not exist for that agent; `400` unless exactly one of `tag`, `version` and `override` is sent. `override=<token>` is the token of a playground run (see above): it returns the version that token grants, with `playground: true`, is never cached and answers `404` for an unknown, expired or foreign token. An archived prompt keeps being served |
 | `POST /api/v1/experiments/{experimentId}/prompts/usage` | Heartbeat: `{ environment, items: [{ name, tag, version }] }` (up to 50). Answers `{ recorded, received }`; what does not fit (unknown prompt, another agent's, a version that does not exist) is ignored, never an error |
 
 ## Evaluation (ADR-028, ADR-031, ADR-032)
