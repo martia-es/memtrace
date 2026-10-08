@@ -25,6 +25,8 @@ const deploys = useAsync((signal) => api.listDeploys(props.experimentId, props.d
 onMounted(() => void deploys.run().catch(() => undefined));
 watch(() => props.refreshKey, () => void deploys.run());
 const lastDeploy = computed(() => deploys.data.value?.[0] ?? null);
+// el commit que corre hoy en el entorno: el último despliegue que terminó bien (el último intento puede estar en curso o haber fallado)
+const deployed = computed(() => deploys.data.value?.find((x) => x.status === "succeeded") ?? null);
 // un sondeo nuevo cambia `healthCheckedAt`: se vuelve a leer el historial
 watch(() => props.deployment.healthCheckedAt, () => void history.run());
 
@@ -48,12 +50,13 @@ const rows = computed<Array<[string, string]>>(() => [
   ["Latency", d.value.healthLatencyMs !== null ? `${formatDuration(d.value.healthLatencyMs)}${d.value.healthCheckedAt ? ` · ${formatRelativeTime(d.value.healthCheckedAt, props.nowMs)}` : ""}` : d.value.healthCheckEnabled ? "No check yet" : "Checks off"],
   ...(props.chatPath ? ([["Chat", chatUrl(d.value.apiUrl, props.chatPath)]] as Array<[string, string]>) : []),
   ["Version", d.value.version ?? "–"],
+  ...(deployed.value ? ([["Deployed", `${deployed.value.commitSha.slice(0, 7)} · ${formatRelativeTime(deployed.value.createdAt, props.nowMs)}`]] as Array<[string, string]>) : []),
   ...(lastDeploy.value ? ([["Last deploy", `${DEPLOY_STATUS[lastDeploy.value.status]?.label ?? lastDeploy.value.status} · ${lastDeploy.value.commitSha.slice(0, 7)} · ${formatRelativeTime(lastDeploy.value.createdAt, props.nowMs)}${lastDeploy.value.gateBypassed ? " · evaluation skipped" : ""}`]] as Array<[string, string]>) : []),
   ...(d.value.deployRef ? ([["Deploys from", d.value.deployRef]] as Array<[string, string]>) : []),
   ["Auth", authSummary(d.value)],
   ["Access", accessSummary(d.value)],
 ]);
-const mono = new Set(["API", "Health", "Chat", "Latency", "Version", "Deploys from", "Last deploy"]);
+const mono = new Set(["API", "Health", "Chat", "Latency", "Version", "Deploys from", "Last deploy", "Deployed"]);
 </script>
 
 <template>
