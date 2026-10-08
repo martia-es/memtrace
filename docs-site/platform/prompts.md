@@ -2,11 +2,25 @@
 
 The place where the prompts of your agents live, with their history. A prompt belongs to the organization and is associated with one or more agents, so you can filter by agent and share one prompt between several of them.
 
+## The list: what is live
+
+The top of the list is a board of what is live. For `dev`, `pre` and `pro` it shows how many of your prompts have that environment pinned, and an orange block counts the prompts whose `pro` tag is **behind the latest version**, with the total number of versions waiting to be released. Each prompt below has:
+
+- its status: *N versions behind in PRO*, *In sync* (production runs the latest version) or *Not released* (no `pro` tag);
+- the version each tag points to (`dev → v12`);
+- a line with its last versions: the tags hang from the version they point to, and the stretch after `pro` is orange because those versions are not released yet.
+
+Use the chips above the list (*Behind in PRO*, *In sync*, *Not released*) to see only the prompts that need attention. The board assumes the usual `dev`, `pre` and `pro` environments.
+
 ## Versions
 
 Every save creates a new, **immutable version** (`v1`, `v2`, `v3`…): the text, the variables it uses, who saved it, when and a message about what changed. Versions are never edited or deleted, so you can always see exactly what ran at any moment. Saving a text identical to the latest version is rejected: there is nothing to version.
 
 Variables are written `{{city}}`; MemTrace detects them when you save and lists them on the version.
+
+Inside a prompt, the versions are listed on the left. **Pinned by tags** stays on top, so the versions that `dev`, `pre` and `pro` point to are always one click away; below, **all versions** grouped by month. Type a number (`12`) or a word of the message in the search box to find one. Above the tabs, a strip says what runs in each environment and, when production is behind, by how many versions.
+
+On **Content** the text has numbered lines, the `{{variables}}` are highlighted, and the lines changed since the version it came from are marked.
 
 To change a prompt, open a version and press **Edit as new version**. The new version remembers the one it started from, which is what **Compare** uses by default.
 
@@ -53,13 +67,13 @@ The **Evidence** tab shows, for every version that had traffic in the last 24 ho
 | Errors | % of those traces where **any** step failed (an agent often answers after a tool fails) |
 | Latency p95 | Duration of the whole answer; 95 % were faster than this |
 | Cost / trace | Tokens × the model price. A **+** means some model has no known price, so the real cost is higher; a dash, that none has |
-| User 👍 | % of thumbs-up from [user feedback](/library/feedback), and how many traces were rated |
+| User approval | % of thumbs-up from [user feedback](/library/feedback), and how many traces were rated |
 | One column per evaluator | Results of your [offline evaluations](./evaluation) on traces that used the version: pass rate (yes/no), average (numeric) or number of items |
 | Main failure | The most frequent cause in plain language, as in the Overview's failures |
 
-Versions with fewer than 30 traces are marked **few traces**: their figures are only indicative.
+Versions with fewer than 30 traces are marked **few traces**: their figures are only indicative. Below the table, **What failed most** adds up the main failure causes of all the versions.
 
-In **Compare**, above the text diff, **How it behaved** puts two versions side by side and says what got *better*, *worse* or has *no change* (less than 5 % of movement is noise). When either version has fewer than 30 traces it warns that the differences may be chance. Use it with a similar period and traffic for both: a version that ran in a quiet week is not comparable with one that ran in a busy one.
+In **Compare**, above the text diff, **How it behaved** puts two versions side by side in one card per metric and says what got *better*, *worse* or has *no change* (less than 5 % of movement is noise). When either version has fewer than 30 traces it warns that the differences may be chance. Use it with a similar period and traffic for both: a version that ran in a quiet week is not comparable with one that ran in a busy one.
 
 To see evaluator results per version, run `run_experiment` in the same process as the agent, reading the prompt with `memtrace.prompts`, so each item's trace carries the version it used. Seeing the evidence needs permission to read the agent's data (`prompt:read` and read access to the experiment).
 
