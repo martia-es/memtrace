@@ -111,5 +111,9 @@ dd { margin: 0; }
 .field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; }
 .field-error { color: var(--mt-error-text, #b3261e); font-weight: 500; }
 .actions { display: flex; justify-content: flex-end; gap: 8px; }
-.ghost { height: 32px; padding: 0 14px; font: inherit; font-size: 13px; font-weight: 700; color: var(--mt-accent-text); background: var(--mt-card); border: 1px solid var(--mt-line); border-radius: var(--mt-radius-sm); cursor: pointer; }
+.primary-btn, .ghost { height: 32px; padding: 0 14px; font: inherit; font-size: 13px; font-weight: 700; border-radius: var(--mt-radius-sm); cursor: pointer; }
+.primary-btn { color: var(--mt-accent-ink); background: var(--mt-accent); border: 1px solid transparent; }
+.primary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ghost { color: var(--mt-accent-text); background: var(--mt-card); border: 1px solid var(--mt-line); }
+.primary-btn:focus-visible, .ghost:focus-visible { outline: 2px solid var(--mt-accent); outline-offset: 2px; }
 </style>
