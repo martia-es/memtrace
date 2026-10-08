@@ -371,13 +371,13 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
       { trace, service: ERR_SERVICE, spanId: mid, parent: root, name: "node", offsetMs: 10, durationMs: 800, status: "ERROR", message: "429 Too Many Requests" },
       {
         trace, service: ERR_SERVICE, parent: mid, name: "get_weather", offsetMs: 20, durationMs: 700, status: "ERROR", message: "429 Too Many Requests", attrs: tool,
-        events: [{ name: "exception", offsetMs: 30, attrs: { "exception.type": "httpx.HTTPStatusError" } }],
+        events: [{ name: "exception", offsetMs: 30, attrs: { "exception.type": "httpx.HTTPStatusError", "exception.message": "upstream said slow down" } }],
       },
       { trace: okTrace, service: ERR_SERVICE, name: "agent", offsetMs: 2000, durationMs: 100, attrs: { "gen_ai.conversation.id": `${ERR_SERVICE}-ok` } },
     ]);
     const result = await repo.listErrorGroups({ ...range, service: ERR_SERVICE });
     expect(result.groups).toHaveLength(1);
-    expect(result.groups[0]).toMatchObject({ kind: "tool", name: "get_weather", message: "429 Too Many Requests", exceptionType: "httpx.HTTPStatusError", occurrences: 1, traces: 1 });
+    expect(result.groups[0]).toMatchObject({ kind: "tool", name: "get_weather", message: "429 Too Many Requests", exceptionType: "httpx.HTTPStatusError", exceptionMessage: "upstream said slow down", occurrences: 1, traces: 1 });
     expect(result).toMatchObject({ tracesWithErrors: 1, totalTraces: 2 });
   });
 });

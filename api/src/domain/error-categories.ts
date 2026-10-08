@@ -15,6 +15,8 @@ export interface ErrorGroup {
   message: string;
   /** `exception.type` del evento de excepción; vacío si no hay */
   exceptionType: string;
+  /** `exception.message`: la causa real cuando el SDK no rellena el mensaje de estado (p. ej. reintentos de tool) */
+  exceptionMessage: string;
   occurrences: number;
   traces: number;
   conversations: number;
@@ -37,6 +39,7 @@ export interface ErrorSignal {
   kind: string;
   message: string;
   exceptionType: string;
+  exceptionMessage?: string;
 }
 
 export interface ErrorCategoryDef {
@@ -110,7 +113,7 @@ const RULES: Rule[] = [
     action: "Check the status of that service; if it is internal, notify its owner.",
     severity: "high",
     matches: (_s, t, http) =>
-      (http !== null && http >= 500) || has(t, /service unavailable|bad gateway|internal server error|connection (?:refused|reset|error|aborted)|econn|unreachable|name resolution|dns|network error|overloaded|temporarily unavailable/),
+      (http !== null && http >= 500) || has(t, /service unavailable|high demand|bad gateway|internal server error|connection (?:refused|reset|error|aborted)|econn|unreachable|name resolution|dns|network error|overloaded|temporarily unavailable/),
   },
   {
     id: "access_denied",
@@ -136,6 +139,14 @@ const RULES: Rule[] = [
     severity: "medium",
     matches: (s, t, http) =>
       http === 400 || http === 422 || has(`${s.exceptionType} ${t}`, /validation|invalid|bad request|malformed|schema|unexpected (?:argument|keyword)|missing .{0,20}(?:argument|parameter|field)/),
+  },
+  {
+    id: "tool_retry",
+    title: "The assistant had to retry a tool",
+    explanation: "A tool asked the assistant to try again, usually with different input.",
+    action: "No action needed unless it happens on most calls; then ask the technical team to review that tool.",
+    severity: "low",
+    matches: (s) => has(s.exceptionType.toLowerCase(), /retry/),
   },
   {
     id: "cancelled",
@@ -173,8 +184,9 @@ const OTHER_DEFAULT: ErrorCategoryDef = {
 };
 
 export function classifyError(signal: ErrorSignal): ErrorCategoryDef {
-  const text = `${signal.message} ${signal.exceptionType}`.toLowerCase();
-  const http = extractHttpStatus(signal.message);
+  const detail = `${signal.message} ${signal.exceptionMessage ?? ""}`;
+  const text = `${detail} ${signal.exceptionType}`.toLowerCase();
+  const http = extractHttpStatus(detail);
   const rule = RULES.find((r) => r.matches(signal, text, http));
   if (rule) {
     const { matches: _matches, ...def } = rule;
@@ -253,7 +265,7 @@ function accumulate(groups: ErrorGroup[]): Map<string, Accumulator> {
     const part = acc.parts.get(partKey) ?? { kind: g.kind, name: g.name, occurrences: 0 };
     part.occurrences += g.occurrences;
     acc.parts.set(partKey, part);
-    const normalized = normalizeMessage(g.message);
+    const normalized = normalizeMessage(g.message || g.exceptionMessage);
     acc.messages.set(normalized, (acc.messages.get(normalized) ?? 0) + g.occurrences);
     byCategory.set(def.id, acc);
   }
