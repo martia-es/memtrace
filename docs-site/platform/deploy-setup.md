@@ -100,3 +100,7 @@ Finally, in the dashboard, edit the assistant: **Source repository** (GitHub, th
 | *Recent Deliveries* shows `404` or the tunnel says *endpoint offline* | The API running in the cluster is older than this feature (rebuild with `make api`) or the tunnel is stopped |
 | The ngrok domain changes | You are not using a reserved domain. Reserve one, or update the Webhook URL of the App each time |
 | The workflow starts but MemTrace says *Failed* | The workflow itself failed; the link of the deployment opens its run in GitHub |
+
+## Try the gate without an LLM
+
+To see the evaluation gate turn green without spending model quota, set the repository variable `EVAL_MOCK` to `true` (*Settings → Secrets and variables → Actions → Variables*). The evaluation workflow then runs the reference assistant in mock mode: it answers what the dataset expects, so every evaluator passes, and it does not need `GOOGLE_API_KEY`. The run is uploaded with the commit like any other. Run it from the *Actions* tab with **Run workflow** (it uses the head of the branch you choose), and delete the variable when you want real evaluations again.

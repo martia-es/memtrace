@@ -3,6 +3,8 @@ name: Weather assistant evaluation
 # Evalúa el commit y sube el run a MemTrace. El SDK lee GITHUB_SHA y lo guarda en el run (ADR-065): el gate de despliegue
 # (ADR-064) exige una evaluación exitosa de exactamente el commit que se va a desplegar.
 on:
+  # Manual run from the Actions tab: GITHUB_SHA is the head of the branch you pick
+  workflow_dispatch:
   pull_request:
     paths:
       - "weather_assistant/**"
@@ -31,6 +33,9 @@ jobs:
       MEMTRACE_API_KEY: ${{ secrets.MEMTRACE_API_KEY }}
       WEATHER_ASSISTANT_MEMTRACE_HEADERS: authorization=Bearer ${{ secrets.MEMTRACE_API_KEY }}
       GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+      # EVAL_MOCK=true (repo variable): no LLM, the task answers what the dataset expects, so every evaluator passes.
+      # Useful to try the deploy gate without Gemini quota; needs no GOOGLE_API_KEY.
+      EVAL_MOCK: ${{ vars.EVAL_MOCK }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -41,5 +46,8 @@ jobs:
 
       # Los PR de forks no reciben secretos: ahí solo corren los tests.
       - name: Evaluate and upload the run to MemTrace
-        if: env.MEMTRACE_API_KEY != '' && env.GOOGLE_API_KEY != '' && env.MEMTRACE_DATASET_ID != ''
-        run: uv run python evals/run_eval.py --name "${GITHUB_SHA::7}" --dataset-id "$MEMTRACE_DATASET_ID" --min-pass-rate 0.8
+        if: env.MEMTRACE_API_KEY != '' && env.MEMTRACE_DATASET_ID != '' && (env.EVAL_MOCK == 'true' || env.GOOGLE_API_KEY != '')
+        run: |
+          MOCK=""
+          if [ "$EVAL_MOCK" = "true" ]; then MOCK="--mock"; fi
+          uv run python evals/run_eval.py $MOCK --name "${GITHUB_SHA::7}" --dataset-id "$MEMTRACE_DATASET_ID" --min-pass-rate 0.8
