@@ -34,6 +34,8 @@ Each run records the exact dataset version it read.
 - **Run detail**: one run, with its metrics, latency (p50 / p95 / max), and the items that errored or failed a boolean evaluator.
 - **Compare runs**: pick a baseline (A) and a candidate (B). You get per-evaluator deltas, and which items regressed or improved. Items are matched by identical input. It also shows **what changed in the dataset** between their versions: added, modified and removed items, and which regressions touch a changed item. If both runs used the same dataset version, it says so, because the difference does not come from the data.
 
+Click any item in a run's table to open a panel on the right with its input, expected and generated output, error, and every score with the evaluator's explanation (failed scores first), plus latency and tokens when it has a trace. Use the arrows to move between items and **Open trace** to jump to its trace. Evaluators explain a failure through the `comment` of their `Score`, so write a meaningful one (for example which rule failed).
+
 Latency, tokens and cost come from the trace of each item, not from the run itself. A figure is absent when the item has no trace, or when the trace has expired.
 
 ### Judge changes

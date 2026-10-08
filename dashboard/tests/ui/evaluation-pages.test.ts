@@ -275,6 +275,45 @@ describe("DatasetRunDetailPage", () => {
     const { wrapper } = await setup(DatasetRunDetailPage, api, "/datasets/ds-1/runs/run-1");
     expect(wrapper.text()).toContain("error: boom");
   });
+
+  it("opens a side panel with the failed score's explanation when a row is clicked, and navigates between items", async () => {
+    const api = new FakeTraceApi();
+    api.datasetRunDetail = {
+      dataset: { id: "ds-1", name: "toy-agent-smoke-test" },
+      run: datasetRunSummary({ aggregates: [] }),
+      items: [
+        datasetRunItem({ itemIndex: 0, input: "first?", traceId: null, scores: [{ name: "ok_check", value: "true", dataType: "boolean", source: "code", comment: "ok" }] }),
+        datasetRunItem({
+          itemIndex: 1,
+          input: "Dime que hace 5 grados",
+          traceId: null,
+          scores: [
+            { name: "ok_check", value: "true", dataType: "boolean", source: "code", comment: "ok" },
+            { name: "response_checks", value: "false", dataType: "boolean", source: "code", comment: "coincide con el patrón prohibido" },
+          ],
+        }),
+      ],
+    };
+    const { wrapper } = await setup(DatasetRunDetailPage, api, "/datasets/ds-1/runs/run-1");
+    expect(wrapper.find('[data-testid="run-item-panel"]').exists()).toBe(false);
+
+    await wrapper.findAll("tr.item-row")[1]!.trigger("click");
+    const panel = wrapper.find('[data-testid="run-item-panel"]');
+    expect(panel.text()).toContain("Dime que hace 5 grados");
+    expect(panel.text()).toContain("coincide con el patrón prohibido");
+    expect(panel.text()).toContain("1 failed");
+    // the failing score is listed before the passing one
+    expect(panel.findAll(".score")[0]!.attributes("data-testid")).toBe("run-item-score-response_checks");
+
+    await wrapper.find('[data-testid="run-item-prev"]').trigger("click");
+    expect(wrapper.find('[data-testid="run-item-panel"]').text()).toContain("first?");
+
+    // a trace id without stored telemetry would lead to a "not found" page: no link
+    expect(wrapper.find('[data-testid="run-item-trace"]').exists()).toBe(false);
+
+    await wrapper.find('[data-testid="run-item-close"]').trigger("click");
+    expect(wrapper.find('[data-testid="run-item-panel"]').exists()).toBe(false);
+  });
 });
 
 describe("DatasetDetailPage — spreadsheet editing (ADR-041)", () => {

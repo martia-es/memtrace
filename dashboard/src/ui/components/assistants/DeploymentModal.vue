@@ -76,7 +76,7 @@ const authOptions = Object.entries(AUTH_LABEL).map(([value, label]) => ({ label,
 </script>
 
 <template>
-  <Modal :title="editing ? `Edit ${d!.environment.label} deployment` : 'Add a deployment'" @close="emit('close')">
+  <Modal :title="editing ? `Edit ${d!.environment.label} deployment` : 'Add a deployment'" medium @close="emit('close')">
     <form class="modal-form" @submit.prevent="save">
       <label v-if="!editing" class="field">
         <span>Environment</span>
@@ -95,21 +95,21 @@ const authOptions = Object.entries(AUTH_LABEL).map(([value, label]) => ({ label,
       <div class="row">
         <label class="field"><span>Version</span><TextInput v-model="form.version" placeholder="v1.4.0" /></label>
         <label class="field">
-          <span>Branch or tag to deploy (optional)</span>
+          <span>Branch or tag (optional)</span>
           <TextInput v-model="form.deployRef" :invalid="!!fieldErrors.deployRef" placeholder="main" data-testid="deploy-ref" />
           <span v-if="fieldErrors.deployRef" class="field-error">{{ fieldErrors.deployRef }}</span>
         </label>
-        <label class="field">
-          <span>Authentication</span>
-          <Select v-model="form.authMethod" :options="authOptions" />
-        </label>
       </div>
+      <label class="field">
+        <span>Authentication</span>
+        <Select v-model="form.authMethod" :options="authOptions" />
+      </label>
       <div v-if="form.authMethod !== 'none'" class="row">
         <label class="field"><span>Provider</span><TextInput v-model="form.authProvider" placeholder="Entra ID" /></label>
         <label class="field"><span>Audience</span><TextInput v-model="form.authAudience" placeholder="api://weather-assistant" /></label>
       </div>
       <p v-if="form.authMethod !== 'none'" class="hint">MemTrace never stores secrets: only how this deployment authenticates.</p>
-      <div class="row">
+      <div class="row row-health">
         <label class="check"><input v-model="form.healthCheckEnabled" type="checkbox" />Check /health automatically</label>
         <label class="field">
           <span>Check every (seconds)</span>
@@ -130,3 +130,7 @@ const authOptions = Object.entries(AUTH_LABEL).map(([value, label]) => ({ label,
 </template>
 
 <style scoped src="./form.css"></style>
+<style scoped>
+.row-health { align-items: end; }
+.row-health .check { height: 36px; }
+</style>

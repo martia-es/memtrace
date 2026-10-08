@@ -9,6 +9,7 @@ import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import JudgeHumanAgreement from "../components/JudgeHumanAgreement.vue";
 import KpiCard from "../components/KpiCard.vue";
+import RunItemPanel from "../components/RunItemPanel.vue";
 import PageHeader from "../components/PageHeader.vue";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
@@ -32,6 +33,16 @@ async function showItem(itemIndex: number) {
   highlighted.value = itemIndex;
   await nextTick();
   document.getElementById(`item-${itemIndex}`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+}
+
+const selectedIndex = ref<number | null>(null);
+const items = computed(() => run.data.value?.items ?? []);
+const selectedPos = computed(() => items.value.findIndex((i) => i.itemIndex === selectedIndex.value));
+const selectedItem = computed(() => (selectedPos.value >= 0 ? items.value[selectedPos.value] : null));
+
+function step(delta: number) {
+  const next = items.value[selectedPos.value + delta];
+  if (next) selectedIndex.value = next.itemIndex;
 }
 
 const hasAnyTraceId = computed(() => run.data.value?.items.some((i) => i.traceId) ?? false);
@@ -96,7 +107,8 @@ function sourceSuffix(s: ScoreDto): string | null {
 
       <EmptyState v-if="run.data.value!.items.length === 0" icon="playlist_add_check" title="No items">This run has no items.</EmptyState>
 
-      <div v-else class="mt-card table-card">
+      <div v-else class="items-area">
+      <div class="mt-card table-card">
         <table class="items">
           <thead>
             <tr>
@@ -109,7 +121,7 @@ function sourceSuffix(s: ScoreDto): string | null {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in run.data.value!.items" :id="`item-${item.itemIndex}`" :key="item.itemIndex" class="item-row" :class="{ error: item.error, highlighted: highlighted === item.itemIndex }">
+            <tr v-for="item in run.data.value!.items" :id="`item-${item.itemIndex}`" :key="item.itemIndex" class="item-row" :class="{ error: item.error, highlighted: highlighted === item.itemIndex, selected: selectedIndex === item.itemIndex }" tabindex="0" @click="selectedIndex = item.itemIndex" @keydown.enter="selectedIndex = item.itemIndex">
               <td class="idx mono">{{ item.itemIndex + 1 }}</td>
               <td><div class="preview" :title="preview(item.input)">{{ preview(item.input) }}</div></td>
               <td><div class="preview" :class="{ empty: item.expectedOutput == null }" :title="preview(item.expectedOutput)">{{ preview(item.expectedOutput) }}</div></td>
@@ -126,6 +138,18 @@ function sourceSuffix(s: ScoreDto): string | null {
             </tr>
           </tbody>
         </table>
+      </div>
+      <RunItemPanel
+        v-if="selectedItem"
+        :item="selectedItem"
+        :position="selectedPos + 1"
+        :total="items.length"
+        :has-prev="selectedPos > 0"
+        :has-next="selectedPos < items.length - 1"
+        @close="selectedIndex = null"
+        @prev="step(-1)"
+        @next="step(1)"
+      />
       </div>
     </template>
   </div>
@@ -166,8 +190,21 @@ function sourceSuffix(s: ScoreDto): string | null {
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 12px;
 }
+.items-area {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 12px;
+}
+.item-row {
+  cursor: pointer;
+}
+.item-row.selected td {
+  background: var(--mt-accent-soft, rgba(0, 179, 173, 0.1));
+}
 .table-card {
   flex: 1;
+  min-width: 0;
   min-height: 0;
   overflow: auto;
   padding: 0;

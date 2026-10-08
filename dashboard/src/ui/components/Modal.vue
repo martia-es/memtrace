@@ -1,12 +1,12 @@
 <script setup lang="ts">
-defineProps<{ title: string; wide?: boolean; full?: boolean }>();
+defineProps<{ title: string; medium?: boolean; wide?: boolean; full?: boolean }>();
 const emit = defineEmits<{ close: [] }>();
 </script>
 
 <template>
   <Teleport to="body">
     <div class="modal-backdrop" @click.self="emit('close')" @keydown.esc="emit('close')">
-      <div class="modal-card mt-card" :class="{ wide, full }" role="dialog" aria-modal="true" :aria-label="title">
+      <div class="modal-card mt-card" :class="{ medium, wide, full }" role="dialog" aria-modal="true" :aria-label="title">
         <div class="modal-header">
           <h2>{{ title }}</h2>
           <button class="modal-close" type="button" aria-label="Close" @click="emit('close')">
@@ -42,6 +42,9 @@ const emit = defineEmits<{ close: [] }>();
   flex-direction: column;
   gap: 16px;
   box-shadow: var(--mt-shadow-float);
+}
+.modal-card.medium {
+  max-width: 680px;
 }
 .modal-card.wide {
   max-width: 1100px;

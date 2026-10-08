@@ -27,7 +27,7 @@ const experimentName = (id: string | null) => (id === null ? "Whole organization
 const ORG_ROLES = ["org_admin"];
 const EXPERIMENT_ROLES = ["technical", "business"];
 
-const form = reactive({ externalGroup: "", target: "" as string, role: "technical" });
+const form = reactive({ externalGroup: "", target: "" as string, role: ORG_ROLES[0]! });
 const roleOptions = computed(() => (form.target === "" ? ORG_ROLES : EXPERIMENT_ROLES));
 function onTargetChange() {
   form.role = roleOptions.value[0]!;
@@ -99,6 +99,38 @@ function copy(text: string) {
   void navigator.clipboard?.writeText(text);
   $q.notify({ message: "Copied", timeout: 1200, position: "bottom" });
 }
+const ROLE_DESCRIPTION: Record<string, string> = {
+  org_admin: "Invites people, creates experiments and manages API keys. Cannot read trace data.",
+  technical: "Full technical work: span traces, curation, rubrics, datasets and their own API key.",
+  business: "Read-only dashboard (conversations, metrics, costs, evaluations) and annotates in queues where they are a reviewer.",
+};
+const roleDescription = computed(() => ROLE_DESCRIPTION[form.role] ?? "");
+
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const groupHint = computed(() => {
+  const value = form.externalGroup.trim();
+  if (!value) return "";
+  if (GUID.test(value)) return "Looks like an Entra ID Object ID.";
+  if (/\s/.test(value)) return "Contains spaces. Entra ID sends an Object ID (a code like 3f2a9c1e-…), not the group name. Okta and others send the name.";
+  return "Make sure it is exactly what the token carries: Entra ID sends the Object ID, not the group name.";
+});
+
+const previewGroup = computed(() => form.externalGroup.trim());
+const previewTarget = computed(() => experimentName(form.target || null));
+
+// SCIM solo funciona si el proveedor llega a la URL: necesita una dirección pública con HTTPS.
+const scimUnreachable = computed(() => {
+  const raw = identity.value?.scimBaseUrl;
+  if (!raw) return false;
+  try {
+    const url = new URL(raw);
+    const local = url.hostname === "localhost" || url.hostname === "0.0.0.0" || url.hostname.startsWith("127.") || !url.hostname.includes(".");
+    return local || url.protocol !== "https:";
+  } catch {
+    return false;
+  }
+});
+
 const targetOptions = computed(() => [{ label: "Whole organization", value: "" }, ...props.experiments.map((e) => ({ label: e.name, value: e.id }))]);
 const roleSelectOptions = computed(() => roleOptions.value.map((r) => ({ label: ROLE_LABEL[r] ?? r, value: r })));
 </script>
@@ -110,10 +142,15 @@ const roleSelectOptions = computed(() => roleOptions.value.map((r) => ({ label: 
     <section class="adm-card">
       <h3 class="adm-section-title">Group mappings</h3>
       <p class="adm-hint">
-        Say which group of your identity provider gives which role. People get the role the next time they sign in (or at once if your provider syncs with SCIM below);
-        losing the group removes it. Roles you assign by hand are never touched.
+        Use the groups you already have in your identity provider (Entra ID, Okta, SailPoint…). You do not create groups here: you only say which role each group gets in MemTrace.
       </p>
+      <ol class="steps adm-hint" data-testid="identity-steps">
+        <li>In your identity provider, find the group and copy its ID.</li>
+        <li>Here, paste it, choose where it applies and which role it gives.</li>
+        <li>People get the role the next time they sign in. If they leave the group, they lose it. Roles you assign by hand are never touched.</li>
+      </ol>
 
+      <h4 class="sub">Current mappings</h4>
       <ul v-if="identity.mappings.length" class="adm-list" data-testid="mappings">
         <li v-for="m in identity.mappings" :key="m.id" class="adm-item">
           <div class="adm-item-main">
@@ -126,26 +163,65 @@ const roleSelectOptions = computed(() => roleOptions.value.map((r) => ({ label: 
       </ul>
       <p v-else class="adm-hint" data-testid="no-mappings">No mappings yet: access is only what you assign by hand.</p>
 
-      <form class="row" @submit.prevent="addMapping">
-        <TextInput mono v-model="form.externalGroup" placeholder="Group name or id, exactly as in the token" aria-label="Group" data-testid="mapping-group" />
-        <Select v-model="form.target" :options="targetOptions" aria-label="Applies to" data-testid="mapping-target" @update:model-value="onTargetChange" />
-        <Select v-model="form.role" :options="roleSelectOptions" aria-label="Role" data-testid="mapping-role" />
-        <button type="submit" class="adm-btn primary" :disabled="adding || !form.externalGroup.trim()" data-testid="add-mapping">Add mapping</button>
+      <h4 class="sub">Add a mapping</h4>
+      <form class="form" @submit.prevent="addMapping">
+        <div class="field">
+          <label class="label" for="mapping-group">1. Group ID</label>
+          <TextInput mono id="mapping-group" v-model="form.externalGroup" placeholder="e.g. 3f2a9c1e-7b4d-4e0a-9c55-1d2e8f6a0b13" aria-label="Group" data-testid="mapping-group" />
+          <p v-if="groupHint" class="adm-hint" data-testid="group-hint">{{ groupHint }}</p>
+          <details class="where">
+            <summary>Where do I find it?</summary>
+            <ul>
+              <li><strong>Microsoft Entra ID:</strong> Entra admin center → Entra ID → Groups → open the group → Overview → copy <span class="mono">Object ID</span>.</li>
+              <li><strong>Okta:</strong> Directory → Groups. Use the group name exactly as the token carries it.</li>
+              <li><strong>Not sure?</strong> It must match exactly the value that appears in the sign-in token's groups claim (see Advanced below).</li>
+            </ul>
+          </details>
+        </div>
+
+        <div class="field">
+          <label class="label" for="mapping-target">2. Where does it apply?</label>
+          <Select v-model="form.target" :options="targetOptions" aria-label="Applies to" data-testid="mapping-target" @update:model-value="onTargetChange" />
+          <p class="adm-hint">An experiment, or the whole organization (for organization roles).</p>
+        </div>
+
+        <div class="field">
+          <label class="label" for="mapping-role">3. Which role does it give?</label>
+          <Select v-model="form.role" :options="roleSelectOptions" aria-label="Role" data-testid="mapping-role" />
+          <p v-if="roleDescription" class="adm-hint" data-testid="role-description">{{ roleDescription }}</p>
+        </div>
+
+        <p v-if="previewGroup" class="preview" data-testid="mapping-preview">
+          Everyone in <span class="mono">{{ previewGroup }}</span> will get <strong>{{ ROLE_LABEL[form.role] }}</strong> in <strong>{{ previewTarget }}</strong>.
+        </p>
+        <div><button type="submit" class="adm-btn primary" :disabled="adding || !form.externalGroup.trim()" data-testid="add-mapping">Add mapping</button></div>
       </form>
 
-      <div class="row">
-        <label class="adm-hint" for="claim">Claim that carries the groups in the sign-in token</label>
-        <TextInput mono class="claim" id="claim" v-model="claimValue" data-testid="groups-claim" />
-        <button type="button" class="adm-btn ghost small" :disabled="!claimTouched" @click="saveClaim">Save</button>
-      </div>
-      <p class="adm-hint">Usually <span class="mono">groups</span> (Entra ID, Okta) or <span class="mono">roles</span> (Entra app roles). If a token carries no groups at all, nobody's access changes.</p>
+      <details class="where advanced">
+        <summary>Advanced: where the token carries the groups</summary>
+        <div class="row">
+          <label class="adm-hint" for="claim">Claim name</label>
+          <TextInput mono class="claim" id="claim" v-model="claimValue" data-testid="groups-claim" />
+          <button type="button" class="adm-btn ghost small" :disabled="!claimTouched" @click="saveClaim">Save</button>
+        </div>
+        <p class="adm-hint">
+          Leave <span class="mono">groups</span> for Entra ID and Okta. Use <span class="mono">roles</span> if you use Entra app roles. If a sign-in token carries no groups at all, nobody's access changes.
+        </p>
+      </details>
     </section>
 
     <section class="adm-card">
-      <h3 class="adm-section-title">Automatic provisioning (SCIM)</h3>
+      <h3 class="adm-section-title">Automatic provisioning (SCIM) <span class="optional">Optional</span></h3>
       <p class="adm-hint">
-        Point your provider (Entra ID, Okta, SailPoint) at the address below with a token. It then creates and deactivates people and pushes group membership;
-        a deactivated person loses the roles they got from groups immediately. The SCIM <span class="mono">userName</span> must be the email they sign in with.
+        Without SCIM, role changes apply the next time each person signs in. With SCIM, your provider (Entra ID, Okta, SailPoint) tells MemTrace at once when someone joins, leaves a group or is deactivated.
+      </p>
+      <ol class="steps adm-hint">
+        <li>Create a token below and copy it (it is shown only once).</li>
+        <li>In your provider, create a provisioning connection and paste the Base URL and the token.</li>
+        <li>The SCIM <span class="mono">userName</span> must be the email people sign in with. Assign only the groups you mapped above.</li>
+      </ol>
+      <p v-if="scimUnreachable" class="adm-hint warn" data-testid="scim-warning">
+        Your identity provider cannot reach this address: it is local or not HTTPS. Use a public HTTPS URL for MemTrace before configuring SCIM.
       </p>
       <div class="row">
         <span class="adm-hint">Base URL</span>
@@ -193,6 +269,72 @@ const roleSelectOptions = computed(() => roleOptions.value.map((r) => ({ label: 
 }
 .mono {
   font-family: var(--mt-mono);
+}
+.steps {
+  margin: 10px 0 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sub {
+  margin: 18px 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 640px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.where {
+  font-size: 13px;
+  color: var(--mt-muted);
+  margin-top: 4px;
+}
+.where summary {
+  cursor: pointer;
+  color: var(--mt-accent);
+}
+.where ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.advanced {
+  margin-top: 18px;
+}
+.preview {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--mt-radius-sm);
+  background: var(--mt-soft);
+  font-size: 13px;
+}
+.optional {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: var(--mt-radius-sm);
+  background: var(--mt-soft);
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.warn {
+  margin-top: 8px;
+  color: var(--mt-warn-ink);
 }
 code {
   word-break: break-all;

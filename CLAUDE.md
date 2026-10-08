@@ -12,5 +12,4 @@ Además:
 - El Readme.md debe quedarse limpio, debe ser una guia básica para entender la estructura de este proyecto y los comandos básicos para levantarlo. Actualizalo solo cuando sea necesario.
 
 
-
-
+Utiliza los worktrees para cada funcionalidad que tengas que hacer, de esta forma no habrá choque ni conflicto con lo que otro asistente de IA pueda estar haciendo. En cuanto termines, sube tus cambios a una rama y pídeme que valide, dándome siempre un plan de pruebas. Cuando yo te dé el ok, entonces fusionamos a main. Usa siempre git conventions.

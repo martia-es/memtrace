@@ -84,19 +84,26 @@ def main() -> int:
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--judge", action="store_true", help="añade Correctness (LLM-as-judge)")
     parser.add_argument("--dataset-id", help="dataset de MemTrace sobre el que ejecutar (por defecto se crea uno)")
+    parser.add_argument("--mock", action="store_true", help="sin LLM: la tarea devuelve la respuesta esperada y las llamadas esperadas, así que todo pasa (prueba del gate de despliegue)")
     parser.add_argument("--local", action="store_true", help="no subir nada a MemTrace; usa dataset.jsonl y deja el resultado en memoria")
     parser.add_argument("--min-pass-rate", type=float, default=None, help="sale con código 1 si algún evaluador booleano queda por debajo")
     args = parser.parse_args()
 
     settings = Settings.from_env()
     traced = setup_tracing()
-    agent = build_assistant(settings.model, ALL_CAPABILITIES)
+    agent = None if args.mock else build_assistant(settings.model, ALL_CAPABILITIES)
     weather = FakeWeatherService()
 
     tool_calls: dict[str, list[dict]] = {}
     lock = threading.Lock()
 
     def task(*, item: EvalItem) -> str:
+        if args.mock:  # el "agente perfecto": responde lo esperado y llama a la tool como se espera
+            with lock:
+                tool_calls[item.input] = [
+                    {"location": want["location"], "days": want["min_days"]} for want in (item.metadata or {}).get("expected_tools", [])
+                ]
+            return str(item.expected_output)
         result = asyncio.run(agent.run(item.input, deps=AssistantDeps(weather=weather)))
         calls = [
             part.args_as_dict()
@@ -109,7 +116,7 @@ def main() -> int:
         return result.output
 
     evaluators = [ToolCalls(tool_calls), response_checks]
-    if args.judge:
+    if args.judge and not args.mock:
         evaluators.append(Correctness(client=PydanticAIJudgeClient(settings.model)))
 
     api_url, api_key = os.getenv("MEMTRACE_API_URL"), os.getenv("MEMTRACE_API_KEY")

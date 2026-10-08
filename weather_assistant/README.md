@@ -82,6 +82,8 @@ Para guardarlo todo en MemTrace (trazas, dataset y run con scores), define en el
 
 **Feedback del usuario.** Cada respuesta del chat lleva su `trace_id` y la UI muestra 👍/👎 debajo. El voto va a `POST /api/chat/feedback`, que llama a `memtrace.feedback(...)` con `MEMTRACE_API_URL` y `MEMTRACE_API_KEY` (la clave se queda en el servidor); el `session_id` identifica a quien vota, así que cambiar de opinión sustituye el voto. Para que el panel «Talk» de MemTrace también ofrezca 👍/👎, en la ficha del agente pon *Trace id field* = `trace_id`.
 
+Para probar el gate de despliegue sin LLM ni cuota: `uv run python evals/run_eval.py --mock` (la tarea devuelve la respuesta y las llamadas esperadas, así que todo pasa). Con `MEMTRACE_GIT_SHA=<sha>` el run queda etiquetado con ese commit y sin marca de "dirty".
+
 Evaluadores: `tool_calls` (localidad y `days` correctos, y sin llamar a la tool cuando no toca) y `response_checks` (cifras presentes, nada inventado ni filtrado). Cada fila del dataset lo declara en `metadata`. `uv run pytest` valida el dataset y los evaluadores sin LLM.
 
 Decisión de arquitectura: [ADR-047](../docs/adrs/assistant/adr-047-weather-assistant-architecture.md).
