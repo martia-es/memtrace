@@ -4,7 +4,8 @@ import { useRoute } from "vue-router";
 import { useQuasar } from "quasar";
 import type { PromptDetailDto, PromptVersionDto } from "@contract";
 import { describeApiError } from "@/application/describe-api-error";
-import { formatDateTime, formatRelativeTime } from "@/domain/format";
+import { formatCostUsd, formatCount, formatDateTime, formatDuration, formatPercent, formatRelativeTime } from "@/domain/format";
+import { MIN_TRACES, compareVersions, evaluatorCell, evaluatorNames, sampleQuality } from "@/domain/prompt-evidence";
 import { describeUsage, environmentsRunning, type UsageState } from "@/domain/prompt-usage";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import PageHeader from "../components/PageHeader.vue";
@@ -53,9 +54,44 @@ const tagsByVersion = computed(() => {
 const TABS = [
   { id: "content", label: "Content" },
   { id: "compare", label: "Compare" },
+  { id: "evidence", label: "Evidence" },
   { id: "tags", label: "Tags & history" },
 ];
 const tab = ref(TABS.some((t) => t.id === route.query.tab) ? String(route.query.tab) : "content");
+
+// ---- evidencia (ADR-069) ----
+const RANGES = [
+  { value: "24h", label: "24 hours", ms: 24 * 3600_000 },
+  { value: "7d", label: "7 days", ms: 7 * 24 * 3600_000 },
+  { value: "30d", label: "30 days", ms: 30 * 24 * 3600_000 },
+];
+const rangeKey = ref("7d");
+const rangeOptions = RANGES.map((r) => ({ label: r.label, value: r.value }));
+const rangeLabel = computed(() => RANGES.find((r) => r.value === rangeKey.value)?.label ?? "");
+const evidence = useAsync((signal) => {
+  const ms = RANGES.find((r) => r.value === rangeKey.value)!.ms;
+  const to = new Date();
+  return api.getEvidence(String(route.params.experimentId), props.promptId, { from: new Date(to.getTime() - ms), to }, signal);
+});
+let evidenceLoadedFor: string | null = null;
+function ensureEvidence() {
+  if (evidenceLoadedFor === rangeKey.value) return;
+  evidenceLoadedFor = rangeKey.value;
+  void evidence.run();
+}
+watch([tab, rangeKey], () => {
+  if (tab.value === "evidence" || tab.value === "compare") ensureEvidence();
+}, { immediate: true });
+const evidenceVersions = computed(() => evidence.data.value?.versions ?? []);
+const evaluatorColumns = computed(() => evaluatorNames(evidenceVersions.value));
+const evidenceOf = (version: number | null) => evidenceVersions.value.find((v) => v.version === version) ?? null;
+const comparison = computed(() => {
+  const base = evidenceOf(compareWith.value);
+  const target = evidenceOf(selected.value);
+  return base && target ? compareVersions(base, target) : null;
+});
+const missingEvidence = computed(() => [compareWith.value, selected.value].filter((v): v is number => v !== null && evidenceOf(v) === null));
+const DIRECTION_LABEL = { better: "Better", worse: "Worse", same: "No change", unknown: "–" } as const;
 
 // ---- comparar ----
 const compareWith = ref<number | null>(null);
@@ -216,7 +252,78 @@ const asVariable = (name: string) => `{{${name}}}`;
               <Select v-if="compareOptions.length > 0" v-model="compareWith" :options="compareOptions" data-testid="compare-with" />
               <span v-else class="muted">nothing: this is the first version</span>
             </div>
+            <section v-if="compareVersion" class="behaviour" data-testid="behaviour">
+              <div class="compare-bar">
+                <h3>How it behaved</h3>
+                <span class="muted small">last</span>
+                <Select v-model="rangeKey" :options="rangeOptions" data-testid="behaviour-range" />
+              </div>
+              <div v-if="evidence.loading.value && !evidence.data.value" class="loading"><q-spinner size="24px" color="primary" /></div>
+              <p v-else-if="evidence.error.value" class="muted small" data-testid="behaviour-error">Could not load the evidence: {{ evidence.error.value.message }}</p>
+              <p v-else-if="!comparison" class="muted small" data-testid="behaviour-empty">
+                No traces used {{ missingEvidence.map((v) => `v${v}`).join(" or ") }} in the last {{ rangeLabel }}, so there is nothing to compare yet.
+              </p>
+              <template v-else>
+                <p v-if="!comparison.reliable" class="warn small" data-testid="behaviour-unreliable">
+                  At least one of the two versions has fewer than {{ MIN_TRACES }} traces: treat these differences as indicative, they may be chance.
+                </p>
+                <table class="deltas" data-testid="behaviour-table">
+                  <thead><tr><th></th><th>v{{ compareVersion.version }}</th><th>v{{ selectedVersion.version }}</th><th>Change</th><th></th></tr></thead>
+                  <tbody>
+                    <tr v-for="d in comparison.deltas" :key="d.key" :data-testid="`delta-${d.key}`">
+                      <td>{{ d.label }}</td>
+                      <td class="mono">{{ d.base }}</td>
+                      <td class="mono">{{ d.target }}</td>
+                      <td class="mono">{{ d.change }}</td>
+                      <td><span class="mt-pill direction" :class="d.direction">{{ DIRECTION_LABEL[d.direction] }}</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </template>
+            </section>
             <PromptDiff v-if="compareVersion" :old-text="compareVersion.content" :new-text="selectedVersion.content" :old-label="`v${compareVersion.version}`" :new-label="`v${selectedVersion.version}`" />
+          </div>
+
+          <div v-else-if="tab === 'evidence'" class="pane" data-testid="pane-evidence">
+            <div class="compare-bar">
+              <span class="muted">Traces of the last</span>
+              <Select v-model="rangeKey" :options="rangeOptions" data-testid="evidence-range" />
+            </div>
+            <p class="muted small">What happened in the traces that used each version. A trace counts for every version it used.</p>
+            <ErrorBanner v-if="evidence.error.value" :error="evidence.error.value" @retry="evidence.run()" />
+            <div v-else-if="evidence.loading.value && !evidence.data.value" class="loading"><q-spinner size="28px" color="primary" /></div>
+            <p v-else-if="evidenceVersions.length === 0" class="muted small" data-testid="evidence-empty">
+              No trace used this prompt in the last {{ rangeLabel }}. Traces show up here when an agent calls <code>compile()</code> inside a traced step.
+            </p>
+            <div v-else class="table-scroll">
+              <table class="evidence" data-testid="evidence-table">
+                <thead>
+                  <tr>
+                    <th>Version</th><th class="num">Traces</th><th class="num">Errors</th><th class="num">Latency p95</th><th class="num">Cost / trace</th><th class="num">User 👍</th>
+                    <th v-for="name in evaluatorColumns" :key="name" class="num">{{ name }}</th>
+                    <th>Main failure</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="e in evidenceVersions" :key="e.version" :data-testid="`evidence-v${e.version}`">
+                    <td class="mono">
+                      v{{ e.version }}
+                      <span v-if="sampleQuality(e.traces) === 'low'" class="mt-pill low-sample" :title="`Fewer than ${MIN_TRACES} traces: the figures are only indicative`">few traces</span>
+                    </td>
+                    <td class="num mono">{{ formatCount(e.traces) }}</td>
+                    <td class="num mono" :class="{ bad: e.errorRate >= 0.1 }">{{ formatPercent(e.errorRate) }}</td>
+                    <td class="num mono">{{ formatDuration(e.latencyMs.p95) }}</td>
+                    <td class="num mono">{{ formatCostUsd(e.costPerTraceUsd) ?? "–" }}<span v-if="e.costPerTraceUsd !== null && !e.costComplete" class="muted" title="Some model has no known price: the real cost is higher"> +</span></td>
+                    <td class="num mono">{{ e.feedback.satisfaction === null ? "–" : `${e.feedback.satisfaction.toFixed(0)}%` }}<span v-if="e.feedback.ratedTraces > 0" class="muted"> ({{ e.feedback.ratedTraces }})</span></td>
+                    <td v-for="name in evaluatorColumns" :key="name" class="num mono">{{ evaluatorCell(e, name) }}</td>
+                    <td>
+                      <span v-if="e.errorCauses.length === 0" class="muted">–</span>
+                      <span v-else :data-testid="`cause-v${e.version}`">{{ e.errorCauses[0]!.title }} <span class="muted">({{ e.errorCauses[0]!.traces }})</span></span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <div v-else-if="tab === 'tags'" class="pane" data-testid="pane-tags">
@@ -378,6 +485,70 @@ const asVariable = (name: string) => `{{${name}}}`;
   font-size: 11.5px;
   font-weight: 600;
   color: var(--mt-ok-ink);
+}
+.behaviour {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--mt-line);
+  background: var(--mt-soft-2);
+}
+.behaviour h3 {
+  margin: 0;
+}
+.warn {
+  margin: 0;
+  color: var(--mt-warn-ink);
+}
+.table-scroll {
+  overflow-x: auto;
+}
+.evidence,
+.deltas {
+  border-collapse: collapse;
+  font-size: 13px;
+  min-width: 100%;
+}
+.evidence th,
+.deltas th {
+  padding: 4px 12px 6px 0;
+  color: var(--mt-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.evidence td,
+.deltas td {
+  padding: 6px 12px 6px 0;
+  border-top: 1px solid var(--mt-line-2);
+  white-space: nowrap;
+}
+.num {
+  text-align: right;
+}
+.bad {
+  color: var(--mt-err-ink);
+}
+.low-sample {
+  margin-left: 6px;
+  background: var(--mt-warn-bg);
+  color: var(--mt-warn-ink);
+}
+.direction.better {
+  background: var(--mt-ok-bg);
+  color: var(--mt-ok-ink);
+}
+.direction.worse {
+  background: var(--mt-err-bg);
+  color: var(--mt-err-ink);
+}
+.direction.same,
+.direction.unknown {
+  background: var(--mt-soft);
+  color: var(--mt-muted);
 }
 .usage.in_sync {
   background: var(--mt-ok-bg);

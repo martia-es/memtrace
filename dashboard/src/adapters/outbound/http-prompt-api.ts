@@ -1,4 +1,4 @@
-import type { PromptDetailDto, PromptListResponse, PromptSummaryDto, PromptTagEventDto, PromptVersionDto } from "@contract";
+import type { PromptDetailDto, PromptEvidenceResponse, PromptListResponse, PromptSummaryDto, PromptTagEventDto, PromptVersionDto } from "@contract";
 import type { NewPromptInput, PromptApi } from "@/application/prompt-api";
 import { ApiError } from "@/application/trace-api";
 
@@ -27,6 +27,10 @@ export class HttpPromptApi implements PromptApi {
   }
   saveVersion(promptId: string, input: { content: string; message: string; parentVersion?: number | null }, signal?: AbortSignal): Promise<PromptVersionDto> {
     return this.request("POST", `/prompts/${e(promptId)}/versions`, input, signal);
+  }
+  getEvidence(experimentId: string, promptId: string, range: { from: Date; to: Date }, signal?: AbortSignal): Promise<PromptEvidenceResponse> {
+    const query = `?from=${e(range.from.toISOString())}&to=${e(range.to.toISOString())}`;
+    return this.request("GET", `/experiments/${e(experimentId)}/prompts/${e(promptId)}/evidence${query}`, undefined, signal);
   }
   moveTag(promptId: string, tag: string, version: number | null, reason: string, signal?: AbortSignal): Promise<PromptTagEventDto> {
     return this.request("PUT", `/prompts/${e(promptId)}/tags/${e(tag)}`, { version, reason }, signal);

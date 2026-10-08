@@ -1,4 +1,4 @@
-import type { PromptDetailDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto } from "@contract";
+import type { PromptDetailDto, PromptEvidenceResponse, PromptSummaryDto, PromptTagEventDto, PromptVersionDto } from "@contract";
 
 /** Puerto de salida: registro de prompts (ADR-067). */
 
@@ -19,6 +19,8 @@ export interface PromptApi {
   get(promptId: string, signal?: AbortSignal): Promise<PromptDetailDto>;
   update(promptId: string, patch: { description?: string; archived?: boolean; experimentIds?: string[] }, signal?: AbortSignal): Promise<PromptDetailDto>;
   saveVersion(promptId: string, input: { content: string; message: string; parentVersion?: number | null }, signal?: AbortSignal): Promise<PromptVersionDto>;
+  /** Qué pasó en las trazas que usaron cada versión del prompt (coste, errores, latencia, feedback, scores) en el rango (ADR-069). */
+  getEvidence(experimentId: string, promptId: string, range: { from: Date; to: Date }, signal?: AbortSignal): Promise<PromptEvidenceResponse>;
   /** Mueve el tag a una versión; `version = null` lo quita. Los tags de entorno exigen `prompt:promote`. */
   moveTag(promptId: string, tag: string, version: number | null, reason: string, signal?: AbortSignal): Promise<PromptTagEventDto>;
 }
