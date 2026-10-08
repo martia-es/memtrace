@@ -43,6 +43,26 @@ The [Python SDK](/library/prompts) reads the prompt of an environment with `memt
 
 The **Tags & history** tab starts with **In use right now**: for each environment, the version each agent reports to be using. *Up to date* means it runs the version its tag points to; *Catching up* means the tag moved and the agent has not picked it up yet (it takes up to 30 seconds, or longer if some replica is stale); *Fixed version* is an agent that asked for a version number instead of a tag; *Not reporting* means it has not reported for 15 minutes. In the version list, a version running somewhere says **Running in pro**. Agents report only when they read their prompt with the SDK.
 
+## Evidence: what each version did
+
+The **Evidence** tab shows, for every version that had traffic in the last 24 hours, 7 or 30 days, what happened in the traces that used it:
+
+| Column | Meaning |
+|---|---|
+| Traces | Traces where an agent used this version. A trace that used two versions counts for both |
+| Errors | % of those traces where **any** step failed (an agent often answers after a tool fails) |
+| Latency p95 | Duration of the whole answer; 95 % were faster than this |
+| Cost / trace | Tokens × the model price. A **+** means some model has no known price, so the real cost is higher; a dash, that none has |
+| User 👍 | % of thumbs-up from [user feedback](/library/feedback), and how many traces were rated |
+| One column per evaluator | Results of your [offline evaluations](./evaluation) on traces that used the version: pass rate (yes/no), average (numeric) or number of items |
+| Main failure | The most frequent cause in plain language, as in the Overview's failures |
+
+Versions with fewer than 30 traces are marked **few traces**: their figures are only indicative.
+
+In **Compare**, above the text diff, **How it behaved** puts two versions side by side and says what got *better*, *worse* or has *no change* (less than 5 % of movement is noise). When either version has fewer than 30 traces it warns that the differences may be chance. Use it with a similar period and traffic for both: a version that ran in a quiet week is not comparable with one that ran in a busy one.
+
+To see evaluator results per version, run `run_experiment` in the same process as the agent, reading the prompt with `memtrace.prompts`, so each item's trace carries the version it used. Seeing the evidence needs permission to read the agent's data (`prompt:read` and read access to the experiment).
+
 ::: info Coming next
-The quality, cost and error figures of each version, and a promotion that requires a passing evaluation, are the following steps of this feature.
+A promotion that requires a passing evaluation before a version can reach `pro`.
 :::
