@@ -65,6 +65,7 @@ configMapGenerator:
       - migrations/postgres/029_assistant_repo.sql
       - migrations/postgres/030_dataset_run_revision.sql
       - migrations/postgres/031_deploy_runs.sql
+      - migrations/postgres/032_prompts.sql
     options:
       disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
   - name: clickhouse-config

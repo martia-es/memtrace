@@ -1087,3 +1087,68 @@ export interface AccessGrantDto {
 export interface AccessGrantsResponse {
   items: AccessGrantDto[];
 }
+
+// ---- Registro de prompts (ADR-067) ----
+
+export interface PromptDto {
+  id: string;
+  organizationId: string;
+  name: string;
+  description: string;
+  archivedAt: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+  /** agentes (experimentos) a los que pertenece; puede ser más de uno */
+  experimentIds: string[];
+}
+
+export interface PromptSummaryDto extends PromptDto {
+  latestVersion: number;
+  /** tag -> número de versión al que apunta ahora */
+  tags: Record<string, number>;
+}
+
+export interface PromptVersionDto {
+  version: number;
+  content: string;
+  /** variables {{nombre}} detectadas al guardar */
+  variables: string[];
+  contentHash: string;
+  parentVersion: number | null;
+  message: string;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface PromptTagDto {
+  tag: string;
+  version: number;
+  updatedBy: string | null;
+  updatedAt: string;
+}
+
+export interface PromptTagEventDto {
+  id: string;
+  tag: string;
+  fromVersion: number | null;
+  /** null = el tag se quitó */
+  toVersion: number | null;
+  changedBy: string | null;
+  reason: string;
+  createdAt: string;
+}
+
+export interface PromptDetailDto {
+  prompt: PromptDto;
+  /** más recientes primero */
+  versions: PromptVersionDto[];
+  tags: PromptTagDto[];
+  events: PromptTagEventDto[];
+  /** claves de entorno de la organización: mover esos tags exige `prompt:promote` */
+  environmentKeys: string[];
+}
+
+export interface PromptListResponse {
+  items: PromptSummaryDto[];
+}

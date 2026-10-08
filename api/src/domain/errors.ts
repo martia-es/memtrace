@@ -129,6 +129,30 @@ export class AssistantUpstreamError extends Error {
   }
 }
 
+/** El prompt (o la versión, o el tag) pedido no existe en esa organización (ADR-067). HTTP 404. */
+export class PromptNotFoundError extends Error {
+  constructor(readonly what: string) {
+    super(`${what} not found`);
+    this.name = "PromptNotFoundError";
+  }
+}
+
+/** Operación que rompe una regla del registro de prompts: nombre ocupado, prompt archivado, agente de otra organización… (ADR-067). HTTP 409. */
+export class PromptInvariantError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PromptInvariantError";
+  }
+}
+
+/** El tag es de entorno (dev/pre/pro…) y quien lo mueve no tiene `prompt:promote` (ADR-067). HTTP 403. */
+export class PromptPromoteForbiddenError extends Error {
+  constructor(readonly tag: string) {
+    super(`Moving the environment tag "${tag}" requires the prompt:promote permission`);
+    this.name = "PromptPromoteForbiddenError";
+  }
+}
+
 /** El voto de feedback de usuario final no es válido (ADR-062). HTTP 422. */
 export class UserFeedbackValueError extends Error {
   constructor(message: string) {

@@ -1,7 +1,8 @@
 import { auth } from "@/auth";
-import { getIdentity } from "@/dependency-container";
+import { getIdentity, getPrompts } from "@/dependency-container";
 import type { User } from "@/domain/identity";
 import type { Permission } from "@/domain/permissions";
+import type { Prompt } from "@/domain/prompt";
 import { problem } from "./problem";
 
 /** Resuelve el usuario de dominio (tabla `users`) a partir de la sesión de Auth.js, o un 401. */
@@ -118,6 +119,29 @@ export async function requireOrganizationPermission(organizationId: string, perm
     return problem(403, "Forbidden", `Missing permission: ${permission}`);
   }
   return user;
+}
+
+/**
+ * ¿Puede esta persona hacer `permission` sobre el prompt? (ADR-067). El prompt es de la organización, así que vale el
+ * rol de organización; y como puede pertenecer a varios agentes, vale también el rol sobre cualquiera de ellos.
+ */
+async function canOnPrompt(userId: string, prompt: Prompt, permission: Permission): Promise<boolean> {
+  const { authorizationService } = getIdentity();
+  if (await authorizationService.canInOrganization(userId, prompt.organizationId, permission)) return true;
+  for (const experimentId of prompt.experimentIds) {
+    if (await authorizationService.can(userId, experimentId, permission)) return true;
+  }
+  return false;
+}
+
+/** Sesión + permiso sobre el prompt: 404 si no existe, 403 si no tiene el permiso. Devuelve además si puede promover (mover tags de entorno). */
+export async function requirePromptPermission(promptId: string, permission: Permission): Promise<{ user: User; prompt: Prompt; canPromote: boolean } | Response> {
+  const user = await requireUser();
+  if (user instanceof Response) return user;
+  const prompt = await getPrompts().get(promptId);
+  if (!(await canOnPrompt(user.id, prompt, permission))) return problem(403, "Forbidden", `Missing permission: ${permission}`);
+  const canPromote = permission === "prompt:promote" || (await canOnPrompt(user.id, prompt, "prompt:promote"));
+  return { user, prompt, canPromote };
 }
 
 /** Quién puede ver la ficha de un asistente, quién puede editarla y quién decide sobre conexiones y accesos (ADR-053). */
