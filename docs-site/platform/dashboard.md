@@ -59,6 +59,8 @@ It lists what is worth a look, each with a direct action: executions that ended 
 
 At the bottom, three cards: **Models** (p95 latency and cost per model), **Human review quality** (average reviewer score per criterion, from completed review queues; visible to technical profiles) and **Latest evaluation runs** (most recent runs with their first evaluator's result).
 
+Below, when anything failed, **What is going wrong** explains the failures by cause in plain language, without reading traces: *AI provider usage limit reached*, *A service took too long to respond*, *An external service was unavailable*, *Access or credentials problem*, *Conversation too long for the model*, *Answer blocked by safety filters*, and so on. Each cause shows how many conversations it affects (and what share of the total), when it last happened, which tools or models are involved, and whether it grew or shrank compared with the previous period of the same length. Click a cause to see what it means, what to do and who to ask, plus the technical detail for your technical colleagues. Failures that match no known cause appear as *A tool failed for an unrecognised reason*; the technical team can use the detail to add a rule for them. Only the deepest failing step of each execution is counted, so one broken tool is not counted again in the steps that contain it. No AI is involved: the causes come from a fixed set of rules.
+
 ### Compare
 
 Compares the selected agent (**A**, the baseline) against a second agent of your choice (**B**, the candidate) over the same time range. Use the swap button to exchange them. It requires access to at least 2 agents.

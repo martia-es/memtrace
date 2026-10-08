@@ -97,3 +97,23 @@ describe("TraceQueryService", () => {
     expect((await service.getItemTelemetry([])).size).toBe(0);
   });
 });
+
+describe("TraceQueryService.getErrorOverview (ADR-066)", () => {
+  it("compares with the immediately preceding period of the same length", async () => {
+    const { repo, service } = setup();
+    const out = await service.getErrorOverview({ service: "weather" });
+    expect(repo.lastErrorQueries).toHaveLength(2);
+    const [current, previous] = repo.lastErrorQueries;
+    expect(current).toMatchObject({ toMs: NOW, service: "weather" });
+    expect(previous!.toMs).toBe(current!.fromMs);
+    expect(previous!.toMs - previous!.fromMs).toBe(current!.toMs - current!.fromMs);
+    expect(out.previousRange).toEqual(previous && { fromMs: previous.fromMs, toMs: previous.toMs });
+  });
+
+  it("skips the comparison when the previous period is older than the retention", async () => {
+    const { repo, service } = setup();
+    const out = await service.getErrorOverview({ from: new Date(NOW - 20 * 24 * 3600_000) });
+    expect(repo.lastErrorQueries).toHaveLength(1);
+    expect(out.previousRange).toBeNull();
+  });
+});

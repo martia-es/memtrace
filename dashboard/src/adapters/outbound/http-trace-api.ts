@@ -18,6 +18,7 @@ import type {
   ConversationDetailResponse,
   ConversationListResponse,
   LowRatedResponse,
+  ErrorOverviewResponse,
   FeedbackOverviewResponse,
   FeedbackRatingsResponse,
   TraceFeedbackResponse,
@@ -127,6 +128,10 @@ export class HttpTraceApi implements TraceApi {
   getFeedbackRatings(target: { traceIds: string[] } | { conversationIds: string[] }, signal?: AbortSignal) {
     const params = "traceIds" in target ? { traceIds: target.traceIds.join(",") } : { conversationIds: target.conversationIds.join(",") };
     return this.get<FeedbackRatingsResponse>(`${this.scopedBase()}/feedback/ratings`, params, signal);
+  }
+
+  getErrorOverview(params: RangeParams, signal?: AbortSignal) {
+    return this.get<ErrorOverviewResponse>(`${this.scopedBase()}/errors/overview`, { ...params }, signal);
   }
 
   getFeedbackOverview(params: RangeParams, signal?: AbortSignal) {

@@ -65,6 +65,7 @@ export const turnsQuery = z.object({
 /** Los ids de conversación son texto libre (los pone la aplicación): solo se acota su longitud */
 export const conversationIdParam = z.string().min(1).max(200);
 
+export const errorOverviewQuery = z.object({ ...timeRangeShape, service: nonEmpty.optional() });
 export const overviewQuery = z.object({ ...timeRangeShape, service: nonEmpty.optional() });
 
 // ----- Custom metrics sobre spans definidos por el usuario (ADR-027) -----

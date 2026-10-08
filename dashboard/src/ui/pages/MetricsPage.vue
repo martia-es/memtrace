@@ -11,6 +11,7 @@ import AgentCompareView from "../components/AgentCompareView.vue";
 import CustomChartsPanel from "../components/CustomChartsPanel.vue";
 import MetricReportView from "../components/MetricReportView.vue";
 import ReportCard from "../components/ReportCard.vue";
+import ErrorOverviewCard from "../components/ErrorOverviewCard.vue";
 import EChart from "../components/EChart.vue";
 import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
@@ -43,7 +44,10 @@ const overview = useAsync((signal) => api.getOverview({ ...f.resolve(), service:
 const lowRated = useAsync((signal) => api.getLowRated(f.resolve(), signal));
 // 👍/👎 de usuario final del mismo rango (ADR-062); sin votos o si falla, no aparece ni el KPI ni los avisos
 const feedback = useAsync((signal) => api.getFeedbackOverview(f.resolve(), signal));
+// causas de los errores en lenguaje de negocio (ADR-066); si falla o no hay errores, la tarjeta no aparece
+const errorOverview = useAsync((signal) => api.getErrorOverview(f.resolve(), signal));
 async function loadOverview() {
+  void errorOverview.run();
   void lowRated.run();
   void feedback.run();
   if (await overview.run()) liveRefresh.touch();
@@ -441,6 +445,8 @@ function swapAgents() {
               </button>
             </section>
           </div>
+
+          <ErrorOverviewCard v-if="errorOverview.data.value && errorOverview.data.value.categories.length" :overview="errorOverview.data.value" @view="goToErrors" />
 
           <div class="overview-row thirds">
             <section class="card list-card" aria-label="Models">

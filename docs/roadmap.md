@@ -93,6 +93,7 @@ Un usuario puede agrupar varias gráficas custom ya guardadas en un **informe** 
 - [x] Métricas custom en el dashboard sobre spans definidos por el usuario (query builder declarativo) — ver ADR-027/030
 - [x] Informes guardados: grid de varias custom charts por experimento, compartido y enviable por email (sin PDF) — ver ADR-035
 - [x] Custom charts para perfiles de negocio: plantillas "empieza por una pregunta", nombres de negocio en vez de `step_type`/atributos crudos, flujo en 3 pasos con vista previa en vivo y tipo de gráfica/nombre sugeridos — ver [ADR-057](adrs/ui/adr-057-business-vocabulary-for-custom-charts.md)
+- [x] Resumen de errores en lenguaje de negocio en el Overview: reglas deterministas (sin IA) que agrupan los spans fallidos por causa, con impacto y tendencia — ver [ADR-066](adrs/observability/adr-066-business-error-overview.md)
 - [ ] Catálogo de datos editable en servidor para Custom charts (pasos y atributos autodescubiertos con nombre editable, clasificación automática de atributos por tipo/cardinalidad, métricas numéricas sobre atributos); sin depender de etiquetas en el SDK
 - [x] Configuración del OTel Collector con pipeline de batching + cola persistente + escritura en ClickHouse
 - [x] Esquema de datos en ClickHouse, con migraciones versionadas
