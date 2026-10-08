@@ -1,6 +1,7 @@
 import type { PromptDetail } from "@/application/prompt-service";
 import { USAGE_FRESH_MS, type Prompt, type PromptSummary, type PromptTag, type PromptTagEvent, type PromptUsage, type PromptVersion } from "@/domain/prompt";
-import type { PromptDetailDto, PromptDto, PromptResolveDto, PromptSummaryDto, PromptTagDto, PromptTagEventDto, PromptUsageDto, PromptVersionDto } from "./contract";
+import type { PromptEvidence } from "@/domain/prompt-evidence";
+import type { PromptDetailDto, PromptDto, PromptEvidenceResponse, PromptResolveDto, PromptSummaryDto, PromptTagDto, PromptTagEventDto, PromptUsageDto, PromptVersionDto } from "./contract";
 
 /** Dominio -> contrato HTTP del registro de prompts (ADR-067). Los DTO viven en contract.ts porque los comparte el dashboard. */
 
@@ -70,4 +71,26 @@ export const toPromptDetailDto = (d: PromptDetail, nowMs: number = Date.now()): 
   events: d.events.map(toPromptTagEventDto),
   usage: d.usage.map((u) => toPromptUsageDto(u, nowMs)),
   environmentKeys: d.environmentKeys,
+});
+
+export const toPromptEvidenceResponse = (e: PromptEvidence): PromptEvidenceResponse => ({
+  range: { from: new Date(e.range.fromMs).toISOString(), to: new Date(e.range.toMs).toISOString() },
+  versions: e.versions.map((v) => ({
+    version: v.version,
+    traces: v.traces,
+    conversations: v.conversations,
+    errorTraces: v.errorTraces,
+    errorRate: v.errorRate,
+    latencyMs: v.latencyMs,
+    inputTokens: v.inputTokens,
+    outputTokens: v.outputTokens,
+    costUsd: v.costUsd,
+    costPerTraceUsd: v.costPerTraceUsd,
+    costComplete: v.costComplete,
+    feedback: v.feedback,
+    evaluators: v.evaluators,
+    errorCauses: v.errorCauses,
+    firstSeen: new Date(v.firstSeenMs).toISOString(),
+    lastSeen: new Date(v.lastSeenMs).toISOString(),
+  })),
 });

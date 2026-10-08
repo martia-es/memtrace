@@ -1176,6 +1176,36 @@ export interface PromptDetailDto {
   environmentKeys: string[];
 }
 
+/** Evidencia de una versión de un prompt (ADR-069): lo que pasó en las trazas que la usaron. */
+export interface VersionEvidenceDto {
+  version: number;
+  traces: number;
+  conversations: number;
+  errorTraces: number;
+  /** 0-1 */
+  errorRate: number;
+  latencyMs: { p50: number; p95: number };
+  inputTokens: number;
+  outputTokens: number;
+  /** null si ningún modelo usado tiene precio conocido */
+  costUsd: number | null;
+  costPerTraceUsd: number | null;
+  /** false: algún modelo usado no tiene precio, así que el coste es un mínimo */
+  costComplete: boolean;
+  feedback: { up: number; down: number; ratedTraces: number; satisfaction: number | null };
+  evaluators: { name: string; dataType: string; items: number; value: number | null }[];
+  /** causas de error de negocio (ADR-066), las más graves primero */
+  errorCauses: { id: string; title: string; severity: "high" | "medium" | "low"; traces: number }[];
+  firstSeen: string;
+  lastSeen: string;
+}
+
+export interface PromptEvidenceResponse {
+  range: { from: string; to: string };
+  /** más reciente primero; solo las versiones con tráfico en el rango */
+  versions: VersionEvidenceDto[];
+}
+
 export interface PromptListResponse {
   items: PromptSummaryDto[];
 }

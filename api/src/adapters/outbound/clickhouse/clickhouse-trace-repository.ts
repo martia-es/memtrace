@@ -13,31 +13,31 @@ import type { Page, TraceStats, TraceSummary } from "@/domain/trace";
 import { QueryLimiter } from "./query-limiter";
 
 /** Los hijos de un span raíz pueden empezar después de que el rango termine: ventana de agregación. */
-const TRACE_WINDOW_MS = 24 * 60 * 60 * 1000;
+export const TRACE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
-const ERROR = "'STATUS_CODE_ERROR'";
-const OP = "SpanAttributes['gen_ai.operation.name']";
-const attrNum = (key: string) => `toUInt64OrZero(SpanAttributes['${key}'])`;
+export const ERROR = "'STATUS_CODE_ERROR'";
+export const OP = "SpanAttributes['gen_ai.operation.name']";
+export const attrNum = (key: string) => `toUInt64OrZero(SpanAttributes['${key}'])`;
 /** Total reportado o, si falta el atributo, entrada + salida (misma regla que el dominio). */
 const TOKENS = `if(mapContains(SpanAttributes, 'gen_ai.usage.total_tokens'), ${attrNum("gen_ai.usage.total_tokens")}, ${attrNum("gen_ai.usage.input_tokens")} + ${attrNum("gen_ai.usage.output_tokens")})`;
 
-const attr = (key: string) => `SpanAttributes['${key}']`;
+export const attr = (key: string) => `SpanAttributes['${key}']`;
 const CONTENT_KEYS = ["gen_ai.input.messages", "gen_ai.output.messages", "gen_ai.tool.call.arguments", "gen_ai.tool.call.result", "memtrace.input", "memtrace.output"];
 /** el parámetro `{text}` aparece (sin distinguir mayúsculas) en la entrada o salida capturadas del span */
 const CONTENT_MATCH = `(${CONTENT_KEYS.map((k) => `positionCaseInsensitiveUTF8(${attr(k)}, {text:String}) > 0`).join(" OR ")})`;
 /** Tipo de paso: el declarado por el SDK o, si falta, el que se deduce de la operación GenAI. */
-const KIND = `multiIf(${attr("memtrace.step_type")} != '', ${attr("memtrace.step_type")}, ${OP} = 'chat', 'llm', ${OP} = 'execute_tool', 'tool', 'unknown')`;
+export const KIND = `multiIf(${attr("memtrace.step_type")} != '', ${attr("memtrace.step_type")}, ${OP} = 'chat', 'llm', ${OP} = 'execute_tool', 'tool', 'unknown')`;
 /** Primer atributo de contenido presente, acotado al máximo que guarda el SDK (16 KB). */
 const firstOf = (keys: string[]) => `substring(multiIf(${keys.map((k) => `${attr(k)} != '', ${attr(k)}`).join(", ")}, ''), 1, 16384)`;
 
 type Row = Record<string, unknown>;
 type Params = Record<string, string | number | string[]>;
 
-const num = (value: unknown): number => {
+export const num = (value: unknown): number => {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
 };
-const nsToMs = (value: unknown): number => num(value) / 1e6;
+export const nsToMs = (value: unknown): number => num(value) / 1e6;
 
 function toStatus(code: unknown): StatusCode {
   if (code === "STATUS_CODE_OK") return "ok";
