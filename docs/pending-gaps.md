@@ -6,7 +6,7 @@ Lo que aún no cubre MemTrace, ordenado por prioridad sugerida. Complementa a [r
 
 - **Alertas y monitorización online**: alertas con umbrales (error rate, latencia, coste, calidad) y notificaciones. Hoy no hay ninguna.
 - **Evaluación online**: evaluar tráfico real (muestreo de trazas con evaluadores/juez). Hoy la evaluación es solo offline.
-- **Gestión de prompts** (ADR-067): hecho el registro (versiones inmutables, tags por entorno, diff, historial), el SDK `prompts.get()` con handle, el enlace con trazas y la versión realmente en uso (ADR-068). la evidencia por versión (ADR-069). Pendiente: promoción con gate, playground contra el asistente real, del fallo al prompt, fragmentos y mapa de dependencias (ver roadmap, Fase 1.8).
+- **Gestión de prompts** (ADR-067): hecho el registro (versiones inmutables, tags por entorno, diff, historial), el SDK `prompts.get()` con handle, el enlace con trazas y la versión realmente en uso (ADR-068), la evidencia por versión (ADR-069) y la promoción con gate (ADR-070). Pendiente: playground contra el asistente real, del fallo al prompt, fragmentos y mapa de dependencias (ver roadmap, Fase 1.8).
 - **Fase 2 (Mem)**: motor de análisis, grafo de conocimiento, patrones de fallo y feedback al agente. Hoy solo se observa, no se aprende.
 
 ## Prioridad media

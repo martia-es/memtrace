@@ -133,7 +133,8 @@
       "unlocks": [
         "Registering assistants in the catalog",
         "Approving or blocking the tools, MCP servers and agents an assistant uses",
-        "Adding or removing who can call each environment"
+        "Adding or removing who can call each environment",
+        "Skipping the evaluation gate when promoting a prompt (an emergency), with a written reason"
       ]
     },
     {
@@ -175,9 +176,10 @@
     {
       "id": "prompt:promote",
       "group": "Prompts",
-      "description": "Move the environment tags (dev, pre, pro) of a prompt.",
+      "description": "Move the environment tags (dev, pre, pro) of a prompt and set its promotion policy.",
       "unlocks": [
-        "Choosing which prompt version runs in each environment"
+        "Choosing which prompt version runs in each environment",
+        "Creating or removing the promotion policy that requires a passing evaluation before pre and pro"
       ]
     }
   ],
