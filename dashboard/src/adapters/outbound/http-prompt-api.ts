@@ -1,4 +1,4 @@
-import type { PromptDetailDto, PromptEvidenceResponse, PromptListResponse, PromptSummaryDto, PromptTagEventDto, PromptVersionDto } from "@contract";
+import type { PromptDetailDto, PromptEvidenceResponse, PromptGateDto, PromptListResponse, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto } from "@contract";
 import type { NewPromptInput, PromptApi } from "@/application/prompt-api";
 import { ApiError } from "@/application/trace-api";
 
@@ -32,8 +32,17 @@ export class HttpPromptApi implements PromptApi {
     const query = `?from=${e(range.from.toISOString())}&to=${e(range.to.toISOString())}`;
     return this.request("GET", `/experiments/${e(experimentId)}/prompts/${e(promptId)}/evidence${query}`, undefined, signal);
   }
-  moveTag(promptId: string, tag: string, version: number | null, reason: string, signal?: AbortSignal): Promise<PromptTagEventDto> {
-    return this.request("PUT", `/prompts/${e(promptId)}/tags/${e(tag)}`, { version, reason }, signal);
+  moveTag(promptId: string, tag: string, version: number | null, reason: string, bypassReason: string | null = null, signal?: AbortSignal): Promise<PromptTagEventDto> {
+    return this.request("PUT", `/prompts/${e(promptId)}/tags/${e(tag)}`, { version, reason, bypassReason }, signal);
+  }
+  previewGate(promptId: string, tag: string, version: number, signal?: AbortSignal): Promise<PromptGateDto> {
+    return this.request("GET", `/prompts/${e(promptId)}/gate?tag=${e(tag)}&version=${version}`, undefined, signal);
+  }
+  setPolicy(promptId: string, policy: { datasetId: string; requiredRuns: number }, signal?: AbortSignal): Promise<PromptPolicyDto> {
+    return this.request("PUT", `/prompts/${e(promptId)}/policy`, policy, signal);
+  }
+  async deletePolicy(promptId: string, signal?: AbortSignal): Promise<void> {
+    await this.request("DELETE", `/prompts/${e(promptId)}/policy`, undefined, signal);
   }
 
   private async request<T>(method: string, path: string, body: unknown, signal?: AbortSignal): Promise<T> {

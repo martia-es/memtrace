@@ -1137,6 +1137,32 @@ export interface PromptTagEventDto {
   changedBy: string | null;
   reason: string;
   createdAt: string;
+  /** lo que dijo el gate de promoción (ADR-070); null en los movimientos anteriores al gate */
+  gateVerdict: string | null;
+  /** alguien se saltó el gate; `bypassReason` lo justifica */
+  gateBypassed: boolean;
+  bypassReason: string | null;
+}
+
+/** Política de promoción de un prompt (ADR-070). */
+export interface PromptPolicyDto {
+  /** null: el dataset se borró y la política bloquea hasta elegir otro */
+  datasetId: string | null;
+  requiredRuns: number;
+  updatedBy: string | null;
+  updatedAt: string;
+}
+
+/** Si una versión puede promoverse a un entorno protegido y por qué (ADR-070). */
+export interface PromptGateDto {
+  allowed: boolean;
+  verdict: "not_gated" | "no_policy" | "rollback" | "policy_incomplete" | "no_evaluation" | "evaluation_running" | "failed" | "insufficient_runs" | "allowed";
+  tag: string;
+  version: number;
+  requiredRuns: number;
+  reason: string;
+  /** runs completos de esa versión que se miraron, el más reciente primero */
+  runs: Array<{ runId: string; name: string; passed: boolean; failures: Array<{ evaluator: string; passRate: number | null; target: number; incomplete?: { scored: number; items: number } }> }>;
 }
 
 /** Una versión que un agente informa estar usando (ADR-068). */
@@ -1174,6 +1200,10 @@ export interface PromptDetailDto {
   usage: PromptUsageDto[];
   /** claves de entorno de la organización: mover esos tags exige `prompt:promote` */
   environmentKeys: string[];
+  /** entornos que exigen pasar la política para mover su tag: todos menos el primero (ADR-070) */
+  gatedEnvironments: string[];
+  /** null = sin política: cualquier versión puede promoverse */
+  policy: PromptPolicyDto | null;
 }
 
 /** Evidencia de una versión de un prompt (ADR-069): lo que pasó en las trazas que la usaron. */

@@ -63,6 +63,27 @@ In **Compare**, above the text diff, **How it behaved** puts two versions side b
 
 To see evaluator results per version, run `run_experiment` in the same process as the agent, reading the prompt with `memtrace.prompts`, so each item's trace carries the version it used. Seeing the evidence needs permission to read the agent's data (`prompt:read` and read access to the experiment).
 
+## Promotion policy: evaluate before you promote
+
+Moving `pro` changes what production says within seconds. A **promotion policy** makes that move depend on evidence: a version can reach a protected environment only if an offline evaluation of **that exact version** passes. It is optional, per prompt: without a policy, everything works as before.
+
+Open **Tags & history → Promotion policy**, press **Add policy** and choose:
+
+- **Evaluate against**: a dataset of the agent.
+- **Passing runs in a row**: 1 to 10 (1 by default). With a non-deterministic model one pass is an indication, not proof; raise it for prompts that matter.
+
+With a policy:
+
+- **Protected environments** are all of them except the first (`dev` by default, where you iterate). They show a *protected* label. Free tags and removing a tag are never checked.
+- When you pick a version for a protected environment and press **Move**, MemTrace first shows the verdict: *Evaluation passed*, *Not evaluated*, *Evaluation running*, *Evaluation failed* (with the evaluators below their target) or *More evaluations needed*. Only *passed* lets you promote.
+- **A run counts for a version** when every item of the run that has a trace used that version. Runs that mix versions, or that used another dataset, are ignored. So run the evaluation with the agent reading the prompt through [`memtrace.prompts`](/library/prompts).
+- A run passes when each yes/no evaluator reaches its target pass rate (80 % unless its [rubric](./annotations#score-configs) says otherwise) and scored all the items. The newest runs count: a later failure blocks, a later pass unblocks.
+- **Going back is instant.** Pointing a tag back to a version it already had is a rollback and needs no new evaluation, unless that version only got there by skipping the evaluation.
+- **Emergencies.** Someone with the governance permission can tick **Promote anyway**, write why (5 to 500 characters) and move the tag. The history keeps *skipped the evaluation: "reason"*.
+- If the policy's dataset is deleted, promotions are **blocked** until you choose another one: the gate never opens by itself.
+
+Changing or removing the policy needs `prompt:promote`, and the history shows who moved what and which verdict they got.
+
 ::: info Coming next
-A promotion that requires a passing evaluation before a version can reach `pro`.
+Replaying a real conversation with another version, and proposing a fix from a failed trace.
 :::

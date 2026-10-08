@@ -1,20 +1,27 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { Dark, Notify, QLayout, QPageContainer, Quasar } from "quasar";
 import { computed, defineComponent, h } from "vue";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { createMemoryHistory, createRouter } from "vue-router";
 import { CURRENT_EXPERIMENT, IDENTITY_API, PROMPT_API, TRACE_API } from "@/dependency-container";
-import { EMPTY_THEME, type ExperimentDto } from "@/application/identity-api";
+import { EMPTY_THEME, type ExperimentDto, type OrganizationDto } from "@/application/identity-api";
 import PromptsPage from "@/ui/pages/PromptsPage.vue";
 import PromptDetailPage from "@/ui/pages/PromptDetailPage.vue";
 import { permissionsOf } from "../permissions";
 import { FakeIdentityApi, FakeTraceApi } from "../fakes";
-import { FakePromptApi, promptDetail, promptSummary, promptVersion, versionEvidence } from "../fakes-prompts";
+import { FakePromptApi, gateResult, policy, promptDetail, promptSummary, promptVersion, versionEvidence } from "../fakes-prompts";
 import { chooseOption } from "./select";
 
 const exp = (role: string): ExperimentDto => ({ id: "exp-1", organizationId: "org-1", name: "weather", serviceName: "weather-assistant", myRole: role, permissions: permissionsOf(role), organizationTheme: EMPTY_THEME });
 
-async function setup(component: object, role: string, api: FakePromptApi, props: Record<string, unknown> = {}, query = "") {
+/** Una organización donde la persona tiene gobernanza: puede saltarse el gate de promoción (ADR-070). */
+class GovernanceIdentity extends FakeIdentityApi {
+  override async listOrganizations(): Promise<OrganizationDto[]> {
+    return [{ id: "org-1", name: "Acme", myRole: null, permissions: permissionsOf("governance"), theme: EMPTY_THEME }];
+  }
+}
+
+async function setup(component: object, role: string, api: FakePromptApi, props: Record<string, unknown> = {}, query = "", options: { identity?: FakeIdentityApi; trace?: FakeTraceApi } = {}) {
   const stub = { template: "<div />" };
   const router = createRouter({
     history: createMemoryHistory(),
@@ -30,7 +37,7 @@ async function setup(component: object, role: string, api: FakePromptApi, props:
     attachTo: document.body,
     global: {
       plugins: [[Quasar, { plugins: { Dark, Notify } }], router],
-      provide: { [TRACE_API as symbol]: new FakeTraceApi(), [IDENTITY_API as symbol]: new FakeIdentityApi(), [PROMPT_API as symbol]: api, [CURRENT_EXPERIMENT as symbol]: computed(() => exp(role)) },
+      provide: { [TRACE_API as symbol]: options.trace ?? new FakeTraceApi(), [IDENTITY_API as symbol]: options.identity ?? new FakeIdentityApi(), [PROMPT_API as symbol]: api, [CURRENT_EXPERIMENT as symbol]: computed(() => exp(role)) },
     },
   });
   await flushPromises();
@@ -108,7 +115,7 @@ describe("prompt detail (ADR-067)", () => {
     await chooseOption(document.body, "[data-testid='env-pre'] .select-trigger", "v1 · first draft");
     await wrapper.find("[data-testid='move-pre']").trigger("click");
     await flushPromises();
-    expect(api.calls.find((c) => c.method === "moveTag")?.args).toEqual(["p1", "pre", 1, "promote to pre"]);
+    expect(api.calls.find((c) => c.method === "moveTag")?.args).toEqual(["p1", "pre", 1, "promote to pre", null]);
     expect(wrapper.find("[data-testid='tag-events']").text()).toContain("ready to test");
   });
 
@@ -233,5 +240,155 @@ describe("prompt detail (ADR-067)", () => {
     await wrapper.findAll("[role='tab']")[3]!.trigger("click");
     expect(wrapper.find("[data-testid='move-pre']").exists()).toBe(false);
     expect(wrapper.find("[data-testid='env-dev']").text()).toContain("v2");
+  });
+});
+
+describe("promotion gate in the prompt page (ADR-070)", () => {
+  afterEach(() => {
+    document.body.innerHTML = ""; // los modales teletransportados de una prueba no deben verse en la siguiente
+  });
+
+  const TAGS = 3; // Content, Compare, Evidence, Tags & history
+  const withPolicy = () => {
+    const api = new FakePromptApi();
+    api.detail = promptDetail({ policy: policy() });
+    return api;
+  };
+  async function openTags(api: FakePromptApi, role = "technical", options: Parameters<typeof setup>[5] = {}) {
+    const ctx = await setup(PromptDetailPage, role, api, { promptId: "p1" }, "", options);
+    await ctx.wrapper.findAll("[role='tab']")[TAGS]!.trigger("click");
+    await flushPromises();
+    return ctx;
+  }
+  const modal = () => document.body.querySelector<HTMLElement>("[data-testid='promote-modal']");
+  const byId = <T extends HTMLElement = HTMLElement>(id: string) => document.body.querySelector<T>(`[data-testid='${id}']`);
+  async function pickAndMove(wrapper: { element: Element }, env: string, label: string) {
+    await chooseOption(wrapper.element, `[data-testid='env-${env}'] .select-trigger`, label);
+    byId(`move-${env}`)!.click();
+    await flushPromises();
+  }
+  async function type(el: HTMLInputElement | HTMLTextAreaElement, value: string) {
+    el.value = value;
+    el.dispatchEvent(new Event("input"));
+    await flushPromises();
+  }
+
+  it("marks the protected environments only when the prompt has a policy", async () => {
+    const withIt = (await openTags(withPolicy())).wrapper;
+    expect(withIt.find("[data-testid='protected-pre']").exists()).toBe(true);
+    expect(withIt.find("[data-testid='protected-pro']").exists()).toBe(true);
+    expect(withIt.find("[data-testid='protected-dev']").exists()).toBe(false); // the first environment stays free
+    document.body.innerHTML = "";
+    const without = (await openTags(new FakePromptApi())).wrapper;
+    expect(without.find("[data-testid='protected-pro']").exists()).toBe(false);
+  });
+
+  it("asks the gate before moving a protected environment, and promotes when it passes", async () => {
+    const api = withPolicy();
+    api.gate = gateResult({ allowed: true, verdict: "allowed", reason: "The evaluation of v1 passes." });
+    const { wrapper } = await openTags(api);
+    await pickAndMove(wrapper, "pre", "v1 · first draft");
+    expect(api.calls.some((c) => c.method === "moveTag")).toBe(false); // nothing moved yet
+    expect(api.calls.find((c) => c.method === "previewGate")?.args).toEqual(["p1", "pre", 1]);
+    expect(byId("promote-verdict")!.textContent).toContain("Evaluation passed");
+    expect(byId("promote-reason")!.textContent).toContain("passes");
+    byId("promote-confirm")!.click();
+    await flushPromises();
+    expect(api.calls.find((c) => c.method === "moveTag")?.args).toEqual(["p1", "pre", 1, "", null]);
+    expect(modal()).toBeNull();
+  });
+
+  it("explains why an unevaluated or failing version cannot be promoted and offers no way around to a technical user", async () => {
+    const api = withPolicy();
+    api.gate = gateResult({
+      allowed: false, verdict: "failed", reason: 'The evaluation "run 1" does not pass: accurate 70% (target 80%).',
+      runs: [{ runId: "r1", name: "run 1", passed: false, failures: [{ evaluator: "accurate", passRate: 0.7, target: 0.8 }] }],
+    });
+    const { wrapper } = await openTags(api);
+    await pickAndMove(wrapper, "pro", "v1 · first draft");
+    expect(byId("promote-verdict")!.textContent).toContain("Evaluation failed");
+    expect(byId("promote-failures")!.textContent).toContain("accurate");
+    expect(byId("promote-failures")!.textContent).toContain("70%");
+    expect(byId("promote-confirm")!.hasAttribute("disabled")).toBe(true);
+    expect(byId("bypass-toggle")).toBeNull();
+    expect(byId("no-bypass")!.textContent).toContain("governance");
+    expect(api.calls.some((c) => c.method === "moveTag")).toBe(false);
+  });
+
+  it("lets governance skip the evaluation with a written reason, which travels with the move", async () => {
+    const api = withPolicy();
+    api.gate = gateResult({ allowed: false, verdict: "no_evaluation", reason: "No evaluation on the policy's dataset used v1." });
+    const { wrapper } = await openTags(api, "technical", { identity: new GovernanceIdentity() });
+    await pickAndMove(wrapper, "pro", "v1 · first draft");
+    expect(byId("promote-confirm")!.hasAttribute("disabled")).toBe(true);
+    byId<HTMLInputElement>("bypass-toggle")!.click();
+    await flushPromises();
+    expect(byId("promote-confirm")!.hasAttribute("disabled")).toBe(true); // a reason is required
+    await type(byId<HTMLTextAreaElement>("bypass-reason")!, "Hotfix: the old answer broke checkout");
+    expect(byId("promote-confirm")!.textContent).toContain("Promote anyway");
+    byId("promote-confirm")!.click();
+    await flushPromises();
+    expect(api.calls.find((c) => c.method === "moveTag")?.args).toEqual(["p1", "pro", 1, "", "Hotfix: the old answer broke checkout"]);
+  });
+
+  it("moves straight away, without the modal, when there is no policy or the environment is the free one", async () => {
+    const free = new FakePromptApi();
+    const a = await openTags(free);
+    await pickAndMove(a.wrapper, "pro", "v1 · first draft");
+    expect(modal()).toBeNull();
+    expect(free.calls.find((c) => c.method === "moveTag")?.args.slice(0, 3)).toEqual(["p1", "pro", 1]);
+    document.body.innerHTML = "";
+
+    const guarded = withPolicy();
+    const b = await openTags(guarded);
+    await pickAndMove(b.wrapper, "dev", "v1 · first draft");
+    expect(modal()).toBeNull();
+    expect(guarded.calls.find((c) => c.method === "moveTag")?.args.slice(0, 3)).toEqual(["p1", "dev", 1]);
+  });
+
+  it("says there is no policy and what adding one does", async () => {
+    const { wrapper } = await openTags(new FakePromptApi());
+    expect(wrapper.find("[data-testid='policy-none']").text()).toContain("any version can be promoted");
+    expect(wrapper.find("[data-testid='policy-none']").text()).toContain("pre and pro");
+  });
+
+  it("creates the policy choosing a dataset of the agent and how many runs must pass", async () => {
+    const api = new FakePromptApi();
+    const trace = new FakeTraceApi();
+    trace.datasets = { items: [{ id: "ds1", name: "golden", createdAt: "t", runCount: 3, versionCount: 1, latestVersionMajor: 1, latestVersionMinor: 0, lastRun: null }] };
+    const { wrapper } = await openTags(api, "technical", { trace });
+    await wrapper.find("[data-testid='edit-policy']").trigger("click");
+    await chooseOption(wrapper.element, "[data-testid='policy-dataset']", "golden");
+    await wrapper.find("[data-testid='policy-runs']").setValue(3);
+    await wrapper.find("[data-testid='policy-form']").trigger("submit");
+    await flushPromises();
+    expect(api.calls.find((c) => c.method === "setPolicy")?.args).toEqual(["p1", { datasetId: "ds1", requiredRuns: 3 }]);
+  });
+
+  it("describes the policy, warns when its dataset was deleted, and removes it", async () => {
+    const api = new FakePromptApi();
+    api.detail = promptDetail({ policy: policy({ datasetId: null, requiredRuns: 2 }) });
+    const { wrapper } = await openTags(api);
+    expect(wrapper.find("[data-testid='policy-summary']").text()).toContain("2 passing evaluations in a row");
+    expect(wrapper.find("[data-testid='policy-broken']").text()).toContain("promotions are blocked");
+    await wrapper.find("[data-testid='remove-policy']").trigger("click");
+    await flushPromises();
+    expect(api.calls.some((c) => c.method === "deletePolicy")).toBe(true);
+  });
+
+  it("only offers to change the policy to someone who can promote", async () => {
+    const { wrapper } = await openTags(withPolicy(), "business");
+    expect(wrapper.find("[data-testid='policy-summary']").exists()).toBe(true);
+    expect(wrapper.find("[data-testid='edit-policy']").exists()).toBe(false);
+  });
+
+  it("shows in the history when someone skipped the evaluation, and why", async () => {
+    const api = new FakePromptApi();
+    api.detail = promptDetail({
+      events: [{ id: "e9", tag: "pro", fromVersion: 1, toVersion: 2, changedBy: "u1", reason: "", createdAt: "2026-10-08T12:00:00.000Z", gateVerdict: "failed", gateBypassed: true, bypassReason: "Hotfix for checkout" }],
+    });
+    const { wrapper } = await openTags(api);
+    expect(wrapper.find("[data-testid='bypassed-e9']").text()).toContain("skipped the evaluation");
+    expect(wrapper.find("[data-testid='bypassed-e9']").text()).toContain("Hotfix for checkout");
   });
 });

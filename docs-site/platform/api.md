@@ -38,6 +38,17 @@ The prompt registry. Session only. A prompt belongs to the organization and to o
 | `PUT /api/v1/prompts/{promptId}/tags/{tag}` | Points the tag to a version: `{ version, reason? }`; `version: null` removes it. Returns the history event. Environment tags (`dev`, `pre`, `pro`…) need `prompt:promote` (`403` otherwise); the rest, `prompt:write` |
 | `DELETE /api/v1/prompts/{promptId}/tags/{tag}?reason=` | Removes the tag (it stays in the history). Same permissions as moving it |
 
+**Promotion policy** (see [Prompts](./prompts#promotion-policy-evaluate-before-you-promote)). `GET /api/v1/prompts/{promptId}` returns `policy` (`null` if none: `{ datasetId, requiredRuns, updatedBy, updatedAt }`, `datasetId` is `null` if the dataset was deleted) and `gatedEnvironments` (every environment but the first). Every tag event carries `gateVerdict`, `gateBypassed` and `bypassReason`.
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/v1/prompts/{promptId}/policy` | The policy, or `null`. `prompt:read` |
+| `PUT /api/v1/prompts/{promptId}/policy` | Creates or changes it: `{ datasetId, requiredRuns? }` (1 to 10, default 1). The dataset has to belong to one of the prompt's agents. `prompt:promote` |
+| `DELETE /api/v1/prompts/{promptId}/policy` | Removes it: every version can be promoted again. `prompt:promote` |
+| `GET /api/v1/prompts/{promptId}/gate?tag=&version=` | What would happen if `tag` pointed to `version`: `{ allowed, verdict, tag, version, requiredRuns, reason, runs: [{ runId, name, passed, failures }] }`. Verdicts: `not_gated`, `no_policy`, `rollback`, `policy_incomplete`, `no_evaluation`, `evaluation_running`, `failed`, `insufficient_runs`, `allowed`. Read-only. `prompt:read` |
+
+`PUT /api/v1/prompts/{promptId}/tags/{tag}` also accepts `bypassReason` (5 to 500 characters) to skip the gate, which needs `governance:manage` in the organization. When the gate blocks, it answers `409` with the verdict in `gate`.
+
 `GET /api/v1/experiments/{experimentId}/prompts/{promptId}/evidence?from=&to=` returns, for each version that had traffic in the range (24 h by default, 30 days at most), `{ range, versions: [{ version, traces, conversations, errorTraces, errorRate, latencyMs: { p50, p95 }, inputTokens, outputTokens, costUsd, costPerTraceUsd, costComplete, feedback: { up, down, ratedTraces, satisfaction }, evaluators: [{ name, dataType, items, value }], errorCauses: [{ id, title, severity, traces }], firstSeen, lastSeen }] }`, newest version first. Figures are over the traces that used the version. `costUsd` is `null` when no model has a price and `costComplete` is `false` when only some do. It needs `experiment:read` **and** `prompt:read` (these are the agent's data); `404` if the prompt does not belong to the agent.
 
 `GET /api/v1/prompts/{promptId}` also returns `usage`: the versions the agents report to be running (`experimentId`, `environment`, `tag` followed or `""` if fixed, `version`, `lastSeenAt`, `active` = reported in the last 15 minutes), kept for 7 days.

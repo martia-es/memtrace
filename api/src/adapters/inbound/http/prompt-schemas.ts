@@ -32,6 +32,20 @@ export const moveTagBody = z.object({
   /** null quita el tag */
   version: z.number().int().min(1).nullable(),
   reason: text(600).default(""),
+  /** solo para saltarse el gate de promoción (ADR-070): exige permiso de gobernanza; el motivo queda en el historial */
+  bypassReason: text(600).nullable().default(null),
+});
+
+/** Política de promoción (ADR-070): el dataset contra el que se evalúa y cuántos runs seguidos deben pasar. */
+export const policyBody = z.object({
+  datasetId: z.string().uuid(),
+  requiredRuns: z.number().int().min(1).max(10).default(1),
+});
+
+/** Query de la vista previa del gate: a qué tag y a qué versión se quiere mover. */
+export const gateQuery = z.object({
+  tag: z.string().min(1).max(40),
+  version: z.coerce.number().int().min(1),
 });
 
 /** Query del SDK para pedir un prompt (ADR-068): el nombre y exactamente uno de tag o version. */

@@ -1,4 +1,5 @@
-import type { NewPrompt, NewPromptVersion, Prompt, PromptSummary, PromptTag, PromptTagEvent, PromptUsage, PromptVersion, UsageItem } from "@/domain/prompt";
+import type { GateRecord, NewPrompt, NewPromptVersion, Prompt, PromptSummary, PromptTag, PromptTagEvent, PromptUsage, PromptVersion, UsageItem } from "@/domain/prompt";
+import type { PromptPolicy } from "@/domain/prompt-gate";
 
 /** Registro de prompts (ADR-067). PostgreSQL. Las versiones son inmutables: solo se añaden. */
 export interface PromptRepository {
@@ -28,7 +29,14 @@ export interface PromptRepository {
 
   listTags(promptId: string): Promise<PromptTag[]>;
   /** Apunta el tag a una versión (o lo quita con `version = null`) y deja el evento. Devuelve null si la versión no existe. */
-  moveTag(promptId: string, tag: string, version: number | null, userId: string, reason: string): Promise<PromptTagEvent | null>;
+  moveTag(promptId: string, tag: string, version: number | null, userId: string, reason: string, gate: GateRecord): Promise<PromptTagEvent | null>;
+  /** ¿Estuvo ya este tag en esta versión sin que nadie se saltara el gate? Entonces volver a ella es un rollback legítimo. */
+  wasServed(promptId: string, tag: string, version: number): Promise<boolean>;
+
+  /** Política de promoción del prompt (ADR-070), o null si no tiene. */
+  getPolicy(promptId: string): Promise<PromptPolicy | null>;
+  setPolicy(promptId: string, policy: { datasetId: string; requiredRuns: number }, userId: string): Promise<PromptPolicy>;
+  deletePolicy(promptId: string): Promise<void>;
   tagEvents(promptId: string, limit: number): Promise<PromptTagEvent[]>;
 
   /** Anota (o refresca) qué versiones usa el agente en el entorno (ADR-068). Olvida lo no visto en 7 días. */

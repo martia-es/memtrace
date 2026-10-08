@@ -1,7 +1,8 @@
 import type { PromptDetail } from "@/application/prompt-service";
 import { USAGE_FRESH_MS, type Prompt, type PromptSummary, type PromptTag, type PromptTagEvent, type PromptUsage, type PromptVersion } from "@/domain/prompt";
 import type { PromptEvidence } from "@/domain/prompt-evidence";
-import type { PromptDetailDto, PromptDto, PromptEvidenceResponse, PromptResolveDto, PromptSummaryDto, PromptTagDto, PromptTagEventDto, PromptUsageDto, PromptVersionDto } from "./contract";
+import type { PromptGateResult, PromptPolicy } from "@/domain/prompt-gate";
+import type { PromptDetailDto, PromptDto, PromptEvidenceResponse, PromptGateDto, PromptPolicyDto, PromptResolveDto, PromptSummaryDto, PromptTagDto, PromptTagEventDto, PromptUsageDto, PromptVersionDto } from "./contract";
 
 /** Dominio -> contrato HTTP del registro de prompts (ADR-067). Los DTO viven en contract.ts porque los comparte el dashboard. */
 
@@ -40,6 +41,21 @@ export const toPromptTagEventDto = (e: PromptTagEvent): PromptTagEventDto => ({
   changedBy: e.changedBy,
   reason: e.reason,
   createdAt: e.createdAt,
+  gateVerdict: e.gateVerdict,
+  gateBypassed: e.gateBypassed,
+  bypassReason: e.bypassReason,
+});
+
+export const toPromptPolicyDto = (p: PromptPolicy): PromptPolicyDto => ({ datasetId: p.datasetId, requiredRuns: p.requiredRuns, updatedBy: p.updatedBy, updatedAt: p.updatedAt });
+
+export const toPromptGateDto = (g: PromptGateResult): PromptGateDto => ({
+  allowed: g.allowed,
+  verdict: g.verdict,
+  tag: g.tag,
+  version: g.version,
+  requiredRuns: g.requiredRuns,
+  reason: g.reason,
+  runs: g.runs,
 });
 
 export const toPromptUsageDto = (u: PromptUsage, nowMs: number): PromptUsageDto => ({
@@ -71,6 +87,8 @@ export const toPromptDetailDto = (d: PromptDetail, nowMs: number = Date.now()): 
   events: d.events.map(toPromptTagEventDto),
   usage: d.usage.map((u) => toPromptUsageDto(u, nowMs)),
   environmentKeys: d.environmentKeys,
+  gatedEnvironments: d.gatedEnvironments,
+  policy: d.policy ? toPromptPolicyDto(d.policy) : null,
 });
 
 export const toPromptEvidenceResponse = (e: PromptEvidence): PromptEvidenceResponse => ({

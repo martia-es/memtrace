@@ -71,6 +71,22 @@ For a hand-made chain (LCEL), resolve the prompt inside it, when it runs:
 chain = RunnableLambda(lambda q: [SystemMessage(weather.compile(city="Sevilla")), HumanMessage(q)]) | model
 ```
 
+## Evaluate a version before promoting it
+
+If the prompt has a [promotion policy](../platform/prompts#promotion-policy-evaluate-before-you-promote), `pre` and `pro` only accept a version whose offline evaluation passed. For MemTrace to know which version an evaluation used, run it **in a process where the agent reads the prompt through `memtrace.prompts`**, calling `compile()` inside the step that `run_experiment` evaluates:
+
+```python
+weather = prompts.get("weather-system", version=7)     # the version you want to promote
+
+def task(*, item):
+    with memtrace.trace_step_context("turn", step_type="agent"):
+        return run_agent(weather.compile(city=item.input["city"]), item.input["question"])
+
+run_experiment(data="<dataset id>", task=task, evaluators=[...], name="v7 before promoting")
+```
+
+Pinning `version=` guarantees every item of the run used that version. A run that mixes versions does not count for any of them.
+
 ## Link traces to the prompt version
 
 Every `compile()` writes `memtrace.prompt.name` and `memtrace.prompt.version` on the **current span**, so call it inside the step that uses the prompt (a `trace_step`, or inside an auto-instrumented run). In MemTrace you can then filter the traces and spans of one version (`promptName` / `promptVersion` in the [Query API](../platform/api)). Outside any span nothing is written and nothing fails. The `default=` text has no version, so it is never written.

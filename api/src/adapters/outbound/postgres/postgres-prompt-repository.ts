@@ -1,7 +1,8 @@
 import type { Pool, PoolClient } from "pg";
 import type { PromptRepository } from "@/application/ports/prompt-repository";
 import { PromptInvariantError } from "@/domain/errors";
-import type { NewPrompt, NewPromptVersion, Prompt, PromptSummary, PromptTag, PromptTagEvent, PromptUsage, PromptVersion, UsageItem } from "@/domain/prompt";
+import type { GateRecord, NewPrompt, NewPromptVersion, Prompt, PromptSummary, PromptTag, PromptTagEvent, PromptUsage, PromptVersion, UsageItem } from "@/domain/prompt";
+import type { PromptPolicy } from "@/domain/prompt-gate";
 
 type Ts = Date | string;
 const iso = (v: Ts): string => (v instanceof Date ? v.toISOString() : new Date(v).toISOString());
@@ -223,7 +224,7 @@ export class PostgresPromptRepository implements PromptRepository {
     return rows.map((r) => ({ tag: r.tag, version: r.version, updatedBy: r.updated_by, updatedAt: iso(r.updated_at) }));
   }
 
-  async moveTag(promptId: string, tag: string, version: number | null, userId: string, reason: string): Promise<PromptTagEvent | null> {
+  async moveTag(promptId: string, tag: string, version: number | null, userId: string, reason: string, gate: GateRecord): Promise<PromptTagEvent | null> {
     return this.tx(async (client) => {
       await client.query("SELECT id FROM prompts WHERE id = $1 FOR UPDATE", [promptId]);
       let target: { id: string } | undefined;
@@ -247,21 +248,64 @@ export class PostgresPromptRepository implements PromptRepository {
         await client.query("DELETE FROM prompt_tags WHERE prompt_id = $1 AND tag = $2", [promptId, tag]);
       }
       const event = await client.query<{ id: string; created_at: Ts }>(
-        `INSERT INTO prompt_tag_events (prompt_id, tag, from_version, to_version, changed_by, reason) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at`,
-        [promptId, tag, from, version, userId, reason],
+        `INSERT INTO prompt_tag_events (prompt_id, tag, from_version, to_version, changed_by, reason, gate_verdict, gate_bypassed, bypass_reason)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, created_at`,
+        [promptId, tag, from, version, userId, reason, gate.verdict, gate.bypassed, gate.bypassReason],
       );
       await client.query("UPDATE prompts SET updated_at = now() WHERE id = $1", [promptId]);
-      return { id: event.rows[0]!.id, tag, fromVersion: from, toVersion: version, changedBy: userId, reason, createdAt: iso(event.rows[0]!.created_at) };
+      return {
+        id: event.rows[0]!.id, tag, fromVersion: from, toVersion: version, changedBy: userId, reason, createdAt: iso(event.rows[0]!.created_at),
+        gateVerdict: gate.verdict, gateBypassed: gate.bypassed, bypassReason: gate.bypassReason,
+      };
     });
   }
 
   async tagEvents(promptId: string, limit: number): Promise<PromptTagEvent[]> {
     if (!UUID.test(promptId)) return [];
-    const { rows } = await this.pool.query<{ id: string; tag: string; from_version: number | null; to_version: number | null; changed_by: string | null; reason: string; created_at: Ts }>(
-      `SELECT id, tag, from_version, to_version, changed_by, reason, created_at FROM prompt_tag_events WHERE prompt_id = $1 ORDER BY created_at DESC LIMIT $2`,
+    const { rows } = await this.pool.query<{
+      id: string; tag: string; from_version: number | null; to_version: number | null; changed_by: string | null; reason: string; created_at: Ts;
+      gate_verdict: string | null; gate_bypassed: boolean; bypass_reason: string | null;
+    }>(
+      `SELECT id, tag, from_version, to_version, changed_by, reason, created_at, gate_verdict, gate_bypassed, bypass_reason
+         FROM prompt_tag_events WHERE prompt_id = $1 ORDER BY created_at DESC LIMIT $2`,
       [promptId, limit],
     );
-    return rows.map((r) => ({ id: r.id, tag: r.tag, fromVersion: r.from_version, toVersion: r.to_version, changedBy: r.changed_by, reason: r.reason, createdAt: iso(r.created_at) }));
+    return rows.map((r) => ({
+      id: r.id, tag: r.tag, fromVersion: r.from_version, toVersion: r.to_version, changedBy: r.changed_by, reason: r.reason, createdAt: iso(r.created_at),
+      gateVerdict: r.gate_verdict, gateBypassed: r.gate_bypassed, bypassReason: r.bypass_reason,
+    }));
+  }
+
+  async wasServed(promptId: string, tag: string, version: number): Promise<boolean> {
+    if (!UUID.test(promptId)) return false;
+    const { rows } = await this.pool.query(
+      "SELECT 1 FROM prompt_tag_events WHERE prompt_id = $1 AND tag = $2 AND to_version = $3 AND gate_bypassed = false LIMIT 1",
+      [promptId, tag, version],
+    );
+    return rows.length > 0;
+  }
+
+  async getPolicy(promptId: string): Promise<PromptPolicy | null> {
+    if (!UUID.test(promptId)) return null;
+    const { rows } = await this.pool.query<{ prompt_id: string; dataset_id: string | null; required_runs: number; updated_by: string | null; updated_at: Ts }>(
+      "SELECT prompt_id, dataset_id, required_runs, updated_by, updated_at FROM prompt_policies WHERE prompt_id = $1",
+      [promptId],
+    );
+    const r = rows[0];
+    return r ? { promptId: r.prompt_id, datasetId: r.dataset_id, requiredRuns: r.required_runs, updatedBy: r.updated_by, updatedAt: iso(r.updated_at) } : null;
+  }
+
+  async setPolicy(promptId: string, policy: { datasetId: string; requiredRuns: number }, userId: string): Promise<PromptPolicy> {
+    await this.pool.query(
+      `INSERT INTO prompt_policies (prompt_id, dataset_id, required_runs, updated_by) VALUES ($1, $2, $3, $4)
+       ON CONFLICT (prompt_id) DO UPDATE SET dataset_id = EXCLUDED.dataset_id, required_runs = EXCLUDED.required_runs, updated_by = EXCLUDED.updated_by, updated_at = now()`,
+      [promptId, policy.datasetId, policy.requiredRuns, userId],
+    );
+    return (await this.getPolicy(promptId))!;
+  }
+
+  async deletePolicy(promptId: string): Promise<void> {
+    if (UUID.test(promptId)) await this.pool.query("DELETE FROM prompt_policies WHERE prompt_id = $1", [promptId]);
   }
 
   async recordUsage(experimentId: string, environment: string, items: UsageItem[]): Promise<void> {

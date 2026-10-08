@@ -105,6 +105,20 @@ export function judgeRun(run: GateRun, targets: ReadonlyMap<string, number>): Ga
   return { runId: run.id, name: run.name, passed: booleans.length > 0 && failures.length === 0, failures };
 }
 
+/** Por qué no pasa un run, en una frase: qué evaluador queda por debajo de su objetivo (o no se pudo juzgar). */
+export function describeFailure(failing: GateRunResult): string {
+  const why = failing.failures.length
+    ? failing.failures
+        .map((f) =>
+          f.incomplete
+            ? `${f.evaluator} scored only ${f.incomplete.scored} of ${f.incomplete.items} items (the rest failed to run)`
+            : `${f.evaluator} ${f.passRate === null ? "has no results" : `${Math.round(f.passRate * 100)}%`} (target ${Math.round(f.target * 100)}%)`,
+        )
+        .join(", ")
+    : "it has no boolean evaluator to judge";
+  return `The evaluation "${failing.name}" does not pass: ${why}.`;
+}
+
 export function evaluateDeployGate(input: {
   sha: string;
   runs: GateRun[];
@@ -139,18 +153,7 @@ export function evaluateDeployGate(input: {
   const latest = [...clean].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, requiredRuns);
   const judged = latest.map((r) => judgeRun(r, targets));
   const failing = judged.find((j) => !j.passed);
-  if (failing) {
-    const why = failing.failures.length
-      ? failing.failures
-          .map((f) =>
-            f.incomplete
-              ? `${f.evaluator} scored only ${f.incomplete.scored} of ${f.incomplete.items} items (the rest failed to run)`
-              : `${f.evaluator} ${f.passRate === null ? "has no results" : `${Math.round(f.passRate * 100)}%`} (target ${Math.round(f.target * 100)}%)`,
-          )
-          .join(", ")
-      : "it has no boolean evaluator to judge";
-    return result("failed", `The evaluation "${failing.name}" does not pass: ${why}.`, judged);
-  }
+  if (failing) return result("failed", describeFailure(failing), judged);
   if (judged.length < requiredRuns) {
     return result("insufficient_runs", `${requiredRuns} passing evaluations of this commit are required and there ${judged.length === 1 ? "is" : "are"} ${judged.length}.`, judged);
   }

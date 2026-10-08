@@ -1,5 +1,5 @@
 /** Dobles del registro de prompts (ADR-067). */
-import type { PromptDetailDto, PromptEvidenceResponse, PromptSummaryDto, PromptTagEventDto, PromptVersionDto, VersionEvidenceDto } from "@contract";
+import type { PromptDetailDto, PromptEvidenceResponse, PromptGateDto, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto, VersionEvidenceDto } from "@contract";
 import type { NewPromptInput, PromptApi } from "@/application/prompt-api";
 
 export function promptVersion(version: number, content: string, extra: Partial<PromptVersionDto> = {}): PromptVersionDto {
@@ -11,9 +11,11 @@ export function promptDetail(overrides: Partial<PromptDetailDto> = {}): PromptDe
     prompt: { id: "p1", organizationId: "org-1", name: "weather-system", description: "System prompt of the weather assistant", archivedAt: null, createdBy: "u1", createdAt: "2026-10-08T10:00:00.000Z", updatedAt: "2026-10-08T10:00:00.000Z", experimentIds: ["exp-1"] },
     versions: [promptVersion(2, "Eres breve.\nResponde en español.", { message: "shorter" }), promptVersion(1, "Eres un asistente del tiempo para {{ciudad}}.\nResponde en español.", { variables: ["ciudad"], message: "first draft" })],
     tags: [{ tag: "dev", version: 2, updatedBy: "u1", updatedAt: "2026-10-08T10:05:00.000Z" }],
-    events: [{ id: "e1", tag: "dev", fromVersion: null, toVersion: 2, changedBy: "u1", reason: "ready to test", createdAt: "2026-10-08T10:05:00.000Z" }],
+    events: [{ id: "e1", tag: "dev", fromVersion: null, toVersion: 2, changedBy: "u1", reason: "ready to test", createdAt: "2026-10-08T10:05:00.000Z", gateVerdict: "not_gated", gateBypassed: false, bypassReason: null }],
     usage: [],
     environmentKeys: ["dev", "pre", "pro"],
+    gatedEnvironments: ["pre", "pro"],
+    policy: null,
     ...overrides,
   };
 }
@@ -26,6 +28,14 @@ export function versionEvidence(version: number, extra: Partial<VersionEvidenceD
   };
 }
 
+export function policy(extra: Partial<PromptPolicyDto> = {}): PromptPolicyDto {
+  return { datasetId: "ds1", requiredRuns: 1, updatedBy: "u1", updatedAt: "2026-10-08T09:00:00.000Z", ...extra };
+}
+
+export function gateResult(extra: Partial<PromptGateDto> = {}): PromptGateDto {
+  return { allowed: true, verdict: "allowed", tag: "pro", version: 1, requiredRuns: 1, reason: "The evaluation of v1 passes.", runs: [], ...extra };
+}
+
 export function promptSummary(name: string, extra: Partial<PromptSummaryDto> = {}): PromptSummaryDto {
   return { ...promptDetail().prompt, id: `id-${name}`, name, description: "", latestVersion: 1, tags: {}, ...extra };
 }
@@ -35,6 +45,8 @@ export class FakePromptApi implements PromptApi {
   calls: Array<{ method: string; args: unknown[] }> = [];
   list: PromptSummaryDto[] = [];
   detail: PromptDetailDto = promptDetail();
+  gate: PromptGateDto = gateResult();
+  moveError: Error | null = null;
   evidence: PromptEvidenceResponse = { range: { from: "2026-10-01T00:00:00.000Z", to: "2026-10-08T00:00:00.000Z" }, versions: [] };
 
   private record(method: string, ...args: unknown[]) {
@@ -64,8 +76,20 @@ export class FakePromptApi implements PromptApi {
     this.record("getEvidence", experimentId, promptId, range);
     return this.evidence;
   }
-  async moveTag(promptId: string, tag: string, version: number | null, reason: string): Promise<PromptTagEventDto> {
-    this.record("moveTag", promptId, tag, version, reason);
-    return { id: "e2", tag, fromVersion: null, toVersion: version, changedBy: "u1", reason, createdAt: "2026-10-08T11:00:00.000Z" };
+  async moveTag(promptId: string, tag: string, version: number | null, reason: string, bypassReason: string | null = null): Promise<PromptTagEventDto> {
+    this.record("moveTag", promptId, tag, version, reason, bypassReason);
+    if (this.moveError) throw this.moveError;
+    return { id: "e2", tag, fromVersion: null, toVersion: version, changedBy: "u1", reason, createdAt: "2026-10-08T11:00:00.000Z", gateVerdict: "allowed", gateBypassed: bypassReason !== null, bypassReason };
+  }
+  async previewGate(promptId: string, tag: string, version: number) {
+    this.record("previewGate", promptId, tag, version);
+    return { ...this.gate, tag, version };
+  }
+  async setPolicy(promptId: string, input: { datasetId: string; requiredRuns: number }) {
+    this.record("setPolicy", promptId, input);
+    return policy(input);
+  }
+  async deletePolicy(promptId: string) {
+    this.record("deletePolicy", promptId);
   }
 }
