@@ -8,10 +8,10 @@ All under `/api/v1/experiments/{experimentId}`:
 
 | Endpoint | Description |
 |---|---|
-| `GET /traces` | Paginated trace list. Params: `from`, `to`, `service`, `status`, `hasErrors`, `minDurationMs`, `text`, `revision`, `limit`, `cursor`. Each trace carries `revision`, the commit of the code that produced it (`null` if the agent does not send it); `revision=` keeps the traces of that commit, full or a prefix such as the 7-character short SHA |
+| `GET /traces` | Paginated trace list. Params: `from`, `to`, `service`, `status`, `hasErrors`, `minDurationMs`, `text`, `revision`, `promptName`, `promptVersion`, `limit`, `cursor`. Each trace carries `revision`, the commit of the code that produced it (`null` if the agent does not send it); `revision=` keeps the traces of that commit, full or a prefix such as the 7-character short SHA; `promptName=` (and optionally `promptVersion=`) keeps the traces where some step used that [prompt](/library/prompts) |
 | `GET /traces/{traceId}` | A trace with its span tree |
 | `GET /revisions` | Commits (code versions) seen in the experiment's traces in the range, newest first, with how many traces each produced: `{ items: [{ revision, traces, lastSeen }] }`. It feeds the version filter of the dashboard |
-| `GET /spans` | Flat, paginated span list; `revision=` keeps the spans of one commit |
+| `GET /spans` | Flat, paginated span list; `revision=` keeps the spans of one commit; `promptName=` (and optionally `promptVersion=`) keeps the spans that used that [prompt](/library/prompts) |
 | `GET /conversations` | Paginated conversations; `revision=` keeps those with a turn produced by that commit; `text=` keeps only those with a turn whose captured input or output contains it (case-insensitive). Each one carries `title` (the user's first message, up to 120 characters, `null` if the agent did not capture content) and `costUsd` (`null` if none of its models has a known price) |
 | `GET /conversations/{conversationId}` | Same summary and turns in chronological order |
 | `GET /conversations/{conversationId}/transcript` | User/assistant messages per turn (needs captured content) |
@@ -37,6 +37,15 @@ The prompt registry. Session only. A prompt belongs to the organization and to o
 | `GET /api/v1/prompts/{promptId}/versions/{ref}` | A version by number (`3`) or by tag (`pro`). `404` if it does not exist |
 | `PUT /api/v1/prompts/{promptId}/tags/{tag}` | Points the tag to a version: `{ version, reason? }`; `version: null` removes it. Returns the history event. Environment tags (`dev`, `pre`, `pro`…) need `prompt:promote` (`403` otherwise); the rest, `prompt:write` |
 | `DELETE /api/v1/prompts/{promptId}/tags/{tag}?reason=` | Removes the tag (it stays in the history). Same permissions as moving it |
+
+`GET /api/v1/prompts/{promptId}` also returns `usage`: the versions the agents report to be running (`experimentId`, `environment`, `tag` followed or `""` if fixed, `version`, `lastSeenAt`, `active` = reported in the last 15 minutes), kept for 7 days.
+
+What the [SDK](/library/prompts) calls. Both accept the **agent API key** (`Authorization: Bearer <key>`) as well as a session, and only serve prompts associated with that agent:
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/v1/experiments/{experimentId}/prompts/resolve?name=&tag=` (or `&version=`) | The version a tag points to, or an exact one: `{ name, version, tag, content, variables, contentHash, archived }` with an `ETag`. Send it back as `If-None-Match` to get an empty `304` while nothing changed. `404` if the prompt, tag or version does not exist for that agent; `400` unless exactly one of `tag` and `version` is sent. An archived prompt keeps being served |
+| `POST /api/v1/experiments/{experimentId}/prompts/usage` | Heartbeat: `{ environment, items: [{ name, tag, version }] }` (up to 50). Answers `{ recorded, received }`; what does not fit (unknown prompt, another agent's, a version that does not exist) is ignored, never an error |
 
 ## Evaluation (ADR-028, ADR-031, ADR-032)
 

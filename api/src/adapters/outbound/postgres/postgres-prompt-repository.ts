@@ -1,7 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 import type { PromptRepository } from "@/application/ports/prompt-repository";
 import { PromptInvariantError } from "@/domain/errors";
-import type { NewPrompt, NewPromptVersion, Prompt, PromptSummary, PromptTag, PromptTagEvent, PromptVersion } from "@/domain/prompt";
+import type { NewPrompt, NewPromptVersion, Prompt, PromptSummary, PromptTag, PromptTagEvent, PromptUsage, PromptVersion, UsageItem } from "@/domain/prompt";
 
 type Ts = Date | string;
 const iso = (v: Ts): string => (v instanceof Date ? v.toISOString() : new Date(v).toISOString());
@@ -119,6 +119,11 @@ export class PostgresPromptRepository implements PromptRepository {
   async get(promptId: string): Promise<Prompt | null> {
     if (!UUID.test(promptId)) return null;
     const { rows } = await this.pool.query<PromptRow>(`${PROMPT_SELECT} WHERE p.id = $1`, [promptId]);
+    return rows[0] ? toPrompt(rows[0]) : null;
+  }
+
+  async findByName(organizationId: string, name: string): Promise<Prompt | null> {
+    const { rows } = await this.pool.query<PromptRow>(`${PROMPT_SELECT} WHERE p.organization_id = $1 AND p.name = $2`, [organizationId, name]);
     return rows[0] ? toPrompt(rows[0]) : null;
   }
 
@@ -257,5 +262,28 @@ export class PostgresPromptRepository implements PromptRepository {
       [promptId, limit],
     );
     return rows.map((r) => ({ id: r.id, tag: r.tag, fromVersion: r.from_version, toVersion: r.to_version, changedBy: r.changed_by, reason: r.reason, createdAt: iso(r.created_at) }));
+  }
+
+  async recordUsage(experimentId: string, environment: string, items: UsageItem[]): Promise<void> {
+    await this.tx(async (client) => {
+      for (const item of items) {
+        await client.query(
+          `INSERT INTO prompt_usage (prompt_id, experiment_id, environment, tag, version) VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (prompt_id, experiment_id, environment, tag, version) DO UPDATE SET last_seen_at = now()`,
+          [item.promptId, experimentId, environment, item.tag, item.version],
+        );
+      }
+      await client.query(`DELETE FROM prompt_usage WHERE experiment_id = $1 AND last_seen_at < now() - interval '7 days'`, [experimentId]);
+    });
+  }
+
+  async listUsage(promptId: string): Promise<PromptUsage[]> {
+    if (!UUID.test(promptId)) return [];
+    const { rows } = await this.pool.query<{ experiment_id: string; environment: string; tag: string; version: number; first_seen_at: Ts; last_seen_at: Ts }>(
+      `SELECT experiment_id, environment, tag, version, first_seen_at, last_seen_at FROM prompt_usage
+        WHERE prompt_id = $1 AND last_seen_at > now() - interval '7 days' ORDER BY last_seen_at DESC`,
+      [promptId],
+    );
+    return rows.map((r) => ({ experimentId: r.experiment_id, environment: r.environment, tag: r.tag, version: r.version, firstSeenAt: iso(r.first_seen_at), lastSeenAt: iso(r.last_seen_at) }));
   }
 }

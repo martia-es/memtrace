@@ -338,6 +338,14 @@ export class ClickHouseTraceRepository implements TraceRepository {
       where.push("startsWith(Revision, {revision:String})");
       p.revision = q.revision.toLowerCase();
     }
+    if (q.promptName) {
+      where.push("PromptName = {promptName:String}");
+      p.promptName = q.promptName;
+      if (q.promptVersion) {
+        where.push("PromptVersion = {promptVersion:UInt32}");
+        p.promptVersion = q.promptVersion;
+      }
+    }
     if (q.cursor) {
       where.push("(toUnixTimestamp64Micro(Timestamp), SpanId) < ({cursorUs:Int64}, {cursorSpanId:String})");
       p.cursorUs = q.cursor.startTimeUs;
@@ -417,6 +425,14 @@ export class ClickHouseTraceRepository implements TraceRepository {
       // el commit completo o un prefijo (el SHA corto que muestra el dashboard)
       where.push("startsWith(Revision, {revision:String})");
       p.revision = q.revision.toLowerCase();
+    }
+    if (q.promptName) {
+      // el prompt lo marca el span que lo usa (normalmente una llamada al modelo), no la raíz: se busca en toda la traza
+      const version = q.promptVersion ? " AND PromptVersion = {promptVersion:UInt32}" : "";
+      where.push(`TraceId IN (SELECT TraceId FROM ${this.spans} WHERE PromptName = {promptName:String}${version} AND Timestamp >= fromUnixTimestamp64Milli({fromMs:Int64}) AND Timestamp < fromUnixTimestamp64Milli({toWithWindowMs:Int64}))`);
+      p.promptName = q.promptName;
+      if (q.promptVersion) p.promptVersion = q.promptVersion;
+      p.toWithWindowMs = q.toMs + TRACE_WINDOW_MS;
     }
     const dir = q.order === "asc" ? "ASC" : "DESC";
     if (q.cursor) {

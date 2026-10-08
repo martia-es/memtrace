@@ -12,6 +12,7 @@ export function promptDetail(overrides: Partial<PromptDetailDto> = {}): PromptDe
     versions: [promptVersion(2, "Eres breve.\nResponde en español.", { message: "shorter" }), promptVersion(1, "Eres un asistente del tiempo para {{ciudad}}.\nResponde en español.", { variables: ["ciudad"], message: "first draft" })],
     tags: [{ tag: "dev", version: 2, updatedBy: "u1", updatedAt: "2026-10-08T10:05:00.000Z" }],
     events: [{ id: "e1", tag: "dev", fromVersion: null, toVersion: 2, changedBy: "u1", reason: "ready to test", createdAt: "2026-10-08T10:05:00.000Z" }],
+    usage: [],
     environmentKeys: ["dev", "pre", "pro"],
     ...overrides,
   };

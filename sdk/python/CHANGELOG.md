@@ -12,6 +12,12 @@
 - The `otel-langchain` extra installs `langchain-core` and, on Python 3.9, `wrapt<2`.
 
 ### Added
+- Prompt registry: `memtrace.prompts.get(name, tag=... | version=..., default=...)` returns a handle that is compiled per request
+  (`handle.compile(**variables)`, in memory, no network) and follows its tag in the background, so moving a tag in MemTrace reaches
+  the agent without a restart. `compile()` writes `memtrace.prompt.name` / `memtrace.prompt.version` on the current span, the SDK
+  reports the version in use per environment, and the last versions can be kept on disk (`MEMTRACE_PROMPT_CACHE_DIR`) to start
+  while MemTrace is down. `prompts.aget()` for async code, `handle.as_callable()` for frameworks that take a function (Pydantic AI
+  `instructions`). Needs the `eval` extra, `MEMTRACE_API_URL` and `MEMTRACE_API_KEY`. See ADR-067 and ADR-068.
 - Every trace carries the commit of the running code as the resource attribute `vcs.repository.ref.revision` (and `memtrace.revision.dirty` when known). Read from `MEMTRACE_GIT_SHA`, `GIT_SHA`, CI/platform variables or `git`. See ADR-065.
 - `MemTraceResultsSink` records the evaluated commit (and whether the working tree had uncommitted changes) on each run, so a deployment can require an evaluation of exactly the commit it ships. See ADR-064/065.
 - End-user feedback: `memtrace.feedback(trace_id, "up" | "down", end_user_id=..., comment=...)` sends a 👍/👎 about an

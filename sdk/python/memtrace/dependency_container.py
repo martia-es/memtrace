@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from typing import Any, Callable, Dict, Optional
 
 from memtrace.application.ports import SpanPort
+from memtrace.application.prompt_registry import PromptRegistry
 from memtrace.application.tracing_service import TracingService
 from memtrace.config import default_endpoint, settings
 from memtrace.domain.model import CapturePolicy
@@ -16,6 +17,7 @@ logger = logging.getLogger("memtrace")
 _lock = threading.Lock()
 _service: Optional[TracingService] = None
 _init_args: Dict[str, Any] = {}
+_prompt_registry: Optional[PromptRegistry] = None
 
 
 def _build_port(
@@ -138,15 +140,53 @@ def get_service() -> TracingService:
     return _service or init_tracer()
 
 
+def _annotate_current_span(attributes: Mapping[str, Any]) -> None:
+    """Stamps attributes on the current span if tracing is on. Looked up at call time: prompts may load before `init_tracer`."""
+    service = _service
+    if service is not None:
+        service.annotate_current(attributes)
+
+
+def get_prompt_registry() -> PromptRegistry:
+    """The prompt registry of this process, built from the environment on first use.
+
+    It does not depend on tracing being enabled: prompts are application logic. Without `MEMTRACE_API_URL` it works
+    offline, serving each prompt's `default=`.
+    """
+    global _prompt_registry
+    with _lock:
+        if _prompt_registry is None:
+            from memtrace.adapters.outbound.file_prompt_cache import FilePromptCache
+
+            client = None
+            if settings.api_url:
+                from memtrace.adapters.outbound.http.prompt_client import HttpPromptClient
+
+                client = HttpPromptClient(settings.api_url, settings.api_key, timeout=settings.prompt_timeout_seconds)
+            _prompt_registry = PromptRegistry(
+                client,
+                usage=client,
+                cache=FilePromptCache(settings.prompt_cache_dir) if settings.prompt_cache_dir else None,
+                annotate=_annotate_current_span,
+                environment=settings.environment,
+                refresh_seconds=settings.prompt_refresh_seconds,
+                usage_seconds=settings.prompt_usage_seconds,
+            )
+        return _prompt_registry
+
+
 def flush(timeout_millis: int = 30000) -> bool:
     """Sends pending spans without closing the tracer."""
     return _service.flush(timeout_millis) if _service else True
 
 
 def shutdown() -> None:
-    """Flushes the buffer and closes the tracer (the OTel SDK also does this at interpreter exit)."""
-    global _service, _init_args
+    """Flushes the buffer, closes the tracer (the OTel SDK also does this at interpreter exit) and stops following prompts."""
+    global _service, _init_args, _prompt_registry
     with _lock:
+        if _prompt_registry is not None:
+            _prompt_registry.shutdown()
+            _prompt_registry = None
         if _service is not None:
             _service.shutdown()
             _service = None

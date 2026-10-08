@@ -1,4 +1,4 @@
-import type { NewPrompt, NewPromptVersion, Prompt, PromptSummary, PromptTag, PromptTagEvent, PromptVersion } from "@/domain/prompt";
+import type { NewPrompt, NewPromptVersion, Prompt, PromptSummary, PromptTag, PromptTagEvent, PromptUsage, PromptVersion, UsageItem } from "@/domain/prompt";
 
 /** Registro de prompts (ADR-067). PostgreSQL. Las versiones son inmutables: solo se añaden. */
 export interface PromptRepository {
@@ -10,6 +10,8 @@ export interface PromptRepository {
   /** Crea el prompt con su versión 1 en una sola transacción. Nombre ocupado en la organización -> PromptInvariantError. */
   create(input: NewPrompt, firstVersion: Omit<NewPromptVersion, "promptId">): Promise<{ prompt: Prompt; version: PromptVersion }>;
   get(promptId: string): Promise<Prompt | null>;
+  /** El prompt de la organización con ese nombre (archivado o no), con sus agentes. */
+  findByName(organizationId: string, name: string): Promise<Prompt | null>;
   /** Con `experimentId` solo los prompts de ese agente. Archivados fuera salvo `includeArchived`. */
   list(organizationId: string, filter: { experimentId?: string; includeArchived?: boolean }): Promise<PromptSummary[]>;
   update(promptId: string, patch: { description?: string; archived?: boolean }): Promise<Prompt | null>;
@@ -28,4 +30,9 @@ export interface PromptRepository {
   /** Apunta el tag a una versión (o lo quita con `version = null`) y deja el evento. Devuelve null si la versión no existe. */
   moveTag(promptId: string, tag: string, version: number | null, userId: string, reason: string): Promise<PromptTagEvent | null>;
   tagEvents(promptId: string, limit: number): Promise<PromptTagEvent[]>;
+
+  /** Anota (o refresca) qué versiones usa el agente en el entorno (ADR-068). Olvida lo no visto en 7 días. */
+  recordUsage(experimentId: string, environment: string, items: UsageItem[]): Promise<void>;
+  /** Usos informados en los últimos 7 días, el más reciente primero. */
+  listUsage(promptId: string): Promise<PromptUsage[]>;
 }

@@ -165,5 +165,24 @@ class Settings:
     def api_key(self) -> Optional[str]:
         return os.getenv("MEMTRACE_API_KEY") or None
 
+    @property
+    def prompt_refresh_seconds(self) -> float:
+        """How often a prompt that follows a tag asks the registry whether the tag moved (an unchanged tag costs a 304)."""
+        return float(env_int("MEMTRACE_PROMPT_REFRESH_SECONDS", 30))
+
+    @property
+    def prompt_usage_seconds(self) -> float:
+        """How often the SDK tells MemTrace which prompt versions this agent is using."""
+        return float(env_int("MEMTRACE_PROMPT_USAGE_SECONDS", 300))
+
+    @property
+    def prompt_timeout_seconds(self) -> float:
+        return float(env_int("MEMTRACE_PROMPT_TIMEOUT_SECONDS", 3))
+
+    @property
+    def prompt_cache_dir(self) -> Optional[str]:
+        """Directory where the last known prompt versions are kept, so an agent can start while MemTrace is down."""
+        return os.getenv("MEMTRACE_PROMPT_CACHE_DIR") or None
+
 
 settings = Settings()

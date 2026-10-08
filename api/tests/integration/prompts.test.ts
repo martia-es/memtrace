@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PostgresIdentityRepository } from "@/adapters/outbound/postgres/postgres-identity-repository";
 import { PostgresPromptRepository } from "@/adapters/outbound/postgres/postgres-prompt-repository";
 import { PromptService } from "@/application/prompt-service";
-import { PromptInvariantError, PromptPromoteForbiddenError } from "@/domain/errors";
+import { PromptInvariantError, PromptNotFoundError, PromptPromoteForbiddenError } from "@/domain/errors";
 
 const url = process.env.POSTGRES_INTEGRATION_URL;
 
@@ -122,5 +122,43 @@ describe.skipIf(!url)("prompt registry (postgres)", () => {
     expect(by("org_admin")).toEqual(["prompt:promote", "prompt:read", "prompt:write"]);
     expect(by("business")).toEqual(["prompt:read"]);
     expect(by("governance")).toEqual(["prompt:read"]);
+  });
+
+  it("serves the prompt to the agents it belongs to, by tag or version, and to nobody else", async () => {
+    const { prompt } = await service.create(orgId, userId, { name: "resolve-me", content: "hola", experimentIds: [agentA] });
+    await service.moveTag(prompt.id, userId, { tag: "pro", version: 1 }, true);
+    const resolved = await service.resolveForAgent(agentA, orgId, "resolve-me", { tag: "pro" });
+    expect(resolved).toMatchObject({ tag: "pro", version: { version: 1, content: "hola" } });
+    await expect(service.resolveForAgent(agentB, orgId, "resolve-me", { tag: "pro" })).rejects.toBeInstanceOf(PromptNotFoundError);
+    await expect(service.resolveForAgent(agentA, otherOrgId, "resolve-me", { tag: "pro" })).rejects.toBeInstanceOf(PromptNotFoundError);
+  });
+
+  it("keeps one row per (agent, environment, tag, version) and refreshes it on every report", async () => {
+    const { prompt } = await service.create(orgId, userId, { name: "usage-rows", content: "uno", experimentIds: [agentA] });
+    await service.saveVersion(prompt.id, userId, { content: "dos" });
+    const report = (version: number) => service.recordUsage(agentA, orgId, "pro", [{ name: "usage-rows", tag: "pro", version }]);
+    expect(await report(1)).toBe(1);
+    const first = (await service.detail(prompt.id)).usage;
+    expect(first).toHaveLength(1);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    await report(1);
+    const second = (await service.detail(prompt.id)).usage;
+    expect(second).toHaveLength(1);
+    expect(Date.parse(second[0]!.lastSeenAt)).toBeGreaterThan(Date.parse(first[0]!.lastSeenAt));
+    expect(second[0]!.firstSeenAt).toBe(first[0]!.firstSeenAt);
+    // durante una actualización escalonada se ven las dos versiones a la vez
+    await report(2);
+    expect((await service.detail(prompt.id)).usage.map((u) => u.version).sort()).toEqual([1, 2]);
+  });
+
+  it("forgets reports older than a week and drops usage together with the agent", async () => {
+    const extra = (await identity.createExperiment(orgId, "usage-agent", `usage-agent-${stamp}`)).id;
+    const { prompt } = await service.create(orgId, userId, { name: "usage-old", content: "uno", experimentIds: [agentA, extra] });
+    await service.recordUsage(agentA, orgId, "dev", [{ name: "usage-old", tag: "dev", version: 1 }]);
+    await service.recordUsage(extra, orgId, "dev", [{ name: "usage-old", tag: "dev", version: 1 }]);
+    await pool.query(`UPDATE prompt_usage SET last_seen_at = now() - interval '8 days' WHERE prompt_id = $1 AND experiment_id = $2`, [prompt.id, agentA]);
+    expect((await service.detail(prompt.id)).usage.map((u) => u.experimentId)).toEqual([extra]);
+    await pool.query(`DELETE FROM experiments WHERE id = $1`, [extra]);
+    expect((await service.detail(prompt.id)).usage).toEqual([]);
   });
 });

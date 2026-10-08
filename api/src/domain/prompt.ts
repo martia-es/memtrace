@@ -61,6 +61,28 @@ export interface PromptTagEvent {
   createdAt: string;
 }
 
+/** Qué versión de un prompt informa un agente que está usando, y desde qué entorno (ADR-068). */
+export interface PromptUsage {
+  experimentId: string;
+  /** vacío = el agente no declara entorno */
+  environment: string;
+  /** tag que sigue el agente; vacío = pidió una versión fija */
+  tag: string;
+  version: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+}
+
+export interface UsageItem {
+  promptId: string;
+  tag: string;
+  version: number;
+}
+
+/** Un uso se considera «ahora» si se informó hace menos de este tiempo: el SDK informa cada pocos minutos. */
+export const USAGE_FRESH_MS = 15 * 60 * 1000;
+export const MAX_USAGE_ITEMS = 50;
+
 export interface NewPrompt {
   organizationId: string;
   name: string;

@@ -35,6 +35,14 @@ A tag is a label that points to one version. The tags `dev`, `pre` and `pro` (th
 
 Permissions apply to the organization role or to the role in any agent the prompt belongs to. See [Roles & permissions](./roles-and-permissions).
 
+## Use them from your agent
+
+The [Python SDK](/library/prompts) reads the prompt of an environment with `memtrace.prompts.get("weather-system")` and keeps following its tag: you move `pro` here and the agent switches within seconds, without a redeploy. Each use is written on the trace, so you can filter the traces (and spans) of a version.
+
+## What really runs
+
+The **Tags & history** tab starts with **In use right now**: for each environment, the version each agent reports to be using. *Up to date* means it runs the version its tag points to; *Catching up* means the tag moved and the agent has not picked it up yet (it takes up to 30 seconds, or longer if some replica is stale); *Fixed version* is an agent that asked for a version number instead of a tag; *Not reporting* means it has not reported for 15 minutes. In the version list, a version running somewhere says **Running in pro**. Agents report only when they read their prompt with the SDK.
+
 ::: info Coming next
-Reading the prompt from your agent's code with the SDK (always the version of its environment's tag), the link between each trace and the prompt version it used, and the quality, cost and error figures of each version are the following steps of this feature.
+The quality, cost and error figures of each version, and a promotion that requires a passing evaluation, are the following steps of this feature.
 :::

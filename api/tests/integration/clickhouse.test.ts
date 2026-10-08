@@ -360,6 +360,47 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
       expect(buildTraceDetail(TA, found!.spans, false).revision).toBe(REV_A);
     });
   });
+  describe("prompt version (ADR-068)", () => {
+    const PROMPT_SERVICE = `${SERVICE}-prompt`;
+    const P1 = randomBytes(16).toString("hex");
+    const P2 = randomBytes(16).toString("hex");
+    const PNONE = randomBytes(16).toString("hex");
+    const prompt = (name: string, version: string) => ({ "memtrace.prompt.name": name, "memtrace.prompt.version": version });
+
+    beforeAll(async () => {
+      const root1 = hex8();
+      const root2 = hex8();
+      await insert([
+        // el prompt lo marca el span del modelo, no la raíz de la traza
+        { trace: P1, service: PROMPT_SERVICE, spanId: root1, name: "turno", offsetMs: 0, durationMs: 300 },
+        { trace: P1, service: PROMPT_SERVICE, parent: root1, name: "llm", offsetMs: 10, durationMs: 200, attrs: prompt("weather-system", "1") },
+        { trace: P2, service: PROMPT_SERVICE, spanId: root2, name: "turno", offsetMs: 400, durationMs: 300 },
+        { trace: P2, service: PROMPT_SERVICE, parent: root2, name: "llm", offsetMs: 410, durationMs: 200, attrs: prompt("weather-system", "2") },
+        { trace: PNONE, service: PROMPT_SERVICE, name: "turno", offsetMs: 800, durationMs: 100, attrs: prompt("geo-tools", "7") },
+      ]);
+    });
+
+    const traces = async (promptName?: string, promptVersion?: number) => (await repo.listTraces({ ...range, service: PROMPT_SERVICE, promptName, promptVersion, limit: 20 })).items.map((t) => t.traceId).sort();
+    const spans = async (promptName?: string, promptVersion?: number) => (await repo.listSpans({ ...range, service: PROMPT_SERVICE, promptName, promptVersion, limit: 20 })).items;
+
+    it("keeps the traces that used the prompt, even when only a child span marks it", async () => {
+      expect(await traces("weather-system")).toEqual([P1, P2].sort());
+      expect(await traces("geo-tools")).toEqual([PNONE]);
+      expect(await traces("does-not-exist")).toEqual([]);
+    });
+
+    it("narrows to one version", async () => {
+      expect(await traces("weather-system", 1)).toEqual([P1]);
+      expect(await traces("weather-system", 2)).toEqual([P2]);
+      expect(await traces("weather-system", 3)).toEqual([]);
+    });
+
+    it("filters spans by prompt and version, and leaves spans without a prompt out", async () => {
+      expect((await spans("weather-system")).map((s) => s.name)).toEqual(["llm", "llm"]);
+      expect((await spans("weather-system", 2)).map((s) => s.traceId)).toEqual([P2]);
+      expect((await spans()).length).toBe(5);
+    });
+  });
   it("groups only the deepest failing spans and reports totals (ADR-066)", async () => {
     const trace = randomBytes(16).toString("hex");
     const okTrace = randomBytes(16).toString("hex");

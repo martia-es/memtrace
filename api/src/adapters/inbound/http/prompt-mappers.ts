@@ -1,6 +1,6 @@
 import type { PromptDetail } from "@/application/prompt-service";
-import type { Prompt, PromptSummary, PromptTag, PromptTagEvent, PromptVersion } from "@/domain/prompt";
-import type { PromptDetailDto, PromptDto, PromptSummaryDto, PromptTagDto, PromptTagEventDto, PromptVersionDto } from "./contract";
+import { USAGE_FRESH_MS, type Prompt, type PromptSummary, type PromptTag, type PromptTagEvent, type PromptUsage, type PromptVersion } from "@/domain/prompt";
+import type { PromptDetailDto, PromptDto, PromptResolveDto, PromptSummaryDto, PromptTagDto, PromptTagEventDto, PromptUsageDto, PromptVersionDto } from "./contract";
 
 /** Dominio -> contrato HTTP del registro de prompts (ADR-067). Los DTO viven en contract.ts porque los comparte el dashboard. */
 
@@ -41,10 +41,33 @@ export const toPromptTagEventDto = (e: PromptTagEvent): PromptTagEventDto => ({
   createdAt: e.createdAt,
 });
 
-export const toPromptDetailDto = (d: PromptDetail): PromptDetailDto => ({
+export const toPromptUsageDto = (u: PromptUsage, nowMs: number): PromptUsageDto => ({
+  experimentId: u.experimentId,
+  environment: u.environment,
+  tag: u.tag,
+  version: u.version,
+  lastSeenAt: u.lastSeenAt,
+  active: nowMs - Date.parse(u.lastSeenAt) < USAGE_FRESH_MS,
+});
+
+export const toPromptResolveDto = (prompt: Prompt, version: PromptVersion, tag: string | null): PromptResolveDto => ({
+  name: prompt.name,
+  version: version.version,
+  tag,
+  content: version.content,
+  variables: version.variables,
+  contentHash: version.contentHash,
+  archived: prompt.archivedAt !== null,
+});
+
+/** ETag de una versión servida al SDK: cambia con la versión y con el texto. */
+export const promptEtag = (version: PromptVersion): string => `"v${version.version}-${version.contentHash.slice(0, 16)}"`;
+
+export const toPromptDetailDto = (d: PromptDetail, nowMs: number = Date.now()): PromptDetailDto => ({
   prompt: toPromptDto(d.prompt),
   versions: d.versions.map(toPromptVersionDto),
   tags: d.tags.map(toPromptTagDto),
   events: d.events.map(toPromptTagEventDto),
+  usage: d.usage.map((u) => toPromptUsageDto(u, nowMs)),
   environmentKeys: d.environmentKeys,
 });

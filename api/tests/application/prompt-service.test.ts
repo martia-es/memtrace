@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { PromptService } from "@/application/prompt-service";
 import type { PromptRepository } from "@/application/ports/prompt-repository";
 import { PromptInvariantError, PromptNotFoundError, PromptPromoteForbiddenError, ValidationError } from "@/domain/errors";
-import type { NewPrompt, NewPromptVersion, Prompt, PromptSummary, PromptTag, PromptTagEvent, PromptVersion } from "@/domain/prompt";
+import type { NewPrompt, NewPromptVersion, Prompt, PromptSummary, PromptTag, PromptTagEvent, PromptUsage, PromptVersion, UsageItem } from "@/domain/prompt";
 
 const ORG = "org-1";
 const USER = "user-1";
@@ -16,6 +16,7 @@ function fakeRepo() {
   const versions = new Map<string, PromptVersion[]>();
   const tags = new Map<string, Map<string, number>>();
   const events = new Map<string, PromptTagEvent[]>();
+  const usage: Array<UsageItem & { experimentId: string; environment: string }> = [];
   let seq = 0;
 
   const repo: PromptRepository = {
@@ -33,6 +34,7 @@ function fakeRepo() {
       return { prompt, version };
     },
     get: async (id) => prompts.get(id) ?? null,
+    findByName: async (_org, name) => [...prompts.values()].find((p) => p.name === name) ?? null,
     list: async (_org, filter) => {
       const out: PromptSummary[] = [];
       for (const p of prompts.values()) {
@@ -75,6 +77,11 @@ function fakeRepo() {
       return event;
     },
     tagEvents: async (id) => events.get(id) ?? [],
+    recordUsage: async (experimentId, environment, items) => {
+      for (const item of items) usage.push({ ...item, experimentId, environment });
+    },
+    listUsage: async (id): Promise<PromptUsage[]> =>
+      usage.filter((u) => u.promptId === id).map((u) => ({ experimentId: u.experimentId, environment: u.environment, tag: u.tag, version: u.version, firstSeenAt: "t", lastSeenAt: "t" })),
   };
   return repo;
 }
@@ -180,5 +187,70 @@ describe("PromptService (ADR-067)", () => {
   it("unknown prompt -> not found", async () => {
     const { service } = await seeded();
     await expect(service.detail("nope")).rejects.toBeInstanceOf(PromptNotFoundError);
+  });
+
+  describe("what the SDK asks for (ADR-068)", () => {
+    it("resolves by tag or by version for an agent the prompt belongs to", async () => {
+      const { service, id } = await seeded();
+      await service.saveVersion(id, USER, { content: "Versión dos." });
+      await service.moveTag(id, USER, { tag: "dev", version: 2 }, true);
+      const byTag = await service.resolveForAgent(AGENT_A, ORG, "weather-system", { tag: "dev" });
+      expect(byTag.version.version).toBe(2);
+      expect(byTag.tag).toBe("dev");
+      const pinned = await service.resolveForAgent(AGENT_A, ORG, "weather-system", { version: 1 });
+      expect(pinned).toMatchObject({ tag: null, version: { version: 1 } });
+    });
+
+    it("does not serve a prompt to an agent it does not belong to", async () => {
+      const { service, id } = await seeded();
+      await service.moveTag(id, USER, { tag: "dev", version: 1 }, true);
+      await expect(service.resolveForAgent(AGENT_B, ORG, "weather-system", { tag: "dev" })).rejects.toBeInstanceOf(PromptNotFoundError);
+      await expect(service.resolveForAgent(AGENT_A, ORG, "does-not-exist", { tag: "dev" })).rejects.toBeInstanceOf(PromptNotFoundError);
+    });
+
+    it("404s on a tag that points nowhere and on a version that does not exist, and wants exactly one of tag or version", async () => {
+      const { service } = await seeded();
+      await expect(service.resolveForAgent(AGENT_A, ORG, "weather-system", { tag: "pro" })).rejects.toBeInstanceOf(PromptNotFoundError);
+      await expect(service.resolveForAgent(AGENT_A, ORG, "weather-system", { version: 9 })).rejects.toBeInstanceOf(PromptNotFoundError);
+      await expect(service.resolveForAgent(AGENT_A, ORG, "weather-system", {})).rejects.toBeInstanceOf(ValidationError);
+      await expect(service.resolveForAgent(AGENT_A, ORG, "weather-system", { tag: "dev", version: 1 })).rejects.toBeInstanceOf(ValidationError);
+    });
+
+    it("keeps serving an archived prompt: archiving must not break the agents that already use it", async () => {
+      const { service, id } = await seeded();
+      await service.moveTag(id, USER, { tag: "pro", version: 1 }, true);
+      await service.update(id, { archived: true });
+      await expect(service.resolveForAgent(AGENT_A, ORG, "weather-system", { tag: "pro" })).resolves.toMatchObject({ prompt: { archivedAt: expect.any(String) } });
+    });
+
+    it("records what the agent reports and shows it in the detail, ignoring what does not fit", async () => {
+      const { service, id } = await seeded();
+      const recorded = await service.recordUsage(AGENT_A, ORG, "pro", [
+        { name: "weather-system", tag: "pro", version: 1 },
+        { name: "weather-system", tag: null, version: 9 }, // versión que no existe
+        { name: "unknown", tag: "pro", version: 1 }, // prompt que no existe
+      ]);
+      expect(recorded).toBe(1);
+      const { usage } = await service.detail(id);
+      expect(usage).toEqual([expect.objectContaining({ experimentId: AGENT_A, environment: "pro", tag: "pro", version: 1 })]);
+    });
+
+    it("ignores a report from an agent the prompt does not belong to", async () => {
+      const { service } = await seeded();
+      expect(await service.recordUsage(AGENT_B, ORG, "dev", [{ name: "weather-system", tag: "dev", version: 1 }])).toBe(0);
+    });
+
+    it("rejects an invalid environment and oversized reports", async () => {
+      const { service } = await seeded();
+      await expect(service.recordUsage(AGENT_A, ORG, "PRO env", [])).rejects.toBeInstanceOf(ValidationError);
+      const many = Array.from({ length: 51 }, () => ({ name: "weather-system", tag: null, version: 1 }));
+      await expect(service.recordUsage(AGENT_A, ORG, "pro", many)).rejects.toBeInstanceOf(ValidationError);
+    });
+
+    it("accepts an agent that does not declare an environment", async () => {
+      const { service, id } = await seeded();
+      await service.recordUsage(AGENT_A, ORG, "", [{ name: "weather-system", tag: null, version: 1 }]);
+      expect((await service.detail(id)).usage[0]).toMatchObject({ environment: "", tag: "" });
+    });
   });
 });
