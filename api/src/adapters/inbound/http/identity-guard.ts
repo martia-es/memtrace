@@ -5,6 +5,9 @@ import {
   AssistantUpstreamError,
   CiUnavailableError,
   DeployBlockedError,
+  PromptInvariantError,
+  PromptNotFoundError,
+  PromptPromoteForbiddenError,
   AssistantNotFoundError,
   AnnotationQueueInvariantError,
   AnnotationQueueNotFoundError,
@@ -37,6 +40,9 @@ export async function identityGuard(run: () => Promise<Response>): Promise<Respo
     if (error instanceof ScoreConfigNotFoundError) return problem(404, "Not Found", error.message);
     if (error instanceof ScoreConfigInvariantError) return problem(409, "Conflict", error.message);
     if (error instanceof ScoreConfigShapeError) return problem(422, "Unprocessable Entity", error.message, error.fields);
+    if (error instanceof PromptNotFoundError) return problem(404, "Not Found", error.message);
+    if (error instanceof PromptInvariantError) return problem(409, "Conflict", error.message);
+    if (error instanceof PromptPromoteForbiddenError) return problem(403, "Forbidden", error.message);
     if (error instanceof AssistantNotFoundError) return problem(404, "Not Found", error.message);
     if (error instanceof AssistantInvariantError) return problem(409, "Conflict", error.message);
     if (error instanceof AssistantUpstreamError) return problem(502, "Bad Gateway", error.message);

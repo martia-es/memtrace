@@ -28,6 +28,8 @@ import { DeployGateService } from "@/application/deploy-gate-service";
 import { DeployService } from "@/application/deploy-service";
 import { GithubAppDispatcher, UnconfiguredDispatcher } from "@/adapters/outbound/github/github-app-dispatcher";
 import { PostgresDeployRunRepository } from "@/adapters/outbound/postgres/postgres-deploy-run-repository";
+import { PostgresPromptRepository } from "@/adapters/outbound/postgres/postgres-prompt-repository";
+import { PromptService } from "@/application/prompt-service";
 import { PostgresScoreConfigRepository } from "@/adapters/outbound/postgres/postgres-score-config-repository";
 import { PostgresIdentityRepository } from "@/adapters/outbound/postgres/postgres-identity-repository";
 import { configFromEnv as postgresConfigFromEnv, createPool } from "@/adapters/outbound/postgres/client";
@@ -54,6 +56,7 @@ const globalForContainer = globalThis as unknown as {
   __memtraceDeployGate?: DeployGateService;
   __memtraceDeployRuns?: PostgresDeployRunRepository;
   __memtraceDeploy?: DeployService;
+  __memtracePrompts?: PromptService;
   __memtraceHealthProber?: HealthProber;
   __memtraceChatClient?: ChatClient;
 };
@@ -238,6 +241,12 @@ export function getDeploy(): DeployService {
     globalForContainer.__memtraceDeploy = new DeployService(getAssistantRegistry(), getDeployGate(), getDeployRuns(), dispatcher);
   }
   return globalForContainer.__memtraceDeploy;
+}
+
+/** Registro de prompts (ADR-067). */
+export function getPrompts(): PromptService {
+  if (!globalForContainer.__memtracePrompts) globalForContainer.__memtracePrompts = new PromptService(new PostgresPromptRepository(getPostgresPool()));
+  return globalForContainer.__memtracePrompts;
 }
 
 /** Sondeo de /health para «Comprobar ahora»; mismo adapter y mismas reglas SSRF que el worker. */

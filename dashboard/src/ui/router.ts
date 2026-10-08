@@ -52,6 +52,9 @@ export const router = createRouter({
         { path: "annotation-queues/all", name: "annotation-queues-all", component: queuesPage, meta: { title: "All queues", section: "review-queues", view: "active" } },
         { path: "annotation-queues/archived", name: "annotation-queues-archived", component: queuesPage, meta: { title: "Archived queues", section: "review-archived", view: "archived" } },
         { path: "annotation-queues/:queueId/review", name: "annotation-queue-review", component: () => import("./pages/AnnotationQueueReviewPage.vue"), props: true, meta: { title: "Review", section: "review-inbox", framed: true } },
+        // registro de prompts (ADR-067): versiones inmutables y tags por entorno
+        { path: "prompts", name: "prompts", component: () => import("./pages/PromptsPage.vue"), meta: { title: "Prompts", section: "prompts" } },
+        { path: "prompts/:promptId", name: "prompt", component: () => import("./pages/PromptDetailPage.vue"), props: true, meta: { title: "Prompt", section: "prompts", framed: true } },
         { path: "datasets", name: "datasets", component: () => import("./pages/DatasetsPage.vue"), meta: { title: "Datasets", section: "datasets" } },
         { path: "datasets/:datasetId", name: "dataset", component: () => import("./pages/DatasetDetailPage.vue"), props: true, meta: { title: "Dataset", section: "datasets", framed: true } },
         { path: "runs", name: "runs", component: () => import("./pages/RunsPage.vue"), meta: { title: "Runs", section: "runs" } },

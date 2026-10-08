@@ -238,6 +238,22 @@ Un usuario puede agrupar varias gráficas custom ya guardadas en un **informe** 
 
 ---
 
+## Fase 1.8: Gestión de Prompts — el prompt como hipótesis con evidencia
+
+**Objetivo**: no un simple versionado de texto, sino un registro donde cada versión lleva medida su calidad, coste y errores, y donde mover un prompt a producción es una decisión respaldada por esa evidencia. Decisión y dirección: [ADR-067](adrs/prompts/adr-067-prompt-registry-immutable-versions-and-tags.md).
+
+- [x] **1. Registro**: el prompt es de la organización y se asocia a uno o varios agentes; versiones inmutables con variables `{{x}}`, tags de entorno (`dev`/`pre`/`pro`, los entornos de la organización) y libres con historial de movimientos, diff entre versiones, archivar en vez de borrar; permisos `prompt:read|write|promote` (migración 032, API, dashboard, `docs-site/platform/prompts.md`)
+- [ ] **2. SDK y enlace con trazas**: `prompts.get()` devuelve un *handle* que se resuelve al usarlo (los prompts se cargan en el `lifespan`), refresco en segundo plano del tag, adaptadores LangChain/PydanticAI, atributos `memtrace.prompt.*` en el span (columnas materializadas en ClickHouse) y versión realmente en uso por agente y entorno. Benchmark: `compile()` sin red en la petición
+- [ ] **3. Evidencia por versión**: coste, latencia, errores por causa, scores y feedback agregados por (prompt, versión) y diff de comportamiento
+- [ ] **4. Promoción con garantías**: política por prompt y entorno (evaluación contra dataset, umbrales, degradación máxima de coste/latencia) con función pura estilo `deploy-gate`; rollback sin reevaluar; bypass auditado
+- [ ] **5. Playground contra el asistente real**: reejecutar una traza con otra versión llamando al chat del propio agente (ADR-055) con un override firmado por petición (`baggage`), solo DEV/PRE por defecto; sin clave de proveedor LLM en MemTrace
+- [ ] **6. Del fallo al prompt**: propuesta de arreglo desde una traza fallida, validada contra los casos fallidos con el agente real y guardada como borrador para revisión
+- [ ] **7. Fragmentos reutilizables** (`{{> tono@pro}}`, fijados a versión exacta al guardar)
+- [ ] **8. Mapa de dependencias** (prompt ↔ agentes, datasets, runs, fragmentos) e impacto antes de promover
+- Descartado: despliegue progresivo automático (canary con rollback)
+
+---
+
 ## Fase 2: Mem - Aprendizaje Iterativo del Agente
 
 **Objetivo**: Extraer conocimiento de las trazas para mejorar el comportamiento del agente y evitar errores recurrentes.

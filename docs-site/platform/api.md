@@ -21,6 +21,23 @@ All under `/api/v1/experiments/{experimentId}`:
 
 Lists are cursor-paginated: pass the `nextCursor` of a response as `cursor` to get the next page.
 
+## Prompts
+
+The prompt registry. Session only. A prompt belongs to the organization and to one or more agents; versions are immutable and tags are movable pointers with a history. A person can act on a prompt with the permission from their organization role or from their role in any agent the prompt belongs to.
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/v1/experiments/{experimentId}/prompts` | Prompts of that agent: `{ items: [{ id, name, description, archivedAt, experimentIds, latestVersion, tags: { dev: 3, pro: 2 } }] }`. `?archived=true` includes the archived. `prompt:read` |
+| `POST /api/v1/experiments/{experimentId}/prompts` | Creates a prompt with its version 1 and associates it with that agent (and with `experimentIds`, if sent). Body: `{ name, content, description?, message?, experimentIds? }`. Returns the detail (`201`). Name: lowercase letters, digits, `.`, `_`, `-`; `409` if it already exists in the organization. `prompt:write` |
+| `GET /api/v1/organizations/{organizationId}/prompts` | Every prompt of the organization; `?experimentId=` filters by agent. `prompt:read` in the organization role |
+| `POST /api/v1/organizations/{organizationId}/prompts` | Same as the agent one, without associating the creator's agent. `prompt:write` in the organization role |
+| `GET /api/v1/prompts/{promptId}` | `{ prompt, versions (newest first), tags, events, environmentKeys }` |
+| `PATCH /api/v1/prompts/{promptId}` | Any of `description`, `archived`, `experimentIds`. Archiving is the way to delete: the history is kept. `prompt:write` |
+| `POST /api/v1/prompts/{promptId}/versions` | Saves a new version: `{ content, message?, parentVersion? }` (`parentVersion` defaults to the latest). `409` if the text equals the latest version or the prompt is archived. `prompt:write` |
+| `GET /api/v1/prompts/{promptId}/versions/{ref}` | A version by number (`3`) or by tag (`pro`). `404` if it does not exist |
+| `PUT /api/v1/prompts/{promptId}/tags/{tag}` | Points the tag to a version: `{ version, reason? }`; `version: null` removes it. Returns the history event. Environment tags (`dev`, `pre`, `pro`…) need `prompt:promote` (`403` otherwise); the rest, `prompt:write` |
+| `DELETE /api/v1/prompts/{promptId}/tags/{tag}?reason=` | Removes the tag (it stays in the history). Same permissions as moving it |
+
 ## Evaluation (ADR-028, ADR-031, ADR-032)
 
 Also under `/api/v1/experiments/{experimentId}`. Unlike every other endpoint on this page, the ones marked "session or API key" also accept an agent API key (`Authorization: Bearer <key>`) instead of a session — `memtrace.eval` (see [Offline evaluation](/library/evaluation)) calls them directly:
