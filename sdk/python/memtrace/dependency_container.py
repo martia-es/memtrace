@@ -171,6 +171,7 @@ def get_prompt_registry() -> PromptRegistry:
                 environment=settings.environment,
                 refresh_seconds=settings.prompt_refresh_seconds,
                 usage_seconds=settings.prompt_usage_seconds,
+                allow_override=settings.allow_prompt_override,
             )
         return _prompt_registry
 

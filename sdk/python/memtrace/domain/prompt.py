@@ -9,6 +9,16 @@ _VARIABLE = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}")
 # Span attributes that link a trace to the prompt version it used (columns PromptName / PromptVersion in ClickHouse).
 PROMPT_NAME_ATTRIBUTE = "memtrace.prompt.name"
 PROMPT_VERSION_ATTRIBUTE = "memtrace.prompt.version"
+# Written on the span when the prompt came from a playground override instead of the tag (ADR-071).
+PLAYGROUND_ATTRIBUTE = "memtrace.playground"
+# Header with which MemTrace hands the agent the token of a playground override (ADR-071).
+PROMPT_OVERRIDE_HEADER = "x-memtrace-prompt-override"
+_TOKEN = re.compile(r"^mto_[A-Za-z0-9_-]{10,200}$")
+
+
+def is_override_token(value: Optional[str]) -> bool:
+    """Does `value` look like a playground token? Anything else in the header is ignored, never sent anywhere."""
+    return bool(value) and bool(_TOKEN.match(value or ""))
 
 
 class PromptError(Exception):

@@ -180,6 +180,11 @@ class Settings:
         return float(env_int("MEMTRACE_PROMPT_TIMEOUT_SECONDS", 3))
 
     @property
+    def allow_prompt_override(self) -> bool:
+        """Lets MemTrace's playground run another prompt version in this process for a single request (ADR-071). Off by default."""
+        return env_bool("MEMTRACE_ALLOW_PROMPT_OVERRIDE", False)
+
+    @property
     def prompt_cache_dir(self) -> Optional[str]:
         """Directory where the last known prompt versions are kept, so an agent can start while MemTrace is down."""
         return os.getenv("MEMTRACE_PROMPT_CACHE_DIR") or None

@@ -17,6 +17,7 @@ import time
 import weakref
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
+from memtrace.application.prompt_override import current_override
 from memtrace.application.prompt_ports import (
     Fetched,
     PromptCache,
@@ -26,12 +27,14 @@ from memtrace.application.prompt_ports import (
     UsedPrompt,
 )
 from memtrace.domain.prompt import (
+    PLAYGROUND_ATTRIBUTE,
     PROMPT_NAME_ATTRIBUTE,
     PROMPT_VERSION_ATTRIBUTE,
     PromptNotFoundError,
     PromptUnavailableError,
     PromptVersion,
     default_tag,
+    is_override_token,
     local_default,
     render,
 )
@@ -41,6 +44,8 @@ logger = logging.getLogger("memtrace")
 _MAX_BACKOFF_SECONDS = 300.0
 _USAGE_RETRY_SECONDS = 60.0
 _TICK_SECONDS = 1.0
+_OVERRIDE_CACHE_SECONDS = 300.0
+_OVERRIDE_CACHE_SIZE = 64
 
 Key = Tuple[str, Optional[str], Optional[int]]  # (name, tag, pinned version)
 
@@ -89,9 +94,9 @@ class PromptHandle:
         Raises `MissingVariableError` if the prompt uses a variable that is not given. Also stamps the prompt name and
         version on the current span, which is what links a trace to the version that produced it.
         """
-        current = self._current  # one read: a refresh in the middle cannot mix two versions
+        current, playground = self._registry._effective(self)  # one read: a refresh in the middle cannot mix two versions
         text = render(current, values)
-        self._registry._note_use(current)
+        self._registry._note_use(current, playground)
         return text
 
     def as_callable(self, **values: Any) -> Callable[..., str]:
@@ -128,6 +133,7 @@ class PromptRegistry:
         environment: Optional[str] = None,
         refresh_seconds: float = 30.0,
         usage_seconds: float = 300.0,
+        allow_override: bool = False,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._source = source
@@ -138,6 +144,9 @@ class PromptRegistry:
         self._refresh_seconds = max(1.0, refresh_seconds)
         self._usage_seconds = max(1.0, usage_seconds)
         self._clock = clock
+        self._allow_override = allow_override
+        # (prompt, token) -> (expires, version or None when MemTrace rejected the token)
+        self._overrides: Dict[Tuple[str, str], Tuple[float, Optional[PromptVersion]]] = {}
         self._handles: Dict[Key, PromptHandle] = {}
         self._lock = threading.RLock()
         self._stop = threading.Event()
@@ -264,11 +273,51 @@ class PromptRegistry:
 
     # ----- using it -----
 
-    def _note_use(self, version: PromptVersion) -> None:
+    def _effective(self, handle: PromptHandle) -> Tuple[PromptVersion, bool]:
+        """The version to use in this request and whether it comes from a playground override (ADR-071).
+
+        An override is honored only if the agent opted in (`MEMTRACE_ALLOW_PROMPT_OVERRIDE`), the request carries a token
+        and MemTrace grants it for this very prompt. Anything else — no opt-in, no token, an unknown or expired token,
+        MemTrace unreachable — serves the normal version: a playground can never break a request.
+        """
+        token = current_override() if self._allow_override and self._source is not None else None
+        if token is None:
+            return handle._current, False
+        granted = self._override_for(handle.name, token)
+        return (granted, True) if granted is not None else (handle._current, False)
+
+    def _override_for(self, name: str, token: str) -> Optional[PromptVersion]:
+        if not is_override_token(token):
+            return None
+        key = (name, token)
+        now = self._clock()
+        cached = self._overrides.get(key)
+        if cached is not None and cached[0] > now:
+            return cached[1]
+        granted: Optional[PromptVersion] = None
+        try:
+            assert self._source is not None
+            granted = self._source.fetch_override(name, token)
+            if granted is None:
+                logger.warning("[MemTrace] The playground override for prompt '%s' was not accepted by MemTrace; using the normal version", name)
+        except PromptSourceError as exc:
+            logger.warning("[MemTrace] Could not get the playground override of prompt '%s' (%s); using the normal version", name, exc)
+            return None  # transient: do not cache the failure
+        if len(self._overrides) >= _OVERRIDE_CACHE_SIZE:
+            self._overrides = {k: v for k, v in self._overrides.items() if v[0] > now}
+            if len(self._overrides) >= _OVERRIDE_CACHE_SIZE:
+                self._overrides.clear()
+        self._overrides[key] = (now + _OVERRIDE_CACHE_SECONDS, granted)
+        return granted
+
+    def _note_use(self, version: PromptVersion, playground: bool = False) -> None:
         if self._annotate is None or not version.from_registry:
             return
         try:
-            self._annotate({PROMPT_NAME_ATTRIBUTE: version.name, PROMPT_VERSION_ATTRIBUTE: version.version})
+            attributes = {PROMPT_NAME_ATTRIBUTE: version.name, PROMPT_VERSION_ATTRIBUTE: version.version}
+            if playground:
+                attributes[PLAYGROUND_ATTRIBUTE] = True
+            self._annotate(attributes)
         except Exception as exc:  # instrumentation never breaks the agent
             logger.debug("[MemTrace] Could not stamp the prompt on the span: %s", exc)
 
