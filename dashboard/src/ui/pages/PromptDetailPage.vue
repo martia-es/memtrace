@@ -7,6 +7,9 @@ import { describeApiError } from "@/application/describe-api-error";
 import { formatCostUsd, formatCount, formatDateTime, formatDuration, formatPercent, formatRelativeTime } from "@/domain/format";
 import { MIN_TRACES, compareVersions, evaluatorCell, evaluatorNames, sampleQuality } from "@/domain/prompt-evidence";
 import { describeUsage, environmentsRunning, type UsageState } from "@/domain/prompt-usage";
+import { PRODUCTION_ENV, filterVersions, groupByMonth, sortEnvironments, splitVariables } from "@/domain/prompt-release";
+import { sideBySideDiff } from "@/domain/text-diff";
+import EnvFlag from "../components/EnvFlag.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import PageHeader from "../components/PageHeader.vue";
 import PromotePromptModal from "../components/PromotePromptModal.vue";
@@ -50,7 +53,27 @@ const nowMs = Date.now();
 const tagsByVersion = computed(() => {
   const map = new Map<number, string[]>();
   for (const t of data.value?.tags ?? []) map.set(t.version, [...(map.get(t.version) ?? []), t.tag]);
+  for (const [version, tags] of map) map.set(version, sortEnvironments(tags));
   return map;
+});
+
+// ---- lista de versiones: buscador, fijadas por tag y agrupadas por mes ----
+const versionQuery = ref("");
+const visibleVersions = computed(() => filterVersions(versions.value, versionQuery.value));
+const versionGroups = computed(() => groupByMonth(visibleVersions.value));
+const pinned = computed(() =>
+  sortEnvironments((data.value?.tags ?? []).map((t) => t.tag)).map((tag) => {
+    const version = tagVersion(tag)!;
+    return { tag, version, message: versions.value.find((v) => v.version === version)?.message ?? "" };
+  }),
+);
+
+// ---- tira "running": qué versión corre en cada entorno y cuánto va por detrás ----
+const latestVersion = computed(() => versions.value[0]?.version ?? 0);
+const runningStrip = computed(() => pinned.value.filter((p) => environmentKeys.value.includes(p.tag)));
+const behindProduction = computed(() => {
+  const live = tagVersion(PRODUCTION_ENV);
+  return live === null ? 0 : Math.max(0, latestVersion.value - live);
 });
 
 // ---- pestañas ----
@@ -245,6 +268,48 @@ async function toggleArchived() {
 const agentLabel = computed(() => route.params.experimentId as string);
 /** Cómo se escribe la variable en el texto del prompt. */
 const asVariable = (name: string) => `{{${name}}}`;
+
+// ---- contenido: líneas numeradas con las variables resaltadas y las líneas que cambian respecto a la versión de la que parte ----
+const parentOfSelected = computed(() => {
+  const v = selectedVersion.value;
+  if (!v) return null;
+  return versions.value.find((o) => o.version === v.parentVersion) ?? versions.value.find((o) => o.version < v.version) ?? null;
+});
+const changedLines = computed(() => {
+  const v = selectedVersion.value;
+  const parent = parentOfSelected.value;
+  const changed = new Set<number>();
+  if (!v || !parent) return changed;
+  let n = 0;
+  for (const row of sideBySideDiff(parent.content, v.content)) {
+    if (row.right.kind === "empty") continue;
+    n += 1;
+    if (row.right.kind === "add") changed.add(n);
+  }
+  return changed;
+});
+const codeLines = computed(() =>
+  (selectedVersion.value?.content ?? "").split("\n").map((text, i) => ({ n: i + 1, parts: splitVariables(text), heading: text.startsWith("#"), changed: changedLines.value.has(i + 1) })),
+);
+const runningHere = computed(() => (selectedVersion.value ? running(selectedVersion.value.version) : []));
+
+// ---- evidencia: qué falló más, sumando las causas de todas las versiones ----
+const failures = computed(() => {
+  const byTitle = new Map<string, { title: string; traces: number; versions: number[] }>();
+  for (const e of evidenceVersions.value) {
+    for (const c of e.errorCauses) {
+      const entry = byTitle.get(c.title) ?? { title: c.title, traces: 0, versions: [] };
+      entry.traces += c.traces;
+      entry.versions.push(e.version);
+      byTitle.set(c.title, entry);
+    }
+  }
+  return [...byTitle.values()].sort((a, b) => b.traces - a.traces).slice(0, 5);
+});
+const maxTraces = computed(() => Math.max(1, ...evidenceVersions.value.map((e) => e.traces)));
+const maxFailure = computed(() => Math.max(1, ...failures.value.map((f) => f.traces)));
+const messageOf = (version: number | null) => versions.value.find((v) => v.version === version)?.message ?? "";
+const usageOf = (env: string) => usageRows.value.find((u) => u.environment === env) ?? null;
 </script>
 
 <template>
@@ -264,234 +329,321 @@ const asVariable = (name: string) => `{{${name}}}`;
     <div v-else-if="!data" class="loading"><q-spinner size="32px" color="primary" /></div>
 
     <template v-else>
-      <p v-if="data.prompt.description" class="muted description">{{ data.prompt.description }}</p>
       <div class="body">
-        <aside class="mt-card versions" aria-label="Versions">
-          <button
-            v-for="v in versions"
-            :key="v.version"
-            type="button"
-            class="version"
-            :class="{ active: v.version === selected }"
-            :data-testid="`version-${v.version}`"
-            @click="selected = v.version"
-          >
-            <span class="version-head">
-              <strong class="mono">v{{ v.version }}</strong>
-              <span v-for="tag in tagsByVersion.get(v.version) ?? []" :key="tag" class="mt-pill tag">{{ tag }}</span>
-            </span>
-            <span v-if="running(v.version).length > 0" class="running" :data-testid="`running-${v.version}`">Running in {{ running(v.version).join(", ") }}</span>
-            <span class="version-msg">{{ v.message || "No message" }}</span>
-            <span class="muted version-date mono">{{ formatDateTime(v.createdAt) }}</span>
-          </button>
-        </aside>
-
-        <section class="mt-card detail">
-          <TabBar v-model="tab" :tabs="TABS" />
-
-          <div v-if="tab === 'content' && selectedVersion" class="pane" data-testid="pane-content">
-            <div v-if="!editing">
-              <div class="pane-head">
-                <div class="vars">
-                  <span class="muted">Variables:</span>
-                  <code v-for="name in selectedVersion.variables" :key="name" class="var">{{ asVariable(name) }}</code>
-                  <span v-if="selectedVersion.variables.length === 0" class="muted">none</span>
-                </div>
-                <button v-if="canWrite" type="button" class="primary-btn" data-testid="edit-version" @click="startEdit">Edit as new version</button>
-              </div>
-              <pre class="content" data-testid="version-content">{{ selectedVersion.content }}</pre>
-            </div>
-            <form v-else class="editor" @submit.prevent="saveVersion">
-              <p class="muted">Editing from v{{ selected }}. Saving creates a new version; the previous ones are not modified.</p>
-              <TextInput v-model="draft" multiline :rows="16" mono data-testid="editor" />
-              <TextInput v-model="message" placeholder="What changed and why? (optional)" data-testid="version-message" />
-              <div class="row">
-                <button type="submit" class="primary-btn" :disabled="saving || !draft.trim() || draft === selectedVersion.content" data-testid="save-version">Save as new version</button>
-                <button type="button" class="ghost-btn" @click="editing = false">Cancel</button>
-              </div>
-            </form>
+        <aside class="rail" aria-label="Versions">
+          <div class="rail-head">
+            <div class="rail-title"><strong>Versions</strong><span class="mono soft">{{ versions.length }} in total</span></div>
+            <TextInput v-model="versionQuery" type="search" placeholder="v number or message…" data-testid="version-search" />
           </div>
 
-          <div v-else-if="tab === 'compare' && selectedVersion" class="pane" data-testid="pane-compare">
-            <div class="compare-bar">
-              <span class="muted">Compare v{{ selectedVersion.version }} with</span>
-              <Select v-if="compareOptions.length > 0" v-model="compareWith" :options="compareOptions" data-testid="compare-with" />
-              <span v-else class="muted">nothing: this is the first version</span>
+          <div v-if="pinned.length > 0 && !versionQuery" class="pinned" data-testid="pinned">
+            <span class="eyebrow">PINNED BY TAGS</span>
+            <button
+              v-for="p in pinned"
+              :key="p.tag"
+              type="button"
+              class="version compact"
+              :class="{ active: p.version === selected }"
+              :data-testid="`pinned-${p.tag}`"
+              @click="selected = p.version"
+            >
+              <EnvFlag :env="p.tag" />
+              <strong class="mono">v{{ p.version }}</strong>
+              <span class="version-msg">{{ p.message || "No message" }}</span>
+            </button>
+          </div>
+
+          <div class="all" data-testid="version-list">
+            <p v-if="visibleVersions.length === 0" class="soft empty-list" data-testid="no-versions">No version matches “{{ versionQuery }}”.</p>
+            <template v-for="group in versionGroups" :key="group.key">
+              <span class="eyebrow group-label">{{ group.label.toUpperCase() }}</span>
+              <button
+                v-for="v in group.items"
+                :key="v.version"
+                type="button"
+                class="version"
+                :class="{ active: v.version === selected }"
+                :data-testid="`version-${v.version}`"
+                @click="selected = v.version"
+              >
+                <span class="version-head">
+                  <strong class="mono">v{{ v.version }}</strong>
+                  <EnvFlag v-for="tag in tagsByVersion.get(v.version) ?? []" :key="tag" :env="tag" />
+                  <span class="grow" />
+                  <span class="mono version-date">{{ formatDateTime(v.createdAt) }}</span>
+                </span>
+                <span class="version-msg">{{ v.message || "No message" }}</span>
+                <span v-if="running(v.version).length > 0" class="running" :data-testid="`running-${v.version}`">Running in {{ running(v.version).join(", ") }}</span>
+              </button>
+            </template>
+          </div>
+        </aside>
+
+        <div class="main">
+          <section class="strip">
+            <p v-if="data.prompt.description" class="description">{{ data.prompt.description }}</p>
+            <div v-if="runningStrip.length > 0" class="running-strip" data-testid="running-strip">
+              <span class="eyebrow">RUNNING</span>
+              <template v-for="(p, i) in runningStrip" :key="p.tag">
+                <span v-if="i > 0" class="dotsep">·</span>
+                <EnvFlag :env="p.tag" /><strong class="mono">v{{ p.version }}</strong>
+              </template>
+              <span v-if="behindProduction > 0" class="behind" data-testid="behind-pill">PRO is {{ behindProduction }} {{ behindProduction === 1 ? "version" : "versions" }} behind</span>
             </div>
-            <section v-if="compareVersion" class="behaviour" data-testid="behaviour">
-              <div class="compare-bar">
-                <h3>How it behaved</h3>
-                <span class="muted small">last</span>
-                <Select v-model="rangeKey" :options="rangeOptions" data-testid="behaviour-range" />
+          </section>
+
+          <section class="mt-card detail">
+            <TabBar v-model="tab" :tabs="TABS" />
+
+            <div v-if="tab === 'content' && selectedVersion" class="pane" data-testid="pane-content">
+              <div v-if="!editing" class="content-grid">
+                <div class="code-card">
+                  <div class="code-head">
+                    <strong class="mono">v{{ selectedVersion.version }}</strong>
+                    <span class="code-msg">{{ selectedVersion.message || "No message" }}</span>
+                    <span class="grow" />
+                    <span class="soft">{{ formatDateTime(selectedVersion.createdAt) }}</span>
+                    <span v-if="parentOfSelected" class="mt-pill from">from v{{ parentOfSelected.version }}</span>
+                  </div>
+                  <pre class="code" data-testid="version-content"><span v-for="line in codeLines" :key="line.n" class="ln" :class="{ changed: line.changed, heading: line.heading }"><span v-for="(part, i) in line.parts" :key="i" :class="{ variable: part.variable }">{{ part.text }}</span></span></pre>
+                  <div v-if="changedLines.size > 0" class="code-foot"><i /> Lines changed since v{{ parentOfSelected?.version }}</div>
+                </div>
+
+                <div class="side">
+                  <div class="side-card">
+                    <span class="eyebrow">VARIABLES</span>
+                    <p class="soft">Parts of the text that change on every call.</p>
+                    <div class="vars">
+                      <code v-for="name in selectedVersion.variables" :key="name" class="var">{{ asVariable(name) }}</code>
+                      <span v-if="selectedVersion.variables.length === 0" class="soft">none</span>
+                    </div>
+                  </div>
+                  <div class="side-card">
+                    <span class="eyebrow">RUNNING IN</span>
+                    <div v-if="runningHere.length > 0" class="vars"><EnvFlag v-for="env in runningHere" :key="env" :env="env" /></div>
+                    <p v-else class="soft" data-testid="not-running">No environment reports this version yet.</p>
+                  </div>
+                  <div v-if="canWrite" class="side-card next">
+                    <span class="eyebrow">NEXT VERSION</span>
+                    <p>Saving creates v{{ latestVersion + 1 }}. Earlier versions never change, and the tags stay where they are until someone moves them.</p>
+                    <button type="button" class="primary-btn" data-testid="edit-version" @click="startEdit">Edit as new version</button>
+                  </div>
+                </div>
               </div>
-              <div v-if="evidence.loading.value && !evidence.data.value" class="loading"><q-spinner size="24px" color="primary" /></div>
-              <p v-else-if="evidence.error.value" class="muted small" data-testid="behaviour-error">Could not load the evidence: {{ evidence.error.value.message }}</p>
-              <p v-else-if="!comparison" class="muted small" data-testid="behaviour-empty">
-                No traces used {{ missingEvidence.map((v) => `v${v}`).join(" or ") }} in the last {{ rangeLabel }}, so there is nothing to compare yet.
+              <form v-else class="editor" @submit.prevent="saveVersion">
+                <p class="muted">Editing from v{{ selected }}. Saving creates a new version; the previous ones are not modified.</p>
+                <TextInput v-model="draft" multiline :rows="16" mono data-testid="editor" />
+                <TextInput v-model="message" placeholder="What changed and why? (optional)" data-testid="version-message" />
+                <div class="row">
+                  <button type="submit" class="primary-btn" :disabled="saving || !draft.trim() || draft === selectedVersion.content" data-testid="save-version">Save as new version</button>
+                  <button type="button" class="ghost-btn" @click="editing = false">Cancel</button>
+                </div>
+              </form>
+            </div>
+
+            <div v-else-if="tab === 'compare' && selectedVersion" class="pane" data-testid="pane-compare">
+              <div class="compare-bar">
+                <span class="muted">Compare v{{ selectedVersion.version }} with</span>
+                <Select v-if="compareOptions.length > 0" v-model="compareWith" :options="compareOptions" data-testid="compare-with" />
+                <span v-else class="muted">nothing: this is the first version</span>
+              </div>
+              <section v-if="compareVersion" class="behaviour" data-testid="behaviour">
+                <div class="compare-bar">
+                  <h3>How it behaved</h3>
+                  <span class="muted small">last</span>
+                  <Select v-model="rangeKey" :options="rangeOptions" data-testid="behaviour-range" />
+                </div>
+                <div v-if="evidence.loading.value && !evidence.data.value" class="loading"><q-spinner size="24px" color="primary" /></div>
+                <p v-else-if="evidence.error.value" class="muted small" data-testid="behaviour-error">Could not load the evidence: {{ evidence.error.value.message }}</p>
+                <p v-else-if="!comparison" class="muted small" data-testid="behaviour-empty">
+                  No traces used {{ missingEvidence.map((v) => `v${v}`).join(" or ") }} in the last {{ rangeLabel }}, so there is nothing to compare yet.
+                </p>
+                <template v-else>
+                  <p v-if="!comparison.reliable" class="warn-banner small" data-testid="behaviour-unreliable">
+                    At least one of the two versions has fewer than {{ MIN_TRACES }} traces: treat these differences as indicative, they may be chance.
+                  </p>
+                  <div class="tiles" data-testid="behaviour-table">
+                    <div v-for="d in comparison.deltas" :key="d.key" class="tile" :data-testid="`delta-${d.key}`">
+                      <span class="eyebrow">{{ d.label.toUpperCase() }}</span>
+                      <div class="tile-value"><strong>{{ d.target }}</strong><span class="soft">was {{ d.base }}</span></div>
+                      <span class="mt-pill direction" :class="d.direction">{{ d.change }} · {{ DIRECTION_LABEL[d.direction] }}</span>
+                      <span class="sr-only">v{{ compareVersion.version }} {{ d.base }}, v{{ selectedVersion.version }} {{ d.target }}</span>
+                    </div>
+                  </div>
+                </template>
+              </section>
+              <PromptDiff v-if="compareVersion" :old-text="compareVersion.content" :new-text="selectedVersion.content" :old-label="`v${compareVersion.version}`" :new-label="`v${selectedVersion.version}`" />
+            </div>
+
+            <div v-else-if="tab === 'evidence'" class="pane" data-testid="pane-evidence">
+              <div class="compare-bar">
+                <span class="muted">Traces of the last</span>
+                <Select v-model="rangeKey" :options="rangeOptions" data-testid="evidence-range" />
+                <span class="grow" />
+                <span class="soft">A trace counts for every version it used.</span>
+              </div>
+              <ErrorBanner v-if="evidence.error.value" :error="evidence.error.value" @retry="evidence.run()" />
+              <div v-else-if="evidence.loading.value && !evidence.data.value" class="loading"><q-spinner size="28px" color="primary" /></div>
+              <p v-else-if="evidenceVersions.length === 0" class="muted small" data-testid="evidence-empty">
+                No trace used this prompt in the last {{ rangeLabel }}. Traces show up here when an agent calls <code>compile()</code> inside a traced step.
               </p>
               <template v-else>
-                <p v-if="!comparison.reliable" class="warn small" data-testid="behaviour-unreliable">
-                  At least one of the two versions has fewer than {{ MIN_TRACES }} traces: treat these differences as indicative, they may be chance.
+                <div class="table-scroll evidence-card">
+                  <table class="evidence" data-testid="evidence-table">
+                    <thead>
+                      <tr>
+                        <th>Version</th><th>Traces</th><th>Errors</th><th class="num">Latency p95</th><th class="num">Cost / trace</th><th class="num">User approval</th>
+                        <th v-for="name in evaluatorColumns" :key="name" class="num">{{ name }}</th>
+                        <th>Main failure</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="e in evidenceVersions" :key="e.version" :data-testid="`evidence-v${e.version}`">
+                        <td class="mono">
+                          <strong>v{{ e.version }}</strong>
+                          <span class="env-stack"><EnvFlag v-for="tag in tagsByVersion.get(e.version) ?? []" :key="tag" :env="tag" /></span>
+                        </td>
+                        <td class="mono">
+                          <span class="cell-top">{{ formatCount(e.traces) }}<span v-if="sampleQuality(e.traces) === 'low'" class="mt-pill low-sample" :title="`Fewer than ${MIN_TRACES} traces: the figures are only indicative`">few traces</span></span>
+                          <span class="meter"><span :style="{ width: `${Math.max(3, (e.traces / maxTraces) * 100)}%` }" /></span>
+                        </td>
+                        <td class="mono" :class="{ bad: e.errorRate >= 0.1 }">
+                          <span class="cell-top">{{ formatPercent(e.errorRate) }}</span>
+                          <span class="meter" :class="{ bad: e.errorRate >= 0.1 }"><span :style="{ width: `${Math.min(100, e.errorRate * 800)}%` }" /></span>
+                        </td>
+                        <td class="num mono">{{ formatDuration(e.latencyMs.p95) }}</td>
+                        <td class="num mono">{{ formatCostUsd(e.costPerTraceUsd) ?? "–" }}<span v-if="e.costPerTraceUsd !== null && !e.costComplete" class="muted" title="Some model has no known price: the real cost is higher"> +</span></td>
+                        <td class="num mono">{{ e.feedback.satisfaction === null ? "–" : `${e.feedback.satisfaction.toFixed(0)}%` }}<span v-if="e.feedback.ratedTraces > 0" class="muted"> ({{ e.feedback.ratedTraces }})</span></td>
+                        <td v-for="name in evaluatorColumns" :key="name" class="num mono"><span class="score">{{ evaluatorCell(e, name) }}</span></td>
+                        <td>
+                          <span v-if="e.errorCauses.length === 0" class="muted">–</span>
+                          <span v-else :data-testid="`cause-v${e.version}`">{{ e.errorCauses[0]!.title }} <span class="muted">({{ e.errorCauses[0]!.traces }})</span></span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div v-if="failures.length > 0" class="failures" data-testid="failures">
+                  <span class="eyebrow">WHAT FAILED MOST</span>
+                  <p class="soft">Main failure causes across these versions, by number of traces.</p>
+                  <div v-for="f in failures" :key="f.title" class="failure">
+                    <span class="failure-title">{{ f.title }}</span>
+                    <span class="failure-bar"><span :style="{ width: `${(f.traces / maxFailure) * 100}%` }" /></span>
+                    <strong class="mono">{{ f.traces }}</strong>
+                    <span class="soft">{{ f.versions.map((v) => `v${v}`).join(", ") }}</span>
+                  </div>
+                </div>
+              </template>
+            </div>
+
+            <div v-else-if="tab === 'tags'" class="pane tags-pane" data-testid="pane-tags">
+              <div class="tags-main">
+                <h3>Environments</h3>
+                <p class="muted small">The tag decides which version each environment uses. Moving one needs the promote permission.</p>
+                <TextInput v-if="canPromote || canWrite" v-model="reason" placeholder="Reason for the change (optional, saved in the history)" data-testid="tag-reason" />
+                <div class="envs">
+                  <div v-for="key in environmentKeys" :key="key" class="env-card" :data-testid="`env-${key}`">
+                    <span class="env-badge" :class="key"><b>{{ key.toUpperCase() }}</b></span>
+                    <div class="env-body">
+                      <div class="env-version">
+                        <strong class="mono">{{ tagVersion(key) === null ? "—" : `v${tagVersion(key)}` }}</strong>
+                        <span class="muted env-msg">{{ messageOf(tagVersion(key)) }}</span>
+                        <span v-if="isProtected(key)" class="mt-pill protected" title="Needs a passing evaluation to be promoted" :data-testid="`protected-${key}`">protected</span>
+                      </div>
+                      <span v-if="usageOf(key)" class="mt-pill usage" :class="usageOf(key)!.state">{{ USAGE_LABEL[usageOf(key)!.state] }}</span>
+                      <span v-else class="soft">No agent has reported this environment yet.</span>
+                    </div>
+                    <div v-if="canPromote" class="move">
+                      <Select :model-value="pending[key] ?? null" :options="versionOptions" placeholder="Point to…" @update:model-value="pending[key] = $event" />
+                      <button type="button" class="primary-btn small" :disabled="moving || pending[key] == null || pending[key] === tagVersion(key)" :data-testid="`move-${key}`" @click="moveEnvironment(key)">Move</button>
+                      <button v-if="tagVersion(key) !== null" type="button" class="ghost-btn small" :aria-label="`Remove the ${key} tag`" @click="moveTag(key, null)">Remove</button>
+                    </div>
+                  </div>
+                </div>
+
+                <h3>In use right now</h3>
+                <p v-if="usageRows.length === 0" class="muted small" data-testid="usage-empty">
+                  No agent has reported this prompt yet. It shows up here once an agent loads it with <code>memtrace.prompts.get()</code>.
                 </p>
-                <table class="deltas" data-testid="behaviour-table">
-                  <thead><tr><th></th><th>v{{ compareVersion.version }}</th><th>v{{ selectedVersion.version }}</th><th>Change</th><th></th></tr></thead>
+                <table v-else class="tags" data-testid="usage-table">
                   <tbody>
-                    <tr v-for="d in comparison.deltas" :key="d.key" :data-testid="`delta-${d.key}`">
-                      <td>{{ d.label }}</td>
-                      <td class="mono">{{ d.base }}</td>
-                      <td class="mono">{{ d.target }}</td>
-                      <td class="mono">{{ d.change }}</td>
-                      <td><span class="mt-pill direction" :class="d.direction">{{ DIRECTION_LABEL[d.direction] }}</span></td>
+                    <tr v-for="u in usageRows" :key="`${u.experimentId}-${u.environment}-${u.tag}-${u.version}`" :data-testid="`usage-${u.environment || 'none'}-v${u.version}`">
+                      <td class="mono tag-name">{{ u.environment || "no environment" }}</td>
+                      <td class="mono">v{{ u.version }}</td>
+                      <td class="muted">{{ u.tag ? `follows “${u.tag}”` : "fixed version" }}</td>
+                      <td><span class="mt-pill usage" :class="u.state">{{ USAGE_LABEL[u.state] }}</span></td>
+                      <td v-if="u.state === 'behind'" class="muted small">“{{ u.tag }}” now points to v{{ u.tagVersion }}</td>
+                      <td v-else class="muted small">{{ formatRelativeTime(u.lastSeenAt, nowMs) }}</td>
                     </tr>
                   </tbody>
                 </table>
-              </template>
-            </section>
-            <PromptDiff v-if="compareVersion" :old-text="compareVersion.content" :new-text="selectedVersion.content" :old-label="`v${compareVersion.version}`" :new-label="`v${selectedVersion.version}`" />
-          </div>
 
-          <div v-else-if="tab === 'evidence'" class="pane" data-testid="pane-evidence">
-            <div class="compare-bar">
-              <span class="muted">Traces of the last</span>
-              <Select v-model="rangeKey" :options="rangeOptions" data-testid="evidence-range" />
+                <h3>Promotion policy</h3>
+                <div v-if="!editingPolicy" data-testid="policy">
+                  <p v-if="!policy" class="muted small" data-testid="policy-none">
+                    No policy: any version can be promoted. Add one to require a passing evaluation before {{ gated.join(" and ") || "protected environments" }} can use a version.
+                  </p>
+                  <template v-else>
+                    <p class="small" data-testid="policy-summary">
+                      A version needs <b>{{ policy.requiredRuns }}</b> passing evaluation{{ policy.requiredRuns > 1 ? "s in a row" : "" }} on
+                      <b>{{ datasetName(policy.datasetId) ?? "a dataset that no longer exists" }}</b> to be promoted to {{ gated.join(" or ") }}.
+                      <span v-if="policy.datasetId === null" class="warn" data-testid="policy-broken">The dataset was deleted: promotions are blocked until you choose another.</span>
+                    </p>
+                    <p class="muted small">The evaluation has to run with the agent reading that exact version through <code>memtrace.prompts</code>. Each evaluator must reach its target pass rate.</p>
+                  </template>
+                  <div v-if="canPromote" class="row">
+                    <button type="button" class="ghost-btn small" data-testid="edit-policy" @click="startPolicy">{{ policy ? "Edit policy" : "Add policy" }}</button>
+                    <button v-if="policy" type="button" class="ghost-btn small" data-testid="remove-policy" @click="removePolicy">Remove policy</button>
+                  </div>
+                </div>
+                <form v-else class="policy-form" data-testid="policy-form" @submit.prevent="savePolicy">
+                  <div class="row">
+                    <span class="muted">Evaluate against</span>
+                    <Select v-model="policyDataset" :options="datasetOptions" placeholder="Choose a dataset…" data-testid="policy-dataset" />
+                  </div>
+                  <div class="row">
+                    <span class="muted">Passing runs in a row</span>
+                    <input v-model.number="policyRuns" type="number" min="1" max="10" class="runs" data-testid="policy-runs" />
+                  </div>
+                  <p class="muted small">Protected: {{ gated.join(", ") || "none" }}. {{ environmentKeys[0] ?? "The first environment" }} stays free to iterate.</p>
+                  <div class="row">
+                    <button type="submit" class="primary-btn small" :disabled="savingPolicy || policyDataset === null" data-testid="save-policy">Save policy</button>
+                    <button type="button" class="ghost-btn small" @click="editingPolicy = false">Cancel</button>
+                  </div>
+                </form>
+
+                <h3>Other tags</h3>
+                <div v-if="freeTags.length > 0" class="free-tags">
+                  <span v-for="t in freeTags" :key="t.tag" class="free-tag">
+                    <span class="mono">{{ t.tag }}</span><strong class="mono">v{{ t.version }}</strong>
+                    <button v-if="canWrite" type="button" class="x" :aria-label="`Remove the ${t.tag} tag`" @click="moveTag(t.tag, null)">×</button>
+                  </span>
+                </div>
+                <p v-else class="muted small">No free tags.</p>
+                <form v-if="canWrite && selected !== null" class="row" @submit.prevent="addFreeTag">
+                  <TextInput v-model="newTag" placeholder="new-tag" mono size="sm" data-testid="new-tag" />
+                  <button type="submit" class="ghost-btn small" :disabled="moving || !newTag.trim()" data-testid="add-tag">Tag v{{ selected }}</button>
+                </form>
+              </div>
+
+              <aside class="history">
+                <span class="eyebrow">HISTORY</span>
+                <p v-if="data.events.length === 0" class="muted small">No tag has been moved yet.</p>
+                <ul v-else class="events" data-testid="tag-events">
+                  <li v-for="ev in data.events" :key="ev.id">
+                    <span class="mono">{{ ev.tag }}</span>
+                    {{ ev.toVersion === null ? "removed (was" : "moved from" }}
+                    <span class="mono">{{ ev.fromVersion === null ? "none" : `v${ev.fromVersion}` }}</span>
+                    <template v-if="ev.toVersion !== null"> to <span class="mono">v{{ ev.toVersion }}</span></template><template v-else>)</template>
+                    <span class="muted"> · {{ formatDateTime(ev.createdAt) }}</span>
+                    <span v-if="ev.reason" class="muted"> · “{{ ev.reason }}”</span>
+                    <span v-if="ev.gateBypassed" class="warn" :data-testid="`bypassed-${ev.id}`"> · skipped the evaluation: “{{ ev.bypassReason }}”</span>
+                  </li>
+                </ul>
+              </aside>
             </div>
-            <p class="muted small">What happened in the traces that used each version. A trace counts for every version it used.</p>
-            <ErrorBanner v-if="evidence.error.value" :error="evidence.error.value" @retry="evidence.run()" />
-            <div v-else-if="evidence.loading.value && !evidence.data.value" class="loading"><q-spinner size="28px" color="primary" /></div>
-            <p v-else-if="evidenceVersions.length === 0" class="muted small" data-testid="evidence-empty">
-              No trace used this prompt in the last {{ rangeLabel }}. Traces show up here when an agent calls <code>compile()</code> inside a traced step.
-            </p>
-            <div v-else class="table-scroll">
-              <table class="evidence" data-testid="evidence-table">
-                <thead>
-                  <tr>
-                    <th>Version</th><th class="num">Traces</th><th class="num">Errors</th><th class="num">Latency p95</th><th class="num">Cost / trace</th><th class="num">User 👍</th>
-                    <th v-for="name in evaluatorColumns" :key="name" class="num">{{ name }}</th>
-                    <th>Main failure</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="e in evidenceVersions" :key="e.version" :data-testid="`evidence-v${e.version}`">
-                    <td class="mono">
-                      v{{ e.version }}
-                      <span v-if="sampleQuality(e.traces) === 'low'" class="mt-pill low-sample" :title="`Fewer than ${MIN_TRACES} traces: the figures are only indicative`">few traces</span>
-                    </td>
-                    <td class="num mono">{{ formatCount(e.traces) }}</td>
-                    <td class="num mono" :class="{ bad: e.errorRate >= 0.1 }">{{ formatPercent(e.errorRate) }}</td>
-                    <td class="num mono">{{ formatDuration(e.latencyMs.p95) }}</td>
-                    <td class="num mono">{{ formatCostUsd(e.costPerTraceUsd) ?? "–" }}<span v-if="e.costPerTraceUsd !== null && !e.costComplete" class="muted" title="Some model has no known price: the real cost is higher"> +</span></td>
-                    <td class="num mono">{{ e.feedback.satisfaction === null ? "–" : `${e.feedback.satisfaction.toFixed(0)}%` }}<span v-if="e.feedback.ratedTraces > 0" class="muted"> ({{ e.feedback.ratedTraces }})</span></td>
-                    <td v-for="name in evaluatorColumns" :key="name" class="num mono">{{ evaluatorCell(e, name) }}</td>
-                    <td>
-                      <span v-if="e.errorCauses.length === 0" class="muted">–</span>
-                      <span v-else :data-testid="`cause-v${e.version}`">{{ e.errorCauses[0]!.title }} <span class="muted">({{ e.errorCauses[0]!.traces }})</span></span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div v-else-if="tab === 'tags'" class="pane" data-testid="pane-tags">
-            <h3>In use right now</h3>
-            <p v-if="usageRows.length === 0" class="muted small" data-testid="usage-empty">
-              No agent has reported this prompt yet. It shows up here once an agent loads it with <code>memtrace.prompts.get()</code>.
-            </p>
-            <table v-else class="tags" data-testid="usage-table">
-              <tbody>
-                <tr v-for="u in usageRows" :key="`${u.experimentId}-${u.environment}-${u.tag}-${u.version}`" :data-testid="`usage-${u.environment || 'none'}-v${u.version}`">
-                  <td class="mono tag-name">{{ u.environment || "no environment" }}</td>
-                  <td class="mono">v{{ u.version }}</td>
-                  <td class="muted">{{ u.tag ? `follows “${u.tag}”` : "fixed version" }}</td>
-                  <td><span class="mt-pill usage" :class="u.state">{{ USAGE_LABEL[u.state] }}</span></td>
-                  <td v-if="u.state === 'behind'" class="muted small">“{{ u.tag }}” now points to v{{ u.tagVersion }}</td>
-                  <td v-else class="muted small">{{ formatRelativeTime(u.lastSeenAt, nowMs) }}</td>
-                </tr>
-              </tbody>
-            </table>
-
-            <h3>Environments</h3>
-            <p class="muted small">The tag decides which version each environment uses. Moving one needs the promote permission.</p>
-            <TextInput v-if="canPromote || canWrite" v-model="reason" placeholder="Reason for the change (optional, saved in the history)" data-testid="tag-reason" />
-            <table class="tags">
-              <tbody>
-                <tr v-for="key in environmentKeys" :key="key" :data-testid="`env-${key}`">
-                  <td class="mono tag-name">{{ key }}<span v-if="isProtected(key)" class="mt-pill protected" title="Needs a passing evaluation to be promoted" :data-testid="`protected-${key}`">protected</span></td>
-                  <td class="mono">{{ tagVersion(key) === null ? "—" : `v${tagVersion(key)}` }}</td>
-                  <td v-if="canPromote" class="move">
-                    <Select :model-value="pending[key] ?? null" :options="versionOptions" placeholder="Point to…" @update:model-value="pending[key] = $event" />
-                    <button type="button" class="primary-btn small" :disabled="moving || pending[key] == null || pending[key] === tagVersion(key)" :data-testid="`move-${key}`" @click="moveEnvironment(key)">Move</button>
-                    <button v-if="tagVersion(key) !== null" type="button" class="ghost-btn small" @click="moveTag(key, null)">Remove</button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-
-            <h3>Promotion policy</h3>
-            <div v-if="!editingPolicy" data-testid="policy">
-              <p v-if="!policy" class="muted small" data-testid="policy-none">
-                No policy: any version can be promoted. Add one to require a passing evaluation before {{ gated.join(" and ") || "protected environments" }} can use a version.
-              </p>
-              <template v-else>
-                <p class="small" data-testid="policy-summary">
-                  A version needs <b>{{ policy.requiredRuns }}</b> passing evaluation{{ policy.requiredRuns > 1 ? "s in a row" : "" }} on
-                  <b>{{ datasetName(policy.datasetId) ?? "a dataset that no longer exists" }}</b> to be promoted to {{ gated.join(" or ") }}.
-                  <span v-if="policy.datasetId === null" class="warn" data-testid="policy-broken">The dataset was deleted: promotions are blocked until you choose another.</span>
-                </p>
-                <p class="muted small">The evaluation has to run with the agent reading that exact version through <code>memtrace.prompts</code>. Each evaluator must reach its target pass rate.</p>
-              </template>
-              <div v-if="canPromote" class="row">
-                <button type="button" class="ghost-btn small" data-testid="edit-policy" @click="startPolicy">{{ policy ? "Edit policy" : "Add policy" }}</button>
-                <button v-if="policy" type="button" class="ghost-btn small" data-testid="remove-policy" @click="removePolicy">Remove policy</button>
-              </div>
-            </div>
-            <form v-else class="policy-form" data-testid="policy-form" @submit.prevent="savePolicy">
-              <div class="row">
-                <span class="muted">Evaluate against</span>
-                <Select v-model="policyDataset" :options="datasetOptions" placeholder="Choose a dataset…" data-testid="policy-dataset" />
-              </div>
-              <div class="row">
-                <span class="muted">Passing runs in a row</span>
-                <input v-model.number="policyRuns" type="number" min="1" max="10" class="runs" data-testid="policy-runs" />
-              </div>
-              <p class="muted small">Protected: {{ gated.join(", ") || "none" }}. {{ environmentKeys[0] ?? "The first environment" }} stays free to iterate.</p>
-              <div class="row">
-                <button type="submit" class="primary-btn small" :disabled="savingPolicy || policyDataset === null" data-testid="save-policy">Save policy</button>
-                <button type="button" class="ghost-btn small" @click="editingPolicy = false">Cancel</button>
-              </div>
-            </form>
-
-            <h3>Other tags</h3>
-            <table v-if="freeTags.length > 0" class="tags">
-              <tbody>
-                <tr v-for="t in freeTags" :key="t.tag">
-                  <td class="mono tag-name">{{ t.tag }}</td>
-                  <td class="mono">v{{ t.version }}</td>
-                  <td v-if="canWrite"><button type="button" class="ghost-btn small" @click="moveTag(t.tag, null)">Remove</button></td>
-                </tr>
-              </tbody>
-            </table>
-            <p v-else class="muted small">No free tags.</p>
-            <form v-if="canWrite && selected !== null" class="row" @submit.prevent="addFreeTag">
-              <TextInput v-model="newTag" placeholder="new-tag" mono size="sm" data-testid="new-tag" />
-              <button type="submit" class="ghost-btn small" :disabled="moving || !newTag.trim()" data-testid="add-tag">Tag v{{ selected }}</button>
-            </form>
-
-            <h3>History</h3>
-            <p v-if="data.events.length === 0" class="muted small">No tag has been moved yet.</p>
-            <ul v-else class="events" data-testid="tag-events">
-              <li v-for="ev in data.events" :key="ev.id">
-                <span class="mono">{{ ev.tag }}</span>
-                {{ ev.toVersion === null ? "removed (was" : "moved from" }}
-                <span class="mono">{{ ev.fromVersion === null ? "none" : `v${ev.fromVersion}` }}</span>
-                <template v-if="ev.toVersion !== null"> to <span class="mono">v{{ ev.toVersion }}</span></template><template v-else>)</template>
-                <span class="muted"> · {{ formatDateTime(ev.createdAt) }}</span>
-                <span v-if="ev.reason" class="muted"> · “{{ ev.reason }}”</span>
-                <span v-if="ev.gateBypassed" class="warn" :data-testid="`bypassed-${ev.id}`"> · skipped the evaluation: “{{ ev.bypassReason }}”</span>
-              </li>
-            </ul>
-          </div>
-        </section>
+          </section>
+        </div>
       </div>
     </template>
 
@@ -526,13 +678,30 @@ const asVariable = (name: string) => `{{${name}}}`;
 .muted {
   color: var(--mt-muted);
 }
+.soft {
+  color: var(--mt-muted);
+  font-size: 12px;
+  margin: 0;
+}
 .small {
   font-size: 12.5px;
   margin: 0;
 }
-.description {
-  margin: 0;
-  font-size: 13px;
+.grow {
+  flex: 1;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+.eyebrow {
+  font-family: var(--mt-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: var(--mt-faint);
 }
 .loading {
   display: flex;
@@ -543,33 +712,95 @@ const asVariable = (name: string) => `{{${name}}}`;
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: 290px minmax(0, 1fr);
+  gap: 14px;
 }
-.versions {
+.main {
+  min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: auto;
-  padding: 0;
+  gap: 12px;
 }
-.version {
+
+/* ---- columna de versiones ---- */
+.rail {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--mt-card);
+  border: 1px solid var(--mt-line);
+  border-radius: 10px;
+}
+.rail-head {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 12px 8px;
+}
+.rail-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 14px;
+}
+.pinned {
+  flex: none;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 10px 14px;
-  border: none;
-  border-bottom: 1px solid var(--mt-line-2);
+  padding: 0 12px 8px;
+  border-bottom: 1px solid var(--mt-line);
+}
+.all {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 12px 12px;
+}
+.group-label {
+  display: block;
+  padding: 8px 0 4px;
+}
+.empty-list {
+  padding: 12px 0;
+}
+.version {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1.5px solid transparent;
+  border-radius: var(--mt-radius-sm);
   background: transparent;
   color: inherit;
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
+.version.compact {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+}
 .version:hover {
   background: var(--mt-soft-2);
 }
-.version.active {
-  background: var(--mt-accent-soft);
+.version:focus-visible {
+  outline: 2px solid var(--mt-accent);
+  outline-offset: 1px;
+}
+.version.active,
+.version.active:hover {
+  background: var(--mt-ink);
+  color: #fff;
 }
 .version-head {
   display: flex;
@@ -577,82 +808,518 @@ const asVariable = (name: string) => `{{${name}}}`;
   gap: 6px;
 }
 .version-msg {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 12.5px;
 }
 .version-date {
-  font-size: 11px;
+  font-size: 10.5px;
+  color: var(--mt-faint);
 }
-.tag {
-  background: var(--mt-accent-soft);
-  color: var(--mt-accent-text);
-}
-.version.active .tag {
-  background: var(--mt-card);
-}
-.archived {
-  background: var(--mt-soft);
-  color: var(--mt-muted);
+.version.active .version-date {
+  color: rgba(255, 255, 255, 0.6);
 }
 .running {
   font-size: 11.5px;
   font-weight: 600;
   color: var(--mt-ok-ink);
 }
-.behaviour {
+.version.active .running {
+  color: #9be7b8;
+}
+
+/* ---- cabecera del prompt ---- */
+.strip {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.description {
+  margin: 0;
+  font-size: 13px;
+  color: var(--mt-muted);
+}
+.running-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12.5px;
+}
+.dotsep {
+  color: var(--mt-faint);
+}
+.behind {
+  padding: 2px 8px;
+  border-radius: var(--mt-radius-xs);
+  background: var(--mt-highlight-soft);
+  color: var(--mt-highlight-ink);
+  font-size: 11.5px;
+  font-weight: 800;
+}
+.archived {
+  background: var(--mt-soft);
+  color: var(--mt-muted);
+}
+
+/* ---- panel ---- */
+.detail {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+  padding: 0;
+}
+.pane {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+}
+.compare-bar,
+.row,
+.move {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.move {
+  flex-wrap: wrap;
+}
+h3 {
+  margin: 8px 0 0;
+  font-size: 13px;
+}
+
+/* contenido */
+.content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 262px;
+  gap: 14px;
+  align-items: start;
+}
+.code-card {
+  border: 1px solid var(--mt-line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--mt-card);
+}
+.code-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--mt-line);
+  font-size: 13px;
+}
+.code-msg {
+  font-weight: 700;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.from {
+  background: var(--mt-soft);
+  color: var(--mt-muted);
+}
+.code {
+  margin: 0;
+  padding: 10px 0;
+  counter-reset: ln;
+  font-family: var(--mt-mono);
+  font-size: 12px;
+  color: var(--mt-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ln {
+  display: block;
+  counter-increment: ln;
+  min-height: 26px;
+  line-height: 26px;
+  padding: 0 16px 0 52px;
+  position: relative;
+  text-indent: 0;
+}
+.ln::before {
+  content: counter(ln);
+  position: absolute;
+  left: 14px;
+  width: 22px;
+  text-align: right;
+  color: var(--mt-line);
+  font-size: 11px;
+  user-select: none;
+}
+.ln.heading {
+  color: var(--mt-ink);
+  font-weight: 800;
+}
+.ln.changed {
+  background: var(--mt-accent-tint);
+}
+.ln.changed::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 3px;
+  bottom: 3px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--mt-brand);
+}
+.variable {
+  padding: 0 2px;
+  border-radius: 3px;
+  background: var(--mt-highlight-soft);
+  color: var(--mt-highlight-ink);
+  font-weight: 500;
+}
+.code-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--mt-line-2);
+  font-size: 12px;
+  color: var(--mt-faint);
+}
+.code-foot i {
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--mt-brand);
+}
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.side-card {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 10px 12px;
+  padding: 14px 16px;
   border: 1px solid var(--mt-line);
+  border-radius: 10px;
+  background: var(--mt-card);
+}
+.side-card p {
+  margin: 0;
+}
+.side-card.next {
+  background: var(--mt-accent-tint);
+  border-color: var(--mt-accent-soft);
+  font-size: 12.5px;
+  color: var(--mt-muted);
+  line-height: 1.5;
+}
+.vars {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.var {
+  padding: 2px 8px;
+  border-radius: var(--mt-radius-xs);
+  background: var(--mt-highlight-soft);
+  color: var(--mt-highlight-ink);
+  font-family: var(--mt-mono);
+  font-size: 12px;
+}
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* comparar */
+.behaviour {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--mt-line);
+  border-radius: 10px;
   background: var(--mt-soft-2);
 }
 .behaviour h3 {
   margin: 0;
 }
-.warn {
+.warn-banner {
   margin: 0;
+  padding: 9px 14px;
+  border-radius: var(--mt-radius-lg);
+  background: var(--mt-warn-bg);
   color: var(--mt-warn-ink);
+  font-weight: 600;
 }
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--mt-line);
+  border-radius: 10px;
+  background: var(--mt-card);
+}
+.tile-value {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tile-value strong {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+.tile .mt-pill {
+  align-self: flex-start;
+}
+.direction.better {
+  background: var(--mt-ok-bg);
+  color: var(--mt-ok-ink);
+}
+.direction.worse {
+  background: var(--mt-err-bg);
+  color: var(--mt-err-ink);
+}
+.direction.same,
+.direction.unknown {
+  background: var(--mt-soft);
+  color: var(--mt-muted);
+}
+
+/* evidencia */
 .table-scroll {
   overflow-x: auto;
 }
-.evidence,
-.deltas {
+.evidence-card {
+  border: 1px solid var(--mt-line);
+  border-radius: 10px;
+}
+.evidence {
   border-collapse: collapse;
   font-size: 13px;
   min-width: 100%;
 }
-.evidence th,
-.deltas th {
-  padding: 4px 12px 6px 0;
+.evidence th {
+  height: 34px;
+  padding: 0 14px;
+  background: var(--mt-soft);
+  border-bottom: 1px solid var(--mt-line);
   color: var(--mt-muted);
   font-size: 11px;
   font-weight: 700;
+  letter-spacing: 0.05em;
   text-align: left;
   text-transform: uppercase;
   white-space: nowrap;
 }
-.evidence td,
-.deltas td {
-  padding: 6px 12px 6px 0;
-  border-top: 1px solid var(--mt-line-2);
+.evidence td {
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--mt-line-2);
   white-space: nowrap;
+  vertical-align: middle;
+}
+.evidence tr:last-child td {
+  border-bottom: none;
 }
 .num {
   text-align: right;
 }
+.env-stack {
+  display: flex;
+  gap: 4px;
+  margin-top: 3px;
+}
+.cell-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.meter {
+  display: block;
+  width: 110px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--mt-soft);
+}
+.meter span {
+  display: block;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--mt-faint);
+}
+.meter.bad span {
+  background: var(--mt-err);
+}
 .bad {
   color: var(--mt-err-ink);
 }
+.score {
+  padding: 2px 8px;
+  border-radius: var(--mt-radius-xs);
+  background: var(--mt-accent-tint);
+  color: var(--mt-accent-text);
+}
 .low-sample {
-  margin-left: 6px;
   background: var(--mt-warn-bg);
   color: var(--mt-warn-ink);
 }
+.failures {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--mt-line);
+  border-radius: 10px;
+}
+.failure {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 32px;
+}
+.failure-title {
+  flex: none;
+  width: 190px;
+  font-weight: 700;
+}
+.failure-bar {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--mt-soft);
+}
+.failure-bar span {
+  display: block;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--mt-highlight);
+}
+
+/* tags */
+.tags-pane {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 16px;
+  align-items: start;
+}
+.tags-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.envs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.env-card {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding-right: 14px;
+  border: 1px solid var(--mt-line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--mt-card);
+}
+.env-badge {
+  flex: none;
+  width: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--mt-soft);
+  color: var(--mt-muted);
+  font-family: var(--mt-mono);
+  letter-spacing: 0.06em;
+}
+.env-badge.pre {
+  background: var(--mt-warn-bg);
+  color: var(--mt-warn-ink);
+}
+.env-badge.pro {
+  background: var(--mt-accent);
+  color: var(--mt-accent-ink);
+}
+.env-body {
+  flex: 1;
+  min-width: 180px;
+  padding: 12px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.env-version {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.env-version strong {
+  font-size: 18px;
+}
+.env-msg {
+  font-weight: 600;
+}
+.move {
+  align-self: center;
+}
 .protected {
-  margin-left: 6px;
   background: var(--mt-accent-soft);
   color: var(--mt-accent-text);
+}
+.usage.in_sync {
+  background: var(--mt-ok-bg);
+  color: var(--mt-ok-ink);
+}
+.usage.behind {
+  background: var(--mt-highlight-soft);
+  color: var(--mt-highlight-ink);
+}
+.usage.pinned {
+  background: var(--mt-accent-soft);
+  color: var(--mt-accent-text);
+}
+.usage.stale {
+  background: var(--mt-soft);
+  color: var(--mt-muted);
+}
+.tags {
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.tags td {
+  padding: 6px 12px 6px 0;
+  vertical-align: middle;
+}
+.tag-name {
+  font-weight: 700;
+  min-width: 80px;
+}
+.warn {
+  margin: 0;
+  color: var(--mt-warn-ink);
 }
 .policy-form {
   display: flex;
@@ -669,110 +1336,76 @@ const asVariable = (name: string) => `{{${name}}}`;
   color: var(--mt-ink);
   font: inherit;
 }
-.direction.better {
-  background: var(--mt-ok-bg);
-  color: var(--mt-ok-ink);
-}
-.direction.worse {
-  background: var(--mt-err-bg);
-  color: var(--mt-err-ink);
-}
-.direction.same,
-.direction.unknown {
-  background: var(--mt-soft);
-  color: var(--mt-muted);
-}
-.usage.in_sync {
-  background: var(--mt-ok-bg);
-  color: var(--mt-ok-ink);
-}
-.usage.behind {
-  background: var(--mt-warn-bg);
-  color: var(--mt-warn-ink);
-}
-.usage.pinned {
-  background: var(--mt-accent-soft);
-  color: var(--mt-accent-text);
-}
-.usage.stale {
-  background: var(--mt-soft);
-  color: var(--mt-muted);
-}
-.detail {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: auto;
-  padding: 0;
-}
-.pane {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 14px 16px;
-}
-.pane-head,
-.compare-bar,
-.row,
-.move {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.pane-head {
-  justify-content: space-between;
-}
-.vars {
+.free-tags {
   display: flex;
   flex-wrap: wrap;
+  gap: 8px;
+}
+.free-tag {
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12.5px;
+  gap: 8px;
+  height: 28px;
+  padding: 0 6px 0 10px;
+  border-radius: 14px;
+  background: var(--mt-accent-tint);
+  color: var(--mt-accent-text);
+  font-size: 12px;
 }
-.var {
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: var(--mt-soft);
+.free-tag .x {
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: var(--mt-accent-soft);
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
 }
-.content {
-  margin: 0;
-  padding: 12px 14px;
-  border: 1px solid var(--mt-line);
-  background: var(--mt-soft-2);
-  font-family: var(--mt-mono, "JetBrains Mono", monospace);
-  font-size: 12.5px;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.editor {
+.history {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-}
-h3 {
-  margin: 8px 0 0;
-  font-size: 13px;
-}
-.tags {
-  border-collapse: collapse;
-  font-size: 13px;
-}
-.tags td {
-  padding: 6px 12px 6px 0;
-  vertical-align: middle;
-}
-.tag-name {
-  font-weight: 700;
-  min-width: 80px;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--mt-line);
+  border-radius: 10px;
 }
 .events {
   margin: 0;
-  padding-left: 18px;
-  font-size: 12.5px;
+  padding: 0 0 0 16px;
+  list-style: none;
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 14px;
+  font-size: 12.5px;
+  line-height: 1.5;
 }
+.events::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: var(--mt-line);
+}
+.events li {
+  position: relative;
+}
+.events li::before {
+  content: "";
+  position: absolute;
+  left: -17px;
+  top: 5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mt-accent);
+  box-shadow: 0 0 0 2px var(--mt-card);
+}
+
 .primary-btn,
 .ghost-btn {
   display: inline-flex;
@@ -807,9 +1440,14 @@ h3 {
   opacity: 0.5;
   cursor: not-allowed;
 }
-@media (max-width: 900px) {
-  .body {
+@media (max-width: 1100px) {
+  .body,
+  .content-grid,
+  .tags-pane {
     grid-template-columns: 1fr;
+  }
+  .rail {
+    max-height: 360px;
   }
 }
 </style>
