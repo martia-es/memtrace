@@ -50,7 +50,22 @@ If you pass `compile()`'s result when you build the agent, the version is frozen
 agent = Agent(model, instructions=weather.as_callable(city="Sevilla"))   # built once, in the lifespan
 ```
 
-**LangChain**: resolve the prompt inside the chain, when it runs:
+**LangChain / LangGraph** (`create_agent`, LangChain 1.x): use the middleware. It replaces the agent's system message on every model call with the version in force at that moment, so the agent is built once and still follows the tag:
+
+```python
+from langchain.agents import create_agent
+from memtrace.langchain import prompt_middleware
+
+agent = create_agent(
+    model,
+    tools,
+    middleware=[prompt_middleware(weather, city=lambda request: request.runtime.context.city, tone="friendly")],
+)
+```
+
+A value that is a function (like `city` above) is called with LangChain's `ModelRequest` on every call, so a variable can come from the state or the run context; the other values are fixed. The middleware *replaces* the system message: do not also pass `system_prompt=`. It works with `invoke` and `ainvoke`. Needs `pip install "memtrace-ai[langchain-agents]"` (LangChain 1.0, Python 3.10+).
+
+For a hand-made chain (LCEL), resolve the prompt inside it, when it runs:
 
 ```python
 chain = RunnableLambda(lambda q: [SystemMessage(weather.compile(city="Sevilla")), HumanMessage(q)]) | model

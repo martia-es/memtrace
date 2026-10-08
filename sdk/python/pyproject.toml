@@ -38,6 +38,10 @@ http = [
 langchain = [
     "langchain-core>=0.1.0"
 ]
+# memtrace.langchain.prompt_middleware (registry prompts as the system prompt of a create_agent agent). Python 3.10+.
+langchain-agents = [
+    "langchain>=1.0.0; python_version >= '3.10'",
+]
 otel-langchain = [
     "langchain-core>=0.1.0",
     "opentelemetry-instrumentation-langchain>=0.45.0,<1",
@@ -67,6 +71,7 @@ dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
     "langchain-core>=0.1.0",
+    "langchain>=1.0.0; python_version >= '3.10'",
     "opentelemetry-instrumentation-langchain>=0.45.0,<1",
     "wrapt<2; python_version < '3.10'",
     "pydantic-ai-slim>=1.0.0; python_version >= '3.10'",

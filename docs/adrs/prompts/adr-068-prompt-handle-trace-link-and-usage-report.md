@@ -23,7 +23,7 @@ Two facts shape the SDK: agents load prompts once (a `lifespan`), and a prompt o
 - **Default tag = environment.** With neither `tag` nor `version`, it follows the tag named like `MEMTRACE_ENVIRONMENT`. This is why environment tags are the organization's environment keys (ADR-067).
 - **A pinned `version` is final**: immutable content, never refreshed.
 - **Same prompt, same handle**: asking twice returns the cached handle and asks the registry once.
-- Frameworks that freeze a string when the agent is built get `handle.as_callable()` instead (a function returning `compile()`): verified with Pydantic AI (`instructions` is re-evaluated each run) and with a LangChain runnable. A string passed at build time would freeze the version; the docs say so.
+- Frameworks that freeze a string when the agent is built get `handle.as_callable()` instead (a function returning `compile()`): verified with Pydantic AI (`instructions` is re-evaluated each run). For LangChain 1.x, `memtrace.langchain.prompt_middleware(handle, **variables)` is a middleware (LangChain's `dynamic_prompt`) that replaces the system message on every model call, sync and async; a variable that is a function receives LangChain's `ModelRequest`. It needs the `langchain-agents` extra (Python 3.10+) and replaces `system_prompt=`, so the two are not combined. A string passed at build time would freeze the version; the docs say so.
 
 ### Start-up and outages
 

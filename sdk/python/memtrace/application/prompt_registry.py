@@ -17,7 +17,14 @@ import time
 import weakref
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
-from memtrace.application.prompt_ports import Fetched, PromptCache, PromptSource, PromptSourceError, UsageSink, UsedPrompt
+from memtrace.application.prompt_ports import (
+    Fetched,
+    PromptCache,
+    PromptSource,
+    PromptSourceError,
+    UsageSink,
+    UsedPrompt,
+)
 from memtrace.domain.prompt import (
     PROMPT_NAME_ATTRIBUTE,
     PROMPT_VERSION_ATTRIBUTE,
