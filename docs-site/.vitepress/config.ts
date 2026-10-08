@@ -39,6 +39,7 @@ export default defineConfig({
             { text: "Dashboard", link: "/platform/dashboard" },
             { text: "Datasets & offline evals", link: "/platform/evaluation" },
             { text: "Annotations & review", link: "/platform/annotations" },
+            { text: "Prompts", link: "/platform/prompts" },
             { text: "Organizations & roles", link: "/platform/access-control" },
             { text: "Assistants catalog", link: "/platform/assistants" },
             { text: "Set up deploys", link: "/platform/deploy-setup" },

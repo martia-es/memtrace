@@ -154,6 +154,31 @@
         "The Deploy button of each environment, once the agent has its repository and the commit has a passing evaluation",
         "Seeing the deployment history of each environment"
       ]
+    },
+    {
+      "id": "prompt:read",
+      "group": "Prompts",
+      "description": "See the prompts, their versions and tags.",
+      "unlocks": [
+        "The Prompts section: list, history, diff between versions and the version each tag points to"
+      ]
+    },
+    {
+      "id": "prompt:write",
+      "group": "Prompts",
+      "description": "Create prompts and save new versions.",
+      "unlocks": [
+        "Creating a prompt, saving a new version, archiving a prompt",
+        "Moving free tags (any tag that is not an environment)"
+      ]
+    },
+    {
+      "id": "prompt:promote",
+      "group": "Prompts",
+      "description": "Move the environment tags (dev, pre, pro) of a prompt.",
+      "unlocks": [
+        "Choosing which prompt version runs in each environment"
+      ]
     }
   ],
   "roles": [
@@ -174,7 +199,10 @@
         "member:manage",
         "apikey:manage_all",
         "governance:read",
-        "governance:manage"
+        "governance:manage",
+        "prompt:read",
+        "prompt:write",
+        "prompt:promote"
       ]
     },
     {
@@ -186,7 +214,8 @@
         "Creates queues, rubrics and datasets",
         "Sees every reviewer's answers and decides",
         "Manages their own API key",
-        "Maintains the card of their assistant"
+        "Maintains the card of their assistant",
+        "Writes and promotes the prompts of their agents"
       ],
       "permissions": [
         "experiment:read",
@@ -198,7 +227,10 @@
         "dataset:write",
         "apikey:manage_own",
         "assistant:manage",
-        "deploy:run"
+        "deploy:run",
+        "prompt:read",
+        "prompt:write",
+        "prompt:promote"
       ]
     },
     {
@@ -209,11 +241,13 @@
         "The whole dashboard read-only (metrics, costs, evaluations)",
         "Traces only as a conversation",
         "Labels in the queues where they are a reviewer",
-        "Does not curate or create datasets"
+        "Does not curate or create datasets",
+        "Reads prompts and their history"
       ],
       "permissions": [
         "experiment:read",
-        "annotation:write"
+        "annotation:write",
+        "prompt:read"
       ]
     },
     {
@@ -228,7 +262,8 @@
       ],
       "permissions": [
         "governance:read",
-        "governance:manage"
+        "governance:manage",
+        "prompt:read"
       ]
     }
   ],
@@ -300,6 +335,18 @@
     {
       "label": "Deploy my assistant to an environment",
       "permission": "deploy:run"
+    },
+    {
+      "label": "See prompts, versions and tags",
+      "permission": "prompt:read"
+    },
+    {
+      "label": "Create a prompt and save a new version",
+      "permission": "prompt:write"
+    },
+    {
+      "label": "Point dev / pre / pro to a prompt version",
+      "permission": "prompt:promote"
     }
   ],
   "presets": [
