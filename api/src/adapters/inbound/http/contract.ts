@@ -1139,12 +1139,39 @@ export interface PromptTagEventDto {
   createdAt: string;
 }
 
+/** Una versión que un agente informa estar usando (ADR-068). */
+export interface PromptUsageDto {
+  experimentId: string;
+  /** vacío = el agente no declara entorno */
+  environment: string;
+  /** tag que sigue el agente; vacío = pidió una versión fija */
+  tag: string;
+  version: number;
+  lastSeenAt: string;
+  /** informado hace poco: la versión que corre ahora, no un resto del pasado */
+  active: boolean;
+}
+
+/** Lo que recibe el SDK de un agente al pedir un prompt (ADR-068). */
+export interface PromptResolveDto {
+  name: string;
+  version: number;
+  /** tag por el que se pidió; null si se pidió una versión fija */
+  tag: string | null;
+  content: string;
+  variables: string[];
+  contentHash: string;
+  archived: boolean;
+}
+
 export interface PromptDetailDto {
   prompt: PromptDto;
   /** más recientes primero */
   versions: PromptVersionDto[];
   tags: PromptTagDto[];
   events: PromptTagEventDto[];
+  /** versiones que los agentes informan estar usando, la más reciente primero */
+  usage: PromptUsageDto[];
   /** claves de entorno de la organización: mover esos tags exige `prompt:promote` */
   environmentKeys: string[];
 }

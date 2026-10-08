@@ -28,6 +28,9 @@ export interface TraceListQuery extends TimeRange {
   conversationId?: string;
   /** solo las trazas generadas por este commit (ADR-065) */
   revision?: string;
+  /** solo las trazas con algún span que usó este prompt del registro, y opcionalmente esta versión (ADR-068) */
+  promptName?: string;
+  promptVersion?: number;
   /** desc (defecto): las más recientes primero; asc: cronológico (turnos de una conversación) */
   order?: "asc" | "desc";
   limit: number;
@@ -56,6 +59,9 @@ export interface SpanListQuery extends TimeRange {
   text?: string;
   conversationId?: string;
   revision?: string;
+  /** solo los spans que usaron este prompt del registro, y opcionalmente esta versión (ADR-068) */
+  promptName?: string;
+  promptVersion?: number;
   limit: number;
   cursor?: SpanCursor;
 }

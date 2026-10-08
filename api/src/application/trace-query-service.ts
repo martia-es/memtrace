@@ -42,6 +42,8 @@ export interface ListTracesInput {
   text?: string;
   conversationId?: string;
   revision?: string;
+  promptName?: string;
+  promptVersion?: number;
   limit?: number;
   cursor?: PageCursor;
 }
@@ -67,6 +69,8 @@ export interface ListSpansInput {
   text?: string;
   conversationId?: string;
   revision?: string;
+  promptName?: string;
+  promptVersion?: number;
   limit?: number;
   cursor?: SpanCursor;
 }
@@ -175,6 +179,8 @@ export class TraceQueryService {
       text: input.text,
       conversationId: input.conversationId,
       revision: input.revision,
+      promptName: input.promptName,
+      promptVersion: input.promptVersion,
       limit,
       cursor: input.cursor,
     });

@@ -20,6 +20,12 @@ export const ratingsQuery = z
   .object({ traceIds: idList.optional(), conversationIds: idList.optional() })
   .refine((q) => Boolean(q.traceIds) !== Boolean(q.conversationIds), { message: "Pass exactly one of traceIds or conversationIds" });
 
+/** Filtro por prompt del registro (ADR-068): el nombre y, opcionalmente, una versión concreta. */
+const promptFilterShape = {
+  promptName: z.string().regex(/^[a-z0-9][a-z0-9._-]{0,63}$/).optional(),
+  promptVersion: z.coerce.number().int().min(1).optional(),
+};
+
 export const listTracesQuery = z.object({
   ...timeRangeShape,
   service: nonEmpty.optional(),
@@ -29,6 +35,7 @@ export const listTracesQuery = z.object({
   text: z.string().min(1).max(200).optional(),
   conversationId: z.string().min(1).max(200).optional(),
   revision: z.string().regex(/^[0-9a-fA-F]{7,64}$/).optional(),
+  ...promptFilterShape,
   limit: z.coerce.number().int().optional(), // el rango 1..200 lo impone el servicio
   cursor: z.string().max(512).optional(),
 });
@@ -42,6 +49,7 @@ export const listSpansQuery = z.object({
   text: z.string().min(1).max(200).optional(),
   conversationId: z.string().min(1).max(200).optional(),
   revision: z.string().regex(/^[0-9a-fA-F]{7,64}$/).optional(),
+  ...promptFilterShape,
   limit: z.coerce.number().int().optional(),
   cursor: z.string().max(512).optional(),
 });

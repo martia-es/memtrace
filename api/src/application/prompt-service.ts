@@ -3,6 +3,8 @@ import type { PromptRepository } from "@/application/ports/prompt-repository";
 import { PromptInvariantError, PromptNotFoundError, PromptPromoteForbiddenError, ValidationError } from "@/domain/errors";
 import {
   MAX_DESCRIPTION,
+  MAX_USAGE_ITEMS,
+  TAG_PATTERN,
   extractVariables,
   isEnvironmentTag,
   validateContent,
@@ -13,7 +15,9 @@ import {
   type PromptSummary,
   type PromptTag,
   type PromptTagEvent,
+  type PromptUsage,
   type PromptVersion,
+  type UsageItem,
 } from "@/domain/prompt";
 
 export interface PromptDetail {
@@ -21,6 +25,8 @@ export interface PromptDetail {
   versions: PromptVersion[];
   tags: PromptTag[];
   events: PromptTagEvent[];
+  /** versiones que los agentes informan estar usando (ADR-068), el más reciente primero */
+  usage: PromptUsage[];
   /** claves de entorno de la organización: los tags con ese nombre solo los mueve quien tiene `prompt:promote` */
   environmentKeys: string[];
 }
@@ -65,13 +71,14 @@ export class PromptService {
 
   async detail(promptId: string): Promise<PromptDetail> {
     const prompt = await this.get(promptId);
-    const [versions, tags, events, environmentKeys] = await Promise.all([
+    const [versions, tags, events, usage, environmentKeys] = await Promise.all([
       this.repo.listVersions(promptId),
       this.repo.listTags(promptId),
       this.repo.tagEvents(promptId, EVENTS_LIMIT),
+      this.repo.listUsage(promptId),
       this.repo.environmentKeys(prompt.organizationId),
     ]);
-    return { prompt, versions, tags, events, environmentKeys };
+    return { prompt, versions, tags, events, usage, environmentKeys };
   }
 
   /** Cambia la descripción, archiva/restaura o sustituye los agentes. Los nombres no se cambian: las versiones y las trazas los referencian. */
@@ -115,6 +122,40 @@ export class PromptService {
     const event = await this.repo.moveTag(promptId, tag, input.version, userId, validateMessage(input.reason));
     if (!event) throw new PromptNotFoundError(`Version ${input.version}`);
     return event;
+  }
+
+  /**
+   * Lo que pide el SDK de un agente (ADR-068): la versión de un prompt por tag o por número. El prompt tiene que estar
+   * asociado a ese agente. Un prompt archivado se sigue sirviendo —no se rompe a quien ya lo usa—, solo deja de aceptar versiones.
+   */
+  async resolveForAgent(experimentId: string, organizationId: string, name: string, ref: { tag?: string; version?: number }): Promise<{ prompt: Prompt; version: PromptVersion; tag: string | null }> {
+    if ((ref.tag === undefined) === (ref.version === undefined)) throw new ValidationError("Ask for a tag or a version", { tag: "Send exactly one of tag or version" });
+    const prompt = await this.repo.findByName(organizationId, validatePromptName(name));
+    if (!prompt || !prompt.experimentIds.includes(experimentId)) throw new PromptNotFoundError(`Prompt "${name}" for this agent`);
+    const tag = ref.tag === undefined ? null : validateTag(ref.tag);
+    const version = tag === null ? await this.repo.getVersion(prompt.id, ref.version!) : await this.repo.getVersionByTag(prompt.id, tag);
+    if (!version) throw new PromptNotFoundError(tag === null ? `Version ${ref.version} of "${name}"` : `Tag "${tag}" of "${name}"`);
+    return { prompt, version, tag };
+  }
+
+  /**
+   * Latido del SDK: qué versiones está usando el agente en su entorno. Lo que no encaja (prompt desconocido o de otro
+   * agente, versión inexistente) se ignora en silencio: un latido nunca debe hacer fallar al agente. Devuelve cuántos se anotaron.
+   */
+  async recordUsage(experimentId: string, organizationId: string, environment: string, items: { name: string; tag: string | null; version: number }[]): Promise<number> {
+    const env = environment.trim();
+    if (env !== "" && !TAG_PATTERN.test(env)) throw new ValidationError("Invalid environment", { environment: "Use lowercase letters, digits, '_' or '-'" });
+    if (items.length > MAX_USAGE_ITEMS) throw new ValidationError("Too many items", { items: `At most ${MAX_USAGE_ITEMS} per report` });
+    const accepted: UsageItem[] = [];
+    for (const item of items) {
+      const prompt = await this.repo.findByName(organizationId, item.name);
+      if (!prompt || !prompt.experimentIds.includes(experimentId)) continue;
+      if (item.tag !== null && !TAG_PATTERN.test(item.tag)) continue;
+      if (!(await this.repo.getVersion(prompt.id, item.version))) continue;
+      accepted.push({ promptId: prompt.id, tag: item.tag ?? "", version: item.version });
+    }
+    if (accepted.length > 0) await this.repo.recordUsage(experimentId, env, accepted);
+    return accepted.length;
   }
 
   private description(raw: string): string {

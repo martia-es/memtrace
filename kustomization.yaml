@@ -30,6 +30,7 @@ configMapGenerator:
       - migrations/clickhouse/009_eval_partitions_ttl_and_run_summaries.sql
       - migrations/clickhouse/010_user_feedback.sql
       - migrations/clickhouse/011_revision.sql
+      - migrations/clickhouse/012_prompt_version.sql
     options:
       disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
   - name: postgres-migrations
@@ -66,6 +67,7 @@ configMapGenerator:
       - migrations/postgres/030_dataset_run_revision.sql
       - migrations/postgres/031_deploy_runs.sql
       - migrations/postgres/032_prompts.sql
+      - migrations/postgres/033_prompt_usage.sql
     options:
       disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
   - name: clickhouse-config

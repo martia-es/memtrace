@@ -33,3 +33,20 @@ export const moveTagBody = z.object({
   version: z.number().int().min(1).nullable(),
   reason: text(600).default(""),
 });
+
+/** Query del SDK para pedir un prompt (ADR-068): el nombre y exactamente uno de tag o version. */
+export const resolvePromptQuery = z
+  .object({
+    name: z.string().min(1).max(100),
+    tag: z.string().min(1).max(40).optional(),
+    version: z.coerce.number().int().min(1).optional(),
+  })
+  .refine((q) => (q.tag === undefined) !== (q.version === undefined), { message: "Send exactly one of tag or version", path: ["tag"] });
+
+/** Latido del SDK: qué versiones está usando el agente (ADR-068). */
+export const usageReportBody = z.object({
+  environment: z.string().max(40).nullable().default(null),
+  items: z
+    .array(z.object({ name: z.string().min(1).max(100), tag: z.string().min(1).max(40).nullable().default(null), version: z.number().int().min(1) }))
+    .max(50),
+});
