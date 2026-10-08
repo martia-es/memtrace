@@ -30,6 +30,8 @@ import { GithubAppDispatcher, UnconfiguredDispatcher } from "@/adapters/outbound
 import { PostgresDeployRunRepository } from "@/adapters/outbound/postgres/postgres-deploy-run-repository";
 import { PostgresPromptRepository } from "@/adapters/outbound/postgres/postgres-prompt-repository";
 import { PromptService } from "@/application/prompt-service";
+import { PromptEvidenceService } from "@/application/prompt-evidence-service";
+import { ClickHousePromptEvidenceRepository } from "@/adapters/outbound/clickhouse/clickhouse-prompt-evidence-repository";
 import { PostgresScoreConfigRepository } from "@/adapters/outbound/postgres/postgres-score-config-repository";
 import { PostgresIdentityRepository } from "@/adapters/outbound/postgres/postgres-identity-repository";
 import { configFromEnv as postgresConfigFromEnv, createPool } from "@/adapters/outbound/postgres/client";
@@ -57,6 +59,7 @@ const globalForContainer = globalThis as unknown as {
   __memtraceDeployRuns?: PostgresDeployRunRepository;
   __memtraceDeploy?: DeployService;
   __memtracePrompts?: PromptService;
+  __memtracePromptEvidence?: PromptEvidenceService;
   __memtraceHealthProber?: HealthProber;
   __memtraceChatClient?: ChatClient;
 };
@@ -247,6 +250,18 @@ export function getDeploy(): DeployService {
 export function getPrompts(): PromptService {
   if (!globalForContainer.__memtracePrompts) globalForContainer.__memtracePrompts = new PromptService(new PostgresPromptRepository(getPostgresPool()));
   return globalForContainer.__memtracePrompts;
+}
+
+/** Evidencia por versión de un prompt (ADR-069): trazas, feedback y scores, con los precios del catálogo. */
+export function getPromptEvidence(): PromptEvidenceService {
+  if (!globalForContainer.__memtracePromptEvidence) {
+    const config = configFromEnv();
+    globalForContainer.__memtracePromptEvidence = new PromptEvidenceService(
+      new ClickHousePromptEvidenceRepository(createReadOnlyClient(config), config.database, config.maxConcurrentQueries),
+      () => getTraceQueryService().getPricingCatalog(),
+    );
+  }
+  return globalForContainer.__memtracePromptEvidence;
 }
 
 /** Sondeo de /health para «Comprobar ahora»; mismo adapter y mismas reglas SSRF que el worker. */

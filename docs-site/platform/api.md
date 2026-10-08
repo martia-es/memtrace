@@ -38,6 +38,8 @@ The prompt registry. Session only. A prompt belongs to the organization and to o
 | `PUT /api/v1/prompts/{promptId}/tags/{tag}` | Points the tag to a version: `{ version, reason? }`; `version: null` removes it. Returns the history event. Environment tags (`dev`, `pre`, `pro`…) need `prompt:promote` (`403` otherwise); the rest, `prompt:write` |
 | `DELETE /api/v1/prompts/{promptId}/tags/{tag}?reason=` | Removes the tag (it stays in the history). Same permissions as moving it |
 
+`GET /api/v1/experiments/{experimentId}/prompts/{promptId}/evidence?from=&to=` returns, for each version that had traffic in the range (24 h by default, 30 days at most), `{ range, versions: [{ version, traces, conversations, errorTraces, errorRate, latencyMs: { p50, p95 }, inputTokens, outputTokens, costUsd, costPerTraceUsd, costComplete, feedback: { up, down, ratedTraces, satisfaction }, evaluators: [{ name, dataType, items, value }], errorCauses: [{ id, title, severity, traces }], firstSeen, lastSeen }] }`, newest version first. Figures are over the traces that used the version. `costUsd` is `null` when no model has a price and `costComplete` is `false` when only some do. It needs `experiment:read` **and** `prompt:read` (these are the agent's data); `404` if the prompt does not belong to the agent.
+
 `GET /api/v1/prompts/{promptId}` also returns `usage`: the versions the agents report to be running (`experimentId`, `environment`, `tag` followed or `""` if fixed, `version`, `lastSeenAt`, `active` = reported in the last 15 minutes), kept for 7 days.
 
 What the [SDK](/library/prompts) calls. Both accept the **agent API key** (`Authorization: Bearer <key>`) as well as a session, and only serve prompts associated with that agent:

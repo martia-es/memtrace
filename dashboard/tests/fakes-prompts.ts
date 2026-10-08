@@ -1,5 +1,5 @@
 /** Dobles del registro de prompts (ADR-067). */
-import type { PromptDetailDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto } from "@contract";
+import type { PromptDetailDto, PromptEvidenceResponse, PromptSummaryDto, PromptTagEventDto, PromptVersionDto, VersionEvidenceDto } from "@contract";
 import type { NewPromptInput, PromptApi } from "@/application/prompt-api";
 
 export function promptVersion(version: number, content: string, extra: Partial<PromptVersionDto> = {}): PromptVersionDto {
@@ -18,6 +18,14 @@ export function promptDetail(overrides: Partial<PromptDetailDto> = {}): PromptDe
   };
 }
 
+export function versionEvidence(version: number, extra: Partial<VersionEvidenceDto> = {}): VersionEvidenceDto {
+  return {
+    version, traces: 120, conversations: 60, errorTraces: 12, errorRate: 0.1, latencyMs: { p50: 800, p95: 2400 }, inputTokens: 120_000, outputTokens: 12_000,
+    costUsd: 1.2, costPerTraceUsd: 0.01, costComplete: true, feedback: { up: 8, down: 2, ratedTraces: 10, satisfaction: 80 }, evaluators: [], errorCauses: [],
+    firstSeen: "2026-10-08T08:00:00.000Z", lastSeen: "2026-10-08T10:00:00.000Z", ...extra,
+  };
+}
+
 export function promptSummary(name: string, extra: Partial<PromptSummaryDto> = {}): PromptSummaryDto {
   return { ...promptDetail().prompt, id: `id-${name}`, name, description: "", latestVersion: 1, tags: {}, ...extra };
 }
@@ -27,6 +35,7 @@ export class FakePromptApi implements PromptApi {
   calls: Array<{ method: string; args: unknown[] }> = [];
   list: PromptSummaryDto[] = [];
   detail: PromptDetailDto = promptDetail();
+  evidence: PromptEvidenceResponse = { range: { from: "2026-10-01T00:00:00.000Z", to: "2026-10-08T00:00:00.000Z" }, versions: [] };
 
   private record(method: string, ...args: unknown[]) {
     this.calls.push({ method, args });
@@ -50,6 +59,10 @@ export class FakePromptApi implements PromptApi {
   async saveVersion(promptId: string, input: { content: string; message: string; parentVersion?: number | null }) {
     this.record("saveVersion", promptId, input);
     return promptVersion(3, input.content, { message: input.message, parentVersion: input.parentVersion ?? null });
+  }
+  async getEvidence(experimentId: string, promptId: string, range: { from: Date; to: Date }) {
+    this.record("getEvidence", experimentId, promptId, range);
+    return this.evidence;
   }
   async moveTag(promptId: string, tag: string, version: number | null, reason: string): Promise<PromptTagEventDto> {
     this.record("moveTag", promptId, tag, version, reason);

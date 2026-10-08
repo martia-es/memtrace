@@ -97,6 +97,11 @@ export class TraceQueryService {
     return catalog;
   }
 
+  /** Catálogo de precios vigente, para quien calcula costes fuera de este servicio (ADR-025, ADR-069). */
+  getPricingCatalog(): Promise<PricingCatalog> {
+    return this.pricingCatalog();
+  }
+
   /** Catálogo de precios completo, para la vista de precios por modelo (ADR-025). */
   listModelPricing(): Promise<ModelPricing[]> {
     return this.repository.getModelPricing();
