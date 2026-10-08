@@ -158,6 +158,19 @@ export const GATE_LABEL: Record<string, { label: string; tone: Tone }> = {
   insufficient_runs: { label: "More evaluations needed", tone: "warn" },
 };
 
+/** Frase del veredicto del gate de promoción de prompts (ADR-070). */
+export const PROMPT_GATE_LABEL: Record<string, { label: string; tone: Tone }> = {
+  allowed: { label: "Evaluation passed", tone: "ok" },
+  rollback: { label: "Already promoted before", tone: "ok" },
+  not_gated: { label: "Not protected", tone: "ok" },
+  no_policy: { label: "No policy", tone: "ok" },
+  policy_incomplete: { label: "Policy needs a dataset", tone: "error" },
+  no_evaluation: { label: "Not evaluated", tone: "error" },
+  evaluation_running: { label: "Evaluation running", tone: "warn" },
+  failed: { label: "Evaluation failed", tone: "error" },
+  insufficient_runs: { label: "More evaluations needed", tone: "warn" },
+};
+
 export const DEPLOY_STATUS: Record<string, { label: string; tone: Tone }> = {
   queued: { label: "Queued", tone: "neutral" },
   running: { label: "Deploying", tone: "warn" },

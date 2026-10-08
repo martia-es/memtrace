@@ -1,4 +1,4 @@
-import type { PromptDetailDto, PromptEvidenceResponse, PromptSummaryDto, PromptTagEventDto, PromptVersionDto } from "@contract";
+import type { PromptDetailDto, PromptEvidenceResponse, PromptGateDto, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto } from "@contract";
 
 /** Puerto de salida: registro de prompts (ADR-067). */
 
@@ -21,6 +21,15 @@ export interface PromptApi {
   saveVersion(promptId: string, input: { content: string; message: string; parentVersion?: number | null }, signal?: AbortSignal): Promise<PromptVersionDto>;
   /** Qué pasó en las trazas que usaron cada versión del prompt (coste, errores, latencia, feedback, scores) en el rango (ADR-069). */
   getEvidence(experimentId: string, promptId: string, range: { from: Date; to: Date }, signal?: AbortSignal): Promise<PromptEvidenceResponse>;
-  /** Mueve el tag a una versión; `version = null` lo quita. Los tags de entorno exigen `prompt:promote`. */
-  moveTag(promptId: string, tag: string, version: number | null, reason: string, signal?: AbortSignal): Promise<PromptTagEventDto>;
+  /**
+   * Mueve el tag a una versión; `version = null` lo quita. Los tags de entorno exigen `prompt:promote`. Con una política
+   * (ADR-070) los entornos protegidos exigen una evaluación exitosa; `bypassReason` se salta ese gate (exige gobernanza).
+   */
+  moveTag(promptId: string, tag: string, version: number | null, reason: string, bypassReason?: string | null, signal?: AbortSignal): Promise<PromptTagEventDto>;
+  /** ¿Puede ese tag apuntar a esa versión? Veredicto del gate de promoción y por qué (ADR-070). */
+  previewGate(promptId: string, tag: string, version: number, signal?: AbortSignal): Promise<PromptGateDto>;
+  /** Crea o cambia la política de promoción: dataset de evaluación y runs seguidos que deben pasar. */
+  setPolicy(promptId: string, policy: { datasetId: string; requiredRuns: number }, signal?: AbortSignal): Promise<PromptPolicyDto>;
+  /** Quita la política: cualquier versión puede promoverse. */
+  deletePolicy(promptId: string, signal?: AbortSignal): Promise<void>;
 }

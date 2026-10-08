@@ -9,13 +9,16 @@ import { MIN_TRACES, compareVersions, evaluatorCell, evaluatorNames, sampleQuali
 import { describeUsage, environmentsRunning, type UsageState } from "@/domain/prompt-usage";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import PageHeader from "../components/PageHeader.vue";
+import PromotePromptModal from "../components/PromotePromptModal.vue";
 import PromptDiff from "../components/PromptDiff.vue";
 import Select from "../components/Select.vue";
 import TabBar from "../components/TabBar.vue";
 import TextInput from "../components/TextInput.vue";
+import { useAssistantAccess } from "../composables/useAssistantAccess";
 import { useAsync } from "../composables/useAsync";
 import { usePermissions } from "../composables/usePermissions";
 import { usePromptApi } from "../composables/usePromptApi";
+import { useTraceApi } from "../composables/useTraceApi";
 
 const props = defineProps<{ promptId: string }>();
 const api = usePromptApi();
@@ -164,6 +167,69 @@ async function addFreeTag() {
   if (!tag || selected.value === null) return;
   await moveTag(tag, selected.value);
   newTag.value = "";
+}
+
+// ---- promoción con garantías (ADR-070) ----
+const traceApi = useTraceApi();
+const access = useAssistantAccess(() => String(route.params.experimentId));
+const policy = computed(() => data.value?.policy ?? null);
+const gated = computed(() => data.value?.gatedEnvironments ?? []);
+const isProtected = (key: string) => policy.value !== null && gated.value.includes(key);
+
+const promoting = ref<{ tag: string; version: number } | null>(null);
+function moveEnvironment(tag: string) {
+  const version = pending.value[tag];
+  if (version == null) return;
+  // con política, los entornos protegidos pasan por el modal que enseña el veredicto del gate
+  if (isProtected(tag)) promoting.value = { tag, version };
+  else void moveTag(tag, version);
+}
+async function onPromoted() {
+  const done = promoting.value;
+  if (done) delete pending.value[done.tag];
+  reason.value = "";
+  await detail.run();
+}
+
+const datasets = useAsync((signal) => traceApi.listDatasets(signal));
+let datasetsRequested = false;
+watch(tab, (id) => {
+  if (id === "tags" && !datasetsRequested) {
+    datasetsRequested = true;
+    void datasets.run();
+  }
+}, { immediate: true });
+const datasetOptions = computed(() => (datasets.data.value?.items ?? []).map((d) => ({ label: d.name, value: d.id })));
+const datasetName = (id: string | null) => (id === null ? null : (datasets.data.value?.items.find((d) => d.id === id)?.name ?? "unknown dataset"));
+const editingPolicy = ref(false);
+const policyDataset = ref<string | null>(null);
+const policyRuns = ref(1);
+const savingPolicy = ref(false);
+function startPolicy() {
+  policyDataset.value = policy.value?.datasetId ?? null;
+  policyRuns.value = policy.value?.requiredRuns ?? 1;
+  editingPolicy.value = true;
+}
+async function savePolicy() {
+  if (policyDataset.value === null) return;
+  savingPolicy.value = true;
+  try {
+    await api.setPolicy(props.promptId, { datasetId: policyDataset.value, requiredRuns: Number(policyRuns.value) });
+    editingPolicy.value = false;
+    await detail.run();
+  } catch (error) {
+    notifyError("Could not save the policy", error);
+  } finally {
+    savingPolicy.value = false;
+  }
+}
+async function removePolicy() {
+  try {
+    await api.deletePolicy(props.promptId);
+    await detail.run();
+  } catch (error) {
+    notifyError("Could not remove the policy", error);
+  }
 }
 
 // ---- archivar ----
@@ -350,16 +416,50 @@ const asVariable = (name: string) => `{{${name}}}`;
             <table class="tags">
               <tbody>
                 <tr v-for="key in environmentKeys" :key="key" :data-testid="`env-${key}`">
-                  <td class="mono tag-name">{{ key }}</td>
+                  <td class="mono tag-name">{{ key }}<span v-if="isProtected(key)" class="mt-pill protected" title="Needs a passing evaluation to be promoted" :data-testid="`protected-${key}`">protected</span></td>
                   <td class="mono">{{ tagVersion(key) === null ? "—" : `v${tagVersion(key)}` }}</td>
                   <td v-if="canPromote" class="move">
                     <Select :model-value="pending[key] ?? null" :options="versionOptions" placeholder="Point to…" @update:model-value="pending[key] = $event" />
-                    <button type="button" class="primary-btn small" :disabled="moving || pending[key] == null || pending[key] === tagVersion(key)" :data-testid="`move-${key}`" @click="moveTag(key, pending[key]!)">Move</button>
+                    <button type="button" class="primary-btn small" :disabled="moving || pending[key] == null || pending[key] === tagVersion(key)" :data-testid="`move-${key}`" @click="moveEnvironment(key)">Move</button>
                     <button v-if="tagVersion(key) !== null" type="button" class="ghost-btn small" @click="moveTag(key, null)">Remove</button>
                   </td>
                 </tr>
               </tbody>
             </table>
+
+            <h3>Promotion policy</h3>
+            <div v-if="!editingPolicy" data-testid="policy">
+              <p v-if="!policy" class="muted small" data-testid="policy-none">
+                No policy: any version can be promoted. Add one to require a passing evaluation before {{ gated.join(" and ") || "protected environments" }} can use a version.
+              </p>
+              <template v-else>
+                <p class="small" data-testid="policy-summary">
+                  A version needs <b>{{ policy.requiredRuns }}</b> passing evaluation{{ policy.requiredRuns > 1 ? "s in a row" : "" }} on
+                  <b>{{ datasetName(policy.datasetId) ?? "a dataset that no longer exists" }}</b> to be promoted to {{ gated.join(" or ") }}.
+                  <span v-if="policy.datasetId === null" class="warn" data-testid="policy-broken">The dataset was deleted: promotions are blocked until you choose another.</span>
+                </p>
+                <p class="muted small">The evaluation has to run with the agent reading that exact version through <code>memtrace.prompts</code>. Each evaluator must reach its target pass rate.</p>
+              </template>
+              <div v-if="canPromote" class="row">
+                <button type="button" class="ghost-btn small" data-testid="edit-policy" @click="startPolicy">{{ policy ? "Edit policy" : "Add policy" }}</button>
+                <button v-if="policy" type="button" class="ghost-btn small" data-testid="remove-policy" @click="removePolicy">Remove policy</button>
+              </div>
+            </div>
+            <form v-else class="policy-form" data-testid="policy-form" @submit.prevent="savePolicy">
+              <div class="row">
+                <span class="muted">Evaluate against</span>
+                <Select v-model="policyDataset" :options="datasetOptions" placeholder="Choose a dataset…" data-testid="policy-dataset" />
+              </div>
+              <div class="row">
+                <span class="muted">Passing runs in a row</span>
+                <input v-model.number="policyRuns" type="number" min="1" max="10" class="runs" data-testid="policy-runs" />
+              </div>
+              <p class="muted small">Protected: {{ gated.join(", ") || "none" }}. {{ environmentKeys[0] ?? "The first environment" }} stays free to iterate.</p>
+              <div class="row">
+                <button type="submit" class="primary-btn small" :disabled="savingPolicy || policyDataset === null" data-testid="save-policy">Save policy</button>
+                <button type="button" class="ghost-btn small" @click="editingPolicy = false">Cancel</button>
+              </div>
+            </form>
 
             <h3>Other tags</h3>
             <table v-if="freeTags.length > 0" class="tags">
@@ -387,12 +487,24 @@ const asVariable = (name: string) => `{{${name}}}`;
                 <template v-if="ev.toVersion !== null"> to <span class="mono">v{{ ev.toVersion }}</span></template><template v-else>)</template>
                 <span class="muted"> · {{ formatDateTime(ev.createdAt) }}</span>
                 <span v-if="ev.reason" class="muted"> · “{{ ev.reason }}”</span>
+                <span v-if="ev.gateBypassed" class="warn" :data-testid="`bypassed-${ev.id}`"> · skipped the evaluation: “{{ ev.bypassReason }}”</span>
               </li>
             </ul>
           </div>
         </section>
       </div>
     </template>
+
+    <PromotePromptModal
+      v-if="promoting"
+      :prompt-id="promptId"
+      :tag="promoting.tag"
+      :version="promoting.version"
+      :reason="reason"
+      :can-bypass="access.canGovern.value"
+      @close="promoting = null"
+      @moved="onPromoted"
+    />
   </div>
 </template>
 
@@ -536,6 +648,26 @@ const asVariable = (name: string) => `{{${name}}}`;
   margin-left: 6px;
   background: var(--mt-warn-bg);
   color: var(--mt-warn-ink);
+}
+.protected {
+  margin-left: 6px;
+  background: var(--mt-accent-soft);
+  color: var(--mt-accent-text);
+}
+.policy-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.runs {
+  width: 64px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--mt-line);
+  border-radius: var(--mt-radius-lg);
+  background: var(--mt-card);
+  color: var(--mt-ink);
+  font: inherit;
 }
 .direction.better {
   background: var(--mt-ok-bg);
