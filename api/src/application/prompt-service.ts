@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type { PromptGatePort } from "@/application/prompt-gate-service";
 import type { PromptRepository } from "@/application/ports/prompt-repository";
 import { validateBypassReason } from "@/domain/deploy";
@@ -24,6 +24,11 @@ import {
   type UsageItem,
 } from "@/domain/prompt";
 
+/** Token de un solo propósito para probar una versión en el asistente real (ADR-071). */
+export function newOverrideToken(): string {
+  return `mto_${randomBytes(32).toString("base64url")}`;
+}
+
 export interface PromptDetail {
   prompt: Prompt;
   versions: PromptVersion[];
@@ -42,6 +47,9 @@ export interface PromptDetail {
 const EVENTS_LIMIT = 100;
 
 const hash = (content: string): string => createHash("sha256").update(content).digest("hex");
+
+/** Hash con el que se guarda y se busca un token de playground: el token en claro no se guarda nunca. */
+export const hashOverrideToken = (token: string): string => hash(token);
 
 /**
  * Registro de prompts (ADR-067): el prompt es de la organización y puede pertenecer a varios agentes; cada guardado es
@@ -169,6 +177,19 @@ export class PromptService {
     const version = tag === null ? await this.repo.getVersion(prompt.id, ref.version!) : await this.repo.getVersionByTag(prompt.id, tag);
     if (!version) throw new PromptNotFoundError(tag === null ? `Version ${ref.version} of "${name}"` : `Tag "${tag}" of "${name}"`);
     return { prompt, version, tag };
+  }
+
+  /**
+   * El SDK de un agente presenta el token de un override (ADR-071) en lugar de un tag: devuelve la versión del prompt para
+   * ESA petición. El token tiene que ser vigente, de este agente y del prompt que se pide; si no, es como si no existiera.
+   */
+  async resolveOverride(experimentId: string, organizationId: string, name: string, token: string): Promise<{ prompt: Prompt; version: PromptVersion }> {
+    const prompt = await this.repo.findByName(organizationId, validatePromptName(name));
+    const granted = prompt && prompt.experimentIds.includes(experimentId) ? await this.repo.consumeOverride(hashOverrideToken(token), experimentId) : null;
+    if (!prompt || !granted || granted.promptId !== prompt.id) throw new PromptNotFoundError("Override");
+    const version = await this.repo.getVersion(prompt.id, granted.version);
+    if (!version) throw new PromptNotFoundError("Override");
+    return { prompt, version };
   }
 
   /**

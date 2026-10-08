@@ -95,6 +95,12 @@ export interface UsageItem {
 export const USAGE_FRESH_MS = 15 * 60 * 1000;
 export const MAX_USAGE_ITEMS = 50;
 
+/** Cabecera con la que MemTrace pasa al agente el token de un override de prompt (ADR-071). */
+export const PROMPT_OVERRIDE_HEADER = "x-memtrace-prompt-override";
+/** Un token de playground caduca enseguida: vale para una petición, no para una sesión. */
+export const OVERRIDE_TTL_SECONDS = 120;
+export const MAX_PLAYGROUND_MESSAGE = 4000;
+
 export interface NewPrompt {
   organizationId: string;
   name: string;

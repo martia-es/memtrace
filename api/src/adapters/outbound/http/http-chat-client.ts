@@ -26,7 +26,7 @@ export class HttpChatClient implements ChatClient {
     this.allowPrivateNetworks = options.allowPrivateNetworks ?? false;
   }
 
-  send(url: string, body: Record<string, string>): Promise<ChatCallResult> {
+  send(url: string, body: Record<string, string>, extraHeaders: Record<string, string> = {}): Promise<ChatCallResult> {
     const failure = (error: string): ChatCallResult => ({ httpStatus: null, body: null, latencyMs: null, error });
     if (!isProbeableUrl(url)) return Promise.resolve(failure("URL is not a plain http(s) URL"));
     const target = new URL(url);
@@ -48,7 +48,7 @@ export class HttpChatClient implements ChatClient {
         {
           method: "POST",
           timeout: this.timeoutMs,
-          headers: { "User-Agent": "memtrace-chat/1", "Content-Type": "application/json", Accept: "application/json", "Content-Length": Buffer.byteLength(payload) },
+          headers: { ...extraHeaders, "User-Agent": "memtrace-chat/1", "Content-Type": "application/json", Accept: "application/json", "Content-Length": Buffer.byteLength(payload) },
           lookup: guardedLookup(this.allowPrivateNetworks),
         },
         (response) => {

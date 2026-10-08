@@ -33,6 +33,13 @@ export interface PromptRepository {
   /** ¿Estuvo ya este tag en esta versión sin que nadie se saltara el gate? Entonces volver a ella es un rollback legítimo. */
   wasServed(promptId: string, tag: string, version: number): Promise<boolean>;
 
+  /** Guarda el hash de un token de playground (ADR-071) atado a un agente, un prompt y una versión; olvida los caducados. */
+  createOverride(input: { tokenHash: string; experimentId: string; promptId: string; version: number; userId: string; ttlSeconds: number }): Promise<void>;
+  /** El agente presenta el token: devuelve a qué prompt y versión apunta si sigue vigente y es de ese agente, y lo cuenta como usado. */
+  consumeOverride(tokenHash: string, experimentId: string): Promise<{ promptId: string; version: number } | null>;
+  /** Cuántas veces presentó el agente el token: más de 0 demuestra que aplicó el override. */
+  overrideUses(tokenHash: string): Promise<number>;
+
   /** Política de promoción del prompt (ADR-070), o null si no tiene. */
   getPolicy(promptId: string): Promise<PromptPolicy | null>;
   setPolicy(promptId: string, policy: { datasetId: string; requiredRuns: number }, userId: string): Promise<PromptPolicy>;

@@ -1188,6 +1188,19 @@ export interface PromptResolveDto {
   variables: string[];
   contentHash: string;
   archived: boolean;
+  /** true: es un override del playground para una sola petición, no la versión de un tag (ADR-071) */
+  playground: boolean;
+}
+
+/** Resultado de probar una versión de un prompt en el asistente real (ADR-071). */
+export interface PromptPlaygroundResponse {
+  reply: string;
+  sessionId: string | null;
+  traceId: string | null;
+  latencyMs: number;
+  version: number;
+  /** false: el agente respondió sin aplicar el override; la respuesta no es de esa versión */
+  applied: boolean;
 }
 
 export interface PromptDetailDto {

@@ -122,7 +122,7 @@ export class AssistantRegistryService {
    * Habla con el agente en un entorno (ADR-055): URL = host del despliegue + path del agente, mensaje traducido a su
    * contrato. Solo se admiten despliegues sin autenticación: MemTrace no guarda credenciales de los asistentes.
    */
-  async chat(experimentId: string, deploymentId: string, input: { message: string; sessionId: string | null }, client: ChatClient): Promise<{ reply: string; sessionId: string | null; traceId: string | null; latencyMs: number }> {
+  async chat(experimentId: string, deploymentId: string, input: { message: string; sessionId: string | null; headers?: Record<string, string> }, client: ChatClient): Promise<{ reply: string; sessionId: string | null; traceId: string | null; latencyMs: number }> {
     const message = input.message.trim();
     if (message === "" || message.length > MAX_CHAT_MESSAGE_LENGTH) throw new ValidationError("Invalid message", { message: `Must be 1-${MAX_CHAT_MESSAGE_LENGTH} characters` });
     const card = await this.getCard(experimentId);
@@ -131,7 +131,9 @@ export class AssistantRegistryService {
     if (!card.chat) throw new AssistantInvariantError("This agent has no chat endpoint configured");
     if (deployment.authMethod !== "none") throw new AssistantInvariantError("Chat is only available for deployments without authentication");
 
-    const result = await client.send(resolveChatUrl(deployment, card.chat), buildChatRequest(card.chat, message, input.sessionId));
+    const url = resolveChatUrl(deployment, card.chat);
+    const body = buildChatRequest(card.chat, message, input.sessionId);
+    const result = input.headers ? await client.send(url, body, input.headers) : await client.send(url, body);
     if (result.error !== null || result.httpStatus === null) throw new AssistantUpstreamError(`The agent did not respond: ${result.error ?? "no response"}`);
     if (result.httpStatus < 200 || result.httpStatus >= 300) throw new AssistantUpstreamError(`The agent answered with HTTP ${result.httpStatus}`);
     const parsed = parseChatResponse(card.chat, result.body);

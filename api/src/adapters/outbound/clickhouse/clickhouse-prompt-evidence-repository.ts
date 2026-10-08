@@ -9,6 +9,9 @@ import { QueryLimiter } from "./query-limiter";
 type Row = Record<string, unknown>;
 type Params = Record<string, string | number | string[]>;
 
+/** Las trazas del playground (ADR-071) son pruebas con mensajes inventados: no cuentan como evidencia ni para el gate. */
+const NOT_PLAYGROUND = `${attr("memtrace.playground")} != 'true'`;
+
 const exceptionAttr = (key: string) => `arrayElement(arrayMap(a -> a['${key}'], \`Events.Attributes\`), indexOf(\`Events.Name\`, 'exception'))`;
 
 /**
@@ -44,8 +47,8 @@ export class ClickHousePromptEvidenceRepository implements PromptEvidenceReposit
     const inRange = "Timestamp >= fromUnixTimestamp64Milli({fromMs:Int64}) AND Timestamp < fromUnixTimestamp64Milli({toMs:Int64})";
     // el resto de los spans de una traza pueden terminar después de que acabe el rango
     const inWindow = "Timestamp >= fromUnixTimestamp64Milli({fromMs:Int64}) AND Timestamp < fromUnixTimestamp64Milli({toWithWindowMs:Int64})";
-    const usedPairs = `SELECT TraceId, PromptVersion AS version FROM ${this.spans} WHERE PromptName = {promptName:String} AND ServiceName = {service:String} AND ${inRange} GROUP BY TraceId, PromptVersion`;
-    const usedIds = `SELECT TraceId FROM ${this.spans} WHERE PromptName = {promptName:String} AND ServiceName = {service:String} AND ${inRange}`;
+    const usedPairs = `SELECT TraceId, PromptVersion AS version FROM ${this.spans} WHERE PromptName = {promptName:String} AND ServiceName = {service:String} AND ${NOT_PLAYGROUND} AND ${inRange} GROUP BY TraceId, PromptVersion`;
+    const usedIds = `SELECT TraceId FROM ${this.spans} WHERE PromptName = {promptName:String} AND ServiceName = {service:String} AND ${NOT_PLAYGROUND} AND ${inRange}`;
     const joined = `FROM ${this.spans} INNER JOIN (${usedPairs}) AS used USING (TraceId) WHERE ServiceName = {service:String} AND ${inWindow}`;
 
     const failed = `StatusCode = ${ERROR}`;
@@ -138,7 +141,7 @@ export class ClickHousePromptEvidenceRepository implements PromptEvidenceReposit
        FROM (SELECT DatasetRunId, assumeNotNull(TraceId) AS TraceId FROM ${this.evalItems} FINAL
               WHERE ServiceName = {service:String} AND DatasetRunId IN {runIds:Array(String)} AND TraceId IS NOT NULL) AS i
        INNER JOIN (SELECT TraceId, PromptVersion AS version FROM ${this.spans}
-                    WHERE PromptName = {promptName:String} AND ServiceName = {service:String} AND Timestamp >= now() - INTERVAL 31 DAY
+                    WHERE PromptName = {promptName:String} AND ServiceName = {service:String} AND ${NOT_PLAYGROUND} AND Timestamp >= now() - INTERVAL 31 DAY
                     GROUP BY TraceId, PromptVersion) AS used ON i.TraceId = used.TraceId
        GROUP BY runId HAVING onVersion > 0 AND onOther = 0`,
       { service, promptName, version, runIds },
