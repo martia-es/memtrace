@@ -12,6 +12,9 @@
 - The `otel-langchain` extra installs `langchain-core` and, on Python 3.9, `wrapt<2`.
 
 ### Added
+- `memtrace.langchain.prompt_middleware(handle, **variables)`: a registry prompt as the system prompt of a LangChain 1.x `create_agent`
+  agent, resolved on every model call so the agent follows its tag without being rebuilt (sync and async; a variable can be a function
+  of LangChain's `ModelRequest`). New `langchain-agents` extra. See ADR-068.
 - Prompt registry: `memtrace.prompts.get(name, tag=... | version=..., default=...)` returns a handle that is compiled per request
   (`handle.compile(**variables)`, in memory, no network) and follows its tag in the background, so moving a tag in MemTrace reaches
   the agent without a restart. `compile()` writes `memtrace.prompt.name` / `memtrace.prompt.version` on the current span, the SDK
