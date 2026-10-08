@@ -1,4 +1,4 @@
-import type { PromptDetailDto, PromptEvidenceResponse, PromptGateDto, PromptListResponse, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto } from "@contract";
+import type { PromptDetailDto, PromptEvidenceResponse, PromptGateDto, PromptListResponse, PromptPlaygroundResponse, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto } from "@contract";
 import type { NewPromptInput, PromptApi } from "@/application/prompt-api";
 import { ApiError } from "@/application/trace-api";
 
@@ -34,6 +34,9 @@ export class HttpPromptApi implements PromptApi {
   }
   moveTag(promptId: string, tag: string, version: number | null, reason: string, bypassReason: string | null = null, signal?: AbortSignal): Promise<PromptTagEventDto> {
     return this.request("PUT", `/prompts/${e(promptId)}/tags/${e(tag)}`, { version, reason, bypassReason }, signal);
+  }
+  runPlayground(experimentId: string, promptId: string, input: { deploymentId: string; version: number; message: string }, signal?: AbortSignal): Promise<PromptPlaygroundResponse> {
+    return this.request("POST", `/experiments/${e(experimentId)}/prompts/${e(promptId)}/playground`, input, signal);
   }
   previewGate(promptId: string, tag: string, version: number, signal?: AbortSignal): Promise<PromptGateDto> {
     return this.request("GET", `/prompts/${e(promptId)}/gate?tag=${e(tag)}&version=${version}`, undefined, signal);
