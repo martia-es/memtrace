@@ -1295,6 +1295,8 @@ export interface PromptDetailDto {
   includes: IncludeStatusDto[];
   /** si es un fragmento: los prompts que lo incluyen */
   usedBy: UsedByDto[];
+  /** nombre (o email) de quien creó versiones y movió tags, por id de usuario */
+  people: Record<string, string>;
 }
 
 /** Evidencia de una versión de un prompt (ADR-069): lo que pasó en las trazas que la usaron. */

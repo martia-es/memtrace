@@ -99,6 +99,7 @@ export const toPromptDetailDto = (d: PromptDetail, nowMs: number = Date.now()): 
   policy: d.policy ? toPromptPolicyDto(d.policy) : null,
   includes: d.includes,
   usedBy: d.usedBy,
+  people: d.people,
 });
 
 export const toPromptEvidenceResponse = (e: PromptEvidence): PromptEvidenceResponse => ({

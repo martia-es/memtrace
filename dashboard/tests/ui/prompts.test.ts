@@ -130,6 +130,20 @@ describe("prompt detail (ADR-067)", () => {
     expect(api.calls.find((c) => c.method === "saveVersion")?.args).toEqual(["p1", { content: "Eres muy breve.", message: "even shorter", parentVersion: 2, draft: false }]);
   });
 
+  it("shows who wrote each version and who moved each tag", async () => {
+    const api = new FakePromptApi();
+    api.detail = promptDetail({
+      people: { u1: "Marta", u2: "Luis" },
+      versions: [promptVersion(2, "Eres breve.", { createdBy: "u2" }), promptVersion(1, "Hola {{ciudad}}.", { createdBy: "u1", variables: ["ciudad"] })],
+    });
+    const { wrapper } = await setup(PromptDetailPage, "technical", api, { promptId: "p1" }, "?tab=tags");
+    expect(wrapper.find("[data-testid='author-2']").text()).toBe("by Luis");
+    expect(wrapper.find("[data-testid='author-1']").text()).toBe("by Marta");
+    expect(wrapper.find("[data-testid='event-author-e1']").text()).toContain("by Marta");
+    wrapper.unmount();
+    document.body.innerHTML = "";
+  });
+
   it("does not offer to edit to someone who can only read", async () => {
     const { wrapper } = await setup(PromptDetailPage, "business", new FakePromptApi(), { promptId: "p1" });
     expect(wrapper.find("[data-testid='edit-version']").exists()).toBe(false);
