@@ -3,7 +3,7 @@ import type { PromptDetailDto, PromptEvidenceResponse, PromptGateDto, PromptPlay
 import type { NewPromptInput, PromptApi } from "@/application/prompt-api";
 
 export function promptVersion(version: number, content: string, extra: Partial<PromptVersionDto> = {}): PromptVersionDto {
-  return { version, content, variables: [], contentHash: `h${version}`, parentVersion: version > 1 ? version - 1 : null, message: "", createdBy: "u1", createdAt: "2026-10-08T10:00:00.000Z", ...extra };
+  return { version, status: "published", origin: null, publishedAt: "2026-10-08T10:00:00.000Z", content, variables: [], contentHash: `h${version}`, parentVersion: version > 1 ? version - 1 : null, message: "", createdBy: "u1", createdAt: "2026-10-08T10:00:00.000Z", ...extra };
 }
 
 export function promptDetail(overrides: Partial<PromptDetailDto> = {}): PromptDetailDto {
@@ -72,9 +72,22 @@ export class FakePromptApi implements PromptApi {
     this.record("update", promptId, patch);
     return this.detail;
   }
-  async saveVersion(promptId: string, input: { content: string; message: string; parentVersion?: number | null }) {
+  async saveVersion(promptId: string, input: { content: string; message: string; parentVersion?: number | null; draft?: boolean; origin?: { traceIds: string[]; cause: string | null; rationale: string } | null }) {
     this.record("saveVersion", promptId, input);
-    return promptVersion(3, input.content, { message: input.message, parentVersion: input.parentVersion ?? null });
+    const saved = promptVersion(3, input.content, {
+      message: input.message, parentVersion: input.parentVersion ?? null,
+      ...(input.draft ? { status: "draft" as const, publishedAt: null, origin: input.origin ? { kind: "fix" as const, ...input.origin } : null } : {}),
+    });
+    // como la API: la próxima lectura del prompt ya la incluye
+    this.detail = { ...this.detail, versions: [saved, ...this.detail.versions.filter((v) => v.version !== saved.version)] };
+    return saved;
+  }
+  async publishDraft(promptId: string, version: number) {
+    this.record("publishDraft", promptId, version);
+    return promptVersion(version, "published now");
+  }
+  async discardDraft(promptId: string, version: number) {
+    this.record("discardDraft", promptId, version);
   }
   async getEvidence(experimentId: string, promptId: string, range: { from: Date; to: Date }) {
     this.record("getEvidence", experimentId, promptId, range);

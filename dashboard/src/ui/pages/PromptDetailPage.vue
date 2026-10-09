@@ -13,6 +13,7 @@ import EnvFlag from "../components/EnvFlag.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import PageHeader from "../components/PageHeader.vue";
 import PromotePromptModal from "../components/PromotePromptModal.vue";
+import PromptFixFromFailure from "../components/PromptFixFromFailure.vue";
 import PromptPlayground from "../components/PromptPlayground.vue";
 import PromptDiff from "../components/PromptDiff.vue";
 import Select from "../components/Select.vue";
@@ -42,7 +43,7 @@ const canPromote = computed(() => can("prompt:promote") && !archived.value);
 // ---- selección ----
 const selected = ref<number | null>(null);
 watch(versions, (list) => {
-  if (list.length > 0 && (selected.value === null || !list.some((v) => v.version === selected.value))) selected.value = list[0]!.version;
+  if (list.length > 0 && (selected.value === null || !list.some((v) => v.version === selected.value))) selected.value = (list.find((v) => v.status === "published") ?? list[0]!).version;
 }, { immediate: true });
 const selectedVersion = computed<PromptVersionDto | null>(() => versions.value.find((v) => v.version === selected.value) ?? null);
 
@@ -70,7 +71,7 @@ const pinned = computed(() =>
 );
 
 // ---- tira "running": qué versión corre en cada entorno y cuánto va por detrás ----
-const latestVersion = computed(() => versions.value[0]?.version ?? 0);
+const latestVersion = computed(() => versions.value.find((v) => v.status === "published")?.version ?? 0);
 const runningStrip = computed(() => pinned.value.filter((p) => environmentKeys.value.includes(p.tag)));
 const behindProduction = computed(() => {
   const live = tagVersion(PRODUCTION_ENV);
@@ -83,9 +84,11 @@ const TABS = [
   { id: "compare", label: "Compare" },
   { id: "evidence", label: "Evidence" },
   { id: "tags", label: "Tags & history" },
+  { id: "fix", label: "Fix a failure" },
   { id: "try", label: "Try it" },
 ];
-const replayTrace = typeof route.query.trace === "string" ? route.query.trace : null;
+const fixTrace = typeof route.query.trace === "string" && route.query.tab === "fix" ? route.query.trace : null;
+const replayTrace = ref<string | null>(typeof route.query.trace === "string" ? route.query.trace : null);
 const tab = ref(TABS.some((t) => t.id === route.query.tab) ? String(route.query.tab) : "content");
 
 // ---- evidencia (ADR-069) ----
@@ -148,15 +151,15 @@ function startEdit() {
 function notifyError(action: string, error: unknown) {
   $q.notify({ message: `${action}: ${describeApiError(error as Error)}`, color: "negative", timeout: 4000 });
 }
-async function saveVersion() {
+async function saveVersion(asDraft = false) {
   saving.value = true;
   try {
-    const saved = await api.saveVersion(props.promptId, { content: draft.value, message: message.value, parentVersion: selected.value });
+    const saved = await api.saveVersion(props.promptId, { content: draft.value, message: message.value, parentVersion: selected.value, draft: asDraft });
     editing.value = false;
     await detail.run();
     selected.value = saved.version;
     tab.value = "content";
-    $q.notify({ message: `Saved as v${saved.version}`, color: "positive", timeout: 2500 });
+    $q.notify({ message: asDraft ? `Saved as draft v${saved.version}` : `Saved as v${saved.version}`, color: "positive", timeout: 2500 });
   } catch (error) {
     notifyError("Could not save the version", error);
   } finally {
@@ -164,11 +167,57 @@ async function saveVersion() {
   }
 }
 
+// ---- borradores (ADR-072) ----
+const isDraft = computed(() => selectedVersion.value?.status === "draft");
+const draftCount = computed(() => versions.value.filter((v) => v.status === "draft").length);
+const draftBusy = ref(false);
+async function publishSelected() {
+  if (selected.value === null) return;
+  draftBusy.value = true;
+  try {
+    await api.publishDraft(props.promptId, selected.value);
+    await detail.run();
+    $q.notify({ message: `v${selected.value} published. It can take tags now`, color: "positive", timeout: 3000 });
+  } catch (error) {
+    notifyError("Could not publish the draft", error);
+  } finally {
+    draftBusy.value = false;
+  }
+}
+async function discardSelected() {
+  if (selected.value === null) return;
+  const gone = selected.value;
+  draftBusy.value = true;
+  try {
+    await api.discardDraft(props.promptId, gone);
+    selected.value = null;
+    await detail.run();
+    $q.notify({ message: `Draft v${gone} discarded`, color: "positive", timeout: 3000 });
+  } catch (error) {
+    notifyError("Could not discard the draft", error);
+  } finally {
+    draftBusy.value = false;
+  }
+}
+// probar un borrador en el asistente real: él y la versión de la que parte, con el caso que se quería arreglar
+const tryFirst = ref<number | null>(null);
+const trySecond = ref<number | null>(null);
+function testDraft(draftVersion: number, base: number | null, traceId: string | null) {
+  tryFirst.value = draftVersion;
+  trySecond.value = base;
+  if (traceId) replayTrace.value = traceId;
+  tab.value = "try";
+}
+async function onDraftSaved(version: number) {
+  await detail.run();
+  selected.value = version;
+}
+
 // ---- tags ----
 const environmentKeys = computed(() => data.value?.environmentKeys ?? []);
 const tagVersion = (tag: string): number | null => data.value?.tags.find((t) => t.tag === tag)?.version ?? null;
 const freeTags = computed(() => (data.value?.tags ?? []).filter((t) => !environmentKeys.value.includes(t.tag)));
-const versionOptions = computed(() => versions.value.map((v) => ({ label: `v${v.version}${v.message ? ` · ${v.message}` : ""}`, value: v.version })));
+const versionOptions = computed(() => versions.value.filter((v) => v.status === "published").map((v) => ({ label: `v${v.version}${v.message ? ` · ${v.message}` : ""}`, value: v.version })));
 const reason = ref("");
 const pending = ref<Record<string, number | null>>({});
 const newTag = ref("");
@@ -371,6 +420,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
               >
                 <span class="version-head">
                   <strong class="mono">v{{ v.version }}</strong>
+                  <span v-if="v.status === 'draft'" class="mt-pill draft-pill" :data-testid="`draft-${v.version}`">draft</span>
                   <EnvFlag v-for="tag in tagsByVersion.get(v.version) ?? []" :key="tag" :env="tag" />
                   <span class="grow" />
                   <span class="mono version-date">{{ formatDateTime(v.createdAt) }}</span>
@@ -399,6 +449,25 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
             <TabBar v-model="tab" :tabs="TABS" />
 
             <div v-if="tab === 'content' && selectedVersion" class="pane" data-testid="pane-content">
+              <section v-if="isDraft && !editing && selectedVersion" class="draft-banner" data-testid="draft-banner">
+                <div>
+                  <b>Draft — not reviewed yet.</b> It has no tag and no environment can use it.
+                  <template v-if="selectedVersion.origin">
+                    <p class="small" data-testid="draft-origin">
+                      Proposed to fix <span v-if="selectedVersion.origin.cause">“{{ selectedVersion.origin.cause }}”</span>
+                      <template v-if="selectedVersion.origin.traceIds.length > 0">
+                        (<router-link v-for="t in selectedVersion.origin.traceIds" :key="t" :to="{ name: 'trace', params: { experimentId: String(route.params.experimentId), traceId: t } }" class="link mono">{{ t.slice(0, 8) }}</router-link>)
+                      </template>.
+                    </p>
+                    <p v-if="selectedVersion.origin.rationale" class="small soft" data-testid="draft-rationale">{{ selectedVersion.origin.rationale }}</p>
+                  </template>
+                </div>
+                <div v-if="canWrite" class="draft-actions">
+                  <button type="button" class="ghost-btn" data-testid="draft-test" @click="testDraft(selectedVersion.version, selectedVersion.parentVersion, selectedVersion.origin?.traceIds[0] ?? null)">Test it</button>
+                  <button type="button" class="primary-btn" :disabled="draftBusy" data-testid="draft-publish" @click="publishSelected">Publish</button>
+                  <button type="button" class="ghost-btn" :disabled="draftBusy" data-testid="draft-discard" @click="discardSelected">Discard</button>
+                </div>
+              </section>
               <div v-if="!editing" class="content-grid">
                 <div class="code-card">
                   <div class="code-head">
@@ -428,17 +497,18 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   </div>
                   <div v-if="canWrite" class="side-card next">
                     <span class="eyebrow">NEXT VERSION</span>
-                    <p>Saving creates v{{ latestVersion + 1 }}. Earlier versions never change, and the tags stay where they are until someone moves them.</p>
+                    <p>Saving creates the next version. Earlier versions never change, and the tags stay where they are until someone moves them. Not sure yet? Save it as a draft and test it first.</p>
                     <button type="button" class="primary-btn" data-testid="edit-version" @click="startEdit">Edit as new version</button>
                   </div>
                 </div>
               </div>
-              <form v-else class="editor" @submit.prevent="saveVersion">
+              <form v-else class="editor" @submit.prevent="saveVersion(false)">
                 <p class="muted">Editing from v{{ selected }}. Saving creates a new version; the previous ones are not modified.</p>
                 <TextInput v-model="draft" multiline :rows="16" mono data-testid="editor" />
                 <TextInput v-model="message" placeholder="What changed and why? (optional)" data-testid="version-message" />
                 <div class="row">
                   <button type="submit" class="primary-btn" :disabled="saving || !draft.trim() || draft === selectedVersion.content" data-testid="save-version">Save as new version</button>
+                  <button type="button" class="ghost-btn" :disabled="saving || !draft.trim() || draft === selectedVersion.content" data-testid="save-draft" @click="saveVersion(true)">Save as draft</button>
                   <button type="button" class="ghost-btn" @click="editing = false">Cancel</button>
                 </div>
               </form>
@@ -539,6 +609,20 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
               </template>
             </div>
 
+            <div v-else-if="tab === 'fix'" class="pane" data-testid="pane-fix">
+              <PromptFixFromFailure
+                :experiment-id="String(route.params.experimentId)"
+                :prompt-id="promptId"
+                :prompt-name="data.prompt.name"
+                :versions="versions"
+                :selected="selected"
+                :usage="data.usage"
+                :initial-trace="fixTrace"
+                @saved="onDraftSaved"
+                @test="(draftVersion, base, traceId) => testDraft(draftVersion, base, traceId)"
+              />
+            </div>
+
             <div v-else-if="tab === 'try'" class="pane" data-testid="pane-try">
               <PromptPlayground
                 :experiment-id="String(route.params.experimentId)"
@@ -547,6 +631,8 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                 :selected="selected"
                 :usage="data.usage"
                 :initial-trace="replayTrace"
+                :initial-first="tryFirst"
+                :initial-second="trySecond"
               />
             </div>
 
@@ -1298,6 +1384,30 @@ h3 {
 }
 .move {
   align-self: center;
+}
+.draft-pill {
+  background: var(--mt-warn-bg);
+  color: var(--mt-warn-ink);
+}
+.draft-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border: 1px dashed var(--mt-warn-ink);
+  background: var(--mt-warn-bg);
+  color: var(--mt-warn-ink);
+  font-size: 13px;
+}
+.draft-banner p {
+  margin: 4px 0 0;
+}
+.draft-actions {
+  display: flex;
+  gap: 8px;
 }
 .protected {
   background: var(--mt-accent-soft);

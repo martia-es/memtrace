@@ -25,8 +25,18 @@ export class HttpPromptApi implements PromptApi {
   update(promptId: string, patch: { description?: string; archived?: boolean; experimentIds?: string[] }, signal?: AbortSignal): Promise<PromptDetailDto> {
     return this.request("PATCH", `/prompts/${e(promptId)}`, patch, signal);
   }
-  saveVersion(promptId: string, input: { content: string; message: string; parentVersion?: number | null }, signal?: AbortSignal): Promise<PromptVersionDto> {
+  saveVersion(
+    promptId: string,
+    input: { content: string; message: string; parentVersion?: number | null; draft?: boolean; origin?: { traceIds: string[]; cause: string | null; rationale: string } | null },
+    signal?: AbortSignal,
+  ): Promise<PromptVersionDto> {
     return this.request("POST", `/prompts/${e(promptId)}/versions`, input, signal);
+  }
+  publishDraft(promptId: string, version: number, signal?: AbortSignal): Promise<PromptVersionDto> {
+    return this.request("POST", `/prompts/${e(promptId)}/versions/${version}/publish`, undefined, signal);
+  }
+  async discardDraft(promptId: string, version: number, signal?: AbortSignal): Promise<void> {
+    await this.request("DELETE", `/prompts/${e(promptId)}/versions/${version}`, undefined, signal);
   }
   getEvidence(experimentId: string, promptId: string, range: { from: Date; to: Date }, signal?: AbortSignal): Promise<PromptEvidenceResponse> {
     const query = `?from=${e(range.from.toISOString())}&to=${e(range.to.toISOString())}`;

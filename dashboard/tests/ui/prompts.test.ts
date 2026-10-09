@@ -98,7 +98,7 @@ describe("prompt detail (ADR-067)", () => {
     await wrapper.find("[data-testid='version-message']").setValue("even shorter");
     await wrapper.find("form.editor").trigger("submit");
     await flushPromises();
-    expect(api.calls.find((c) => c.method === "saveVersion")?.args).toEqual(["p1", { content: "Eres muy breve.", message: "even shorter", parentVersion: 2 }]);
+    expect(api.calls.find((c) => c.method === "saveVersion")?.args).toEqual(["p1", { content: "Eres muy breve.", message: "even shorter", parentVersion: 2, draft: false }]);
   });
 
   it("does not offer to edit to someone who can only read", async () => {

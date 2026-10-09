@@ -18,7 +18,19 @@ export interface PromptApi {
   create(experimentId: string, input: NewPromptInput, signal?: AbortSignal): Promise<PromptDetailDto>;
   get(promptId: string, signal?: AbortSignal): Promise<PromptDetailDto>;
   update(promptId: string, patch: { description?: string; archived?: boolean; experimentIds?: string[] }, signal?: AbortSignal): Promise<PromptDetailDto>;
-  saveVersion(promptId: string, input: { content: string; message: string; parentVersion?: number | null }, signal?: AbortSignal): Promise<PromptVersionDto>;
+  /**
+   * Guarda una versión. Con `draft` queda como borrador (ADR-072): se puede probar y evaluar, pero no recibe tags hasta
+   * publicarse. `origin` recuerda el fallo que se quería arreglar.
+   */
+  saveVersion(
+    promptId: string,
+    input: { content: string; message: string; parentVersion?: number | null; draft?: boolean; origin?: { traceIds: string[]; cause: string | null; rationale: string } | null },
+    signal?: AbortSignal,
+  ): Promise<PromptVersionDto>;
+  /** Publica un borrador: pasa a ser una versión normal que ya puede recibir tags. Lo decide una persona. */
+  publishDraft(promptId: string, version: number, signal?: AbortSignal): Promise<PromptVersionDto>;
+  /** Descarta un borrador. Una versión publicada no se borra nunca. */
+  discardDraft(promptId: string, version: number, signal?: AbortSignal): Promise<void>;
   /** Qué pasó en las trazas que usaron cada versión del prompt (coste, errores, latencia, feedback, scores) en el rango (ADR-069). */
   getEvidence(experimentId: string, promptId: string, range: { from: Date; to: Date }, signal?: AbortSignal): Promise<PromptEvidenceResponse>;
   /**

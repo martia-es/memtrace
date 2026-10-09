@@ -79,7 +79,10 @@ const addingToQueue = ref(false);
 const promptApi = usePromptApi();
 const promptsUsed = computed(() => promptsUsedBy(roots.value));
 const replayProblem = ref<string | null>(null);
-async function replayWithAnotherVersion() {
+const replayWithAnotherVersion = () => openPromptFor("try");
+// un fallo de esta traza se puede arreglar con un cambio de prompt (ADR-072): se abre el prompt en «Fix a failure»
+const fixThisFailure = () => openPromptFor("fix");
+async function openPromptFor(tab: "try" | "fix") {
   const used = promptsUsed.value[0];
   if (!used) return;
   replayProblem.value = null;
@@ -89,7 +92,7 @@ async function replayWithAnotherVersion() {
       replayProblem.value = `The prompt "${used.name}" does not belong to this agent in MemTrace.`;
       return;
     }
-    await router.push({ name: "prompt", params: { experimentId: experimentId.value, promptId: found.id }, query: { tab: "try", trace: props.traceId } });
+    await router.push({ name: "prompt", params: { experimentId: experimentId.value, promptId: found.id }, query: { tab, trace: props.traceId } });
   } catch (error) {
     replayProblem.value = error instanceof Error ? error.message : "Could not open the prompt";
   }
@@ -140,6 +143,16 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
               @click="replayWithAnotherVersion"
             >
               Try another prompt version
+            </button>
+            <button
+              v-if="promptsUsed.length > 0 && trace.data.value.errorCount > 0"
+              type="button"
+              class="btn"
+              :title="`Propose a change to ${promptsUsed[0]!.name} that fixes this failure, as a draft to review`"
+              data-testid="fix-btn"
+              @click="fixThisFailure"
+            >
+              Fix with a prompt change
             </button>
             <button type="button" class="btn primary" data-testid="annotate-btn" @click="annotating = true">Annotate</button>
           </div>

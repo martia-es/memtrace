@@ -16,7 +16,7 @@ import TextInput from "./TextInput.vue";
  * Probar versiones de un prompt en el asistente real (ADR-071): se ejecuta el agente de verdad, con sus tools y su RAG, sin
  * mover ningún tag. Hasta dos versiones a la vez, una al lado de la otra; el mensaje puede venir de una traza real.
  */
-const props = defineProps<{ experimentId: string; promptId: string; versions: PromptVersionDto[]; selected: number | null; usage: PromptUsageDto[]; initialTrace: string | null }>();
+const props = defineProps<{ experimentId: string; promptId: string; versions: PromptVersionDto[]; selected: number | null; usage: PromptUsageDto[]; initialTrace: string | null; initialFirst?: number | null; initialSecond?: number | null }>();
 
 const assistants = useAssistantApi();
 const traces = useTraceApi();
@@ -35,8 +35,8 @@ const reads = computed(() => (environmentKey.value ? agentReadsPrompt(props.usag
 
 // ---- qué versiones
 const versionOptions = computed(() => props.versions.map((v) => ({ label: `v${v.version}${v.message ? ` · ${v.message}` : ""}`, value: v.version })));
-const first = ref<number | null>(props.selected);
-const second = ref<number | null>(null);
+const first = ref<number | null>(props.initialFirst ?? props.selected);
+const second = ref<number | null>(props.initialSecond ?? null);
 watch(() => props.selected, (v) => { if (first.value === null) first.value = v; });
 const secondOptions = computed(() => versionOptions.value.filter((o) => o.value !== first.value));
 
