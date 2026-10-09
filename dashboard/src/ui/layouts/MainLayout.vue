@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, provide, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useFilters } from "../composables/useFilters";
 import { useAsync } from "../composables/useAsync";
+import { provideApprovalInbox } from "../composables/useApprovalInbox";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import { applyOrganizationTheme } from "../composables/useOrganizationTheme";
@@ -118,6 +119,14 @@ const navExperimentId = computed(
 // quien no tiene `experiment:read` (p. ej. un org_admin sin rol de trabajo) solo ve Admin (ADR-052)
 const navCanRead = computed(() => hasPermission(experimentOptions.value.find((e) => e.id === navExperimentId.value), "experiment:read"));
 
+// aprobaciones de prompts pendientes de esta persona (ADR-076): el badge de "Prompts" y los avisos de Overview y del listado
+const approvalInbox = provideApprovalInbox(
+  computed(() => currentExperiment.value?.organizationId ?? null),
+  navCanRead,
+  () => route.fullPath,
+);
+const pendingApprovals = computed(() => approvalInbox.items.value.length);
+
 // topbar global (ADR-058): las páginas teletransportan aquí su breadcrumb y sus filtros
 const { leftEl, rightEl, leftCount } = useTopbar();
 const topbarLeft = ref<HTMLElement | null>(null);
@@ -169,6 +178,7 @@ function switchExperiment(experimentId: string | null) {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="g.icon" /></svg>
               <span v-if="!isCollapsed" class="nav-label">{{ g.label }}</span>
               <span v-if="!isCollapsed && g.id === 'review' && pendingReviews > 0 && !groupActive(g)" class="nav-badge" data-testid="pending-reviews">{{ pendingReviews }}</span>
+              <span v-if="!isCollapsed && g.id === 'prompts' && pendingApprovals > 0" class="nav-badge" data-testid="pending-approvals" :title="`${pendingApprovals} waiting for your approval`">{{ pendingApprovals }}</span>
               <svg v-if="!isCollapsed && !isLeaf(g)" class="nav-chevron" :class="{ expanded: groupActive(g) }" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="CHEVRON" /></svg>
             </router-link>
             <div v-if="!isCollapsed && !isLeaf(g) && groupActive(g)" class="nav-sub" role="group" :aria-label="g.label">

@@ -1,23 +1,15 @@
 <script setup lang="ts">
-import { computed } from "vue";
 import { useRoute } from "vue-router";
 import { describeRule, requestTitle } from "@/domain/approvals";
 import { formatRelativeTime } from "@/domain/format";
-import { useAsync } from "../composables/useAsync";
-import { usePromptApi } from "../composables/usePromptApi";
+import { useApprovalInbox } from "../composables/useApprovalInbox";
 
 /**
  * "Waiting for your approval" (ADR-076): las solicitudes vivas de la organización que esta persona puede decidir y aún no
- * ha respondido. No pinta nada si no hay ninguna. Abrir una lleva a la pestaña Approvals de su prompt.
+ * ha respondido (compartido con el menú y el listado de prompts). No pinta nada si no hay ninguna. Abrir una lleva a la pestaña Approvals de su prompt.
  */
-const props = defineProps<{ organizationId: string }>();
-
-const api = usePromptApi();
 const route = useRoute();
-const inbox = useAsync((signal) => api.approvalInbox(props.organizationId, signal));
-void inbox.run();
-
-const items = computed(() => inbox.data.value ?? []);
+const items = useApprovalInbox().items;
 const nowMs = Date.now();
 const link = (promptId: string) => ({ name: "prompt", params: { experimentId: String(route.params.experimentId), promptId }, query: { tab: "approvals" } });
 </script>

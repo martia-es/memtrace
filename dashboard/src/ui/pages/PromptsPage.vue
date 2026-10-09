@@ -14,6 +14,7 @@ import ErrorBanner from "../components/ErrorBanner.vue";
 import Modal from "../components/Modal.vue";
 import PageHeader from "../components/PageHeader.vue";
 import TextInput from "../components/TextInput.vue";
+import { useApprovalInbox } from "../composables/useApprovalInbox";
 import { useAsync } from "../composables/useAsync";
 import { usePermissions } from "../composables/usePermissions";
 import { usePromptApi } from "../composables/usePromptApi";
@@ -26,7 +27,7 @@ const { can } = usePermissions();
 
 const experimentId = computed(() => String(route.params.experimentId));
 const current = inject(CURRENT_EXPERIMENT, computed(() => null));
-const organizationId = computed(() => current.value?.organizationId ?? null);
+const awaitingMe = useApprovalInbox().promptIds;
 const showArchived = ref(false);
 const prompts = useAsync((signal) => api.listForAgent(experimentId.value, showArchived.value, signal));
 void prompts.run().then(() => {
@@ -142,7 +143,7 @@ async function create() {
       </div>
     </PageHeader>
 
-    <ApprovalInbox v-if="organizationId" :organization-id="organizationId" />
+    <ApprovalInbox />
 
     <ErrorBanner v-if="prompts.error.value" :error="prompts.error.value" @retry="prompts.run()" />
     <div v-else-if="prompts.loading.value && !prompts.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
@@ -238,6 +239,7 @@ async function create() {
             <div class="who-name">
               <span class="name">{{ r.prompt.name }}</span>
               <span v-if="r.prompt.archivedAt" class="mt-pill archived">archived</span>
+              <span v-if="awaitingMe.has(r.prompt.id)" class="mt-pill awaiting" :data-testid="`awaiting-${r.prompt.name}`">needs your approval</span>
             </div>
             <div v-if="r.prompt.description" class="desc">{{ r.prompt.description }}</div>
             <div class="who-foot">
@@ -337,6 +339,7 @@ async function create() {
 </template>
 
 <style scoped>
+.awaiting { background: var(--mt-accent); color: var(--mt-accent-ink); }
 .fragments {
   display: flex;
   flex-direction: column;

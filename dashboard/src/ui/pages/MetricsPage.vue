@@ -7,6 +7,7 @@ import { formatCostUsd, formatCount, formatDuration, formatPercent, formatRelati
 import { aggregateTone, aggregateValueLabel } from "@/domain/evaluation";
 import { formatSatisfaction } from "@/domain/feedback";
 import { useQuasar } from "quasar";
+import ApprovalInbox from "../components/ApprovalInbox.vue";
 import AgentCompareView from "../components/AgentCompareView.vue";
 import CustomChartsPanel from "../components/CustomChartsPanel.vue";
 import MetricReportView from "../components/MetricReportView.vue";
@@ -387,6 +388,7 @@ function swapAgents() {
 
     <q-tab-panels :model-value="activePanel" keep-alive class="metrics-tab-panels">
       <q-tab-panel name="overview" class="metrics-tab-panel">
+        <ApprovalInbox class="overview-approvals" />
         <ErrorBanner v-if="overview.error.value" :error="overview.error.value" @retry="reload" />
         <div v-else-if="overview.loading.value && !data" class="loading-box">
           <q-spinner size="32px" color="primary" />
@@ -605,6 +607,7 @@ function swapAgents() {
   background: transparent;
 }
 
+.overview-approvals { margin-bottom: 12px; }
 .metrics-tab-panel {
   display: flex;
   flex-direction: column;

@@ -131,7 +131,7 @@ Each experiment has its own **Approvals** tab (**Admin → experiment**). It sta
 ### Asking and approving
 
 1. With a rule active, saving an edit creates a **draft**, and moving a protected tag shows **Request approval** instead of **Move**. Write a note for the reviewers. You can **add approvers** to that request on top of the rule's, and add more later.
-2. The people who can decide see it in **Waiting for your approval** at the top of the Prompts list, and in the prompt's **Approvals** tab. Each one can **Approve** or **Reject** and comment.
+2. The people who can decide see it in **Waiting for your approval** at the top of **Overview** and of the Prompts list, as a counter next to **Prompts** in the menu, and as a **needs your approval** mark on the prompt's row. They decide in the prompt's **Approvals** tab. Each one can **Approve** or **Reject** and comment.
 3. When everything the rule asks for is in, the change **happens by itself**: the draft is published, or the tag moves. The history shows *Approved by …* and who asked.
 
 What to know:
