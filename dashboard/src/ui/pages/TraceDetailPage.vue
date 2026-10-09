@@ -28,6 +28,7 @@ import { useExperimentRepo } from "../composables/useExperimentRepo";
 import CommitLink from "../components/CommitLink.vue";
 import PromptChips from "../components/PromptChips.vue";
 import Button from "../components/Button.vue";
+import Pill from "../components/Pill.vue";
 
 const props = defineProps<{ traceId: string }>();
 const api = useTraceApi();
@@ -130,7 +131,7 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
         <div class="title-row">
           <h1 :title="rootName">{{ rootName }}</h1>
           <StatusBadge :status="trace.data.value.status" show-label />
-          <span v-if="trace.data.value.framework" class="mt-pill unset">{{ trace.data.value.framework }}</span>
+          <Pill v-if="trace.data.value.framework">{{ trace.data.value.framework }}</Pill>
           <PromptChips :prompts="promptsUsed" />
           <span class="commit" data-testid="trace-revision"><span class="commit-label">Commit</span><CommitLink :revision="trace.data.value.revision" :repo="repo" /></span>
           <div class="actions">
@@ -349,10 +350,6 @@ h2 {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-}
-.mt-pill.unset {
-  background: var(--mt-soft);
-  color: var(--mt-muted);
 }
 .tabs {
   display: flex;

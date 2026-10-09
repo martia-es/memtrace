@@ -11,6 +11,7 @@ import { usePromptApi } from "../composables/usePromptApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import TextInput from "./TextInput.vue";
 import Button from "./Button.vue";
+import Pill from "./Pill.vue";
 
 /**
  * Arreglar un prompt desde un fallo real (ADR-072): se ve qué falló en la traza, se parte de la versión que la produjo, se
@@ -199,7 +200,7 @@ async function save() {
       <section v-if="base" class="panel editor">
         <header>
           <b>Prompt text</b><span class="faint">starting from v{{ base.version }}</span>
-          <span v-if="!unchanged" class="mt-pill ok-pill" data-testid="fix-changed">changed</span>
+          <Pill v-if="!unchanged" data-testid="fix-changed" class="ok-pill">changed</Pill>
         </header>
         <div class="body">
           <TextInput v-model="content" multiline :rows="12" mono data-testid="fix-content" />

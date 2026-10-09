@@ -10,6 +10,7 @@ import { usePromptApi } from "../composables/usePromptApi";
 import Modal from "./Modal.vue";
 import TextInput from "./TextInput.vue";
 import Button from "./Button.vue";
+import Checkbox from "./Checkbox.vue";
 
 /**
  * Pedir aprobación (ADR-076) para publicar un borrador o apuntar un entorno a una versión. Enseña qué exige la regla de
@@ -75,11 +76,8 @@ async function send() {
 
         <fieldset v-if="candidates.length > 0" class="people">
           <legend>Also ask these people <span class="muted">(each one will have to approve)</span></legend>
-          <label v-for="p in candidates" :key="p.userId" class="person">
-            <input type="checkbox" :checked="extra.includes(p.userId)" :data-testid="`extra-${p.userId}`" @change="toggle(p.userId, ($event.target as HTMLInputElement).checked)" />
-            <span>{{ p.name }}</span>
-            <span class="muted">{{ p.roles.map(profileLabel).join(", ") }}</span>
-          </label>
+          <Checkbox v-for="p in candidates" :key="p.userId" class="person" :checked="extra.includes(p.userId)" :data-testid="`extra-${p.userId}`" @change="toggle(p.userId, ($event.target as HTMLInputElement).checked)"> <span>{{ p.name }}</span>
+            <span class="muted">{{ p.roles.map(profileLabel).join(", ") }}</span></Checkbox>
         </fieldset>
 
         <p v-if="problem" class="problem" role="alert" data-testid="request-error">{{ problem }}</p>

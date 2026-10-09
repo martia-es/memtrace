@@ -9,6 +9,7 @@ import PageHeader from "../../components/PageHeader.vue";
 import EmptyState from "../../components/EmptyState.vue";
 import Modal from "../../components/Modal.vue";
 import Button from "../../components/Button.vue";
+import Pill from "../../components/Pill.vue";
 
 /** Nivel 1 del área de admin: las organizaciones. Cada tarjeta lleva a su organización (nivel 2). */
 const api = useIdentityApi();
@@ -81,8 +82,8 @@ async function createOrganization() {
                 <template v-if="canManageOrg(o)"> · {{ memberCount(o.id) }} member(s)</template>
               </span>
             </div>
-            <span v-if="canManageOrg(o)" class="adm-pill org_admin">org_admin</span>
-            <span v-else class="adm-pill">via experiment</span>
+            <Pill tone="accent" v-if="canManageOrg(o)">org_admin</Pill>
+            <Pill v-else>via experiment</Pill>
             <span class="chevron" aria-hidden="true">›</span>
           </router-link>
         </li>

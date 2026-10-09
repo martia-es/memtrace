@@ -12,6 +12,7 @@ import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import FilterPill from "../components/FilterPill.vue";
 import PageHeader from "../components/PageHeader.vue";
+import Checkbox from "../components/Checkbox.vue";
 
 /** Catálogo de asistentes de la organización (ADR-053): una tarjeta de presentación por experimento registrado. */
 const ORG_KEY = "memtrace:assistantsOrganizationId";
@@ -137,7 +138,7 @@ const organizationOptions = computed(() => readable.value.map((o) => ({ label: o
         <TextInput type="search" v-model="search" placeholder="Search by name, description or owner…" class="search" />
         <FilterPill label="Environment" :model-value="environment" :options="environmentOptions" all-label="All" @update:model-value="environment = $event" />
         <FilterPill label="Status" :model-value="status" :options="statusOptions" all-label="All" @update:model-value="status = $event" />
-        <label class="toggle"><input v-model="onlyIssues" type="checkbox" />Only with issues</label>
+        <Checkbox class="toggle" v-model="onlyIssues">Only with issues</Checkbox>
       </div>
 
       <EmptyState v-if="cards.length === 0" icon="smart_toy" title="No agents yet">

@@ -9,6 +9,7 @@ import { blankRow, buildCommit, isDirty, nextVersionLabel, pasteGrid, parseClipb
 import Modal from "./Modal.vue";
 import { useTraceApi } from "../composables/useTraceApi";
 import Button from "./Button.vue";
+import Checkbox from "./Checkbox.vue";
 
 /**
  * Editor de items estilo hoja de cálculo (ADR-041): se edita en la propia tabla, todo queda en un
@@ -198,7 +199,7 @@ defineExpose({ dirty });
         </colgroup>
         <thead>
           <tr>
-            <th class="check"><input type="checkbox" aria-label="Select all" :checked="allSelected" @change="toggleAll" /></th>
+            <th class="check"><Checkbox aria-label="Select all" :checked="allSelected" @change="toggleAll" /></th>
             <th class="idx">#</th>
             <th>Input</th>
             <th>Expected output</th>
@@ -209,7 +210,7 @@ defineExpose({ dirty });
         <tbody>
           <tr v-for="(row, i) in visibleRows" :key="row.key" class="item-row" :class="[`is-${rowState(row)}`, { problem: rowProblem(row) }]">
             <td class="check">
-              <input v-if="rowState(row) !== 'empty' && !row.removed" type="checkbox" :checked="selected.has(row.key)" :aria-label="`Select row ${i + 1}`" @change="toggle(row)" />
+              <Checkbox v-if="rowState(row) !== 'empty' && !row.removed" :checked="selected.has(row.key)" :aria-label="`Select row ${i + 1}`" @change="toggle(row)" />
             </td>
             <td class="idx mono muted">{{ rowState(row) === "empty" ? "+" : i + 1 }}</td>
             <td v-for="col in [0, 1] as const" :key="col" class="edit-cell">

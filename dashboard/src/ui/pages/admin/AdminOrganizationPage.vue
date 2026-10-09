@@ -5,7 +5,7 @@ import { useQuasar } from "quasar";
 import { useRoute, useRouter } from "vue-router";
 import "@/styles/admin.css";
 import { useIdentityApi } from "../../composables/useIdentityApi";
-import { canManageOrg, notifyErrorWith, ROLE_LABEL, useAdminDirectory } from "../../composables/useAdminDirectory";
+import { canManageOrg, notifyErrorWith, ROLE_LABEL, useAdminDirectory, roleTone } from "../../composables/useAdminDirectory";
 import PageHeader from "../../components/PageHeader.vue";
 import TabBar from "../../components/TabBar.vue";
 import Modal from "../../components/Modal.vue";
@@ -15,6 +15,7 @@ import OrganizationAppearance from "../../components/admin/OrganizationAppearanc
 import OrganizationIdentity from "../../components/admin/OrganizationIdentity.vue";
 import ApprovalRulesPanel from "../../components/admin/ApprovalRulesPanel.vue";
 import Button from "../../components/Button.vue";
+import Pill from "../../components/Pill.vue";
 
 /** Nivel 2: una organización. Pestañas: experimentos (siempre), y miembros + identidad + apariencia solo para org_admin. */
 const props = defineProps<{ organizationId: string }>();
@@ -129,7 +130,7 @@ async function inviteOrgAdmin({ email }: { email: string }) {
                   <span class="adm-item-title">{{ e.name }}</span>
                   <span class="adm-item-meta">service.name: <span class="mono">{{ e.serviceName }}</span></span>
                 </div>
-                <span class="adm-pill" :class="e.myRole">{{ ROLE_LABEL[e.myRole] }}</span>
+                <Pill :tone="roleTone(e.myRole)">{{ ROLE_LABEL[e.myRole] }}</Pill>
                 <span class="chevron" aria-hidden="true">›</span>
               </router-link>
             </li>

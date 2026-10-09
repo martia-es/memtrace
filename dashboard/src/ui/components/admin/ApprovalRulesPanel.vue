@@ -8,6 +8,7 @@ import { belowFloor, describeRule, profileLabel, ruleFor, stepLabel, steps } fro
 import { usePromptApi } from "../../composables/usePromptApi";
 import ApprovalFlowChart, { type FlowStep } from "../ApprovalFlowChart.vue";
 import Button from "../Button.vue";
+import Checkbox from "../Checkbox.vue";
 
 /**
  * Reglas de aprobación de prompts (ADR-076), de la organización o de un experimento: por cada paso (publicar una versión y
@@ -171,7 +172,7 @@ async function remove(row: { action: "publish" | "promote"; stage: string }) {
               <legend>Profiles</legend>
               <p v-if="editing.action === 'publish'" class="adm-hint">Publishing a version is a review of the text, so only technical profiles can approve it.</p>
               <label v-for="role in allowedRoles(editing.action)" :key="role" class="row" :class="{ on: (draft.mins[role] ?? 0) > 0 }">
-                <input type="checkbox" :checked="(draft.mins[role] ?? 0) > 0" :data-testid="`role-${role}`" @change="toggleRole(role, ($event.target as HTMLInputElement).checked)" />
+                <Checkbox :checked="(draft.mins[role] ?? 0) > 0" :data-testid="`role-${role}`" @change="toggleRole(role, ($event.target as HTMLInputElement).checked)" />
                 <span class="grow">{{ profileLabel(role) }}</span>
                 <input
                   type="number"
@@ -190,12 +191,9 @@ async function remove(row: { action: "publish" | "promote"; stage: string }) {
             <fieldset>
               <legend>People who must always approve <span>· optional</span></legend>
               <p v-if="data.options.candidates.length === 0" class="adm-hint">Nobody can approve yet: add members with a technical or business role to an experiment first.</p>
-              <label v-for="c in data.options.candidates" :key="c.userId" class="row" :class="{ on: draft.approvers.includes(c.userId) }">
-                <input type="checkbox" :checked="draft.approvers.includes(c.userId)" :data-testid="`approver-${c.userId}`" @change="toggleApprover(c.userId, ($event.target as HTMLInputElement).checked)" />
-                <span class="mark person">{{ initials(c.name?.trim() || c.email) }}</span>
+              <Checkbox v-for="c in data.options.candidates" :key="c.userId" class="row" :class="{ on: draft.approvers.includes(c.userId) }" :checked="draft.approvers.includes(c.userId)" :data-testid="`approver-${c.userId}`" @change="toggleApprover(c.userId, ($event.target as HTMLInputElement).checked)"> <span class="mark person">{{ initials(c.name?.trim() || c.email) }}</span>
                 <span class="grow">{{ c.name?.trim() || c.email }}</span>
-                <span class="adm-hint">{{ c.roles.map(profileLabel).join(", ") }}</span>
-              </label>
+                <span class="adm-hint">{{ c.roles.map(profileLabel).join(", ") }}</span></Checkbox>
             </fieldset>
             <div class="means">
               <span class="kicker">What this means</span>

@@ -8,6 +8,7 @@ import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
 import ErrorBanner from "./ErrorBanner.vue";
 import Modal from "./Modal.vue";
+import Pill from "./Pill.vue";
 
 const props = defineProps<{
   datasetId: string;
@@ -71,7 +72,7 @@ const KIND_TONE = { added: "ok", modified: "warn", removed: "error" } as const;
       <p v-if="entries.length === 0" class="muted empty">No differences{{ diff.data.value.base ? ` between ${label(diff.data.value.base)} and ${label(diff.data.value.target)}` : "" }}.</p>
       <section v-for="entry in entries" :key="entry.change.originItemId" class="change" data-testid="diff-change">
         <header class="change-head">
-          <span class="mt-pill" :class="KIND_TONE[entry.change.kind]">{{ KIND_LABEL[entry.change.kind] }}{{ diff.data.value.base ? ` since ${label(diff.data.value.base)}` : "" }}</span>
+          <Pill :tone="KIND_TONE[entry.change.kind]">{{ KIND_LABEL[entry.change.kind] }}{{ diff.data.value.base ? ` since ${label(diff.data.value.base)}` : "" }}</Pill>
           <span class="muted">{{ changeAuthor(entry.change) }}</span>
         </header>
         <div class="diff">

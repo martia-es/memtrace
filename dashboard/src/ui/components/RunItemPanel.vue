@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, onMounted } from "vue";
 import { useRoute } from "vue-router";
 import { formatDuration } from "@/domain/format";
 import Button from "./Button.vue";
+import Pill from "./Pill.vue";
 
 const route = useRoute();
 const props = defineProps<{ item: DatasetRunItemResultDto; position: number; total: number; hasPrev: boolean; hasNext: boolean }>();
@@ -18,9 +19,9 @@ function failed(s: ScoreDto): boolean {
   return s.dataType === "boolean" && s.value !== "true";
 }
 
-function pillClass(s: ScoreDto) {
-  if (s.dataType !== "boolean") return "unset";
-  return s.value === "true" ? "ok" : s.value === "false" ? "error" : "unset";
+function pillClass(s: ScoreDto): "neutral" | "ok" | "error" {
+  if (s.dataType !== "boolean") return "neutral";
+  return s.value === "true" ? "ok" : s.value === "false" ? "error" : "neutral";
 }
 
 function sourceLabel(s: ScoreDto): string {
@@ -52,8 +53,8 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
       <div class="title">
         <strong>Item {{ item.itemIndex + 1 }}</strong>
         <span class="muted">{{ position }} of {{ total }}</span>
-        <span v-if="failedCount > 0" class="mt-pill error">{{ failedCount }} failed</span>
-        <span v-else class="mt-pill ok">all passed</span>
+        <Pill tone="error" v-if="failedCount > 0">{{ failedCount }} failed</Pill>
+        <Pill tone="ok" v-else>all passed</Pill>
       </div>
       <div class="nav">
         <Button v-if="traceLink" size="sm" :to="traceLink" data-testid="run-item-trace">Open trace</Button>
@@ -89,7 +90,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
         <div v-for="s in scores" :key="s.name" class="score" :class="{ bad: failed(s) }" :data-testid="`run-item-score-${s.name}`">
           <div class="score-head">
             <span class="mono name">{{ s.name }}</span>
-            <span class="mt-pill" :class="pillClass(s)">{{ s.dataType === "boolean" ? s.value.toUpperCase() : s.value }}</span>
+            <Pill :tone="pillClass(s)">{{ s.dataType === "boolean" ? s.value.toUpperCase() : s.value }}</Pill>
             <span class="spacer" />
             <span class="muted small">{{ s.dataType }} · {{ sourceLabel(s) }}</span>
           </div>

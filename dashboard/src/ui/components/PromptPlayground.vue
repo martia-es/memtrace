@@ -12,6 +12,7 @@ import ErrorBanner from "./ErrorBanner.vue";
 import Select from "./Select.vue";
 import TextInput from "./TextInput.vue";
 import Button from "./Button.vue";
+import Pill from "./Pill.vue";
 
 /**
  * Probar versiones de un prompt en el asistente real (ADR-071): se ejecuta el agente de verdad, con sus tools y su RAG, sin
@@ -180,7 +181,7 @@ async function run() {
         <section v-for="o in outcomes" :key="o.version" class="panel" :data-testid="`playground-result-${o.version}`">
           <header>
             <b class="mono">v{{ o.version }}</b>
-            <span v-if="o.result && !o.result.applied" class="mt-pill bad" :data-testid="`applied-${o.version}`">NOT applied</span>
+            <Pill v-if="o.result && !o.result.applied" :data-testid="`applied-${o.version}`" class="bad">NOT applied</Pill>
             <span v-if="o.result" class="faint mono small">{{ formatDuration(o.result.latencyMs) }}</span>
             <router-link v-if="o.result?.traceId" :to="{ name: 'trace', params: { experimentId, traceId: o.result.traceId } }" class="link">open trace</router-link>
           </header>

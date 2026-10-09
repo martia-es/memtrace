@@ -5,7 +5,7 @@ import { computed, ref, watch } from "vue";
 import { useQuasar } from "quasar";
 import { useRoute, useRouter } from "vue-router";
 import { formatDateTime, formatPercent } from "@/domain/format";
-import { aggregateTone, aggregateValueLabel } from "@/domain/evaluation";
+import { aggregateTone, aggregatePillTone, aggregateValueLabel } from "@/domain/evaluation";
 import { buildOfflineSeries, offlineEvalChartOption, summarizeEvaluators, type EvaluatorSummary } from "../offline-eval-chart-option";
 import EChart from "../components/EChart.vue";
 import EmptyState from "../components/EmptyState.vue";
@@ -17,6 +17,8 @@ import { useTraceApi } from "../composables/useTraceApi";
 import { useExperimentRepo } from "../composables/useExperimentRepo";
 import CommitLink from "../components/CommitLink.vue";
 import Button from "../components/Button.vue";
+import Checkbox from "../components/Checkbox.vue";
+import Pill from "../components/Pill.vue";
 
 const PAGE_SIZE = 20;
 
@@ -75,7 +77,7 @@ function deltaLabel(s: EvaluatorSummary): string {
   const sign = s.delta > 0 ? "+" : "";
   return s.kind === "passRate" ? `${sign}${(s.delta * 100).toFixed(1)} pp` : `${sign}${s.delta.toFixed(2)}`;
 }
-const deltaClass = (s: EvaluatorSummary) => (s.status === "improving" ? "ok" : s.status === "regressing" ? "error" : "unset");
+const deltaClass = (s: EvaluatorSummary) => (s.status === "improving" ? "ok" : s.status === "regressing" ? "error" : "neutral");
 
 // ---- compare: tick two completed runs and jump to the comparison (ADR-048); the first ticked is the baseline ----
 const picked = ref<string[]>([]);
@@ -114,7 +116,7 @@ function openRun(run: RunListItemDto) {
         <div v-for="s in deltas" :key="s.name" class="delta-row">
           <span class="delta-name">{{ s.name }}</span>
           <span class="mono muted">{{ fmt(s.previous, s.kind) }} → <b class="ink">{{ fmt(s.latest, s.kind) }}</b></span>
-          <span class="mt-pill mono" :class="deltaClass(s)">{{ deltaLabel(s) }}</span>
+          <Pill mono :tone="deltaClass(s)">{{ deltaLabel(s) }}</Pill>
         </div>
       </div>
     </section>
@@ -143,30 +145,29 @@ function openRun(run: RunListItemDto) {
         <tbody>
           <tr v-for="r in items" :key="r.id" class="run-row" :class="{ picked: isPicked(r) }" tabindex="0" @click="openRun(r)" @keydown.enter="openRun(r)">
             <td class="pick" @click.stop>
-              <input
-                type="checkbox"
+              <Checkbox
+               
                 class="pick-box"
                 data-testid="pick-run"
                 :checked="isPicked(r)"
                 :disabled="r.status !== 'completed'"
                 :title="r.status !== 'completed' ? 'Only completed runs can be compared' : undefined"
                 :aria-label="`Select ${r.name} to compare`"
-                @change="togglePick(r)"
-              />
+                @change="togglePick(r)" />
             </td>
             <td class="name">{{ r.name }}</td>
             <td class="muted">{{ r.datasetName }} <span class="mono faint">v{{ r.versionMajor }}.{{ r.versionMinor }}</span></td>
             <td @click.stop><CommitLink :revision="r.revision" :repo="repo" :dirty="r.revisionDirty" /></td>
             <td class="muted">{{ formatDateTime(r.createdAt) }}</td>
             <td v-for="m in metricNames" :key="m" class="center">
-              <span v-if="metricCell(r, m)" class="mt-pill" :class="{ ok: aggregateTone(metricCell(r, m)!) === 'positive', warn: aggregateTone(metricCell(r, m)!) === 'warning', error: aggregateTone(metricCell(r, m)!) === 'negative', unset: aggregateTone(metricCell(r, m)!) === 'default' }">
+              <Pill v-if="metricCell(r, m)" :tone="aggregatePillTone(aggregateTone(metricCell(r, m)!))">
                 {{ aggregateValueLabel(metricCell(r, m)!) }}
-              </span>
+              </Pill>
               <span v-else class="muted">–</span>
             </td>
             <td class="num mono">{{ r.itemCount }}</td>
             <td>
-              <span class="mt-pill" :class="r.status === 'running' ? 'warn' : 'ok'" :title="r.status === 'running' ? 'Still receiving results, or the process stopped before finishing' : undefined">{{ r.status === "running" ? "Running" : "Completed" }}</span>
+              <Pill :tone="r.status === 'running' ? 'warn' : 'ok'" :title="r.status === 'running' ? 'Still receiving results, or the process stopped before finishing' : undefined">{{ r.status === "running" ? "Running" : "Completed" }}</Pill>
             </td>
           </tr>
         </tbody>

@@ -6,6 +6,7 @@ import Modal from "./Modal.vue";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
 import Button from "./Button.vue";
+import Radio from "./Radio.vue";
 
 /**
  * Mete esta traza, o items de un run, en una cola de revisión existente (ADR-039). Las colas se crean en Review (solo admins).
@@ -55,22 +56,16 @@ async function add() {
     <form v-else class="form" @submit.prevent="add">
       <fieldset v-if="run" class="how" data-testid="run-selection">
         <label>
-          <input v-model="mode" type="radio" name="mode" value="sample" />
+          <Radio v-model="mode" name="mode" value="sample" />
           Random sample of
           <input v-model.number="sampleSize" class="size" type="number" min="1" :max="Math.min(run.itemCount, MAX_ALL)" aria-label="Sample size" :disabled="mode !== 'sample'" />
           of {{ run.itemCount }} items
         </label>
-        <label :class="{ off: !canSendAll }">
-          <input v-model="mode" type="radio" name="mode" value="all" :disabled="!canSendAll" />
-          All {{ run.itemCount }} items{{ canSendAll ? "" : ` (more than ${MAX_ALL}: send a sample)` }}
-        </label>
+        <Radio :class="{ off: !canSendAll }" v-model="mode" name="mode" value="all" :disabled="!canSendAll"> All {{ run.itemCount }} items{{ canSendAll ? "" : ` (more than ${MAX_ALL}: send a sample)` }}</Radio>
         <p class="muted">A random sample is what makes the judge-vs-human agreement representative; labeling only the items the judge failed would bias it.</p>
       </fieldset>
-      <label v-for="q in items" :key="q.id" class="option">
-        <input v-model="selected" type="radio" name="queue" :value="q.id" />
-        <span class="name">{{ q.name }}</span>
-        <span class="muted">{{ q.progress.pending }} pending</span>
-      </label>
+      <Radio v-for="q in items" :key="q.id" class="option" v-model="selected" name="queue" :value="q.id"> <span class="name">{{ q.name }}</span>
+        <span class="muted">{{ q.progress.pending }} pending</span></Radio>
       <Button variant="primary" type="submit" :disabled="!selected || saving">Add</Button>
     </form>
   </Modal>

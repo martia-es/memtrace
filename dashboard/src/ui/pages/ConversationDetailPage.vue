@@ -17,6 +17,7 @@ import { useFilters } from "../composables/useFilters";
 import { useLiveRefresh } from "../composables/useLiveRefresh";
 import { useTraceApi } from "../composables/useTraceApi";
 import { useExperimentRepo } from "../composables/useExperimentRepo";
+import Pill from "../components/Pill.vue";
 
 const props = defineProps<{ conversationId: string }>();
 const api = useTraceApi();
@@ -133,8 +134,8 @@ const backToList = () => void router.push({ name: "conversations", params: { exp
         <div class="titles">
           <div class="title-row">
             <h1 class="leading-none" :title="conversation.title ?? undefined">{{ conversation.title ?? "Conversation" }}</h1>
-            <span v-if="conversation.errorTurns" class="mt-pill error">{{ conversation.errorTurns }} {{ conversation.errorTurns === 1 ? "trace with error" : "traces with error" }}</span>
-            <span v-else-if="conversation.failedSpans" class="mt-pill warn">{{ conversation.failedSpans }} {{ conversation.failedSpans === 1 ? "span with failures" : "spans with failures" }}</span>
+            <Pill tone="error" v-if="conversation.errorTurns">{{ conversation.errorTurns }} {{ conversation.errorTurns === 1 ? "trace with error" : "traces with error" }}</Pill>
+            <Pill tone="warn" v-else-if="conversation.failedSpans">{{ conversation.failedSpans }} {{ conversation.failedSpans === 1 ? "span with failures" : "spans with failures" }}</Pill>
           </div>
           <PromptChips :prompts="conversation.prompts" />
           <span class="muted sub"><span class="mono id">{{ conversationId }}</span> · {{ conversation.serviceNames.join(", ") }} · {{ formatDateTime(conversation.startTime) }}</span>

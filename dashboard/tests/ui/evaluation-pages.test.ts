@@ -252,7 +252,7 @@ describe("DatasetRunDetailPage", () => {
     expect(wrapper.text()).toContain("66%");
     expect(wrapper.text()).toContain("capital of Spain?");
     expect(wrapper.text()).toContain("Barcelona");
-    expect(wrapper.find(".mt-pill.error").text()).toContain("exact_match=false");
+    expect(wrapper.find(".mt-pill.t-error").text()).toContain("exact_match=false");
   });
 
   it("shows with which prompt version each item was produced, and the versions the whole run used (ADR-068)", async () => {
@@ -290,7 +290,7 @@ describe("DatasetRunDetailPage", () => {
       items: [datasetRunItem({ scores: [{ name: "correctness", value: "true", dataType: "boolean", source: "llm_judge", comment: null }] })],
     };
     const { wrapper } = await setup(DatasetRunDetailPage, api, "/datasets/ds-1/runs/run-1");
-    expect(wrapper.find(".mt-pill.ok").text()).toContain("LLM");
+    expect(wrapper.find(".mt-pill.t-ok").text()).toContain("LLM");
   });
 
   it("shows the task error instead of the output when the item failed", async () => {

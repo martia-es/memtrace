@@ -8,6 +8,7 @@ import { KIND_LABEL, automaticLabel, distinctLabel, hiddenReason, isAttributeSho
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import Modal from "./Modal.vue";
+import Checkbox from "./Checkbox.vue";
 
 /**
  * "Rename things" (ADR-078): el nombre de negocio de cada paso y atributo que las Custom charts ofrecen. Se guarda por experimento
@@ -145,7 +146,7 @@ async function reset(r: Row) {
         <section v-for="section in [{ title: 'Steps', kind: 'step' as const, rows: stepRows }, { title: 'Attributes', kind: 'attribute' as const, rows: attributeRows }]" :key="section.kind">
           <header>
             <h3>{{ section.title }}</h3>
-            <label v-if="section.kind === 'attribute'" class="toggle"><input v-model="showHidden" type="checkbox" data-testid="catalog-technical" /> Show hidden details</label>
+            <Checkbox v-if="section.kind === 'attribute'" class="toggle" v-model="showHidden" data-testid="catalog-technical"> Show hidden details</Checkbox>
           </header>
           <p v-if="section.rows.length === 0" class="muted" :data-testid="`catalog-empty-${section.kind}`">Nothing detected in this period.</p>
           <ul v-else>

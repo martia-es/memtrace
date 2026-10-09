@@ -11,6 +11,7 @@ import { AUTH_LABEL } from "@/domain/assistants";
 import { useAssistantApi } from "../../composables/useAssistantApi";
 import Modal from "../Modal.vue";
 import Button from "../Button.vue";
+import Checkbox from "../Checkbox.vue";
 
 /** Alta o edición de un despliegue (ADR-053). Nunca se piden secretos: solo cómo se autentica. */
 const props = defineProps<{ experimentId: string; deployment?: DeploymentSummaryDto; environments: EnvironmentDto[] }>();
@@ -111,7 +112,7 @@ const authOptions = Object.entries(AUTH_LABEL).map(([value, label]) => ({ label,
       </div>
       <p v-if="form.authMethod !== 'none'" class="hint">MemTrace never stores secrets: only how this deployment authenticates.</p>
       <div class="row row-health">
-        <label class="check"><input v-model="form.healthCheckEnabled" type="checkbox" />Check /health automatically</label>
+        <Checkbox class="check" v-model="form.healthCheckEnabled">Check /health automatically</Checkbox>
         <label class="field">
           <span>Check every (seconds)</span>
           <TextInput v-model="form.interval" :invalid="!!fieldErrors.healthIntervalSeconds" type="number" min="15" placeholder="Environment default" />

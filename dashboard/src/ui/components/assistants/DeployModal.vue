@@ -11,6 +11,7 @@ import CommitLink from "../CommitLink.vue";
 import Modal from "../Modal.vue";
 import StatusChip from "../StatusChip.vue";
 import Button from "../Button.vue";
+import Checkbox from "../Checkbox.vue";
 
 /**
  * Despliegue de un entorno (ADR-064). MemTrace no despliega: dispara el CI del repo con el commit al que apunta hoy la rama
@@ -79,9 +80,7 @@ async function send() {
 
         <template v-if="!gate.allowed">
           <p class="hint">Run the offline evaluation from your CI on this commit, then come back. Evaluations run on a laptop with uncommitted changes do not count.</p>
-          <label v-if="canBypass" class="bypass">
-            <input v-model="bypassing" type="checkbox" data-testid="bypass-toggle" /> Deploy anyway (hotfix)
-          </label>
+          <Checkbox v-if="canBypass" class="bypass" v-model="bypassing" data-testid="bypass-toggle"> Deploy anyway (hotfix)</Checkbox>
           <label v-if="bypassing" class="field">
             <span>Why? It stays in the deployment history.</span>
             <TextInput v-model="reason" multiline :rows="2" :invalid="!!fieldErrors.bypassReason" data-testid="bypass-reason" />

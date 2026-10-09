@@ -154,37 +154,6 @@ a.adm-item:hover {
 }
 
 /* ---- pills ---- */
-.adm-pill {
-  flex-shrink: 0;
-  padding: 3px 10px;
-  border-radius: var(--mt-radius-sm);
-  font-size: 11px;
-  font-weight: 700;
-  white-space: nowrap;
-  background: var(--mt-soft);
-  color: var(--mt-muted);
-}
-.adm-pill.org_admin {
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-}
-.adm-pill.technical,
-.adm-pill.business {
-  background: var(--mt-soft);
-  color: var(--mt-ink);
-}
-.adm-pill.outline {
-  background: transparent;
-  border: 1px solid var(--mt-line-2);
-}
-.adm-pill.active {
-  background: var(--mt-ok-bg);
-  color: var(--mt-ok-ink);
-}
-.adm-pill.pending {
-  background: var(--mt-warn-bg);
-  color: var(--mt-warn-ink);
-}
 
 /* ---- snippets ---- */
 .adm-snippet {

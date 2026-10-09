@@ -15,6 +15,9 @@ import QueueResults from "./QueueResults.vue";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
 import Button from "./Button.vue";
+import Checkbox from "./Checkbox.vue";
+import Pill from "./Pill.vue";
+import { aggregatePillTone } from "@/domain/evaluation";
 
 /** Progreso, trabajo por revisor, rúbrica y items de una cola (ADR-039). Los admins pueden cambiar `requiredAnnotations` y retirar items del reparto. */
 const props = defineProps<{ queueId: string; canManage: boolean; initialTab?: "summary" | "results" | "settings" }>();
@@ -147,8 +150,8 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
         <ul class="plain">
           <li v-for="c in detail.data.value.configs" :key="c.id">
             <strong>{{ c.name }}</strong> <span class="muted">{{ describeScale(c) }}</span>
-            <span v-if="detail.data.value.rubric.find((r) => r.configId === c.id)?.required" class="pill">required</span>
-            <span v-if="c.archivedAt" class="pill warn">archived</span>
+            <Pill v-if="detail.data.value.rubric.find((r) => r.configId === c.id)?.required">required</Pill>
+            <Pill v-if="c.archivedAt" tone="warn">archived</Pill>
           </li>
         </ul>
       </section>
@@ -156,10 +159,7 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
       <section v-if="canManage && showSettings">
         <h3>Who can annotate</h3>
         <p class="muted">Only these people can pull and label items. Removing someone keeps what they already labeled.</p>
-        <label v-for="m in members" :key="m.userId" class="req-row">
-          <input v-model="assigned" type="checkbox" :value="m.userId" :checked="currentReviewers.includes(m.userId)" @change="assigned = assigned ?? [...currentReviewers]" />
-          {{ m.name ?? m.email }} <span class="muted">{{ m.email }}</span>
-        </label>
+        <Checkbox v-for="m in members" :key="m.userId" class="req-row" :model-value="currentReviewers" :value="m.userId" @update:model-value="assigned = $event as string[]"> {{ m.name ?? m.email }} <span class="muted">{{ m.email }}</span></Checkbox>
         <Button size="sm" :disabled="!reviewersChanged || !currentReviewers.length" @click="saveReviewers">Apply</Button>
         <p v-if="currentReviewers.length < detail.data.value.requiredAnnotations" class="muted">At least {{ detail.data.value.requiredAnnotations }} reviewers are needed.</p>
       </section>
@@ -185,7 +185,7 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
         <ul class="plain">
           <li v-for="m in judgeMetrics" :key="m.name">
             <strong>{{ m.name }}</strong>
-            <span class="pill" :class="judgeVerdict(m.kappa).tone">{{ judgeVerdict(m.kappa).text }}</span>
+            <Pill :tone="aggregatePillTone(judgeVerdict(m.kappa).tone)">{{ judgeVerdict(m.kappa).text }}</Pill>
           </li>
         </ul>
       </section>
@@ -214,7 +214,7 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
               Run {{ shortId(item.datasetRunId) }} · item {{ item.itemIndex }}
             </router-link>
             <span v-else class="mono">{{ label(item) }}</span>
-            <span class="pill" :class="item.status">{{ item.status === "skipped" ? "unreviewable" : item.status }}</span>
+            <Pill :tone="item.status === 'completed' ? 'ok' : item.status === 'skipped' ? 'warn' : 'neutral'">{{ item.status === "skipped" ? "unreviewable" : item.status }}</Pill>
             <Button class="push" size="sm" v-if="canManage && item.status !== 'skipped'" @click="markUnreviewable(item)">Mark unreviewable</Button>
           </li>
         </ul>
@@ -312,28 +312,6 @@ h3 {
 .items {
   max-height: 260px;
   overflow: auto;
-}
-.pill {
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: var(--mt-card);
-  color: var(--mt-muted);
-  font-size: 11px;
-  font-weight: 600;
-}
-.pill.completed {
-  color: var(--mt-ok-ink, var(--mt-accent));
-}
-.pill.warn,
-.pill.skipped,
-.pill.negative {
-  color: var(--mt-err-ink);
-}
-.pill.positive {
-  color: var(--mt-ok-ink, var(--mt-accent));
-}
-.pill.warning {
-  color: #92400e;
 }
 
 .push { margin-left: auto; }

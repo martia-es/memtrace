@@ -5,7 +5,7 @@ import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useQuasar } from "quasar";
 import { formatDateTime } from "@/domain/format";
-import { aggregateTone, aggregateValueLabel } from "@/domain/evaluation";
+import { aggregateTone, aggregatePillTone, aggregateValueLabel } from "@/domain/evaluation";
 import DatasetVersionDiffModal from "../components/DatasetVersionDiffModal.vue";
 import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
@@ -14,6 +14,7 @@ import PageHeader from "../components/PageHeader.vue";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
 import Button from "../components/Button.vue";
+import Pill from "../components/Pill.vue";
 
 const PAGE_SIZE = 20;
 
@@ -179,11 +180,11 @@ function openRun(runId: string) {
               <tbody>
                 <tr v-for="r in pagedRuns" :key="r.id" class="run-row" tabindex="0" @click="openRun(r.id)" @keydown.enter="openRun(r.id)">
                   <td class="name">{{ r.name }}</td>
-                  <td class="num mono">v{{ r.versionMajor }}.{{ r.versionMinor }} <span v-if="r.status === 'running'" class="mt-pill warn" title="Still receiving results, or the process stopped before finishing">running</span></td>
+                  <td class="num mono">v{{ r.versionMajor }}.{{ r.versionMinor }} <Pill tone="warn" v-if="r.status === 'running'" title="Still receiving results, or the process stopped before finishing">running</Pill></td>
                   <td v-for="m in runMetricNames" :key="m" class="num">
-                    <span v-if="runMetricCell(r, m)" class="mt-pill" :class="{ ok: aggregateTone(runMetricCell(r, m)!) === 'positive', warn: aggregateTone(runMetricCell(r, m)!) === 'warning', error: aggregateTone(runMetricCell(r, m)!) === 'negative', unset: aggregateTone(runMetricCell(r, m)!) === 'default' }">
+                    <Pill v-if="runMetricCell(r, m)" :tone="aggregatePillTone(aggregateTone(runMetricCell(r, m)!))">
                       {{ aggregateValueLabel(runMetricCell(r, m)!) }}
-                    </span>
+                    </Pill>
                     <span v-else class="muted">–</span>
                   </td>
                   <td class="num mono">{{ r.itemCount }}</td>

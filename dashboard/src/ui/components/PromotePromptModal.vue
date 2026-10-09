@@ -9,6 +9,7 @@ import Modal from "./Modal.vue";
 import StatusChip from "./StatusChip.vue";
 import TextInput from "./TextInput.vue";
 import Button from "./Button.vue";
+import Checkbox from "./Checkbox.vue";
 
 /**
  * Promoción de una versión a un entorno protegido (ADR-070). Antes de mover el tag dice si hay una evaluación exitosa de
@@ -96,9 +97,7 @@ async function send() {
           <p class="hint">Run the offline evaluation on the policy's dataset with the agent reading v{{ version }} (<code>memtrace.prompts</code>), then come back.</p>
         </template>
         <template v-if="!gate.allowed">
-          <label v-if="canBypass" class="bypass">
-            <input v-model="bypassing" type="checkbox" data-testid="bypass-toggle" /> Promote anyway (emergency)
-          </label>
+          <Checkbox v-if="canBypass" class="bypass" v-model="bypassing" data-testid="bypass-toggle"> Promote anyway (emergency)</Checkbox>
           <p v-else class="hint" data-testid="no-bypass">Skipping the evaluation needs the governance permission.</p>
           <label v-if="bypassing" class="field">
             <span>Why? It stays in the history of this prompt.</span>

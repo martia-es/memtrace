@@ -17,6 +17,7 @@ import { useExperimentRepo } from "../composables/useExperimentRepo";
 import CommitLink from "../components/CommitLink.vue";
 import PromptChips from "../components/PromptChips.vue";
 import Button from "../components/Button.vue";
+import Pill from "../components/Pill.vue";
 
 const api = useTraceApi();
 const route = useRoute();
@@ -54,9 +55,9 @@ function preview(value: unknown): string {
   return typeof value === "string" ? value : JSON.stringify(value);
 }
 
-function scorePillClass(s: ScoreDto) {
-  if (s.dataType !== "boolean") return "unset";
-  return s.value === "true" ? "ok" : s.value === "false" ? "error" : "unset";
+function scorePillClass(s: ScoreDto): "neutral" | "ok" | "error" {
+  if (s.dataType !== "boolean") return "neutral";
+  return s.value === "true" ? "ok" : s.value === "false" ? "error" : "neutral";
 }
 
 /** Tooltip de un score: razonamiento del juez y, si lo hay, qué modelo y rúbrica lo emitieron (ADR-043). */
@@ -92,7 +93,7 @@ function sourceSuffix(s: ScoreDto): string | null {
         <span v-if="run.data.value!.run.revision" class="artifact">Code version: <CommitLink :revision="run.data.value!.run.revision" :repo="repo" :dirty="run.data.value!.run.revisionDirty" /></span>
         <span v-if="runPrompts.length > 0" class="artifact" data-testid="run-prompts">Prompt: <PromptChips :prompts="runPrompts" :max="4" /></span>
         <span class="artifact">{{ run.data.value!.run.itemCount }} items</span>
-        <span v-if="run.data.value!.run.status === 'running'" class="artifact mt-pill warn" title="Still receiving results, or the process stopped before finishing">running</span>
+        <Pill tone="warn" v-if="run.data.value!.run.status === 'running'" title="Still receiving results, or the process stopped before finishing" class="artifact">running</Pill>
         <span class="artifact">{{ formatDateTime(run.data.value!.run.createdAt) }}</span>
       </div>
 
@@ -140,9 +141,9 @@ function sourceSuffix(s: ScoreDto): string | null {
               <td>
                 <div class="scores">
                   <span v-if="item.scores.length === 0" class="muted">–</span>
-                  <span v-for="s in item.scores" :key="s.name" class="mt-pill" :class="scorePillClass(s)" :title="scoreTitle(s)">
+                  <Pill v-for="s in item.scores" :key="s.name" :tone="scorePillClass(s)" :title="scoreTitle(s)">
                     {{ s.name }}={{ s.value }}<span v-if="sourceSuffix(s)" class="source"> · {{ sourceSuffix(s) }}</span>
-                  </span>
+                  </Pill>
                 </div>
               </td>
               <td v-if="hasAnyTraceId"><PromptChips :prompts="item.telemetry?.prompts ?? []" :max="2" /></td>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { MembersResponseDto } from "@/application/identity-api";
-import { ROLE_LABEL, formatDate, initials } from "../../composables/useAdminDirectory";
+import { ROLE_LABEL, formatDate, initials, roleTone } from "../../composables/useAdminDirectory";
+import Pill from "../Pill.vue";
 
 /** Miembros activos e invitaciones pendientes de un ámbito (organización o experimento). */
 defineProps<{ data: MembersResponseDto | undefined }>();
@@ -15,8 +16,8 @@ defineProps<{ data: MembersResponseDto | undefined }>();
           <span class="adm-item-title">{{ m.name ?? m.email }}</span>
           <span class="adm-item-meta">{{ m.email }}</span>
         </div>
-        <span v-if="m.source !== 'manual'" class="adm-pill outline" :title="`Managed by your identity provider (${m.source === 'scim' ? 'SCIM' : 'sign-in groups'}): change it there`" data-testid="idp-badge">IdP</span>
-        <span class="adm-pill" :class="m.role">{{ ROLE_LABEL[m.role] }}</span>
+        <Pill outline v-if="m.source !== 'manual'" :title="`Managed by your identity provider (${m.source === 'scim' ? 'SCIM' : 'sign-in groups'}): change it there`" data-testid="idp-badge">IdP</Pill>
+        <Pill :tone="roleTone(m.role)">{{ ROLE_LABEL[m.role] }}</Pill>
       </li>
     </ul>
     <p v-else class="adm-hint">No active members yet.</p>
@@ -30,7 +31,7 @@ defineProps<{ data: MembersResponseDto | undefined }>();
             <span class="adm-item-title">{{ inv.email }}</span>
             <span class="adm-item-meta">invited {{ formatDate(inv.createdAt) }} · waiting for them to sign in</span>
           </div>
-          <span class="adm-pill outline" :class="inv.role">{{ ROLE_LABEL[inv.role] }}</span>
+          <Pill outline :tone="roleTone(inv.role)">{{ ROLE_LABEL[inv.role] }}</Pill>
         </li>
       </ul>
     </template>

@@ -12,6 +12,7 @@ import ErrorBanner from "./ErrorBanner.vue";
 import KpiCard from "./KpiCard.vue";
 import Select from "./Select.vue";
 import Button from "./Button.vue";
+import Pill from "./Pill.vue";
 
 const props = defineProps<{ runs: RunListItemDto[]; runId: string | null }>();
 const emit = defineEmits<{ "update:runId": [id: string] }>();
@@ -87,7 +88,7 @@ function openFull() {
           <tr v-for="item in problemItems.slice(0, SHOWN)" :key="item.itemIndex">
             <td class="preview" :title="preview(item.input)">{{ preview(item.input) }}</td>
             <td class="preview" :title="item.error ?? preview(item.output)">{{ item.error ? `error: ${item.error}` : preview(item.output) }}</td>
-            <td><span v-for="n in failedScores(item)" :key="n" class="mt-pill error fail">{{ n }}</span><span v-if="!failedScores(item).length" class="muted">–</span></td>
+            <td><Pill tone="error" v-for="n in failedScores(item)" :key="n" class="fail">{{ n }}</Pill><span v-if="!failedScores(item).length" class="muted">–</span></td>
           </tr>
         </tbody>
       </table></div>

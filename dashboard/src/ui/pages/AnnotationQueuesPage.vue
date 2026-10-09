@@ -16,6 +16,7 @@ import { useAsync } from "../composables/useAsync";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import Button from "../components/Button.vue";
+import Checkbox from "../components/Checkbox.vue";
 
 /**
  * Colas de revisión (ADR-039): qué trazas hay que revisar, con qué rúbrica y cuánto va hecho. Cualquier
@@ -278,15 +279,15 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
           <p class="muted">Only the people you pick can annotate in this queue.</p>
           <p v-if="!members.length" class="muted">This experiment has no members yet. Invite them in Admin → your experiment.</p>
           <div v-for="m in members" :key="m.userId" class="rubric-row">
-            <label><input v-model="form.reviewerIds" type="checkbox" :value="m.userId" /> {{ m.name ?? m.email }} <span class="muted">{{ m.email }}</span></label>
+            <Checkbox v-model="form.reviewerIds" :value="m.userId"> {{ m.name ?? m.email }} <span class="muted">{{ m.email }}</span></Checkbox>
           </div>
         </fieldset>
         <fieldset class="rubric">
           <legend>Rubric</legend>
           <p v-if="!configs.length" class="muted">No score configs yet. Create them in Admin → your experiment → Score configs.</p>
           <div v-for="c in configs" :key="c.id" class="rubric-row">
-            <label><input v-model="form.picked[c.id]!.on" type="checkbox" /> {{ c.name }}</label>
-            <label v-if="form.picked[c.id]?.on" class="muted"><input v-model="form.picked[c.id]!.required" type="checkbox" /> required</label>
+            <Checkbox v-model="form.picked[c.id]!.on"> {{ c.name }}</Checkbox>
+            <Checkbox v-if="form.picked[c.id]?.on" class="muted" v-model="form.picked[c.id]!.required"> required</Checkbox>
           </div>
         </fieldset>
         <Button variant="primary" type="submit" :disabled="creating || !form.name.trim() || !rubric.length || !form.reviewerIds.length || form.requiredAnnotations > form.reviewerIds.length">Create</Button>
@@ -301,10 +302,10 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
           Root status
           <Select v-model="filter.status" :options="STATUS_OPTIONS" aria-label="Root status" />
         </label>
-        <label class="inline"><input v-model="filter.hasErrors" type="checkbox" /> Only traces with a failed span</label>
+        <Checkbox class="inline" v-model="filter.hasErrors"> Only traces with a failed span</Checkbox>
         <label class="inline">Slower than (ms) <TextInput v-model="filter.minDurationMs" type="number" min="0" aria-label="Minimum duration" /></label>
         <label class="inline">{{ filter.random ? "Sample of" : "At most" }} <TextInput v-model="filter.limit" type="number" min="1" max="500" aria-label="Limit" /> traces</label>
-        <label class="inline"><input v-model="filter.random" type="checkbox" aria-label="Random sample" /> Pick them at random from all matches instead of the first ones</label>
+        <Checkbox class="inline" v-model="filter.random" aria-label="Random sample"> Pick them at random from all matches instead of the first ones</Checkbox>
         <Button variant="primary" type="submit" :disabled="adding">Add traces</Button>
       </form>
     </Modal>

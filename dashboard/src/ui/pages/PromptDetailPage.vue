@@ -30,6 +30,7 @@ import { usePermissions } from "../composables/usePermissions";
 import { usePromptApi } from "../composables/usePromptApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import Button from "../components/Button.vue";
+import Pill from "../components/Pill.vue";
 
 const props = defineProps<{ promptId: string }>();
 const api = usePromptApi();
@@ -146,6 +147,8 @@ const comparison = computed(() => {
   return base && target ? compareVersions(base, target) : null;
 });
 const missingEvidence = computed(() => [compareWith.value, selected.value].filter((v): v is number => v !== null && evidenceOf(v) === null));
+const USAGE_TONE: Record<UsageState, "ok" | "highlight" | "info" | "neutral"> = { in_sync: "ok", behind: "highlight", pinned: "info", stale: "neutral" };
+const DIRECTION_TONE = { better: "ok", worse: "error", same: "neutral", unknown: "neutral" } as const;
 const DIRECTION_LABEL = { better: "Better", worse: "Worse", same: "No change", unknown: "–" } as const;
 
 // ---- comparar ----
@@ -459,7 +462,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
       :title="data?.prompt.name ?? 'Prompt'"
     >
       <div class="actions">
-        <span v-if="archived" class="mt-pill archived" data-testid="archived-badge">archived</span>
+        <Pill v-if="archived" data-testid="archived-badge" class="archived">archived</Pill>
         <Button v-if="can('prompt:write')" data-testid="toggle-archived" @click="toggleArchived">{{ archived ? "Restore" : "Archive" }}</Button>
       </div>
     </PageHeader>
@@ -507,7 +510,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
               >
                 <span class="version-head">
                   <strong class="mono">v{{ v.version }}</strong>
-                  <span v-if="v.status === 'draft'" class="mt-pill draft-pill" :data-testid="`draft-${v.version}`">draft</span>
+                  <Pill v-if="v.status === 'draft'" :data-testid="`draft-${v.version}`" class="draft-pill">draft</Pill>
                   <EnvFlag v-for="tag in tagsByVersion.get(v.version) ?? []" :key="tag" :env="tag" />
                   <span class="grow" />
                   <span class="mono version-date">{{ formatDateTime(v.createdAt) }}</span>
@@ -572,7 +575,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                     <span class="code-msg">{{ selectedVersion.message || "No message" }}</span>
                     <span class="grow" />
                     <span class="soft">{{ formatDateTime(selectedVersion.createdAt) }}</span>
-                    <span v-if="parentOfSelected" class="mt-pill from">from v{{ parentOfSelected.version }}</span>
+                    <Pill v-if="parentOfSelected" class="from">from v{{ parentOfSelected.version }}</Pill>
                     <span v-if="hasIncludes" class="view-toggle" role="group" aria-label="Text shown">
                       <button type="button" :class="{ on: view === 'source' }" data-testid="view-source" @click="view = 'source'">Source</button>
                       <button type="button" :class="{ on: view === 'resolved' }" data-testid="view-resolved" @click="view = 'resolved'">Resolved</button>
@@ -598,7 +601,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                       <li v-for="i in selectedVersion.includes" :key="`${i.name}@${i.ref}`" :data-testid="`include-${i.name}`">
                         <router-link :to="{ name: 'prompts', params: { experimentId: String(route.params.experimentId) } }" class="link mono">{{ i.name }}@{{ i.ref }}</router-link>
                         → <b class="mono">v{{ i.version }}</b>
-                        <span v-if="includeOutdated(i.name, i.ref)" class="mt-pill draft-pill" :data-testid="`outdated-${i.name}`">now v{{ includeOutdated(i.name, i.ref) }}</span>
+                        <Pill v-if="includeOutdated(i.name, i.ref)" :data-testid="`outdated-${i.name}`" class="draft-pill">now v{{ includeOutdated(i.name, i.ref) }}</Pill>
                       </li>
                     </ul>
                     <Button variant="primary" size="sm" v-if="canWrite && isLatestPublished && anyOutdated" :disabled="draftBusy" data-testid="rebuild" @click="rebuildPrompt">Rebuild with the current fragments</Button>
@@ -610,8 +613,8 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                     <ul v-else class="plain">
                       <li v-for="u in data.usedBy" :key="u.promptId" :data-testid="`used-by-${u.name}`">
                         <router-link :to="{ name: 'prompt', params: { experimentId: String(route.params.experimentId), promptId: u.promptId } }" class="link mono">{{ u.name }}</router-link> <span class="soft">v{{ u.version }}</span>
-                        <span v-if="u.outdated" class="mt-pill draft-pill">behind</span>
-                        <span v-else class="mt-pill ok-pill">up to date</span>
+                        <Pill v-if="u.outdated" class="draft-pill">behind</Pill>
+                        <Pill v-else class="ok-pill">up to date</Pill>
                       </li>
                     </ul>
                   </div>
@@ -661,11 +664,11 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   <span class="env-badge" :class="key"><b>{{ key.toUpperCase() }}</b></span>
                   <strong class="mono env-ver">{{ tagVersion(key) === null ? "—" : `v${tagVersion(key)}` }}</strong>
                   <span class="env-msg">{{ messageOf(tagVersion(key)) || "No message" }}</span>
-                  <span v-if="isProtected(key)" class="mt-pill protected" title="Needs a passing evaluation to be promoted" :data-testid="`protected-${key}`">protected</span>
+                  <Pill v-if="isProtected(key)" title="Needs a passing evaluation to be promoted" :data-testid="`protected-${key}`" class="protected">protected</Pill>
                   <span class="env-usage">
                     <template v-if="usageOf(key)">
                       <span class="soft">{{ usageOf(key)!.state === "behind" ? `agent on v${usageOf(key)!.version}` : formatRelativeTime(usageOf(key)!.lastSeenAt, nowMs) }}</span>
-                      <span class="mt-pill usage" :class="usageOf(key)!.state">{{ USAGE_LABEL[usageOf(key)!.state] }}</span>
+                      <Pill :tone="USAGE_TONE[usageOf(key)!.state]" class="usage">{{ USAGE_LABEL[usageOf(key)!.state] }}</Pill>
                     </template>
                     <span v-else class="soft">No agent has reported this environment yet.</span>
                   </span>
@@ -724,7 +727,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                       <td class="mono tag-name">{{ u.environment || "no environment" }}</td>
                       <td class="mono">v{{ u.version }}</td>
                       <td class="muted">{{ u.tag ? `follows “${u.tag}”` : "fixed version" }}</td>
-                      <td><span class="mt-pill usage" :class="u.state">{{ USAGE_LABEL[u.state] }}</span></td>
+                      <td><Pill :tone="USAGE_TONE[u.state]" class="usage">{{ USAGE_LABEL[u.state] }}</Pill></td>
                       <td v-if="u.state === 'behind'" class="muted small">“{{ u.tag }}” now points to v{{ u.tagVersion }}</td>
                       <td v-else class="muted small">{{ formatRelativeTime(u.lastSeenAt, nowMs) }}</td>
                     </tr>
@@ -810,7 +813,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                           <span class="env-stack"><EnvFlag v-for="tag in tagsByVersion.get(e.version) ?? []" :key="tag" :env="tag" /></span>
                         </td>
                         <td class="mono">
-                          <span class="cell-top">{{ formatCount(e.traces) }}<span v-if="sampleQuality(e.traces) === 'low'" class="mt-pill low-sample" :title="`Fewer than ${MIN_TRACES} traces: the figures are only indicative`">few traces</span></span>
+                          <span class="cell-top">{{ formatCount(e.traces) }}<Pill v-if="sampleQuality(e.traces) === 'low'" :title="`Fewer than ${MIN_TRACES} traces: the figures are only indicative`" class="low-sample">few traces</Pill></span>
                           <span class="meter"><span :style="{ width: `${Math.max(3, (e.traces / maxTraces) * 100)}%` }" /></span>
                         </td>
                         <td class="mono" :class="{ bad: e.errorRate >= 0.1 }">
@@ -893,10 +896,10 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                     <div v-for="d in comparison.deltas" :key="d.key" class="tile" :data-testid="`delta-${d.key}`">
                       <span class="eyebrow">{{ d.label.toUpperCase() }}</span>
                       <div class="tile-value"><strong>{{ d.target }}</strong><span class="soft">was {{ d.base }}</span></div>
-                      <span class="mt-pill direction" :class="d.direction">{{ d.change }} · {{ DIRECTION_LABEL[d.direction] }}</span>
+                      <Pill :tone="DIRECTION_TONE[d.direction]" class="direction">{{ d.change }} · {{ DIRECTION_LABEL[d.direction] }}</Pill>
                       <div v-if="d.bars" class="bars" aria-hidden="true">
                         <span class="bar base"><i :style="{ width: `${Math.max(2, d.bars.base * 100)}%` }" /></span>
-                        <span class="bar target" :class="d.direction"><i :style="{ width: `${Math.max(2, d.bars.target * 100)}%` }" /></span>
+                        <span class="bar target" :tone="DIRECTION_TONE[d.direction]"><i :style="{ width: `${Math.max(2, d.bars.target * 100)}%` }" /></span>
                       </div>
                       <span class="sr-only">v{{ compareVersion.version }} {{ d.base }}, v{{ selectedVersion.version }} {{ d.target }}</span>
                     </div>
@@ -1452,19 +1455,6 @@ h3 {
 .tile .mt-pill {
   align-self: flex-start;
 }
-.direction.better {
-  background: var(--mt-ok-bg);
-  color: var(--mt-ok-ink);
-}
-.direction.worse {
-  background: var(--mt-err-bg);
-  color: var(--mt-err-ink);
-}
-.direction.same,
-.direction.unknown {
-  background: var(--mt-soft);
-  color: var(--mt-muted);
-}
 
 /* evidencia */
 .table-scroll {
@@ -1806,22 +1796,6 @@ ul.plain {
 .protected {
   background: var(--mt-accent-soft);
   color: var(--mt-accent-text);
-}
-.usage.in_sync {
-  background: var(--mt-ok-bg);
-  color: var(--mt-ok-ink);
-}
-.usage.behind {
-  background: var(--mt-highlight-soft);
-  color: var(--mt-highlight-ink);
-}
-.usage.pinned {
-  background: var(--mt-accent-soft);
-  color: var(--mt-accent-text);
-}
-.usage.stale {
-  background: var(--mt-soft);
-  color: var(--mt-muted);
 }
 .tags {
   border-collapse: collapse;

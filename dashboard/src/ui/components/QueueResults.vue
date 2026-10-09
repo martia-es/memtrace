@@ -14,6 +14,8 @@ import TraceThreadPreview from "./TraceThreadPreview.vue";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
 import Button from "./Button.vue";
+import Checkbox from "./Checkbox.vue";
+import Pill from "./Pill.vue";
 
 /**
  * Resultados de una cola para el perfil técnico (ADR-050): qué respondió cada revisor por item y criterio, los
@@ -158,7 +160,7 @@ async function promote() {
       Open a row to read the conversation that was evaluated next to the reviewers' answers.
     </p>
     <div class="toolbar">
-      <label class="check"><input v-model="onlyDisagreements" type="checkbox" data-testid="only-disagreements" /> Only disagreements</label>
+      <Checkbox class="check" v-model="onlyDisagreements" data-testid="only-disagreements"> Only disagreements</Checkbox>
       <span v-if="results.data.value" class="muted">{{ results.data.value.total }} item{{ results.data.value.total === 1 ? "" : "s" }}</span>
       <Button class="push" size="sm" :disabled="!readyRows.length" data-testid="select-ready" @click="readyRows.forEach((r) => selected.add(r.id))">Select all ready</Button>
     </div>
@@ -179,7 +181,7 @@ async function promote() {
         </thead>
         <tbody v-for="row in rows" :key="row.id">
           <tr data-testid="result-row" :class="{ flagged: row.needsResolution }">
-            <td><input type="checkbox" :checked="selected.has(row.id)" :disabled="rowReadiness(row) !== 'ready'" :aria-label="`Select ${shortId(row.traceId ?? row.id)}`" data-testid="result-select" @change="toggle(row)" /></td>
+            <td><Checkbox :checked="selected.has(row.id)" :disabled="rowReadiness(row) !== 'ready'" :aria-label="`Select ${shortId(row.traceId ?? row.id)}`" data-testid="result-select" @change="toggle(row)" /></td>
             <td>
               <router-link v-if="row.traceId" :to="{ name: 'trace', params: { experimentId, traceId: row.traceId } }" class="mono" @click="emit('close')">Trace {{ shortId(row.traceId) }}</router-link>
               <span v-else class="mono">Run {{ shortId(row.datasetRunId ?? "") }} · item {{ row.itemIndex }}</span>
@@ -195,8 +197,8 @@ async function promote() {
                 <span v-for="l in crit.labels" :key="l.userId" class="lbl" :class="{ muted: !l.isReviewer }" :title="[l.comment, l.isReviewer ? '' : 'No longer a reviewer'].filter(Boolean).join(' · ')">
                   {{ l.name ?? "Former member" }}: <strong>{{ show(c, l.value) }}</strong>
                 </span>
-                <span v-if="crit.resolution" class="pill ok" data-testid="resolved-pill">resolved: {{ show(c, crit.resolution.value) }}</span>
-                <span v-else-if="crit.status === 'disagreement'" class="pill warn">disagreement</span>
+                <Pill v-if="crit.resolution" tone="ok" data-testid="resolved-pill">resolved: {{ show(c, crit.resolution.value) }}</Pill>
+                <Pill v-else-if="crit.status === 'disagreement'" tone="warn">disagreement</Pill>
               </template>
             </td>
             <td><Button size="sm" data-testid="resolve-btn" @click="open(row)">{{ row.needsResolution ? "Resolve" : "Open" }}</Button></td>
@@ -327,21 +329,6 @@ td.disagree {
 .lbl {
   display: block;
   white-space: nowrap;
-}
-.pill {
-  display: inline-block;
-  margin-top: 2px;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: var(--mt-card);
-  font-size: 11px;
-  font-weight: 600;
-}
-.pill.ok {
-  color: var(--mt-ok-ink, var(--mt-accent));
-}
-.pill.warn {
-  color: var(--mt-err-ink);
 }
 .split {
   flex: 1;

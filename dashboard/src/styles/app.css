@@ -148,35 +148,6 @@ h6 {
   box-shadow: var(--mt-shadow);
 }
 
-.mt-pill {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: var(--mt-radius-xs);
-  font-size: 11.5px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.mt-pill.ok {
-  background: var(--mt-ok-bg);
-  color: var(--mt-ok-ink);
-}
-
-.mt-pill.error {
-  background: var(--mt-err-bg);
-  color: var(--mt-err-ink);
-}
-
-.mt-pill.warn {
-  background: var(--mt-warn-bg);
-  color: var(--mt-warn-ink);
-}
-
-.mt-pill.unset {
-  background: var(--mt-soft);
-  color: var(--mt-muted);
-}
-
 /* tabla de datos compartida: envolverla en .mt-table-wrap */
 .mt-table-wrap {
   overflow-x: auto;

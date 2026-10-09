@@ -7,6 +7,7 @@ import EnvFlag from "./EnvFlag.vue";
 import ErrorBanner from "./ErrorBanner.vue";
 import TextInput from "./TextInput.vue";
 import Button from "./Button.vue";
+import Pill from "./Pill.vue";
 
 /**
  * Panel de fragmentos que acompaña al editor del prompt (ADR-073), siempre visible: enseña a qué versión resuelve cada
@@ -87,7 +88,7 @@ const tagsOf = (f: PromptSummaryDto) => sortEnvironments(Object.keys(f.tags)).ma
           <span v-if="f.description" class="soft clamp">{{ f.description }}</span>
           <span class="tags">
             <template v-for="[tag, version] in tagsOf(f)" :key="tag"><EnvFlag :env="tag" /><span class="soft mono">→ v{{ version }}</span></template>
-            <span v-if="Object.keys(f.tags).length === 0" class="mt-pill none">no tags yet</span>
+            <Pill v-if="Object.keys(f.tags).length === 0" class="none">no tags yet</Pill>
           </span>
         </button>
       </div>

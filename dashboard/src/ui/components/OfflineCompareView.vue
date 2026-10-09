@@ -8,6 +8,7 @@ import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
 import ErrorBanner from "./ErrorBanner.vue";
 import Select from "./Select.vue";
+import Pill from "./Pill.vue";
 
 const props = defineProps<{ runs: RunListItemDto[]; /** baseline and candidate chosen elsewhere (Evaluations → Compare runs) */ initialIds?: [string, string] | null }>();
 
@@ -115,11 +116,11 @@ function latWidth(v: number | null, r: LatencyRow): string {
   return `${Math.max(2, (v / Math.max(r.a ?? 0, r.b ?? 0)) * 100)}%`;
 }
 /** Latency: lower is better, so a drop is the good direction. */
-function latDelta(r: LatencyRow): { text: string; cls: string } {
-  if (r.a === null || r.b === null || r.a === 0) return { text: "–", cls: "unset" };
+function latDelta(r: LatencyRow): { text: string; tone: "neutral" | "ok" | "error" } {
+  if (r.a === null || r.b === null || r.a === 0) return { text: "–", tone: "neutral" };
   const pct = ((r.b - r.a) / r.a) * 100;
-  if (Math.abs(pct) < 1) return { text: "≈ 0%", cls: "unset" };
-  return { text: `${pct > 0 ? "+" : ""}${pct.toFixed(0)}%`, cls: pct < 0 ? "ok" : "error" };
+  if (Math.abs(pct) < 1) return { text: "≈ 0%", tone: "neutral" };
+  return { text: `${pct > 0 ? "+" : ""}${pct.toFixed(0)}%`, tone: pct < 0 ? "ok" : "error" };
 }
 const unchangedPairs = computed(() => {
   const l = loaded.data.value;
@@ -155,13 +156,13 @@ const netVerdict = computed(() => (regressions.value === 0 && improvements.value
         <div v-for="d in deltas" :key="d.name" class="metric">
           <div class="metric-name">
             <strong>{{ d.name }}</strong>
-            <span v-if="d.judgeChanged" class="mt-pill warn" title="The judge model or rubric differs between A and B (ADR-043)">⚠ judge changed</span>
+            <Pill tone="warn" v-if="d.judgeChanged" title="The judge model or rubric differs between A and B (ADR-043)">⚠ judge changed</Pill>
           </div>
           <div class="bars">
             <div class="bar-row"><div class="track"><div class="fill a" :style="{ width: barWidth(d.a, d) }" /></div><span class="val">{{ fmt(d.a, d.isRate) }}</span></div>
             <div class="bar-row"><div class="track"><div class="fill b" :class="tone(d.delta)" :style="{ width: barWidth(d.b, d) }" /></div><span class="val">{{ fmt(d.b, d.isRate) }}</span></div>
           </div>
-          <span class="mt-pill delta-pill" :class="d.delta === null || d.delta === 0 ? 'unset' : d.delta > 0 ? 'ok' : 'error'">{{ d.delta !== null && d.delta !== 0 ? (d.delta > 0 ? "▲ " : "▼ ") : "" }}{{ fmtDelta(d.delta, d.isRate) }}</span>
+          <Pill :tone="d.delta === null || d.delta === 0 ? 'neutral' : d.delta > 0 ? 'ok' : 'error'" class="delta-pill">{{ d.delta !== null && d.delta !== 0 ? (d.delta > 0 ? "▲ " : "▼ ") : "" }}{{ fmtDelta(d.delta, d.isRate) }}</Pill>
         </div>
         <p v-if="!deltas.length" class="hint">Neither run has numeric or boolean evaluators.</p>
       </section>
@@ -184,7 +185,7 @@ const netVerdict = computed(() => (regressions.value === 0 && improvements.value
               <thead><tr><th>Change</th><th>Input</th></tr></thead>
               <tbody>
                 <tr v-for="c in changes.slice(0, SHOWN)" :key="c.originItemId">
-                  <td><span class="mt-pill" :class="c.kind === 'added' ? 'ok' : c.kind === 'removed' ? 'error' : 'warn'">{{ c.kind }}</span></td>
+                  <td><Pill :tone="c.kind === 'added' ? 'ok' : c.kind === 'removed' ? 'error' : 'warn'">{{ c.kind }}</Pill></td>
                   <td class="preview" :title="preview((c.after ?? c.before)?.input)">{{ preview((c.after ?? c.before)?.input) }}</td>
                 </tr>
               </tbody>
@@ -213,8 +214,8 @@ const netVerdict = computed(() => (regressions.value === 0 && improvements.value
               <tr v-for="(f, i) in flips.slice(0, SHOWN)" :key="`${f.pair.key}-${f.evaluator}-${i}`">
                 <td class="preview" :title="preview(f.pair.a.input)">{{ preview(f.pair.a.input) }}</td>
                 <td class="strong">{{ f.evaluator }}</td>
-                <td><span class="mt-pill" :class="f.outcome === 'improved' ? 'ok' : 'error'">{{ f.before }} → {{ f.after }}</span></td>
-                <td><span v-if="datasetChangeFor(changes, f.pair.a.input)" class="mt-pill warn">{{ datasetChangeFor(changes, f.pair.a.input)!.kind }}</span><span v-else class="hint">–</span></td>
+                <td><Pill :tone="f.outcome === 'improved' ? 'ok' : 'error'">{{ f.before }} → {{ f.after }}</Pill></td>
+                <td><Pill tone="warn" v-if="datasetChangeFor(changes, f.pair.a.input)">{{ datasetChangeFor(changes, f.pair.a.input)!.kind }}</Pill><span v-else class="hint">–</span></td>
               </tr>
             </tbody>
           </table></div>
@@ -230,7 +231,7 @@ const netVerdict = computed(() => (regressions.value === 0 && improvements.value
                 <div class="bar-row"><div class="track"><div class="fill a" :style="{ width: latWidth(r.a, r) }" /></div><span class="val">{{ r.a !== null ? formatDuration(r.a) : "–" }}</span></div>
                 <div class="bar-row"><div class="track"><div class="fill b" :style="{ width: latWidth(r.b, r) }" /></div><span class="val">{{ r.b !== null ? formatDuration(r.b) : "–" }}</span></div>
               </div>
-              <span class="mt-pill delta-pill" :class="latDelta(r).cls">{{ latDelta(r).text }}</span>
+              <Pill :tone="latDelta(r).tone" class="delta-pill">{{ latDelta(r).text }}</Pill>
             </div>
             <div class="facts">
               <div class="fact"><span>tokens in / out</span><strong>{{ loaded.data.value.latA.inputTokens }} / {{ loaded.data.value.latA.outputTokens }}</strong><i>→</i><strong>{{ loaded.data.value.latB.inputTokens }} / {{ loaded.data.value.latB.outputTokens }}</strong></div>

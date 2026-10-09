@@ -5,10 +5,11 @@ import { computed, reactive, ref } from "vue";
 import { useQuasar } from "quasar";
 import type { ExperimentDto, OrganizationDto } from "@/application/identity-api";
 import { useAsync } from "../../composables/useAsync";
-import { formatDate, notifyErrorWith, ROLE_LABEL } from "../../composables/useAdminDirectory";
+import { formatDate, notifyErrorWith, ROLE_LABEL, roleTone } from "../../composables/useAdminDirectory";
 import { useIdentityApi } from "../../composables/useIdentityApi";
 import ErrorBanner from "../ErrorBanner.vue";
 import Button from "../Button.vue";
+import Pill from "../Pill.vue";
 
 /**
  * Identidad externa de la organización (ADR-052): qué grupo de tu proveedor (Entra ID, Okta, SailPoint…) da qué rol, y
@@ -158,7 +159,7 @@ const roleSelectOptions = computed(() => roleOptions.value.map((r) => ({ label: 
             <span class="adm-item-title mono">{{ m.externalGroup }}</span>
             <span class="adm-item-meta">{{ experimentName(m.experimentId) }}</span>
           </div>
-          <span class="adm-pill" :class="m.role">{{ ROLE_LABEL[m.role] }}</span>
+          <Pill :tone="roleTone(m.role)">{{ ROLE_LABEL[m.role] }}</Pill>
           <Button variant="danger" size="sm" data-testid="remove-mapping" @click="removeMapping(m.id)">Remove</Button>
         </li>
       </ul>

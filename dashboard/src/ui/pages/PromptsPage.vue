@@ -20,6 +20,8 @@ import { useAsync } from "../composables/useAsync";
 import { usePermissions } from "../composables/usePermissions";
 import { usePromptApi } from "../composables/usePromptApi";
 import Button from "../components/Button.vue";
+import Checkbox from "../components/Checkbox.vue";
+import Pill from "../components/Pill.vue";
 
 const api = usePromptApi();
 const route = useRoute();
@@ -219,11 +221,7 @@ async function create() {
         <span class="legend"><i class="bar released" /> released</span>
         <span class="legend"><i class="bar ahead" /> ahead of PRO</span>
         <span class="toolbar-sep" aria-hidden="true" />
-        <label class="archived-switch" :class="{ on: showArchived }">
-          <input v-model="showArchived" type="checkbox" class="sr-only" data-testid="show-archived" @change="prompts.run()" />
-          <span class="switch" aria-hidden="true"><i /></span>
-          Show archived
-        </label>
+        <Checkbox variant="switch" class="archived-switch" v-model="showArchived" data-testid="show-archived" @change="prompts.run()">Show archived</Checkbox>
       </div>
 
       <EmptyState v-if="rows.length === 0" icon="search_off" title="No matches">Try a different search or filter.</EmptyState>
@@ -241,8 +239,8 @@ async function create() {
           <div class="who">
             <div class="who-name">
               <span class="name">{{ r.prompt.name }}</span>
-              <span v-if="r.prompt.archivedAt" class="mt-pill archived">archived</span>
-              <span v-if="awaitingMe.has(r.prompt.id)" class="mt-pill awaiting" :data-testid="`awaiting-${r.prompt.name}`">needs your approval</span>
+              <Pill v-if="r.prompt.archivedAt" class="archived">archived</Pill>
+              <Pill v-if="awaitingMe.has(r.prompt.id)" :data-testid="`awaiting-${r.prompt.name}`" class="awaiting">needs your approval</Pill>
             </div>
             <div v-if="r.prompt.description" class="desc">{{ r.prompt.description }}</div>
             <div class="who-foot">
@@ -253,7 +251,7 @@ async function create() {
 
           <div class="tags-col">
             <span class="latest mono">v{{ r.prompt.latestVersion }}</span>
-            <span v-for="[tag, version] in r.tags" :key="tag" class="mt-pill tag" :class="tag" :data-testid="`tag-${r.prompt.name}-${tag}`">{{ tag }} → v{{ version }}</span>
+            <Pill v-for="[tag, version] in r.tags" :key="tag" :class="tag" :data-testid="`tag-${r.prompt.name}-${tag}`" class="tag">{{ tag }} → v{{ version }}</Pill>
             <span v-if="r.tags.length === 0" class="soft">no tags</span>
           </div>
 
@@ -292,11 +290,11 @@ async function create() {
         @keydown.enter="open(f.id)"
       >
         <span class="name">{{ f.name }}</span>
-        <span v-if="f.archivedAt" class="mt-pill archived">archived</span>
+        <Pill v-if="f.archivedAt" class="archived">archived</Pill>
         <span v-if="f.description" class="soft frag-desc">{{ f.description }}</span>
         <span class="grow" />
         <span class="mono">v{{ f.latestVersion }}</span>
-        <span v-for="[tag, version] in sortEnvironments(Object.keys(f.tags)).map((t): [string, number] => [t, f.tags[t]!])" :key="tag" class="mt-pill tag" :class="tag">{{ tag }} → v{{ version }}</span>
+        <Pill v-for="[tag, version] in sortEnvironments(Object.keys(f.tags)).map((t): [string, number] => [t, f.tags[t]!])" :key="tag" :class="tag" class="tag">{{ tag }} → v{{ version }}</Pill>
       </article>
     </section>
 
@@ -420,14 +418,6 @@ code {
   color: var(--mt-muted);
   font-size: 12px;
 }
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-}
 .toolbar-sep {
   width: 1px;
   height: 20px;
@@ -446,33 +436,6 @@ code {
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
-}
-.archived-switch:focus-within {
-  outline: 2px solid var(--mt-accent);
-  outline-offset: 2px;
-}
-.switch {
-  position: relative;
-  width: 26px;
-  height: 14px;
-  border-radius: 7px;
-  background: var(--mt-line);
-}
-.switch i {
-  position: absolute;
-  left: 2px;
-  top: 2px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--mt-card);
-  transition: transform 0.15s ease;
-}
-.archived-switch.on .switch {
-  background: var(--mt-accent);
-}
-.archived-switch.on .switch i {
-  transform: translateX(12px);
 }
 
 /* ---- estado vacío ---- */
