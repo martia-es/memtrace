@@ -48,6 +48,17 @@ export const organizationThemeBody = z
     path: ["assistantDefaultMode"],
   });
 
+/** Valida la query string de la petición; un parámetro inválido es un 400 con el motivo por campo, no un 500. */
+export function parseQueryOrThrow<T>(schema: z.ZodType<T>, request: Request): T {
+  const result = schema.safeParse(Object.fromEntries(new URL(request.url).searchParams));
+  if (!result.success) {
+    const fields: Record<string, string> = {};
+    for (const issue of result.error.issues) fields[issue.path.join(".") || "_"] = issue.message;
+    throw new ValidationError("Invalid query parameters", fields);
+  }
+  return result.data;
+}
+
 export async function parseJsonOrThrow<T>(schema: z.ZodType<T>, request: Request): Promise<T> {
   let body: unknown;
   try {
