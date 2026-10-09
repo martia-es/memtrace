@@ -64,6 +64,16 @@ async def clear_session(session_id: str, request: Request) -> None:
         raise HTTPException(status_code=404, detail="Sesión no encontrada")
 
 
+@router.get("/prompt")
+async def current_prompt(request: Request) -> dict[str, object]:
+    """Qué prompt usa el asistente ahora: el del registro de MemTrace (y su versión) o el texto por defecto."""
+    handle = request.app.state.prompt
+    if handle is None:
+        return {"source": "default", "name": None, "version": None, "tag": None}
+    # versión 0 = MemTrace no respondió al arrancar y se usa el `default=` hasta que conteste
+    return {"source": "registry" if handle.version > 0 else "default", "name": handle.name, "version": handle.version, "tag": handle.tag}
+
+
 @router.get("/capabilities", response_model=list[CapabilityInfo])
 async def list_capabilities(request: Request) -> list[CapabilityInfo]:
     return [

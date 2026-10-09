@@ -45,6 +45,12 @@ Abre http://localhost:8000 para la UI.
 
 Variables opcionales: `WEATHER_ASSISTANT_MODEL`, `WEATHER_ASSISTANT_HTTP_TIMEOUT`, `OPEN_METEO_FORECAST_URL`, `OPEN_METEO_GEOCODING_URL`, `OPEN_METEO_AIR_QUALITY_URL`.
 
+## Prompt desde el registro de MemTrace
+
+Con `MEMTRACE_API_URL` (con el id del experimento) y `MEMTRACE_API_KEY`, el asistente lee sus instrucciones del prompt `weather-system` (o `WEATHER_ASSISTANT_PROMPT`) del [registro](../docs-site/platform/prompts.md): mover un tag en MemTrace cambia lo que dice, sin reiniciar, y cada traza lleva la versión que la produjo. Sin esas variables, o si el prompt aún no existe, usa su texto por defecto. `GET /api/prompt` dice cuál está usando.
+
+`scripts/prompts_demo.py` es un recorrido guiado: crear el prompt, versionarlo, usarlo en el asistente y generar trazas (`uv run python scripts/prompts_demo.py`; el principio del fichero explica cómo arrancar el asistente). Para el playground de MemTrace («Try it») añade `MEMTRACE_ALLOW_PROMPT_OVERRIDE=true` (solo en no producción).
+
 ## Guardarraíl de entrada
 
 Antes de llamar al agente, `POST /api/chat` pasa el mensaje por tres comprobaciones deterministas (`app/guardrails/input.py`): longitud (más de 1000 caracteres), datos personales (correo, teléfono, tarjeta, DNI/NIE) e intento de inyección de prompt (español e inglés). Si una bloquea, el agente no ve el mensaje, no se guarda en el historial y la respuesta lleva `"blocked": true` con una explicación breve.
