@@ -31,6 +31,7 @@ import { PostgresDeployRunRepository } from "@/adapters/outbound/postgres/postgr
 import { PostgresPromptRepository } from "@/adapters/outbound/postgres/postgres-prompt-repository";
 import { PromptService } from "@/application/prompt-service";
 import { PromptEvidenceService } from "@/application/prompt-evidence-service";
+import { PromptMapService } from "@/application/prompt-map-service";
 import { PromptGateService } from "@/application/prompt-gate-service";
 import { PromptPlaygroundService } from "@/application/prompt-playground-service";
 import { ClickHousePromptEvidenceRepository } from "@/adapters/outbound/clickhouse/clickhouse-prompt-evidence-repository";
@@ -63,6 +64,7 @@ const globalForContainer = globalThis as unknown as {
   __memtracePrompts?: PromptService;
   __memtracePromptEvidence?: PromptEvidenceService;
   __memtracePromptGate?: PromptGateService;
+  __memtracePromptMap?: PromptMapService;
   __memtracePromptPlayground?: PromptPlaygroundService;
   __memtracePromptEvidenceRepository?: ClickHousePromptEvidenceRepository;
   __memtracePromptRepository?: PostgresPromptRepository;
@@ -277,6 +279,12 @@ export function getPromptGate(): PromptGateService {
     );
   }
   return globalForContainer.__memtracePromptGate;
+}
+
+/** Mapa de dependencias de un prompt e impacto antes de promover (ADR-074). */
+export function getPromptMap(): PromptMapService {
+  if (!globalForContainer.__memtracePromptMap) globalForContainer.__memtracePromptMap = new PromptMapService(getPrompts(), getPromptRepository(), getIdentity().identityRepository);
+  return globalForContainer.__memtracePromptMap;
 }
 
 /** Playground contra el asistente real (ADR-071): el chat del agente con un override efímero de la versión a probar. */

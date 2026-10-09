@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { PromptPlaygroundService } from "@/application/prompt-playground-service";
 import { PromptService, hashOverrideToken } from "@/application/prompt-service";
+import { PromptMapService } from "@/application/prompt-map-service";
+import type { IdentityRepository } from "@/application/ports/identity-repository";
+import { promotionImpact } from "@/domain/prompt-map";
 import type { PromptRepository } from "@/application/ports/prompt-repository";
 import { AssistantNotFoundError, PromptGateBlockedError, PromptInvariantError, PromptNotFoundError, PromptPromoteForbiddenError, ValidationError } from "@/domain/errors";
 import { PROMPT_OVERRIDE_HEADER } from "@/domain/prompt";
@@ -733,5 +736,75 @@ describe("fragments (ADR-073)", () => {
     await expect(service.rebuild(withInclude.prompt.id, USER)).rejects.toThrow(/Already up to date/);
     const plain = await service.create(ORG, USER, { name: "plain-2", content: "nada" });
     await expect(service.rebuild(plain.prompt.id, USER)).rejects.toThrow(/nothing to rebuild/);
+  });
+});
+
+describe("dependency map (ADR-074)", () => {
+  const names: Record<string, string> = { [AGENT_A]: "weather", [AGENT_B]: "billing" };
+  const identity = {
+    getExperiment: async (id: string) => (names[id] ? { id, organizationId: ORG, name: names[id], serviceName: id } : null),
+    getDataset: async (id: string) => (id === "ds-1" ? { id, experimentId: AGENT_A, name: "golden", createdAt: "t" } : null),
+  } as unknown as IdentityRepository;
+
+  async function setup() {
+    const repo = fakeRepo();
+    const service = new PromptService(repo);
+    const map = new PromptMapService(service, repo, identity);
+    const tone = (await service.create(ORG, USER, { name: "tone", kind: "fragment", content: "Sé amable." })).prompt;
+    await service.moveTag(tone.id, USER, { tag: "pro", version: 1 }, true);
+    const main = (await service.create(ORG, USER, { name: "weather-system", content: "{{> tone@pro}}", experimentIds: [AGENT_A, AGENT_B] })).prompt;
+    return { repo, service, map, tone, main };
+  }
+
+  it("lists the linked agents with what each serves per environment, and the fragments it includes", async () => {
+    const { service, map, main } = await setup();
+    await service.recordUsage(AGENT_A, ORG, "pro", [{ name: "weather-system", tag: "pro", version: 1 }]);
+    await service.recordUsage(AGENT_A, ORG, "dev", [{ name: "weather-system", tag: "dev", version: 1 }]);
+    const result = await map.map(main.id);
+    expect(result.agents.map((a) => [a.name, a.serving.map((s) => s.environment)])).toEqual([["weather", ["dev", "pro"]], ["billing", []]]);
+    expect(result.includes).toMatchObject([{ name: "tone", ref: "pro", pinned: 1, outdated: false }]);
+    expect(result.dataset).toBeNull();
+    expect(result.impact).toBeNull();
+  });
+
+  it("names the dataset of the promotion policy", async () => {
+    const { repo, map, main } = await setup();
+    await repo.setPolicy(main.id, { datasetId: "ds-1", requiredRuns: 2 }, USER);
+    expect((await map.map(main.id)).dataset).toEqual({ id: "ds-1", name: "golden", experimentId: AGENT_A, requiredRuns: 2 });
+  });
+
+  it("shows who reads a fragment and who is behind", async () => {
+    const { map, tone } = await setup();
+    expect((await map.map(tone.id)).usedBy).toMatchObject([{ name: "weather-system", version: 1, outdated: false }]);
+  });
+
+  it("previews who would receive a tag move: agents following that tag, not the pinned or the other environments", async () => {
+    const { service, map, main } = await setup();
+    await service.saveVersion(main.id, USER, { content: "{{> tone@pro}}\nNuevo." });
+    await service.recordUsage(AGENT_A, ORG, "pro", [{ name: "weather-system", tag: "pro", version: 1 }]);
+    await service.recordUsage(AGENT_B, ORG, "dev", [{ name: "weather-system", tag: "dev", version: 1 }]);
+    await service.recordUsage(AGENT_B, ORG, "", [{ name: "weather-system", tag: null, version: 1 }]);
+    const impact = (await map.map(main.id, { tag: "pro", version: 2 })).impact!;
+    expect(impact.agents).toEqual([{ experimentId: AGENT_A, name: "weather", environment: "pro", from: 1, to: 2, changes: true }]);
+    expect(impact.pinned).toBe(1);
+  });
+
+  it("moving a fragment tag leaves the prompts that include it behind, without changing them", async () => {
+    const { service, map, tone } = await setup();
+    await service.saveVersion(tone.id, USER, { content: "Sé formal." });
+    expect((await map.map(tone.id, { tag: "pro", version: 2 })).impact!.willBeBehind).toEqual([{ promptId: expect.any(String), name: "weather-system" }]);
+    expect((await map.map(tone.id, { tag: "pro", version: 1 })).impact!.willBeBehind).toEqual([]); // not a move
+  });
+});
+
+describe("promotionImpact", () => {
+  const agent = { experimentId: "a", name: "weather", serving: [{ environment: "pro", tag: "pro", version: 3, lastSeenAt: "t" }] };
+  it("an agent already on the target version is listed but does not change", () => {
+    const impact = promotionImpact({ tag: "pro", toVersion: 3, agents: [agent], dependents: [], currentVersion: 3 });
+    expect(impact.agents).toEqual([expect.objectContaining({ changes: false })]);
+  });
+  it("ignores dependents that reference the fragment by number or by another tag", () => {
+    const impact = promotionImpact({ tag: "pro", toVersion: 4, agents: [], currentVersion: 3, dependents: [{ promptId: "x", name: "a", refs: ["2"] }, { promptId: "y", name: "b", refs: ["dev"] }, { promptId: "z", name: "c", refs: ["pro"] }] });
+    expect(impact.willBeBehind.map((d) => d.name)).toEqual(["c"]);
   });
 });

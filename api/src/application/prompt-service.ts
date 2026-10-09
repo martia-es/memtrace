@@ -133,9 +133,14 @@ export class PromptService {
       this.repo.getPolicy(promptId),
     ]);
     const latest = versions.find((v) => v.status === "published");
+    return { prompt, versions, tags, events, usage, environmentKeys, gatedEnvironments: gatedEnvironments(environmentKeys), policy, ...(await this.fragmentLinks(prompt, latest)) };
+  }
+
+  /** Los fragmentos que incluye la última versión publicada y, si es un fragmento, los prompts que lo incluyen (ADR-073). */
+  async fragmentLinks(prompt: Prompt, latest?: PromptVersion): Promise<{ includes: IncludeStatus[]; usedBy: UsedBy[] }> {
+    const published = latest ?? (await this.repo.listVersions(prompt.id)).find((v) => v.status === "published");
     return {
-      prompt, versions, tags, events, usage, environmentKeys, gatedEnvironments: gatedEnvironments(environmentKeys), policy,
-      includes: prompt.kind === "prompt" && latest ? await this.includeStatus(prompt.organizationId, latest.includes) : [],
+      includes: prompt.kind === "prompt" && published ? await this.includeStatus(prompt.organizationId, published.includes) : [],
       usedBy: prompt.kind === "fragment" ? await this.usedByStatus(prompt) : [],
     };
   }

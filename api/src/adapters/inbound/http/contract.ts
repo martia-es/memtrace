@@ -1142,6 +1142,26 @@ export interface UsedByDto {
   outdated: boolean;
 }
 
+/** Mapa de dependencias de un prompt (ADR-074). */
+export interface PromptMapDto {
+  agents: Array<{
+    experimentId: string;
+    name: string;
+    serving: Array<{ environment: string; tag: string; version: number; lastSeenAt: string }>;
+  }>;
+  dataset: { id: string; name: string; experimentId: string; requiredRuns: number } | null;
+  includes: IncludeStatusDto[];
+  usedBy: UsedByDto[];
+  /** qué cambia si el tag pasa a la versión preguntada; null si no se preguntó */
+  impact: {
+    tag: string;
+    toVersion: number;
+    agents: Array<{ experimentId: string; name: string; environment: string; from: number; to: number; changes: boolean }>;
+    pinned: number;
+    willBeBehind: Array<{ promptId: string; name: string }>;
+  } | null;
+}
+
 export interface PromptVersionDto {
   version: number;
   /** lo que escribió quien la editó, con `{{> nombre@tag}}` sin resolver; null si no incluye nada. `content` es el texto ya resuelto */
