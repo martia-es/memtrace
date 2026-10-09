@@ -3,40 +3,43 @@ import { computed, ref, watch } from "vue";
 import type { PromptDetailDto, PromptSummaryDto } from "@contract";
 import { fragmentRefChoices, includeSyntax } from "@/domain/prompt-fragment";
 import { sortEnvironments, splitVariables } from "@/domain/prompt-release";
-import { useAsync } from "../composables/useAsync";
-import { usePromptApi } from "../composables/usePromptApi";
 import EnvFlag from "./EnvFlag.vue";
 import ErrorBanner from "./ErrorBanner.vue";
 import TextInput from "./TextInput.vue";
 
 /**
- * Selector para incluir un fragmento en el prompt que se edita (ADR-073): enseña a qué versión resuelve cada forma de
- * referirlo, el texto que aportaría y las variables que añade. Solo emite la sintaxis; guardar la versión la fija.
+ * Panel de fragmentos que acompaña al editor del prompt (ADR-073), siempre visible: enseña a qué versión resuelve cada
+ * forma de referirlo, el texto que aportaría y las variables que añade. Solo emite la sintaxis; guardar la versión la fija.
  */
-const props = defineProps<{ experimentId: string }>();
-const emit = defineEmits<{ insert: [snippet: string]; close: [] }>();
-
-const api = usePromptApi();
-const list = useAsync((signal) => api.listForAgent(props.experimentId, false, signal));
-void list.run();
-const fragments = computed<PromptSummaryDto[]>(() => (list.data.value ?? []).filter((p) => p.kind === "fragment"));
+const props = defineProps<{
+  fragments: PromptSummaryDto[];
+  loading: boolean;
+  error: Error | null;
+  loadDetail: (id: string) => Promise<PromptDetailDto | null>;
+}>();
+const emit = defineEmits<{ insert: [snippet: string]; retry: [] }>();
 
 const query = ref("");
 const visible = computed(() => {
   const q = query.value.trim().toLowerCase();
-  return fragments.value.filter((f) => !q || f.name.toLowerCase().includes(q) || f.description.toLowerCase().includes(q));
+  return props.fragments.filter((f) => !q || f.name.toLowerCase().includes(q) || f.description.toLowerCase().includes(q));
 });
 
 const selectedId = ref<string | null>(null);
-watch(fragments, (all) => {
+watch(() => props.fragments, (all) => {
   if (selectedId.value === null && all.length > 0) selectedId.value = all[0]!.id;
 }, { immediate: true });
 
-const detail = useAsync<PromptDetailDto>((signal) => api.get(selectedId.value!, signal));
-watch(selectedId, (id) => {
-  if (id) void detail.run();
+const loaded = ref<PromptDetailDto | null>(null);
+const detailLoading = ref(false);
+watch(selectedId, async (id) => {
+  if (!id) return;
+  detailLoading.value = true;
+  const result = await props.loadDetail(id);
+  if (selectedId.value === id) loaded.value = result;
+  detailLoading.value = false;
 }, { immediate: true });
-const data = computed(() => (detail.data.value?.prompt.id === selectedId.value ? detail.data.value : null));
+const data = computed(() => (loaded.value?.prompt.id === selectedId.value ? loaded.value : null));
 
 const published = computed(() => (data.value?.versions ?? []).filter((v) => v.status === "published"));
 const choices = computed(() => {
@@ -56,14 +59,14 @@ const tagsOf = (f: PromptSummaryDto) => sortEnvironments(Object.keys(f.tags)).ma
 </script>
 
 <template>
-  <aside class="picker" data-testid="fragment-picker" aria-label="Insert fragment">
+  <aside class="picker" data-testid="fragment-picker" aria-label="Fragments">
     <div class="head">
-      <div class="title"><strong>Insert fragment</strong><span class="soft">at the cursor</span></div>
+      <div class="title"><strong>Fragments</strong><span class="soft">click Insert to add one at the cursor</span></div>
       <TextInput v-model="query" type="search" placeholder="Search fragments…" data-testid="fragment-search" />
     </div>
 
-    <ErrorBanner v-if="list.error.value" :error="list.error.value" @retry="list.run()" />
-    <p v-else-if="list.loading.value && !list.data.value" class="soft pad">Loading…</p>
+    <ErrorBanner v-if="error" :error="error" @retry="emit('retry')" />
+    <p v-else-if="loading && fragments.length === 0" class="soft pad">Loading…</p>
     <p v-else-if="fragments.length === 0" class="soft pad" data-testid="no-fragments">There are no fragments yet. Create one from the Prompts list with “New fragment”.</p>
     <template v-else>
       <div class="options" role="listbox" aria-label="Fragments">
@@ -99,7 +102,7 @@ const tagsOf = (f: PromptSummaryDto) => sortEnvironments(Object.keys(f.tags)).ma
         </p>
         <p v-if="data.usedBy.length > 0" class="soft expl">Used by {{ data.usedBy.length }} {{ data.usedBy.length === 1 ? "prompt" : "prompts" }}.</p>
       </div>
-      <div v-else-if="selectedId && detail.loading.value" class="soft pad-sm">Loading…</div>
+      <div v-else-if="selectedId && detailLoading" class="soft pad-sm">Loading…</div>
 
       <div v-if="resolved" class="preview" data-testid="fragment-preview">
         <span class="eyebrow">PREVIEW · v{{ resolved.version }}</span>
@@ -111,7 +114,6 @@ const tagsOf = (f: PromptSummaryDto) => sortEnvironments(Object.keys(f.tags)).ma
     <div class="foot">
       <code v-if="snippet" class="snippet" data-testid="fragment-snippet">{{ snippet }}</code>
       <span class="grow" />
-      <button type="button" class="ghost-btn" data-testid="fragment-cancel" @click="emit('close')">Cancel</button>
       <button type="button" class="primary-btn" :disabled="!snippet" data-testid="fragment-insert" @click="emit('insert', snippet)">Insert</button>
     </div>
   </aside>
@@ -119,7 +121,7 @@ const tagsOf = (f: PromptSummaryDto) => sortEnvironments(Object.keys(f.tags)).ma
 
 <style scoped>
 .picker {
-  width: 440px;
+  width: 340px;
   flex: none;
   display: flex;
   flex-direction: column;
@@ -129,7 +131,9 @@ const tagsOf = (f: PromptSummaryDto) => sortEnvironments(Object.keys(f.tags)).ma
   border: 1px solid var(--mt-line);
   border-radius: 10px;
   overflow: hidden;
-  align-self: flex-start;
+  align-self: stretch;
+  max-height: 100%;
+  overflow-y: auto;
 }
 .head,
 .choose,
@@ -158,7 +162,7 @@ const tagsOf = (f: PromptSummaryDto) => sortEnvironments(Object.keys(f.tags)).ma
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 220px;
+  max-height: 200px;
   overflow: auto;
 }
 .option {
@@ -277,8 +281,7 @@ const tagsOf = (f: PromptSummaryDto) => sortEnvironments(Object.keys(f.tags)).ma
   font-size: 12px;
   overflow-wrap: anywhere;
 }
-.primary-btn,
-.ghost-btn {
+.primary-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -294,11 +297,6 @@ const tagsOf = (f: PromptSummaryDto) => sortEnvironments(Object.keys(f.tags)).ma
   border: none;
   background: var(--mt-accent);
   color: var(--mt-accent-ink);
-}
-.ghost-btn {
-  border: 1px solid var(--mt-line);
-  background: transparent;
-  color: var(--mt-ink);
 }
 .primary-btn:disabled {
   opacity: 0.5;

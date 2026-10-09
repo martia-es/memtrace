@@ -12,8 +12,10 @@ import ApprovalInbox from "../components/ApprovalInbox.vue";
 import EnvFlag from "../components/EnvFlag.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import Modal from "../components/Modal.vue";
+import PromptEditor from "../components/PromptEditor.vue";
 import PageHeader from "../components/PageHeader.vue";
 import TextInput from "../components/TextInput.vue";
+import { useApprovalInbox } from "../composables/useApprovalInbox";
 import { useAsync } from "../composables/useAsync";
 import { usePermissions } from "../composables/usePermissions";
 import { usePromptApi } from "../composables/usePromptApi";
@@ -26,7 +28,7 @@ const { can } = usePermissions();
 
 const experimentId = computed(() => String(route.params.experimentId));
 const current = inject(CURRENT_EXPERIMENT, computed(() => null));
-const organizationId = computed(() => current.value?.organizationId ?? null);
+const awaitingMe = useApprovalInbox().promptIds;
 const showArchived = ref(false);
 const prompts = useAsync((signal) => api.listForAgent(experimentId.value, showArchived.value, signal));
 void prompts.run().then(() => {
@@ -107,6 +109,7 @@ const sampleVariable = asVariable("language");
 /** cómo se incluiría el fragmento que se está escribiendo */
 const ownInclude = computed(() => includeSyntax(form.value.name.trim() || "name", "pro"));
 const formVariables = computed(() => extractVariables(form.value.content));
+const contentPlaceholder = "Prompt text. Use {{variable}} for the parts that change.";
 const showCreate = ref(false);
 function openCreate(kind: "prompt" | "fragment") {
   form.value.kind = kind;
@@ -142,7 +145,7 @@ async function create() {
       </div>
     </PageHeader>
 
-    <ApprovalInbox v-if="organizationId" :organization-id="organizationId" />
+    <ApprovalInbox />
 
     <ErrorBanner v-if="prompts.error.value" :error="prompts.error.value" @retry="prompts.run()" />
     <div v-else-if="prompts.loading.value && !prompts.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
@@ -238,6 +241,7 @@ async function create() {
             <div class="who-name">
               <span class="name">{{ r.prompt.name }}</span>
               <span v-if="r.prompt.archivedAt" class="mt-pill archived">archived</span>
+              <span v-if="awaitingMe.has(r.prompt.id)" class="mt-pill awaiting" :data-testid="`awaiting-${r.prompt.name}`">needs your approval</span>
             </div>
             <div v-if="r.prompt.description" class="desc">{{ r.prompt.description }}</div>
             <div class="who-foot">
@@ -295,7 +299,7 @@ async function create() {
       </article>
     </section>
 
-    <Modal v-if="showCreate" :title="form.kind === 'fragment' ? 'New fragment' : 'New prompt'" :medium="form.kind !== 'fragment'" :wide="form.kind === 'fragment'" @close="showCreate = false">
+    <Modal v-if="showCreate" :title="form.kind === 'fragment' ? 'New fragment' : 'New prompt'" :wide="true" @close="showCreate = false">
       <form class="modal-form" :class="{ split: form.kind === 'fragment' }" @submit.prevent="create">
         <p v-if="form.kind === 'fragment'" class="hint small intro" data-testid="fragment-hint">
           A fragment is text shared by several prompts (tone, policies, format). A prompt includes it with <code>{{ example("pro") }}</code>
@@ -305,7 +309,7 @@ async function create() {
           <TextInput v-model="form.name" placeholder="name, e.g. weather-system" mono autofocus :invalid="!!fieldErrors.name" data-testid="prompt-name" />
           <p v-if="fieldErrors.name" class="field-error">{{ fieldErrors.name }}</p>
           <TextInput v-model="form.description" placeholder="What is it for? (optional)" />
-          <TextInput v-model="form.content" multiline :rows="10" mono placeholder="Prompt text. Use {{variable}} for the parts that change." :invalid="!!fieldErrors.content" data-testid="prompt-content" />
+          <PromptEditor v-model="form.content" :experiment-id="experimentId" :fragments="form.kind === 'prompt'" :rows="14" :invalid="!!fieldErrors.content" :placeholder="contentPlaceholder" testid="prompt-content" />
           <p v-if="fieldErrors.content" class="field-error">{{ fieldErrors.content }}</p>
           <TextInput v-model="form.message" placeholder="Message for version 1 (optional)" />
         </div>
@@ -337,6 +341,7 @@ async function create() {
 </template>
 
 <style scoped>
+.awaiting { background: var(--mt-accent); color: var(--mt-accent-ink); }
 .fragments {
   display: flex;
   flex-direction: column;

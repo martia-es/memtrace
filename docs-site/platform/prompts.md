@@ -124,14 +124,16 @@ An **org admin** opens **Admin → organization → Approvals** and, for each ac
 - **Profiles and how many**: "1 approval from `technical`", "1 from `business`"… A person counts for the profile they have.
 - **Default approvers** (optional): specific people who **must always approve**, on top of the profiles.
 
+The tab draws the rules as an **org chart**: *a change to a prompt* branches into *Publish a version* and one step per environment, and under each step hang the profiles (`1 × Technical`) and the people marked with ★ who have to approve. A step with no rule is shown dashed as **No approval**. Below the chart, **Approval history** lists every request ever sent (waiting, done, rejected, cancelled or expired) with who asked and what each approver answered, and can be filtered by status.
+
 An environment with no rule works as before. Removing a rule turns approvals off for it.
 
-Each experiment has its own **Approvals** tab (**Admin → experiment**). It starts from the organization's rules and can only make them **stricter**: ask for more people, add a profile or add a default approver. It cannot ask for less than the organization. When a prompt belongs to several agents, the strictest rule among the organization and all of them applies.
+Each experiment has its own **Approvals** tab (**Admin → experiment**). It starts from the organization's rules and can only make them **stricter**: ask for more people, add a profile or add a default approver. It cannot ask for less than the organization; what comes from the organization is drawn with a dashed outline in the chart. When a prompt belongs to several agents, the strictest rule among the organization and all of them applies.
 
 ### Asking and approving
 
 1. With a rule active, saving an edit creates a **draft**, and moving a protected tag shows **Request approval** instead of **Move**. Write a note for the reviewers. You can **add approvers** to that request on top of the rule's, and add more later.
-2. The people who can decide see it in **Waiting for your approval** at the top of the Prompts list, and in the prompt's **Approvals** tab. Each one can **Approve** or **Reject** and comment.
+2. The people who can decide see it, for the agent they have open, in **Waiting for your approval** at the top of **Overview** and of the Prompts list, as a counter next to **Prompts** in the menu, and as a **needs your approval** mark on the prompt's row. They decide in the prompt's **Approvals** tab. Each one can **Approve** or **Reject** and comment.
 3. When everything the rule asks for is in, the change **happens by itself**: the draft is published, or the tag moves. The history shows *Approved by …* and who asked.
 
 What to know:
@@ -163,7 +165,7 @@ A **draft** is a version waiting for review. It has a number, so you can **test 
 
 You can save any edit as a draft with **Save as draft** in the editor, but the main way to create one is from a failure:
 
-1. On a **failed trace** that read its prompt from the registry, press **Fix with a prompt change** (or open the prompt's **Fix a failure** tab and paste a trace id).
+1. On a **failed trace** that read its prompt from the registry, press **Fix with a prompt change**. Or open the prompt's **Fix a failure** tab: it lists the recent failures of that prompt (last 30 days) and you pick one. A failure is a trace with a **step that failed**, a **low evaluator score**, a **"no" from a reviewer** or a **👎 from the end user**; each row says which, and you can filter by reason. The list looks at the latest 300 traces of the prompt and shows ten at a time. Have a trace id from elsewhere? Use **Paste it** under the list.
 2. MemTrace shows **what failed** (the deepest failing step, not the ones that only passed the error up), what the person said and what the agent answered. The editor starts from **the version that trace used**, and the reason is filled in with the failure.
 3. Change the text and **Save as draft**. The draft remembers the failure: its page shows what it was for and links to the trace.
 4. **Test it on this case** runs the real agent with the draft and with the version it came from, side by side, on that same message.
@@ -173,7 +175,7 @@ Prefer a model to write the proposal? The SDK can ask **your** LLM with **your**
 
 ## Fragments: text shared between prompts
 
-A **fragment** is text several prompts need (tone, safety policy, output format). Create it with **+ New fragment**, in the *Fragments* section of the Prompts list (or from the empty state). The form shows the `{{variables}}` its text brings and how a prompt will use it; it has versions, tags and history like a prompt, but it is not deployed to an agent. A prompt uses it by choosing **Insert fragment** while editing (pick the fragment, then *Follow tag pro* or *Pin to v5*, and check the preview and the variables it adds), or by writing, anywhere in its text:
+A **fragment** is text several prompts need (tone, safety policy, output format). Create it with **+ New fragment**, in the *Fragments* section of the Prompts list (or from the empty state). The form shows the `{{variables}}` its text brings and how a prompt will use it; it has versions, tags and history like a prompt, but it is not deployed to an agent. A prompt uses it from the **Fragments** panel that sits next to the text, both when you create a prompt and when you edit one (pick the fragment, then *Follow tag pro* or *Pin to v5*, check the preview and the variables it adds, and press **Insert** to add it at the cursor), or by writing, anywhere in its text:
 
 ```text
 {{> tone@pro}}     the version the tag "pro" of the fragment "tone" points to
@@ -182,6 +184,7 @@ A **fragment** is text several prompts need (tone, safety policy, output format)
 
 The reference is **mandatory** (an include without `@tag` or `@number` is rejected). When you save, MemTrace **resolves the include and pins it to the exact version it found**. Your agent receives the final text, already joined, so nothing changes in how you read prompts and there is no extra latency. A version therefore always means the same text: editing a fragment later **never** changes a version that already exists, and its evidence and evaluations stay valid.
 
+- The editor has two views: **Code** (the editable Markdown) and **Rendered** (the Markdown already formatted, with every fragment included as the agent will receive it; a fragment that does not exist or has no published version is flagged).
 - A prompt shows what it wrote (**Source**) or what the agent receives (**Resolved**), and an **Includes** card with each fragment and the version it is pinned to.
 - When a tag moved on, the card says *now v4* and offers **Rebuild with the current fragments**. That saves a **draft** to review, test and publish; it is never published for you. A reference by number never goes out of date.
 - On a fragment, **Used by** lists the prompts that include it in their latest version and which are behind. A banner at the top warns when some are behind, and **Prepare drafts for N prompts** does it for all of them at once, skipping those you cannot write.

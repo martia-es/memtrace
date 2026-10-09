@@ -69,7 +69,9 @@ The prompt registry. Session only. A prompt belongs to the organization and to o
 | `POST /api/v1/approvals/{requestId}/execute` | Retries an `approved` request that could not run (for example the evaluation gate). Re-checks the rule first |
 | `POST /api/v1/approvals/{requestId}/cancel` | Withdraws it; only the requester |
 | `POST /api/v1/approvals/{requestId}/approvers` | `{ approverId }`: adds someone who must also approve this request |
-| `GET /api/v1/organizations/{organizationId}/approvals` | The inbox: live requests the caller can still decide |
+| `GET /api/v1/organizations/{organizationId}/approvals` | The inbox: live requests the caller can still decide; `?experimentId=` keeps only those of that agent's prompts |
+| `GET /api/v1/organizations/{organizationId}/approvals/history` | Every request of the organization, any status, newest first (up to 200), each with its decisions. `approval:manage` |
+| `GET /api/v1/experiments/{experimentId}/approvals/history` | The same, only for the prompts of that agent. `approval:manage` |
 
 **Fragments.** `POST /organizations/{id}/prompts` accepts `kind: "fragment"`. A version's `content` may include other fragments (syntax in [Prompts](/platform/prompts#fragments-text-shared-between-prompts)); the response keeps `source` (what was written, `null` without includes), `includes: [{ name, ref, version }]` and `content` already resolved. The prompt detail adds `includes` (each with `pinned`, `current`, `outdated`) and, for fragments, `usedBy`.
 
@@ -92,6 +94,8 @@ The prompt registry. Session only. A prompt belongs to the organization and to o
 `PUT /api/v1/prompts/{promptId}/tags/{tag}` also accepts `bypassReason` (5 to 500 characters) to skip the gate, which needs `governance:manage` in the organization. When the gate blocks, it answers `409` with the verdict in `gate`.
 
 `GET /api/v1/experiments/{experimentId}/prompts/{promptId}/evidence?from=&to=` returns, for each version that had traffic in the range (24 h by default, 30 days at most), `{ range, versions: [{ version, traces, conversations, errorTraces, errorRate, latencyMs: { p50, p95 }, inputTokens, outputTokens, costUsd, costPerTraceUsd, costComplete, feedback: { up, down, ratedTraces, satisfaction }, evaluators: [{ name, dataType, items, value }], errorCauses: [{ id, title, severity, traces }], firstSeen, lastSeen }] }`, newest version first. Figures are over the traces that used the version. `costUsd` is `null` when no model has a price and `costComplete` is `false` when only some do. It needs `experiment:read` **and** `prompt:read` (these are the agent's data); `404` if the prompt does not belong to the agent.
+
+`GET /api/v1/experiments/{experimentId}/prompts/{promptId}/failures?from=&to=` returns the recent failures of the prompt: `{ items: [{ traceId, startTime, input, output, error, prompts, reasons }], scanned, counts }`, newest first (up to 100). `reasons` holds one or more of `error`, `low_score` (a `boolean` evaluator score of false, or a `numeric` one below 0.5), `human_low` (a reviewer label rated low) and `user_dislike` (👎). `scanned` is how many of the prompt's latest traces (300 at most) were examined. Same permissions as `evidence`.
 
 `GET /api/v1/prompts/{promptId}` also returns `usage`: the versions the agents report to be running (`experimentId`, `environment`, `tag` followed or `""` if fixed, `version`, `lastSeenAt`, `active` = reported in the last 15 minutes), kept for 7 days.
 

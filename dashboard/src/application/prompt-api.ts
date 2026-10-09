@@ -1,4 +1,4 @@
-import type { ApprovalRequestDto, ApprovalRuleDto, ApprovalRulesResponse, PromptApprovalsResponse, PromptDetailDto, PromptEvidenceResponse, PromptGateDto, PromptMapDto, PromptPlaygroundResponse, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto } from "@contract";
+import type { ApprovalRequestDto, ApprovalRuleDto, ApprovalRulesResponse, PromptApprovalsResponse, PromptDetailDto, PromptEvidenceResponse, PromptFailuresResponse, PromptGateDto, PromptMapDto, PromptPlaygroundResponse, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto } from "@contract";
 
 /** Puerto de salida: registro de prompts (ADR-067). */
 
@@ -39,6 +39,8 @@ export interface PromptApi {
   discardDraft(promptId: string, version: number, signal?: AbortSignal): Promise<void>;
   /** Qué pasó en las trazas que usaron cada versión del prompt (coste, errores, latencia, feedback, scores) en el rango (ADR-069). */
   getEvidence(experimentId: string, promptId: string, range: { from: Date; to: Date }, signal?: AbortSignal): Promise<PromptEvidenceResponse>;
+  /** Fallos recientes del prompt (error, score bajo, etiqueta humana negativa, 👎) para elegir uno y arreglarlo (ADR-077). */
+  getFailures(experimentId: string, promptId: string, range: { from: Date; to: Date }, signal?: AbortSignal): Promise<PromptFailuresResponse>;
   /**
    * Mueve el tag a una versión; `version = null` lo quita. Los tags de entorno exigen `prompt:promote`. Con una política
    * (ADR-070) los entornos protegidos exigen una evaluación exitosa; `bypassReason` se salta ese gate (exige gobernanza).
@@ -70,8 +72,10 @@ export interface PromptApi {
   /** Añade a una persona como aprobadora obligatoria de esta solicitud. */
   addApprover(requestId: string, approverId: string, signal?: AbortSignal): Promise<ApprovalRequestDto>;
   /** Lo que la persona tiene pendiente de decidir en la organización. */
-  approvalInbox(organizationId: string, signal?: AbortSignal): Promise<ApprovalRequestDto[]>;
+  approvalInbox(organizationId: string, experimentId: string | null, signal?: AbortSignal): Promise<ApprovalRequestDto[]>;
   /** Reglas de aprobación de la organización o de un experimento (en un experimento, con el suelo de la organización). */
+  /** Todas las solicitudes (cualquier estado) de la organización o del experimento, las más recientes primero. */
+  approvalHistory(scope: ApprovalScope, signal?: AbortSignal): Promise<ApprovalRequestDto[]>;
   getApprovalRules(scope: ApprovalScope, signal?: AbortSignal): Promise<ApprovalRulesResponse>;
   setApprovalRule(scope: ApprovalScope, rule: Pick<ApprovalRuleDto, "action" | "stage" | "requirements" | "approvers">, signal?: AbortSignal): Promise<ApprovalRuleDto>;
   deleteApprovalRule(scope: ApprovalScope, action: "publish" | "promote", stage: string, signal?: AbortSignal): Promise<void>;

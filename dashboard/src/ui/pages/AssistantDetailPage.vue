@@ -57,7 +57,6 @@ const editing = ref(false);
       :title="card.data.value?.name ?? 'Assistant'"
     >
       <StatusChip v-if="head" :tone="head.tone" :label="head.label" />
-      <button v-if="canManage && card.data.value" type="button" class="ghost" @click="editing = true">Edit</button>
     </PageHeader>
 
     <ErrorBanner v-if="card.error.value" :error="card.error.value" @retry="card.run()" />
@@ -103,6 +102,7 @@ const editing = ref(false);
             </div>
           </dl>
         </div>
+        <button v-if="canManage" type="button" class="ghost" data-testid="edit-assistant" @click="editing = true">Edit details</button>
       </section>
 
       <CiSetup :repo="card.data.value.repo" />

@@ -33,6 +33,7 @@ import { PostgresApprovalRepository } from "@/adapters/outbound/postgres/postgre
 import { PostgresPromptRepository } from "@/adapters/outbound/postgres/postgres-prompt-repository";
 import { PromptService } from "@/application/prompt-service";
 import { PromptEvidenceService } from "@/application/prompt-evidence-service";
+import { PromptFailureService } from "@/application/prompt-failure-service";
 import { PromptMapService } from "@/application/prompt-map-service";
 import { ChartCatalogService } from "@/application/chart-catalog-service";
 import { ApprovalRuleResolver } from "@/application/approval-rules";
@@ -71,6 +72,7 @@ const globalForContainer = globalThis as unknown as {
   __memtraceApprovals?: ApprovalService;
   __memtraceApprovalRepository?: PostgresApprovalRepository;
   __memtracePromptEvidence?: PromptEvidenceService;
+  __memtracePromptFailures?: PromptFailureService;
   __memtracePromptGate?: PromptGateService;
   __memtracePromptMap?: PromptMapService;
   __memtracePromptPlayground?: PromptPlaygroundService;
@@ -334,6 +336,20 @@ export function getPromptEvidence(): PromptEvidenceService {
     globalForContainer.__memtracePromptEvidence = new PromptEvidenceService(getPromptEvidenceRepository(), () => getTraceQueryService().getPricingCatalog());
   }
   return globalForContainer.__memtracePromptEvidence;
+}
+
+/** Fallos recientes de un prompt (ADR-077): errores, scores bajos, etiquetas humanas negativas y 👎 cruzados por traza. */
+export function getPromptFailures(): PromptFailureService {
+  if (!globalForContainer.__memtracePromptFailures) {
+    const config = configFromEnv();
+    globalForContainer.__memtracePromptFailures = new PromptFailureService(
+      getTraceRepository(),
+      getScoreRepository(),
+      new ClickHouseUserFeedbackRepository(createEvaluationWriteClient(config), createReadOnlyClient(config), config.database, config.maxConcurrentQueries),
+      getAnnotation(),
+    );
+  }
+  return globalForContainer.__memtracePromptFailures;
 }
 
 /** Sondeo de /health para «Comprobar ahora»; mismo adapter y mismas reglas SSRF que el worker. */

@@ -1,4 +1,4 @@
-import type { ApprovalRequestDto, ApprovalRuleDto, ApprovalRulesResponse, PromptApprovalsResponse, PromptDetailDto, PromptEvidenceResponse, PromptGateDto, PromptMapDto, PromptListResponse, PromptPlaygroundResponse, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto } from "@contract";
+import type { ApprovalRequestDto, ApprovalRuleDto, ApprovalRulesResponse, PromptApprovalsResponse, PromptDetailDto, PromptEvidenceResponse, PromptFailuresResponse, PromptGateDto, PromptMapDto, PromptListResponse, PromptPlaygroundResponse, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto } from "@contract";
 import type { ApprovalScope, NewPromptInput, OpenApprovalInput, PromptApi } from "@/application/prompt-api";
 import { ApiError } from "@/application/trace-api";
 
@@ -48,6 +48,10 @@ export class HttpPromptApi implements PromptApi {
     const query = `?from=${e(range.from.toISOString())}&to=${e(range.to.toISOString())}`;
     return this.request("GET", `/experiments/${e(experimentId)}/prompts/${e(promptId)}/evidence${query}`, undefined, signal);
   }
+  getFailures(experimentId: string, promptId: string, range: { from: Date; to: Date }, signal?: AbortSignal): Promise<PromptFailuresResponse> {
+    const query = `?from=${e(range.from.toISOString())}&to=${e(range.to.toISOString())}`;
+    return this.request("GET", `/experiments/${e(experimentId)}/prompts/${e(promptId)}/failures${query}`, undefined, signal);
+  }
   moveTag(promptId: string, tag: string, version: number | null, reason: string, bypassReason: string | null = null, signal?: AbortSignal): Promise<PromptTagEventDto> {
     return this.request("PUT", `/prompts/${e(promptId)}/tags/${e(tag)}`, { version, reason, bypassReason }, signal);
   }
@@ -86,8 +90,12 @@ export class HttpPromptApi implements PromptApi {
   addApprover(requestId: string, approverId: string, signal?: AbortSignal): Promise<ApprovalRequestDto> {
     return this.request("POST", `/approvals/${e(requestId)}/approvers`, { approverId }, signal);
   }
-  async approvalInbox(organizationId: string, signal?: AbortSignal): Promise<ApprovalRequestDto[]> {
-    return (await this.request<{ items: ApprovalRequestDto[] }>("GET", `/organizations/${e(organizationId)}/approvals`, undefined, signal)).items;
+  async approvalInbox(organizationId: string, experimentId: string | null, signal?: AbortSignal): Promise<ApprovalRequestDto[]> {
+    const query = experimentId ? `?experimentId=${e(experimentId)}` : "";
+    return (await this.request<{ items: ApprovalRequestDto[] }>("GET", `/organizations/${e(organizationId)}/approvals${query}`, undefined, signal)).items;
+  }
+  async approvalHistory(scope: ApprovalScope, signal?: AbortSignal): Promise<ApprovalRequestDto[]> {
+    return (await this.request<{ items: ApprovalRequestDto[] }>("GET", `/${scope.type === "organization" ? "organizations" : "experiments"}/${e(scope.id)}/approvals/history`, undefined, signal)).items;
   }
   getApprovalRules(scope: ApprovalScope, signal?: AbortSignal): Promise<ApprovalRulesResponse> {
     return this.request("GET", `${rulesPath(scope)}`, undefined, signal);

@@ -53,7 +53,7 @@ describe("prompts list (ADR-067)", () => {
     expect(wrapper.text()).toContain("v3");
     expect(wrapper.find("[data-testid='tag-weather-system-dev']").text()).toBe("dev → v3");
     expect(wrapper.find("[data-testid='tag-weather-system-pro']").text()).toBe("pro → v2");
-    expect(api.calls[0]).toEqual({ method: "listForAgent", args: ["exp-1", false] });
+    expect(api.calls.find((c) => c.method === "listForAgent")).toEqual({ method: "listForAgent", args: ["exp-1", false] });
   });
 
   it("only offers to create prompts to people who can write them", async () => {

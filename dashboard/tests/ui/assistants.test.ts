@@ -92,6 +92,15 @@ describe("assistants catalog (ADR-053)", () => {
     expect(dev.text()).toContain("DEV · last 24 h");
   });
 
+  it("guides the setup of an assistant with no deployments and keeps Edit inside the card", async () => {
+    const api = new FakeAssistantApi();
+    api.card = assistantCard({ experimentId: "exp-3", name: "just-created", deployments: [], status: null });
+    const { wrapper } = await setup(AssistantDetailPage, "/assistants/exp-3", api, new Identity([org("org_admin")], []), { experimentId: "exp-3" });
+    expect(wrapper.get("[data-testid='setup-guide']").text()).toContain("Add a deployment");
+    expect(wrapper.find("[data-testid='setup-add']").exists()).toBe(true);
+    expect(wrapper.get("[data-testid='edit-assistant']").text()).toBe("Edit details");
+  });
+
   it("shows the MCP servers by name, the last 24 hours as bars and who can call it", async () => {
     const api = new FakeAssistantApi();
     api.catalog = [assistantCard({ connectionCounts: { mcpServers: 3, tools: 1, agents: 0, toReview: 0 }, mcpServerNames: ["a-mcp", "b-mcp", "c-mcp"] })];

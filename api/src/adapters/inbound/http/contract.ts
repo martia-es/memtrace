@@ -1418,6 +1418,24 @@ export interface VersionEvidenceDto {
   lastSeen: string;
 }
 
+export type FailureReasonDto = "error" | "low_score" | "human_low" | "user_dislike";
+
+/** Fallos recientes de un prompt para elegir uno y arreglarlo (ADR-077). */
+export interface PromptFailuresResponse {
+  items: Array<{
+    traceId: string;
+    startTime: string;
+    input: string | null;
+    output: string | null;
+    error: string | null;
+    prompts: PromptRefDto[];
+    reasons: FailureReasonDto[];
+  }>;
+  /** trazas del prompt examinadas (las más recientes del rango) */
+  scanned: number;
+  counts: Record<FailureReasonDto, number>;
+}
+
 export interface PromptEvidenceResponse {
   range: { from: string; to: string };
   /** más reciente primero; solo las versiones con tráfico en el rango */

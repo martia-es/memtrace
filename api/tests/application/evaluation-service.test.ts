@@ -25,7 +25,7 @@ function fakeIdentity(overrides: Partial<IdentityRepository> = {}): IdentityRepo
 }
 
 function fakeScores(insertScores: ScoreRepository["insertScores"], materializeRunSummary: ScoreRepository["materializeRunSummary"] = async () => {}): ScoreRepository {
-  return { insertScores, materializeRunSummary, listScoresByRun: async () => [], aggregateForRuns: async () => [], listScoresByTrace: async () => [], listJudgeScoresForRuns: async () => [] };
+  return { insertScores, materializeRunSummary, listScoresByRun: async () => [], aggregateForRuns: async () => [], listScoresByTrace: async () => [], listScoresByTraces: async () => [], listJudgeScoresForRuns: async () => [] };
 }
 
 const ITEMS: DatasetRunItemSubmission[] = [

@@ -5,6 +5,7 @@ import type { ApprovalRequestDto } from "@contract";
 import { describeApiError } from "@/application/describe-api-error";
 import { REQUEST_STATUS, canDecideNow, daysLeft, describeRule, profileLabel, progressLines, requestTitle, steps, waitingOn } from "@/domain/approvals";
 import { formatDateTime } from "@/domain/format";
+import { useApprovalInbox } from "../composables/useApprovalInbox";
 import { useAsync } from "../composables/useAsync";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { usePromptApi } from "../composables/usePromptApi";
@@ -21,6 +22,7 @@ const emit = defineEmits<{ changed: [] }>();
 const api = usePromptApi();
 const identity = useIdentityApi();
 const $q = useQuasar();
+const inbox = useApprovalInbox();
 
 const info = useAsync((signal) => api.getApprovals(props.promptId, signal));
 const me = useAsync((signal) => identity.getMe(signal));
@@ -45,6 +47,7 @@ async function act(request: ApprovalRequestDto, run: () => Promise<unknown>, don
   try {
     await run();
     await info.run();
+    void inbox.refresh();
     emit("changed");
     $q.notify({ message: done, color: "positive", timeout: 3000 });
   } catch (error) {

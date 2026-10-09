@@ -219,7 +219,71 @@ describe("fix a failure (ADR-072)", () => {
     expect(wrapper.find("[data-testid='fix-failure']").exists()).toBe(false);
     expect(wrapper.find("[data-testid='fix-tip']").text()).toContain("propose_fix");
   });
+  const failure = (traceId: string, reasons: Array<"error" | "low_score" | "human_low" | "user_dislike">, input: string, error: string | null = null) => ({
+    traceId, startTime: "2026-10-09T10:00:00.000Z", input, output: "No lo sé", error, prompts: [{ name: "weather-system", version: 1 }], reasons,
+  });
+
+  it("offers recent failures of every kind, and a click loads one without pasting an id", async () => {
+    const prompts = new FakePromptApi();
+    prompts.failures = {
+      items: [failure(TRACE, ["error", "user_dislike"], "¿Lloverá en Sevilla?", "429 Too Many Requests"), failure("cd".repeat(16), ["low_score"], "¿Y mañana?")],
+      scanned: 40,
+      counts: { error: 1, low_score: 1, human_low: 0, user_dislike: 1 },
+    };
+    const { wrapper } = await openFix({ prompts, traces: failingTrace(1) }, "?tab=fix");
+    expect(prompts.calls.find((c) => c.method === "getFailures")).toBeDefined();
+    const cases = wrapper.findAll("[data-testid='fix-case']");
+    expect(cases).toHaveLength(2);
+    expect(cases[0]!.text()).toContain("¿Lloverá en Sevilla?");
+    expect(cases[0]!.text()).toContain("429 Too Many Requests");
+    expect(cases[0]!.text()).toContain("Error");
+    expect(cases[0]!.text()).toContain("👎 from user");
+    expect(cases[1]!.text()).toContain("Low score");
+    expect(wrapper.find("[data-testid='fix-scanned']").text()).toContain("2 failures among the latest 40 traces");
+    await cases[0]!.trigger("click");
+    await flushPromises();
+    expect(wrapper.find("[data-testid='fix-picker']").exists()).toBe(false);
+    expect(wrapper.find("[data-testid='fix-failure']").text()).toContain("get_weather");
+    await wrapper.find("[data-testid='fix-back']").trigger("click");
+    await flushPromises();
+    expect(wrapper.find("[data-testid='fix-picker']").exists()).toBe(true);
+  });
+
+  it("filters by reason, only offering the reasons that exist", async () => {
+    const prompts = new FakePromptApi();
+    prompts.failures = {
+      items: [failure("a1".repeat(16), ["error"], "uno"), failure("b2".repeat(16), ["human_low"], "dos"), failure("c3".repeat(16), ["human_low", "low_score"], "tres")],
+      scanned: 9,
+      counts: { error: 1, low_score: 1, human_low: 2, user_dislike: 0 },
+    };
+    const { wrapper } = await openFix({ prompts }, "?tab=fix");
+    expect(wrapper.find("[data-testid='fix-filter-user_dislike']").exists()).toBe(false);
+    await wrapper.find("[data-testid='fix-filter-human_low']").trigger("click");
+    const cases = wrapper.findAll("[data-testid='fix-case']");
+    expect(cases.map((c) => c.text())).toEqual([expect.stringContaining("dos"), expect.stringContaining("tres")]);
+  });
+
+  it("shows ten at a time and lets you see the rest", async () => {
+    const prompts = new FakePromptApi();
+    const items = Array.from({ length: 23 }, (_, i) => failure(String(i).padStart(32, "0"), ["error"], `caso ${i}`, "boom"));
+    prompts.failures = { items, scanned: 100, counts: { error: 23, low_score: 0, human_low: 0, user_dislike: 0 } };
+    const { wrapper } = await openFix({ prompts }, "?tab=fix");
+    expect(wrapper.findAll("[data-testid='fix-case']")).toHaveLength(10);
+    await wrapper.find("[data-testid='fix-more']").trigger("click");
+    await wrapper.find("[data-testid='fix-more']").trigger("click");
+    expect(wrapper.findAll("[data-testid='fix-case']")).toHaveLength(23);
+    expect(wrapper.find("[data-testid='fix-more']").exists()).toBe(false);
+  });
+
+  it("says so when there are no recent failures and keeps pasting an id as a fallback", async () => {
+    const { wrapper } = await openFix({}, "?tab=fix");
+    expect(wrapper.find("[data-testid='fix-picker-empty']").exists()).toBe(true);
+    expect(wrapper.find("[data-testid='fix-trace']").exists()).toBe(false);
+    await wrapper.find("[data-testid='fix-paste-toggle']").trigger("click");
+    expect(wrapper.find("[data-testid='fix-trace']").exists()).toBe(true);
+  });
 });
+
 
 describe("fix button on the trace page (ADR-072)", () => {
   afterEach(() => {

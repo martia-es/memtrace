@@ -54,3 +54,14 @@ export function baseVersionFor(versions: PromptVersionDto[], usedByTrace: number
 export function defaultRationale(failure: Failure | null): string {
   return failure ? `Fixes a failure in "${failure.step}": ${failure.message}` : "";
 }
+
+export type FailureReason = "error" | "low_score" | "human_low" | "user_dislike";
+
+/** Cómo se llama cada motivo de fallo para quien arregla el prompt (ADR-077). */
+export const FAILURE_REASON_LABELS: Record<FailureReason, string> = {
+  error: "Error",
+  low_score: "Low score",
+  human_low: "Reviewer said no",
+  user_dislike: "👎 from user",
+};
+export const FAILURE_REASONS = Object.keys(FAILURE_REASON_LABELS) as FailureReason[];
