@@ -82,6 +82,8 @@ Or build one from the panel on the left, with the result on the right:
 2. **See it** — the chart updates as you go. Choose over time, bars, pie, area, a single number or a table from the selector above the chart; one is suggested for you, and a sentence under the name describes exactly what the chart shows.
 3. **Save it** — the name is suggested for you; edit it at the top of the chart and click **Save to Metrics**. The chart appears under **Saved charts** every time you open the page, and can be added to a report (below).
 
+**Rename things.** The names come from your agent's code, so a step called `input_guardrail` shows as "Input guardrail". If your team calls it something else, press **Rename things** next to **I want to see…** and type the name you want for each step and each detail (the technical ones stay hidden until you tick **Show technical details**). The field shows the automatic name until you write your own; empty it, or press **Reset**, to go back. A new name applies everywhere at once: the builder, its questions, the sentence under the chart, the **Saved charts** and the [reports](#reports), including charts you saved before renaming, because they remember the technical key and not the name. Two steps (or two details) cannot share a name. The names belong to the experiment, so everyone who opens it sees them. You need the `catalog:manage` permission, which the `technical` and `business` roles have.
+
 While you build, the chart also shows the overall figure compared with the previous period of the same length (for example "4.9% ▲ +2.3 pts vs previous period"). When you split failure rates or times by a detail and one value stands out, a highlight tells you which one ("refund_lookup fails 2.3× more than the others").
 
 ### Reports
