@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ApprovalRuleResolver } from "@/application/approval-rules";
 import { ApprovalService } from "@/application/approval-service";
 import type { ApprovalRepository, NewApprovalRequest } from "@/application/ports/approval-repository";
@@ -140,7 +140,7 @@ function setup(gate: PromptGatePort = allowGate, now: () => Date = () => new Dat
   const identity = { getUsersByIds: async (ids: string[]) => ids.map((id) => ({ id, email: `${id}@x.io`, name: id })) } as never;
   const promptService = new PromptService(prompts.repo, gate, identity, new ApprovalRuleResolver(approvals.repo));
   const service = new ApprovalService(approvals.repo, promptService, prompts.repo, gate, identity, now);
-  return { ...approvals, ...prompts, promptService, service };
+  return { ...approvals, ...prompts, approvalRepo: approvals.repo, promptService, service };
 }
 
 const rule = (over: Partial<ApprovalRule> = {}): ApprovalRule => ({ action: "promote", stage: "pro", requirements: [{ role: "technical", min: 1 }], approvers: [], ...over });
@@ -377,6 +377,22 @@ describe("lifecycle", () => {
     expect((await t.service.inbox(ORG, CRIS)).map((v) => v.request.id)).toEqual([pro.request.id]);
     expect(await t.service.inbox(ORG, ANA)).toEqual([]); // no tiene el perfil que pide la regla
     expect(await t.service.inbox(ORG, ZOE)).toEqual([]); // la pidió ella
+  });
+
+  it("listing several requests looks up approvers and names once", async () => {
+    const t = setup();
+    t.addVersion("published");
+    t.addVersion("published");
+    t.rules.set(`organization:${ORG}:promote:pro`, rule({ requirements: [{ role: "business", min: 1 }] }));
+    await t.service.open(t.prompt, ZOE, { action: "promote", version: 1, tag: "pro" }, false);
+    await t.service.open(t.prompt, ZOE, { action: "promote", version: 2, tag: "pro" }, false);
+    const approvers = vi.spyOn(t.approvalRepo, "approvers");
+    const views = await t.service.list(t.prompt);
+    expect(views).toHaveLength(2);
+    expect(approvers).toHaveBeenCalledTimes(1);
+    approvers.mockClear();
+    expect(await t.service.inbox(ORG, CRIS)).toHaveLength(2);
+    expect(approvers).toHaveBeenCalledTimes(1);
   });
 
   it("two approvals arriving at the same time carry the action out once and keep it executed", async () => {

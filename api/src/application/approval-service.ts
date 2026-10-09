@@ -177,32 +177,47 @@ export class ApprovalService {
   }
 
   async list(prompt: Prompt): Promise<ApprovalView[]> {
-    const requests = await this.approvals.listRequests(prompt.id, LIST_LIMIT);
-    return Promise.all(requests.map(async (r) => this.view(await this.refresh(r), prompt)));
+    const requests = await Promise.all((await this.approvals.listRequests(prompt.id, LIST_LIMIT)).map((r) => this.refresh(r)));
+    return this.viewAll(requests.map((request) => ({ request, prompt })));
   }
 
   /** Lo que esta persona tiene pendiente de decidir en la organización: solicitudes vivas donde puede aprobar y aún no ha respondido. */
   async inbox(organizationId: string, userId: string): Promise<ApprovalView[]> {
     const open = await this.approvals.listOpenForOrganization(organizationId);
-    const out: ApprovalView[] = [];
+    const memo = new Memo(this.resolver, this.approvals);
+    const prompts = new Map<string, Promise<Prompt | null>>();
+    const items: Array<{ request: ApprovalRequest; prompt: Prompt }> = [];
     for (const raw of open) {
       const request = await this.refresh(raw);
       if (request.status !== "pending" || request.requestedBy === userId || request.decisions.some((d) => d.userId === userId)) continue;
-      const prompt = await this.promptRepo.get(request.promptId);
+      if (!prompts.has(request.promptId)) prompts.set(request.promptId, this.promptRepo.get(request.promptId));
+      const prompt = await prompts.get(request.promptId);
       if (!prompt) continue;
-      const view = await this.view(request, prompt);
-      if (await this.canDecide(userId, prompt, view.rule, request)) out.push(view);
+      const [rule, people] = await Promise.all([memo.rule(prompt, request.action, request.tag), memo.people(prompt)]);
+      if (this.mayDecide(userId, rule, request, people)) items.push({ request, prompt });
     }
-    return out;
+    return this.viewAll(items, memo);
   }
 
   async view(request: ApprovalRequest, prompt: Prompt): Promise<ApprovalView> {
-    const rule = await this.resolver.effectiveRule(prompt, request.action, request.tag);
-    const people = await this.approvals.approvers(prompt.experimentIds);
-    const evaluation = this.evaluate(request, rule, people);
-    const ids = [...new Set([request.requestedBy, ...request.decisions.map((d) => d.userId), ...request.extraApprovers, ...(rule?.approvers ?? [])].filter((id): id is string => !!id))];
+    return (await this.viewAll([{ request, prompt }]))[0]!;
+  }
+
+  /** Varias vistas a la vez: la regla y los aprobadores se calculan una vez por prompt y los nombres, en una sola consulta. */
+  private async viewAll(items: Array<{ request: ApprovalRequest; prompt: Prompt }>, memo = new Memo(this.resolver, this.approvals)): Promise<ApprovalView[]> {
+    const partial = await Promise.all(
+      items.map(async ({ request, prompt }) => {
+        const [rule, people] = await Promise.all([memo.rule(prompt, request.action, request.tag), memo.people(prompt)]);
+        return { request, prompt, rule, evaluation: this.evaluate(request, rule, people) };
+      }),
+    );
+    const ids = [...new Set(partial.flatMap((p) => [p.request.requestedBy, ...p.request.decisions.map((d) => d.userId), ...p.request.extraApprovers, ...(p.rule?.approvers ?? [])]).filter((id): id is string => !!id))];
     const users = ids.length > 0 ? await this.identity.getUsersByIds(ids) : [];
-    return { request, promptName: prompt.name, rule, evaluation, people: Object.fromEntries(users.map((u) => [u.id, u.name?.trim() || u.email])) };
+    const names = new Map(users.map((u) => [u.id, u.name?.trim() || u.email]));
+    return partial.map(({ request, prompt, rule, evaluation }) => {
+      const mine = [request.requestedBy, ...request.decisions.map((d) => d.userId), ...request.extraApprovers, ...(rule?.approvers ?? [])].filter((id): id is string => !!id && names.has(id));
+      return { request, promptName: prompt.name, rule, evaluation, people: Object.fromEntries(mine.map((id) => [id, names.get(id)!])) };
+    });
   }
 
   /** Aprueba o rechaza. Al reunirse todo lo que pide la regla, la acción se ejecuta; si el gate la frena, queda aprobada con el motivo. */
@@ -284,10 +299,6 @@ export class ApprovalService {
     return rule.approvers.includes(userId) || request.extraApprovers.includes(userId) || rule.requirements.some((r) => me.roles.includes(r.role));
   }
 
-  private async canDecide(userId: string, prompt: Prompt, rule: ApprovalRule | null, request: ApprovalRequest): Promise<boolean> {
-    return this.mayDecide(userId, rule, request, await this.approvals.approvers(prompt.experimentIds));
-  }
-
   /** Ejecuta la acción aprobada. Un fallo (el gate, un prompt archivado) no se pierde: la solicitud sigue aprobada con el motivo. */
   private async run(request: ApprovalRequest, prompt: Prompt, actingUserId: string): Promise<void> {
     // dos aprobaciones casi a la vez pueden llegar aquí las dos: solo una consigue la reserva y ejecuta; la otra no hace nada
@@ -313,5 +324,28 @@ export class ApprovalService {
     const ids = request.decisions.filter((d) => d.decision === "approve").map((d) => d.userId);
     const users = ids.length > 0 ? await this.identity.getUsersByIds(ids) : [];
     return users.map((u) => u.name?.trim() || u.email).join(", ");
+  }
+}
+
+/** Reglas efectivas y aprobadores calculados una sola vez por prompt dentro de una misma operación (listas y bandeja). */
+class Memo {
+  private readonly rules = new Map<string, Promise<ApprovalRule | null>>();
+  private readonly peopleByKey = new Map<string, Promise<ApproverInfo[]>>();
+
+  constructor(
+    private readonly resolver: ApprovalRuleResolver,
+    private readonly approvals: Pick<ApprovalRepository, "approvers">,
+  ) {}
+
+  rule(prompt: Prompt, action: ApprovalAction, stage: string): Promise<ApprovalRule | null> {
+    const key = `${prompt.organizationId}|${[...prompt.experimentIds].sort().join(",")}|${action}|${stage}`;
+    if (!this.rules.has(key)) this.rules.set(key, this.resolver.effectiveRule(prompt, action, stage));
+    return this.rules.get(key)!;
+  }
+
+  people(prompt: Prompt): Promise<ApproverInfo[]> {
+    const key = [...prompt.experimentIds].sort().join(",");
+    if (!this.peopleByKey.has(key)) this.peopleByKey.set(key, this.approvals.approvers(prompt.experimentIds));
+    return this.peopleByKey.get(key)!;
   }
 }

@@ -76,7 +76,9 @@ With a rule active: `saveVersion` creates a draft instead of a published version
 
 - **Good**: each organization defines its own review process per stage with no code change; the floor cannot be loosened; the requester can never self-approve; evidence (ADR-070) and review (this ADR) compose instead of replacing each other; rollback stays fast.
 - **Cost**: a draft state shows up on every save for gated prompts; one more screen (rules) and an inbox; the eligibility query joins memberships with role permissions.
-- **Risk**: a prompt that belongs to no agent has nobody to approve it (approvers are the members of its agents), so under a rule `open` refuses with an explanation until an agent is linked.- **Risk**: an approver who leaves the organization can block a request that names them. Mitigation: they stop being eligible, `open` detects it for new requests, and the requester can cancel and reopen; reassigning a named approver of an open request by an admin is not built.
+- **Risk**: a prompt that belongs to no agent has nobody to approve it (approvers are the members of its agents), so under a rule `open` refuses with an explanation until an agent is linked.
+- **Risk**: an approver who leaves the organization can block a request that names them. Mitigation: they stop being eligible, `open` detects it for new requests, and the requester can cancel and reopen; reassigning a named approver of an open request by an admin is not built.
+- **Decision**: an approved request is carried out with the permissions it was approved under, not the requester's current ones. If the requester lost `prompt:promote` in between, the promotion still runs (it was reviewed and approved) and the event is recorded under the requester's name; whoever triggers a retry only needs `prompt:write`/`prompt:promote` to call `execute`.
 
 ## Not done
 
