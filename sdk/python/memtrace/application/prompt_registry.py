@@ -211,6 +211,8 @@ class PromptRegistry:
             assert fetched is not None  # without an etag the registry always answers with the version
             if self._cache is not None:
                 self._cache.store(name, tag, version, fetched.version)
+            if fetched.version.draft:
+                logger.warning("[MemTrace] Prompt '%s' v%s is a DRAFT (not reviewed yet). Use it to evaluate, not in production.", name, fetched.version.version)
             return PromptHandle(self, key, fetched.version, fetched.etag, now + self._refresh_seconds)
         except PromptNotFoundError:
             raise

@@ -59,6 +59,8 @@ class PromptVersion:
     variables: Tuple[str, ...] = ()
     content_hash: str = ""
     archived: bool = False
+    # A proposal waiting for review (ADR-072): it can be evaluated by number but must not run in production.
+    draft: bool = False
 
     @property
     def from_registry(self) -> bool:

@@ -32,6 +32,7 @@ class FilePromptCache:
                 variables=tuple(data.get("variables") or ()),
                 content_hash=data.get("content_hash", ""),
                 archived=bool(data.get("archived", False)),
+                draft=bool(data.get("draft", False)),
             )
         except (OSError, ValueError, KeyError, TypeError):
             return None
@@ -39,7 +40,7 @@ class FilePromptCache:
     def store(self, name: str, tag: Optional[str], version: Optional[int], value: PromptVersion) -> None:
         try:
             os.makedirs(self._directory, exist_ok=True)
-            payload = {"name": value.name, "version": value.version, "content": value.content, "variables": list(value.variables), "content_hash": value.content_hash, "archived": value.archived}
+            payload = {"name": value.name, "version": value.version, "content": value.content, "variables": list(value.variables), "content_hash": value.content_hash, "archived": value.archived, "draft": value.draft}
             fd, tmp = tempfile.mkstemp(dir=self._directory, suffix=".tmp")
             with os.fdopen(fd, "w", encoding="utf-8") as handle:
                 json.dump(payload, handle)

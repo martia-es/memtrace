@@ -10,6 +10,7 @@ Contract (JSON keys are camelCase):
          -> 404 the prompt, tag or version does not exist for this agent
     GET  {base_url}/prompts/resolve?name=&override=<token>   (playground, ADR-071)
          -> 200 the version the token grants, 404 if MemTrace does not recognize the token for this prompt
+    POST {base_url}/prompts/drafts  body {name, content, message?, basedOn?, origin?: {traceIds, cause, rationale}}  -> 201 (ADR-072)
     POST {base_url}/prompts/usage   body {"environment": str | null, "items": [{"name", "tag", "version"}]}  -> 200
 """
 import threading
@@ -65,6 +66,7 @@ class HttpPromptClient:
                 variables=tuple(body.get("variables") or ()),
                 content_hash=body.get("contentHash", ""),
                 archived=bool(body.get("archived", False)),
+                draft=bool(body.get("draft", False)),
             ),
             response.headers.get("ETag"),
         )
@@ -84,6 +86,30 @@ class HttpPromptClient:
             content_hash=body.get("contentHash", ""),
             archived=bool(body.get("archived", False)),
         )
+
+    def save_draft(
+        self,
+        name: str,
+        content: str,
+        *,
+        message: str = "",
+        based_on: Optional[int] = None,
+        trace_ids: Sequence[str] = (),
+        cause: Optional[str] = None,
+        rationale: str = "",
+    ) -> Dict[str, Any]:
+        """Saves `content` as a DRAFT of prompt `name` (ADR-072). A tool can propose; only a person publishes."""
+        body = {
+            "name": name,
+            "content": content,
+            "message": message,
+            "basedOn": based_on,
+            "origin": {"traceIds": list(trace_ids), "cause": cause, "rationale": rationale},
+        }
+        response = self._send("POST", "/prompts/drafts", json=body)
+        if response.status_code >= 400:
+            raise PromptSourceError(f"MemTrace answered {response.status_code}: {_detail(response)}")
+        return dict(response.json())
 
     def report(self, environment: Optional[str], items: Sequence[UsedPrompt]) -> None:
         body = {"environment": environment, "items": [{"name": i.name, "tag": i.tag, "version": i.version} for i in items]}
