@@ -82,7 +82,13 @@ Or build one from the panel on the left, with the result on the right:
 2. **See it** — the chart updates as you go. Choose over time, bars, pie, area, a single number or a table from the selector above the chart; one is suggested for you, and a sentence under the name describes exactly what the chart shows.
 3. **Save it** — the name is suggested for you; edit it at the top of the chart and click **Save to Metrics**. The chart appears under **Saved charts** every time you open the page, and can be added to a report (below).
 
-**Rename things.** The names come from your agent's code, so a step called `input_guardrail` shows as "Input guardrail". If your team calls it something else, press **Rename things** next to **I want to see…** and type the name you want for each step and each detail (the hidden ones stay out of the list until you tick **Show hidden details**). The field shows the automatic name until you write your own; empty it, or press **Reset**, to go back. A new name applies everywhere at once: the builder, its questions, the sentence under the chart, the **Saved charts** and the [reports](#reports), including charts you saved before renaming, because they remember the technical key and not the name. Two steps (or two details) cannot share a name. The names belong to the experiment, so everyone who opens it sees them. You need the `catalog:manage` permission, which the `technical` and `business` roles have.
+**Rename things.** The names come from your agent's code, so a step called `input_guardrail` shows as "Input guardrail". If your team calls it something else you can change it in three places, all editing the same names:
+
+- **Right on the step.** Each step in **I want to see…** has a small pencil. Click it, type the name and press Enter (Esc cancels, empty goes back to the automatic name). A step with your own name has a dashed outline.
+- **Customize names**, the button next to **I want to see…**: a window with every step and detail, so you can rename several without leaving the builder.
+- **Overview › Data catalog**, in the side menu: the same list as a full page with a search box. Without the `catalog:manage` permission you can look at it but not change it.
+
+In the list, type the name you want for each step and each detail (the hidden ones stay out until you tick **Show hidden details**). The field shows the automatic name until you write your own; empty it, or press **Reset**, to go back. A new name applies everywhere at once: the builder, its questions, the sentence under the chart, the **Saved charts** and the [reports](#reports), including charts you saved before renaming, because they remember the technical key and not the name. Two steps (or two details) cannot share a name. The names belong to the experiment, so everyone who opens it sees them. You need the `catalog:manage` permission, which the `technical` and `business` roles have.
 
 #### Measuring a number
 
@@ -92,7 +98,7 @@ If your agent records a number on a step — an order total, a rating, the items
 - Only the spans that carry a real number take part: an empty value, a text or a span without that detail is ignored. "How many times" still counts every span.
 - A number belongs to one step, so picking a second step goes back to counting.
 - When a figure like a total goes up, the chart does not mark it as good or bad: only times and failures are judged.
-- A saved chart remembers the number it measures, and names you gave in **Rename things** apply to it. Charts saved before this existed keep working unchanged.
+- A saved chart remembers the number it measures, and names you gave in the catalog apply to it. Charts saved before this existed keep working unchanged.
 - In the report email, a chart over time is summarized with one figure per series: counts and totals are added, the lowest and highest take the lowest and highest, and averages, times and failure rates are averaged over the period (previously these were added up, which gave figures like a 35 % failure rate for a 5 % daily one).
 
 #### Which details are offered
@@ -107,7 +113,7 @@ MemTrace looks at the values of each detail in the selected period and decides, 
 | **Free text**: long values | a user message | Hidden |
 | **Technical**: instrumentation detail | `memtrace.*`, token counts | Hidden |
 
-**Show N more details** shows the hidden ones; a detail you already picked stays visible. To decide yourself, open **Rename things**: each detail shows what it looks like, how many different values it has and, if hidden, why. Its selector offers **Automatic**, **Always show** and **Always hide**. Your choice wins over the automatic one, applies to the whole experiment and needs the `catalog:manage` permission. A rating from 1 to 5 counts as a category even though its values are numbers. **Reset** on a name does not undo an **Always show** or **Always hide**.
+**Show N more details** shows the hidden ones; a detail you already picked stays visible. To decide yourself, open **Customize names** or the **Data catalog** page: each detail shows what it looks like, how many different values it has and, if hidden, why. Its selector offers **Automatic**, **Always show** and **Always hide**. Your choice wins over the automatic one, applies to the whole experiment and needs the `catalog:manage` permission. A rating from 1 to 5 counts as a category even though its values are numbers. **Reset** on a name does not undo an **Always show** or **Always hide**.
 
 While you build, the chart also shows the overall figure compared with the previous period of the same length (for example "4.9% ▲ +2.3 pts vs previous period"). When you split failure rates or times by a detail and one value stands out, a highlight tells you which one ("refund_lookup fails 2.3× more than the others").
 
