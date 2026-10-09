@@ -228,7 +228,7 @@ function switchExperiment(experimentId: string | null) {
           <span v-if="leftCount === 0" class="topbar-title">{{ route.meta.title }}</span>
         </div>
         <div ref="topbarRight" class="topbar-right" />
-        <div v-if="currentExperimentId && navCanRead" class="topbar-filters">
+        <div v-if="currentExperimentId && navCanRead && route.meta.timeRange !== false" class="topbar-filters">
           <FilterBar :range="f.range.value" :custom="f.customRange.value" @update:range="f.setRange" @update:custom="f.setCustomRange" />
           <LiveControl :seconds="liveSeconds" :updated-at="liveUpdatedAt" @update:seconds="setRefreshSeconds" @refresh="requestRefresh" />
         </div>

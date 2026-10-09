@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useQuasar } from "quasar";
 import type { PromptDetailDto, PromptVersionDto } from "@contract";
@@ -8,12 +8,14 @@ import { formatCostUsd, formatCount, formatDateTime, formatDuration, formatPerce
 import { MIN_TRACES, compareVersions, evaluatorCell, evaluatorNames, sampleQuality } from "@/domain/prompt-evidence";
 import { describeUsage, environmentsRunning, type UsageState } from "@/domain/prompt-usage";
 import { PRODUCTION_ENV, filterVersions, groupByMonth, sortEnvironments, splitVariables } from "@/domain/prompt-release";
+import { includeSyntax, insertSnippet } from "@/domain/prompt-fragment";
 import { sideBySideDiff } from "@/domain/text-diff";
 import EnvFlag from "../components/EnvFlag.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import PageHeader from "../components/PageHeader.vue";
 import PromotePromptModal from "../components/PromotePromptModal.vue";
 import PromptDependencyMap from "../components/PromptDependencyMap.vue";
+import PromptFragmentPicker from "../components/PromptFragmentPicker.vue";
 import PromptFixFromFailure from "../components/PromptFixFromFailure.vue";
 import PromptPlayground from "../components/PromptPlayground.vue";
 import PromptDiff from "../components/PromptDiff.vue";
@@ -153,7 +155,29 @@ const saving = ref(false);
 function startEdit() {
   draft.value = selectedVersion.value?.source ?? selectedVersion.value?.content ?? "";
   message.value = "";
+  pickingFragment.value = false;
   editing.value = true;
+}
+// ---- insertar un fragmento en el texto que se edita (ADR-073) ----
+const pickingFragment = ref(false);
+const editorBox = ref<HTMLElement | null>(null);
+const caret = { start: 0, end: 0 };
+const textarea = () => editorBox.value?.querySelector("textarea") ?? null;
+function openFragmentPicker() {
+  const area = textarea();
+  // el cursor se recuerda antes de que el clic en el botón le quite el foco al texto
+  caret.start = area?.selectionStart ?? draft.value.length;
+  caret.end = area?.selectionEnd ?? draft.value.length;
+  pickingFragment.value = true;
+}
+async function insertFragment(snippet: string) {
+  const next = insertSnippet(draft.value, caret.start, caret.end, snippet);
+  draft.value = next.text;
+  pickingFragment.value = false;
+  await nextTick();
+  const area = textarea();
+  area?.focus();
+  area?.setSelectionRange(next.caret, next.caret);
 }
 function notifyError(action: string, error: unknown) {
   $q.notify({ message: `${action}: ${describeApiError(error as Error)}`, color: "negative", timeout: 4000 });
@@ -175,8 +199,8 @@ async function saveVersion(asDraft = false) {
 }
 
 // ---- fragmentos (ADR-073) ----
-/** Cómo se incluye un fragmento en un prompt. Va en una función porque `}}` dentro de una plantilla de Vue la rompe. */
-const includeSyntax = (name: string) => `{{> ${name}@pro}}`;
+/** Ejemplo de inclusión para el texto de ayuda (`}}` dentro de una plantilla de Vue la rompe). */
+const includeExample = (name: string) => includeSyntax(name, "pro");
 const isLatestPublished = computed(() => selectedVersion.value !== null && selectedVersion.value.version === latestVersion.value);
 /** versión a la que resuelve hoy una inclusión de la última versión publicada si ya no es la fijada; null si sigue igual */
 const includeOutdated = (name: string, ref: string): number | null => {
@@ -517,6 +541,15 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   <button type="button" class="ghost-btn" :disabled="draftBusy" data-testid="draft-discard" @click="discardSelected">Discard</button>
                 </div>
               </section>
+              <section v-if="!editing && data.prompt.kind === 'fragment' && outdatedDependents > 0" class="dependents-banner" data-testid="dependents-banner">
+                <div>
+                  <b>{{ outdatedDependents }} {{ outdatedDependents === 1 ? "prompt still includes" : "prompts still include" }} an older version of this fragment.</b>
+                  <p class="small">Nothing changes in production by itself. MemTrace can prepare a draft in {{ outdatedDependents === 1 ? "it" : "each one" }}; you review, test it in the playground and publish.</p>
+                </div>
+                <button v-if="canWrite" type="button" class="primary-btn" :disabled="draftBusy" data-testid="rebuild-dependents" @click="rebuildDependents">
+                  Prepare {{ outdatedDependents === 1 ? "a draft" : `drafts for ${outdatedDependents} prompts` }}
+                </button>
+              </section>
               <div v-if="!editing" class="content-grid">
                 <div class="code-card">
                   <div class="code-head">
@@ -558,16 +591,14 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   </div>
                   <div v-if="data.prompt.kind === 'fragment'" class="side-card" data-testid="used-by-card">
                     <span class="eyebrow">USED BY</span>
-                    <p v-if="data.usedBy.length === 0" class="soft" data-testid="used-by-empty">No prompt includes this fragment yet. Write <code>{{ includeSyntax(data.prompt.name) }}</code> in a prompt to use it.</p>
+                    <p v-if="data.usedBy.length === 0" class="soft" data-testid="used-by-empty">No prompt includes this fragment yet. Write <code>{{ includeExample(data.prompt.name) }}</code> in a prompt to use it.</p>
                     <ul v-else class="plain">
                       <li v-for="u in data.usedBy" :key="u.promptId" :data-testid="`used-by-${u.name}`">
-                        <span class="mono">{{ u.name }}</span> <span class="soft">v{{ u.version }}</span>
+                        <router-link :to="{ name: 'prompt', params: { experimentId: String(route.params.experimentId), promptId: u.promptId } }" class="link mono">{{ u.name }}</router-link> <span class="soft">v{{ u.version }}</span>
                         <span v-if="u.outdated" class="mt-pill draft-pill">behind</span>
+                        <span v-else class="mt-pill ok-pill">up to date</span>
                       </li>
                     </ul>
-                    <button v-if="canWrite && outdatedDependents > 0" type="button" class="primary-btn small" :disabled="draftBusy" data-testid="rebuild-dependents" @click="rebuildDependents">
-                      Rebuild {{ outdatedDependents }} {{ outdatedDependents === 1 ? "prompt" : "prompts" }} as drafts
-                    </button>
                   </div>
                   <div class="side-card">
                     <span class="eyebrow">RUNNING IN</span>
@@ -581,16 +612,23 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   </div>
                 </div>
               </div>
-              <form v-else class="editor" @submit.prevent="saveVersion(false)">
-                <p class="muted">Editing from v{{ selected }}. Saving creates a new version; the previous ones are not modified.</p>
-                <TextInput v-model="draft" multiline :rows="16" mono data-testid="editor" />
-                <TextInput v-model="message" placeholder="What changed and why? (optional)" data-testid="version-message" />
-                <div class="row">
-                  <button type="submit" class="primary-btn" :disabled="saving || !draft.trim() || draft === (selectedVersion.source ?? selectedVersion.content)" data-testid="save-version">Save as new version</button>
-                  <button type="button" class="ghost-btn" :disabled="saving || !draft.trim() || draft === (selectedVersion.source ?? selectedVersion.content)" data-testid="save-draft" @click="saveVersion(true)">Save as draft</button>
-                  <button type="button" class="ghost-btn" @click="editing = false">Cancel</button>
-                </div>
-              </form>
+              <div v-else class="editor-layout">
+                <form class="editor" @submit.prevent="saveVersion(false)">
+                  <p class="muted">Editing from v{{ selected }}. Saving creates a new version; the previous ones are not modified.</p>
+                  <div v-if="data.prompt.kind !== 'fragment'" class="editor-tools">
+                    <button type="button" class="ghost-btn small insert-btn" :class="{ on: pickingFragment }" data-testid="insert-fragment" @click="pickingFragment ? (pickingFragment = false) : openFragmentPicker()">Insert fragment</button>
+                    <span class="soft small">Include text shared with other prompts.</span>
+                  </div>
+                  <div ref="editorBox"><TextInput v-model="draft" multiline :rows="16" mono data-testid="editor" /></div>
+                  <TextInput v-model="message" placeholder="What changed and why? (optional)" data-testid="version-message" />
+                  <div class="row">
+                    <button type="submit" class="primary-btn" :disabled="saving || !draft.trim() || draft === (selectedVersion.source ?? selectedVersion.content)" data-testid="save-version">Save as new version</button>
+                    <button type="button" class="ghost-btn" :disabled="saving || !draft.trim() || draft === (selectedVersion.source ?? selectedVersion.content)" data-testid="save-draft" @click="saveVersion(true)">Save as draft</button>
+                    <button type="button" class="ghost-btn" @click="editing = false">Cancel</button>
+                  </div>
+                </form>
+                <PromptFragmentPicker v-if="pickingFragment" :experiment-id="String(route.params.experimentId)" @insert="insertFragment" @close="pickingFragment = false" />
+              </div>
             </div>
 
             <div v-else-if="tab === 'compare' && selectedVersion" class="pane" data-testid="pane-compare">
@@ -1224,10 +1262,47 @@ h3 {
   font-family: var(--mt-mono);
   font-size: 12px;
 }
+.editor-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
 .editor {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+.editor-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.insert-btn.on,
+.insert-btn:hover {
+  border-color: var(--mt-accent);
+  color: var(--mt-accent-text);
+}
+.dependents-banner {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 14px 18px;
+  border-radius: 10px;
+  background: var(--mt-highlight-soft);
+  color: var(--mt-highlight-ink);
+}
+.dependents-banner > div {
+  flex: 1;
+}
+.dependents-banner p {
+  margin: 4px 0 0;
+  line-height: 1.5;
+}
+.ok-pill {
+  background: var(--mt-ok-bg);
+  color: var(--mt-ok-ink);
 }
 
 /* comparar */

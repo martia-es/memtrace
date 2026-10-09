@@ -64,7 +64,36 @@ describe("prompts list (ADR-067)", () => {
 
   it("explains the empty state", async () => {
     const { wrapper } = await setup(PromptsPage, "technical", new FakePromptApi());
-    expect(wrapper.text()).toContain("No prompts yet");
+    expect(wrapper.text()).toContain("Version what your agent says");
+    expect(wrapper.find("[data-testid='empty-new-prompt']").exists()).toBe(true);
+    expect(wrapper.find("[data-testid='empty-new-fragment']").exists()).toBe(true);
+  });
+
+  it("does not offer to create anything to someone who can only read", async () => {
+    const { wrapper } = await setup(PromptsPage, "business", new FakePromptApi());
+    expect(wrapper.find("[data-testid='empty-state']").exists()).toBe(true);
+    expect(wrapper.find("[data-testid='empty-new-prompt']").exists()).toBe(false);
+    expect(wrapper.find("[data-testid='empty-new-fragment']").exists()).toBe(false);
+  });
+
+  it("can reach archived prompts even when nothing else exists", async () => {
+    const api = new FakePromptApi();
+    const { wrapper } = await setup(PromptsPage, "technical", api);
+    await wrapper.find("[data-testid='show-archived-empty']").trigger("click");
+    await flushPromises();
+    expect(api.calls.filter((c) => c.method === "listForAgent").map((c) => c.args[1])).toEqual([false, true]);
+  });
+
+  it("keeps the topbar to search and the main action: archived is a switch next to the filters", async () => {
+    const api = new FakePromptApi();
+    api.list = [promptSummary("weather-system", { latestVersion: 2, tags: { dev: 2 } })];
+    const { wrapper } = await setup(PromptsPage, "technical", api);
+    expect(wrapper.find(".actions [data-testid='show-archived']").exists()).toBe(false);
+    expect(wrapper.find(".actions [data-testid='new-fragment']").exists()).toBe(false);
+    expect(wrapper.find(".toolbar [data-testid='show-archived']").exists()).toBe(true);
+    await wrapper.find("[data-testid='show-archived']").setValue(true);
+    await flushPromises();
+    expect(api.calls.filter((c) => c.method === "listForAgent").map((c) => c.args[1])).toEqual([false, true]);
   });
 });
 

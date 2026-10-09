@@ -78,7 +78,7 @@ describe("fragments in the list (ADR-073)", () => {
   it("creates a fragment with its own button, and explains the include syntax", async () => {
     const api = new FakePromptApi();
     const { wrapper } = await mountPage(PromptsPage, "/e/exp-1/prompts", {}, api);
-    await wrapper.find("[data-testid='new-fragment']").trigger("click");
+    await wrapper.find("[data-testid='empty-new-fragment']").trigger("click");
     await flushPromises();
     const hint = document.body.querySelector("[data-testid='fragment-hint']")!.textContent!;
     expect(hint).toContain("{{> name@pro}}");
@@ -93,12 +93,30 @@ describe("fragments in the list (ADR-073)", () => {
     expect(api.calls.find((c) => c.method === "create")?.args[1]).toMatchObject({ kind: "fragment", name: "tone", content: "Sé amable." });
   });
 
+  it("opens the fragment form from its own section, and shows the variables the text brings", async () => {
+    const api = new FakePromptApi();
+    api.list = [promptSummary("weather-system"), { ...promptSummary("tone"), kind: "fragment", latestVersion: 1, tags: {} }];
+    const { wrapper } = await mountPage(PromptsPage, "/e/exp-1/prompts", {}, api);
+    expect(wrapper.find("[data-testid='fragments']").text()).toContain("FRAGMENTS · 1");
+    await wrapper.find("[data-testid='new-fragment']").trigger("click");
+    await flushPromises();
+    const area = document.body.querySelector("[data-testid='prompt-content']") as HTMLTextAreaElement;
+    area.value = "Ask {{topic}} and {{topic}} again. {{> other@pro}}";
+    area.dispatchEvent(new Event("input"));
+    await flushPromises();
+    const vars = document.body.querySelector("[data-testid='fragment-variables']")!.textContent!;
+    expect(vars).toContain("{{topic}}");
+    expect(vars.match(/\{\{topic\}\}/g)).toHaveLength(1);
+    expect(vars).not.toContain("other");
+  });
+
   it("a normal prompt is created as kind prompt", async () => {
     const api = new FakePromptApi();
     const { wrapper } = await mountPage(PromptsPage, "/e/exp-1/prompts", {}, api);
     await wrapper.find("[data-testid='new-prompt']").trigger("click");
     await flushPromises();
     expect(document.body.querySelector("[data-testid='fragment-hint']")).toBeNull();
+    expect(document.body.querySelector("[data-testid='fragment-variables']")).toBeNull();
     (document.body.querySelector("[data-testid='prompt-name']") as HTMLInputElement).value = "weather-system";
     document.body.querySelector("[data-testid='prompt-name']")!.dispatchEvent(new Event("input"));
     (document.body.querySelector("[data-testid='prompt-content']") as HTMLTextAreaElement).value = "Texto";
@@ -183,10 +201,22 @@ describe("a fragment page (ADR-073)", () => {
     const api = fragment([{ promptId: "a", name: "weather-system", version: 3, outdated: true }, { promptId: "c", name: "billing", version: 2, outdated: true }]);
     api.rebuilt = { created: [{ promptId: "a", name: "weather-system", version: 4 }], skipped: [{ promptId: "c", name: "billing", reason: "You cannot write this prompt" }] };
     const { wrapper } = await open(api);
-    expect(wrapper.find("[data-testid='rebuild-dependents']").text()).toContain("Rebuild 2 prompts as drafts");
+    expect(wrapper.find("[data-testid='rebuild-dependents']").text()).toContain("Prepare drafts for 2 prompts");
     await wrapper.find("[data-testid='rebuild-dependents']").trigger("click");
     await flushPromises();
     expect(api.calls.some((c) => c.method === "rebuildDependents" && c.args[0] === "p1")).toBe(true);
+  });
+
+  it("warns on top of the page that prompts are behind, and links to each user", async () => {
+    const { wrapper } = await open(fragment([{ promptId: "a", name: "weather-system", version: 3, outdated: true }]));
+    expect(wrapper.find("[data-testid='dependents-banner']").text()).toContain("1 prompt still includes an older version");
+    expect(wrapper.find("[data-testid='used-by-weather-system'] a").exists()).toBe(true);
+  });
+
+  it("shows the banner but no action to someone who cannot write", async () => {
+    const { wrapper } = await open(fragment([{ promptId: "a", name: "weather-system", version: 3, outdated: true }]), "business");
+    expect(wrapper.find("[data-testid='dependents-banner']").exists()).toBe(true);
+    expect(wrapper.find("[data-testid='rebuild-dependents']").exists()).toBe(false);
   });
 
   it("explains how to start using a fragment nobody includes yet", async () => {
@@ -198,5 +228,75 @@ describe("a fragment page (ADR-073)", () => {
   it("offers the rebuild only when someone is behind", async () => {
     const { wrapper } = await open(fragment([{ promptId: "b", name: "geo", version: 1, outdated: false }]));
     expect(wrapper.find("[data-testid='rebuild-dependents']").exists()).toBe(false);
+  });
+});
+
+describe("inserting a fragment while editing (ADR-073)", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+  const tone = () => promptDetail({
+    prompt: { ...promptDetail().prompt, id: "id-tone", kind: "fragment", name: "tone" },
+    versions: [promptVersion(6, "Be calm, ask {{topic}}.", { variables: ["topic"] }), promptVersion(5, "Be calm.")],
+    tags: [{ tag: "pro", version: 5, updatedBy: "u1", updatedAt: "2026-10-08T10:05:00.000Z" }],
+    usedBy: [{ promptId: "p1", name: "weather-system", version: 2, outdated: false }],
+  });
+  const setup = async (role = "technical") => {
+    const api = new FakePromptApi();
+    api.list = [{ ...promptSummary("tone"), kind: "fragment", latestVersion: 6, tags: { pro: 5 } }, promptSummary("weather-system")];
+    api.details = { "id-tone": tone() };
+    const page = await mountPage(PromptDetailPage, "/e/exp-1/prompts/p1", { promptId: "p1" }, api, role);
+    await page.wrapper.find("[data-testid='edit-version']").trigger("click");
+    return { api, ...page };
+  };
+
+  it("offers the picker only while editing a prompt, and not to readers", async () => {
+    const { wrapper } = await setup();
+    expect(wrapper.find("[data-testid='insert-fragment']").exists()).toBe(true);
+    const fragmentPage = new FakePromptApi();
+    fragmentPage.detail = promptDetail({ prompt: { ...promptDetail().prompt, kind: "fragment", name: "tone" } });
+    const other = await mountPage(PromptDetailPage, "/e/exp-1/prompts/p1", { promptId: "p1" }, fragmentPage);
+    await other.wrapper.find("[data-testid='edit-version']").trigger("click");
+    expect(other.wrapper.find("[data-testid='insert-fragment']").exists()).toBe(false);
+  });
+
+  it("explains where the tag points and previews the text and the variables it adds", async () => {
+    const { wrapper } = await setup();
+    await wrapper.find("[data-testid='insert-fragment']").trigger("click");
+    await flushPromises();
+    expect(wrapper.find("[data-testid='fragment-option-tone']").text()).toContain("pro");
+    expect(wrapper.find("[data-testid='choice-explain']").text()).toContain("v5");
+    expect(wrapper.find("[data-testid='fragment-preview']").text()).toContain("Be calm.");
+    expect(wrapper.find("[data-testid='fragment-snippet']").text()).toBe("{{> tone@pro}}");
+    await wrapper.find("[data-testid='choice-version-6']").trigger("click");
+    expect(wrapper.find("[data-testid='fragment-snippet']").text()).toBe("{{> tone@6}}");
+    expect(wrapper.find("[data-testid='fragment-preview']").text()).toContain("{{topic}}");
+    expect(wrapper.find("[data-testid='choice-explain']").text()).toContain("Fixed to v6");
+  });
+
+  it("inserts the include where the cursor was, and saves it as the source of the new version", async () => {
+    const { api, wrapper } = await setup();
+    const area = wrapper.find("[data-testid='editor']");
+    await area.setValue("Hello.\nBye.");
+    (area.element as HTMLTextAreaElement).setSelectionRange(7, 7);
+    await wrapper.find("[data-testid='insert-fragment']").trigger("click");
+    await flushPromises();
+    await wrapper.find("[data-testid='fragment-insert']").trigger("click");
+    await flushPromises();
+    expect((wrapper.find("[data-testid='editor']").element as HTMLTextAreaElement).value).toBe("Hello.\n{{> tone@pro}}Bye.");
+    expect(wrapper.find("[data-testid='fragment-picker']").exists()).toBe(false);
+    await wrapper.find("form.editor").trigger("submit");
+    await flushPromises();
+    expect(api.calls.find((c) => c.method === "saveVersion")?.args[1]).toMatchObject({ content: "Hello.\n{{> tone@pro}}Bye." });
+  });
+
+  it("says so when there are no fragments", async () => {
+    const api = new FakePromptApi();
+    const page = await mountPage(PromptDetailPage, "/e/exp-1/prompts/p1", { promptId: "p1" }, api);
+    await page.wrapper.find("[data-testid='edit-version']").trigger("click");
+    await page.wrapper.find("[data-testid='insert-fragment']").trigger("click");
+    await flushPromises();
+    expect(page.wrapper.find("[data-testid='no-fragments']").exists()).toBe(true);
+    expect(page.wrapper.find("[data-testid='fragment-insert']").attributes("disabled")).toBeDefined();
   });
 });
