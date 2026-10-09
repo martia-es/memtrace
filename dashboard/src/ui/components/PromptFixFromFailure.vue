@@ -20,6 +20,7 @@ const emit = defineEmits<{ saved: [draft: number]; test: [draft: number, base: n
 const api = usePromptApi();
 const traces = useTraceApi();
 
+const STEPS = ["See the failure", "Change the prompt", "Save and test"];
 const traceId = ref(props.initialTrace ?? "");
 const loadedTrace = ref<string | null>(null);
 const problem = ref<string | null>(null);
@@ -34,6 +35,8 @@ const content = ref("");
 const rationale = ref("");
 const saving = ref(false);
 const savedDraft = ref<{ version: number; base: number } | null>(null);
+
+const step = computed(() => (savedDraft.value ? 3 : loadedTrace.value ? 2 : 1));
 
 async function load() {
   const id = traceId.value.trim();
@@ -82,57 +85,75 @@ async function save() {
 
 <template>
   <div class="fix" data-testid="fix">
-    <p class="muted small">
-      Start from a real failure: see what broke, change the prompt and save it as a <b>draft</b>. A draft can be tested in the real agent and evaluated, but it gets no tag and
-      nothing publishes it by itself: a person reviews it first.
-    </p>
-
-    <div class="row">
-      <TextInput v-model="traceId" mono placeholder="Trace id of the failure" class="trace-id" data-testid="fix-trace" @keydown.enter.prevent="load" />
-      <button type="button" class="ghost-btn small" :disabled="trace.loading.value || traceId.trim() === ''" data-testid="fix-load" @click="load">Load</button>
+    <div class="top">
+      <ol class="steps" aria-label="Steps">
+        <li v-for="(label, i) in STEPS" :key="label" :class="{ done: step > i + 1, now: step === i + 1 }">
+          <span class="step-dot">{{ step > i + 1 ? "✓" : i + 1 }}</span>{{ label }}
+        </li>
+      </ol>
+      <div class="row trace-row">
+        <TextInput v-model="traceId" mono placeholder="Trace id of the failure" class="trace-id" data-testid="fix-trace" @keydown.enter.prevent="load" />
+        <button type="button" class="ghost-btn small" :disabled="trace.loading.value || traceId.trim() === ''" data-testid="fix-load" @click="load">Load</button>
+      </div>
     </div>
     <p v-if="problem" class="warn small" role="alert" data-testid="fix-problem">{{ problem }}</p>
+    <p v-if="!loadedTrace" class="muted small">Start from a real failure: paste the trace id, see what broke and save a change as a <b>draft</b>.</p>
 
-    <template v-if="loadedTrace && trace.data.value">
-      <section class="card" data-testid="fix-failure">
-        <span class="eyebrow">WHAT FAILED</span>
-        <template v-if="failure">
-          <p><b class="mono">{{ failure.step }}</b> — {{ failure.message }}</p>
-        </template>
-        <p v-else class="muted small" data-testid="fix-no-failure">No step of this trace failed. A fix needs a failure; you can still propose a change, but there is nothing to check it against.</p>
-        <p v-if="replay.message" class="small"><span class="muted">The person said:</span> {{ replay.message }}</p>
-        <p v-if="replay.answer" class="small"><span class="muted">The agent answered:</span> {{ replay.answer }}</p>
-        <p v-if="usedVersion !== null" class="small muted" data-testid="fix-used">This trace used v{{ usedVersion }}{{ base && base.version !== usedVersion ? ` (not available as a base; starting from v${base.version})` : "" }}.</p>
-        <p v-else class="small muted" data-testid="fix-unknown-version">This trace does not say which version of this prompt it used: starting from v{{ base?.version }}.</p>
+    <div v-if="loadedTrace && trace.data.value" class="grid">
+      <section class="panel failure" data-testid="fix-failure">
+        <div class="block bad">
+          <span class="eyebrow bad-ink">WHAT FAILED</span>
+          <template v-if="failure">
+            <span class="step-chip mono">{{ failure.step }}</span>
+            <p class="msg">{{ failure.message }}</p>
+          </template>
+          <p v-else class="muted small" data-testid="fix-no-failure">No step of this trace failed. A fix needs a failure; you can still propose a change, but there is nothing to check it against.</p>
+        </div>
+        <div v-if="replay.message" class="block">
+          <span class="eyebrow">THE PERSON SAID</span>
+          <p class="small">{{ replay.message }}</p>
+        </div>
+        <div v-if="replay.answer" class="block grow">
+          <span class="eyebrow">THE AGENT ANSWERED</span>
+          <p class="small muted">{{ replay.answer }}</p>
+        </div>
+        <footer class="used">
+          <template v-if="usedVersion !== null"><span data-testid="fix-used">This trace used <b class="mono">v{{ usedVersion }}</b>{{ base && base.version !== usedVersion ? ` (not available as a base; starting from v${base.version})` : "" }}</span></template>
+          <template v-else><span data-testid="fix-unknown-version">This trace does not say which version it used: starting from <b class="mono">v{{ base?.version }}</b>.</span></template>
+        </footer>
       </section>
 
-      <template v-if="base">
-        <label class="field">
-          <span class="muted small">Prompt text, starting from v{{ base.version }}</span>
-          <TextInput v-model="content" multiline :rows="14" mono data-testid="fix-content" />
-        </label>
-        <label class="field">
-          <span class="muted small">Why should this fix it?</span>
-          <TextInput v-model="rationale" multiline :rows="2" data-testid="fix-rationale" />
-        </label>
-        <p v-if="unchanged" class="muted small" data-testid="fix-unchanged">Change the text to save a proposal.</p>
-        <div class="row">
+      <section v-if="base" class="panel editor">
+        <header>
+          <b>Prompt text</b><span class="faint">starting from v{{ base.version }}</span>
+          <span v-if="!unchanged" class="mt-pill ok-pill" data-testid="fix-changed">changed</span>
+        </header>
+        <div class="body">
+          <TextInput v-model="content" multiline :rows="12" mono data-testid="fix-content" />
+          <label class="field">
+            <span class="muted small strong">Why should this fix it?</span>
+            <TextInput v-model="rationale" multiline :rows="2" data-testid="fix-rationale" />
+          </label>
+          <p v-if="unchanged" class="muted small" data-testid="fix-unchanged">Change the text to save a proposal.</p>
+        </div>
+        <footer class="save">
+          <span class="muted small">Saved as a <b>draft</b>: no tag, not published. A person reviews it first.</span>
           <button type="button" class="primary-btn" :disabled="!canSave" data-testid="fix-save" @click="save">{{ saving ? "Saving…" : "Save as draft" }}</button>
-        </div>
-      </template>
-      <p v-else class="warn small" data-testid="fix-no-base">This prompt has no published version to start from.</p>
-
-      <section v-if="savedDraft" class="card ok" data-testid="fix-saved">
-        <p><b>Draft v{{ savedDraft.version }} saved.</b> It has no tag and is not published.</p>
-        <div class="row">
-          <button type="button" class="primary-btn" data-testid="fix-test" @click="emit('test', savedDraft.version, savedDraft.base, loadedTrace)">Test it on this case</button>
-          <span class="muted small">Runs the real agent with the draft and with v{{ savedDraft.base }}, side by side.</span>
-        </div>
+        </footer>
       </section>
-    </template>
+      <p v-else class="warn small" data-testid="fix-no-base">This prompt has no published version to start from.</p>
+    </div>
 
-    <p class="muted small tip" data-testid="fix-tip">
-      Prefer a model to write the proposal? <code>memtrace.prompts.propose_fix(name, cases, llm)</code> asks <b>your</b> LLM, with your key, and saves the result here as a draft.
+    <section v-if="savedDraft && loadedTrace" class="panel saved" data-testid="fix-saved">
+      <p><b>Draft v{{ savedDraft.version }} saved.</b> It has no tag and is not published.</p>
+      <div class="row">
+        <button type="button" class="primary-btn" data-testid="fix-test" @click="emit('test', savedDraft.version, savedDraft.base, loadedTrace)">Test it on this case</button>
+        <span class="muted small">Runs the real agent with the draft and with v{{ savedDraft.base }}, side by side.</span>
+      </div>
+    </section>
+
+    <p class="faint small tip" data-testid="fix-tip">
+      Prefer a model to write the proposal? <code>memtrace.prompts.propose_fix(name, cases, llm)</code> uses <b>your</b> LLM, with your key, and saves the result here as a draft.
     </p>
   </div>
 </template>
@@ -169,28 +190,186 @@ async function save() {
   flex-direction: column;
   gap: 4px;
 }
-.card {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 12px;
-  border: 1px solid var(--mt-line);
-  background: var(--mt-soft-2);
+.faint {
+  color: var(--mt-faint);
 }
-.card p {
-  margin: 0;
-}
-.card.ok {
-  border-color: var(--mt-ok-ink);
-}
-.eyebrow {
-  font-size: 11px;
+.strong {
   font-weight: 700;
-  letter-spacing: 0.05em;
+}
+.top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.steps {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-weight: 600;
+  color: var(--mt-faint);
+}
+.steps li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.steps li + li::before {
+  content: "";
+  width: 28px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--mt-line);
+  margin-right: 2px;
+}
+.step-dot {
+  width: 22px;
+  height: 22px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--mt-line);
+  border-radius: 50%;
+  font-family: var(--mt-mono);
+  font-size: 11px;
+}
+.steps li.now {
+  color: var(--mt-ink);
+  font-weight: 800;
+}
+.steps li.now .step-dot {
+  border: 2px solid var(--mt-brand);
+  background: var(--mt-accent-tint);
+  color: var(--mt-accent-text);
+}
+.steps li.done {
   color: var(--mt-muted);
 }
+.steps li.done .step-dot {
+  border-color: var(--mt-accent);
+  background: var(--mt-accent);
+  color: var(--mt-accent-ink);
+}
+.trace-row .trace-id {
+  min-width: 230px;
+  flex: none;
+}
+.grid {
+  display: flex;
+  gap: 14px;
+  align-items: stretch;
+}
+.panel {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--mt-line);
+  border-radius: 10px;
+  background: var(--mt-card);
+  overflow: hidden;
+}
+.failure {
+  width: 310px;
+  flex: none;
+}
+.editor {
+  flex: 1;
+  min-width: 0;
+}
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--mt-line-2);
+}
+.block.grow {
+  flex: 1;
+}
+.block p {
+  margin: 0;
+  line-height: 1.45;
+}
+.msg {
+  font-weight: 600;
+}
+.bad-ink {
+  color: var(--mt-highlight-ink);
+}
+.step-chip {
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--mt-highlight-soft);
+  color: var(--mt-highlight-ink);
+  font-size: 12px;
+}
+.used {
+  padding: 10px 16px;
+  background: var(--mt-soft-2);
+  border-top: 1px solid var(--mt-line-2);
+  font-size: 12px;
+  color: var(--mt-muted);
+}
+.editor header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--mt-line);
+}
+.editor .body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  flex: 1;
+}
+.ok-pill {
+  margin-left: auto;
+  background: var(--mt-accent-tint);
+  color: var(--mt-accent-text);
+}
+.save {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--mt-soft-2);
+  border-top: 1px solid var(--mt-line-2);
+}
+.save .muted {
+  flex: 1;
+}
+.saved {
+  gap: 8px;
+  padding: 12px 16px;
+  border-color: var(--mt-ok-ink);
+}
+.saved p {
+  margin: 0;
+}
+.eyebrow {
+  font-family: var(--mt-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--mt-faint);
+}
 .tip {
-  margin-top: 6px;
+  margin-top: 2px;
+}
+@media (max-width: 1000px) {
+  .grid {
+    flex-direction: column;
+  }
+  .failure {
+    width: auto;
+  }
 }
 .primary-btn,
 .ghost-btn {

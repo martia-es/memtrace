@@ -102,19 +102,19 @@ async function run() {
     <p v-else-if="targets?.unavailable" class="warn" data-testid="playground-unavailable">{{ targets.unavailable }}</p>
 
     <template v-else-if="targets">
-      <p class="muted small">
-        Runs the real agent —with its tools and knowledge— using the version you choose for that one message. No tag moves and nothing is promoted.
-        It is never run against production.
-      </p>
-
-      <div class="row">
-        <span class="muted">Run in</span>
-        <Select v-model="deploymentId" :options="deploymentOptions" data-testid="playground-deployment" />
-        <span class="muted">version</span>
+      <div class="pick">
+        <b>Test</b>
         <Select v-model="first" :options="versionOptions" data-testid="playground-first" />
-        <span class="muted">compare with</span>
-        <Select v-model="second" :options="secondOptions" placeholder="none" data-testid="playground-second" />
+        <b>against</b>
+        <Select v-model="second" :options="secondOptions" placeholder="nothing" data-testid="playground-second" />
         <button v-if="second !== null" type="button" class="ghost-btn small" data-testid="playground-clear" @click="second = null">Clear</button>
+        <template v-if="deploymentOptions.length > 1">
+          <span class="muted">in</span>
+          <Select v-model="deploymentId" :options="deploymentOptions" data-testid="playground-deployment" />
+        </template>
+        <span v-else-if="deploymentOptions[0]" class="tag mono" data-testid="playground-deployment-label">{{ deploymentOptions[0].label }}</span>
+        <span class="grow" />
+        <span class="faint small">Runs the real agent. Nothing is promoted.</span>
       </div>
 
       <p v-if="!reads" class="warn small" data-testid="playground-not-reading">
@@ -122,38 +122,45 @@ async function run() {
         and runs with <code>MEMTRACE_ALLOW_PROMPT_OVERRIDE=true</code> and the <code>PromptOverrideMiddleware</code>. You can still try: MemTrace tells you whether the agent applied it.
       </p>
 
-      <div class="row">
-        <TextInput v-model="traceId" mono placeholder="Load the message of a trace (trace id)" class="trace-id" data-testid="playground-trace" @keydown.enter.prevent="loadTrace" />
-        <button type="button" class="ghost-btn small" :disabled="loadingTrace || traceId.trim() === ''" data-testid="playground-load" @click="loadTrace">Load</button>
-      </div>
-      <p v-if="traceProblem" class="warn small" data-testid="playground-trace-problem">{{ traceProblem }}</p>
-
-      <TextInput v-model="message" multiline :rows="4" placeholder="What does the person say?" data-testid="playground-message" />
-      <div class="row">
-        <button type="button" class="primary-btn" :disabled="!canRun" data-testid="playground-run" @click="run">{{ running ? "Running…" : second !== null ? "Run both" : "Run" }}</button>
-      </div>
-
-      <section v-if="original?.answer" class="card original" data-testid="playground-original">
-        <header><b>Original answer</b> <router-link :to="{ name: 'trace', params: { experimentId, traceId: original.traceId } }" class="link">open its trace</router-link></header>
-        <pre>{{ original.answer }}</pre>
+      <section class="panel">
+        <header>
+          <b>Message</b>
+          <span v-if="original" class="tag mono">from {{ original.traceId }}</span>
+          <span v-else class="faint small">What does the person say?</span>
+        </header>
+        <div class="body">
+          <TextInput v-model="message" multiline :rows="3" placeholder="What does the person say?" data-testid="playground-message" />
+          <p v-if="traceProblem" class="warn small" data-testid="playground-trace-problem">{{ traceProblem }}</p>
+        </div>
+        <footer>
+          <TextInput v-model="traceId" mono size="sm" placeholder="or load it from a trace id" class="trace-id" data-testid="playground-trace" @keydown.enter.prevent="loadTrace" />
+          <button type="button" class="ghost-btn small" :disabled="loadingTrace || traceId.trim() === ''" data-testid="playground-load" @click="loadTrace">Load</button>
+          <span class="grow" />
+          <button type="button" class="primary-btn" :disabled="!canRun" data-testid="playground-run" @click="run">{{ running ? "Running…" : "Run" }}</button>
+        </footer>
       </section>
 
-      <div v-if="outcomes.length > 0 || running" class="results" :class="{ two: outcomes.length > 1 || second !== null }" data-testid="playground-results">
-        <section v-for="o in outcomes" :key="o.version" class="card" :data-testid="`playground-result-${o.version}`">
+      <div v-if="original?.answer || outcomes.length > 0 || running" class="results" data-testid="playground-results">
+        <section v-if="original?.answer" class="panel before" data-testid="playground-original">
+          <header><b class="muted">Before</b><router-link :to="{ name: 'trace', params: { experimentId, traceId: original.traceId } }" class="link">open its trace</router-link></header>
+          <pre>{{ original.answer }}</pre>
+        </section>
+        <section v-for="o in outcomes" :key="o.version" class="panel" :data-testid="`playground-result-${o.version}`">
           <header>
             <b class="mono">v{{ o.version }}</b>
-            <span v-if="o.result" class="mt-pill" :class="o.result.applied ? 'ok' : 'bad'" :data-testid="`applied-${o.version}`">{{ o.result.applied ? "applied" : "NOT applied" }}</span>
-            <span v-if="o.result" class="muted mono">{{ formatDuration(o.result.latencyMs) }}</span>
+            <span v-if="o.result && !o.result.applied" class="mt-pill bad" :data-testid="`applied-${o.version}`">NOT applied</span>
+            <span v-if="o.result" class="faint mono small">{{ formatDuration(o.result.latencyMs) }}</span>
             <router-link v-if="o.result?.traceId" :to="{ name: 'trace', params: { experimentId, traceId: o.result.traceId } }" class="link">open trace</router-link>
           </header>
-          <p v-if="o.error" class="warn small" :data-testid="`error-${o.version}`">{{ o.error }}</p>
+          <p v-if="o.error" class="warn small pad" :data-testid="`error-${o.version}`">{{ o.error }}</p>
           <template v-else-if="o.result">
-            <p v-if="!o.result.applied" class="warn small" :data-testid="`not-applied-${o.version}`">
+            <p v-if="!o.result.applied" class="warn small pad" :data-testid="`not-applied-${o.version}`">
               The agent answered without asking for this version, so <b>this answer is not from v{{ o.version }}</b>. Check that it reads the prompt with
               <code>memtrace.prompts</code>, that <code>MEMTRACE_ALLOW_PROMPT_OVERRIDE=true</code> and that the <code>PromptOverrideMiddleware</code> is installed.
             </p>
             <pre>{{ o.result.reply }}</pre>
           </template>
+          <p v-else class="faint small pad">Running…</p>
         </section>
       </div>
     </template>
@@ -166,11 +173,11 @@ async function run() {
   flex-direction: column;
   gap: 10px;
 }
-.row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+.faint {
+  color: var(--mt-faint);
+}
+.grow {
+  flex: 1;
 }
 .muted {
   color: var(--mt-muted);
@@ -183,48 +190,89 @@ async function run() {
   margin: 0;
   color: var(--mt-warn-ink);
 }
-.trace-id {
-  flex: 1;
-  min-width: 260px;
-}
-.results {
-  display: grid;
-  grid-template-columns: 1fr;
+.pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 10px;
 }
-.results.two {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-.card {
-  padding: 10px 12px;
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   border: 1px solid var(--mt-line);
-  background: var(--mt-soft-2);
+  border-radius: 10px;
+  background: var(--mt-card);
+  overflow: hidden;
 }
-.card header {
+.panel > header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--mt-line);
+  font-size: 13px;
+}
+.panel > .body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+}
+.panel > footer {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
-  font-size: 12.5px;
+  padding: 10px 16px;
+  background: var(--mt-soft-2);
+  border-top: 1px solid var(--mt-line-2);
 }
-.card pre {
+.tag {
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--mt-soft);
+  color: var(--mt-muted);
+  font-size: 11px;
+}
+.trace-id {
+  width: 260px;
+}
+.results {
+  display: flex;
+  gap: 14px;
+  align-items: stretch;
+}
+.results > .panel {
+  flex: 1;
+}
+.results > .before {
+  flex: none;
+  width: 260px;
+  border-style: dashed;
+  border-color: var(--mt-faint);
+  background: transparent;
+}
+.panel pre {
   margin: 0;
+  padding: 16px;
   white-space: pre-wrap;
   word-break: break-word;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 13.5px;
+  line-height: 1.6;
 }
-.original {
-  background: var(--mt-card);
+.before pre {
+  color: var(--mt-muted);
+}
+.pad {
+  padding: 12px 16px 0;
 }
 .link {
   margin-left: auto;
   color: var(--mt-accent-text);
   font-size: 12px;
-}
-.mt-pill.ok {
-  background: var(--mt-ok-bg);
-  color: var(--mt-ok-ink);
+  font-weight: 700;
 }
 .mt-pill.bad {
   background: var(--mt-err-bg);
@@ -264,8 +312,11 @@ async function run() {
   cursor: not-allowed;
 }
 @media (max-width: 900px) {
-  .results.two {
-    grid-template-columns: 1fr;
+  .results {
+    flex-direction: column;
+  }
+  .results > .before {
+    width: auto;
   }
 }
 </style>

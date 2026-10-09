@@ -71,7 +71,7 @@ describe("prompt playground (ADR-071)", () => {
     expect(prompts.calls.find((c) => c.method === "runPlayground")?.args).toEqual(["exp-1", "p1", { deploymentId: "dep-dev", version: 2, message: "¿Lloverá mañana?" }]);
     const result = wrapper.find("[data-testid='playground-result-2']");
     expect(result.text()).toContain('Answer of v2 to "¿Lloverá mañana?"');
-    expect(wrapper.find("[data-testid='applied-2']").text()).toBe("applied");
+    expect(wrapper.find("[data-testid='applied-2']").exists()).toBe(false); // solo se avisa cuando NO se aplicó
     expect(result.find("a").exists()).toBe(true); // link to the trace
   });
 
@@ -88,7 +88,7 @@ describe("prompt playground (ADR-071)", () => {
     const { wrapper } = await openTry({ prompts, assistants: agent() });
     await chooseOption(wrapper.element, "[data-testid='playground-second']", "v1 · first draft");
     await type(wrapper, "playground-message", "hola");
-    expect(wrapper.find("[data-testid='playground-run']").text()).toBe("Run both");
+    expect(wrapper.find("[data-testid='playground-run']").text()).toBe("Run");
     await wrapper.find("[data-testid='playground-run']").trigger("click");
     await flushPromises();
     const versions = prompts.calls.filter((c) => c.method === "runPlayground").map((c) => (c.args[2] as { version: number }).version).sort();
