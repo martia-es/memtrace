@@ -70,7 +70,7 @@ export interface PromptApi {
   /** Añade a una persona como aprobadora obligatoria de esta solicitud. */
   addApprover(requestId: string, approverId: string, signal?: AbortSignal): Promise<ApprovalRequestDto>;
   /** Lo que la persona tiene pendiente de decidir en la organización. */
-  approvalInbox(organizationId: string, signal?: AbortSignal): Promise<ApprovalRequestDto[]>;
+  approvalInbox(organizationId: string, experimentId: string | null, signal?: AbortSignal): Promise<ApprovalRequestDto[]>;
   /** Reglas de aprobación de la organización o de un experimento (en un experimento, con el suelo de la organización). */
   getApprovalRules(scope: ApprovalScope, signal?: AbortSignal): Promise<ApprovalRulesResponse>;
   setApprovalRule(scope: ApprovalScope, rule: Pick<ApprovalRuleDto, "action" | "stage" | "requirements" | "approvers">, signal?: AbortSignal): Promise<ApprovalRuleDto>;

@@ -106,8 +106,8 @@ export class FakePromptApi implements PromptApi {
     this.record("addApprover", requestId, approverId);
     return approvalRequest({ id: requestId, extraApprovers: [approverId] });
   }
-  async approvalInbox(organizationId: string) {
-    this.record("approvalInbox", organizationId);
+  async approvalInbox(organizationId: string, experimentId: string | null) {
+    this.record("approvalInbox", organizationId, experimentId);
     return this.inbox;
   }
   async getApprovalRules(scope: ApprovalScope) {

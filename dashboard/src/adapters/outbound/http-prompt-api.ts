@@ -86,8 +86,9 @@ export class HttpPromptApi implements PromptApi {
   addApprover(requestId: string, approverId: string, signal?: AbortSignal): Promise<ApprovalRequestDto> {
     return this.request("POST", `/approvals/${e(requestId)}/approvers`, { approverId }, signal);
   }
-  async approvalInbox(organizationId: string, signal?: AbortSignal): Promise<ApprovalRequestDto[]> {
-    return (await this.request<{ items: ApprovalRequestDto[] }>("GET", `/organizations/${e(organizationId)}/approvals`, undefined, signal)).items;
+  async approvalInbox(organizationId: string, experimentId: string | null, signal?: AbortSignal): Promise<ApprovalRequestDto[]> {
+    const query = experimentId ? `?experimentId=${e(experimentId)}` : "";
+    return (await this.request<{ items: ApprovalRequestDto[] }>("GET", `/organizations/${e(organizationId)}/approvals${query}`, undefined, signal)).items;
   }
   getApprovalRules(scope: ApprovalScope, signal?: AbortSignal): Promise<ApprovalRulesResponse> {
     return this.request("GET", `${rulesPath(scope)}`, undefined, signal);

@@ -304,7 +304,16 @@ describe("approval inbox in the prompts list", () => {
     expect(inbox.text()).toContain("geo-tools");
     expect(inbox.text()).toContain("Move pro to v2");
     expect(inbox.find("a").attributes("href")).toContain("/e/exp-1/prompts/p9");
-    expect(api.calls.find((c) => c.method === "approvalInbox")?.args).toEqual(["org-1"]);
+    expect(api.calls.find((c) => c.method === "approvalInbox")?.args).toEqual(["org-1", "exp-1"]);
+  });
+
+  it("marks the prompts that wait for the person's approval", async () => {
+    const api = new FakePromptApi();
+    api.list = [promptSummary("weather-system", { id: "p1", latestVersion: 2 }), promptSummary("geo-tools", { id: "p2", latestVersion: 1 })];
+    api.inbox = [approvalRequest({ id: "r9", promptId: "p2", promptName: "geo-tools" })];
+    const { wrapper } = await setup(PromptsPage, "business", api);
+    expect(wrapper.find("[data-testid='awaiting-geo-tools']").text()).toContain("needs your approval");
+    expect(wrapper.find("[data-testid='awaiting-weather-system']").exists()).toBe(false);
   });
 
   it("shows nothing when nothing is waiting", async () => {

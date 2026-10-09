@@ -379,6 +379,15 @@ describe("lifecycle", () => {
     expect(await t.service.inbox(ORG, ZOE)).toEqual([]); // la pidió ella
   });
 
+  it("the inbox can be limited to the prompts of one agent", async () => {
+    const t = setup();
+    t.addVersion("published");
+    t.rules.set(`organization:${ORG}:promote:pro`, rule({ requirements: [{ role: "business", min: 1 }] }));
+    await t.service.open(t.prompt, ZOE, { action: "promote", version: 1, tag: "pro" }, false);
+    expect(await t.service.inbox(ORG, CRIS, AGENT)).toHaveLength(1);
+    expect(await t.service.inbox(ORG, CRIS, "some-other-agent")).toEqual([]);
+  });
+
   it("listing several requests looks up approvers and names once", async () => {
     const t = setup();
     t.addVersion("published");
