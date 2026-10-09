@@ -304,7 +304,7 @@ describe("approval inbox in the prompts list", () => {
     expect(inbox.text()).toContain("geo-tools");
     expect(inbox.text()).toContain("Move pro to v2");
     expect(inbox.find("a").attributes("href")).toContain("/e/exp-1/prompts/p9");
-    expect(api.calls.find((c) => c.method === "approvalInbox")?.args).toEqual(["org-1"]);
+    expect(api.calls.find((c) => c.method === "approvalInbox")?.args).toEqual(["org-1", "exp-1"]);
   });
 
   it("marks the prompts that wait for the person's approval", async () => {

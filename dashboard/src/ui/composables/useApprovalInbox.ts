@@ -15,20 +15,26 @@ export interface ApprovalInbox {
 
 const KEY: InjectionKey<ApprovalInbox> = Symbol("approval-inbox");
 
-function create(organizationId: Ref<string | null> | ComputedRef<string | null>): ApprovalInbox {
+/** Lo pendiente se limita al agente (experimento) que se está viendo, no a toda la organización. */
+export interface InboxScope {
+  organizationId: string;
+  experimentId: string;
+}
+
+function create(scope: Ref<InboxScope | null> | ComputedRef<InboxScope | null>): ApprovalInbox {
   // sin el puerto de prompts (una pantalla montada sola) no hay bandeja que mostrar
   const api = inject(PROMPT_API, null);
   const data = ref<ApprovalRequestDto[]>([]);
   let seq = 0;
   async function refresh() {
-    const id = organizationId.value;
+    const target = scope.value;
     const mine = ++seq;
-    if (!id || !api) {
+    if (!target || !api) {
       data.value = [];
       return;
     }
     try {
-      const items = await api.approvalInbox(id);
+      const items = await api.approvalInbox(target.organizationId, target.experimentId);
       if (mine === seq) data.value = items;
     } catch {
       // un aviso que no carga no debe romper la pantalla: simplemente no se muestra
@@ -41,10 +47,10 @@ function create(organizationId: Ref<string | null> | ComputedRef<string | null>)
 }
 
 /** Lo crea el layout y lo comparte con todo lo que cuelga de él. */
-export function provideApprovalInbox(organizationId: ComputedRef<string | null>, enabled: ComputedRef<boolean>, trigger: () => unknown): ApprovalInbox {
-  const inbox = create(organizationId);
+export function provideApprovalInbox(scope: ComputedRef<InboxScope | null>, enabled: ComputedRef<boolean>, trigger: () => unknown): ApprovalInbox {
+  const inbox = create(scope);
   watch(
-    [organizationId, enabled, trigger],
+    [() => scope.value?.organizationId, () => scope.value?.experimentId, enabled, trigger],
     () => {
       if (enabled.value) void inbox.refresh();
     },
@@ -58,7 +64,7 @@ export function useApprovalInbox(): ApprovalInbox {
   const shared = inject(KEY, null);
   if (shared) return shared;
   const current = inject(CURRENT_EXPERIMENT, computed(() => null));
-  const inbox = create(computed(() => current.value?.organizationId ?? null));
+  const inbox = create(computed(() => (current.value ? { organizationId: current.value.organizationId, experimentId: current.value.id } : null)));
   void inbox.refresh();
   return inbox;
 }

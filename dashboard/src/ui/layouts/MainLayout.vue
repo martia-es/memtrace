@@ -121,7 +121,7 @@ const navCanRead = computed(() => hasPermission(experimentOptions.value.find((e)
 
 // aprobaciones de prompts pendientes de esta persona (ADR-076): el badge de "Prompts" y los avisos de Overview y del listado
 const approvalInbox = provideApprovalInbox(
-  computed(() => currentExperiment.value?.organizationId ?? null),
+  computed(() => (currentExperiment.value ? { organizationId: currentExperiment.value.organizationId, experimentId: currentExperiment.value.id } : null)),
   navCanRead,
   () => route.fullPath,
 );

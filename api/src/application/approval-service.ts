@@ -181,8 +181,8 @@ export class ApprovalService {
     return this.viewAll(requests.map((request) => ({ request, prompt })));
   }
 
-  /** Lo que esta persona tiene pendiente de decidir en la organización: solicitudes vivas donde puede aprobar y aún no ha respondido. */
-  async inbox(organizationId: string, userId: string): Promise<ApprovalView[]> {
+  /** Lo que esta persona tiene pendiente de decidir en la organización: solicitudes vivas donde puede aprobar y aún no ha respondido. Con `experimentId`, solo las de prompts de ese agente. */
+  async inbox(organizationId: string, userId: string, experimentId?: string): Promise<ApprovalView[]> {
     const open = await this.approvals.listOpenForOrganization(organizationId);
     const memo = new Memo(this.resolver, this.approvals);
     const prompts = new Map<string, Promise<Prompt | null>>();
@@ -192,7 +192,7 @@ export class ApprovalService {
       if (request.status !== "pending" || request.requestedBy === userId || request.decisions.some((d) => d.userId === userId)) continue;
       if (!prompts.has(request.promptId)) prompts.set(request.promptId, this.promptRepo.get(request.promptId));
       const prompt = await prompts.get(request.promptId);
-      if (!prompt) continue;
+      if (!prompt || (experimentId && !prompt.experimentIds.includes(experimentId))) continue;
       const [rule, people] = await Promise.all([memo.rule(prompt, request.action, request.tag), memo.people(prompt)]);
       if (this.mayDecide(userId, rule, request, people)) items.push({ request, prompt });
     }
