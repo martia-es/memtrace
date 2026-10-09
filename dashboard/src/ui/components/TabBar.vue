@@ -24,6 +24,7 @@ defineEmits<{ "update:modelValue": [id: string] }>();
 
 <style scoped>
 .tab-bar {
+  flex: none;
   display: flex;
   gap: 4px;
   border-bottom: 1px solid var(--mt-line);
