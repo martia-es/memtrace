@@ -8,7 +8,6 @@ import { formatCostUsd, formatCount, formatDateTime, formatDuration, formatPerce
 import { MIN_TRACES, compareVersions, evaluatorCell, evaluatorNames, sampleQuality } from "@/domain/prompt-evidence";
 import { describeUsage, environmentsRunning, type UsageState } from "@/domain/prompt-usage";
 import { PRODUCTION_ENV, filterVersions, groupByMonth, sortEnvironments, splitVariables } from "@/domain/prompt-release";
-import { sideBySideDiff } from "@/domain/text-diff";
 import EnvFlag from "../components/EnvFlag.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import PageHeader from "../components/PageHeader.vue";
@@ -143,6 +142,11 @@ watch([selectedVersion, versions], () => {
   compareWith.value = v.parentVersion ?? fallback;
 }, { immediate: true });
 const compareVersion = computed(() => versions.value.find((v) => v.version === compareWith.value) ?? null);
+const placeholderChanges = computed(() => {
+  const from = new Set(compareVersion.value?.variables ?? []);
+  const to = new Set(selectedVersion.value?.variables ?? []);
+  return { added: [...to].filter((n) => !from.has(n)), removed: [...from].filter((n) => !to.has(n)) };
+});
 const compareOptions = computed(() => olderVersions.value.map((v) => ({ label: `v${v.version}${v.message ? ` · ${v.message}` : ""}`, value: v.version })));
 
 // ---- guardar versión ----
@@ -366,31 +370,18 @@ const agentLabel = computed(() => route.params.experimentId as string);
 /** Cómo se escribe la variable en el texto del prompt. */
 const asVariable = (name: string) => `{{${name}}}`;
 
-// ---- contenido: líneas numeradas con las variables resaltadas y las líneas que cambian respecto a la versión de la que parte ----
+// ---- contenido: líneas numeradas con los placeholders resaltados; los cambios entre versiones viven en Compare ----
 const parentOfSelected = computed(() => {
   const v = selectedVersion.value;
   if (!v) return null;
   return versions.value.find((o) => o.version === v.parentVersion) ?? versions.value.find((o) => o.version < v.version) ?? null;
-});
-const changedLines = computed(() => {
-  const v = selectedVersion.value;
-  const parent = parentOfSelected.value;
-  const changed = new Set<number>();
-  if (!v || !parent) return changed;
-  let n = 0;
-  for (const row of sideBySideDiff(parent.content, v.content)) {
-    if (row.right.kind === "empty") continue;
-    n += 1;
-    if (row.right.kind === "add") changed.add(n);
-  }
-  return changed;
 });
 // una versión con fragmentos se lee como la escribió quien la editó, con sus `{{> nombre@tag}}`; «Resolved» es lo que recibe el agente (ADR-073)
 const hasIncludes = computed(() => (selectedVersion.value?.includes.length ?? 0) > 0);
 const view = ref<"source" | "resolved">("source");
 const showingSource = computed(() => hasIncludes.value && view.value === "source");
 const codeLines = computed(() =>
-  (showingSource.value ? (selectedVersion.value?.source ?? "") : (selectedVersion.value?.content ?? "")).split("\n").map((text, i) => ({ n: i + 1, parts: splitVariables(text), heading: text.startsWith("#"), changed: !showingSource.value && changedLines.value.has(i + 1) })),
+  (showingSource.value ? (selectedVersion.value?.source ?? "") : (selectedVersion.value?.content ?? "")).split("\n").map((text, i) => ({ n: i + 1, parts: splitVariables(text), heading: text.startsWith("#") })),
 );
 const runningHere = computed(() => (selectedVersion.value ? running(selectedVersion.value.version) : []));
 
@@ -530,14 +521,13 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                       <button type="button" :class="{ on: view === 'resolved' }" data-testid="view-resolved" @click="view = 'resolved'">Resolved</button>
                     </span>
                   </div>
-                  <pre class="code" data-testid="version-content"><span v-for="line in codeLines" :key="line.n" class="ln" :class="{ changed: line.changed, heading: line.heading }"><span v-for="(part, i) in line.parts" :key="i" :class="{ variable: part.variable }">{{ part.text }}</span></span></pre>
-                  <div v-if="!showingSource && changedLines.size > 0" class="code-foot"><i /> Lines changed since v{{ parentOfSelected?.version }}</div>
+                  <pre class="code" data-testid="version-content"><span v-for="line in codeLines" :key="line.n" class="ln" :class="{ heading: line.heading }"><span v-for="(part, i) in line.parts" :key="i" :class="{ variable: part.variable }">{{ part.text }}</span></span></pre>
                 </div>
 
                 <div class="side">
                   <div class="side-card">
-                    <span class="eyebrow">VARIABLES</span>
-                    <p class="soft">Parts of the text that change on every call.</p>
+                    <span class="eyebrow">PLACEHOLDERS</span>
+                    <p class="soft">Filled in on every call.</p>
                     <div class="vars">
                       <code v-for="name in selectedVersion.variables" :key="name" class="var">{{ asVariable(name) }}</code>
                       <span v-if="selectedVersion.variables.length === 0" class="soft">none</span>
@@ -624,6 +614,14 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   </div>
                 </template>
               </section>
+              <section v-if="compareVersion" class="placeholder-changes" data-testid="placeholder-changes">
+                <span class="eyebrow">PLACEHOLDERS</span>
+                <p v-if="placeholderChanges.added.length === 0 && placeholderChanges.removed.length === 0" class="soft">Same placeholders as v{{ compareVersion.version }}.</p>
+                <template v-else>
+                  <code v-for="n in placeholderChanges.added" :key="`+${n}`" class="var added">+ {{ asVariable(n) }}</code>
+                  <code v-for="n in placeholderChanges.removed" :key="`-${n}`" class="var removed">− {{ asVariable(n) }}</code>
+                </template>
+              </section>
               <PromptDiff v-if="compareVersion" :old-text="compareVersion.content" :new-text="selectedVersion.content" :old-label="`v${compareVersion.version}`" :new-label="`v${selectedVersion.version}`" />
             </div>
 
@@ -636,9 +634,16 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
               </div>
               <ErrorBanner v-if="evidence.error.value" :error="evidence.error.value" @retry="evidence.run()" />
               <div v-else-if="evidence.loading.value && !evidence.data.value" class="loading"><q-spinner size="28px" color="primary" /></div>
-              <p v-else-if="evidenceVersions.length === 0" class="muted small" data-testid="evidence-empty">
-                No trace used this prompt in the last {{ rangeLabel }}. Traces show up here when an agent calls <code>compile()</code> inside a traced step.
-              </p>
+              <div v-else-if="evidenceVersions.length === 0" class="empty-guide" data-testid="evidence-empty">
+                <strong>No trace used this prompt in the last {{ rangeLabel }}.</strong>
+                <p class="soft">Evidence is measured on real traces, so it stays empty until an agent uses a version. Each version fills its own row.</p>
+                <ol class="guide">
+                  <li>The agent loads the prompt with <code>memtrace.prompts.get()</code>.</li>
+                  <li>It calls <code>compile()</code> inside a traced step.</li>
+                  <li>Real traffic arrives. Saving a version or trying it in the playground does not count.</li>
+                </ol>
+                <p class="soft">Already doing this? Try a longer range, or check the <a class="link" href="#" @click.prevent="tab = 'traces'">Traces</a> tab.</p>
+              </div>
               <template v-else>
                 <div class="table-scroll evidence-card">
                   <table class="evidence" data-testid="evidence-table">
@@ -724,13 +729,15 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
             </div>
 
             <div v-else-if="tab === 'tags'" class="pane tags-pane" data-testid="pane-tags">
-              <div class="tags-main">
-                <h3>Environments</h3>
-                <p class="muted small">The tag decides which version each environment uses. Moving one needs the promote permission.</p>
-                <TextInput v-if="canPromote || canWrite" v-model="reason" placeholder="Reason for the change (optional, saved in the history)" data-testid="tag-reason" />
+              <section class="block">
+                <header class="block-head">
+                  <h3>Environments</h3>
+                  <p class="soft">Each tag decides which version an environment serves.</p>
+                </header>
+                <TextInput v-if="canPromote || canWrite" v-model="reason" placeholder="Reason for the next change (optional, saved in the history)" data-testid="tag-reason" />
                 <div class="envs">
                   <div v-for="key in environmentKeys" :key="key" class="env-card" :data-testid="`env-${key}`">
-                    <span class="env-badge" :class="key"><b>{{ key.toUpperCase() }}</b></span>
+                    <EnvFlag :env="key" />
                     <div class="env-body">
                       <div class="env-version">
                         <strong class="mono">{{ tagVersion(key) === null ? "—" : `v${tagVersion(key)}` }}</strong>
@@ -743,33 +750,39 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                     <div v-if="canPromote" class="move">
                       <Select :model-value="pending[key] ?? null" :options="versionOptions" placeholder="Point to…" @update:model-value="pending[key] = $event" />
                       <button type="button" class="primary-btn small" :disabled="moving || pending[key] == null || pending[key] === tagVersion(key)" :data-testid="`move-${key}`" @click="moveEnvironment(key)">Move</button>
-                      <button v-if="tagVersion(key) !== null" type="button" class="ghost-btn small" :aria-label="`Remove the ${key} tag`" @click="moveTag(key, null)">Remove</button>
+                      <button v-if="tagVersion(key) !== null" type="button" class="link-btn" :aria-label="`Remove the ${key} tag`" @click="moveTag(key, null)">Remove</button>
                     </div>
                   </div>
                 </div>
+              </section>
 
-                <details class="usage-fold" :open="usageRows.length === 0">
-                <summary>In use right now <span class="muted">({{ usageRows.length }})</span></summary>
-                <p v-if="usageRows.length === 0" class="muted small" data-testid="usage-empty">
+              <section class="block">
+                <header class="block-head">
+                  <h3>In use right now</h3>
+                  <p class="soft">What agents report they are actually serving.</p>
+                </header>
+                <p v-if="usageRows.length === 0" class="empty-note" data-testid="usage-empty">
                   No agent has reported this prompt yet. It shows up here once an agent loads it with <code>memtrace.prompts.get()</code>.
                 </p>
-                <table v-else class="tags" data-testid="usage-table">
-                  <tbody>
-                    <tr v-for="u in usageRows" :key="`${u.experimentId}-${u.environment}-${u.tag}-${u.version}`" :data-testid="`usage-${u.environment || 'none'}-v${u.version}`">
-                      <td class="mono tag-name">{{ u.environment || "no environment" }}</td>
-                      <td class="mono">v{{ u.version }}</td>
-                      <td class="muted">{{ u.tag ? `follows “${u.tag}”` : "fixed version" }}</td>
-                      <td><span class="mt-pill usage" :class="u.state">{{ USAGE_LABEL[u.state] }}</span></td>
-                      <td v-if="u.state === 'behind'" class="muted small">“{{ u.tag }}” now points to v{{ u.tagVersion }}</td>
-                      <td v-else class="muted small">{{ formatRelativeTime(u.lastSeenAt, nowMs) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-                </details>
+                <div v-else class="usage-list" data-testid="usage-table">
+                  <div v-for="u in usageRows" :key="`${u.experimentId}-${u.environment}-${u.tag}-${u.version}`" class="usage-row" :data-testid="`usage-${u.environment || 'none'}-v${u.version}`">
+                    <span class="mono usage-env">{{ u.environment || "no environment" }}</span>
+                    <strong class="mono">v{{ u.version }}</strong>
+                    <span class="muted">{{ u.tag ? `follows “${u.tag}”` : "fixed version" }}</span>
+                    <span class="grow" />
+                    <span class="soft">{{ u.state === "behind" ? `“${u.tag}” now points to v${u.tagVersion}` : formatRelativeTime(u.lastSeenAt, nowMs) }}</span>
+                    <span class="mt-pill usage" :class="u.state">{{ USAGE_LABEL[u.state] }}</span>
+                  </div>
+                </div>
+              </section>
 
-                <h3>Promotion policy</h3>
-                <div v-if="!editingPolicy" data-testid="policy">
-                  <p v-if="!policy" class="muted small" data-testid="policy-none">
+              <section class="block">
+                <header class="block-head">
+                  <h3>Promotion policy</h3>
+                  <p class="soft">Optional. Ask for a passing evaluation before a version reaches a protected environment.</p>
+                </header>
+                <div v-if="!editingPolicy" class="card-body" data-testid="policy">
+                  <p v-if="!policy" class="small" data-testid="policy-none">
                     No policy: any version can be promoted. Add one to require a passing evaluation before {{ gated.join(" and ") || "protected environments" }} can use a version.
                   </p>
                   <template v-else>
@@ -778,14 +791,14 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                       <b>{{ datasetName(policy.datasetId) ?? "a dataset that no longer exists" }}</b> to be promoted to {{ gated.join(" or ") }}.
                       <span v-if="policy.datasetId === null" class="warn" data-testid="policy-broken">The dataset was deleted: promotions are blocked until you choose another.</span>
                     </p>
-                    <p class="muted small">The evaluation has to run with the agent reading that exact version through <code>memtrace.prompts</code>. Each evaluator must reach its target pass rate.</p>
+                    <p class="soft">The evaluation has to run with the agent reading that exact version through <code>memtrace.prompts</code>. Each evaluator must reach its target pass rate.</p>
                   </template>
                   <div v-if="canPromote" class="row">
                     <button type="button" class="ghost-btn small" data-testid="edit-policy" @click="startPolicy">{{ policy ? "Edit policy" : "Add policy" }}</button>
-                    <button v-if="policy" type="button" class="ghost-btn small" data-testid="remove-policy" @click="removePolicy">Remove policy</button>
+                    <button v-if="policy" type="button" class="link-btn" data-testid="remove-policy" @click="removePolicy">Remove policy</button>
                   </div>
                 </div>
-                <form v-else class="policy-form" data-testid="policy-form" @submit.prevent="savePolicy">
+                <form v-else class="policy-form card-body" data-testid="policy-form" @submit.prevent="savePolicy">
                   <div class="row">
                     <span class="muted">Evaluate against</span>
                     <Select v-model="policyDataset" :options="datasetOptions" placeholder="Choose a dataset…" data-testid="policy-dataset" />
@@ -794,42 +807,58 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                     <span class="muted">Passing runs in a row</span>
                     <input v-model.number="policyRuns" type="number" min="1" max="10" class="runs" data-testid="policy-runs" />
                   </div>
-                  <p class="muted small">Protected: {{ gated.join(", ") || "none" }}. {{ environmentKeys[0] ?? "The first environment" }} stays free to iterate.</p>
+                  <p class="soft">Protected: {{ gated.join(", ") || "none" }}. {{ environmentKeys[0] ?? "The first environment" }} stays free to iterate.</p>
                   <div class="row">
                     <button type="submit" class="primary-btn small" :disabled="savingPolicy || policyDataset === null" data-testid="save-policy">Save policy</button>
                     <button type="button" class="ghost-btn small" @click="editingPolicy = false">Cancel</button>
                   </div>
                 </form>
+              </section>
 
-                <h3>Other tags</h3>
-                <div v-if="freeTags.length > 0" class="free-tags">
-                  <span v-for="t in freeTags" :key="t.tag" class="free-tag">
-                    <span class="mono">{{ t.tag }}</span><strong class="mono">v{{ t.version }}</strong>
-                    <button v-if="canWrite" type="button" class="x" :aria-label="`Remove the ${t.tag} tag`" @click="moveTag(t.tag, null)">×</button>
-                  </span>
+              <section class="block">
+                <header class="block-head">
+                  <h3>Other tags</h3>
+                  <p class="soft">Free labels such as <code>stable</code> or <code>canary</code>.</p>
+                </header>
+                <div class="card-body">
+                  <div v-if="freeTags.length > 0" class="free-tags">
+                    <span v-for="t in freeTags" :key="t.tag" class="free-tag">
+                      <span class="mono">{{ t.tag }}</span><strong class="mono">v{{ t.version }}</strong>
+                      <button v-if="canWrite" type="button" class="x" :aria-label="`Remove the ${t.tag} tag`" @click="moveTag(t.tag, null)">×</button>
+                    </span>
+                  </div>
+                  <p v-else class="soft">No free tags.</p>
+                  <form v-if="canWrite && selected !== null" class="row" @submit.prevent="addFreeTag">
+                    <TextInput v-model="newTag" placeholder="new-tag" mono size="sm" data-testid="new-tag" />
+                    <button type="submit" class="ghost-btn small" :disabled="moving || !newTag.trim()" data-testid="add-tag">Tag v{{ selected }}</button>
+                  </form>
                 </div>
-                <p v-else class="muted small">No free tags.</p>
-                <form v-if="canWrite && selected !== null" class="row" @submit.prevent="addFreeTag">
-                  <TextInput v-model="newTag" placeholder="new-tag" mono size="sm" data-testid="new-tag" />
-                  <button type="submit" class="ghost-btn small" :disabled="moving || !newTag.trim()" data-testid="add-tag">Tag v{{ selected }}</button>
-                </form>
-              </div>
+              </section>
 
-              <aside class="history">
-                <span class="eyebrow">HISTORY</span>
-                <p v-if="data.events.length === 0" class="muted small">No tag has been moved yet.</p>
-                <ul v-else class="events" data-testid="tag-events">
+              <section class="block">
+                <header class="block-head">
+                  <h3>History</h3>
+                  <p class="soft">Every tag movement, newest first.</p>
+                </header>
+                <p v-if="data.events.length === 0" class="empty-note">No tag has been moved yet.</p>
+                <ul v-else class="timeline" data-testid="tag-events">
                   <li v-for="ev in data.events" :key="ev.id">
-                    <span class="mono">{{ ev.tag }}</span>
-                    {{ ev.toVersion === null ? "removed (was" : "moved from" }}
-                    <span class="mono">{{ ev.fromVersion === null ? "none" : `v${ev.fromVersion}` }}</span>
-                    <template v-if="ev.toVersion !== null"> to <span class="mono">v{{ ev.toVersion }}</span></template><template v-else>)</template>
-                    <span class="muted"> · {{ formatDateTime(ev.createdAt) }}</span>
-                    <span v-if="ev.reason" class="muted"> · “{{ ev.reason }}”</span>
-                    <span v-if="ev.gateBypassed" class="warn" :data-testid="`bypassed-${ev.id}`"> · skipped the evaluation: “{{ ev.bypassReason }}”</span>
+                    <span class="dot" />
+                    <div>
+                      <p class="small">
+                        <span class="mono">{{ ev.tag }}</span>
+                        {{ ev.toVersion === null ? "removed (was" : "moved from" }}
+                        <span class="mono">{{ ev.fromVersion === null ? "none" : `v${ev.fromVersion}` }}</span>
+                        <template v-if="ev.toVersion !== null"> to <span class="mono">v{{ ev.toVersion }}</span></template><template v-else>)</template>
+                      </p>
+                      <p class="soft">
+                        {{ formatDateTime(ev.createdAt) }}<span v-if="ev.reason"> · “{{ ev.reason }}”</span>
+                        <span v-if="ev.gateBypassed" class="warn" :data-testid="`bypassed-${ev.id}`"> · skipped the evaluation: “{{ ev.bypassReason }}”</span>
+                      </p>
+                    </div>
                   </li>
                 </ul>
-              </aside>
+              </section>
             </div>
           </section>
         </div>
@@ -1151,40 +1180,12 @@ h3 {
   color: var(--mt-ink);
   font-weight: 800;
 }
-.ln.changed {
-  background: var(--mt-accent-tint);
-}
-.ln.changed::after {
-  content: "";
-  position: absolute;
-  left: 4px;
-  top: 3px;
-  bottom: 3px;
-  width: 3px;
-  border-radius: 2px;
-  background: var(--mt-brand);
-}
 .variable {
   padding: 0 2px;
   border-radius: 3px;
   background: var(--mt-highlight-soft);
   color: var(--mt-highlight-ink);
   font-weight: 500;
-}
-.code-foot {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  border-top: 1px solid var(--mt-line-2);
-  font-size: 12px;
-  color: var(--mt-faint);
-}
-.code-foot i {
-  width: 3px;
-  height: 14px;
-  border-radius: 2px;
-  background: var(--mt-brand);
 }
 .side {
   display: flex;
@@ -1407,178 +1408,111 @@ h3 {
 .tags-pane {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 28px;
+  max-width: 880px;
 }
-.tags-main {
-  min-width: 0;
+.block {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
-.envs {
-  display: flex;
-  flex-direction: column;
+.block-head h3 {
+  margin: 0 0 2px;
+  font-size: 14px;
+}
+.envs,
+.usage-list,
+.card-body,
+.timeline,
+.empty-note {
   border: 1px solid var(--mt-line);
   border-radius: 10px;
-  overflow: hidden;
   background: var(--mt-card);
 }
-.env-card {
+.envs,
+.usage-list {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+}
+.empty-note {
+  margin: 0;
+  padding: 14px 16px;
+  font-size: 12.5px;
+  color: var(--mt-muted);
+}
+.env-card,
+.usage-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: 52px;
-  padding: 6px 16px;
+  gap: 14px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--mt-line-2);
 }
-.env-card:last-child {
+.env-card:last-child,
+.usage-row:last-child {
   border-bottom: none;
 }
-.env-badge {
-  flex: none;
-  width: 44px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  background: var(--mt-soft);
-  color: var(--mt-muted);
-  font-family: var(--mt-mono);
-  font-size: 11px;
-  letter-spacing: 0.04em;
+.usage-row {
+  font-size: 12.5px;
 }
-.env-badge b {
-  font-weight: 500;
-}
-.env-badge.pre {
-  background: var(--mt-warn-bg);
-  color: var(--mt-warn-ink);
-}
-.env-badge.pro {
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
+.usage-env {
+  min-width: 96px;
+  font-weight: 700;
 }
 .env-body {
   flex: 1;
   min-width: 0;
   display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  gap: 4px;
 }
 .env-version {
-  flex: 1;
-  min-width: 0;
   display: flex;
-  align-items: baseline;
-  gap: 12px;
-}
-.env-version strong {
-  font-size: 14px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 .env-msg {
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 600;
-}
-.move {
-  align-self: center;
-}
-.view-toggle {
-  display: inline-flex;
-  border: 1px solid var(--mt-line);
-  border-radius: var(--mt-radius-lg);
-  overflow: hidden;
-}
-.view-toggle button {
-  padding: 2px 10px;
-  border: none;
-  background: transparent;
-  color: var(--mt-muted);
-  font: inherit;
-  font-size: 11.5px;
-  cursor: pointer;
-}
-.view-toggle button.on {
-  background: var(--mt-accent-soft);
-  color: var(--mt-accent-text);
-}
-ul.plain {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
   font-size: 12.5px;
 }
-.draft-pill {
-  background: var(--mt-warn-bg);
-  color: var(--mt-warn-ink);
-}
-.draft-banner {
+.move {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-  padding: 10px 14px;
-  border: 1px dashed var(--mt-warn-ink);
-  background: var(--mt-warn-bg);
-  color: var(--mt-warn-ink);
-  font-size: 13px;
-}
-.draft-banner p {
-  margin: 4px 0 0;
-}
-.draft-actions {
-  display: flex;
   gap: 8px;
 }
-.protected {
-  background: var(--mt-accent-soft);
-  color: var(--mt-accent-text);
-}
-.usage.in_sync {
-  background: var(--mt-ok-bg);
-  color: var(--mt-ok-ink);
-}
-.usage.behind {
-  background: var(--mt-highlight-soft);
-  color: var(--mt-highlight-ink);
-}
-.usage.pinned {
-  background: var(--mt-accent-soft);
-  color: var(--mt-accent-text);
-}
-.usage.stale {
-  background: var(--mt-soft);
+.link-btn {
+  border: none;
+  background: none;
+  padding: 0 4px;
   color: var(--mt-muted);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
 }
-.tags {
-  border-collapse: collapse;
-  font-size: 13px;
+.link-btn:hover {
+  color: var(--mt-ink);
+  text-decoration: underline;
 }
-.tags td {
-  padding: 6px 12px 6px 0;
-  vertical-align: middle;
-}
-.tag-name {
-  font-weight: 700;
-  min-width: 80px;
-}
-.warn {
-  margin: 0;
-  color: var(--mt-warn-ink);
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 .policy-form {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 .runs {
   width: 64px;
@@ -1589,6 +1523,10 @@ ul.plain {
   background: var(--mt-card);
   color: var(--mt-ink);
   font: inherit;
+}
+.warn {
+  margin: 0;
+  color: var(--mt-warn-ink);
 }
 .free-tags {
   display: flex;
@@ -1617,41 +1555,63 @@ ul.plain {
   line-height: 1;
   cursor: pointer;
 }
-.usage-fold summary {
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 700;
-  padding: 4px 0;
+.timeline {
+  margin: 0;
+  padding: 6px 16px;
+  list-style: none;
 }
-.history {
+.timeline li {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  padding: 10px 0 10px 4px;
+}
+.timeline li:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 24px;
+  bottom: -10px;
+  width: 1px;
+  background: var(--mt-line);
+}
+.timeline .dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--mt-faint);
+}
+.timeline p {
+  line-height: 1.5;
+}
+.placeholder-changes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.var.added {
+  background: var(--mt-accent-tint);
+  color: var(--mt-accent-text);
+}
+.var.removed {
+  text-decoration: line-through;
+  color: var(--mt-muted);
+}
+.empty-guide {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--mt-line);
-  border-radius: 10px;
-  background: var(--mt-card);
-  overflow: hidden;
+  gap: 8px;
+  max-width: 560px;
+  padding: 20px 4px;
 }
-.history > .eyebrow {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--mt-line);
-}
-.history > p {
+.guide {
   margin: 0;
-  padding: 12px 16px;
-}
-.events {
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  padding-left: 20px;
   font-size: 12.5px;
-}
-.events li {
-  padding: 9px 16px;
-  line-height: 1.5;
-  border-bottom: 1px solid var(--mt-line-2);
-}
-.events li:last-child {
-  border-bottom: none;
+  line-height: 1.7;
 }
 
 .primary-btn,

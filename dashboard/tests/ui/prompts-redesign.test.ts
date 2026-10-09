@@ -110,9 +110,9 @@ describe("prompt detail: version rail", () => {
     expect(wrapper.find("[data-testid='behind-pill']").exists()).toBe(false);
   });
 
-  it("marks the lines that changed since the version it came from", async () => {
+  it("shows only the text in Content: changes live in Compare", async () => {
     const wrapper = await setup(PromptDetailPage, new FakePromptApi(), { promptId: "p1" });
-    expect(wrapper.findAll(".ln.changed").length).toBeGreaterThan(0);
-    expect(wrapper.text()).toContain("Lines changed since v1");
+    expect(wrapper.findAll(".ln.changed").length).toBe(0);
+    expect(wrapper.text()).not.toContain("Lines changed since");
   });
 });

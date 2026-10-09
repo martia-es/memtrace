@@ -3,11 +3,13 @@ import { computed, onMounted, ref, watch } from "vue";
 import type { PromptVersionDto, PromptUsageDto } from "@contract";
 import { describeApiError } from "@/application/describe-api-error";
 import { baseVersionFor, defaultRationale, failureOf } from "@/domain/prompt-fix";
+import { resolveRange } from "@/domain/time-range";
 import { promptsUsedBy, replayInputOf } from "@/domain/prompt-playground";
 import { useAsync } from "../composables/useAsync";
 import { usePromptApi } from "../composables/usePromptApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import TextInput from "./TextInput.vue";
+import TraceTable from "./TraceTable.vue";
 
 /**
  * Arreglar un prompt desde un fallo real (ADR-072): se ve qué falló en la traza, se parte de la versión que la produjo, se
@@ -35,6 +37,16 @@ const content = ref("");
 const rationale = ref("");
 const saving = ref(false);
 const savedDraft = ref<{ version: number; base: number } | null>(null);
+
+// fallos recientes de este prompt: se elige uno en vez de pegar su id
+const RECENT_FAILURES = 10;
+const failures = useAsync((signal) => traces.listTraces({ ...resolveRange("30d", Date.now()), promptName: props.promptName, hasErrors: true, limit: RECENT_FAILURES }, signal));
+onMounted(() => void failures.run());
+const failedTraces = computed(() => failures.data.value?.items ?? []);
+function pick(id: string) {
+  traceId.value = id;
+  void load();
+}
 
 const step = computed(() => (savedDraft.value ? 3 : loadedTrace.value ? 2 : 1));
 
@@ -97,7 +109,18 @@ async function save() {
       </div>
     </div>
     <p v-if="problem" class="warn small" role="alert" data-testid="fix-problem">{{ problem }}</p>
-    <p v-if="!loadedTrace" class="muted small">Start from a real failure: paste the trace id, see what broke and save a change as a <b>draft</b>.</p>
+    <section v-if="!loadedTrace" class="recent" data-testid="fix-recent">
+      <header>
+        <b>Recent failures</b>
+        <span class="muted small">Traces from the last 30 days where a step failed while using {{ promptName }}.</span>
+      </header>
+      <div v-if="failures.loading.value && !failures.data.value" class="center"><q-spinner size="24px" color="primary" /></div>
+      <TraceTable v-else-if="failedTraces.length > 0" :items="failedTraces" show-prompts @open="pick" />
+      <div v-else class="empty-guide" data-testid="fix-recent-empty">
+        <p><b>No failures to fix right now.</b> This is good news.</p>
+        <p class="muted small">Failed traces that used this prompt appear here on their own. That needs the agent to call <code>compile()</code> inside a traced step and some step to fail. You can also open any failed trace and press <b>Fix with a prompt change</b>, or paste its id above.</p>
+      </div>
+    </section>
 
     <div v-if="loadedTrace && trace.data.value" class="grid">
       <section class="panel failure" data-testid="fix-failure">
@@ -159,6 +182,32 @@ async function save() {
 </template>
 
 <style scoped>
+.recent {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.recent header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.center {
+  display: flex;
+  justify-content: center;
+  padding: 24px;
+}
+.empty-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 20px 16px;
+  border: 1px dashed var(--mt-line);
+  border-radius: 10px;
+}
+.empty-guide p {
+  margin: 0;
+}
 .fix {
   display: flex;
   flex-direction: column;

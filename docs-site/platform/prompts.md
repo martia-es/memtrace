@@ -20,11 +20,11 @@ Variables are written `{{city}}`; MemTrace detects them when you save and lists 
 
 Inside a prompt, the versions are listed on the left. **Pinned by tags** stays on top, so the versions that `dev`, `pre` and `pro` point to are always one click away; below, **all versions** grouped by month. Type a number (`12`) or a word of the message in the search box to find one. Above the tabs, a strip says what runs in each environment and, when production is behind, by how many versions.
 
-On **Content** the text has numbered lines, the `{{variables}}` are highlighted, and the lines changed since the version it came from are marked.
+On **Content** you see only the text of the version, with numbered lines and the `{{placeholders}}` highlighted. Changes between versions are in **Compare**.
 
 To change a prompt, open a version and press **Edit as new version**. The new version remembers the one it started from, which is what **Compare** uses by default.
 
-**Compare** shows two versions side by side, line by line: red is what was removed, green what was added. You can compare the selected version with any other.
+**Compare** shows two versions side by side, line by line: red is what was removed, green what was added. You can compare the selected version with any other, and it lists the placeholders added or removed.
 
 ## Tags: which version runs where
 
@@ -67,7 +67,7 @@ An agent only shows up when it reads the prompt with [`memtrace.prompts`](/libra
 
 ## Evidence: what each version did
 
-The **Evidence** tab shows, for every version that had traffic in the last 24 hours, 7 or 30 days, what happened in the traces that used it:
+The **Evidence** tab stays empty until real traffic reaches it: an agent has to read the prompt with `memtrace.prompts.get()` and call `compile()` inside a traced step. Saving a version or testing it in the playground does not count. It shows, for every version that had traffic in the last 24 hours, 7 or 30 days, what happened in the traces that used it:
 
 | Column | Meaning |
 |---|---|
@@ -124,7 +124,7 @@ A **draft** is a version waiting for review. It has a number, so you can **test 
 
 You can save any edit as a draft with **Save as draft** in the editor, but the main way to create one is from a failure:
 
-1. On a **failed trace** that read its prompt from the registry, press **Fix with a prompt change** (or open the prompt's **Fix a failure** tab and paste a trace id).
+1. On a **failed trace** that read its prompt from the registry, press **Fix with a prompt change** (or open the prompt's **Fix a failure** tab, which lists the recent failed traces that used the prompt, and pick one).
 2. MemTrace shows **what failed** (the deepest failing step, not the ones that only passed the error up), what the person said and what the agent answered. The editor starts from **the version that trace used**, and the reason is filled in with the failure.
 3. Change the text and **Save as draft**. The draft remembers the failure: its page shows what it was for and links to the trace.
 4. **Test it on this case** runs the real agent with the draft and with the version it came from, side by side, on that same message.
