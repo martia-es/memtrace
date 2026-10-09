@@ -1,6 +1,12 @@
 import type { SpanNode, StatusCode } from "./span";
 
 /** Fila del listado: una traza identificada por su span raíz. */
+/** Una versión de prompt del registro (ADR-068) que usó algún span: lo que enlaza trazas, conversaciones y evaluaciones con el prompt. */
+export interface PromptRef {
+  name: string;
+  version: number;
+}
+
 export interface TraceSummary {
   traceId: string;
   rootSpanName: string;
@@ -21,6 +27,8 @@ export interface TraceSummary {
   conversationId: string | null;
   /** commit del código que generó la traza (ADR-065); null = versión desconocida */
   revision: string | null;
+  /** versiones de prompt del registro que usó la traza (vacío si no leyó ninguna) */
+  prompts: PromptRef[];
 }
 
 export interface TraceDetail {
@@ -49,6 +57,8 @@ export interface TraceStats {
   durationMs: number;
   /** solo spans de LLM (`gen_ai.operation.name = chat`), desglosados por modelo para poder ponerles precio */
   byModel: { model: string | null; inputTokens: number; outputTokens: number }[];
+  /** versiones de prompt del registro que usó la traza (ADR-068): con qué prompt se evaluó este item */
+  prompts: PromptRef[];
 }
 
 /** Posición en el listado (keyset): estable ante inserciones concurrentes. */

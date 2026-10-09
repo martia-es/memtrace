@@ -38,8 +38,16 @@ export interface SpanContentDto {
   output?: unknown;
 }
 
+/** Versión de un prompt del registro que usó una traza o conversación (ADR-068). */
+export interface PromptRefDto {
+  name: string;
+  version: number;
+}
+
 export interface TraceSummaryDto {
   traceId: string;
+  /** versiones de prompt del registro que usó la traza */
+  prompts: PromptRefDto[];
   rootSpanName: string;
   serviceName: string;
   startTime: string;
@@ -138,6 +146,8 @@ export interface TraceDetailResponse {
 /** Conversación = trazas (turnos) con el mismo `gen_ai.conversation.id` (ADR-012). */
 export interface ConversationSummaryDto {
   conversationId: string;
+  /** versiones de prompt del registro que usó algún turno */
+  prompts: PromptRefDto[];
   serviceNames: string[];
   startTime: string;
   lastActivity: string;
@@ -568,6 +578,8 @@ export interface ItemTelemetryDto {
   outputTokens: number;
   /** null si ningún modelo de la traza tiene precio conocido */
   costUsd: number | null;
+  /** versiones de prompt del registro con las que se produjo el item */
+  prompts: PromptRefDto[];
 }
 
 export interface DatasetRunItemResultDto extends DatasetRunItemSubmissionDto {

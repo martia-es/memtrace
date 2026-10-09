@@ -95,6 +95,7 @@ export function toTraceSummaryDto(t: TraceSummary): TraceSummaryDto {
     error: t.error,
     conversationId: t.conversationId,
     revision: t.revision,
+    prompts: t.prompts,
   };
 }
 
@@ -111,6 +112,7 @@ export function toConversationSummaryDto(c: ConversationListItem): ConversationS
     activeMs: c.activeMs,
     title: c.title,
     costUsd: c.costUsd,
+    prompts: c.prompts,
   };
 }
 

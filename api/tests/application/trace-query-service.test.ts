@@ -49,12 +49,12 @@ describe("TraceQueryService", () => {
     const { repo, service } = setup();
     repo.conversations.set("c1", {
       conversationId: "c1", serviceNames: ["svc"], startTimeUs: 1, lastActivityUs: 2,
-      turnCount: 2, errorTurns: 0, failedSpans: 0, totalTokens: 0, activeMs: 0,
+      turnCount: 2, errorTurns: 0, failedSpans: 0, totalTokens: 0, activeMs: 0, prompts: [],
     });
     repo.page = {
       items: [
-        { traceId: "t1", rootSpanName: "turno 1", serviceName: "svc", startTimeUs: 1, durationMs: 5, status: "ok", spanCount: 1, errorCount: 0, totalTokens: 0, input: null, output: null, error: null, conversationId: "c1", revision: null },
-        { traceId: "t2", rootSpanName: "turno 2", serviceName: "svc", startTimeUs: 2, durationMs: 5, status: "ok", spanCount: 1, errorCount: 0, totalTokens: 0, input: null, output: null, error: null, conversationId: "c1", revision: null },
+        { traceId: "t1", rootSpanName: "turno 1", serviceName: "svc", startTimeUs: 1, durationMs: 5, status: "ok", spanCount: 1, errorCount: 0, totalTokens: 0, input: null, output: null, error: null, conversationId: "c1", revision: null, prompts: [] },
+        { traceId: "t2", rootSpanName: "turno 2", serviceName: "svc", startTimeUs: 2, durationMs: 5, status: "ok", spanCount: 1, errorCount: 0, totalTokens: 0, input: null, output: null, error: null, conversationId: "c1", revision: null, prompts: [] },
       ],
       nextCursor: null,
     };
@@ -81,12 +81,12 @@ describe("TraceQueryService", () => {
   it("prices each trace's tokens per model and leaves cost null when no model has a price (ADR-044)", async () => {
     const { repo, service } = setup();
     repo.modelPricing = [{ modelId: "gpt-x", provider: "openai", inputPricePerToken: 0.001, outputPricePerToken: 0.002, source: "litellm", updatedAtMs: 0 }];
-    repo.traceStats.set("priced", { traceId: "priced", durationMs: 1500, byModel: [{ model: "gpt-x", inputTokens: 100, outputTokens: 50 }, { model: "unknown", inputTokens: 10, outputTokens: 5 }] });
-    repo.traceStats.set("unpriced", { traceId: "unpriced", durationMs: 200, byModel: [{ model: "unknown", inputTokens: 10, outputTokens: 5 }] });
+    repo.traceStats.set("priced", { traceId: "priced", durationMs: 1500, byModel: [{ model: "gpt-x", inputTokens: 100, outputTokens: 50 }, { model: "unknown", inputTokens: 10, outputTokens: 5 }], prompts: [{ name: "weather-system", version: 2 }] });
+    repo.traceStats.set("unpriced", { traceId: "unpriced", durationMs: 200, byModel: [{ model: "unknown", inputTokens: 10, outputTokens: 5 }], prompts: [] });
 
     const telemetry = await service.getItemTelemetry(["priced", "unpriced", "priced", "missing"]);
 
-    expect(telemetry.get("priced")).toEqual({ latencyMs: 1500, inputTokens: 110, outputTokens: 55, costUsd: 0.2 });
+    expect(telemetry.get("priced")).toEqual({ latencyMs: 1500, inputTokens: 110, outputTokens: 55, costUsd: 0.2, prompts: [{ name: "weather-system", version: 2 }] });
     expect(telemetry.get("unpriced")).toMatchObject({ latencyMs: 200, costUsd: null });
     expect(telemetry.has("missing")).toBe(false);
   });

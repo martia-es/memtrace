@@ -9,7 +9,7 @@ import type { ChatSpanRecord } from "@/domain/transcript";
 import type { AttributeKeyCount, AttributeValueCount, CustomMetricQuery, CustomMetricResult, MetricsOverview, MetricsQuery, ServiceUsage, StepKindCount } from "@/domain/metrics";
 import type { Span, StatusCode } from "@/domain/span";
 import { MAX_RANGE_MS, type TimeRange } from "@/domain/time-range";
-import type { Page, TraceStats, TraceSummary } from "@/domain/trace";
+import type { PromptRef, Page, TraceStats, TraceSummary } from "@/domain/trace";
 import { QueryLimiter } from "./query-limiter";
 
 /** Los hijos de un span raíz pueden empezar después de que el rango termine: ventana de agregación. */
@@ -46,6 +46,15 @@ function toStatus(code: unknown): StatusCode {
 }
 
 /** Implementación del puerto sobre la tabla `otel_traces` (ADR-003). Todas las consultas van parametrizadas. */
+/** `groupUniqArray((PromptName, PromptVersion))` llega como pares [nombre, versión]; la versión más alta primero. */
+function promptRefs(raw: unknown): PromptRef[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((pair) => ({ name: String((pair as unknown[])[0]), version: Number((pair as unknown[])[1]) }))
+    .filter((p) => p.name !== "")
+    .sort((a, b) => a.name.localeCompare(b.name) || b.version - a.version);
+}
+
 export class ClickHouseTraceRepository implements TraceRepository {
   private readonly spans: string;
   private readonly traceIndex: string;
@@ -473,6 +482,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
         error: status === "error" && r.StatusMessage ? previewOf(String(r.StatusMessage), "output", false) : null,
         conversationId: r.ConversationId ? String(r.ConversationId) : null,
         revision: r.Revision ? String(r.Revision) : null,
+        prompts: agg?.prompts ?? [],
       };
     });
 
@@ -482,7 +492,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
 
   /** Agregados por traza para una página, acotados en tiempo para podar particiones diarias. */
   private async aggregatesFor(roots: Row[]) {
-    const result = new Map<string, { spanCount: number; errorCount: number; totalTokens: number; inputRaw: string | null; inputChat: boolean; outputRaw: string | null; outputChat: boolean; outputTool: boolean }>();
+    const result = new Map<string, { spanCount: number; errorCount: number; totalTokens: number; inputRaw: string | null; inputChat: boolean; outputRaw: string | null; outputChat: boolean; outputTool: boolean; prompts: PromptRef[] }>();
     if (roots.length === 0) return result;
 
     const startsMs = roots.map((r) => num(r.startUs) / 1000);
@@ -501,7 +511,8 @@ export class ClickHouseTraceRepository implements TraceRepository {
               argMinIf(${OP} = 'chat', Timestamp, ${inputExpr} != '') AS inputChat,
               argMaxIf(${outputExpr}, Timestamp + toIntervalNanosecond(Duration), ${outputExpr} != '') AS outputRaw,
               argMaxIf(${OP} = 'chat', Timestamp + toIntervalNanosecond(Duration), ${outputExpr} != '') AS outputChat,
-              argMaxIf(${OP} = 'execute_tool', Timestamp + toIntervalNanosecond(Duration), ${outputExpr} != '') AS outputTool
+              argMaxIf(${OP} = 'execute_tool', Timestamp + toIntervalNanosecond(Duration), ${outputExpr} != '') AS outputTool,
+              groupUniqArrayIf(20)((PromptName, PromptVersion), PromptName != '') AS prompts
        FROM ${this.spans} WHERE TraceId IN {ids:Array(String)} AND ${clause} GROUP BY TraceId`,
       { ...params, ids: roots.map((r) => String(r.TraceId)) },
     );
@@ -515,6 +526,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
         outputRaw: r.outputRaw ? String(r.outputRaw) : null,
         outputChat: Boolean(r.outputChat),
         outputTool: Boolean(r.outputTool),
+        prompts: promptRefs(r.prompts),
       });
     }
     return result;
@@ -593,7 +605,8 @@ export class ClickHouseTraceRepository implements TraceRepository {
               countIf(ParentSpanId = '' AND StatusCode = ${ERROR}) AS errorTurns,
               uniqExactIf(SpanId, StatusCode = ${ERROR}) AS failedSpans,
               sumIf(${TOKENS}, ${OP} = 'chat') AS totalTokens,
-              sumIf(Duration, ParentSpanId = '') AS activeNs
+              sumIf(Duration, ParentSpanId = '') AS activeNs,
+              groupUniqArrayIf(20)((PromptName, PromptVersion), PromptName != '') AS prompts
        FROM ${this.spans} WHERE ConversationId IN {ids:Array(String)} AND ${clause} GROUP BY ConversationId`,
       { ...params, ids },
     );
@@ -609,6 +622,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
         failedSpans: num(r.failedSpans),
         totalTokens: num(r.totalTokens),
         activeMs: nsToMs(r.activeNs),
+        prompts: promptRefs(r.prompts),
       });
     }
     return result;
@@ -738,7 +752,8 @@ export class ClickHouseTraceRepository implements TraceRepository {
               maxIf(Duration, ParentSpanId = '') AS rootNs,
               sumIf(${attrNum("gen_ai.usage.input_tokens")}, ${OP} = 'chat') AS inputTokens,
               sumIf(${attrNum("gen_ai.usage.output_tokens")}, ${OP} = 'chat') AS outputTokens,
-              countIf(${OP} = 'chat') AS chatCalls
+              countIf(${OP} = 'chat') AS chatCalls,
+              groupUniqArrayIf(20)((PromptName, PromptVersion), PromptName != '') AS prompts
        FROM ${this.spans}
        WHERE TraceId IN {ids:Array(String)}
          AND Timestamp >= fromUnixTimestamp64Micro({startUs:Int64}) AND Timestamp <= fromUnixTimestamp64Micro({endUs:Int64})
@@ -748,8 +763,12 @@ export class ClickHouseTraceRepository implements TraceRepository {
 
     for (const r of rows) {
       const traceId = String(r.TraceId);
-      const stats = result.get(traceId) ?? { traceId, durationMs: 0, byModel: [] };
+      const stats = result.get(traceId) ?? { traceId, durationMs: 0, byModel: [], prompts: [] };
       stats.durationMs = Math.max(stats.durationMs, nsToMs(r.rootNs));
+      // la traza se parte en una fila por modelo: las versiones de prompt se juntan sin repetir
+      for (const p of promptRefs(r.prompts)) {
+        if (!stats.prompts.some((q) => q.name === p.name && q.version === p.version)) stats.prompts.push(p);
+      }
       if (num(r.chatCalls) > 0) {
         stats.byModel.push({ model: r.model ? String(r.model) : null, inputTokens: num(r.inputTokens), outputTokens: num(r.outputTokens) });
       }

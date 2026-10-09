@@ -1,5 +1,5 @@
 import { costOf, type PricingCatalog } from "./pricing";
-import type { TraceStats } from "./trace";
+import type { PromptRef, TraceStats } from "./trace";
 
 /** Resultado de evaluación offline (ADR-028): vive en ClickHouse, no en PostgreSQL (ver `scores` table). */
 
@@ -36,6 +36,8 @@ export interface ItemTelemetry {
   outputTokens: number;
   /** null si ningún modelo de la traza tiene precio conocido (ADR-025) */
   costUsd: number | null;
+  /** versiones de prompt del registro con las que se produjo el item (ADR-068); vacío si no leyó ninguna */
+  prompts: PromptRef[];
 }
 
 /** Una fila leída de vuelta de ClickHouse para mostrar el detalle de una ejecución. */
@@ -74,5 +76,6 @@ export function telemetryOf(stats: TraceStats, pricing: PricingCatalog): ItemTel
     inputTokens: stats.byModel.reduce((sum, m) => sum + m.inputTokens, 0),
     outputTokens: stats.byModel.reduce((sum, m) => sum + m.outputTokens, 0),
     costUsd: costs.length === 0 ? null : costs.reduce((sum, c) => sum + c, 0),
+    prompts: stats.prompts,
   };
 }

@@ -1,3 +1,4 @@
+import type { PromptRef } from "@/domain/trace";
 /** Una conversación = las trazas (turnos) que comparten `gen_ai.conversation.id` (ADR-012). */
 export interface ConversationSummary {
   conversationId: string;
@@ -14,6 +15,8 @@ export interface ConversationSummary {
   totalTokens: number;
   /** suma de las duraciones de los turnos: tiempo trabajando, sin las esperas del usuario */
   activeMs: number;
+  /** versiones de prompt del registro que usó algún turno, la más reciente primero */
+  prompts: PromptRef[];
 }
 
 /** Lo que el repositorio lee para dar título y coste a una conversación; el precio lo aplica el servicio (ADR-025). */

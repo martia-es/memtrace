@@ -8,7 +8,7 @@ import { FakeTraceRepository } from "../helpers";
 const NOW = Date.parse("2026-09-26T12:00:00Z");
 const conversation = (id: string): ConversationSummary => ({
   conversationId: id, serviceNames: ["svc"], startTimeUs: 1, lastActivityUs: 2, turnCount: 2,
-  errorTurns: 0, failedSpans: 0, totalTokens: 10, activeMs: 5,
+  errorTurns: 0, failedSpans: 0, totalTokens: 10, activeMs: 5, prompts: [],
 });
 
 function setup() {
