@@ -315,7 +315,7 @@ export interface AttributeKeysResponse {
   items: AttributeKeyDto[];
 }
 
-export type CustomMetricTypeDto = "count" | "avg_duration" | "p50_duration" | "p95_duration" | "error_rate";
+export type CustomMetricTypeDto = "count" | "avg_duration" | "p50_duration" | "p95_duration" | "error_rate" | "sum_attribute" | "avg_attribute" | "min_attribute" | "max_attribute";
 export type CustomChartTypeDto = "bar" | "pie" | "line" | "area" | "number" | "table";
 
 export interface CustomMetricFilterDto {
@@ -328,6 +328,8 @@ export interface CustomMetricDefinitionDto {
   chartType: CustomChartTypeDto;
   stepTypes: string[];
   metric: CustomMetricTypeDto;
+  /** el atributo numérico que miden `sum_attribute`, `avg_attribute`, `min_attribute` y `max_attribute`; null en el resto (ADR-077) */
+  metricAttribute: string | null;
   groupByAttribute: string | null;
   filters: CustomMetricFilterDto[];
 }

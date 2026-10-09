@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ValidationError } from "@/domain/errors";
+import { ATTRIBUTE_METRICS } from "@/domain/metrics";
 import type { ConversationCursor } from "@/domain/conversation";
 import type { SpanCursor } from "@/domain/span-row";
 import type { PageCursor } from "@/domain/trace";
@@ -104,16 +105,27 @@ export const attributeKeysQuery = z.object({
 
 const customMetricFilterBody = z.object({ attribute: nonEmpty, values: z.array(z.string().min(1).max(500)).min(1).max(50) });
 
-/** Cuerpo del builder de gráficos custom: enum cerrado a propósito, nunca SQL del usuario (ADR-027/030). */
-export const customMetricDefinitionBody = z.object({
+/** Forma del builder de gráficos custom: enum cerrado a propósito, nunca SQL del usuario (ADR-027/030). */
+const customMetricDefinitionShape = {
   chartType: z.enum(["bar", "pie", "line", "area", "number", "table"]),
   stepTypes: z.array(nonEmpty).min(1).max(20),
-  metric: z.enum(["count", "avg_duration", "p50_duration", "p95_duration", "error_rate"]),
+  metric: z.enum(["count", "avg_duration", "p50_duration", "p95_duration", "error_rate", ...ATTRIBUTE_METRICS]),
+  /** el atributo numérico de las métricas `*_attribute` (ADR-077); null en el resto */
+  metricAttribute: nonEmpty.nullable().optional().default(null),
   groupByAttribute: nonEmpty.nullable().optional().default(null),
   filters: z.array(customMetricFilterBody).max(10).optional().default([]),
-});
+};
 
-export const customMetricQueryBody = z.object({ ...timeRangeShape, ...customMetricDefinitionBody.shape });
+/** Una métrica sobre un atributo necesita saber cuál; el resto no admite ninguno, para que una definición no diga una cosa y mida otra. */
+function checkMetricAttribute(value: { metric: (typeof customMetricDefinitionShape.metric)["_output"]; metricAttribute: string | null }, ctx: z.RefinementCtx) {
+  const needs = (ATTRIBUTE_METRICS as readonly string[]).includes(value.metric);
+  if (needs && !value.metricAttribute) ctx.addIssue({ code: "custom", path: ["metricAttribute"], message: "Pick the number to measure" });
+  if (!needs && value.metricAttribute) ctx.addIssue({ code: "custom", path: ["metricAttribute"], message: "Only the metrics over a number take an attribute" });
+}
+
+export const customMetricDefinitionBody = z.object(customMetricDefinitionShape).superRefine(checkMetricAttribute);
+
+export const customMetricQueryBody = z.object({ ...timeRangeShape, ...customMetricDefinitionShape }).superRefine(checkMetricAttribute);
 
 export const saveCustomMetricBody = z.object({
   name: z.string().trim().min(1).max(200),

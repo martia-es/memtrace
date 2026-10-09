@@ -273,8 +273,9 @@ export function toCustomMetricResultResponse(result: CustomMetricResult): Custom
 }
 
 function toCustomMetricDefinitionDto(definition: Record<string, unknown>): CustomMetricDefinitionDto {
-  // ya validado por zod al guardar (saveCustomMetricBody): aquí solo se re-tipa lo que salió de Postgres.
-  return definition as unknown as CustomMetricDefinitionDto;
+  // ya validado por zod al guardar (saveCustomMetricBody): aquí solo se re-tipa lo que salió de Postgres. Los gráficos guardados antes de las
+  // métricas sobre atributos (ADR-077) no traen `metricAttribute`: se leen como null.
+  return { ...definition, metricAttribute: (definition.metricAttribute as string | null | undefined) ?? null } as unknown as CustomMetricDefinitionDto;
 }
 
 export function toSavedCustomMetricDto(m: CustomMetric): SavedCustomMetricDto {
