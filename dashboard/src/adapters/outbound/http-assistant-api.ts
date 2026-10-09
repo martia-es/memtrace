@@ -38,7 +38,7 @@ export class HttpAssistantApi implements AssistantApi {
     return this.request("POST", `${this.assistant(experimentId)}/deployments/${e(deploymentId)}/chat`, { message, sessionId }, signal);
   }
   async sendFeedback(experimentId: string, traceId: string, rating: 1 | -1, signal?: AbortSignal): Promise<void> {
-    await this.request("POST", `/api/v1/experiments/${e(experimentId)}/traces/${e(traceId)}/feedback`, { rating }, signal);
+    await this.request("POST", `/experiments/${e(experimentId)}/traces/${e(traceId)}/feedback`, { rating }, signal);
   }
   previewDeploy(experimentId: string, deploymentId: string, signal?: AbortSignal): Promise<DeployPreviewDto> {
     return this.request("GET", `${this.assistant(experimentId)}/deployments/${e(deploymentId)}/deploy`, undefined, signal);
