@@ -26,6 +26,7 @@ import { usePromptApi } from "../composables/usePromptApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import { useExperimentRepo } from "../composables/useExperimentRepo";
 import CommitLink from "../components/CommitLink.vue";
+import PromptChips from "../components/PromptChips.vue";
 
 const props = defineProps<{ traceId: string }>();
 const api = useTraceApi();
@@ -129,6 +130,7 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
           <h1 :title="rootName">{{ rootName }}</h1>
           <StatusBadge :status="trace.data.value.status" show-label />
           <span v-if="trace.data.value.framework" class="mt-pill unset">{{ trace.data.value.framework }}</span>
+          <PromptChips :prompts="promptsUsed" />
           <span class="commit" data-testid="trace-revision"><span class="commit-label">Commit</span><CommitLink :revision="trace.data.value.revision" :repo="repo" /></span>
           <div class="actions">
             <button type="button" class="btn" aria-label="Copy trace ID" @click="copyId">Copy ID</button>

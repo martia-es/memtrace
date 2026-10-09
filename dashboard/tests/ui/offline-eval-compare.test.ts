@@ -54,7 +54,7 @@ describe("telemetry", () => {
     expect(percentile([1, 2, 3, 4], 0.5)).toBe(2);
   });
   it("summarizes only the items whose trace was found", () => {
-    const withT = (i: number, latencyMs: number, costUsd: number | null) => ({ ...item(i, "x", [], `t${i}`), telemetry: { latencyMs, inputTokens: 10, outputTokens: 5, costUsd } });
+    const withT = (i: number, latencyMs: number, costUsd: number | null) => ({ ...item(i, "x", [], `t${i}`), telemetry: { latencyMs, inputTokens: 10, outputTokens: 5, costUsd, prompts: [] } });
     const items = [withT(0, 400, 0.01), withT(1, 100, null), withT(2, 200, 0.02), item(3, "no trace")];
     expect(summarizeTelemetry(items)).toMatchObject({ count: 3, total: 4, p50: 200, p95: 400, max: 400, inputTokens: 30, outputTokens: 15 });
     expect(summarizeTelemetry(items).costUsd).toBeCloseTo(0.03);

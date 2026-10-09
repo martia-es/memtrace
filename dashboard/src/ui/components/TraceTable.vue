@@ -6,6 +6,7 @@ import CommitLink from "./CommitLink.vue";
 import StatusBadge from "./StatusBadge.vue";
 import AnnotationChip from "./AnnotationChip.vue";
 import FeedbackChip from "./FeedbackChip.vue";
+import PromptChips from "./PromptChips.vue";
 
 const props = defineProps<{
   items: TraceSummaryDto[];
@@ -13,6 +14,8 @@ const props = defineProps<{
   /** alternative text to the root span name (e.g., the user message) */
   labels?: Map<string, string | null | undefined>;
   showConversation?: boolean;
+  /** columna con las versiones de prompt del registro que usó cada traza (ADR-068) */
+  showPrompts?: boolean;
   /** con `selectable`, un clic selecciona (vista previa) y abrir exige doble clic o Enter */
   selectable?: boolean;
   selectedId?: string | null;
@@ -43,6 +46,7 @@ const activate = (traceId: string) => (props.selectable ? emit("select", traceId
         <th>Status</th>
         <th v-if="ratings">Annotation</th>
         <th v-if="feedback">User feedback</th>
+        <th v-if="showPrompts">Prompt</th>
         <th v-if="showConversation">Conversation</th>
         <th v-if="annotatable" />
       </tr>
@@ -72,6 +76,7 @@ const activate = (traceId: string) => (props.selectable ? emit("select", traceId
         <td><StatusBadge :status="t.status" :error-count="t.errorCount" /></td>
         <td v-if="ratings"><AnnotationChip :rating="ratings.get(t.traceId)" /></td>
         <td v-if="feedback"><FeedbackChip :feedback="feedback.get(t.traceId)" /></td>
+        <td v-if="showPrompts"><PromptChips :prompts="t.prompts" :max="2" /></td>
         <td v-if="showConversation">
           <a v-if="t.conversationId" class="conv-link mono" href="#" @click.prevent.stop="$emit('openConversation', t.conversationId)">{{ t.conversationId }}</a>
           <span v-else class="muted">–</span>

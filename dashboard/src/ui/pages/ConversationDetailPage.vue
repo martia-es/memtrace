@@ -11,6 +11,7 @@ import Modal from "../components/Modal.vue";
 import TraceAnnotationsPanel from "../components/TraceAnnotationsPanel.vue";
 import SpanInspector from "../components/SpanInspector.vue";
 import TraceTable from "../components/TraceTable.vue";
+import PromptChips from "../components/PromptChips.vue";
 import { useAsync } from "../composables/useAsync";
 import { useFilters } from "../composables/useFilters";
 import { useLiveRefresh } from "../composables/useLiveRefresh";
@@ -135,6 +136,7 @@ const backToList = () => void router.push({ name: "conversations", params: { exp
             <span v-if="conversation.errorTurns" class="mt-pill error">{{ conversation.errorTurns }} {{ conversation.errorTurns === 1 ? "trace with error" : "traces with error" }}</span>
             <span v-else-if="conversation.failedSpans" class="mt-pill warn">{{ conversation.failedSpans }} {{ conversation.failedSpans === 1 ? "span with failures" : "spans with failures" }}</span>
           </div>
+          <PromptChips :prompts="conversation.prompts" />
           <span class="muted sub"><span class="mono id">{{ conversationId }}</span> · {{ conversation.serviceNames.join(", ") }} · {{ formatDateTime(conversation.startTime) }}</span>
         </div>
         <div class="stats">

@@ -22,6 +22,7 @@ async function setup(component: object, api: FakeTraceApi, path: string) {
       { path: "/datasets", name: "datasets", component: { template: "<div />" } },
       { path: "/datasets/:datasetId", name: "dataset", component: { template: "<div />" } },
       { path: "/runs", name: "runs", component: { template: "<div />" } },
+      { path: "/prompts", name: "prompts", component: { template: "<div />" } },
       { path: "/trends", name: "trends", component: { template: "<div />" } },
       { path: "/datasets/:datasetId/runs/:runId", name: "dataset-run", component: { template: "<div />" } },
     ],
@@ -252,6 +253,33 @@ describe("DatasetRunDetailPage", () => {
     expect(wrapper.text()).toContain("capital of Spain?");
     expect(wrapper.text()).toContain("Barcelona");
     expect(wrapper.find(".mt-pill.error").text()).toContain("exact_match=false");
+  });
+
+  it("shows with which prompt version each item was produced, and the versions the whole run used (ADR-068)", async () => {
+    const api = new FakeTraceApi();
+    const telemetry = (version: number) => ({ latencyMs: 10, inputTokens: 1, outputTokens: 1, costUsd: null, prompts: [{ name: "weather-system", version }] });
+    api.datasetRunDetail = {
+      dataset: { id: "ds-1", name: "toy-agent-smoke-test" },
+      run: datasetRunSummary({ aggregates: [] }),
+      items: [
+        datasetRunItem({ itemIndex: 0, traceId: "t0", telemetry: telemetry(2), scores: [] }),
+        datasetRunItem({ itemIndex: 1, traceId: "t1", telemetry: telemetry(3), scores: [] }),
+        datasetRunItem({ itemIndex: 2, traceId: "t2", telemetry: telemetry(3), scores: [] }),
+      ],
+    };
+    const { wrapper } = await setup(DatasetRunDetailPage, api, "/datasets/ds-1/runs/run-1");
+    const summary = wrapper.find("[data-testid='run-prompts']").text();
+    expect(summary).toContain("v3");
+    expect(summary).toContain("v2"); // a run that mixes versions is visible at a glance
+    expect(wrapper.findAll("tbody [data-testid^='prompt-chip-weather-system-3']")).toHaveLength(2);
+    expect(wrapper.findAll("tbody [data-testid^='prompt-chip-weather-system-2']")).toHaveLength(1);
+  });
+
+  it("shows no prompt line for a run whose items read no registry prompt", async () => {
+    const api = new FakeTraceApi();
+    api.datasetRunDetail = { dataset: { id: "ds-1", name: "x" }, run: datasetRunSummary({ aggregates: [] }), items: [datasetRunItem({ scores: [] })] };
+    const { wrapper } = await setup(DatasetRunDetailPage, api, "/datasets/ds-1/runs/run-1");
+    expect(wrapper.find("[data-testid='run-prompts']").exists()).toBe(false);
   });
 
   it("labels an llm_judge score so it's distinguishable from a code-based one", async () => {

@@ -20,6 +20,7 @@ import PromptDiff from "../components/PromptDiff.vue";
 import Select from "../components/Select.vue";
 import TabBar from "../components/TabBar.vue";
 import TextInput from "../components/TextInput.vue";
+import PromptTraces from "../components/PromptTraces.vue";
 import { useAssistantAccess } from "../composables/useAssistantAccess";
 import { useAsync } from "../composables/useAsync";
 import { usePermissions } from "../composables/usePermissions";
@@ -42,7 +43,9 @@ const canWrite = computed(() => can("prompt:write") && !archived.value);
 const canPromote = computed(() => can("prompt:promote") && !archived.value);
 
 // ---- selección ----
-const selected = ref<number | null>(null);
+// `?version=N` (desde una traza, conversación o evaluación) abre esa versión
+const fromLink = Number(route.query.version);
+const selected = ref<number | null>(Number.isInteger(fromLink) && fromLink > 0 ? fromLink : null);
 watch(versions, (list) => {
   if (list.length > 0 && (selected.value === null || !list.some((v) => v.version === selected.value))) selected.value = (list.find((v) => v.status === "published") ?? list[0]!).version;
 }, { immediate: true });
@@ -88,6 +91,7 @@ const TABS = [
   { id: "fix", label: "Fix a failure" },
   { id: "try", label: "Try it" },
   { id: "map", label: "Dependencies" },
+  { id: "traces", label: "Traces" },
 ];
 const fixTrace = typeof route.query.trace === "string" && route.query.tab === "fix" ? route.query.trace : null;
 const replayTrace = ref<string | null>(typeof route.query.trace === "string" ? route.query.trace : null);
@@ -695,6 +699,10 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                 @saved="onDraftSaved"
                 @test="(draftVersion, base, traceId) => testDraft(draftVersion, base, traceId)"
               />
+            </div>
+
+            <div v-else-if="tab === 'traces'" class="pane" data-testid="pane-traces">
+              <PromptTraces :prompt-name="data.prompt.name" :versions="versionOptions.map((o) => Number(o.value))" :selected="selected" />
             </div>
 
             <div v-else-if="tab === 'map'" class="pane" data-testid="pane-map">

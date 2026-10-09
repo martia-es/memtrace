@@ -25,7 +25,18 @@ const { can } = usePermissions();
 const experimentId = computed(() => String(route.params.experimentId));
 const showArchived = ref(false);
 const prompts = useAsync((signal) => api.listForAgent(experimentId.value, showArchived.value, signal));
-void prompts.run();
+void prompts.run().then(() => {
+  // un enlace desde una traza, conversación o evaluación (`?open=nombre&version=N`) abre esa versión del prompt (ADR-068)
+  const name = typeof route.query.open === "string" ? route.query.open : null;
+  if (!name) return;
+  const found = (prompts.data.value ?? []).find((p) => p.name === name);
+  if (!found) {
+    $q.notify({ message: `The prompt "${name}" is not registered for this agent in MemTrace.`, color: "warning", timeout: 5000 });
+    return;
+  }
+  const version = typeof route.query.version === "string" ? route.query.version : undefined;
+  void router.replace({ name: "prompt", params: { experimentId: experimentId.value, promptId: found.id }, query: { tab: "traces", ...(version ? { version } : {}) } });
+});
 
 // ---- tablero: qué corre en cada entorno ----
 const live = computed(() => (prompts.data.value ?? []).filter((p) => !p.archivedAt && p.kind !== "fragment"));

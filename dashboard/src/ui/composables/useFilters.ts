@@ -34,6 +34,12 @@ export function useFilters() {
   const text = computed(() => first(route.query.q));
   /** versión del código (SHA completo o prefijo, ADR-065) */
   const revision = computed(() => first(route.query.rev));
+  /** prompt del registro y, opcionalmente, su versión (ADR-068): `?prompt=weather-system&pv=2` */
+  const prompt = computed(() => first(route.query.prompt));
+  const promptVersion = computed(() => {
+    const value = Number(first(route.query.pv));
+    return Number.isInteger(value) && value > 0 ? value : undefined;
+  });
   /** cómo se listan: por conversación (por defecto, ADR-048) o como trazas sueltas */
   const group = computed<"conversation" | "flat">(() => (first(route.query.group) === "flat" ? "flat" : "conversation"));
   const hasErrors = computed(() => first(route.query.hasErrors) === "1");
@@ -64,6 +70,8 @@ export function useFilters() {
     model,
     text,
     revision,
+    prompt,
+    promptVersion,
     group,
     hasErrors,
     conversationId,
@@ -76,6 +84,7 @@ export function useFilters() {
     setModel: (value: string | undefined) => update({ model: value }),
     setText: (value: string | undefined) => update({ q: value?.trim() || undefined }),
     setRevision: (value: string | undefined) => update({ rev: value?.trim() || undefined }),
+    setPrompt: (name: string | undefined, version?: number) => update({ prompt: name || undefined, pv: name && version ? String(version) : undefined }),
     setGroup: (value: "conversation" | "flat") => update({ group: value === "flat" ? "flat" : undefined }),
     setHasErrors: (value: boolean) => update({ hasErrors: value ? "1" : undefined }),
     /** vistas rápidas de la lista (ADR-048): las dos condiciones se aplican en un único cambio de URL */

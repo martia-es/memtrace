@@ -15,6 +15,7 @@ import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
 import { useExperimentRepo } from "../composables/useExperimentRepo";
 import CommitLink from "../components/CommitLink.vue";
+import PromptChips from "../components/PromptChips.vue";
 
 const api = useTraceApi();
 const route = useRoute();
@@ -63,6 +64,13 @@ function scoreTitle(s: ScoreDto): string | undefined {
   return [s.comment, judge].filter(Boolean).join("\n") || undefined;
 }
 
+/** Las versiones de prompt con las que se produjeron los items de la run (ADR-068): una run que mezcla versiones se ve a simple vista. */
+const runPrompts = computed(() => {
+  const seen = new Map<string, { name: string; version: number }>();
+  for (const item of run.data.value?.items ?? []) for (const p of item.telemetry?.prompts ?? []) seen.set(`${p.name}@${p.version}`, p);
+  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name) || b.version - a.version);
+});
+
 function sourceSuffix(s: ScoreDto): string | null {
   if (s.source === "llm_judge") return "LLM";
   if (s.source === "human") return "human";
@@ -81,6 +89,7 @@ function sourceSuffix(s: ScoreDto): string | null {
         <span class="artifact">Dataset: <router-link :to="{ name: 'dataset', params: { datasetId } }">{{ run.data.value!.dataset.name }}</router-link></span>
         <span class="artifact">Agent version: <strong>{{ run.data.value!.run.name }}</strong></span>
         <span v-if="run.data.value!.run.revision" class="artifact">Code version: <CommitLink :revision="run.data.value!.run.revision" :repo="repo" :dirty="run.data.value!.run.revisionDirty" /></span>
+        <span v-if="runPrompts.length > 0" class="artifact" data-testid="run-prompts">Prompt: <PromptChips :prompts="runPrompts" :max="4" /></span>
         <span class="artifact">{{ run.data.value!.run.itemCount }} items</span>
         <span v-if="run.data.value!.run.status === 'running'" class="artifact mt-pill warn" title="Still receiving results, or the process stopped before finishing">running</span>
         <span class="artifact">{{ formatDateTime(run.data.value!.run.createdAt) }}</span>
@@ -117,6 +126,7 @@ function sourceSuffix(s: ScoreDto): string | null {
               <th>Expected</th>
               <th>Output</th>
               <th>Scores</th>
+              <th v-if="hasAnyTraceId">Prompt</th>
               <th v-if="hasAnyTraceId">Trace</th>
             </tr>
           </thead>
@@ -134,6 +144,7 @@ function sourceSuffix(s: ScoreDto): string | null {
                   </span>
                 </div>
               </td>
+              <td v-if="hasAnyTraceId"><PromptChips :prompts="item.telemetry?.prompts ?? []" :max="2" /></td>
               <td v-if="hasAnyTraceId" class="mono muted trace-id" :title="item.traceId ?? undefined">{{ item.traceId ?? "–" }}</td>
             </tr>
           </tbody>

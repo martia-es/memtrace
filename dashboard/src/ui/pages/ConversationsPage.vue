@@ -20,6 +20,7 @@ import TraceAnnotationsPanel from "../components/TraceAnnotationsPanel.vue";
 import StatusChip from "../components/StatusChip.vue";
 import PageHeader from "../components/PageHeader.vue";
 import TraceTable from "../components/TraceTable.vue";
+import PromptChips from "../components/PromptChips.vue";
 import { useAsync } from "../composables/useAsync";
 import { useFilters } from "../composables/useFilters";
 import { useLiveRefresh } from "../composables/useLiveRefresh";
@@ -39,13 +40,13 @@ const grouped = computed(() => f.group.value === "conversation");
 // Ungrouped (default): all traces. Grouped: one row per conversation.
 const traces = usePagedList<TraceSummaryDto>({
   key: (t) => t.traceId,
-  load: (cursor, signal) => api.listTraces({ ...f.resolve(), service: f.service.value, hasErrors: f.hasErrors.value || undefined, minDurationMs: f.minDurationMs.value, text: f.text.value, revision: f.revision.value, limit: PAGE_SIZE, cursor }, signal),
+  load: (cursor, signal) => api.listTraces({ ...f.resolve(), service: f.service.value, hasErrors: f.hasErrors.value || undefined, minDurationMs: f.minDurationMs.value, text: f.text.value, revision: f.revision.value, promptName: f.prompt.value, promptVersion: f.promptVersion.value, limit: PAGE_SIZE, cursor }, signal),
   merge: mergeLatestTraces,
   onLoaded: () => liveRefresh.touch(),
 });
 const conversations = usePagedList<ConversationSummaryDto>({
   key: (c) => c.conversationId,
-  load: (cursor, signal) => api.listConversations({ ...f.resolve(), service: f.service.value, hasErrors: f.hasErrors.value || undefined, text: f.text.value, revision: f.revision.value, limit: PAGE_SIZE, cursor }, signal),
+  load: (cursor, signal) => api.listConversations({ ...f.resolve(), service: f.service.value, hasErrors: f.hasErrors.value || undefined, text: f.text.value, revision: f.revision.value, promptName: f.prompt.value, promptVersion: f.promptVersion.value, limit: PAGE_SIZE, cursor }, signal),
   merge: mergeLatestConversations,
   onLoaded: () => liveRefresh.touch(),
 });
@@ -75,7 +76,7 @@ const liveRefresh = useLiveRefresh(
   },
   { isBusy: () => active.value.loading.value || active.value.moreLoading.value },
 );
-watch([f.rangeSig, f.service, f.hasErrors, f.minDurationMs, f.text, f.revision, grouped], reload, { immediate: true });
+watch([f.rangeSig, f.service, f.hasErrors, f.minDurationMs, f.text, f.revision, f.prompt, f.promptVersion, grouped], reload, { immediate: true });
 
 const convStatus = (c: ConversationSummaryDto) => (c.errorTurns > 0 ? "error" : c.failedSpans > 0 ? "warn" : "ok");
 /** barra de color a la izquierda de la fila (diseño): error y valoración baja destacan; con fallos internos, aviso */
@@ -158,7 +159,7 @@ const quickViews = computed(() => {
 
 // ---- vista previa: un clic selecciona, doble clic o Enter abre el detalle ----
 const selected = ref<{ kind: "conversation" | "trace"; id: string } | null>(null);
-watch([grouped, f.rangeSig, f.service, f.hasErrors, f.minDurationMs, f.text, f.revision], () => (selected.value = null));
+watch([grouped, f.rangeSig, f.service, f.hasErrors, f.minDurationMs, f.text, f.revision, f.prompt, f.promptVersion], () => (selected.value = null));
 const transcript = useAsync((signal) => api.getTranscript(selected.value!.id, signal));
 watch(selected, (s) => {
   if (s?.kind === "conversation") void transcript.run();
@@ -254,6 +255,9 @@ const footer = computed(() => {
           {{ v.label }}<span v-if="v.count !== null" class="quick-count mono">{{ v.count }}</span>
         </button>
       </div>
+      <button v-if="f.prompt.value" type="button" class="prompt-filter" data-testid="prompt-filter" :title="'Remove the prompt filter'" @click="f.setPrompt(undefined)">
+        Prompt: <b>{{ f.prompt.value }}{{ f.promptVersion.value ? ` v${f.promptVersion.value}` : "" }}</b> ✕
+      </button>
       <Select :model-value="selectedVersion" :options="versionOptions" :loading="revisions.loading.value" class="version" aria-label="Filter by code version" data-testid="revision-filter" @update:model-value="(v: string) => f.setRevision(v)" />
       <TextInput type="search" v-model="search" placeholder="Search input / output…" class="search" aria-label="Search input and output" />
     </div>
@@ -265,7 +269,7 @@ const footer = computed(() => {
         <div class="list">
           <table v-if="grouped && conversations.items.value.length" class="conversations">
             <thead>
-              <tr><th>Conversation</th><th>Last activity</th><th class="num">Turns</th><th class="num">Active time</th><th class="num">Tokens</th><th class="num">Cost</th><th>Status</th><th>Annotation</th><th>User feedback</th></tr>
+              <tr><th>Conversation</th><th>Prompt</th><th>Last activity</th><th class="num">Turns</th><th class="num">Active time</th><th class="num">Tokens</th><th class="num">Cost</th><th>Status</th><th>Annotation</th><th>User feedback</th></tr>
             </thead>
             <tbody>
               <tr
@@ -282,6 +286,7 @@ const footer = computed(() => {
                   <span class="name" :class="{ mono: !c.title }" :title="c.title ?? c.conversationId">{{ c.title ?? c.conversationId }}</span>
                   <span class="sub"><span v-if="c.title" class="mono">{{ c.conversationId }} · </span>{{ c.serviceNames.join(", ") }}</span>
                 </td>
+                <td><PromptChips :prompts="c.prompts" :max="2" /></td>
                 <td class="muted mono">{{ formatDateTime(c.lastActivity) }}</td>
                 <td class="num mono">{{ c.turnCount }}</td>
                 <td class="num mono">{{ formatDuration(c.activeMs) }}</td>
@@ -303,6 +308,7 @@ const footer = computed(() => {
             :repo="repo"
             selectable
             show-conversation
+            show-prompts
             @select="(id: string) => (selected = { kind: 'trace', id })"
             @open="openTrace"
             @open-conversation="openConversation"
@@ -356,6 +362,16 @@ const footer = computed(() => {
 </template>
 
 <style scoped>
+.prompt-filter {
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--mt-line);
+  background: var(--mt-accent-soft);
+  color: var(--mt-accent-text);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
 .page {
   box-sizing: border-box;
   flex: 1;

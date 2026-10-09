@@ -57,6 +57,14 @@ The [Python SDK](/library/prompts) reads the prompt of an environment with `memt
 
 The **Tags & history** tab starts with **In use right now**: for each environment, the version each agent reports to be using. *Up to date* means it runs the version its tag points to; *Catching up* means the tag moved and the agent has not picked it up yet (it takes up to 30 seconds, or longer if some replica is stale); *Fixed version* is an agent that asked for a version number instead of a tag; *Not reporting* means it has not reported for 15 minutes. In the version list, a version running somewhere says **Running in pro**. Agents report only when they read their prompt with the SDK.
 
+## Traces of a version
+
+The **Traces** tab lists the traces that used the selected version (or all versions), so you can open the conversation behind any number in Evidence. **Open in Conversations** takes the same search to the full list.
+
+The link also works the other way. A trace, a conversation and every item of an evaluation run show the **prompt and version** that produced them (`weather-system v2`), and clicking it opens that version here. In **Conversations**, `?prompt=weather-system&pv=2` filters the list to one version, and a *Prompt* column shows it on every row.
+
+An agent only shows up when it reads the prompt with [`memtrace.prompts`](/library/prompts) and compiles it inside a traced step. To get one conversation per chat session, wrap each turn in [`memtrace.session(...)`](/library/conversations); otherwise every turn is an isolated trace.
+
 ## Evidence: what each version did
 
 The **Evidence** tab shows, for every version that had traffic in the last 24 hours, 7 or 30 days, what happened in the traces that used it:

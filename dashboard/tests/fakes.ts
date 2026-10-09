@@ -224,7 +224,7 @@ export function summary(overrides: Partial<TraceSummaryDto> = {}): TraceSummaryD
     input: null,
     output: null,
     error: null,
-    conversationId: null, revision: null,
+    conversationId: null, revision: null, prompts: [],
     ...overrides,
   };
 }
@@ -232,6 +232,7 @@ export function summary(overrides: Partial<TraceSummaryDto> = {}): TraceSummaryD
 export function conversation(overrides: Partial<ConversationSummaryDto> = {}): ConversationSummaryDto {
   return {
     conversationId: "conv-1",
+    prompts: [],
     serviceNames: ["svc"],
     startTime: "2026-09-26T12:00:00.000Z",
     lastActivity: "2026-09-26T12:05:00.000Z",

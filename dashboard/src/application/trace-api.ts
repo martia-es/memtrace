@@ -67,6 +67,9 @@ export interface ListTracesParams extends RangeParams {
   conversationId?: string;
   /** solo las trazas generadas por este commit (completo o prefijo, ADR-065) */
   revision?: string;
+  /** solo las trazas que usaron este prompt del registro y, opcionalmente, esta versión (ADR-068) */
+  promptName?: string;
+  promptVersion?: number;
   limit?: number;
   cursor?: string;
 }
@@ -90,6 +93,8 @@ export interface ListConversationsParams extends RangeParams {
   text?: string;
   /** solo lo generado por este commit (completo o prefijo, ADR-065) */
   revision?: string;
+  promptName?: string;
+  promptVersion?: number;
   limit?: number;
   cursor?: string;
 }
