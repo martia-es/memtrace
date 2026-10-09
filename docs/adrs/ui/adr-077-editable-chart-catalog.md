@@ -1,6 +1,6 @@
 # ADR-077: Editable Data Catalog for Custom Charts
 
-* **Status**: Accepted — phases 1 (editable names) and 2 (automatic classification) implemented; phase 3 designed, not built yet
+* **Status**: Accepted — all three phases implemented (editable names, automatic classification, numeric metrics)
 * **Date**: 2026-10-09
 * **Deciders**: MemTrace Core Team
 * **Extends**: [ADR-027](../evaluation/adr-027-custom-metrics-on-custom-spans.md), [ADR-030](../evaluation/adr-030-expand-custom-charts-builder.md), [ADR-057](adr-057-business-vocabulary-for-custom-charts.md)
@@ -55,9 +55,21 @@ Three phases, one branch and one pull request each. They share one idea: **disco
 
 **API.** `attribute-keys` items gain `kind`, `distinct`, `numeric` and `hiddenByDefault` (additive). The dashboard falls back to the old name pattern when an older API does not send them.
 
-### Phase 3 — Numeric metrics on attributes (designed)
+### Phase 3 — Numeric metrics on attributes (implemented)
 
-`CustomMetricDefinition` gains an optional `metricAttribute` and the closed metric enum gains `sum`, `avg` and `max` over a numeric attribute. The query remains declarative: the metric is an enum chosen by the server and the attribute is always a bound parameter, never concatenated into SQL (the rule of ADR-027). Only attributes classified as numbers are offered. Saved definitions without the field keep working.
+**The definition gains one optional field.** `CustomMetricDefinition.metricAttribute` names the numeric attribute that four new metrics measure: `sum_attribute`, `avg_attribute`, `min_attribute` and `max_attribute` (total, average, lowest, highest). The enum stays **closed** and chosen by the server (ADR-027): the person picks an operation and an attribute, never an expression.
+
+**Safe by construction.** The attribute travels as the bound parameter `{metricAttr:String}`, never concatenated into SQL, and the aggregation is `toFloat64OrNull(SpanAttributes[{metricAttr:String}])` with `isFinite(...)` in the `WHERE`, so only spans whose value is a finite number take part: text, `nan`, `inf`, empty values and spans without the attribute are ignored instead of failing or polluting the result. Grouping, filters and time series work as for the other metrics. The existing metrics are untouched (no new parameter, no new filter), and `count` still counts every span.
+
+**Validation says what it measures.** The zod body requires `metricAttribute` for the four new metrics and **forbids** it for the rest (`superRefine`, on the definition, the query and the save body), so a stored chart can never say one thing and measure another. The repository also refuses a metric over a number without an attribute before asking ClickHouse. The server does not check that the attribute is numeric: classification costs a query and a non-numeric attribute simply yields no points; the builder only offers numeric ones.
+
+**Backward compatible.** Charts saved before this change have no `metricAttribute`; they validate (default `null`) and read back as `null` (`toCustomMetricDefinitionDto`). No migration: the definition is JSON.
+
+**Which attributes can be measured** (`isMeasure`, dashboard): the server marked it `numeric` and it is not an `id` — adding up identifiers means nothing. Technical numbers such as token counts **can** be measured even though they are hidden from the group-by selector, and a rating (a category that is also numeric) can too. Measures need a single step, as grouping does (the list of numbers belongs to one step); choosing a second step or a step without that number goes back to counting.
+
+**The builder.** "Measured as…" lists the four new operations only when the step has numbers; choosing one shows "Of which number?" and proposes the first so the chart computes without an extra step. The name and description use the number ("Total of order total in tool calls"), the table header names it ("Average order total"), the value is a plain number with up to two decimals and no unit, and a figure going up is neither good nor bad (only times and failures are judged).
+
+**A bug found on the way, fixed here.** The report email summarized a time series by **adding the buckets** of each series, which is right for counts and totals but wrong for rates and averages (a 5 % daily failure rate became 35 % over a week). `summarizeSeries` now combines by metric: counts and totals add, minimum and maximum take the lowest and highest, and averages, percentiles and rates average the buckets. This changes the figures of existing emails for averages, percentiles and rates, for the better.
 
 ## Consequences
 
@@ -67,7 +79,7 @@ Three phases, one branch and one pull request each. They share one idea: **disco
 
 ## Not in phase 1
 
-Numeric metrics (phase 3), an organization-wide catalog, per-name translations and a change history. Phase 2 does not classify steps (they are few and named), does not learn from corrections and does not use AI.
+An organization-wide catalog, per-name translations and a change history. Phase 2 does not classify steps (they are few and named), does not learn from corrections and does not use AI. Phase 3 has no units or currencies (a number is a number), no percentiles over an attribute and no measures that combine several attributes.
 
 ## Alternatives considered
 
