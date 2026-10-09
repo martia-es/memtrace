@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * Cuerpos de las rutas del catálogo de datos de las Custom charts (ADR-077). El tipo, la clave, el nombre y la visibilidad los
+ * Cuerpos de las rutas del catálogo de datos de las Custom charts (ADR-078). El tipo, la clave, el nombre y la visibilidad los
  * valida el dominio con mensajes por campo; aquí solo se exige la forma y se acotan los tamaños.
  */
 

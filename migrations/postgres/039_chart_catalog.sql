@@ -1,4 +1,4 @@
--- Catálogo de datos de las Custom charts (ADR-077): el nombre con el que cada experimento quiere ver un paso o un atributo
+-- Catálogo de datos de las Custom charts (ADR-078): el nombre con el que cada experimento quiere ver un paso o un atributo
 -- ("input_guardrail" -> "Filtro de datos personales") y si se enseña u oculta en los selectores. Solo se guardan las EDICIONES:
 -- lo que existe en las trazas se descubre en vivo desde ClickHouse, así que no hay nada que sincronizar. La clave sigue siendo
 -- la técnica (`memtrace.step_type`, clave de atributo), por eso renombrar nunca rompe una gráfica guardada. Idempotente.

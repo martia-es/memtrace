@@ -3,7 +3,7 @@ import { MAX_ENTRIES, isEmptyEdit, nameClash, validateDisplayName, validateKey, 
 import { ValidationError } from "@/domain/errors";
 
 /**
- * Catálogo de datos de las Custom charts (ADR-077). Guarda cómo quiere cada experimento llamar y mostrar sus pasos y atributos.
+ * Catálogo de datos de las Custom charts (ADR-078). Guarda cómo quiere cada experimento llamar y mostrar sus pasos y atributos.
  * La autorización (leer con `experiment:read`, editar con `catalog:manage`) la decide la ruta; aquí solo las reglas del dominio.
  */
 export class ChartCatalogService {

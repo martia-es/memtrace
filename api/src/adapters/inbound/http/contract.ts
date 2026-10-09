@@ -297,7 +297,7 @@ export interface AttributeValuesResponse {
   items: AttributeValueDto[];
 }
 
-/** Clave de atributo vista en los step types elegidos (ADR-030), con su clasificación automática (ADR-077). */
+/** Clave de atributo vista en los step types elegidos (ADR-030), con su clasificación automática (ADR-078). */
 export interface AttributeKeyDto {
   key: string;
   count: number;
@@ -328,7 +328,7 @@ export interface CustomMetricDefinitionDto {
   chartType: CustomChartTypeDto;
   stepTypes: string[];
   metric: CustomMetricTypeDto;
-  /** el atributo numérico que miden `sum_attribute`, `avg_attribute`, `min_attribute` y `max_attribute`; null en el resto (ADR-077) */
+  /** el atributo numérico que miden `sum_attribute`, `avg_attribute`, `min_attribute` y `max_attribute`; null en el resto (ADR-078) */
   metricAttribute: string | null;
   groupByAttribute: string | null;
   filters: CustomMetricFilterDto[];
@@ -1378,7 +1378,7 @@ export interface PromptApprovalsResponse {
   approvers: { userId: string; name: string; roles: string[] }[];
 }
 
-/** Una edición del catálogo de datos de las Custom charts (ADR-077): el nombre de negocio y la visibilidad de un paso o atributo. */
+/** Una edición del catálogo de datos de las Custom charts (ADR-078): el nombre de negocio y la visibilidad de un paso o atributo. */
 export interface ChartCatalogEntryDto {
   kind: "step" | "attribute";
   /** la clave técnica: `memtrace.step_type` o la clave del atributo; no cambia al renombrar */
@@ -1420,7 +1420,7 @@ export interface VersionEvidenceDto {
 
 export type FailureReasonDto = "error" | "low_score" | "human_low" | "user_dislike";
 
-/** Fallos recientes de un prompt para elegir uno y arreglarlo (ADR-077). */
+/** Fallos recientes de un prompt para elegir uno y arreglarlo (ADR-078). */
 export interface PromptFailuresResponse {
   items: Array<{
     traceId: string;

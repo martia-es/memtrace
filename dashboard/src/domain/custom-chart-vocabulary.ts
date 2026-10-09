@@ -9,7 +9,7 @@ export type ChartKind = "bar" | "pie" | "line" | "area" | "number" | "table";
 export type AttributeMetricKind = "sum_attribute" | "avg_attribute" | "min_attribute" | "max_attribute";
 export type MetricKind = "count" | "avg_duration" | "p50_duration" | "p95_duration" | "error_rate" | AttributeMetricKind;
 
-/** Las métricas sobre un atributo numérico (ADR-077, fase 3): total, media, mínimo y máximo. Piden `metricAttribute`. */
+/** Las métricas sobre un atributo numérico (ADR-078, fase 3): total, media, mínimo y máximo. Piden `metricAttribute`. */
 export const ATTRIBUTE_METRICS: AttributeMetricKind[] = ["sum_attribute", "avg_attribute", "min_attribute", "max_attribute"];
 export const isAttributeMetric = (metric: MetricKind): metric is AttributeMetricKind => (ATTRIBUTE_METRICS as string[]).includes(metric);
 
@@ -23,7 +23,7 @@ export interface ChartDefinition {
   filters: { attribute: string; values: string[] }[];
 }
 
-// ---- nombres editados (ADR-077) ----
+// ---- nombres editados (ADR-078) ----
 
 /** Los nombres que el experimento ha puesto a sus pasos y atributos, por clave técnica. Tienen prioridad sobre todo lo demás. */
 export interface NameCatalog {

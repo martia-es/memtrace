@@ -27,7 +27,7 @@ const q = (over: Partial<CustomMetricQuery> = {}): CustomMetricQuery => ({
   ...over,
 });
 
-describe("ClickHouseTraceRepository.getCustomMetric over a numeric attribute (ADR-077, phase 3)", () => {
+describe("ClickHouseTraceRepository.getCustomMetric over a numeric attribute (ADR-078, phase 3)", () => {
   it.each([
     ["sum_attribute", "sum"],
     ["avg_attribute", "avg"],

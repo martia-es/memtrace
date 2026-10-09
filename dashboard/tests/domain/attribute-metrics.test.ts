@@ -12,7 +12,7 @@ const def = (metric: "sum_attribute" | "avg_attribute" | "min_attribute" | "max_
   ...over,
 });
 
-describe("metrics over a numeric attribute (ADR-077, phase 3)", () => {
+describe("metrics over a numeric attribute (ADR-078, phase 3)", () => {
   it("knows which metrics measure a number", () => {
     expect(ATTRIBUTE_METRICS).toEqual(["sum_attribute", "avg_attribute", "min_attribute", "max_attribute"]);
     expect(isAttributeMetric("sum_attribute")).toBe(true);

@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 const toDto = (e: CatalogEntry): ChartCatalogEntryDto => ({ kind: e.kind, key: e.key, displayName: e.displayName, visibility: e.visibility, updatedAt: e.updatedAt });
 
 /**
- * Las ediciones del catálogo de datos de este experimento (ADR-077): el nombre de negocio y la visibilidad de pasos y atributos.
+ * Las ediciones del catálogo de datos de este experimento (ADR-078): el nombre de negocio y la visibilidad de pasos y atributos.
  * Solo lo editado: lo que hay en las trazas se descubre aparte. Requiere `experiment:read`, porque todas las gráficas usan los nombres.
  */
 export async function GET(_request: Request, context: { params: Promise<{ experimentId: string }> }) {

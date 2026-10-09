@@ -95,7 +95,7 @@ export function chooseBucketSeconds(fromMs: number, toMs: number): number {
 // ----- Custom metrics sobre spans definidos por el usuario (ADR-027) -----
 
 /**
- * Métricas sobre un atributo numérico del span (ADR-077, fase 3): el total, la media, el mínimo o el máximo de, por ejemplo, el importe
+ * Métricas sobre un atributo numérico del span (ADR-078, fase 3): el total, la media, el mínimo o el máximo de, por ejemplo, el importe
  * de un pedido. Piden `metricAttribute` y solo cuentan los spans cuyo valor es un número finito.
  */
 export const ATTRIBUTE_METRICS = ["sum_attribute", "avg_attribute", "min_attribute", "max_attribute"] as const;
@@ -118,7 +118,7 @@ export interface CustomMetricDefinition {
   /** `memtrace.step_type` de los spans a incluir (uno o varios) */
   stepTypes: string[];
   metric: CustomMetricType;
-  /** el atributo numérico que miden las métricas `*_attribute`; null en el resto (ADR-077) */
+  /** el atributo numérico que miden las métricas `*_attribute`; null en el resto (ADR-078) */
   metricAttribute: string | null;
   /** restringe el dataset a estos valores de un atributo, antes de agregar */
   filters: CustomMetricFilter[];
@@ -181,7 +181,7 @@ export interface AttributeValueCount {
 
 /**
  * Clave de atributo vista en `SpanAttributes`, para alimentar el selector de "group by"/"filter by" (ADR-030), con las
- * estadísticas con las que se clasifica (ADR-077, fase 2).
+ * estadísticas con las que se clasifica (ADR-078, fase 2).
  */
 export type AttributeKeyCount = AttributeStats;
 

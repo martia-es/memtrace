@@ -110,7 +110,7 @@ const customMetricDefinitionShape = {
   chartType: z.enum(["bar", "pie", "line", "area", "number", "table"]),
   stepTypes: z.array(nonEmpty).min(1).max(20),
   metric: z.enum(["count", "avg_duration", "p50_duration", "p95_duration", "error_rate", ...ATTRIBUTE_METRICS]),
-  /** el atributo numérico de las métricas `*_attribute` (ADR-077); null en el resto */
+  /** el atributo numérico de las métricas `*_attribute` (ADR-078); null en el resto */
   metricAttribute: nonEmpty.nullable().optional().default(null),
   groupByAttribute: nonEmpty.nullable().optional().default(null),
   filters: z.array(customMetricFilterBody).max(10).optional().default([]),

@@ -1,7 +1,7 @@
 import { ValidationError } from "./errors";
 
 /**
- * Catálogo de datos de las Custom charts (ADR-077): los nombres de negocio y la visibilidad de los pasos y atributos de un
+ * Catálogo de datos de las Custom charts (ADR-078): los nombres de negocio y la visibilidad de los pasos y atributos de un
  * experimento. Solo existen las ediciones; lo que hay en las trazas se descubre en vivo. La clave es siempre la técnica.
  */
 

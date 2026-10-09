@@ -18,7 +18,7 @@ function fakeClient(rows: unknown[]) {
 
 const RANGE = { fromMs: 1_700_000_000_000, toMs: 1_700_086_400_000 };
 
-describe("ClickHouseTraceRepository.getAttributeKeys (ADR-077, phase 2)", () => {
+describe("ClickHouseTraceRepository.getAttributeKeys (ADR-078, phase 2)", () => {
   it("measures the values of each key, bounded by range and steps, with every user value bound as a parameter", async () => {
     const { client, seen } = fakeClient([]);
     await new ClickHouseTraceRepository(client).getAttributeKeys({ ...RANGE, stepTypes: ["tool", "weird'; DROP TABLE x; --"], service: "weather" });

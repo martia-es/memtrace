@@ -58,7 +58,7 @@ watch(() => props.reportId, loadReport, { immediate: true });
 type ChartResult = { points: CustomMetricPointDto[]; timeseries: { bucketStart: string; points: CustomMetricPointDto[] }[] };
 const results = reactive<Record<string, ChartResult | null>>({});
 
-// nombres de negocio del catálogo (ADR-077): el informe habla igual que el builder
+// nombres de negocio del catálogo (ADR-078): el informe habla igual que el builder
 const names = ref<NameCatalog>(NO_NAMES);
 async function loadNames() {
   try {

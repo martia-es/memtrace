@@ -1,6 +1,6 @@
 import type { CatalogEntry, CatalogKind, Visibility } from "@/domain/chart-catalog";
 
-/** Ediciones del catálogo de datos de las Custom charts (ADR-077). PostgreSQL. */
+/** Ediciones del catálogo de datos de las Custom charts (ADR-078). PostgreSQL. */
 export interface ChartCatalogRepository {
   /** Todas las ediciones del experimento. */
   list(experimentId: string): Promise<CatalogEntry[]>;

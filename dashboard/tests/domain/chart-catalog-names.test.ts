@@ -9,7 +9,7 @@ const names = buildNames([
   { kind: "attribute", key: "customer_id", displayName: null },
 ]);
 
-describe("name catalog (ADR-077)", () => {
+describe("name catalog (ADR-078)", () => {
   it("only entries with an own name rename something", () => {
     expect(names.steps).toEqual({ input_guardrail: "Personal data filter", tool: "Tools used" });
     expect(names.attributes).toEqual({ "gen_ai.tool.name": "Which tool" });

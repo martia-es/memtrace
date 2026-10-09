@@ -1,5 +1,5 @@
 /**
- * Clasificación automática de los atributos de los spans (ADR-077, fase 2). Una función pura sobre estadísticas que calcula
+ * Clasificación automática de los atributos de los spans (ADR-078, fase 2). Una función pura sobre estadísticas que calcula
  * ClickHouse: decide si un atributo sirve para agrupar o filtrar una gráfica (una categoría), si es una medida (un número) o si
  * solo estorba en un selector (un id, un texto libre, un detalle técnico). Reglas deterministas, sin IA; todos los umbrales están
  * aquí, en un solo sitio.

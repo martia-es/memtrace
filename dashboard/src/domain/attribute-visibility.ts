@@ -2,7 +2,7 @@ import type { AttributeKeyDto } from "@contract";
 import { isTechnicalAttribute } from "./custom-chart-vocabulary";
 
 /**
- * Qué atributos ofrecen los selectores de agrupar y filtrar (ADR-077, fase 2). El servidor clasifica cada atributo (categoría, número,
+ * Qué atributos ofrecen los selectores de agrupar y filtrar (ADR-078, fase 2). El servidor clasifica cada atributo (categoría, número,
  * id, texto libre, técnico) y dice si se oculta por defecto; la persona puede forzar `shown` o `hidden` en el catálogo. Aquí solo se
  * decide qué se enseña y cómo se explica.
  */

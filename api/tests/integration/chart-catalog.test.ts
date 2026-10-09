@@ -1,7 +1,7 @@
 /**
  * Contra un Postgres real (15+) con las migraciones 001-039 aplicadas. Opt-in: `POSTGRES_INTEGRATION_URL=postgres://… npm run test:integration`.
  * Cubre lo que los fakes no pueden: las restricciones de la migración 039 (una fila por experimento, tipo y clave; una edición
- * que no dice nada no se guarda), el upsert, el borrado en cascada con el experimento y la semilla del permiso (ADR-077).
+ * que no dice nada no se guarda), el upsert, el borrado en cascada con el experimento y la semilla del permiso (ADR-078).
  */
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";

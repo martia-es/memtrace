@@ -1,4 +1,4 @@
-# ADR-077: Editable Data Catalog for Custom Charts
+# ADR-078: Editable Data Catalog for Custom Charts
 
 * **Status**: Accepted — all three phases implemented (editable names, automatic classification, numeric metrics)
 * **Date**: 2026-10-09

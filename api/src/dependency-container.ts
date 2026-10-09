@@ -291,7 +291,7 @@ export function getPromptGate(): PromptGateService {
   return globalForContainer.__memtracePromptGate;
 }
 
-/** Catálogo de datos de las Custom charts: nombres y visibilidad de pasos y atributos por experimento (ADR-077). */
+/** Catálogo de datos de las Custom charts: nombres y visibilidad de pasos y atributos por experimento (ADR-078). */
 export function getChartCatalog(): ChartCatalogService {
   if (!globalForContainer.__memtraceChartCatalog) globalForContainer.__memtraceChartCatalog = new ChartCatalogService(new PostgresChartCatalogRepository(getPostgresPool()));
   return globalForContainer.__memtraceChartCatalog;
@@ -338,7 +338,7 @@ export function getPromptEvidence(): PromptEvidenceService {
   return globalForContainer.__memtracePromptEvidence;
 }
 
-/** Fallos recientes de un prompt (ADR-077): errores, scores bajos, etiquetas humanas negativas y 👎 cruzados por traza. */
+/** Fallos recientes de un prompt (ADR-078): errores, scores bajos, etiquetas humanas negativas y 👎 cruzados por traza. */
 export function getPromptFailures(): PromptFailureService {
   if (!globalForContainer.__memtracePromptFailures) {
     const config = configFromEnv();

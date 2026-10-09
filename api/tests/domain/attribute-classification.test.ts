@@ -4,7 +4,7 @@ import { ID_KEY, ID_LIKE_VALUE_PATTERN, classifyAttribute, isTechnicalAttribute,
 const stats = (over: Partial<AttributeStats> = {}): AttributeStats => ({ key: "city", count: 100, nonEmpty: 100, distinct: 8, numericCount: 0, avgLength: 7, idLikeCount: 0, ...over });
 const kindOf = (over: Partial<AttributeStats>) => classifyAttribute(stats(over)).kind;
 
-describe("classifyAttribute (ADR-077, phase 2)", () => {
+describe("classifyAttribute (ADR-078, phase 2)", () => {
   it("a label with a few different values is a category and is shown", () => {
     expect(classifyAttribute(stats())).toEqual({ kind: "category", numeric: false, hiddenByDefault: false });
     expect(kindOf({ key: "gen_ai.tool.name", distinct: 6, avgLength: 14 })).toBe("category");

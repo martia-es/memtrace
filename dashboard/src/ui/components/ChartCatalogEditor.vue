@@ -10,7 +10,7 @@ import { useTraceApi } from "../composables/useTraceApi";
 import Modal from "./Modal.vue";
 
 /**
- * "Rename things" (ADR-077): el nombre de negocio de cada paso y atributo que las Custom charts ofrecen. Se guarda por experimento
+ * "Rename things" (ADR-078): el nombre de negocio de cada paso y atributo que las Custom charts ofrecen. Se guarda por experimento
  * y se aplica en todas las gráficas, incluidas las ya guardadas, porque la clave técnica no cambia. Vaciar el nombre vuelve al
  * automático. Lo que se ve es lo detectado en el rango más lo que ya se renombró, aunque hoy no tenga actividad.
  */

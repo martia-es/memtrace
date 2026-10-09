@@ -37,7 +37,7 @@ describe("built-in roles (ADR-052)", () => {
     expect(role("business").permissions).not.toContain("approval:manage");
   });
 
-  it("catalog (ADR-077): both working profiles can name and hide the items of the Custom charts, org_admin and governance cannot", () => {
+  it("catalog (ADR-078): both working profiles can name and hide the items of the Custom charts, org_admin and governance cannot", () => {
     expect(role("technical").permissions).toContain("catalog:manage");
     expect(role("business").permissions).toContain("catalog:manage");
     expect(role("org_admin").permissions).not.toContain("catalog:manage");

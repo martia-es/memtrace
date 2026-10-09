@@ -132,7 +132,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
     const svc = query.service ? " AND ServiceName = {service:String}" : "";
     const p: Params = { ...params, stepTypes: query.stepTypes, ...(query.service ? { service: query.service } : {}) };
     // además de contar cada clave se miden sus valores (cuántos hay, cuántos distintos, cuántos son números, cuánto miden y cuántos
-    // parecen un id) para clasificarla (ADR-077). `uniqIf` es aproximado a propósito: para clasificar basta y no pesa lo que `uniqExact`
+    // parecen un id) para clasificarla (ADR-078). `uniqIf` es aproximado a propósito: para clasificar basta y no pesa lo que `uniqExact`
     const rows = await this.rows<{ key: string; count: number; nonEmpty: number; distinct: number; numericCount: number; avgLength: number; idLikeCount: number }>(
       `SELECT key,
               count() AS count,
@@ -214,7 +214,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
       return ` AND SpanAttributes[{filterAttr${i}:String}] IN {filterVals${i}:Array(String)}`;
     });
 
-    // métricas sobre un atributo numérico (ADR-077, fase 3): el atributo va siempre como parámetro ligado, y solo cuentan los spans cuyo
+    // métricas sobre un atributo numérico (ADR-078, fase 3): el atributo va siempre como parámetro ligado, y solo cuentan los spans cuyo
     // valor es un número finito (un texto, `nan` o `inf` no suman ni promedian)
     let numericWhere = "";
     let metricExpr: string;

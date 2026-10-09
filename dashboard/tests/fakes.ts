@@ -155,7 +155,7 @@ export class FakeIdentityApi implements IdentityApi {
     return { id: "metric-1", name, definition, createdAt: new Date().toISOString() };
   }
   async deleteCustomMetric(): Promise<void> {}
-  /** Ediciones del catálogo de las Custom charts (ADR-077), como las guarda la API. */
+  /** Ediciones del catálogo de las Custom charts (ADR-078), como las guarda la API. */
   chartCatalog: ChartCatalogEntryDto[] = [];
   catalogCalls: Array<{ method: string; args: unknown[] }> = [];
   catalogError: Error | null = null;

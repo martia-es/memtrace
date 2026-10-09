@@ -8,7 +8,7 @@ const series = [
 ];
 const byLabel = (rows: Array<{ label: string; value: number }>) => Object.fromEntries(rows.map((r) => [r.label, r.value]));
 
-describe("metrics over a numeric attribute (ADR-077, phase 3)", () => {
+describe("metrics over a numeric attribute (ADR-078, phase 3)", () => {
   it("knows which metrics need an attribute", () => {
     expect([...ATTRIBUTE_METRICS]).toEqual(["sum_attribute", "avg_attribute", "min_attribute", "max_attribute"]);
     for (const m of ATTRIBUTE_METRICS) expect(isAttributeMetric(m)).toBe(true);

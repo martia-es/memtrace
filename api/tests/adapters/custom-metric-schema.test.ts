@@ -4,7 +4,7 @@ import { customMetricDefinitionBody, customMetricQueryBody, saveCustomMetricBody
 
 const base = { chartType: "bar", stepTypes: ["tool"], groupByAttribute: null, filters: [] };
 
-describe("custom metric definition body (ADR-077, phase 3)", () => {
+describe("custom metric definition body (ADR-078, phase 3)", () => {
   it("an old definition, with no metricAttribute, still parses and reads as null", () => {
     const parsed = customMetricDefinitionBody.parse({ ...base, metric: "count" });
     expect(parsed.metricAttribute).toBeNull();

@@ -427,7 +427,7 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
     expect(result).toMatchObject({ tracesWithErrors: 1, totalTraces: 2 });
   });
 
-  describe("metrics over a numeric attribute (ADR-077, phase 3)", () => {
+  describe("metrics over a numeric attribute (ADR-078, phase 3)", () => {
     // order_total = 0..19 (suma 190, media 9.5, mínimo 0, máximo 19); ciudad A los pares y B los impares
     const N = 20;
 
@@ -465,7 +465,7 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
     });
   });
 
-  describe("attribute classification (ADR-077)", () => {
+  describe("attribute classification (ADR-078)", () => {
     const N = 40;
     const cities = ["Madrid", "Lisboa", "Paris", "Roma", "Berlin", "Viena", "Praga", "Oslo"];
     const uuid = (i: number) => `3f2b8c1e-9d4a-4c7e-8a55-${String(i).padStart(12, "0")}`;

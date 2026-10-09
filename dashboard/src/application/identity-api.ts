@@ -190,7 +190,7 @@ export interface IdentityApi {
   createCustomMetric(experimentId: string, name: string, definition: CustomMetricDefinitionDto, signal?: AbortSignal): Promise<SavedCustomMetricDto>;
   deleteCustomMetric(experimentId: string, metricId: string, signal?: AbortSignal): Promise<void>;
 
-  /** Catálogo de datos de las Custom charts (ADR-077): los nombres de negocio y la visibilidad de pasos y atributos. Solo las ediciones. */
+  /** Catálogo de datos de las Custom charts (ADR-078): los nombres de negocio y la visibilidad de pasos y atributos. Solo las ediciones. */
   listChartCatalog(experimentId: string, signal?: AbortSignal): Promise<ChartCatalogEntryDto[]>;
   /** Pone nombre o visibilidad a un paso o atributo. Sin nombre y en automático vuelve al valor por defecto y devuelve null. Exige `catalog:manage`. */
   saveChartCatalogEntry(

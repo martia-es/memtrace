@@ -42,7 +42,7 @@ const identityApi = useIdentityApi();
 const $q = useQuasar();
 const { can } = usePermissions();
 
-// ---- nombres de negocio editados en el catálogo (ADR-077): tienen prioridad sobre el diccionario y lo humanizado ----
+// ---- nombres de negocio editados en el catálogo (ADR-078): tienen prioridad sobre el diccionario y lo humanizado ----
 const catalogEntries = ref<ChartCatalogEntryDto[]>([]);
 const names = computed(() => buildNames(catalogEntries.value));
 const showCatalog = ref(false);
@@ -86,7 +86,7 @@ const hasSteps = computed(() => selectedSteps.value.length > 0);
 const singleStep = computed(() => (selectedSteps.value.length === 1 ? selectedSteps.value[0]! : ""));
 const multiStep = computed(() => selectedSteps.value.length > 1);
 const metric = ref<CustomMetricDefinitionDto["metric"]>("count");
-/** el número que miden las métricas sobre un atributo (ADR-077, fase 3) */
+/** el número que miden las métricas sobre un atributo (ADR-078, fase 3) */
 const metricAttribute = ref("");
 const groupByAttribute = ref("");
 const showTechnical = ref(false);
@@ -387,7 +387,7 @@ const metricLabel = (def: { metric: CustomMetricDefinitionDto["metric"]; metricA
 const visibilityOf = (key: string): Visibility => catalogEntries.value.find((e) => e.kind === "attribute" && e.key === key)?.visibility ?? "auto";
 
 /**
- * Los selectores ofrecen las categorías y las medidas; esconden los ids, los textos libres y los detalles técnicos (ADR-077) salvo que
+ * Los selectores ofrecen las categorías y las medidas; esconden los ids, los textos libres y los detalles técnicos (ADR-078) salvo que
  * la persona lo pida, los fuerce desde el catálogo o ya estén elegidos en la gráfica.
  */
 const visibleAttributeKeys = computed(() =>

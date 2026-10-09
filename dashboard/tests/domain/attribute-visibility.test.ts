@@ -4,7 +4,7 @@ import { automaticLabel, distinctLabel, hiddenByDefault, hiddenReason, isAttribu
 const attr = (over: Partial<AttributeInfo> = {}): AttributeInfo => ({ key: "city", count: 10, kind: "category", distinct: 8, numeric: false, hiddenByDefault: false, ...over });
 const id = attr({ key: "customer_id", kind: "id", hiddenByDefault: true, numeric: true });
 
-describe("which attributes the selectors offer (ADR-077, phase 2)", () => {
+describe("which attributes the selectors offer (ADR-078, phase 2)", () => {
   it("in automatic, the classification decides", () => {
     expect(isAttributeShown(attr(), "auto")).toBe(true);
     expect(isAttributeShown(id, "auto")).toBe(false);

@@ -20,7 +20,7 @@ const key = (k: string, kind: AttributeKeyDto["kind"], over: Partial<AttributeKe
   ...over,
 });
 
-/** Lo que clasifica el servidor (ADR-077, fase 2): categorías y medidas se ven; ids, textos libres y detalles técnicos se ocultan. */
+/** Lo que clasifica el servidor (ADR-078, fase 2): categorías y medidas se ven; ids, textos libres y detalles técnicos se ocultan. */
 class Api extends FakeTraceApi {
   async getStepKinds() {
     return { items: [{ stepType: "tool", count: 2 }, { stepType: "chain", count: 6 }] };
@@ -71,7 +71,7 @@ async function typeName(id: string, value: string) {
   await flushPromises();
 }
 
-describe("custom charts with a name catalog (ADR-077)", () => {
+describe("custom charts with a name catalog (ADR-078)", () => {
   it("shows the edited name where the builder offers a step, and leaves the rest as before", async () => {
     const identity = new FakeIdentityApi();
     identity.chartCatalog = [entry("step", "chain", "Personal data filter")];
@@ -166,7 +166,7 @@ describe("custom charts with a name catalog (ADR-077)", () => {
   });
 });
 
-describe("attribute classification in the builder and the catalog (ADR-077, phase 2)", () => {
+describe("attribute classification in the builder and the catalog (ADR-078, phase 2)", () => {
   const splitByLabels = async (w: VueWrapper) => {
     const field = w.findAll(".field").find((f) => f.find("label").exists() && f.find("label").text().startsWith("Split by"))!;
     return optionLabels(field.element, ".select-trigger");
