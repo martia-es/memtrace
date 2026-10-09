@@ -13,7 +13,6 @@ import MemberList from "../../components/admin/MemberList.vue";
 import InviteForm from "../../components/admin/InviteForm.vue";
 import OrganizationAppearance from "../../components/admin/OrganizationAppearance.vue";
 import OrganizationIdentity from "../../components/admin/OrganizationIdentity.vue";
-import ApprovalHistory from "../../components/admin/ApprovalHistory.vue";
 import ApprovalRulesPanel from "../../components/admin/ApprovalRulesPanel.vue";
 
 /** Nivel 2: una organización. Pestañas: experimentos (siempre), y miembros + identidad + apariencia solo para org_admin. */
@@ -161,9 +160,6 @@ async function inviteOrgAdmin({ email }: { email: string }) {
               one technical person to move <span class="mono">dev</span>, a technical and a business person to reach <span class="mono">pro</span>.
             </p>
             <ApprovalRulesPanel :scope="{ type: 'organization', id: organizationId }" />
-          </div>
-          <div class="adm-card">
-            <ApprovalHistory :scope="{ type: 'organization', id: organizationId }" />
           </div>
         </section>
 

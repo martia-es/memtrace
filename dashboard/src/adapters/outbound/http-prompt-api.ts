@@ -90,9 +90,6 @@ export class HttpPromptApi implements PromptApi {
     const query = experimentId ? `?experimentId=${e(experimentId)}` : "";
     return (await this.request<{ items: ApprovalRequestDto[] }>("GET", `/organizations/${e(organizationId)}/approvals${query}`, undefined, signal)).items;
   }
-  async approvalHistory(scope: ApprovalScope, signal?: AbortSignal): Promise<ApprovalRequestDto[]> {
-    return (await this.request<{ items: ApprovalRequestDto[] }>("GET", `/${scope.type === "organization" ? "organizations" : "experiments"}/${e(scope.id)}/approvals/history`, undefined, signal)).items;
-  }
   getApprovalRules(scope: ApprovalScope, signal?: AbortSignal): Promise<ApprovalRulesResponse> {
     return this.request("GET", `${rulesPath(scope)}`, undefined, signal);
   }

@@ -58,7 +58,6 @@ function fakeApprovals() {
     getRequest: async (id) => requests.get(id) ?? null,
     listRequests: async (promptId) => [...requests.values()].filter((r) => r.promptId === promptId),
     listOpenForOrganization: async () => [...requests.values()].filter((r) => r.status === "pending" || r.status === "approved"),
-    listAllForOrganization: async () => [...requests.values()],
     saveDecision: async (id, d) => {
       const r = requests.get(id)!;
       r.decisions = [...r.decisions.filter((x) => x.userId !== d.userId), { ...d, decidedAt: "t" } as ApprovalDecision];
@@ -378,17 +377,6 @@ describe("lifecycle", () => {
     expect((await t.service.inbox(ORG, CRIS)).map((v) => v.request.id)).toEqual([pro.request.id]);
     expect(await t.service.inbox(ORG, ANA)).toEqual([]); // no tiene el perfil que pide la regla
     expect(await t.service.inbox(ORG, ZOE)).toEqual([]); // la pidió ella
-  });
-
-  it("the history lists requests of every status, optionally limited to one agent", async () => {
-    const t = setup();
-    t.addVersion("published");
-    t.rules.set(`organization:${ORG}:promote:pro`, rule({ requirements: [{ role: "business", min: 1 }] }));
-    const pro = await t.service.open(t.prompt, ZOE, { action: "promote", version: 1, tag: "pro" }, false);
-    await t.service.cancel(pro.request.id, ZOE);
-    expect((await t.service.history(ORG)).map((v) => [v.request.id, v.request.status])).toEqual([[pro.request.id, "cancelled"]]);
-    expect(await t.service.history(ORG, AGENT)).toHaveLength(1);
-    expect(await t.service.history(ORG, "some-other-agent")).toEqual([]);
   });
 
   it("the inbox can be limited to the prompts of one agent", async () => {

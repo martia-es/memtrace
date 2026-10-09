@@ -53,6 +53,7 @@ const flowSteps = computed<FlowStep[]>(() =>
 );
 
 // ---- editor de un paso ----
+const isEditing = (row: { action: string; stage: string }) => editing.value?.action === row.action && editing.value.stage === row.stage;
 const editing = ref<{ action: "publish" | "promote"; stage: string } | null>(null);
 const draft = reactive<{ mins: Record<string, number>; approvers: string[] }>({ mins: {}, approvers: [] });
 
@@ -67,10 +68,29 @@ function edit(row: { action: "publish" | "promote"; stage: string }) {
   editing.value = { action: row.action, stage: row.stage };
 }
 
+const caretLeft = computed(() => {
+  const at = rows.value.findIndex((r) => r.action === editing.value?.action && r.stage === editing.value.stage);
+  return at < 0 ? "50%" : `${((at + 0.5) / rows.value.length) * 100}%`;
+});
+
 const candidate = computed(() => ({
   requirements: Object.entries(draft.mins).filter(([, min]) => min > 0).map(([role, min]) => ({ role, min })),
   approvers: draft.approvers,
 }));
+/** La regla que se está escribiendo, dicha en una frase. */
+const preview = computed(() => {
+  if (!editing.value) return "";
+  const what = editing.value.action === "publish" ? "publish a version" : `move ${editing.value.stage}`;
+  const parts = [
+    ...candidate.value.requirements.map((r) => `${r.min} ${profileLabel(r.role).toLowerCase()} ${r.min > 1 ? "people" : "person"}`),
+    ...candidate.value.approvers.map((id) => names.value[id] ?? "someone"),
+  ];
+  const total = candidate.value.requirements.reduce((n, r) => n + r.min, 0) + candidate.value.approvers.length;
+  if (parts.length === 0) return `Nobody has to approve: anyone who can ${what} does it straight away.`;
+  return `To ${what}, ${total} approval${total > 1 ? "s" : ""} ${total > 1 ? "are" : "is"} needed: ${parts.join(", ")}.`;
+});
+const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "?";
+
 const floorProblem = computed(() => (editing.value && isExperiment.value ? belowFloor(candidate.value, floorOf(editing.value.action, editing.value.stage)) : null));
 const canSave = computed(() => !saving.value && !floorProblem.value && (candidate.value.requirements.length > 0 || candidate.value.approvers.length > 0));
 
@@ -120,68 +140,108 @@ async function remove(row: { action: "publish" | "promote"; stage: string }) {
     <p v-if="loading && !data" class="adm-hint">Loading the rules…</p>
     <p v-else-if="loadError" class="adm-empty" role="alert" data-testid="rules-error">{{ loadError }}</p>
     <template v-else-if="data">
-      <p class="adm-hint">
-        <template v-if="isExperiment">An experiment starts from the organization's rules and can only make them <b>stricter</b>: ask for more people or add a default approver, never fewer.</template>
-        <template v-else>Choose, for each step, who has to approve before it happens. A step without a rule works as before. Experiments can add to these rules, never loosen them.</template>
+      <p class="intro">
+        <template v-if="isExperiment">A change travels left to right. This agent starts from the organization's rules and can only make them <b>stricter</b>: ask for more people or add a default approver, never fewer.</template>
+        <template v-else>A change travels left to right. Each step can ask for a second opinion before it happens. A step without a rule works as before. Experiments can ask for more, never for less.</template>
+      </p>
+      <p class="legend">
+        <span><i class="mark role">T</i>Any person with the profile</span>
+        <span><i class="mark person">MF</i>This person, always</span>
       </p>
 
       <ApprovalFlowChart :steps="flowSteps" :names="names" test-prefix="rule">
         <template #actions="{ step }">
-          <button class="adm-btn ghost small" type="button" :disabled="saving" data-testid="rule-edit" @click="edit(step)">{{ ruleFor(data.rules, step.action, step.stage) ? "Edit" : "Set up" }}</button>
-          <button v-if="ruleFor(data.rules, step.action, step.stage)" class="adm-btn danger small" type="button" :disabled="saving" data-testid="rule-remove" @click="remove(step)">Remove</button>
+          <button class="adm-btn small" :class="isEditing(step) ? 'primary' : 'ghost'" type="button" :disabled="saving" data-testid="rule-edit" @click="edit(step)">
+            {{ isEditing(step) ? "Editing…" : ruleFor(data.rules, step.action, step.stage) ? "Edit rule" : "Set up" }}
+          </button>
         </template>
       </ApprovalFlowChart>
 
-      <form v-if="editing" class="editor" data-testid="rule-editor" @submit.prevent="save">
-        <h4>{{ stepLabel(editing.action, editing.stage) }}</h4>
-        <fieldset>
-          <legend>Who has to approve</legend>
-          <p v-if="editing.action === 'publish'" class="adm-hint">Publishing a version is a review of the text, so only technical profiles can approve it.</p>
-          <label v-for="role in allowedRoles(editing.action)" :key="role" class="role">
-            <input type="checkbox" :checked="(draft.mins[role] ?? 0) > 0" :data-testid="`role-${role}`" @change="toggleRole(role, ($event.target as HTMLInputElement).checked)" />
-            <span>{{ profileLabel(role) }}</span>
-            <input
-              type="number"
-              min="1"
-              max="10"
-              class="min"
-              :disabled="(draft.mins[role] ?? 0) === 0"
-              :value="draft.mins[role] || ''"
-              :aria-label="`Approvals needed from ${profileLabel(role)}`"
-              :data-testid="`min-${role}`"
-              @input="setMin(role, ($event.target as HTMLInputElement).value)"
-            />
-            <span class="adm-hint">approval(s)</span>
-          </label>
-        </fieldset>
-        <fieldset>
-          <legend>Default approvers <span class="adm-hint">(optional) — these people always have to approve</span></legend>
-          <p v-if="data.options.candidates.length === 0" class="adm-hint">Nobody can approve yet: add members with a technical or business role to an experiment first.</p>
-          <label v-for="c in data.options.candidates" :key="c.userId" class="role">
-            <input type="checkbox" :checked="draft.approvers.includes(c.userId)" :data-testid="`approver-${c.userId}`" @change="toggleApprover(c.userId, ($event.target as HTMLInputElement).checked)" />
-            <span>{{ c.name?.trim() || c.email }}</span>
-            <span class="adm-hint">{{ c.roles.map(profileLabel).join(", ") }}</span>
-          </label>
-        </fieldset>
-        <p v-if="floorProblem" class="problem" role="alert" data-testid="rule-floor-problem">{{ floorProblem }}</p>
-        <div class="actions">
-          <button class="adm-btn ghost small" type="button" @click="editing = null">Cancel</button>
-          <button class="adm-btn primary small" type="submit" :disabled="!canSave" data-testid="rule-save">{{ saving ? "Saving…" : "Save rule" }}</button>
-        </div>
-      </form>
+      <section v-if="editing" class="editor" data-testid="rule-editor" aria-label="Edit the rule">
+        <span class="caret" :style="{ left: caretLeft }" aria-hidden="true" />
+        <form @submit.prevent="save">
+          <header>
+            <span class="env">{{ editing.action === "publish" ? "PUBLISH" : editing.stage }}</span>
+            <h4>Rule for {{ stepLabel(editing.action, editing.stage).toLowerCase() }}</h4>
+            <button v-if="ruleFor(data.rules, editing.action, editing.stage)" class="remove" type="button" :disabled="saving" data-testid="rule-remove" @click="remove(editing)">Remove rule</button>
+          </header>
+          <div class="cols">
+            <fieldset>
+              <legend>Profiles</legend>
+              <p v-if="editing.action === 'publish'" class="adm-hint">Publishing a version is a review of the text, so only technical profiles can approve it.</p>
+              <label v-for="role in allowedRoles(editing.action)" :key="role" class="row" :class="{ on: (draft.mins[role] ?? 0) > 0 }">
+                <input type="checkbox" :checked="(draft.mins[role] ?? 0) > 0" :data-testid="`role-${role}`" @change="toggleRole(role, ($event.target as HTMLInputElement).checked)" />
+                <span class="grow">{{ profileLabel(role) }}</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="10"
+                  class="min"
+                  :disabled="(draft.mins[role] ?? 0) === 0"
+                  :value="draft.mins[role] || ''"
+                  :aria-label="`Approvals needed from ${profileLabel(role)}`"
+                  :data-testid="`min-${role}`"
+                  @input="setMin(role, ($event.target as HTMLInputElement).value)"
+                />
+              </label>
+              <p class="adm-hint">A person counts for the profile they have.</p>
+            </fieldset>
+            <fieldset>
+              <legend>People who must always approve <span>· optional</span></legend>
+              <p v-if="data.options.candidates.length === 0" class="adm-hint">Nobody can approve yet: add members with a technical or business role to an experiment first.</p>
+              <label v-for="c in data.options.candidates" :key="c.userId" class="row" :class="{ on: draft.approvers.includes(c.userId) }">
+                <input type="checkbox" :checked="draft.approvers.includes(c.userId)" :data-testid="`approver-${c.userId}`" @change="toggleApprover(c.userId, ($event.target as HTMLInputElement).checked)" />
+                <span class="mark person">{{ initials(c.name?.trim() || c.email) }}</span>
+                <span class="grow">{{ c.name?.trim() || c.email }}</span>
+                <span class="adm-hint">{{ c.roles.map(profileLabel).join(", ") }}</span>
+              </label>
+            </fieldset>
+            <div class="means">
+              <span class="kicker">What this means</span>
+              <p data-testid="rule-preview">{{ preview }}</p>
+              <p class="small">The person who asks never counts as an approver. A rejection closes the request. It expires after 7 days.</p>
+              <p v-if="floorProblem" class="problem" role="alert" data-testid="rule-floor-problem">{{ floorProblem }}</p>
+              <div class="actions">
+                <button class="adm-btn ghost small" type="button" @click="editing = null">Cancel</button>
+                <button class="adm-btn primary small" type="submit" :disabled="!canSave" data-testid="rule-save">{{ saving ? "Saving…" : "Save rule" }}</button>
+              </div>
+            </div>
+          </div>
+        </form>
+      </section>
     </template>
   </div>
 </template>
 
 <style scoped>
 .rules { display: flex; flex-direction: column; gap: 14px; }
+.intro { margin: 0; max-width: 760px; font-size: 14px; line-height: 1.55; color: var(--mt-muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 0; font-size: 12px; font-weight: 600; color: var(--mt-muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.mark { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex: none; border-radius: 4px; font-size: 10px; font-weight: 800; font-style: normal; background: var(--mt-accent-soft, var(--mt-line)); color: var(--mt-ink); }
+.mark.person { border-radius: 50%; font-size: 8.5px; background: var(--mt-warn-bg, var(--mt-line)); }
 
-.editor { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-sm); }
-.editor h4 { margin: 0; font-size: 14px; }
-fieldset { border: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
-legend { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
-.role { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-.min { width: 56px; height: 28px; padding: 0 6px; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-xs); background: var(--mt-surface, transparent); color: var(--mt-ink); font: inherit; }
-.problem { margin: 0; padding: 8px 10px; font-size: 13px; color: var(--mt-err-ink); background: var(--mt-err-bg); border-radius: var(--mt-radius-sm); }
-.actions { display: flex; justify-content: flex-end; gap: 8px; }
+.editor { position: relative; margin-top: 2px; }
+.caret { position: absolute; top: -8px; width: 14px; height: 14px; margin-left: -7px; background: var(--mt-surface, var(--mt-bg)); border-top: 2px solid var(--mt-accent, var(--mt-ink)); border-left: 2px solid var(--mt-accent, var(--mt-ink)); transform: rotate(45deg); }
+.editor form { border: 2px solid var(--mt-accent, var(--mt-ink)); border-radius: 10px; background: var(--mt-surface, transparent); overflow: hidden; }
+header { display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-bottom: 1px solid var(--mt-line); }
+header h4 { flex: 1; margin: 0; font-size: 15px; font-weight: 800; }
+.env { height: 22px; padding: 0 8px; display: inline-flex; align-items: center; border-radius: 4px; font: 800 11px/1 var(--mt-mono, monospace); background: var(--mt-accent, var(--mt-ink)); color: var(--mt-accent-ink, #fff); }
+.remove { border: none; background: none; padding: 0; font: inherit; font-weight: 700; color: var(--mt-err-ink); cursor: pointer; }
+.cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 900px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+fieldset { border: none; margin: 0; padding: 16px 20px; display: flex; flex-direction: column; gap: 8px; border-right: 1px solid var(--mt-line); min-width: 0; }
+legend { padding: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--mt-muted); float: left; margin-bottom: 8px; width: 100%; }
+legend span { font-weight: 500; letter-spacing: 0; text-transform: none; }
+legend + * { clear: both; }
+.row { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 12px; box-sizing: border-box; border: 1px solid var(--mt-line); border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer; }
+.row.on { border-color: var(--mt-accent, var(--mt-ink)); background: var(--mt-soft); }
+.grow { flex: 1; min-width: 0; }
+.min { width: 56px; height: 28px; padding: 0 6px; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-xs); background: var(--mt-surface, transparent); color: var(--mt-ink); font: inherit; font-family: var(--mt-mono, monospace); font-weight: 800; text-align: center; }
+.means { display: flex; flex-direction: column; gap: 10px; padding: 16px 20px; background: var(--mt-soft); }
+.means p { margin: 0; font-size: 15px; line-height: 1.5; font-weight: 700; color: var(--mt-ink); }
+.means p.small { font-size: 12px; font-weight: 500; color: var(--mt-muted); }
+.kicker { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--mt-muted); }
+.problem { padding: 8px 10px; font-size: 13px !important; color: var(--mt-err-ink) !important; background: var(--mt-err-bg); border-radius: var(--mt-radius-sm); }
+.actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: auto; }
 </style>

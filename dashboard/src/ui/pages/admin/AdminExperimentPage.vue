@@ -12,7 +12,6 @@ import ScoreConfigsPanel from "../../components/ScoreConfigsPanel.vue";
 import MemberList from "../../components/admin/MemberList.vue";
 import InviteForm from "../../components/admin/InviteForm.vue";
 import ExperimentApiKeys from "../../components/admin/ExperimentApiKeys.vue";
-import ApprovalHistory from "../../components/admin/ApprovalHistory.vue";
 import ApprovalRulesPanel from "../../components/admin/ApprovalRulesPanel.vue";
 
 /**
@@ -183,9 +182,6 @@ const MEMBER_ROLE_OPTIONS = [
             <h3 class="adm-section-title">Approvals for this agent's prompts</h3>
             <p class="adm-hint">Extra review for the prompts of this agent, on top of what the organization already asks. You can add people or approvers; you cannot ask for fewer than the organization.</p>
             <ApprovalRulesPanel :scope="{ type: 'experiment', id: experiment.id }" />
-          </div>
-          <div class="adm-card">
-            <ApprovalHistory :scope="{ type: 'experiment', id: experiment.id }" />
           </div>
         </section>
 

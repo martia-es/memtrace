@@ -5,7 +5,6 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createMemoryHistory, createRouter } from "vue-router";
 import { CURRENT_EXPERIMENT, IDENTITY_API, PROMPT_API, TRACE_API } from "@/dependency-container";
 import { EMPTY_THEME, type CurrentUser, type ExperimentDto } from "@/application/identity-api";
-import ApprovalHistory from "@/ui/components/admin/ApprovalHistory.vue";
 import ApprovalRulesPanel from "@/ui/components/admin/ApprovalRulesPanel.vue";
 import PromptDetailPage from "@/ui/pages/PromptDetailPage.vue";
 import PromptsPage from "@/ui/pages/PromptsPage.vue";
@@ -67,12 +66,13 @@ describe("approval rules panel (ADR-076)", () => {
     expect(wrapper.find("[data-testid='rule-promote-dev'] [data-testid='rule-summary']").text()).toBe("No approval needed");
   });
 
-  it("draws each step as a branch with the profiles and people that have to approve", async () => {
+  it("draws each step as a card with the profiles and people that have to approve", async () => {
     const api = new FakePromptApi();
     api.rules = { ...api.rules, rules: [rule("pro", [["technical", 1], ["business", 1]], ["u-ana"])] };
     const { wrapper } = await setup(ApprovalRulesPanel, "technical", api, { scope: { type: "organization", id: "org-1" } });
-    const people = wrapper.findAll("[data-testid='rule-promote-pro'] .person").map((n) => n.find(".who").text());
-    expect(people).toEqual(["1 × Technical", "1 × Business", "Ana"]);
+    const people = wrapper.findAll("[data-testid='rule-promote-pro'] .need").map((n) => n.find(".label").text());
+    expect(people).toEqual(["1 Technical", "1 Business", "Ana"]);
+    expect(wrapper.find("[data-testid='rule-promote-pro'] .count").text()).toBe("3 approvals");
     expect(wrapper.find("[data-testid='rule-promote-dev']").text()).toContain("No approval");
   });
 
@@ -103,7 +103,8 @@ describe("approval rules panel (ADR-076)", () => {
     const api = new FakePromptApi();
     api.rules = { ...api.rules, rules: [rule("pre", [["technical", 1]])] };
     const { wrapper } = await setup(ApprovalRulesPanel, "technical", api, { scope: { type: "organization", id: "org-1" } });
-    await wrapper.find("[data-testid='rule-promote-pre'] [data-testid='rule-remove']").trigger("click");
+    await wrapper.find("[data-testid='rule-promote-pre'] [data-testid='rule-edit']").trigger("click");
+    await wrapper.find("[data-testid='rule-remove']").trigger("click");
     await tick();
     expect(api.calls.find((c) => c.method === "deleteApprovalRule")?.args).toEqual([{ type: "organization", id: "org-1" }, "promote", "pre"]);
     expect(wrapper.find("[data-testid='rule-promote-pre'] [data-testid='rule-summary']").text()).toBe("No approval needed");
@@ -334,24 +335,3 @@ describe("approval inbox in the prompts list", () => {
   });
 });
 
-describe("approval history (ADR-076)", () => {
-  it("lists every request with its status and decisions, and filters by status", async () => {
-    const api = new FakePromptApi();
-    api.history = [
-      approvalRequest({ id: "h1", status: "executed", decisions: [{ userId: "u-ana", decision: "approve", comment: "looks good", decidedAt: "2026-10-09T11:00:00.000Z" }], people: { "u-req": "Zoe", "u-ana": "Ana" } }),
-      approvalRequest({ id: "h2", status: "rejected", version: 3 }),
-    ];
-    const { wrapper } = await setup(ApprovalHistory, "technical", api, { scope: { type: "experiment", id: "exp-1" } });
-    expect(wrapper.findAll("[data-testid^='history-h']")).toHaveLength(2);
-    expect(wrapper.find("[data-testid='history-h1']").text()).toContain("Ana approved");
-    expect(wrapper.find("[data-testid='history-h1']").text()).toContain("looks good");
-    await wrapper.find("[data-testid='history-filter-rejected']").trigger("click");
-    expect(wrapper.findAll("[data-testid^='history-h']")).toHaveLength(1);
-    expect(wrapper.find("[data-testid='history-h2']").exists()).toBe(true);
-  });
-
-  it("says so when nothing was ever sent for approval", async () => {
-    const { wrapper } = await setup(ApprovalHistory, "technical", new FakePromptApi(), { scope: { type: "organization", id: "org-1" } });
-    expect(wrapper.find("[data-testid='history-empty']").exists()).toBe(true);
-  });
-});
