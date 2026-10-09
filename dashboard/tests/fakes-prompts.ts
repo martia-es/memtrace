@@ -1,5 +1,5 @@
 /** Dobles del registro de prompts (ADR-067). */
-import type { PromptDetailDto, PromptEvidenceResponse, PromptGateDto, PromptPlaygroundResponse, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto, VersionEvidenceDto } from "@contract";
+import type { PromptDetailDto, PromptEvidenceResponse, PromptGateDto, PromptMapDto, PromptPlaygroundResponse, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto, VersionEvidenceDto } from "@contract";
 import type { NewPromptInput, PromptApi } from "@/application/prompt-api";
 
 export function promptVersion(version: number, content: string, extra: Partial<PromptVersionDto> = {}): PromptVersionDto {
@@ -118,6 +118,11 @@ export class FakePromptApi implements PromptApi {
   async previewGate(promptId: string, tag: string, version: number) {
     this.record("previewGate", promptId, tag, version);
     return { ...this.gate, tag, version };
+  }
+  mapResult = { agents: [], dataset: null, includes: [], usedBy: [], impact: null } as PromptMapDto;
+  async map(promptId: string, move?: { tag: string; version: number }) {
+    this.record("map", promptId, move);
+    return this.mapResult;
   }
   async setPolicy(promptId: string, input: { datasetId: string; requiredRuns: number }) {
     this.record("setPolicy", promptId, input);

@@ -1,4 +1,4 @@
-import type { PromptDetailDto, PromptEvidenceResponse, PromptGateDto, PromptListResponse, PromptPlaygroundResponse, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto } from "@contract";
+import type { PromptDetailDto, PromptEvidenceResponse, PromptGateDto, PromptMapDto, PromptListResponse, PromptPlaygroundResponse, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto } from "@contract";
 import type { NewPromptInput, PromptApi } from "@/application/prompt-api";
 import { ApiError } from "@/application/trace-api";
 
@@ -56,6 +56,10 @@ export class HttpPromptApi implements PromptApi {
   }
   previewGate(promptId: string, tag: string, version: number, signal?: AbortSignal): Promise<PromptGateDto> {
     return this.request("GET", `/prompts/${e(promptId)}/gate?tag=${e(tag)}&version=${version}`, undefined, signal);
+  }
+  map(promptId: string, move?: { tag: string; version: number }, signal?: AbortSignal): Promise<PromptMapDto> {
+    const query = move ? `?tag=${e(move.tag)}&version=${move.version}` : "";
+    return this.request("GET", `/prompts/${e(promptId)}/map${query}`, undefined, signal);
   }
   setPolicy(promptId: string, policy: { datasetId: string; requiredRuns: number }, signal?: AbortSignal): Promise<PromptPolicyDto> {
     return this.request("PUT", `/prompts/${e(promptId)}/policy`, policy, signal);

@@ -19,7 +19,13 @@ const emit = defineEmits<{ close: []; moved: [] }>();
 const api = usePromptApi();
 const $q = useQuasar();
 const preview = useAsync((signal) => api.previewGate(props.promptId, props.tag, props.version, signal));
-onMounted(() => void preview.run());
+// a quién llegaría el cambio (ADR-074); si falla no impide promover: es información, no un requisito
+const impact = useAsync((signal) => api.map(props.promptId, { tag: props.tag, version: props.version }, signal));
+onMounted(() => {
+  void preview.run();
+  void impact.run();
+});
+const affected = computed(() => (impact.data.value?.impact?.agents ?? []).filter((a) => a.changes));
 
 const gate = computed(() => preview.data.value ?? null);
 const verdict = computed(() => (gate.value ? (PROMPT_GATE_LABEL[gate.value.verdict] ?? { label: gate.value.verdict, tone: "neutral" as const }) : null));
@@ -65,6 +71,17 @@ async function send() {
           </template>
         </dl>
         <p class="reason" data-testid="promote-reason">{{ gate.reason }}</p>
+        <section v-if="impact.data.value?.impact" class="impact" data-testid="promote-impact">
+          <span class="eyebrow">WHO RECEIVES IT</span>
+          <ul v-if="affected.length > 0">
+            <li v-for="a in affected" :key="a.experimentId + a.environment" :data-testid="`impact-${a.name}`"><b>{{ a.name }}</b> in {{ a.environment }}: v{{ a.from }} → v{{ a.to }}</li>
+          </ul>
+          <p v-else class="muted" data-testid="impact-none">No agent follows "{{ tag }}" right now, or they already run v{{ version }}: nothing changes when you move it.</p>
+          <p v-if="impact.data.value.impact.pinned > 0" class="muted">{{ impact.data.value.impact.pinned }} agent {{ impact.data.value.impact.pinned === 1 ? "uses" : "use" }} a fixed version and will not notice.</p>
+          <p v-if="impact.data.value.impact.willBeBehind.length > 0" class="muted" data-testid="impact-behind">
+            {{ impact.data.value.impact.willBeBehind.map((p) => p.name).join(", ") }} include this fragment through "{{ tag }}": they keep their text and will show as behind until rebuilt.
+          </p>
+        </section>
         <ul v-if="gate.runs.some((r) => r.failures.length)" class="failures" data-testid="promote-failures">
           <template v-for="r in gate.runs" :key="r.runId">
             <li v-for="f in r.failures" :key="r.runId + f.evaluator">
@@ -103,6 +120,10 @@ async function send() {
 dt { color: var(--mt-muted); }
 dd { margin: 0; }
 .muted { color: var(--mt-muted); font-size: 12px; }
+.impact { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border: 1px solid var(--mt-line); font-size: 13px; }
+.impact ul { margin: 0; padding-left: 18px; }
+.impact p { margin: 0; }
+.eyebrow { font-size: 11px; letter-spacing: 0.06em; color: var(--mt-muted); }
 .reason { margin: 0; font-size: 14px; line-height: 1.5; }
 .failures { margin: 0; padding-left: 18px; font-size: 13px; }
 .hint { margin: 0; font-size: 13px; color: var(--mt-muted); line-height: 1.5; }

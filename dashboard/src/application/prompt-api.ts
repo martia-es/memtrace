@@ -1,4 +1,4 @@
-import type { PromptDetailDto, PromptEvidenceResponse, PromptGateDto, PromptPlaygroundResponse, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto } from "@contract";
+import type { PromptDetailDto, PromptEvidenceResponse, PromptGateDto, PromptMapDto, PromptPlaygroundResponse, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto } from "@contract";
 
 /** Puerto de salida: registro de prompts (ADR-067). */
 
@@ -51,6 +51,8 @@ export interface PromptApi {
   runPlayground(experimentId: string, promptId: string, input: { deploymentId: string; version: number; message: string }, signal?: AbortSignal): Promise<PromptPlaygroundResponse>;
   /** ¿Puede ese tag apuntar a esa versión? Veredicto del gate de promoción y por qué (ADR-070). */
   previewGate(promptId: string, tag: string, version: number, signal?: AbortSignal): Promise<PromptGateDto>;
+  /** De qué depende y quién depende del prompt (ADR-074). Con `move`, además a quién llegaría mover ese tag a esa versión. */
+  map(promptId: string, move?: { tag: string; version: number }, signal?: AbortSignal): Promise<PromptMapDto>;
   /** Crea o cambia la política de promoción: dataset de evaluación y runs seguidos que deben pasar. */
   setPolicy(promptId: string, policy: { datasetId: string; requiredRuns: number }, signal?: AbortSignal): Promise<PromptPolicyDto>;
   /** Quita la política: cualquier versión puede promoverse. */

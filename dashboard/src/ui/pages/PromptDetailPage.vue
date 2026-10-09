@@ -13,6 +13,7 @@ import EnvFlag from "../components/EnvFlag.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import PageHeader from "../components/PageHeader.vue";
 import PromotePromptModal from "../components/PromotePromptModal.vue";
+import PromptDependencyMap from "../components/PromptDependencyMap.vue";
 import PromptFixFromFailure from "../components/PromptFixFromFailure.vue";
 import PromptPlayground from "../components/PromptPlayground.vue";
 import PromptDiff from "../components/PromptDiff.vue";
@@ -86,6 +87,7 @@ const TABS = [
   { id: "tags", label: "Tags & history" },
   { id: "fix", label: "Fix a failure" },
   { id: "try", label: "Try it" },
+  { id: "map", label: "Dependencies" },
 ];
 const fixTrace = typeof route.query.trace === "string" && route.query.tab === "fix" ? route.query.trace : null;
 const replayTrace = ref<string | null>(typeof route.query.trace === "string" ? route.query.trace : null);
@@ -693,6 +695,10 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                 @saved="onDraftSaved"
                 @test="(draftVersion, base, traceId) => testDraft(draftVersion, base, traceId)"
               />
+            </div>
+
+            <div v-else-if="tab === 'map'" class="pane" data-testid="pane-map">
+              <PromptDependencyMap :prompt-id="promptId" :kind="data.prompt.kind" />
             </div>
 
             <div v-else-if="tab === 'try'" class="pane" data-testid="pane-try">
