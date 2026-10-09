@@ -124,7 +124,7 @@ An **org admin** opens **Admin → organization → Approvals** and, for each ac
 - **Profiles and how many**: "1 approval from `technical`", "1 from `business`"… A person counts for the profile they have.
 - **Default approvers** (optional): specific people who **must always approve**, on top of the profiles.
 
-The tab draws the rules as an **org chart**: *a change to a prompt* branches into *Publish a version* and one step per environment, and under each step hang the profiles (`1 × Technical`) and the people marked with ★ who have to approve. A step with no rule is shown dashed as **No approval**. Below the chart, **Approval history** lists every request ever sent (waiting, done, rejected, cancelled or expired) with who asked and what each approver answered, and can be filtered by status.
+The tab shows the path of a change from left to right: *Publish a version*, then one card per environment. Each card says how many approvals it needs and who has to give them: a profile (`1 Technical`, any person with it) or a specific person who must always approve. A step with no rule has a dashed card that reads **No approval**. **Edit rule** opens the rule right under the chart, with a plain-language summary of what you are about to save; **Remove rule** is in there too. The **Approvals** tab of each prompt shows the same chart for that prompt, with its requests below as the approval history.
 
 An environment with no rule works as before. Removing a rule turns approvals off for it.
 

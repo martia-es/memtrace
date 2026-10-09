@@ -3,12 +3,13 @@ import { computed, ref } from "vue";
 import { useQuasar } from "quasar";
 import type { ApprovalRequestDto } from "@contract";
 import { describeApiError } from "@/application/describe-api-error";
-import { REQUEST_STATUS, canDecideNow, daysLeft, describeRule, profileLabel, progressLines, requestTitle, steps, waitingOn } from "@/domain/approvals";
+import { REQUEST_STATUS, canDecideNow, daysLeft, profileLabel, progressLines, requestTitle, steps, waitingOn } from "@/domain/approvals";
 import { formatDateTime } from "@/domain/format";
 import { useApprovalInbox } from "../composables/useApprovalInbox";
 import { useAsync } from "../composables/useAsync";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { usePromptApi } from "../composables/usePromptApi";
+import ApprovalFlowChart from "./ApprovalFlowChart.vue";
 import StatusChip from "./StatusChip.vue";
 import TextInput from "./TextInput.vue";
 
@@ -72,18 +73,13 @@ const who = (r: ApprovalRequestDto, id: string | null) => (id ? (r.people[id] ??
 <template>
   <div class="approvals" data-testid="approvals-tab">
     <section class="rules" data-testid="approval-summary">
-      <h3>What needs approval</h3>
+      <h3>Who has to approve</h3>
       <p v-if="!anyRule" class="muted" data-testid="no-rules">Nothing: changes to this prompt happen without a review. An organization admin can turn approvals on in Admin → organization → Approvals.</p>
-      <ul v-else>
-        <li v-for="s in ruleSteps" :key="s.action + s.stage" :data-testid="`summary-${s.action}-${s.stage || 'publish'}`">
-          <b>{{ s.label }}</b>
-          <span>{{ describeRule(s.rule, names) }}</span>
-        </li>
-      </ul>
+      <ApprovalFlowChart v-else :steps="ruleSteps" :names="names" test-prefix="summary" />
     </section>
 
     <section>
-      <h3>Requests</h3>
+      <h3>Approval history</h3>
       <p v-if="info.loading.value && !info.data.value" class="muted">Loading…</p>
       <p v-else-if="requests.length === 0" class="muted" data-testid="no-requests">No requests yet.</p>
       <ul v-else class="list">
@@ -135,9 +131,6 @@ const who = (r: ApprovalRequestDto, id: string | null) => (id ? (r.people[id] ??
 .approvals { display: flex; flex-direction: column; gap: 20px; }
 h3 { margin: 0 0 8px; font-size: 14px; }
 .muted { color: var(--mt-muted); font-size: 12px; margin: 0; }
-.rules ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
-.rules li { display: flex; gap: 10px; }
-.rules li b { min-width: 130px; }
 .list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
 .card { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-sm); font-size: 13px; }
 header { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }

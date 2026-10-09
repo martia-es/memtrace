@@ -203,15 +203,6 @@ export class PostgresApprovalRepository implements ApprovalRepository {
     return rows.map(toRequest);
   }
 
-  async listAllForOrganization(organizationId: string, limit: number): Promise<ApprovalRequest[]> {
-    if (!UUID.test(organizationId)) return [];
-    const { rows } = await this.pool.query<RequestRow>(
-      `${REQUEST_SELECT} JOIN prompts p ON p.id = r.prompt_id WHERE p.organization_id = $1 ORDER BY r.created_at DESC LIMIT $2`,
-      [organizationId, limit],
-    );
-    return rows.map(toRequest);
-  }
-
   async saveDecision(requestId: string, decision: Pick<ApprovalDecision, "userId" | "decision" | "comment">): Promise<void> {
     await this.pool.query(
       `INSERT INTO approval_decisions (request_id, user_id, decision, comment) VALUES ($1, $2, $3, $4)

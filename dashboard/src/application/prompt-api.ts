@@ -74,8 +74,6 @@ export interface PromptApi {
   /** Lo que la persona tiene pendiente de decidir en la organización. */
   approvalInbox(organizationId: string, experimentId: string | null, signal?: AbortSignal): Promise<ApprovalRequestDto[]>;
   /** Reglas de aprobación de la organización o de un experimento (en un experimento, con el suelo de la organización). */
-  /** Todas las solicitudes (cualquier estado) de la organización o del experimento, las más recientes primero. */
-  approvalHistory(scope: ApprovalScope, signal?: AbortSignal): Promise<ApprovalRequestDto[]>;
   getApprovalRules(scope: ApprovalScope, signal?: AbortSignal): Promise<ApprovalRulesResponse>;
   setApprovalRule(scope: ApprovalScope, rule: Pick<ApprovalRuleDto, "action" | "stage" | "requirements" | "approvers">, signal?: AbortSignal): Promise<ApprovalRuleDto>;
   deleteApprovalRule(scope: ApprovalScope, action: "publish" | "promote", stage: string, signal?: AbortSignal): Promise<void>;
