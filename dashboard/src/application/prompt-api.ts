@@ -48,7 +48,7 @@ export interface PromptApi {
    * Prueba una versión en el asistente real, sin mover ningún tag (ADR-071). Ejecuta el agente de verdad, solo en entornos que
    * no son de producción. `applied: false` = el agente respondió sin aplicar la versión: la respuesta no es suya.
    */
-  runPlayground(experimentId: string, promptId: string, input: { deploymentId: string; version: number; message: string }, signal?: AbortSignal): Promise<PromptPlaygroundResponse>;
+  runPlayground(experimentId: string, promptId: string, input: { deploymentId: string; version: number; message: string; history?: string[] }, signal?: AbortSignal): Promise<PromptPlaygroundResponse>;
   /** ¿Puede ese tag apuntar a esa versión? Veredicto del gate de promoción y por qué (ADR-070). */
   previewGate(promptId: string, tag: string, version: number, signal?: AbortSignal): Promise<PromptGateDto>;
   /** De qué depende y quién depende del prompt (ADR-074). Con `move`, además a quién llegaría mover ese tag a esa versión. */

@@ -109,7 +109,7 @@ export class FakePromptApi implements PromptApi {
     if (this.moveError) throw this.moveError;
     return { id: "e2", tag, fromVersion: null, toVersion: version, changedBy: "u1", reason, createdAt: "2026-10-08T11:00:00.000Z", gateVerdict: "allowed", gateBypassed: bypassReason !== null, bypassReason };
   }
-  async runPlayground(experimentId: string, promptId: string, input: { deploymentId: string; version: number; message: string }) {
+  async runPlayground(experimentId: string, promptId: string, input: { deploymentId: string; version: number; message: string; history?: string[] }) {
     this.record("runPlayground", experimentId, promptId, input);
     const result = this.playground(input.version, input.message);
     if (result instanceof Error) throw result;

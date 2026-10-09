@@ -51,7 +51,7 @@ export class HttpPromptApi implements PromptApi {
   moveTag(promptId: string, tag: string, version: number | null, reason: string, bypassReason: string | null = null, signal?: AbortSignal): Promise<PromptTagEventDto> {
     return this.request("PUT", `/prompts/${e(promptId)}/tags/${e(tag)}`, { version, reason, bypassReason }, signal);
   }
-  runPlayground(experimentId: string, promptId: string, input: { deploymentId: string; version: number; message: string }, signal?: AbortSignal): Promise<PromptPlaygroundResponse> {
+  runPlayground(experimentId: string, promptId: string, input: { deploymentId: string; version: number; message: string; history?: string[] }, signal?: AbortSignal): Promise<PromptPlaygroundResponse> {
     return this.request("POST", `/experiments/${e(experimentId)}/prompts/${e(promptId)}/playground`, input, signal);
   }
   previewGate(promptId: string, tag: string, version: number, signal?: AbortSignal): Promise<PromptGateDto> {

@@ -44,6 +44,10 @@ const secondOptions = computed(() => versionOptions.value.filter((o) => o.value 
 const message = ref("");
 const traceId = ref(props.initialTrace ?? "");
 const original = ref<{ traceId: string; answer: string | null } | null>(null);
+// mensajes anteriores de la persona: el agente los recibe de nuevo, en la misma sesión, antes del mensaje que se prueba (ADR-075)
+const history = ref<string[]>([]);
+const MAX_HISTORY = 10;
+function removeEarlier(index: number) { history.value = history.value.filter((_, i) => i !== index); }
 const loadingTrace = ref(false);
 const traceProblem = ref<string | null>(null);
 async function loadTrace() {
@@ -52,7 +56,8 @@ async function loadTrace() {
   loadingTrace.value = true;
   traceProblem.value = null;
   try {
-    const found = replayInputOf((await traces.getTrace(id)).roots);
+    const detail = await traces.getTrace(id);
+    const found = replayInputOf(detail.roots);
     if (found.message === null) {
       traceProblem.value = "That trace has no captured message. Turn on content capture (MEMTRACE_CAPTURE_CONTENT) in the agent, or type the message.";
       original.value = null;
@@ -60,10 +65,23 @@ async function loadTrace() {
     }
     message.value = found.message;
     original.value = { traceId: id, answer: found.answer };
+    history.value = await earlierMessages(detail.conversationId, id);
   } catch (error) {
     traceProblem.value = describeApiError(error as Error);
   } finally {
     loadingTrace.value = false;
+  }
+}
+/** Los mensajes de la persona en los turnos anteriores de la misma conversación; vacío si no hay conversación o no se captura contenido. */
+async function earlierMessages(conversationId: string | null, traceId: string): Promise<string[]> {
+  if (!conversationId) return [];
+  try {
+    const turns = (await traces.getTranscript(conversationId)).turns;
+    const at = turns.findIndex((t) => t.traceId === traceId);
+    if (at <= 0) return [];
+    return turns.slice(0, at).map((t) => t.user?.trim() ?? "").filter((m) => m !== "").slice(-MAX_HISTORY);
+  } catch {
+    return [];
   }
 }
 onMounted(() => { if (props.initialTrace) void loadTrace(); });
@@ -76,6 +94,7 @@ const canRun = computed(() => !running.value && deploymentId.value !== null && f
 
 async function run() {
   const versions = [first.value, second.value].filter((v): v is number => v !== null);
+  const earlier = history.value.map((m) => m.trim()).filter((m) => m !== "");
   running.value = true;
   outcomes.value = [];
   try {
@@ -83,7 +102,7 @@ async function run() {
     outcomes.value = await Promise.all(
       versions.map(async (version): Promise<Outcome> => {
         try {
-          return { version, result: await api.runPlayground(props.experimentId, props.promptId, { deploymentId: deploymentId.value!, version, message: message.value }), error: null };
+          return { version, result: await api.runPlayground(props.experimentId, props.promptId, { deploymentId: deploymentId.value!, version, message: message.value, ...(earlier.length > 0 ? { history: earlier } : {}) }), error: null };
         } catch (error) {
           return { version, result: null, error: describeApiError(error as Error) };
         }
@@ -128,6 +147,18 @@ async function run() {
           <span v-if="original" class="tag mono">from {{ original.traceId }}</span>
           <span v-else class="faint small">What does the person say?</span>
         </header>
+        <div class="earlier" data-testid="playground-history">
+          <div v-for="(_, i) in history" :key="i" class="turn">
+            <span class="who mono">PERSON</span>
+            <TextInput v-model="history[i]" size="sm" :data-testid="`playground-earlier-${i}`" />
+            <button type="button" class="x" :aria-label="`Remove earlier message ${i + 1}`" :data-testid="`playground-earlier-remove-${i}`" @click="removeEarlier(i)">×</button>
+          </div>
+          <p class="faint small note">
+            <template v-if="history.length > 0">The agent receives these first, in the same conversation, and answers them again before the message below.</template>
+            <template v-else>No earlier messages.</template>
+            <button v-if="history.length < MAX_HISTORY" type="button" class="add" data-testid="playground-add-earlier" @click="history.push('')">+ Add an earlier message</button>
+          </p>
+        </div>
         <div class="body">
           <TextInput v-model="message" multiline :rows="3" placeholder="What does the person say?" data-testid="playground-message" />
           <p v-if="traceProblem" class="warn small" data-testid="playground-trace-problem">{{ traceProblem }}</p>
@@ -227,6 +258,55 @@ async function run() {
   padding: 10px 16px;
   background: var(--mt-soft-2);
   border-top: 1px solid var(--mt-line-2);
+}
+.earlier {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px 0;
+}
+.turn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.turn > :nth-child(2) {
+  flex: 1;
+}
+.who {
+  flex: none;
+  width: 62px;
+  padding: 2px 0;
+  text-align: center;
+  border-radius: 4px;
+  background: var(--mt-soft);
+  color: var(--mt-muted);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+}
+.x {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--mt-faint);
+  font: inherit;
+  cursor: pointer;
+}
+.note {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+}
+.add {
+  border: none;
+  background: transparent;
+  color: var(--mt-accent-text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
 }
 .tag {
   padding: 2px 8px;

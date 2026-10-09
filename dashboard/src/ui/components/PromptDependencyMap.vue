@@ -2,7 +2,7 @@
 import { computed, onMounted } from "vue";
 import { describeApiError } from "@/application/describe-api-error";
 import { formatDateTime } from "@/domain/format";
-import { sortEnvironments } from "@/domain/prompt-release";
+import { servingStatus, sortEnvironments } from "@/domain/prompt-release";
 import { useAsync } from "../composables/useAsync";
 import { usePromptApi } from "../composables/usePromptApi";
 import EmptyState from "./EmptyState.vue";
@@ -11,7 +11,7 @@ import EmptyState from "./EmptyState.vue";
  * Mapa de dependencias de un prompt (ADR-074): los agentes que lo leen y qué sirve cada uno por entorno, el dataset con el que
  * se evalúa antes de promover, los fragmentos que incluye y los prompts que lo incluyen a él.
  */
-const props = defineProps<{ promptId: string; kind: "prompt" | "fragment" }>();
+const props = withDefaults(defineProps<{ promptId: string; kind: "prompt" | "fragment"; tagVersions?: Record<string, number>; latest?: number }>(), { tagVersions: () => ({}), latest: 0 });
 const api = usePromptApi();
 const map = useAsync((signal) => api.map(props.promptId, undefined, signal));
 onMounted(() => void map.run());
@@ -51,6 +51,7 @@ const servingOf = <T extends { environment: string }>(serving: T[]): T[] => sort
                 <span v-for="s in servingOf(a.serving)" :key="s.environment" class="mt-pill tag" :class="s.environment">
                   {{ s.environment || "no environment" }} · {{ s.tag ? `${s.tag} → ` : "fixed " }}v{{ s.version }}
                   <span class="soft">· {{ formatDateTime(s.lastSeenAt) }}</span>
+                  <b v-if="latest > 0" class="status" :class="servingStatus(s, tagVersions, latest).state" :data-testid="`map-status-${a.name}-${s.environment}`">{{ servingStatus(s, tagVersions, latest).label }}</b>
                 </span>
               </article>
             </section>
@@ -93,6 +94,9 @@ const servingOf = <T extends { environment: string }>(serving: T[]): T[] => sort
 .node::after { right: -24px; }
 .dataset { display: flex; flex-direction: column; gap: 6px; padding: 12px 16px; border: 1px solid var(--mt-line); border-radius: 10px; background: var(--mt-card); }
 .dataset p { margin: 0; font-size: 13.5px; }
+.status { margin-left: 4px; font-weight: 800; font-size: 11px; }
+.status.ok { color: var(--mt-ok-ink); }
+.status.catching-up, .status.behind { color: var(--mt-highlight-ink); }
 .eyebrow { font-family: var(--mt-mono); font-size: 11px; letter-spacing: 0.08em; color: var(--mt-faint); }
 .eyebrow.tint { color: var(--mt-accent-text); }
 .soft { color: var(--mt-muted); font-size: 12px; margin: 0; }

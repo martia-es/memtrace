@@ -135,6 +135,8 @@ export const PROMPT_OVERRIDE_HEADER = "x-memtrace-prompt-override";
 /** Un token de playground caduca enseguida: vale para una petición, no para una sesión. */
 export const OVERRIDE_TTL_SECONDS = 120;
 export const MAX_PLAYGROUND_MESSAGE = 4000;
+/** turnos anteriores que el playground reproduce antes del mensaje que se prueba (ADR-075) */
+export const MAX_PLAYGROUND_HISTORY = 10;
 
 export interface NewPrompt {
   organizationId: string;

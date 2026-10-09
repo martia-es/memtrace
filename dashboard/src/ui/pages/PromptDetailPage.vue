@@ -74,6 +74,7 @@ const pinned = computed(() =>
 // ---- tira "running": qué versión corre en cada entorno y cuánto va por detrás ----
 const latestVersion = computed(() => versions.value.find((v) => v.status === "published")?.version ?? 0);
 const runningStrip = computed(() => pinned.value.filter((p) => environmentKeys.value.includes(p.tag)));
+const tagVersionMap = computed(() => Object.fromEntries((data.value?.tags ?? []).map((t) => [t.tag, t.version])));
 const behindProduction = computed(() => {
   const live = tagVersion(PRODUCTION_ENV);
   return live === null ? 0 : Math.max(0, latestVersion.value - live);
@@ -698,7 +699,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
             </div>
 
             <div v-else-if="tab === 'map'" class="pane" data-testid="pane-map">
-              <PromptDependencyMap :prompt-id="promptId" :kind="data.prompt.kind" />
+              <PromptDependencyMap :prompt-id="promptId" :kind="data.prompt.kind" :tag-versions="tagVersionMap" :latest="latestVersion" />
             </div>
 
             <div v-else-if="tab === 'try'" class="pane" data-testid="pane-try">
@@ -739,7 +740,8 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   </div>
                 </div>
 
-                <h3>In use right now</h3>
+                <details class="usage-fold" :open="usageRows.length === 0">
+                <summary>In use right now <span class="muted">({{ usageRows.length }})</span></summary>
                 <p v-if="usageRows.length === 0" class="muted small" data-testid="usage-empty">
                   No agent has reported this prompt yet. It shows up here once an agent loads it with <code>memtrace.prompts.get()</code>.
                 </p>
@@ -755,6 +757,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                     </tr>
                   </tbody>
                 </table>
+                </details>
 
                 <h3>Promotion policy</h3>
                 <div v-if="!editingPolicy" data-testid="policy">
@@ -1605,6 +1608,12 @@ ul.plain {
   font: inherit;
   line-height: 1;
   cursor: pointer;
+}
+.usage-fold summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 4px 0;
 }
 .history {
   display: flex;

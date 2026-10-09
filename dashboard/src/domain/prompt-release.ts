@@ -129,3 +129,19 @@ export function splitVariables(line: string): TextPart[] {
     .filter((t) => t !== "")
     .map((text) => ({ text, variable: text.startsWith("{{") }));
 }
+
+export interface ServingStatus {
+  state: "ok" | "catching-up" | "behind";
+  label: string;
+}
+
+/**
+ * Cómo va lo que sirve un agente respecto a su tag y a la última versión: «catching up» si el tag ya apunta a otra versión que la
+ * que corre el agente; «N behind» si es producción y hay versiones más nuevas sin liberar; si no, «up to date».
+ */
+export function servingStatus(serving: { environment: string; tag: string; version: number }, tagVersions: Record<string, number>, latest: number): ServingStatus {
+  const target = serving.tag ? tagVersions[serving.tag] : undefined;
+  if (target !== undefined && target !== serving.version) return { state: "catching-up", label: "catching up" };
+  if (serving.environment === PRODUCTION_ENV && latest > serving.version) return { state: "behind", label: `${latest - serving.version} behind` };
+  return { state: "ok", label: "up to date" };
+}
