@@ -111,6 +111,30 @@ with prompts.override(request.headers.get("x-memtrace-prompt-override")):
 
 How it works: MemTrace calls your agent's chat endpoint with a token that lives two minutes. When your code calls `compile()`, the SDK presents the token to MemTrace (with your API key) and uses the version it grants **for that request only**; the next request goes back to the tag. A token MemTrace does not recognize, one for another agent or prompt, or MemTrace being unreachable, all serve the normal version: a test can never break a request. Spans of the test carry `memtrace.playground=true` and do not count as [evidence](../platform/prompts#evidence-what-each-version-did) or toward the promotion gate.
 
+## Propose a fix with your own model
+
+When a prompt fails on real cases, you can ask a model to propose a change and save it in MemTrace as a **draft** for a person to review. The model is **yours**: any object with `complete(system=..., prompt=..., model=...)` (the same shape the [LLM judges](./evaluation#llm-as-judge-evaluators) use, for example `AnthropicJudgeClient`). MemTrace never sees your provider key.
+
+```python
+from memtrace import prompts
+from memtrace.adapters.outbound.llm.anthropic_client import AnthropicJudgeClient   # pip install "memtrace-ai[eval-judges]"
+
+draft = prompts.propose_fix(
+    "weather-system",
+    [prompts.FixCase(input="¿Lloverá en Sevilla?", error="429 Too Many Requests", output=None, trace_id="ab12…")],
+    AnthropicJudgeClient(),
+)
+print(f"Draft v{draft.version} saved: review it in MemTrace")
+```
+
+- It reads the version the agent follows now, asks the model to change it as little as possible so the cases would go well, and saves the result as a draft with the failures as its origin.
+- **It refuses unusable proposals** (`FixProposalError`) and saves nothing: an answer that is not valid JSON, one identical to the current prompt, or one that **changes the `{{variables}}`** (the agent would fail on its first request).
+- Nothing is published or promoted. The draft gets no tag; a person tests it in the real agent, publishes it, and it still goes through the promotion policy.
+- The cases go to your model provider, as any prompt you send it. Remove personal data first if that matters; at most 10 cases of 1,500 characters are sent.
+- `prompts.save_draft(name, content, rationale=..., trace_ids=[...])` saves a draft you wrote yourself. Both need `pip install "memtrace-ai[eval]"`, `MEMTRACE_API_URL` and `MEMTRACE_API_KEY`, and the prompt must belong to the agent.
+
+To evaluate a draft before publishing it, read it by number in the process that runs the evaluation: `prompts.get("weather-system", version=7)` (it logs a warning that it is a draft).
+
 ## Link traces to the prompt version
 
 Every `compile()` writes `memtrace.prompt.name` and `memtrace.prompt.version` on the **current span**, so call it inside the step that uses the prompt (a `trace_step`, or inside an auto-instrumented run). In MemTrace you can then filter the traces and spans of one version (`promptName` / `promptVersion` in the [Query API](../platform/api)). Outside any span nothing is written and nothing fails. The `default=` text has no version, so it is never written.

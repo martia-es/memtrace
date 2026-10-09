@@ -40,6 +40,16 @@ The prompt registry. Session only. A prompt belongs to the organization and to o
 
 `POST /api/v1/experiments/{experimentId}/prompts/{promptId}/playground` runs a version in the real agent without moving any tag: `{ deploymentId, version, message }` → `{ reply, sessionId, traceId, latencyMs, version, applied }`. Only non-production deployments without authentication; `409` otherwise. `applied: false` means the agent answered without using that version. Needs `experiment:read` and `prompt:write`.
 
+**Drafts.** `POST /api/v1/prompts/{promptId}/versions` accepts `draft: true` and `origin: { traceIds, cause, rationale }`: the version is saved with `status: "draft"`, gets no tag and cannot be tagged until published. Every version carries `status`, `origin` and `publishedAt`. A draft is never the base of the next version and `latestVersion` in lists ignores drafts.
+
+| Endpoint | Description |
+|---|---|
+| `POST /api/v1/prompts/{promptId}/versions/{n}/publish` | Publishes a draft (`409` if it is not one). `prompt:write` |
+| `DELETE /api/v1/prompts/{promptId}/versions/{n}` | Discards a draft; a published version is never deleted (`409`). `prompt:write` |
+| `POST /api/v1/experiments/{experimentId}/prompts/drafts` | For the SDK, with the **agent API key**: `{ name, content, message?, basedOn?, origin? }` → the draft (`201`). It can only create drafts, for prompts of that agent |
+
+`GET /prompts/resolve?name=&version=N` also serves a draft (with `draft: true`), so it can be evaluated before publishing; a tag never points to one.
+
 **Promotion policy** (see [Prompts](./prompts#promotion-policy-evaluate-before-you-promote)). `GET /api/v1/prompts/{promptId}` returns `policy` (`null` if none: `{ datasetId, requiredRuns, updatedBy, updatedAt }`, `datasetId` is `null` if the dataset was deleted) and `gatedEnvironments` (every environment but the first). Every tag event carries `gateVerdict`, `gateBypassed` and `bypassReason`.
 
 | Endpoint | Description |

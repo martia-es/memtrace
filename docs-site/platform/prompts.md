@@ -111,6 +111,20 @@ From a trace's page, **Try another prompt version** opens this tab with that tra
 
 Running the agent has real effects (its tools run), so it needs `prompt:write` and read access to the agent. Tests are marked on the trace and are **not counted** as evidence of a version or toward the promotion policy.
 
+## Drafts and fixing a failure
+
+A **draft** is a version waiting for review. It has a number, so you can **test it in the real agent** ([Try it](#try-it-test-a-version-in-the-real-agent)) and **evaluate it** (an offline evaluation asks for it by number), but it gets **no tag**: no environment can use it. Only a person with `prompt:write` can **Publish** it (it becomes a normal version, which still has to pass the [promotion policy](#promotion-policy-evaluate-before-you-promote) to reach `pre` or `pro`) or **Discard** it. Drafts show a *draft* label in the version list and are not counted as "the latest version" or when measuring how far production is behind. A discarded draft's number is never reused, because its traces and evaluations carry it.
+
+You can save any edit as a draft with **Save as draft** in the editor, but the main way to create one is from a failure:
+
+1. On a **failed trace** that read its prompt from the registry, press **Fix with a prompt change** (or open the prompt's **Fix a failure** tab and paste a trace id).
+2. MemTrace shows **what failed** (the deepest failing step, not the ones that only passed the error up), what the person said and what the agent answered. The editor starts from **the version that trace used**, and the reason is filled in with the failure.
+3. Change the text and **Save as draft**. The draft remembers the failure: its page shows what it was for and links to the trace.
+4. **Test it on this case** runs the real agent with the draft and with the version it came from, side by side, on that same message.
+5. If it is better, **Publish** it; promote it as usual.
+
+Prefer a model to write the proposal? The SDK can ask **your** LLM with **your** key and save the result here as a draft: [`prompts.propose_fix`](/library/prompts#propose-a-fix-with-your-own-model). MemTrace holds no provider keys.
+
 ::: info Coming next
-Proposing a fix for a failed trace, validated against the failing cases.
+Reusable fragments shared between prompts, and a map of what depends on each prompt.
 :::
