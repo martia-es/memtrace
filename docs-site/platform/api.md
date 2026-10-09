@@ -48,6 +48,13 @@ The prompt registry. Session only. A prompt belongs to the organization and to o
 | `DELETE /api/v1/prompts/{promptId}/versions/{n}` | Discards a draft; a published version is never deleted (`409`). `prompt:write` |
 | `POST /api/v1/experiments/{experimentId}/prompts/drafts` | For the SDK, with the **agent API key**: `{ name, content, message?, basedOn?, origin? }` → the draft (`201`). It can only create drafts, for prompts of that agent |
 
+**Fragments.** `POST /organizations/{id}/prompts` accepts `kind: "fragment"`. A version's `content` may include `{{> name@tag}}` or `{{> name@3}}`; the response keeps `source` (what was written, `null` without includes), `includes: [{ name, ref, version }]` and `content` already resolved. The prompt detail adds `includes` (each with `pinned`, `current`, `outdated`) and, for fragments, `usedBy`.
+
+| Endpoint | What it does |
+| --- | --- |
+| `POST /api/v1/prompts/{promptId}/rebuild` | Re-resolves the latest published source against today's fragments and saves a **draft** (`201`). `409` if it includes nothing or nothing changed. `prompt:write` |
+| `POST /api/v1/prompts/{fragmentId}/rebuild-dependents` | Same for every prompt that uses this fragment and is behind: `{ created, skipped }`. Only prompts the caller can write |
+
 `GET /prompts/resolve?name=&version=N` also serves a draft (with `draft: true`), so it can be evaluated before publishing; a tag never points to one.
 
 **Promotion policy** (see [Prompts](./prompts#promotion-policy-evaluate-before-you-promote)). `GET /api/v1/prompts/{promptId}` returns `policy` (`null` if none: `{ datasetId, requiredRuns, updatedBy, updatedAt }`, `datasetId` is `null` if the dataset was deleted) and `gatedEnvironments` (every environment but the first). Every tag event carries `gateVerdict`, `gateBypassed` and `bypassReason`.
