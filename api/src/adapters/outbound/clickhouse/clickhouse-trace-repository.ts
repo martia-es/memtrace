@@ -6,7 +6,9 @@ import type { ConversationCursor, ConversationSummary, ConversationUsage } from 
 import type { ModelPricing } from "@/domain/pricing";
 import { previewOf, type SpanCursor, type SpanRecord } from "@/domain/span-row";
 import type { ChatSpanRecord } from "@/domain/transcript";
-import type { AttributeKeyCount, AttributeValueCount, CustomMetricQuery, CustomMetricResult, MetricsOverview, MetricsQuery, ServiceUsage, StepKindCount } from "@/domain/metrics";
+import { ID_LIKE_VALUE_PATTERN } from "@/domain/attribute-classification";
+import { ValidationError } from "@/domain/errors";
+import { isAttributeMetric, type AttributeKeyCount, type AttributeValueCount, type CustomMetricQuery, CustomMetricResult, MetricsOverview, MetricsQuery, ServiceUsage, StepKindCount } from "@/domain/metrics";
 import type { Span, StatusCode } from "@/domain/span";
 import { MAX_RANGE_MS, type TimeRange } from "@/domain/time-range";
 import type { PromptRef, Page, TraceStats, TraceSummary } from "@/domain/trace";
@@ -129,13 +131,30 @@ export class ClickHouseTraceRepository implements TraceRepository {
     const { clause, params } = ClickHouseTraceRepository.range(query.fromMs, query.toMs);
     const svc = query.service ? " AND ServiceName = {service:String}" : "";
     const p: Params = { ...params, stepTypes: query.stepTypes, ...(query.service ? { service: query.service } : {}) };
-    const rows = await this.rows<{ key: string; count: number }>(
-      `SELECT arrayJoin(mapKeys(SpanAttributes)) AS key, count() AS count FROM ${this.spans}
-       WHERE ${clause}${svc} AND ${KIND} IN {stepTypes:Array(String)}
-       GROUP BY key ORDER BY count DESC LIMIT 200`,
+    // además de contar cada clave se miden sus valores (cuántos hay, cuántos distintos, cuántos son números, cuánto miden y cuántos
+    // parecen un id) para clasificarla (ADR-078). `uniqIf` es aproximado a propósito: para clasificar basta y no pesa lo que `uniqExact`
+    const rows = await this.rows<{ key: string; count: number; nonEmpty: number; distinct: number; numericCount: number; avgLength: number; idLikeCount: number }>(
+      `SELECT key,
+              count() AS count,
+              countIf(value != '') AS nonEmpty,
+              uniqIf(value, value != '') AS distinct,
+              countIf(value != '' AND isFinite(toFloat64OrNull(value))) AS numericCount,
+              avgIf(length(value), value != '') AS avgLength,
+              countIf(match(value, '${ID_LIKE_VALUE_PATTERN}')) AS idLikeCount
+         FROM ${this.spans} ARRAY JOIN mapKeys(SpanAttributes) AS key, mapValues(SpanAttributes) AS value
+        WHERE ${clause}${svc} AND ${KIND} IN {stepTypes:Array(String)}
+        GROUP BY key ORDER BY count DESC LIMIT 200`,
       p,
     );
-    return rows.map((r) => ({ key: r.key, count: num(r.count) }));
+    return rows.map((r) => ({
+      key: r.key,
+      count: num(r.count),
+      nonEmpty: num(r.nonEmpty),
+      distinct: num(r.distinct),
+      numericCount: num(r.numericCount),
+      avgLength: num(r.avgLength),
+      idLikeCount: num(r.idLikeCount),
+    }));
   }
 
   /**
@@ -195,16 +214,28 @@ export class ClickHouseTraceRepository implements TraceRepository {
       return ` AND SpanAttributes[{filterAttr${i}:String}] IN {filterVals${i}:Array(String)}`;
     });
 
-    const metricExpr =
-      q.metric === "avg_duration"
-        ? "avg(Duration) / 1e6"
-        : q.metric === "p50_duration"
-          ? "quantile(0.5)(Duration) / 1e6"
-          : q.metric === "p95_duration"
-            ? "quantile(0.95)(Duration) / 1e6"
-            : q.metric === "error_rate"
-              ? `countIf(StatusCode = ${ERROR}) / count()`
-              : "count()";
+    // métricas sobre un atributo numérico (ADR-078, fase 3): el atributo va siempre como parámetro ligado, y solo cuentan los spans cuyo
+    // valor es un número finito (un texto, `nan` o `inf` no suman ni promedian)
+    let numericWhere = "";
+    let metricExpr: string;
+    if (isAttributeMetric(q.metric)) {
+      if (!q.metricAttribute) throw new ValidationError("Invalid metric", { metricAttribute: "Pick the number to measure" });
+      p.metricAttr = q.metricAttribute;
+      const value = "toFloat64OrNull(SpanAttributes[{metricAttr:String}])";
+      numericWhere = ` AND isFinite(${value})`;
+      metricExpr = { sum_attribute: `sum(${value})`, avg_attribute: `avg(${value})`, min_attribute: `min(${value})`, max_attribute: `max(${value})` }[q.metric];
+    } else {
+      metricExpr =
+        q.metric === "avg_duration"
+          ? "avg(Duration) / 1e6"
+          : q.metric === "p50_duration"
+            ? "quantile(0.5)(Duration) / 1e6"
+            : q.metric === "p95_duration"
+              ? "quantile(0.95)(Duration) / 1e6"
+              : q.metric === "error_rate"
+                ? `countIf(StatusCode = ${ERROR}) / count()`
+                : "count()";
+    }
 
     let labelExpr = KIND;
     let extraWhere = "";
@@ -214,7 +245,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
       extraWhere = " AND SpanAttributes[{groupBy:String}] != ''";
     }
 
-    const where = `WHERE ${clause}${svc} AND ${KIND} IN {stepTypes:Array(String)}${filterClauses.join("")}${extraWhere}`;
+    const where = `WHERE ${clause}${svc} AND ${KIND} IN {stepTypes:Array(String)}${filterClauses.join("")}${extraWhere}${numericWhere}`;
 
     if (q.chartType === "line" || q.chartType === "area") {
       p.bucket = q.bucketSeconds ?? 3600;

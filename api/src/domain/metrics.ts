@@ -1,3 +1,4 @@
+import type { AttributeStats } from "./attribute-classification";
 export interface MetricsQuery {
   fromMs: number;
   toMs: number;
@@ -93,7 +94,17 @@ export function chooseBucketSeconds(fromMs: number, toMs: number): number {
 
 // ----- Custom metrics sobre spans definidos por el usuario (ADR-027) -----
 
-export type CustomMetricType = "count" | "avg_duration" | "p50_duration" | "p95_duration" | "error_rate";
+/**
+ * Métricas sobre un atributo numérico del span (ADR-078, fase 3): el total, la media, el mínimo o el máximo de, por ejemplo, el importe
+ * de un pedido. Piden `metricAttribute` y solo cuentan los spans cuyo valor es un número finito.
+ */
+export const ATTRIBUTE_METRICS = ["sum_attribute", "avg_attribute", "min_attribute", "max_attribute"] as const;
+export type AttributeMetricType = (typeof ATTRIBUTE_METRICS)[number];
+export type CustomMetricType = "count" | "avg_duration" | "p50_duration" | "p95_duration" | "error_rate" | AttributeMetricType;
+
+export function isAttributeMetric(metric: CustomMetricType): metric is AttributeMetricType {
+  return (ATTRIBUTE_METRICS as readonly string[]).includes(metric);
+}
 export type CustomChartType = "bar" | "pie" | "line" | "area" | "number" | "table";
 
 export interface CustomMetricFilter {
@@ -107,10 +118,31 @@ export interface CustomMetricDefinition {
   /** `memtrace.step_type` de los spans a incluir (uno o varios) */
   stepTypes: string[];
   metric: CustomMetricType;
+  /** el atributo numérico que miden las métricas `*_attribute`; null en el resto (ADR-078) */
+  metricAttribute: string | null;
   /** restringe el dataset a estos valores de un atributo, antes de agregar */
   filters: CustomMetricFilter[];
   /** desglosa el resultado por los valores de este atributo, en vez de por step type */
   groupByAttribute: string | null;
+}
+
+/**
+ * Resume una serie temporal en una sola cifra por etiqueta para un texto (el email de un informe, ADR-035). Cómo se junta depende de
+ * la métrica: las que suman (conteos, totales) se suman; el mínimo y el máximo toman el menor y el mayor; las medias, los percentiles y
+ * las tasas se promedian entre buckets. Sumar una tasa o una media daría cifras sin sentido (un 5 % de fallos diario no es un 35 % semanal).
+ */
+export function summarizeSeries(timeseries: ReadonlyArray<{ points: ReadonlyArray<CustomMetricPoint> }>, metric: CustomMetricType): CustomMetricPoint[] {
+  const byLabel = new Map<string, number[]>();
+  for (const bucket of timeseries) {
+    for (const p of bucket.points) byLabel.set(p.label, [...(byLabel.get(p.label) ?? []), p.value]);
+  }
+  const combine = (values: number[]): number => {
+    if (metric === "count" || metric === "sum_attribute") return values.reduce((a, b) => a + b, 0);
+    if (metric === "min_attribute") return Math.min(...values);
+    if (metric === "max_attribute") return Math.max(...values);
+    return values.reduce((a, b) => a + b, 0) / values.length;
+  };
+  return [...byLabel.entries()].map(([label, values]) => ({ label, value: combine(values) }));
 }
 
 export interface CustomMetricQuery extends CustomMetricDefinition {
@@ -147,11 +179,11 @@ export interface AttributeValueCount {
   count: number;
 }
 
-/** Clave de atributo vista en `SpanAttributes`, para alimentar el selector de "group by"/"filter by" (ADR-030). */
-export interface AttributeKeyCount {
-  key: string;
-  count: number;
-}
+/**
+ * Clave de atributo vista en `SpanAttributes`, para alimentar el selector de "group by"/"filter by" (ADR-030), con las
+ * estadísticas con las que se clasifica (ADR-078, fase 2).
+ */
+export type AttributeKeyCount = AttributeStats;
 
 /** Rellena con ceros los buckets sin datos para que el cliente pueda pintar la serie sin huecos. */
 export function fillTimeseries(

@@ -1,6 +1,6 @@
 import { requireOrganizationPermission } from "@/adapters/inbound/http/auth-context";
 import { identityGuard } from "@/adapters/inbound/http/identity-guard";
-import { parseJsonOrThrow } from "@/adapters/inbound/http/identity-schemas";
+import { parseJsonOrThrow, parseQueryOrThrow } from "@/adapters/inbound/http/identity-schemas";
 import { json } from "@/adapters/inbound/http/problem";
 import { toApprovalRuleDto, toApprovalRulesResponse } from "@/adapters/inbound/http/prompt-mappers";
 import { approvalRuleBody, approvalRuleQuery } from "@/adapters/inbound/http/prompt-schemas";
@@ -38,7 +38,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ orga
     const { organizationId } = await context.params;
     const user = await requireOrganizationPermission(organizationId, "approval:manage");
     if (user instanceof Response) return user;
-    const query = approvalRuleQuery.parse(Object.fromEntries(new URL(request.url).searchParams));
+    const query = parseQueryOrThrow(approvalRuleQuery, request);
     await getApprovals().deleteRule({ type: "organization", id: organizationId }, query.action, query.stage);
     return json({ deleted: true });
   });

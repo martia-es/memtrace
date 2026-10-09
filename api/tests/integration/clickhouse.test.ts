@@ -7,6 +7,7 @@ import { randomBytes } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ClickHouseTraceRepository } from "@/adapters/outbound/clickhouse/clickhouse-trace-repository";
 import { configFromEnv, createReadOnlyClient } from "@/adapters/outbound/clickhouse/client";
+import { toAttributeKeysResponse } from "@/adapters/inbound/http/mappers";
 import { RepositoryUnavailableError } from "@/application/errors";
 import { chooseBucketSeconds } from "@/domain/metrics";
 import { buildTraceDetail } from "@/domain/tree";
@@ -30,6 +31,8 @@ const T5_OLD = randomBytes(16).toString("hex"); // CONV3, hace 3 días: fuera de
 const T6 = randomBytes(16).toString("hex");
 const ERR_SERVICE = `${SERVICE}-err`;
 const REV_SERVICE = `${SERVICE}-rev`;
+const ATTR_SERVICE = `${SERVICE}-attrs`;
+const NUM_SERVICE = `${SERVICE}-num`;
 const REV_A = "a".repeat(40);
 const REV_B = "b".repeat(40);
 const DAY = 24 * 3600_000;
@@ -135,6 +138,8 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
     await writer.command({ query: `ALTER TABLE ${config.database}.otel_traces DELETE WHERE ServiceName = {s:String}`, query_params: { s: CONV_SERVICE }, clickhouse_settings: settings });
     await writer.command({ query: `ALTER TABLE ${config.database}.otel_traces DELETE WHERE ServiceName = {s:String}`, query_params: { s: ERR_SERVICE }, clickhouse_settings: settings });
     await writer.command({ query: `ALTER TABLE ${config.database}.otel_traces DELETE WHERE ServiceName = {s:String}`, query_params: { s: REV_SERVICE }, clickhouse_settings: settings });
+    await writer.command({ query: `ALTER TABLE ${config.database}.otel_traces DELETE WHERE ServiceName = {s:String}`, query_params: { s: ATTR_SERVICE }, clickhouse_settings: settings });
+    await writer.command({ query: `ALTER TABLE ${config.database}.otel_traces DELETE WHERE ServiceName = {s:String}`, query_params: { s: NUM_SERVICE }, clickhouse_settings: settings });
     await writer.command({ query: `ALTER TABLE ${config.database}.otel_traces_trace_id_ts DELETE WHERE TraceId IN {ids:Array(String)}`, query_params: { ids: [TRACE_A, TRACE_B, T1, T2, T3, T4, T5_OLD, T6] }, clickhouse_settings: settings });
     await writer.close();
   });
@@ -420,5 +425,99 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
     expect(result.groups).toHaveLength(1);
     expect(result.groups[0]).toMatchObject({ kind: "tool", name: "get_weather", message: "429 Too Many Requests", exceptionType: "httpx.HTTPStatusError", exceptionMessage: "upstream said slow down", occurrences: 1, traces: 1 });
     expect(result).toMatchObject({ tracesWithErrors: 1, totalTraces: 2 });
+  });
+
+  describe("metrics over a numeric attribute (ADR-078, phase 3)", () => {
+    // order_total = 0..19 (suma 190, media 9.5, mínimo 0, máximo 19); ciudad A los pares y B los impares
+    const N = 20;
+
+    beforeAll(async () => {
+      const good = Array.from({ length: N }, (_, i): Row => ({
+        trace: randomBytes(16).toString("hex"), service: NUM_SERVICE, name: "tool", offsetMs: i * 10, durationMs: 5,
+        attrs: { "memtrace.step_type": "tool", city: i % 2 === 0 ? "A" : "B", order_total: String(i) },
+      }));
+      // lo que NO debe contar: un texto, nan, inf, un valor vacío y un span sin el atributo
+      const junk = ["abc", "nan", "inf", ""].map((v, i): Row => ({
+        trace: randomBytes(16).toString("hex"), service: NUM_SERVICE, name: "tool", offsetMs: 500 + i, durationMs: 5, attrs: { "memtrace.step_type": "tool", city: "A", order_total: v },
+      }));
+      const missing: Row = { trace: randomBytes(16).toString("hex"), service: NUM_SERVICE, name: "tool", offsetMs: 600, durationMs: 5, attrs: { "memtrace.step_type": "tool", city: "A" } };
+      await insert([...good, ...junk, missing]);
+    });
+
+    const metric = (m: "sum_attribute" | "avg_attribute" | "min_attribute" | "max_attribute", groupByAttribute: string | null = null, chartType: "bar" | "number" = "number") =>
+      repo.getCustomMetric({ ...range, service: NUM_SERVICE, chartType, stepTypes: ["tool"], metric: m, metricAttribute: "order_total", groupByAttribute, filters: [] });
+
+    it("adds up, averages and takes the lowest and highest of the numbers, ignoring text, nan, inf, empty and missing values", async () => {
+      expect((await metric("sum_attribute")).points[0]!.value).toBe(190);
+      expect((await metric("avg_attribute")).points[0]!.value).toBe(9.5);
+      expect((await metric("min_attribute")).points[0]!.value).toBe(0);
+      expect((await metric("max_attribute")).points[0]!.value).toBe(19);
+    });
+
+    it("splits by a detail", async () => {
+      const byCity = Object.fromEntries((await metric("sum_attribute", "city", "bar")).points.map((p) => [p.label, p.value]));
+      expect(byCity).toEqual({ A: 90, B: 100 });
+    });
+
+    it("does not change the count of spans, which still includes the ones without a number", async () => {
+      const result = await repo.getCustomMetric({ ...range, service: NUM_SERVICE, chartType: "number", stepTypes: ["tool"], metric: "count", metricAttribute: null, groupByAttribute: null, filters: [] });
+      expect(result.points[0]!.value).toBe(N + 5);
+    });
+  });
+
+  describe("attribute classification (ADR-078)", () => {
+    const N = 40;
+    const cities = ["Madrid", "Lisboa", "Paris", "Roma", "Berlin", "Viena", "Praga", "Oslo"];
+    const uuid = (i: number) => `3f2b8c1e-9d4a-4c7e-8a55-${String(i).padStart(12, "0")}`;
+
+    beforeAll(async () => {
+      const tools = Array.from({ length: N }, (_, i): Row => ({
+        trace: randomBytes(16).toString("hex"),
+        service: ATTR_SERVICE,
+        name: "tool",
+        offsetMs: i * 10,
+        durationMs: 5,
+        attrs: {
+          "memtrace.step_type": "tool",
+          "gen_ai.tool.name": ["get_weather", "get_uv", "search"][i % 3]!,
+          city: i % 10 === 0 ? "" : cities[i % cities.length]!,
+          customer_id: String(100_000 + i),
+          trace_ref: uuid(i),
+          order_total: String(10 + i * 1.37),
+          rating: String((i % 5) + 1),
+          flag: i % 2 === 0 ? "nan" : "inf",
+          message: "texto largo que parece un mensaje de usuario escrito por una persona ".repeat(2),
+        },
+      }));
+      // un paso de otro tipo y un servicio ajeno no deben contar
+      await insert([...tools, { trace: randomBytes(16).toString("hex"), service: ATTR_SERVICE, name: "llm", offsetMs: 0, durationMs: 5, attrs: { "memtrace.step_type": "llm", only_in_llm: "x" } }]);
+    });
+
+    it("measures each key of the chosen steps: spans, values, distinct values, numbers, length and id-like values", async () => {
+      const keys = await repo.getAttributeKeys({ ...range, service: ATTR_SERVICE, stepTypes: ["tool"] });
+      const by = new Map(keys.map((k) => [k.key, k]));
+      expect(by.has("only_in_llm")).toBe(false);
+      expect(by.get("city")).toMatchObject({ count: N, nonEmpty: N - 4, distinct: 8 });
+      expect(by.get("customer_id")).toMatchObject({ numericCount: N, distinct: N });
+      expect(by.get("trace_ref")).toMatchObject({ idLikeCount: N });
+      expect(by.get("flag")!.numericCount).toBe(0); // "nan" e "inf" no son números
+      expect(by.get("message")!.avgLength).toBeGreaterThan(60);
+    });
+
+    it("classifies them: categories and measures stay visible, ids, free text and plumbing are hidden", async () => {
+      const keys = await repo.getAttributeKeys({ ...range, service: ATTR_SERVICE, stepTypes: ["tool"] });
+      const kinds = Object.fromEntries(toAttributeKeysResponse(keys).items.map((k) => [k.key, `${k.kind}${k.hiddenByDefault ? "/hidden" : ""}`]));
+      expect(kinds).toMatchObject({
+        city: "category",
+        "gen_ai.tool.name": "category",
+        rating: "category",
+        flag: "category",
+        order_total: "number",
+        customer_id: "id/hidden",
+        trace_ref: "id/hidden",
+        message: "text/hidden",
+        "memtrace.step_type": "technical/hidden",
+      });
+    });
   });
 });

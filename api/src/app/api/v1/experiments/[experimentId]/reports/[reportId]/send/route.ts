@@ -5,6 +5,7 @@ import { json, problem } from "@/adapters/inbound/http/problem";
 import { sendMetricReportEmailBody } from "@/adapters/inbound/http/schemas";
 import type { ReportChartSnapshot } from "@/application/ports/email-sender";
 import { getIdentity, getTraceQueryService } from "@/dependency-container";
+import { summarizeSeries, type CustomMetricType } from "@/domain/metrics";
 
 export const dynamic = "force-dynamic";
 
@@ -30,12 +31,12 @@ export async function POST(request: Request, context: { params: Promise<{ experi
     const traceQueryService = getTraceQueryService();
     const charts: ReportChartSnapshot[] = await Promise.all(
       report.charts.map(async (c): Promise<ReportChartSnapshot> => {
-        const definition = c.definition as { chartType: string; stepTypes: string[]; metric: string; groupByAttribute: string | null; filters: unknown[] };
+        const definition = c.definition as { chartType: string; stepTypes: string[]; metric: CustomMetricType; metricAttribute?: string | null; groupByAttribute: string | null; filters: unknown[] };
         try {
-          const result = await traceQueryService.getCustomMetric({ ...definition, service: experiment.serviceName } as never);
+          const result = await traceQueryService.getCustomMetric({ ...definition, metricAttribute: definition.metricAttribute ?? null, service: experiment.serviceName } as never);
           const rows = result.points.length
             ? result.points
-            : summarizeTimeseries(result.timeseries);
+            : summarizeSeries(result.timeseries, definition.metric);
           return { name: c.name, rows };
         } catch {
           return { name: c.name, rows: [] };
@@ -52,16 +53,4 @@ export async function POST(request: Request, context: { params: Promise<{ experi
     });
     return json({ status: "ok" });
   });
-}
-
-/** Para line/area el resultado vive en `timeseries`, no en `points` (ADR-027): se suma cada serie a
- * través de los buckets para dar un número representativo en el resumen de texto del email. */
-function summarizeTimeseries(timeseries: Array<{ points: Array<{ label: string; value: number }> }>): Array<{ label: string; value: number }> {
-  const totals = new Map<string, number>();
-  for (const bucket of timeseries) {
-    for (const p of bucket.points) {
-      totals.set(p.label, (totals.get(p.label) ?? 0) + p.value);
-    }
-  }
-  return [...totals.entries()].map(([label, value]) => ({ label, value }));
 }

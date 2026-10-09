@@ -10,7 +10,7 @@ class Api extends FakeTraceApi {
     return { items: [{ stepType: "tool", count: 2 }, { stepType: "llm", count: 5 }, { stepType: "chain", count: 6 }] };
   }
   async getAttributeKeys() {
-    return { items: [{ key: "gen_ai.tool.name", count: 2 }] };
+    return { items: [{ key: "gen_ai.tool.name", count: 2, kind: "category" as const, distinct: 3, numeric: false, hiddenByDefault: false }] };
   }
   queries: unknown[] = [];
   async queryCustomMetric(def?: unknown) {

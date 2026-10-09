@@ -78,9 +78,36 @@ A builder for charts over what your assistant does — model calls, tool calls a
 
 Or build one from the panel on the left, with the result on the right:
 
-1. **I want to see…** — pick what happened (found in your traces for the selected time range, with how many times it happened). Pick several to compare them in one chart, for example your input guardrail and your tool calls: you get one line or bar per step, all measured the same way. Splitting by a detail and **Only when…** conditions apply to a single step, so they are available again when you pick just one. **Measured as…** how many times, how long it takes (average or in the slowest 5%), or the % that fail. Optionally **split by** a detail such as the tool or the model; technical details are hidden unless you choose **Show technical details**. Add **Only when…** conditions to restrict it to certain values of a detail.
+1. **I want to see…** — pick what happened (found in your traces for the selected time range, with how many times it happened). Pick several to compare them in one chart, for example your input guardrail and your tool calls: you get one line or bar per step, all measured the same way. Splitting by a detail and **Only when…** conditions apply to a single step, so they are available again when you pick just one. **Measured as…** how many times, how long it takes (average or in the slowest 5%), the % that fail or, when the step carries numbers, the **total**, **average**, **lowest** or **highest** of one of them (see [Measuring a number](#measuring-a-number)). Optionally **split by** a detail such as the tool or the model; the list offers the details that make sense to group by and hides the rest (see [Which details are offered](#which-details-are-offered)), which **Show more details** brings back. Add **Only when…** conditions to restrict it to certain values of a detail.
 2. **See it** — the chart updates as you go. Choose over time, bars, pie, area, a single number or a table from the selector above the chart; one is suggested for you, and a sentence under the name describes exactly what the chart shows.
 3. **Save it** — the name is suggested for you; edit it at the top of the chart and click **Save to Metrics**. The chart appears under **Saved charts** every time you open the page, and can be added to a report (below).
+
+**Rename things.** The names come from your agent's code, so a step called `input_guardrail` shows as "Input guardrail". If your team calls it something else, press **Rename things** next to **I want to see…** and type the name you want for each step and each detail (the hidden ones stay out of the list until you tick **Show hidden details**). The field shows the automatic name until you write your own; empty it, or press **Reset**, to go back. A new name applies everywhere at once: the builder, its questions, the sentence under the chart, the **Saved charts** and the [reports](#reports), including charts you saved before renaming, because they remember the technical key and not the name. Two steps (or two details) cannot share a name. The names belong to the experiment, so everyone who opens it sees them. You need the `catalog:manage` permission, which the `technical` and `business` roles have.
+
+#### Measuring a number
+
+If your agent records a number on a step — an order total, a rating, the items in a basket, the tokens of a model call — you can add it up or average it without writing a query. Pick a single step; when it has numbers, **Measured as…** also offers **Total of a number**, **Average of a number**, **Lowest value of a number** and **Highest value of a number**. Choose one, then **Of which number?** (the first is proposed). The chart reads "Total of order total in tool calls", you can still split by a detail or add **Only when…** conditions, and the numbers appear as they are, with up to two decimals and no unit.
+
+- Only the steps' **numbers** are offered. An identifier that happens to be numeric (`customer_id`) is not: adding up ids means nothing. Token counts are offered even though they are technical details, and so is a rating from 1 to 5.
+- Only the spans that carry a real number take part: an empty value, a text or a span without that detail is ignored. "How many times" still counts every span.
+- A number belongs to one step, so picking a second step goes back to counting.
+- When a figure like a total goes up, the chart does not mark it as good or bad: only times and failures are judged.
+- A saved chart remembers the number it measures, and names you gave in **Rename things** apply to it. Charts saved before this existed keep working unchanged.
+- In the report email, a chart over time is summarized with one figure per series: counts and totals are added, the lowest and highest take the lowest and highest, and averages, times and failure rates are averaged over the period (previously these were added up, which gave figures like a 35 % failure rate for a 5 % daily one).
+
+#### Which details are offered
+
+MemTrace looks at the values of each detail in the selected period and decides, with fixed rules and no AI, what to offer when you split or filter:
+
+| It looks like… | Example | In the list |
+|---|---|---|
+| **A category**: a few different values | tool, city, model | Offered |
+| **A number**: many different values that are numbers | order total, items | Offered |
+| **An identifier**: different in almost every step, or named like an id | `customer_id`, uuid, hash | Hidden: a chart would get one bar per value |
+| **Free text**: long values | a user message | Hidden |
+| **Technical**: instrumentation detail | `memtrace.*`, token counts | Hidden |
+
+**Show N more details** shows the hidden ones; a detail you already picked stays visible. To decide yourself, open **Rename things**: each detail shows what it looks like, how many different values it has and, if hidden, why. Its selector offers **Automatic**, **Always show** and **Always hide**. Your choice wins over the automatic one, applies to the whole experiment and needs the `catalog:manage` permission. A rating from 1 to 5 counts as a category even though its values are numbers. **Reset** on a name does not undo an **Always show** or **Always hide**.
 
 While you build, the chart also shows the overall figure compared with the previous period of the same length (for example "4.9% ▲ +2.3 pts vs previous period"). When you split failure rates or times by a detail and one value stands out, a highlight tells you which one ("refund_lookup fails 2.3× more than the others").
 

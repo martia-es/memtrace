@@ -1,4 +1,5 @@
 import { permissionsOf } from "./permissions";
+import type { ChartCatalogEntryDto } from "@contract";
 import type {
   AddQueueItemsResponse,
   InterAnnotatorAgreementResponse,
@@ -154,6 +155,30 @@ export class FakeIdentityApi implements IdentityApi {
     return { id: "metric-1", name, definition, createdAt: new Date().toISOString() };
   }
   async deleteCustomMetric(): Promise<void> {}
+  /** Ediciones del catálogo de las Custom charts (ADR-078), como las guarda la API. */
+  chartCatalog: ChartCatalogEntryDto[] = [];
+  catalogCalls: Array<{ method: string; args: unknown[] }> = [];
+  catalogError: Error | null = null;
+  async listChartCatalog(): Promise<ChartCatalogEntryDto[]> {
+    return this.chartCatalog;
+  }
+  async saveChartCatalogEntry(experimentId: string, entry: { kind: "step" | "attribute"; key: string; displayName: string | null; visibility?: "auto" | "shown" | "hidden" }): Promise<ChartCatalogEntryDto | null> {
+    this.catalogCalls.push({ method: "save", args: [experimentId, entry] });
+    if (this.catalogError) throw this.catalogError;
+    const rest = this.chartCatalog.filter((e) => !(e.kind === entry.kind && e.key === entry.key));
+    const visibility = entry.visibility ?? "auto";
+    if (entry.displayName === null && visibility === "auto") {
+      this.chartCatalog = rest;
+      return null;
+    }
+    const saved: ChartCatalogEntryDto = { kind: entry.kind, key: entry.key, displayName: entry.displayName, visibility, updatedAt: "2026-10-09T10:00:00.000Z" };
+    this.chartCatalog = [...rest, saved];
+    return saved;
+  }
+  async deleteChartCatalogEntry(experimentId: string, kind: "step" | "attribute", key: string): Promise<void> {
+    this.catalogCalls.push({ method: "delete", args: [experimentId, kind, key] });
+    this.chartCatalog = this.chartCatalog.filter((e) => !(e.kind === kind && e.key === key));
+  }
   scoreConfigs: ScoreConfigDto[] = [];
   async listScoreConfigs(_experimentId: string, includeArchived = false): Promise<ScoreConfigDto[]> {
     return this.scoreConfigs.filter((c) => includeArchived || !c.archivedAt);

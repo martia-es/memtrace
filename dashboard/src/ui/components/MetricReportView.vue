@@ -8,7 +8,7 @@ import EChart from "./EChart.vue";
 import EmptyState from "./EmptyState.vue";
 import ErrorBanner from "./ErrorBanner.vue";
 import { customMetricChartOption, presentResult } from "../custom-metric-chart-option";
-import { formatMetricValue, singleNumber } from "@/domain/custom-chart-vocabulary";
+import { NO_NAMES, buildNames, formatMetricValue, singleNumber, type NameCatalog } from "@/domain/custom-chart-vocabulary";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import type { MetricReportDto, SavedCustomMetricDto } from "@/application/identity-api";
@@ -58,9 +58,19 @@ watch(() => props.reportId, loadReport, { immediate: true });
 type ChartResult = { points: CustomMetricPointDto[]; timeseries: { bucketStart: string; points: CustomMetricPointDto[] }[] };
 const results = reactive<Record<string, ChartResult | null>>({});
 
+// nombres de negocio del catálogo (ADR-078): el informe habla igual que el builder
+const names = ref<NameCatalog>(NO_NAMES);
+async function loadNames() {
+  try {
+    names.value = buildNames(await identityApi.listChartCatalog(props.experimentId));
+  } catch {
+    names.value = NO_NAMES;
+  }
+}
+
 async function loadResultFor(id: string, definition: CustomMetricDefinitionDto) {
   try {
-    results[id] = presentResult(await api.queryCustomMetric(definition, props.range), definition);
+    results[id] = presentResult(await api.queryCustomMetric(definition, props.range), definition, names.value);
   } catch {
     results[id] = null;
   }
@@ -68,6 +78,7 @@ async function loadResultFor(id: string, definition: CustomMetricDefinitionDto) 
 
 async function loadAllResults() {
   if (!report.value) return;
+  await loadNames();
   await Promise.all(report.value.charts.map((c) => loadResultFor(c.customMetricId, c.definition)));
 }
 watch([report, () => props.range], loadAllResults);

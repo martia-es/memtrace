@@ -28,12 +28,14 @@ import { DeployGateService } from "@/application/deploy-gate-service";
 import { DeployService } from "@/application/deploy-service";
 import { GithubAppDispatcher, UnconfiguredDispatcher } from "@/adapters/outbound/github/github-app-dispatcher";
 import { PostgresDeployRunRepository } from "@/adapters/outbound/postgres/postgres-deploy-run-repository";
+import { PostgresChartCatalogRepository } from "@/adapters/outbound/postgres/postgres-chart-catalog-repository";
 import { PostgresApprovalRepository } from "@/adapters/outbound/postgres/postgres-approval-repository";
 import { PostgresPromptRepository } from "@/adapters/outbound/postgres/postgres-prompt-repository";
 import { PromptService } from "@/application/prompt-service";
 import { PromptEvidenceService } from "@/application/prompt-evidence-service";
 import { PromptFailureService } from "@/application/prompt-failure-service";
 import { PromptMapService } from "@/application/prompt-map-service";
+import { ChartCatalogService } from "@/application/chart-catalog-service";
 import { ApprovalRuleResolver } from "@/application/approval-rules";
 import { ApprovalService } from "@/application/approval-service";
 import { PromptGateService } from "@/application/prompt-gate-service";
@@ -66,6 +68,7 @@ const globalForContainer = globalThis as unknown as {
   __memtraceDeployRuns?: PostgresDeployRunRepository;
   __memtraceDeploy?: DeployService;
   __memtracePrompts?: PromptService;
+  __memtraceChartCatalog?: ChartCatalogService;
   __memtraceApprovals?: ApprovalService;
   __memtraceApprovalRepository?: PostgresApprovalRepository;
   __memtracePromptEvidence?: PromptEvidenceService;
@@ -288,6 +291,12 @@ export function getPromptGate(): PromptGateService {
   return globalForContainer.__memtracePromptGate;
 }
 
+/** Catálogo de datos de las Custom charts: nombres y visibilidad de pasos y atributos por experimento (ADR-078). */
+export function getChartCatalog(): ChartCatalogService {
+  if (!globalForContainer.__memtraceChartCatalog) globalForContainer.__memtraceChartCatalog = new ChartCatalogService(new PostgresChartCatalogRepository(getPostgresPool()));
+  return globalForContainer.__memtraceChartCatalog;
+}
+
 function getApprovalRepository(): PostgresApprovalRepository {
   if (!globalForContainer.__memtraceApprovalRepository) globalForContainer.__memtraceApprovalRepository = new PostgresApprovalRepository(getPostgresPool());
   return globalForContainer.__memtraceApprovalRepository;
@@ -329,7 +338,7 @@ export function getPromptEvidence(): PromptEvidenceService {
   return globalForContainer.__memtracePromptEvidence;
 }
 
-/** Fallos recientes de un prompt (ADR-077): errores, scores bajos, etiquetas humanas negativas y 👎 cruzados por traza. */
+/** Fallos recientes de un prompt (ADR-078): errores, scores bajos, etiquetas humanas negativas y 👎 cruzados por traza. */
 export function getPromptFailures(): PromptFailureService {
   if (!globalForContainer.__memtracePromptFailures) {
     const config = configFromEnv();

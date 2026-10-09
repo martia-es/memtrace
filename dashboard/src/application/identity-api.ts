@@ -1,4 +1,4 @@
-import type { CustomMetricDefinitionDto, ScoreConfigDto } from "@contract";
+import type { ChartCatalogEntryDto, CustomMetricDefinitionDto, ScoreConfigDto } from "@contract";
 
 /** Puerto de salida: identidad y RBAC (ADR-013). Separado de TraceApi: es otro dominio, otro almacén. */
 
@@ -189,6 +189,17 @@ export interface IdentityApi {
   listCustomMetrics(experimentId: string, signal?: AbortSignal): Promise<SavedCustomMetricDto[]>;
   createCustomMetric(experimentId: string, name: string, definition: CustomMetricDefinitionDto, signal?: AbortSignal): Promise<SavedCustomMetricDto>;
   deleteCustomMetric(experimentId: string, metricId: string, signal?: AbortSignal): Promise<void>;
+
+  /** Catálogo de datos de las Custom charts (ADR-078): los nombres de negocio y la visibilidad de pasos y atributos. Solo las ediciones. */
+  listChartCatalog(experimentId: string, signal?: AbortSignal): Promise<ChartCatalogEntryDto[]>;
+  /** Pone nombre o visibilidad a un paso o atributo. Sin nombre y en automático vuelve al valor por defecto y devuelve null. Exige `catalog:manage`. */
+  saveChartCatalogEntry(
+    experimentId: string,
+    entry: { kind: "step" | "attribute"; key: string; displayName: string | null; visibility?: "auto" | "shown" | "hidden" },
+    signal?: AbortSignal,
+  ): Promise<ChartCatalogEntryDto | null>;
+  /** Vuelve a automático el nombre y la visibilidad. */
+  deleteChartCatalogEntry(experimentId: string, kind: "step" | "attribute", key: string, signal?: AbortSignal): Promise<void>;
 
   /** Score configs (ADR-036): rúbricas de anotación. Crear/editar/archivar exige admin del experimento. */
   listScoreConfigs(experimentId: string, includeArchived?: boolean, signal?: AbortSignal): Promise<ScoreConfigDto[]>;

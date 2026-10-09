@@ -297,17 +297,25 @@ export interface AttributeValuesResponse {
   items: AttributeValueDto[];
 }
 
-/** Clave de atributo vista en los step types elegidos (ADR-030). */
+/** Clave de atributo vista en los step types elegidos (ADR-030), con su clasificación automática (ADR-078). */
 export interface AttributeKeyDto {
   key: string;
   count: number;
+  /** `category` agrupa y filtra; `number` es una medida; `id`, `text` y `technical` estorban en un selector */
+  kind: "category" | "number" | "id" | "text" | "technical";
+  /** valores distintos (aproximado) */
+  distinct: number;
+  /** casi todos sus valores son números: sirve como medida, aunque también sea una categoría */
+  numeric: boolean;
+  /** los selectores lo ocultan salvo que una persona lo muestre (en el catálogo, `visibility`) */
+  hiddenByDefault: boolean;
 }
 
 export interface AttributeKeysResponse {
   items: AttributeKeyDto[];
 }
 
-export type CustomMetricTypeDto = "count" | "avg_duration" | "p50_duration" | "p95_duration" | "error_rate";
+export type CustomMetricTypeDto = "count" | "avg_duration" | "p50_duration" | "p95_duration" | "error_rate" | "sum_attribute" | "avg_attribute" | "min_attribute" | "max_attribute";
 export type CustomChartTypeDto = "bar" | "pie" | "line" | "area" | "number" | "table";
 
 export interface CustomMetricFilterDto {
@@ -320,6 +328,8 @@ export interface CustomMetricDefinitionDto {
   chartType: CustomChartTypeDto;
   stepTypes: string[];
   metric: CustomMetricTypeDto;
+  /** el atributo numérico que miden `sum_attribute`, `avg_attribute`, `min_attribute` y `max_attribute`; null en el resto (ADR-078) */
+  metricAttribute: string | null;
   groupByAttribute: string | null;
   filters: CustomMetricFilterDto[];
 }
@@ -1368,6 +1378,22 @@ export interface PromptApprovalsResponse {
   approvers: { userId: string; name: string; roles: string[] }[];
 }
 
+/** Una edición del catálogo de datos de las Custom charts (ADR-078): el nombre de negocio y la visibilidad de un paso o atributo. */
+export interface ChartCatalogEntryDto {
+  kind: "step" | "attribute";
+  /** la clave técnica: `memtrace.step_type` o la clave del atributo; no cambia al renombrar */
+  key: string;
+  /** null = sin nombre propio: vale el del diccionario o el humanizado */
+  displayName: string | null;
+  /** `auto`: lo decide la clasificación; `shown` / `hidden` lo fuerza una persona */
+  visibility: "auto" | "shown" | "hidden";
+  updatedAt: string;
+}
+
+export interface ChartCatalogResponse {
+  items: ChartCatalogEntryDto[];
+}
+
 /** Evidencia de una versión de un prompt (ADR-069): lo que pasó en las trazas que la usaron. */
 export interface VersionEvidenceDto {
   version: number;
@@ -1394,7 +1420,7 @@ export interface VersionEvidenceDto {
 
 export type FailureReasonDto = "error" | "low_score" | "human_low" | "user_dislike";
 
-/** Fallos recientes de un prompt para elegir uno y arreglarlo (ADR-077). */
+/** Fallos recientes de un prompt para elegir uno y arreglarlo (ADR-078). */
 export interface PromptFailuresResponse {
   items: Array<{
     traceId: string;

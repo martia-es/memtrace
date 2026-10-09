@@ -1,4 +1,4 @@
-import type { CustomMetricDefinitionDto, ScoreConfigDto } from "@contract";
+import type { ChartCatalogEntryDto, CustomMetricDefinitionDto, ScoreConfigDto } from "@contract";
 import { ApiError } from "@/application/trace-api";
 import type {
   ApiKeyDto,
@@ -131,6 +131,28 @@ export class HttpIdentityApi implements IdentityApi {
   async deleteCustomMetric(experimentId: string, metricId: string, signal?: AbortSignal): Promise<void> {
     const response = await this.fetchFn(
       `${this.baseUrl}/experiments/${encodeURIComponent(experimentId)}/custom-metrics/${encodeURIComponent(metricId)}`,
+      { method: "DELETE", signal, headers: { Accept: "application/json" } },
+    );
+    if (!response.ok) throw await toApiError(response);
+  }
+
+  async listChartCatalog(experimentId: string, signal?: AbortSignal): Promise<ChartCatalogEntryDto[]> {
+    const { items } = await this.get<{ items: ChartCatalogEntryDto[] }>(`/experiments/${encodeURIComponent(experimentId)}/chart-catalog`, signal);
+    return items;
+  }
+
+  async saveChartCatalogEntry(
+    experimentId: string,
+    entry: { kind: "step" | "attribute"; key: string; displayName: string | null; visibility?: "auto" | "shown" | "hidden" },
+    signal?: AbortSignal,
+  ): Promise<ChartCatalogEntryDto | null> {
+    const { entry: saved } = await this.put<{ entry: ChartCatalogEntryDto | null }>(`/experiments/${encodeURIComponent(experimentId)}/chart-catalog`, entry, signal);
+    return saved;
+  }
+
+  async deleteChartCatalogEntry(experimentId: string, kind: "step" | "attribute", key: string, signal?: AbortSignal): Promise<void> {
+    const response = await this.fetchFn(
+      `${this.baseUrl}/experiments/${encodeURIComponent(experimentId)}/chart-catalog?kind=${encodeURIComponent(kind)}&key=${encodeURIComponent(key)}`,
       { method: "DELETE", signal, headers: { Accept: "application/json" } },
     );
     if (!response.ok) throw await toApiError(response);
