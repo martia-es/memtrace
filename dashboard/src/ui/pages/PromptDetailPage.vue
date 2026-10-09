@@ -753,7 +753,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
             </div>
 
             <div v-else-if="tab === 'map'" class="pane" data-testid="pane-map">
-              <PromptDependencyMap :prompt-id="promptId" :kind="data.prompt.kind" :tag-versions="tagVersionMap" :latest="latestVersion" />
+              <PromptDependencyMap :prompt-id="promptId" :kind="data.prompt.kind" :name="data.prompt.name" :tag-versions="tagVersionMap" :latest="latestVersion" />
             </div>
 
             <div v-else-if="tab === 'try'" class="pane" data-testid="pane-try">

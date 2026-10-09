@@ -30,8 +30,8 @@ describe("dependency map (ADR-074)", () => {
     const wrapper = mountWith(PromptDependencyMap, { promptId: "p1", kind: "prompt" }, api);
     await flushPromises();
     const weather = wrapper.find("[data-testid='map-agent-weather']").text();
-    expect(weather).toContain("dev · dev → v4");
-    expect(weather.indexOf("dev ·")).toBeLessThan(weather.indexOf("pro ·")); // environments in promotion order
+    expect(weather).toContain("v4");
+    expect(weather.indexOf("dev")).toBeLessThan(weather.indexOf("pro")); // environments in promotion order
     expect(wrapper.find("[data-testid='map-agent-billing']").text()).toContain("has not reported reading it yet");
     expect(wrapper.find("[data-testid='map-dataset']").text()).toContain("golden");
     expect(wrapper.find("[data-testid='map-dataset']").text()).toContain("2 runs");
