@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useQuasar } from "quasar";
 import type { PromptDetailDto, PromptVersionDto } from "@contract";
@@ -8,7 +8,7 @@ import { formatCostUsd, formatCount, formatDateTime, formatDuration, formatPerce
 import { MIN_TRACES, compareVersions, evaluatorCell, evaluatorNames, sampleQuality } from "@/domain/prompt-evidence";
 import { describeUsage, environmentsRunning, type UsageState } from "@/domain/prompt-usage";
 import { PRODUCTION_ENV, filterVersions, groupByMonth, sortEnvironments, splitVariables } from "@/domain/prompt-release";
-import { includeSyntax, insertSnippet } from "@/domain/prompt-fragment";
+import { includeSyntax } from "@/domain/prompt-fragment";
 import { sideBySideDiff } from "@/domain/text-diff";
 import EnvFlag from "../components/EnvFlag.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
@@ -17,7 +17,7 @@ import PromotePromptModal from "../components/PromotePromptModal.vue";
 import PromptApprovals from "../components/PromptApprovals.vue";
 import RequestApprovalModal from "../components/RequestApprovalModal.vue";
 import PromptDependencyMap from "../components/PromptDependencyMap.vue";
-import PromptFragmentPicker from "../components/PromptFragmentPicker.vue";
+import PromptEditor from "../components/PromptEditor.vue";
 import PromptFixFromFailure from "../components/PromptFixFromFailure.vue";
 import PromptPlayground from "../components/PromptPlayground.vue";
 import PromptDiff from "../components/PromptDiff.vue";
@@ -160,29 +160,7 @@ const saving = ref(false);
 function startEdit() {
   draft.value = selectedVersion.value?.source ?? selectedVersion.value?.content ?? "";
   message.value = "";
-  pickingFragment.value = false;
   editing.value = true;
-}
-// ---- insertar un fragmento en el texto que se edita (ADR-073) ----
-const pickingFragment = ref(false);
-const editorBox = ref<HTMLElement | null>(null);
-const caret = { start: 0, end: 0 };
-const textarea = () => editorBox.value?.querySelector("textarea") ?? null;
-function openFragmentPicker() {
-  const area = textarea();
-  // el cursor se recuerda antes de que el clic en el botón le quite el foco al texto
-  caret.start = area?.selectionStart ?? draft.value.length;
-  caret.end = area?.selectionEnd ?? draft.value.length;
-  pickingFragment.value = true;
-}
-async function insertFragment(snippet: string) {
-  const next = insertSnippet(draft.value, caret.start, caret.end, snippet);
-  draft.value = next.text;
-  pickingFragment.value = false;
-  await nextTick();
-  const area = textarea();
-  area?.focus();
-  area?.setSelectionRange(next.caret, next.caret);
 }
 function notifyError(action: string, error: unknown) {
   $q.notify({ message: `${action}: ${describeApiError(error as Error)}`, color: "negative", timeout: 4000 });
@@ -645,11 +623,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
               <div v-else class="editor-layout">
                 <form class="editor" @submit.prevent="saveVersion(false)">
                   <p class="muted">Editing from v{{ selected }}. Saving creates a new version; the previous ones are not modified.</p>
-                  <div v-if="data.prompt.kind !== 'fragment'" class="editor-tools">
-                    <button type="button" class="ghost-btn small insert-btn" :class="{ on: pickingFragment }" data-testid="insert-fragment" @click="pickingFragment ? (pickingFragment = false) : openFragmentPicker()">Insert fragment</button>
-                    <span class="soft small">Include text shared with other prompts.</span>
-                  </div>
-                  <div ref="editorBox"><TextInput v-model="draft" multiline :rows="16" mono data-testid="editor" /></div>
+                  <PromptEditor v-model="draft" :experiment-id="String(route.params.experimentId)" :fragments="data.prompt.kind !== 'fragment'" :rows="18" />
                   <TextInput v-model="message" placeholder="What changed and why? (optional)" data-testid="version-message" />
                   <div class="row">
                     <button type="submit" class="primary-btn" :disabled="saving || !draft.trim() || draft === (selectedVersion.source ?? selectedVersion.content)" data-testid="save-version">Save as new version</button>
@@ -657,7 +631,6 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                     <button type="button" class="ghost-btn" @click="editing = false">Cancel</button>
                   </div>
                 </form>
-                <PromptFragmentPicker v-if="pickingFragment" :experiment-id="String(route.params.experimentId)" @insert="insertFragment" @close="pickingFragment = false" />
               </div>
             </div>
 
@@ -1330,9 +1303,7 @@ h3 {
   font-size: 12px;
 }
 .editor-layout {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
+  display: block;
 }
 .editor {
   flex: 1;
@@ -1340,16 +1311,6 @@ h3 {
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-.editor-tools {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.insert-btn.on,
-.insert-btn:hover {
-  border-color: var(--mt-accent);
-  color: var(--mt-accent-text);
 }
 .dependents-banner {
   display: flex;

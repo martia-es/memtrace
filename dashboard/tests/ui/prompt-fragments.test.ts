@@ -117,6 +117,8 @@ describe("fragments in the list (ADR-073)", () => {
     await flushPromises();
     expect(document.body.querySelector("[data-testid='fragment-hint']")).toBeNull();
     expect(document.body.querySelector("[data-testid='fragment-variables']")).toBeNull();
+    // un prompt nuevo ya muestra el panel de fragmentos
+    expect(document.body.querySelector("[data-testid='fragment-picker']")).not.toBeNull();
     (document.body.querySelector("[data-testid='prompt-name']") as HTMLInputElement).value = "weather-system";
     document.body.querySelector("[data-testid='prompt-name']")!.dispatchEvent(new Event("input"));
     (document.body.querySelector("[data-testid='prompt-content']") as HTMLTextAreaElement).value = "Texto";
@@ -250,19 +252,20 @@ describe("inserting a fragment while editing (ADR-073)", () => {
     return { api, ...page };
   };
 
-  it("offers the picker only while editing a prompt, and not to readers", async () => {
+  it("shows the fragments panel next to the text while editing a prompt, without opening anything", async () => {
     const { wrapper } = await setup();
-    expect(wrapper.find("[data-testid='insert-fragment']").exists()).toBe(true);
+    await flushPromises();
+    expect(wrapper.find("[data-testid='fragment-picker']").exists()).toBe(true);
+    expect(wrapper.find("[data-testid='insert-fragment']").exists()).toBe(false);
     const fragmentPage = new FakePromptApi();
     fragmentPage.detail = promptDetail({ prompt: { ...promptDetail().prompt, kind: "fragment", name: "tone" } });
     const other = await mountPage(PromptDetailPage, "/e/exp-1/prompts/p1", { promptId: "p1" }, fragmentPage);
     await other.wrapper.find("[data-testid='edit-version']").trigger("click");
-    expect(other.wrapper.find("[data-testid='insert-fragment']").exists()).toBe(false);
+    expect(other.wrapper.find("[data-testid='fragment-picker']").exists()).toBe(false);
   });
 
   it("explains where the tag points and previews the text and the variables it adds", async () => {
     const { wrapper } = await setup();
-    await wrapper.find("[data-testid='insert-fragment']").trigger("click");
     await flushPromises();
     expect(wrapper.find("[data-testid='fragment-option-tone']").text()).toContain("pro");
     expect(wrapper.find("[data-testid='choice-explain']").text()).toContain("v5");
@@ -279,22 +282,35 @@ describe("inserting a fragment while editing (ADR-073)", () => {
     const area = wrapper.find("[data-testid='editor']");
     await area.setValue("Hello.\nBye.");
     (area.element as HTMLTextAreaElement).setSelectionRange(7, 7);
-    await wrapper.find("[data-testid='insert-fragment']").trigger("click");
+    await area.trigger("focusout");
     await flushPromises();
     await wrapper.find("[data-testid='fragment-insert']").trigger("click");
     await flushPromises();
     expect((wrapper.find("[data-testid='editor']").element as HTMLTextAreaElement).value).toBe("Hello.\n{{> tone@pro}}Bye.");
-    expect(wrapper.find("[data-testid='fragment-picker']").exists()).toBe(false);
     await wrapper.find("form.editor").trigger("submit");
     await flushPromises();
     expect(api.calls.find((c) => c.method === "saveVersion")?.args[1]).toMatchObject({ content: "Hello.\n{{> tone@pro}}Bye." });
+  });
+
+  it("switches between code and a rendered view with the fragment text embedded", async () => {
+    const { wrapper } = await setup();
+    await wrapper.find("[data-testid='editor']").setValue("# Rol\n\nEres **breve**.\n\n{{> tone@pro}}\n\n{{> ghost@pro}}");
+    await wrapper.find("[data-testid='editor-view-rendered']").trigger("click");
+    await flushPromises();
+    const view = wrapper.find("[data-testid='editor-rendered']");
+    expect(view.html()).toContain("<h1>Rol</h1>");
+    expect(view.html()).toContain("<strong>breve</strong>");
+    expect(view.find("[data-testid='embedded-tone · v5']").text()).toContain("Be calm.");
+    expect(view.text()).not.toContain("{{> tone@pro}}");
+    expect(view.find("[data-testid='embedded-ghost@pro']").text()).toContain("does not exist");
+    await wrapper.find("[data-testid='editor-view-code']").trigger("click");
+    expect((wrapper.find("[data-testid='editor']").element as HTMLTextAreaElement).value).toContain("{{> tone@pro}}");
   });
 
   it("says so when there are no fragments", async () => {
     const api = new FakePromptApi();
     const page = await mountPage(PromptDetailPage, "/e/exp-1/prompts/p1", { promptId: "p1" }, api);
     await page.wrapper.find("[data-testid='edit-version']").trigger("click");
-    await page.wrapper.find("[data-testid='insert-fragment']").trigger("click");
     await flushPromises();
     expect(page.wrapper.find("[data-testid='no-fragments']").exists()).toBe(true);
     expect(page.wrapper.find("[data-testid='fragment-insert']").attributes("disabled")).toBeDefined();
