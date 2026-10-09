@@ -129,12 +129,12 @@ Prefer a model to write the proposal? The SDK can ask **your** LLM with **your**
 
 A **fragment** is text several prompts need (tone, safety policy, output format). Create it with **+ New fragment**; it has versions, tags and history like a prompt, but it is not deployed to an agent. A prompt uses it by writing, anywhere in its text:
 
-```
+```text
 {{> tone@pro}}     the version the tag "pro" of the fragment "tone" points to
 {{> tone@3}}       version 3 of "tone"
 ```
 
-The reference is **mandatory** (a bare `{{> tone}}` is rejected). When you save, MemTrace **resolves the include and pins it to the exact version it found**. Your agent receives the final text, already joined, so nothing changes in how you read prompts and there is no extra latency. A version therefore always means the same text: editing a fragment later **never** changes a version that already exists, and its evidence and evaluations stay valid.
+The reference is **mandatory** (an include without `@tag` or `@number` is rejected). When you save, MemTrace **resolves the include and pins it to the exact version it found**. Your agent receives the final text, already joined, so nothing changes in how you read prompts and there is no extra latency. A version therefore always means the same text: editing a fragment later **never** changes a version that already exists, and its evidence and evaluations stay valid.
 
 - A prompt shows what it wrote (**Source**) or what the agent receives (**Resolved**), and an **Includes** card with each fragment and the version it is pinned to.
 - When a tag moved on, the card says *now v4* and offers **Rebuild with the current fragments**. That saves a **draft** to review, test and publish; it is never published for you. A reference by number never goes out of date.
