@@ -21,6 +21,7 @@ function fakeRepo() {
   const events = new Map<string, PromptTagEvent[]>();
   const usage: Array<UsageItem & { experimentId: string; environment: string }> = [];
   const policies = new Map<string, PromptPolicy>();
+  const counters = new Map<string, number>();
   const overrides = new Map<string, { experimentId: string; promptId: string; version: number; expired: boolean; uses: number }>();
   let seq = 0;
 
@@ -45,7 +46,7 @@ function fakeRepo() {
       for (const p of prompts.values()) {
         if (!filter.includeArchived && p.archivedAt) continue;
         if (filter.experimentId && !p.experimentIds.includes(filter.experimentId)) continue;
-        out.push({ ...p, latestVersion: versions.get(p.id)!.length, tags: Object.fromEntries(tags.get(p.id)!) });
+        out.push({ ...p, latestVersion: Math.max(0, ...versions.get(p.id)!.filter((v) => v.status === "published").map((v) => v.version)), tags: Object.fromEntries(tags.get(p.id)!) });
       }
       return out;
     },
@@ -61,9 +62,30 @@ function fakeRepo() {
     },
     addVersion: async (input) => {
       const list = versions.get(input.promptId)!;
-      const version: PromptVersion = { id: `v${++seq}`, promptId: input.promptId, version: list.length + 1, content: input.content, variables: input.variables, contentHash: input.contentHash, parentVersion: input.parentVersion, message: input.message, createdBy: input.createdBy, createdAt: "t" };
+      // como la base de datos: el contador nunca retrocede, aunque se descarte un borrador
+      const number = (counters.get(input.promptId) ?? 0) + 1;
+      counters.set(input.promptId, number);
+      const version: PromptVersion = {
+        id: `v${++seq}`, promptId: input.promptId, version: number, content: input.content, variables: input.variables, contentHash: input.contentHash,
+        parentVersion: input.parentVersion, message: input.message, createdBy: input.createdBy, createdAt: "t",
+        status: input.status, origin: input.origin, publishedAt: input.status === "published" ? "t" : null,
+      };
       list.push(version);
       return version;
+    },
+    publishVersion: async (id, n) => {
+      const found = versions.get(id)?.find((v) => v.version === n);
+      if (!found || found.status !== "draft") return null;
+      found.status = "published";
+      found.publishedAt = "t";
+      return found;
+    },
+    deleteDraft: async (id, n) => {
+      const list = versions.get(id) ?? [];
+      const at = list.findIndex((v) => v.version === n && v.status === "draft");
+      if (at < 0) return false;
+      list.splice(at, 1);
+      return true;
     },
     listVersions: async (id) => [...(versions.get(id) ?? [])].reverse(),
     getVersion: async (id, n) => versions.get(id)?.find((v) => v.version === n) ?? null,
@@ -478,5 +500,98 @@ describe("override tokens and the playground (ADR-071)", () => {
     const { prompt } = await seeded(ctx);
     await ctx.repo.createOverride({ tokenHash: hashOverrideToken("mto_caducado_caducado"), experimentId: AGENT_A, promptId: prompt.id, version: 1, userId: USER, ttlSeconds: 0 });
     await expect(ctx.service.resolveOverride(AGENT_A, ORG, "weather-system", "mto_caducado_caducado")).rejects.toBeInstanceOf(PromptNotFoundError);
+  });
+});
+
+describe("drafts and fixes from failures (ADR-072)", () => {
+  const TRACE = "ab".repeat(16);
+
+  async function seeded() {
+    const service = new PromptService(fakeRepo());
+    const created = await service.create(ORG, USER, { name: "weather-system", content: "uno {{ciudad}}", experimentIds: [AGENT_A] });
+    return { service, id: created.prompt.id };
+  }
+  const fix = { traceIds: [TRACE], cause: "429 Too Many Requests", rationale: "Retry with a shorter prompt" };
+
+  it("saves a proposal as a draft with the failure that motivated it, and does not touch the published ones", async () => {
+    const { service, id } = await seeded();
+    const draft = await service.saveVersion(id, USER, { content: "dos {{ciudad}}", draft: true, origin: fix, message: "shorter" });
+    expect(draft).toMatchObject({ version: 2, status: "draft", publishedAt: null, origin: { kind: "fix", traceIds: [TRACE], cause: "429 Too Many Requests", rationale: "Retry with a shorter prompt" } });
+    const { versions } = await service.detail(id);
+    expect(versions.map((v) => [v.version, v.status])).toEqual([[2, "draft"], [1, "published"]]);
+  });
+
+  it("a draft is not the base of the next version: it starts from the last published one", async () => {
+    const { service, id } = await seeded();
+    await service.saveVersion(id, USER, { content: "dos", draft: true });
+    const next = await service.saveVersion(id, USER, { content: "tres" });
+    expect(next).toMatchObject({ version: 3, status: "published", parentVersion: 1 });
+  });
+
+  it("does not save a draft identical to the published text or to the last draft", async () => {
+    const { service, id } = await seeded();
+    await expect(service.saveVersion(id, USER, { content: "uno {{ciudad}}", draft: true })).rejects.toBeInstanceOf(PromptInvariantError);
+    await service.saveVersion(id, USER, { content: "dos", draft: true });
+    await expect(service.saveVersion(id, USER, { content: "dos", draft: true })).rejects.toBeInstanceOf(PromptInvariantError);
+  });
+
+  it("refuses to point any tag at a draft, until it is published", async () => {
+    const { service, id } = await seeded();
+    await service.saveVersion(id, USER, { content: "dos", draft: true });
+    await expect(service.moveTag(id, USER, { tag: "pro", version: 2 }, true)).rejects.toThrow(/draft/);
+    await expect(service.moveTag(id, USER, { tag: "stable", version: 2 }, true)).rejects.toThrow(/draft/);
+    await service.publishDraft(id, 2);
+    await expect(service.moveTag(id, USER, { tag: "stable", version: 2 }, true)).resolves.toMatchObject({ toVersion: 2 });
+  });
+
+  it("publishing turns it into a normal version once, and a published version cannot be published again", async () => {
+    const { service, id } = await seeded();
+    await service.saveVersion(id, USER, { content: "dos", draft: true });
+    expect(await service.publishDraft(id, 2)).toMatchObject({ status: "published", publishedAt: expect.any(String) });
+    await expect(service.publishDraft(id, 2)).rejects.toBeInstanceOf(PromptInvariantError);
+    await expect(service.publishDraft(id, 1)).rejects.toBeInstanceOf(PromptInvariantError);
+  });
+
+  it("discards a draft but never a published version, and never reuses the number", async () => {
+    const { service, id } = await seeded();
+    await service.saveVersion(id, USER, { content: "dos", draft: true });
+    await service.discardDraft(id, 2);
+    await expect(service.discardDraft(id, 1)).rejects.toBeInstanceOf(PromptInvariantError);
+    const again = await service.saveVersion(id, USER, { content: "tres" });
+    expect(again.version).toBe(3); // v2 may have been tested and traced: its number never means anything else
+  });
+
+  it("does not publish or discard in an archived prompt", async () => {
+    const { service, id } = await seeded();
+    await service.saveVersion(id, USER, { content: "dos", draft: true });
+    await service.update(id, { archived: true });
+    await expect(service.publishDraft(id, 2)).rejects.toBeInstanceOf(PromptInvariantError);
+  });
+
+  it("rejects an origin that is not a failure description: bad trace ids or too many", async () => {
+    const { service, id } = await seeded();
+    await expect(service.saveVersion(id, USER, { content: "dos", draft: true, origin: { traceIds: ["nope"] } })).rejects.toBeInstanceOf(ValidationError);
+    await expect(service.saveVersion(id, USER, { content: "dos", draft: true, origin: { traceIds: Array.from({ length: 11 }, (_, i) => i.toString(16).padStart(32, "0")) } })).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("a team tool with the agent's key can only propose drafts, for prompts of that agent", async () => {
+    const { service } = await seeded();
+    const saved = await service.saveDraftForAgent(AGENT_A, ORG, USER, { name: "weather-system", content: "propuesta", origin: fix });
+    expect(saved.version).toMatchObject({ status: "draft", version: 2, parentVersion: 1 });
+    await expect(service.saveDraftForAgent(AGENT_B, ORG, USER, { name: "weather-system", content: "otra" })).rejects.toBeInstanceOf(PromptNotFoundError);
+    await expect(service.saveDraftForAgent(AGENT_A, ORG, USER, { name: "no-existe", content: "otra" })).rejects.toBeInstanceOf(PromptNotFoundError);
+  });
+
+  it("drafts do not count as the latest version of the prompt", async () => {
+    const { service, id } = await seeded();
+    await service.saveVersion(id, USER, { content: "dos", draft: true });
+    expect((await service.list(ORG))[0]!.latestVersion).toBe(1);
+  });
+
+  it("a draft can still be tested in the playground and resolved by number, so it can be evaluated before publishing", async () => {
+    const { service, id } = await seeded();
+    await service.saveVersion(id, USER, { content: "dos", draft: true });
+    expect((await service.resolve(id, "2")).status).toBe("draft");
+    expect((await service.resolveForAgent(AGENT_A, ORG, "weather-system", { version: 2 })).version.status).toBe("draft");
   });
 });

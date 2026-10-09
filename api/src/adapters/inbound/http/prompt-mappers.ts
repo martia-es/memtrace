@@ -22,6 +22,9 @@ export const toPromptSummaryDto = (p: PromptSummary): PromptSummaryDto => ({ ...
 
 export const toPromptVersionDto = (v: PromptVersion): PromptVersionDto => ({
   version: v.version,
+  status: v.status,
+  origin: v.origin,
+  publishedAt: v.publishedAt,
   content: v.content,
   variables: v.variables,
   contentHash: v.contentHash,
@@ -76,6 +79,7 @@ export const toPromptResolveDto = (prompt: Prompt, version: PromptVersion, tag: 
   contentHash: version.contentHash,
   archived: prompt.archivedAt !== null,
   playground,
+  draft: version.status === "draft",
 });
 
 /** ETag de una versión servida al SDK: cambia con la versión y con el texto. */

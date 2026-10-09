@@ -1109,8 +1109,20 @@ export interface PromptSummaryDto extends PromptDto {
   tags: Record<string, number>;
 }
 
+/** De dónde sale un borrador: el fallo que se quería arreglar (ADR-072). */
+export interface VersionOriginDto {
+  kind: "fix";
+  traceIds: string[];
+  cause: string | null;
+  rationale: string;
+}
+
 export interface PromptVersionDto {
   version: number;
+  /** `draft`: propuesta pendiente de revisión; se puede probar y evaluar, pero no recibe tags hasta publicarse */
+  status: "draft" | "published";
+  origin: VersionOriginDto | null;
+  publishedAt: string | null;
   content: string;
   /** variables {{nombre}} detectadas al guardar */
   variables: string[];
@@ -1190,6 +1202,8 @@ export interface PromptResolveDto {
   archived: boolean;
   /** true: es un override del playground para una sola petición, no la versión de un tag (ADR-071) */
   playground: boolean;
+  /** true: es un borrador pedido por número (para evaluarlo antes de publicarlo, ADR-072) */
+  draft: boolean;
 }
 
 /** Resultado de probar una versión de un prompt en el asistente real (ADR-071). */

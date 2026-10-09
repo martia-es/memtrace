@@ -192,4 +192,30 @@ describe.skipIf(!url)("prompt registry (postgres)", () => {
     await pool.query("DELETE FROM prompts WHERE id = $1", [prompt.id]);
     expect((await pool.query("SELECT 1 FROM prompt_overrides WHERE token_hash = $1", [hashOverrideToken("mto_cascade_cascade_cascade_cascade")])).rowCount).toBe(0);
   });
+
+  it("drafts (ADR-072): numbered, hidden from the latest version, never reuse a discarded number, and the trigger keeps published ones immutable", async () => {
+    const { prompt } = await service.create(orgId, userId, { name: "drafts-pg", content: "uno", experimentIds: [agentA] });
+    const draft = await service.saveVersion(prompt.id, userId, { content: "dos", draft: true, origin: { traceIds: ["ab".repeat(16)], cause: "429", rationale: "why" } });
+    expect(draft).toMatchObject({ version: 2, status: "draft", publishedAt: null });
+    expect(draft.origin).toEqual({ kind: "fix", traceIds: ["ab".repeat(16)], cause: "429", rationale: "why" });
+    expect((await service.list(orgId)).find((p) => p.id === prompt.id)!.latestVersion).toBe(1);
+
+    await service.discardDraft(prompt.id, 2);
+    const next = await service.saveVersion(prompt.id, userId, { content: "tres" });
+    expect(next.version).toBe(3); // the counter does not go back
+    expect((await service.detail(prompt.id)).versions.map((v) => v.version)).toEqual([3, 1]);
+
+    await expect(pool.query("UPDATE prompt_versions SET status = 'draft' WHERE prompt_id = $1 AND version = 3", [prompt.id])).rejects.toThrow(/cannot go back to draft/);
+    await expect(pool.query("UPDATE prompt_versions SET content = 'otra' WHERE prompt_id = $1 AND version = 3", [prompt.id])).rejects.toThrow(/immutable/);
+  });
+
+  it("publishes a draft and then it can take tags", async () => {
+    const { prompt } = await service.create(orgId, userId, { name: "drafts-publish", content: "uno", experimentIds: [agentA] });
+    await service.saveVersion(prompt.id, userId, { content: "dos", draft: true });
+    await expect(service.moveTag(prompt.id, userId, { tag: "stable", version: 2 }, true)).rejects.toThrow(/draft/);
+    await service.publishDraft(prompt.id, 2);
+    await expect(service.moveTag(prompt.id, userId, { tag: "stable", version: 2 }, true)).resolves.toMatchObject({ toVersion: 2 });
+    expect((await service.list(orgId)).find((p) => p.id === prompt.id)!.latestVersion).toBe(2);
+    await expect(service.discardDraft(prompt.id, 2)).rejects.toBeInstanceOf(PromptInvariantError); // published: never deleted
+  });
 });

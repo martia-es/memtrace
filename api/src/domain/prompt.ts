@@ -30,6 +30,20 @@ export interface PromptSummary extends Prompt {
   tags: Record<string, number>;
 }
 
+/** `draft`: propuesta pendiente de revisión; se puede probar y evaluar, pero no recibir un tag (ADR-072). */
+export type VersionStatus = "draft" | "published";
+
+/** De dónde sale una versión que no es un cambio hecho a mano: el fallo que se quería arreglar (ADR-072). */
+export interface VersionOrigin {
+  kind: "fix";
+  /** trazas fallidas que motivaron el arreglo */
+  traceIds: string[];
+  /** el fallo, en una frase (mensaje del error o su causa de negocio) */
+  cause: string | null;
+  /** por qué este cambio debería arreglarlo, en palabras de quien (o lo que) lo propuso */
+  rationale: string;
+}
+
 export interface PromptVersion {
   id: string;
   promptId: string;
@@ -41,6 +55,10 @@ export interface PromptVersion {
   message: string;
   createdBy: string | null;
   createdAt: string;
+  status: VersionStatus;
+  origin: VersionOrigin | null;
+  /** cuándo se publicó; null mientras es un borrador */
+  publishedAt: string | null;
 }
 
 export interface PromptTag {
@@ -117,6 +135,25 @@ export interface NewPromptVersion {
   parentVersion: number | null;
   message: string;
   createdBy: string;
+  status: VersionStatus;
+  origin: VersionOrigin | null;
+}
+
+const TRACE_ID = /^[0-9a-f]{32}$/;
+export const MAX_ORIGIN_TRACES = 10;
+export const MAX_RATIONALE = 2000;
+
+/** Valida el origen de un arreglo: pocas trazas con forma de id, y un motivo acotado. */
+export function validateOrigin(raw: { traceIds?: string[]; cause?: string | null; rationale?: string } | null | undefined): VersionOrigin | null {
+  if (!raw) return null;
+  const traceIds = [...new Set((raw.traceIds ?? []).map((t) => t.trim().toLowerCase()))];
+  if (traceIds.length > MAX_ORIGIN_TRACES || traceIds.some((t) => !TRACE_ID.test(t))) {
+    throw new ValidationError("Invalid origin", { traceIds: `Up to ${MAX_ORIGIN_TRACES} trace ids of 32 hexadecimal characters` });
+  }
+  const rationale = (raw.rationale ?? "").trim();
+  if (rationale.length > MAX_RATIONALE) throw new ValidationError("Invalid origin", { rationale: `At most ${MAX_RATIONALE} characters` });
+  const cause = (raw.cause ?? "").trim().slice(0, 300);
+  return { kind: "fix", traceIds, cause: cause === "" ? null : cause, rationale };
 }
 
 export function validatePromptName(raw: string): string {

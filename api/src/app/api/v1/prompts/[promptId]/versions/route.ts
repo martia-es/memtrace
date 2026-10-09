@@ -8,7 +8,10 @@ import { getPrompts } from "@/dependency-container";
 
 export const dynamic = "force-dynamic";
 
-/** Guarda una versión nueva (inmutable). 409 si el texto es idéntico al de la última. Requiere `prompt:write`. */
+/**
+ * Guarda una versión nueva (inmutable). 409 si el texto es idéntico al de la última. Con `draft: true` queda como borrador
+ * (ADR-072): se puede probar y evaluar, pero no recibe tags hasta publicarse. Requiere `prompt:write`.
+ */
 export async function POST(request: Request, context: { params: Promise<{ promptId: string }> }) {
   return identityGuard(async () => {
     const { promptId } = await context.params;

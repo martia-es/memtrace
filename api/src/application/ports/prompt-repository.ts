@@ -21,6 +21,10 @@ export interface PromptRepository {
 
   /** Añade la versión siguiente (numeración por prompt, atómica). */
   addVersion(input: NewPromptVersion): Promise<PromptVersion>;
+  /** Pasa un borrador a publicada. Devuelve null si no existe o ya estaba publicada. */
+  publishVersion(promptId: string, version: number): Promise<PromptVersion | null>;
+  /** Borra un borrador (nunca una versión publicada). Devuelve false si no existe o ya estaba publicada. */
+  deleteDraft(promptId: string, version: number): Promise<boolean>;
   /** Más recientes primero. */
   listVersions(promptId: string): Promise<PromptVersion[]>;
   getVersion(promptId: string, version: number): Promise<PromptVersion | null>;

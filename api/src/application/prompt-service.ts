@@ -12,6 +12,7 @@ import {
   isEnvironmentTag,
   validateContent,
   validateMessage,
+  validateOrigin,
   validatePromptName,
   validateTag,
   type GateRecord,
@@ -74,7 +75,7 @@ export class PromptService {
     const experimentIds = await this.agentsOfOrganization(organizationId, input.experimentIds ?? []);
     const { prompt } = await this.repo.create(
       { organizationId, name, description, experimentIds, createdBy: userId },
-      { content, variables: extractVariables(content), contentHash: hash(content), parentVersion: null, message: validateMessage(input.message), createdBy: userId },
+      { content, variables: extractVariables(content), contentHash: hash(content), parentVersion: null, message: validateMessage(input.message), createdBy: userId, status: "published", origin: null },
     );
     return this.detail(prompt.id);
   }
@@ -113,16 +114,63 @@ export class PromptService {
   }
 
   /** Guarda una versión nueva. Si el texto es idéntico al de la última, no hay nada que versionar. */
-  async saveVersion(promptId: string, userId: string, input: { content: string; message?: string; parentVersion?: number | null }): Promise<PromptVersion> {
+  /**
+   * Guarda una versión nueva. Con `draft` queda como borrador (ADR-072): se puede probar y evaluar, pero no recibe tags hasta
+   * que alguien la publica. Si el texto es idéntico al de la última versión publicada o de la última guardada, no hay nada que versionar.
+   */
+  async saveVersion(
+    promptId: string,
+    userId: string,
+    input: { content: string; message?: string; parentVersion?: number | null; draft?: boolean; origin?: { traceIds?: string[]; cause?: string | null; rationale?: string } | null },
+  ): Promise<PromptVersion> {
     const prompt = await this.get(promptId);
     if (prompt.archivedAt) throw new PromptInvariantError("The prompt is archived; restore it before saving new versions");
     const content = validateContent(input.content);
     const contentHash = hash(content);
-    const [latest] = await this.repo.listVersions(promptId);
-    if (latest && latest.contentHash === contentHash) throw new PromptInvariantError(`No changes: the text is identical to version ${latest.version}`);
-    const parentVersion = input.parentVersion === undefined ? (latest?.version ?? null) : input.parentVersion;
+    const all = await this.repo.listVersions(promptId);
+    const [latest] = all;
+    const latestPublished = all.find((v) => v.status === "published");
+    for (const same of [latest, latestPublished]) {
+      if (same && same.contentHash === contentHash) throw new PromptInvariantError(`No changes: the text is identical to version ${same.version}`);
+    }
+    // se parte de la última versión publicada: un borrador no es base de nada hasta que se publica
+    const parentVersion = input.parentVersion === undefined ? (latestPublished?.version ?? null) : input.parentVersion;
     if (parentVersion !== null && !(await this.repo.getVersion(promptId, parentVersion))) throw new ValidationError("Unknown parent version", { parentVersion: `Version ${parentVersion} does not exist` });
-    return this.repo.addVersion({ promptId, content, variables: extractVariables(content), contentHash, parentVersion, message: validateMessage(input.message), createdBy: userId });
+    return this.repo.addVersion({
+      promptId, content, variables: extractVariables(content), contentHash, parentVersion, message: validateMessage(input.message), createdBy: userId,
+      status: input.draft ? "draft" : "published", origin: validateOrigin(input.origin),
+    });
+  }
+
+  /**
+   * Un borrador propuesto por una herramienta del equipo con la API key del agente (ADR-072): por nombre, sobre un prompt de
+   * ese agente. Siempre queda como borrador: una herramienta no publica ni promueve nada.
+   */
+  async saveDraftForAgent(
+    experimentId: string,
+    organizationId: string,
+    userId: string,
+    input: { name: string; content: string; message?: string; basedOn?: number | null; origin?: { traceIds?: string[]; cause?: string | null; rationale?: string } | null },
+  ): Promise<{ prompt: Prompt; version: PromptVersion }> {
+    const prompt = await this.repo.findByName(organizationId, validatePromptName(input.name));
+    if (!prompt || !prompt.experimentIds.includes(experimentId)) throw new PromptNotFoundError(`Prompt "${input.name}" for this agent`);
+    const version = await this.saveVersion(prompt.id, userId, { content: input.content, message: input.message, parentVersion: input.basedOn ?? undefined, draft: true, origin: input.origin });
+    return { prompt, version };
+  }
+
+  /** Publica un borrador: pasa a ser una versión normal, que ya puede recibir tags (y pasar por el gate). */
+  async publishDraft(promptId: string, version: number): Promise<PromptVersion> {
+    const prompt = await this.get(promptId);
+    if (prompt.archivedAt) throw new PromptInvariantError("The prompt is archived; restore it before publishing");
+    const published = await this.repo.publishVersion(promptId, version);
+    if (!published) throw new PromptInvariantError(`Version ${version} is not a draft`);
+    return published;
+  }
+
+  /** Descarta un borrador. Una versión publicada no se borra nunca. */
+  async discardDraft(promptId: string, version: number): Promise<void> {
+    await this.get(promptId);
+    if (!(await this.repo.deleteDraft(promptId, version))) throw new PromptInvariantError(`Version ${version} is not a draft, and published versions are never deleted`);
   }
 
   /** Recupera una versión por número (`3`) o por tag (`pro`). */
@@ -147,6 +195,9 @@ export class PromptService {
     const prompt = await this.get(promptId);
     if (prompt.archivedAt) throw new PromptInvariantError("The prompt is archived; restore it before moving tags");
     const tag = validateTag(input.tag);
+    if (input.version !== null && (await this.repo.getVersion(promptId, input.version))?.status === "draft") {
+      throw new PromptInvariantError(`v${input.version} is a draft: publish it before pointing a tag at it`);
+    }
     const isEnvironment = isEnvironmentTag(tag, await this.repo.environmentKeys(prompt.organizationId));
     if (isEnvironment && !canPromote) throw new PromptPromoteForbiddenError(tag);
 

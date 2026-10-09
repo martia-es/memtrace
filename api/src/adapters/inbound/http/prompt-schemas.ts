@@ -24,8 +24,25 @@ export const updatePromptBody = z
 export const saveVersionBody = z.object({
   content: text(120_000),
   message: text(600).default(""),
-  /** versión de la que se parte; por defecto, la última */
+  /** versión de la que se parte; por defecto, la última publicada */
   parentVersion: z.number().int().min(1).nullable().optional(),
+  /** guardar como borrador: se puede probar y evaluar, pero no recibe tags hasta publicarse (ADR-072) */
+  draft: z.boolean().default(false),
+  /** el fallo que se quería arreglar */
+  origin: z
+    .object({ traceIds: z.array(z.string().max(40)).max(10).default([]), cause: text(400).nullable().default(null), rationale: text(2100).default("") })
+    .nullable()
+    .default(null),
+});
+
+/** Un borrador propuesto por una herramienta del equipo con la API key del agente (ADR-072). */
+export const draftBody = z.object({
+  name: text(100),
+  content: text(120_000),
+  message: text(600).default(""),
+  /** versión de la que se partió; por defecto, la última publicada */
+  basedOn: z.number().int().min(1).nullable().default(null),
+  origin: z.object({ traceIds: z.array(z.string().max(40)).max(10).default([]), cause: text(400).nullable().default(null), rationale: text(2100).default("") }).default({ traceIds: [], cause: null, rationale: "" }),
 });
 
 export const moveTagBody = z.object({
