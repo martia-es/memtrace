@@ -1,3 +1,4 @@
+import type { AttributeStats } from "./attribute-classification";
 export interface MetricsQuery {
   fromMs: number;
   toMs: number;
@@ -147,11 +148,11 @@ export interface AttributeValueCount {
   count: number;
 }
 
-/** Clave de atributo vista en `SpanAttributes`, para alimentar el selector de "group by"/"filter by" (ADR-030). */
-export interface AttributeKeyCount {
-  key: string;
-  count: number;
-}
+/**
+ * Clave de atributo vista en `SpanAttributes`, para alimentar el selector de "group by"/"filter by" (ADR-030), con las
+ * estadísticas con las que se clasifica (ADR-077, fase 2).
+ */
+export type AttributeKeyCount = AttributeStats;
 
 /** Rellena con ceros los buckets sin datos para que el cliente pueda pintar la serie sin huecos. */
 export function fillTimeseries(

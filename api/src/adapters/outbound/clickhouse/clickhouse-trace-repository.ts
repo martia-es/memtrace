@@ -6,6 +6,7 @@ import type { ConversationCursor, ConversationSummary, ConversationUsage } from 
 import type { ModelPricing } from "@/domain/pricing";
 import { previewOf, type SpanCursor, type SpanRecord } from "@/domain/span-row";
 import type { ChatSpanRecord } from "@/domain/transcript";
+import { ID_LIKE_VALUE_PATTERN } from "@/domain/attribute-classification";
 import type { AttributeKeyCount, AttributeValueCount, CustomMetricQuery, CustomMetricResult, MetricsOverview, MetricsQuery, ServiceUsage, StepKindCount } from "@/domain/metrics";
 import type { Span, StatusCode } from "@/domain/span";
 import { MAX_RANGE_MS, type TimeRange } from "@/domain/time-range";
@@ -129,13 +130,30 @@ export class ClickHouseTraceRepository implements TraceRepository {
     const { clause, params } = ClickHouseTraceRepository.range(query.fromMs, query.toMs);
     const svc = query.service ? " AND ServiceName = {service:String}" : "";
     const p: Params = { ...params, stepTypes: query.stepTypes, ...(query.service ? { service: query.service } : {}) };
-    const rows = await this.rows<{ key: string; count: number }>(
-      `SELECT arrayJoin(mapKeys(SpanAttributes)) AS key, count() AS count FROM ${this.spans}
-       WHERE ${clause}${svc} AND ${KIND} IN {stepTypes:Array(String)}
-       GROUP BY key ORDER BY count DESC LIMIT 200`,
+    // además de contar cada clave se miden sus valores (cuántos hay, cuántos distintos, cuántos son números, cuánto miden y cuántos
+    // parecen un id) para clasificarla (ADR-077). `uniqIf` es aproximado a propósito: para clasificar basta y no pesa lo que `uniqExact`
+    const rows = await this.rows<{ key: string; count: number; nonEmpty: number; distinct: number; numericCount: number; avgLength: number; idLikeCount: number }>(
+      `SELECT key,
+              count() AS count,
+              countIf(value != '') AS nonEmpty,
+              uniqIf(value, value != '') AS distinct,
+              countIf(value != '' AND isFinite(toFloat64OrNull(value))) AS numericCount,
+              avgIf(length(value), value != '') AS avgLength,
+              countIf(match(value, '${ID_LIKE_VALUE_PATTERN}')) AS idLikeCount
+         FROM ${this.spans} ARRAY JOIN mapKeys(SpanAttributes) AS key, mapValues(SpanAttributes) AS value
+        WHERE ${clause}${svc} AND ${KIND} IN {stepTypes:Array(String)}
+        GROUP BY key ORDER BY count DESC LIMIT 200`,
       p,
     );
-    return rows.map((r) => ({ key: r.key, count: num(r.count) }));
+    return rows.map((r) => ({
+      key: r.key,
+      count: num(r.count),
+      nonEmpty: num(r.nonEmpty),
+      distinct: num(r.distinct),
+      numericCount: num(r.numericCount),
+      avgLength: num(r.avgLength),
+      idLikeCount: num(r.idLikeCount),
+    }));
   }
 
   /**

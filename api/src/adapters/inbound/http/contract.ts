@@ -297,10 +297,18 @@ export interface AttributeValuesResponse {
   items: AttributeValueDto[];
 }
 
-/** Clave de atributo vista en los step types elegidos (ADR-030). */
+/** Clave de atributo vista en los step types elegidos (ADR-030), con su clasificación automática (ADR-077). */
 export interface AttributeKeyDto {
   key: string;
   count: number;
+  /** `category` agrupa y filtra; `number` es una medida; `id`, `text` y `technical` estorban en un selector */
+  kind: "category" | "number" | "id" | "text" | "technical";
+  /** valores distintos (aproximado) */
+  distinct: number;
+  /** casi todos sus valores son números: sirve como medida, aunque también sea una categoría */
+  numeric: boolean;
+  /** los selectores lo ocultan salvo que una persona lo muestre (en el catálogo, `visibility`) */
+  hiddenByDefault: boolean;
 }
 
 export interface AttributeKeysResponse {

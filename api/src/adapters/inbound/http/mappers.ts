@@ -1,5 +1,6 @@
 import type { ConversationCursor, ConversationListItem } from "@/domain/conversation";
 import type { ErrorOverview } from "@/domain/error-categories";
+import { classifyAttribute } from "@/domain/attribute-classification";
 import type { AttributeKeyCount, AttributeValueCount, CustomMetricResult, MetricsOverview, ServiceUsage, StepKindCount } from "@/domain/metrics";
 import type { DatasetVersionDiff } from "@/domain/dataset-diff";
 import type { CustomMetric, Dataset, DatasetItem, DatasetRun, DatasetRunWithDataset, DatasetVersion, MetricReport, MetricReportWithCharts } from "@/domain/identity";
@@ -256,7 +257,12 @@ export function toAttributeValuesResponse(items: AttributeValueCount[]): Attribu
 
 /** (ADR-030) */
 export function toAttributeKeysResponse(items: AttributeKeyCount[]): AttributeKeysResponse {
-  return { items };
+  return {
+    items: items.map((stats) => {
+      const { kind, numeric, hiddenByDefault } = classifyAttribute(stats);
+      return { key: stats.key, count: stats.count, kind, distinct: stats.distinct, numeric, hiddenByDefault };
+    }),
+  };
 }
 
 export function toCustomMetricResultResponse(result: CustomMetricResult): CustomMetricResultResponse {
