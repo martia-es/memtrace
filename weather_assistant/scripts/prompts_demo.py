@@ -12,7 +12,7 @@ Qué hace, en orden:
   4. Trazarlo: cada respuesta lleva su `trace_id`; vota 👍 a una y te dice dónde ver la versión en cada traza.
 
 Necesita el asistente arrancado con las mismas variables (otra terminal):
-    MEMTRACE_API_URL=<url con el id del experimento> MEMTRACE_API_KEY=<key> MEMTRACE_ENVIRONMENT=dev \\
+    MEMTRACE_API_URL=<url con el id del experimento> MEMTRACE_API_KEY=<key> \\
     WEATHER_ASSISTANT_MEMTRACE_HEADERS="authorization=Bearer <key>" uv run uvicorn app.main:app
 """
 
@@ -78,7 +78,7 @@ def ask(client: httpx.Client, question: str, session_id: str | None = None) -> d
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--assistant-url", default="http://localhost:8000")
-    parser.add_argument("--tag", default=os.getenv("MEMTRACE_ENVIRONMENT", "dev"), help="tag que sigue el asistente (su entorno)")
+    parser.add_argument("--tag", default=os.getenv("MEMTRACE_ENVIRONMENT") or os.getenv("WEATHER_ASSISTANT_PROMPT_TAG", "dev"), help="tag que sigue el asistente (su entorno)")
     args = parser.parse_args()
 
     if not os.getenv("MEMTRACE_API_URL") or not os.getenv("MEMTRACE_API_KEY"):

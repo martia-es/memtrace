@@ -58,3 +58,21 @@ def test_prompt_endpoint_reports_the_registry_version():
 def test_prompt_endpoint_says_default_while_memtrace_was_unreachable_at_start():
     handle = SimpleNamespace(name="weather-system", version=0, tag="dev")
     assert client_with(handle).get("/api/prompt").json()["source"] == "default"
+
+
+def test_follows_dev_when_no_environment_is_set(monkeypatch):
+    seen = {}
+    monkeypatch.setenv("MEMTRACE_API_URL", "http://x")
+    monkeypatch.delenv("MEMTRACE_ENVIRONMENT", raising=False)
+    monkeypatch.setattr("app.prompt_registry.prompts.get", lambda name, **kw: seen.update(name=name, **kw) or "handle")
+    assert load_prompt("texto") == "handle"
+    assert seen["tag"] == "dev"
+
+
+def test_follows_the_environment_tag_when_it_is_set(monkeypatch):
+    seen = {}
+    monkeypatch.setenv("MEMTRACE_API_URL", "http://x")
+    monkeypatch.setenv("MEMTRACE_ENVIRONMENT", "pro")
+    monkeypatch.setattr("app.prompt_registry.prompts.get", lambda name, **kw: seen.update(kw) or "handle")
+    load_prompt("texto")
+    assert seen["tag"] is None
