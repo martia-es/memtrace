@@ -14,6 +14,8 @@ import EnvFlag from "../components/EnvFlag.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import PageHeader from "../components/PageHeader.vue";
 import PromotePromptModal from "../components/PromotePromptModal.vue";
+import PromptApprovals from "../components/PromptApprovals.vue";
+import RequestApprovalModal from "../components/RequestApprovalModal.vue";
 import PromptDependencyMap from "../components/PromptDependencyMap.vue";
 import PromptFragmentPicker from "../components/PromptFragmentPicker.vue";
 import PromptFixFromFailure from "../components/PromptFixFromFailure.vue";
@@ -93,6 +95,7 @@ const TABS = [
   { id: "compare", label: "Compare" },
   { id: "evidence", label: "Evidence" },
   { id: "tags", label: "Tags & history" },
+  { id: "approvals", label: "Approvals" },
   { id: "fix", label: "Fix a failure" },
   { id: "try", label: "Try it" },
   { id: "map", label: "Dependencies" },
@@ -192,7 +195,12 @@ async function saveVersion(asDraft = false) {
     await detail.run();
     selected.value = saved.version;
     tab.value = "content";
-    $q.notify({ message: asDraft ? `Saved as draft v${saved.version}` : `Saved as v${saved.version}`, color: "positive", timeout: 2500 });
+    const needsApproval = !asDraft && saved.status === "draft";
+    $q.notify({
+      message: asDraft ? `Saved as draft v${saved.version}` : needsApproval ? `Saved as draft v${saved.version}: publishing it needs approval` : `Saved as v${saved.version}`,
+      color: "positive",
+      timeout: needsApproval ? 5000 : 2500,
+    });
   } catch (error) {
     notifyError("Could not save the version", error);
   } finally {
@@ -236,6 +244,18 @@ async function rebuildDependents() {
   } finally {
     draftBusy.value = false;
   }
+}
+
+// ---- aprobaciones (ADR-076) ----
+const approvalRules = computed(() => data.value?.approvals ?? { publish: false, promote: [] });
+/** Lo que se está pidiendo aprobar: publicar un borrador o apuntar un entorno a una versión. */
+const requesting = ref<{ action: "publish" | "promote"; version: number; tag?: string } | null>(null);
+/** Volver a una versión que el entorno ya sirvió sin saltarse el gate es un rollback: no pide aprobación. */
+const servedBefore = (tag: string, version: number) => (data.value?.events ?? []).some((e) => e.tag === tag && e.toVersion === version && !e.gateBypassed);
+const needsApproval = (tag: string, version: number) => approvalRules.value.promote.includes(tag) && !servedBefore(tag, version);
+async function onRequested() {
+  await detail.run();
+  tab.value = "approvals";
 }
 
 // ---- borradores (ADR-072) ----
@@ -326,6 +346,11 @@ const promoting = ref<{ tag: string; version: number } | null>(null);
 function moveEnvironment(tag: string) {
   const version = pending.value[tag];
   if (version == null) return;
+  // con una regla de aprobación para este entorno no se mueve directamente: se pide (ADR-076)
+  if (needsApproval(tag, version)) {
+    requesting.value = { action: "promote", version, tag };
+    return;
+  }
   // con política, los entornos protegidos pasan por el modal que enseña el veredicto del gate
   if (isProtected(tag)) promoting.value = { tag, version };
   else void moveTag(tag, version);
@@ -528,6 +553,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
               <section v-if="isDraft && !editing && selectedVersion" class="draft-banner" data-testid="draft-banner">
                 <div>
                   <b>Draft — not reviewed yet.</b> It has no tag and no environment can use it.
+                  <template v-if="approvalRules.publish"> It needs approval before it can be published.</template>
                   <template v-if="selectedVersion.origin">
                     <p class="small" data-testid="draft-origin">
                       Proposed to fix <span v-if="selectedVersion.origin.cause">“{{ selectedVersion.origin.cause }}”</span>
@@ -540,7 +566,8 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                 </div>
                 <div v-if="canWrite" class="draft-actions">
                   <button type="button" class="ghost-btn" data-testid="draft-test" @click="testDraft(selectedVersion.version, selectedVersion.parentVersion, selectedVersion.origin?.traceIds[0] ?? null)">Test it</button>
-                  <button type="button" class="primary-btn" :disabled="draftBusy" data-testid="draft-publish" @click="publishSelected">Publish</button>
+                  <button v-if="approvalRules.publish" type="button" class="primary-btn" :disabled="draftBusy" data-testid="draft-request" @click="requesting = { action: 'publish', version: selectedVersion.version }">Request approval</button>
+                  <button v-else type="button" class="primary-btn" :disabled="draftBusy" data-testid="draft-publish" @click="publishSelected">Publish</button>
                   <button type="button" class="ghost-btn" :disabled="draftBusy" data-testid="draft-discard" @click="discardSelected">Discard</button>
                 </div>
               </section>
@@ -734,6 +761,10 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
               </template>
             </div>
 
+            <div v-else-if="tab === 'approvals'" class="pane" data-testid="pane-approvals">
+              <PromptApprovals :prompt-id="promptId" :environments="environmentKeys" @changed="detail.run()" />
+            </div>
+
             <div v-else-if="tab === 'fix'" class="pane" data-testid="pane-fix">
               <PromptFixFromFailure
                 :experiment-id="String(route.params.experimentId)"
@@ -788,7 +819,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   </span>
                   <div v-if="canPromote" class="move">
                     <Select :model-value="pending[key] ?? tagVersion(key)" :options="versionOptions" placeholder="Point to…" @update:model-value="pending[key] = $event" />
-                    <button type="button" class="ghost-btn small" :disabled="moving || pending[key] == null || pending[key] === tagVersion(key)" :data-testid="`move-${key}`" @click="moveEnvironment(key)">Move</button>
+                    <button type="button" class="ghost-btn small" :disabled="moving || pending[key] == null || pending[key] === tagVersion(key)" :data-testid="`move-${key}`" @click="moveEnvironment(key)">{{ pending[key] != null && needsApproval(key, pending[key]!) ? "Request approval" : "Move" }}</button>
                     <button v-if="tagVersion(key) !== null" type="button" class="icon-btn" :aria-label="`Remove the ${key} tag`" title="Remove the tag" @click="moveTag(key, null)">×</button>
                   </div>
                 </div>
@@ -892,6 +923,15 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
       </div>
     </template>
 
+    <RequestApprovalModal
+      v-if="requesting"
+      :prompt-id="promptId"
+      :action="requesting.action"
+      :version="requesting.version"
+      :tag="requesting.tag"
+      @close="requesting = null"
+      @opened="onRequested"
+    />
     <PromotePromptModal
       v-if="promoting"
       :prompt-id="promptId"

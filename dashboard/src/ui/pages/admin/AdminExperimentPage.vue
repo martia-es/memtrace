@@ -12,6 +12,7 @@ import ScoreConfigsPanel from "../../components/ScoreConfigsPanel.vue";
 import MemberList from "../../components/admin/MemberList.vue";
 import InviteForm from "../../components/admin/InviteForm.vue";
 import ExperimentApiKeys from "../../components/admin/ExperimentApiKeys.vue";
+import ApprovalRulesPanel from "../../components/admin/ApprovalRulesPanel.vue";
 
 /**
  * Nivel 3: un experimento. Un paso por pestaña, en el orden en que se configura un agente:
@@ -36,6 +37,7 @@ const organization = computed(() => dir.organizations.value.find((o) => o.id ===
 const canManage = computed(() => (experiment.value ? canManageExperiment(experiment.value) : false));
 const canKeys = computed(() => (experiment.value ? canUseApiKeys(experiment.value) : false));
 const canScoreConfigs = computed(() => hasPermission(experiment.value, "scoreconfig:manage"));
+const canApprovals = computed(() => hasPermission(experiment.value, "approval:manage"));
 const members = computed(() => dir.membersByExperiment[props.experimentId]);
 
 const keyCount = ref<number | null>(null);
@@ -54,6 +56,7 @@ const tabs = computed(() => {
     { id: "keys", label: "API keys", count: keyCount.value ?? undefined },
     { id: "score-configs", label: "Score configs" },
   ];
+  if (canApprovals.value) list.push({ id: "approvals", label: "Approvals" });
   if (canManage.value) {
     list.push({ id: "members", label: "Members", count: (members.value?.members.length ?? 0) + (members.value?.pendingInvitations.length ?? 0) });
   }
@@ -172,6 +175,14 @@ const MEMBER_ROLE_OPTIONS = [
             from different people are comparable. Annotation queues use them.
           </p>
           <ScoreConfigsPanel :experiment-id="experiment.id" :can-manage="canScoreConfigs" />
+        </section>
+
+        <section v-if="tab === 'approvals' && canApprovals" class="panel">
+          <div class="adm-card">
+            <h3 class="adm-section-title">Approvals for this agent's prompts</h3>
+            <p class="adm-hint">Extra review for the prompts of this agent, on top of what the organization already asks. You can add people or approvers; you cannot ask for fewer than the organization.</p>
+            <ApprovalRulesPanel :scope="{ type: 'experiment', id: experiment.id }" />
+          </div>
         </section>
 
         <section v-if="tab === 'members' && canManage" class="panel">

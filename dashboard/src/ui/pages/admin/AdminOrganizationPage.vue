@@ -13,6 +13,7 @@ import MemberList from "../../components/admin/MemberList.vue";
 import InviteForm from "../../components/admin/InviteForm.vue";
 import OrganizationAppearance from "../../components/admin/OrganizationAppearance.vue";
 import OrganizationIdentity from "../../components/admin/OrganizationIdentity.vue";
+import ApprovalRulesPanel from "../../components/admin/ApprovalRulesPanel.vue";
 
 /** Nivel 2: una organización. Pestañas: experimentos (siempre), y miembros + identidad + apariencia solo para org_admin. */
 const props = defineProps<{ organizationId: string }>();
@@ -38,6 +39,7 @@ const tabs = computed(() => {
   const list: { id: string; label: string; count?: number }[] = [{ id: "experiments", label: "Experiments", count: orgExperiments.value.length }];
   if (isOrgAdmin.value) {
     list.push({ id: "members", label: "Members", count: (orgMembers.value?.members.length ?? 0) + (orgMembers.value?.pendingInvitations.length ?? 0) });
+    list.push({ id: "approvals", label: "Approvals" });
     list.push({ id: "identity", label: "Identity" });
     list.push({ id: "appearance", label: "Appearance" });
   }
@@ -148,6 +150,17 @@ async function inviteOrgAdmin({ email }: { email: string }) {
             help="The invited person gets access to every experiment here. If they don't have an account yet, they'll receive an email to sign in with Google or Microsoft."
             @invite="inviteOrgAdmin"
           />
+        </section>
+
+        <section v-if="tab === 'approvals' && isOrgAdmin" class="panel">
+          <div class="adm-card">
+            <h3 class="adm-section-title">Approvals for prompt changes</h3>
+            <p class="adm-hint">
+              Decide which changes to a prompt need a second opinion before they happen, and from whom. It is optional and set per step: for example,
+              one technical person to move <span class="mono">dev</span>, a technical and a business person to reach <span class="mono">pro</span>.
+            </p>
+            <ApprovalRulesPanel :scope="{ type: 'organization', id: organizationId }" />
+          </div>
         </section>
 
         <section v-if="tab === 'identity' && organization && isOrgAdmin" class="panel">

@@ -1,6 +1,6 @@
 /** Dobles del registro de prompts (ADR-067). */
-import type { PromptDetailDto, PromptEvidenceResponse, PromptGateDto, PromptMapDto, PromptPlaygroundResponse, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto, VersionEvidenceDto } from "@contract";
-import type { NewPromptInput, PromptApi } from "@/application/prompt-api";
+import type { ApprovalRequestDto, ApprovalRuleDto, ApprovalRulesResponse, PromptApprovalsResponse, PromptDetailDto, PromptEvidenceResponse, PromptGateDto, PromptMapDto, PromptPlaygroundResponse, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto, VersionEvidenceDto } from "@contract";
+import type { ApprovalScope, NewPromptInput, OpenApprovalInput, PromptApi } from "@/application/prompt-api";
 
 export function promptVersion(version: number, content: string, extra: Partial<PromptVersionDto> = {}): PromptVersionDto {
   return { version, status: "published", origin: null, publishedAt: "2026-10-08T10:00:00.000Z", source: null, includes: [], content, variables: [], contentHash: `h${version}`, parentVersion: version > 1 ? version - 1 : null, message: "", createdBy: "u1", createdAt: "2026-10-08T10:00:00.000Z", ...extra };
@@ -19,7 +19,20 @@ export function promptDetail(overrides: Partial<PromptDetailDto> = {}): PromptDe
     includes: [],
     usedBy: [],
     people: {},
+    approvals: { publish: false, promote: [] },
     ...overrides,
+  };
+}
+
+export function approvalRequest(extra: Partial<ApprovalRequestDto> = {}): ApprovalRequestDto {
+  return {
+    id: "r1", promptId: "p1", promptName: "weather-system", action: "promote", version: 2, tag: "pro", note: "go live", bypassReason: null, requestedBy: "u-req",
+    status: "pending", executionError: null, createdAt: "2026-10-09T10:00:00.000Z", expiresAt: "2026-10-16T10:00:00.000Z", decidedAt: null, executedAt: null,
+    extraApprovers: [], decisions: [],
+    rule: { action: "promote", stage: "pro", requirements: [{ role: "technical", min: 1 }, { role: "business", min: 1 }], approvers: [] },
+    evaluation: { outcome: "pending", roles: [{ role: "technical", need: 1, have: 0 }, { role: "business", need: 1, have: 0 }], missingApprovers: [], rejectedBy: null, reason: "Waiting for 1 more from \"technical\" and 1 more from \"business\"" },
+    people: { "u-req": "Zoe" },
+    ...extra,
   };
 }
 
@@ -60,6 +73,55 @@ export class FakePromptApi implements PromptApi {
 
   private record(method: string, ...args: unknown[]) {
     this.calls.push({ method, args });
+  }
+
+  // ---- aprobaciones (ADR-076) ----
+  approvals: PromptApprovalsResponse = { requests: [], rules: [], approvers: [{ userId: "u-ana", name: "Ana", roles: ["technical"] }, { userId: "u-cris", name: "Cris", roles: ["business"] }] };
+  inbox: ApprovalRequestDto[] = [];
+  rules: ApprovalRulesResponse = { rules: [], options: { roles: ["business", "technical"], environments: ["dev", "pre", "pro"], candidates: [{ userId: "u-ana", email: "ana@x.io", name: "Ana", roles: ["technical"] }], publishRoles: ["technical"] } };
+  /** si no es null, lo que contesta `openApproval` cuando falla */
+  approvalError: Error | null = null;
+  async getApprovals(promptId: string) {
+    this.record("getApprovals", promptId);
+    return this.approvals;
+  }
+  async openApproval(promptId: string, input: OpenApprovalInput) {
+    this.record("openApproval", promptId, input);
+    if (this.approvalError) throw this.approvalError;
+    return approvalRequest({ promptId, action: input.action, version: input.version, tag: input.tag ?? "", note: input.note ?? "" });
+  }
+  async decideApproval(requestId: string, decision: "approve" | "reject", comment: string) {
+    this.record("decideApproval", requestId, decision, comment);
+    return approvalRequest({ id: requestId, status: decision === "reject" ? "rejected" : "pending" });
+  }
+  async executeApproval(requestId: string) {
+    this.record("executeApproval", requestId);
+    return approvalRequest({ id: requestId, status: "executed" });
+  }
+  async cancelApproval(requestId: string) {
+    this.record("cancelApproval", requestId);
+    return approvalRequest({ id: requestId, status: "cancelled" });
+  }
+  async addApprover(requestId: string, approverId: string) {
+    this.record("addApprover", requestId, approverId);
+    return approvalRequest({ id: requestId, extraApprovers: [approverId] });
+  }
+  async approvalInbox(organizationId: string) {
+    this.record("approvalInbox", organizationId);
+    return this.inbox;
+  }
+  async getApprovalRules(scope: ApprovalScope) {
+    this.record("getApprovalRules", scope);
+    return this.rules;
+  }
+  async setApprovalRule(scope: ApprovalScope, rule: Pick<ApprovalRuleDto, "action" | "stage" | "requirements" | "approvers">) {
+    this.record("setApprovalRule", scope, rule);
+    this.rules = { ...this.rules, rules: [...this.rules.rules.filter((r) => !(r.action === rule.action && r.stage === rule.stage)), rule] };
+    return rule;
+  }
+  async deleteApprovalRule(scope: ApprovalScope, action: "publish" | "promote", stage: string) {
+    this.record("deleteApprovalRule", scope, action, stage);
+    this.rules = { ...this.rules, rules: this.rules.rules.filter((r) => !(r.action === action && r.stage === stage)) };
   }
   async listForAgent(experimentId: string, includeArchived: boolean) {
     this.record("listForAgent", experimentId, includeArchived);

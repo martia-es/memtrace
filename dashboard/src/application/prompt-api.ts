@@ -1,4 +1,4 @@
-import type { PromptDetailDto, PromptEvidenceResponse, PromptGateDto, PromptMapDto, PromptPlaygroundResponse, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto } from "@contract";
+import type { ApprovalRequestDto, ApprovalRuleDto, ApprovalRulesResponse, PromptApprovalsResponse, PromptDetailDto, PromptEvidenceResponse, PromptGateDto, PromptMapDto, PromptPlaygroundResponse, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto } from "@contract";
 
 /** Puerto de salida: registro de prompts (ADR-067). */
 
@@ -57,4 +57,33 @@ export interface PromptApi {
   setPolicy(promptId: string, policy: { datasetId: string; requiredRuns: number }, signal?: AbortSignal): Promise<PromptPolicyDto>;
   /** Quita la política: cualquier versión puede promoverse. */
   deletePolicy(promptId: string, signal?: AbortSignal): Promise<void>;
+
+  // ---- aprobaciones (ADR-076) ----
+  /** Las solicitudes del prompt y lo que exige hoy cada acción (organización y agentes apilados). */
+  getApprovals(promptId: string, signal?: AbortSignal): Promise<PromptApprovalsResponse>;
+  /** Abre una solicitud de publicar un borrador o de apuntar un entorno a una versión. */
+  openApproval(promptId: string, input: OpenApprovalInput, signal?: AbortSignal): Promise<ApprovalRequestDto>;
+  decideApproval(requestId: string, decision: "approve" | "reject", comment: string, signal?: AbortSignal): Promise<ApprovalRequestDto>;
+  /** Reintenta una solicitud aprobada que no pudo ejecutarse (p. ej. el gate de evaluación). */
+  executeApproval(requestId: string, signal?: AbortSignal): Promise<ApprovalRequestDto>;
+  cancelApproval(requestId: string, signal?: AbortSignal): Promise<ApprovalRequestDto>;
+  /** Añade a una persona como aprobadora obligatoria de esta solicitud. */
+  addApprover(requestId: string, approverId: string, signal?: AbortSignal): Promise<ApprovalRequestDto>;
+  /** Lo que la persona tiene pendiente de decidir en la organización. */
+  approvalInbox(organizationId: string, signal?: AbortSignal): Promise<ApprovalRequestDto[]>;
+  /** Reglas de aprobación de la organización o de un experimento (en un experimento, con el suelo de la organización). */
+  getApprovalRules(scope: ApprovalScope, signal?: AbortSignal): Promise<ApprovalRulesResponse>;
+  setApprovalRule(scope: ApprovalScope, rule: Pick<ApprovalRuleDto, "action" | "stage" | "requirements" | "approvers">, signal?: AbortSignal): Promise<ApprovalRuleDto>;
+  deleteApprovalRule(scope: ApprovalScope, action: "publish" | "promote", stage: string, signal?: AbortSignal): Promise<void>;
+}
+
+export type ApprovalScope = { type: "organization" | "experiment"; id: string };
+
+export interface OpenApprovalInput {
+  action: "publish" | "promote";
+  version: number;
+  tag?: string;
+  note?: string;
+  extraApprovers?: string[];
+  bypassReason?: string | null;
 }
