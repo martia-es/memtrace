@@ -635,17 +635,17 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
             </div>
 
             <div v-else-if="tab === 'compare' && selectedVersion" class="pane" data-testid="pane-compare">
-              <div class="compare-bar">
+              <div class="compare-bar compare-toolbar">
                 <span class="muted">Compare v{{ selectedVersion.version }} with</span>
                 <Select v-if="compareOptions.length > 0" v-model="compareWith" :options="compareOptions" data-testid="compare-with" />
                 <span v-else class="muted">nothing: this is the first version</span>
+                <span class="grow" />
+                <template v-if="compareVersion">
+                  <span class="muted">behaviour over the last</span>
+                  <Select v-model="rangeKey" :options="rangeOptions" data-testid="behaviour-range" />
+                </template>
               </div>
               <section v-if="compareVersion" class="behaviour" data-testid="behaviour">
-                <div class="compare-bar">
-                  <h3>How it behaved</h3>
-                  <span class="muted small">last</span>
-                  <Select v-model="rangeKey" :options="rangeOptions" data-testid="behaviour-range" />
-                </div>
                 <div v-if="evidence.loading.value && !evidence.data.value" class="loading"><q-spinner size="24px" color="primary" /></div>
                 <p v-else-if="evidence.error.value" class="muted small" data-testid="behaviour-error">Could not load the evidence: {{ evidence.error.value.message }}</p>
                 <p v-else-if="!comparison" class="muted small" data-testid="behaviour-empty">
@@ -653,6 +653,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                 </p>
                 <template v-else>
                   <p v-if="!comparison.reliable" class="warn-banner small" data-testid="behaviour-unreliable">
+                    <svg class="warn-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 3 2 20h20L12 3Zm0 6v5m0 3v.01" /></svg>
                     At least one of the two versions has fewer than {{ MIN_TRACES }} traces: treat these differences as indicative, they may be chance.
                   </p>
                   <div class="tiles" data-testid="behaviour-table">
@@ -660,6 +661,10 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                       <span class="eyebrow">{{ d.label.toUpperCase() }}</span>
                       <div class="tile-value"><strong>{{ d.target }}</strong><span class="soft">was {{ d.base }}</span></div>
                       <span class="mt-pill direction" :class="d.direction">{{ d.change }} · {{ DIRECTION_LABEL[d.direction] }}</span>
+                      <div v-if="d.bars" class="bars" aria-hidden="true">
+                        <span class="bar base"><i :style="{ width: `${Math.max(2, d.bars.base * 100)}%` }" /></span>
+                        <span class="bar target" :class="d.direction"><i :style="{ width: `${Math.max(2, d.bars.target * 100)}%` }" /></span>
+                      </div>
                       <span class="sr-only">v{{ compareVersion.version }} {{ d.base }}, v{{ selectedVersion.version }} {{ d.target }}</span>
                     </div>
                   </div>
@@ -1322,36 +1327,66 @@ h3 {
 .behaviour {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-  border: 1px solid var(--mt-line);
-  border-radius: 10px;
-  background: var(--mt-soft-2);
+  gap: 12px;
 }
-.behaviour h3 {
-  margin: 0;
+.compare-toolbar {
+  flex-wrap: wrap;
 }
 .warn-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0;
-  padding: 9px 14px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--mt-warn-ink) 18%, transparent);
   border-radius: var(--mt-radius-lg);
   background: var(--mt-warn-bg);
   color: var(--mt-warn-ink);
-  font-weight: 600;
+  font-weight: 500;
+}
+.warn-icon {
+  flex: none;
 }
 .tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
 }
 .tile {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px 14px;
+  gap: 8px;
+  padding: 14px 16px;
   border: 1px solid var(--mt-line);
   border-radius: 10px;
   background: var(--mt-card);
+}
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 2px;
+}
+.bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--mt-soft);
+  overflow: hidden;
+}
+.bar i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+}
+.bar.base i {
+  background: var(--mt-faint);
+  opacity: 0.55;
+}
+.bar.target i {
+  background: var(--mt-accent);
+}
+.bar.target.worse i {
+  background: var(--mt-err);
 }
 .tile-value {
   display: flex;

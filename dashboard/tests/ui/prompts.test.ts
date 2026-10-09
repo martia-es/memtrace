@@ -115,8 +115,9 @@ describe("prompt detail (ADR-067)", () => {
     expect(diff.exists()).toBe(true);
     expect(diff.text()).toContain("Eres breve.");
     expect(diff.text()).toContain("Eres un asistente del tiempo para {{ciudad}}.");
-    expect(diff.findAll(".line.del").length).toBeGreaterThan(0);
-    expect(diff.findAll(".line.add").length).toBeGreaterThan(0);
+    expect(diff.findAll(".cell.del").length).toBeGreaterThan(0);
+    expect(diff.findAll(".cell.add").length).toBeGreaterThan(0);
+    expect(wrapper.find("[data-testid='prompt-diff-card']").text()).toContain("Prompt changes");
   });
 
   it("saves an edit as a new version from the selected one", async () => {
