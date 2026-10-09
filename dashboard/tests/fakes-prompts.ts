@@ -47,6 +47,8 @@ export class FakePromptApi implements PromptApi {
   calls: Array<{ method: string; args: unknown[] }> = [];
   list: PromptSummaryDto[] = [];
   detail: PromptDetailDto = promptDetail();
+  /** detalle de otros prompts por id (p. ej. los fragmentos que enseña el selector); si no está, `detail` */
+  details: Record<string, PromptDetailDto> = {};
   gate: PromptGateDto = gateResult();
   moveError: Error | null = null;
   /** Lo que contesta el agente a cada versión: por defecto, aplicado y con un texto que dice de qué versión es. */
@@ -68,7 +70,7 @@ export class FakePromptApi implements PromptApi {
   }
   async get(promptId: string) {
     this.record("get", promptId);
-    return this.detail;
+    return this.details[promptId] ?? this.detail;
   }
   async update(promptId: string, patch: { description?: string; archived?: boolean; experimentIds?: string[] }) {
     this.record("update", promptId, patch);

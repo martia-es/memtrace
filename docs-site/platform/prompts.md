@@ -134,7 +134,7 @@ Prefer a model to write the proposal? The SDK can ask **your** LLM with **your**
 
 ## Fragments: text shared between prompts
 
-A **fragment** is text several prompts need (tone, safety policy, output format). Create it with **+ New fragment**; it has versions, tags and history like a prompt, but it is not deployed to an agent. A prompt uses it by writing, anywhere in its text:
+A **fragment** is text several prompts need (tone, safety policy, output format). Create it with **+ New fragment**, in the *Fragments* section of the Prompts list (or from the empty state). The form shows the `{{variables}}` its text brings and how a prompt will use it; it has versions, tags and history like a prompt, but it is not deployed to an agent. A prompt uses it by choosing **Insert fragment** while editing (pick the fragment, then *Follow tag pro* or *Pin to v5*, and check the preview and the variables it adds), or by writing, anywhere in its text:
 
 ```text
 {{> tone@pro}}     the version the tag "pro" of the fragment "tone" points to
@@ -145,7 +145,7 @@ The reference is **mandatory** (an include without `@tag` or `@number` is reject
 
 - A prompt shows what it wrote (**Source**) or what the agent receives (**Resolved**), and an **Includes** card with each fragment and the version it is pinned to.
 - When a tag moved on, the card says *now v4* and offers **Rebuild with the current fragments**. That saves a **draft** to review, test and publish; it is never published for you. A reference by number never goes out of date.
-- On a fragment, **Used by** lists the prompts that include it in their latest version and which are behind. **Rebuild N prompts as drafts** does it for all of them at once, skipping those you cannot write.
+- On a fragment, **Used by** lists the prompts that include it in their latest version and which are behind. A banner at the top warns when some are behind, and **Prepare drafts for N prompts** does it for all of them at once, skipping those you cannot write.
 
 Limits: a fragment cannot include another fragment; only published versions can be included; at most 20 different fragments per version. The fragment's `{{variables}}` become variables of the prompt.
 

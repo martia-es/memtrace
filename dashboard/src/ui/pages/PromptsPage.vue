@@ -5,8 +5,8 @@ import { useQuasar } from "quasar";
 import type { PromptSummaryDto } from "@contract";
 import { describeApiError } from "@/application/describe-api-error";
 import { formatDateTime } from "@/domain/format";
+import { extractVariables, includeSyntax } from "@/domain/prompt-fragment";
 import { ENV_ORDER, environmentCoverage, releaseStatus, releaseSummary, sortEnvironments, timelineCells, type ReleaseState } from "@/domain/prompt-release";
-import EmptyState from "../components/EmptyState.vue";
 import EnvFlag from "../components/EnvFlag.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import Modal from "../components/Modal.vue";
@@ -94,9 +94,20 @@ function open(promptId: string) {
 }
 
 // ---- create ----
-/** Ejemplo de inclusión para el texto de ayuda (`}}` dentro de una plantilla de Vue la rompe). */
-const example = (ref: string) => `{{> name@${ref}}}`;
+/** Ejemplos para los textos de ayuda (`}}` dentro de una plantilla de Vue la rompe). */
+const example = (ref: string) => includeSyntax("name", ref);
+const asVariable = (name: string) => `{{${name}}}`;
+const sampleInclude = includeSyntax("tone", "pro");
+const sampleVariable = asVariable("language");
+/** variables que el texto escrito aporta: las heredan los prompts que lo incluyan */
+/** cómo se incluiría el fragmento que se está escribiendo */
+const ownInclude = computed(() => includeSyntax(form.value.name.trim() || "name", "pro"));
+const formVariables = computed(() => extractVariables(form.value.content));
 const showCreate = ref(false);
+function openCreate(kind: "prompt" | "fragment") {
+  form.value.kind = kind;
+  showCreate.value = true;
+}
 const form = ref({ kind: "prompt" as "prompt" | "fragment", name: "", description: "", content: "", message: "" });
 const creating = ref(false);
 const fieldErrors = ref<Record<string, string>>({});
@@ -123,15 +134,35 @@ async function create() {
     <PageHeader :crumbs="[{ label: 'Prompts' }, { label: 'Prompts' }]" icon="M4 6h16M4 12h16M4 18h10" title="Prompts">
       <div class="actions">
         <TextInput v-model="search" type="search" placeholder="Filter by name…" class="search" />
-        <label class="archived-toggle"><input v-model="showArchived" type="checkbox" data-testid="show-archived" @change="prompts.run()" /> Show archived</label>
-        <button v-if="can('prompt:write')" type="button" class="primary-btn" data-testid="new-prompt" @click="form.kind = 'prompt'; showCreate = true">+ New prompt</button>
-        <button v-if="can('prompt:write')" type="button" class="ghost-btn" data-testid="new-fragment" @click="form.kind = 'fragment'; showCreate = true">+ New fragment</button>
+        <button v-if="can('prompt:write')" type="button" class="primary-btn" data-testid="new-prompt" @click="openCreate('prompt')">+ New prompt</button>
       </div>
     </PageHeader>
 
     <ErrorBanner v-if="prompts.error.value" :error="prompts.error.value" @retry="prompts.run()" />
     <div v-else-if="prompts.loading.value && !prompts.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
-    <EmptyState v-else-if="(prompts.data.value?.length ?? 0) === 0" icon="edit_note" title="No prompts yet">Create one with "New prompt" to start versioning what your agent says.</EmptyState>
+    <section v-else-if="(prompts.data.value?.length ?? 0) === 0" class="welcome" data-testid="empty-state">
+      <div class="welcome-head">
+        <h2>Version what your agent says</h2>
+        <p>Every save is a version, tags decide which one runs in DEV, PRE and PRO, and each version keeps its own traces, cost and errors.</p>
+      </div>
+      <div class="welcome-cards">
+        <article class="welcome-card">
+          <span class="eyebrow">PROMPT</span>
+          <h3>New prompt</h3>
+          <p>The text your agent runs with. Use <code>{{ sampleVariable }}</code> for the parts that change.</p>
+          <pre class="sample">You are a weather assistant. Answer in {{ sampleVariable }}.</pre>
+          <button v-if="can('prompt:write')" type="button" class="primary-btn" data-testid="empty-new-prompt" @click="openCreate('prompt')">+ New prompt</button>
+        </article>
+        <article class="welcome-card">
+          <span class="eyebrow">FRAGMENT</span>
+          <h3>New fragment</h3>
+          <p>Text shared by several prompts (tone, policies, format). Edit it once and the prompts that use it get a new draft.</p>
+          <pre class="sample">In your prompt: {{ sampleInclude }}</pre>
+          <button v-if="can('prompt:write')" type="button" class="outline-btn" data-testid="empty-new-fragment" @click="openCreate('fragment')">+ New fragment</button>
+        </article>
+      </div>
+      <button v-if="!showArchived" type="button" class="link-btn" data-testid="show-archived-empty" @click="showArchived = true; prompts.run()">Show archived prompts</button>
+    </section>
 
     <template v-else>
       <section class="board" data-testid="release-board" aria-label="What is live">
@@ -177,6 +208,12 @@ async function create() {
         <span class="grow" />
         <span class="legend"><i class="bar released" /> released</span>
         <span class="legend"><i class="bar ahead" /> ahead of PRO</span>
+        <span class="toolbar-sep" aria-hidden="true" />
+        <label class="archived-switch" :class="{ on: showArchived }">
+          <input v-model="showArchived" type="checkbox" class="sr-only" data-testid="show-archived" @change="prompts.run()" />
+          <span class="switch" aria-hidden="true"><i /></span>
+          Show archived
+        </label>
       </div>
 
       <EmptyState v-if="rows.length === 0" icon="search_off" title="No matches">Try a different search or filter.</EmptyState>
@@ -225,9 +262,15 @@ async function create() {
       </div>
     </template>
 
-    <section v-if="fragments.length > 0" class="fragments" data-testid="fragments">
-      <span class="eyebrow">FRAGMENTS</span>
-      <p class="soft small">Shared text that prompts include. Changing one proposes new versions of the prompts that use it.</p>
+    <section v-if="prompts.data.value && prompts.data.value.length > 0" class="fragments" data-testid="fragments">
+      <div class="fragments-head">
+        <div class="fragments-intro">
+          <span class="eyebrow">FRAGMENTS · {{ fragments.length }}</span>
+          <p class="soft small">Shared text that prompts include with <code>{{ sampleInclude }}</code>. Changing one proposes a new version of every prompt that uses it.</p>
+        </div>
+        <button v-if="can('prompt:write')" type="button" class="outline-btn" data-testid="new-fragment" @click="openCreate('fragment')">+ New fragment</button>
+      </div>
+      <p v-if="fragments.length === 0" class="soft small fragments-empty" data-testid="fragments-empty">No fragments yet.</p>
       <article
         v-for="f in fragments"
         :key="f.id"
@@ -239,25 +282,49 @@ async function create() {
       >
         <span class="name">{{ f.name }}</span>
         <span v-if="f.archivedAt" class="mt-pill archived">archived</span>
+        <span v-if="f.description" class="soft frag-desc">{{ f.description }}</span>
         <span class="grow" />
         <span class="mono">v{{ f.latestVersion }}</span>
         <span v-for="[tag, version] in sortEnvironments(Object.keys(f.tags)).map((t): [string, number] => [t, f.tags[t]!])" :key="tag" class="mt-pill tag" :class="tag">{{ tag }} → v{{ version }}</span>
       </article>
     </section>
 
-    <Modal v-if="showCreate" :title="form.kind === 'fragment' ? 'New fragment' : 'New prompt'" medium @close="showCreate = false">
-      <form class="modal-form" @submit.prevent="create">
-        <p v-if="form.kind === 'fragment'" class="hint small" data-testid="fragment-hint">
+    <Modal v-if="showCreate" :title="form.kind === 'fragment' ? 'New fragment' : 'New prompt'" :medium="form.kind !== 'fragment'" :wide="form.kind === 'fragment'" @close="showCreate = false">
+      <form class="modal-form" :class="{ split: form.kind === 'fragment' }" @submit.prevent="create">
+        <p v-if="form.kind === 'fragment'" class="hint small intro" data-testid="fragment-hint">
           A fragment is text shared by several prompts (tone, policies, format). A prompt includes it with <code>{{ example("pro") }}</code>
           (by tag) or <code>{{ example("3") }}</code> (by version), and the version it points to when saving is pinned.
         </p>
-        <TextInput v-model="form.name" placeholder="name, e.g. weather-system" mono autofocus :invalid="!!fieldErrors.name" data-testid="prompt-name" />
-        <p v-if="fieldErrors.name" class="field-error">{{ fieldErrors.name }}</p>
-        <TextInput v-model="form.description" placeholder="What is it for? (optional)" />
-        <TextInput v-model="form.content" multiline :rows="10" mono placeholder="Prompt text. Use {{variable}} for the parts that change." :invalid="!!fieldErrors.content" data-testid="prompt-content" />
-        <p v-if="fieldErrors.content" class="field-error">{{ fieldErrors.content }}</p>
-        <TextInput v-model="form.message" placeholder="Message for version 1 (optional)" />
-        <button type="submit" class="primary-btn" :disabled="creating || !form.name.trim() || !form.content.trim()" data-testid="create-prompt">Create</button>
+        <div class="fields">
+          <TextInput v-model="form.name" placeholder="name, e.g. weather-system" mono autofocus :invalid="!!fieldErrors.name" data-testid="prompt-name" />
+          <p v-if="fieldErrors.name" class="field-error">{{ fieldErrors.name }}</p>
+          <TextInput v-model="form.description" placeholder="What is it for? (optional)" />
+          <TextInput v-model="form.content" multiline :rows="10" mono placeholder="Prompt text. Use {{variable}} for the parts that change." :invalid="!!fieldErrors.content" data-testid="prompt-content" />
+          <p v-if="fieldErrors.content" class="field-error">{{ fieldErrors.content }}</p>
+          <TextInput v-model="form.message" placeholder="Message for version 1 (optional)" />
+        </div>
+        <aside v-if="form.kind === 'fragment'" class="aside-cards">
+          <div class="aside-card" data-testid="fragment-variables">
+            <span class="eyebrow">VARIABLES IT BRINGS</span>
+            <p class="soft small">Every prompt that includes it gets these variables too.</p>
+            <div class="vars">
+              <code v-for="v in formVariables" :key="v" class="var">{{ asVariable(v) }}</code>
+              <span v-if="formVariables.length === 0" class="soft small">none yet</span>
+            </div>
+          </div>
+          <div class="aside-card accent">
+            <span class="eyebrow">HOW A PROMPT USES IT</span>
+            <p class="soft small">Pick it from <b>Insert fragment</b> in the prompt editor, or type:</p>
+            <code class="snippet">{{ ownInclude }}</code>
+            <p class="soft small">The tag or version is required: a prompt always knows exactly which text it got.</p>
+          </div>
+        </aside>
+        <div class="modal-foot">
+          <span v-if="form.kind === 'fragment'" class="soft small">Creates v1, published. Nothing runs in an agent until a prompt includes it.</span>
+          <span class="grow" />
+          <button type="button" class="ghost-btn" @click="showCreate = false">Cancel</button>
+          <button type="submit" class="primary-btn" :disabled="creating || !form.name.trim() || !form.content.trim()" data-testid="create-prompt">{{ form.kind === "fragment" ? "Create fragment" : "Create" }}</button>
+        </div>
       </form>
     </Modal>
   </div>
@@ -267,15 +334,41 @@ async function create() {
 .fragments {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-top: 8px;
+  gap: 8px;
+  margin-top: 10px;
+}
+.fragments-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.fragments-intro {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.fragments-intro p,
+.fragments-empty {
+  margin: 0;
+}
+.frag-desc {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+code {
+  font-family: var(--mt-mono);
 }
 .fragment-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: 10px;
+  padding: 12px 18px;
   border: 1px solid var(--mt-line);
+  border-radius: 10px;
   background: var(--mt-card);
   cursor: pointer;
 }
@@ -306,13 +399,6 @@ async function create() {
 .search {
   width: 240px;
 }
-.archived-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12.5px;
-  color: var(--mt-muted);
-}
 .loading {
   display: flex;
   justify-content: center;
@@ -321,6 +407,163 @@ async function create() {
 .soft {
   color: var(--mt-muted);
   font-size: 12px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+.toolbar-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--mt-line);
+}
+.archived-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--mt-line);
+  border-radius: 14px;
+  background: var(--mt-card);
+  color: var(--mt-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.archived-switch:focus-within {
+  outline: 2px solid var(--mt-accent);
+  outline-offset: 2px;
+}
+.switch {
+  position: relative;
+  width: 26px;
+  height: 14px;
+  border-radius: 7px;
+  background: var(--mt-line);
+}
+.switch i {
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--mt-card);
+  transition: transform 0.15s ease;
+}
+.archived-switch.on .switch {
+  background: var(--mt-accent);
+}
+.archived-switch.on .switch i {
+  transform: translateX(12px);
+}
+
+/* ---- estado vacío ---- */
+.welcome {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  padding: 40px 0;
+}
+.welcome-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+.welcome-head h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.welcome-head p {
+  margin: 0;
+  max-width: 520px;
+  color: var(--mt-muted);
+  line-height: 1.5;
+}
+.welcome-cards {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 20px;
+}
+.welcome-card {
+  width: 380px;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--mt-card);
+  border: 1px solid var(--mt-line);
+  border-radius: 10px;
+}
+.welcome-card h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.welcome-card p {
+  margin: 0;
+  line-height: 1.5;
+  color: var(--mt-muted);
+}
+.sample {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--mt-soft);
+  color: var(--mt-muted);
+  font-family: var(--mt-mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+.welcome-card .primary-btn,
+.welcome-card .outline-btn {
+  margin-top: 4px;
+  height: 36px;
+}
+.outline-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--mt-accent);
+  border-radius: 6px;
+  background: var(--mt-card);
+  color: var(--mt-accent-text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.outline-btn:hover {
+  background: var(--mt-accent-tint);
+}
+.link-btn {
+  border: none;
+  background: none;
+  color: var(--mt-accent-text);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
 }
 
 /* ---- tablero ---- */
@@ -721,6 +964,69 @@ async function create() {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+.modal-form.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 14px 20px;
+}
+.modal-form .intro,
+.modal-form .modal-foot {
+  grid-column: 1 / -1;
+}
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.aside-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.aside-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 8px;
+  background: var(--mt-soft);
+}
+.aside-card.accent {
+  background: var(--mt-accent-tint);
+  border: 1px solid var(--mt-accent-soft);
+}
+.aside-card p {
+  margin: 0;
+  line-height: 1.5;
+}
+.vars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.var {
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--mt-highlight-soft);
+  color: var(--mt-highlight-ink);
+  font-size: 11.5px;
+}
+.snippet {
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--mt-card);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.modal-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.modal-foot .primary-btn {
+  height: 36px;
 }
 .field-error {
   margin: -6px 0 0;
