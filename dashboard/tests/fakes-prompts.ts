@@ -3,12 +3,12 @@ import type { PromptDetailDto, PromptEvidenceResponse, PromptGateDto, PromptPlay
 import type { NewPromptInput, PromptApi } from "@/application/prompt-api";
 
 export function promptVersion(version: number, content: string, extra: Partial<PromptVersionDto> = {}): PromptVersionDto {
-  return { version, status: "published", origin: null, publishedAt: "2026-10-08T10:00:00.000Z", content, variables: [], contentHash: `h${version}`, parentVersion: version > 1 ? version - 1 : null, message: "", createdBy: "u1", createdAt: "2026-10-08T10:00:00.000Z", ...extra };
+  return { version, status: "published", origin: null, publishedAt: "2026-10-08T10:00:00.000Z", source: null, includes: [], content, variables: [], contentHash: `h${version}`, parentVersion: version > 1 ? version - 1 : null, message: "", createdBy: "u1", createdAt: "2026-10-08T10:00:00.000Z", ...extra };
 }
 
 export function promptDetail(overrides: Partial<PromptDetailDto> = {}): PromptDetailDto {
   return {
-    prompt: { id: "p1", organizationId: "org-1", name: "weather-system", description: "System prompt of the weather assistant", archivedAt: null, createdBy: "u1", createdAt: "2026-10-08T10:00:00.000Z", updatedAt: "2026-10-08T10:00:00.000Z", experimentIds: ["exp-1"] },
+    prompt: { id: "p1", organizationId: "org-1", kind: "prompt", name: "weather-system", description: "System prompt of the weather assistant", archivedAt: null, createdBy: "u1", createdAt: "2026-10-08T10:00:00.000Z", updatedAt: "2026-10-08T10:00:00.000Z", experimentIds: ["exp-1"] },
     versions: [promptVersion(2, "Eres breve.\nResponde en español.", { message: "shorter" }), promptVersion(1, "Eres un asistente del tiempo para {{ciudad}}.\nResponde en español.", { variables: ["ciudad"], message: "first draft" })],
     tags: [{ tag: "dev", version: 2, updatedBy: "u1", updatedAt: "2026-10-08T10:05:00.000Z" }],
     events: [{ id: "e1", tag: "dev", fromVersion: null, toVersion: 2, changedBy: "u1", reason: "ready to test", createdAt: "2026-10-08T10:05:00.000Z", gateVerdict: "not_gated", gateBypassed: false, bypassReason: null }],
@@ -16,6 +16,8 @@ export function promptDetail(overrides: Partial<PromptDetailDto> = {}): PromptDe
     environmentKeys: ["dev", "pre", "pro"],
     gatedEnvironments: ["pre", "pro"],
     policy: null,
+    includes: [],
+    usedBy: [],
     ...overrides,
   };
 }
@@ -81,6 +83,15 @@ export class FakePromptApi implements PromptApi {
     // como la API: la próxima lectura del prompt ya la incluye
     this.detail = { ...this.detail, versions: [saved, ...this.detail.versions.filter((v) => v.version !== saved.version)] };
     return saved;
+  }
+  rebuilt = { created: [] as Array<{ promptId: string; name: string; version: number }>, skipped: [] as Array<{ promptId: string; name: string; reason: string }> };
+  async rebuild(promptId: string) {
+    this.record("rebuild", promptId);
+    return promptVersion(4, "rebuilt", { status: "draft", publishedAt: null, message: "Rebuilt with the current fragments" });
+  }
+  async rebuildDependents(promptId: string) {
+    this.record("rebuildDependents", promptId);
+    return this.rebuilt;
   }
   async publishDraft(promptId: string, version: number) {
     this.record("publishDraft", promptId, version);

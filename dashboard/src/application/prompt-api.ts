@@ -3,6 +3,8 @@ import type { PromptDetailDto, PromptEvidenceResponse, PromptGateDto, PromptPlay
 /** Puerto de salida: registro de prompts (ADR-067). */
 
 export interface NewPromptInput {
+  /** `fragment`: texto compartido que otros prompts incluyen con `{{> nombre@tag}}` (ADR-073) */
+  kind?: "prompt" | "fragment";
   name: string;
   description: string;
   content: string;
@@ -27,6 +29,10 @@ export interface PromptApi {
     input: { content: string; message: string; parentVersion?: number | null; draft?: boolean; origin?: { traceIds: string[]; cause: string | null; rationale: string } | null },
     signal?: AbortSignal,
   ): Promise<PromptVersionDto>;
+  /** Vuelve a resolver los fragmentos de la última versión publicada y guarda el resultado como BORRADOR (ADR-073). */
+  rebuild(promptId: string, signal?: AbortSignal): Promise<PromptVersionDto>;
+  /** Un fragmento cambió: reconstruye como borradores los prompts que lo usan y se han quedado atrás. */
+  rebuildDependents(promptId: string, signal?: AbortSignal): Promise<{ created: Array<{ promptId: string; name: string; version: number }>; skipped: Array<{ promptId: string; name: string; reason: string }> }>;
   /** Publica un borrador: pasa a ser una versión normal que ya puede recibir tags. Lo decide una persona. */
   publishDraft(promptId: string, version: number, signal?: AbortSignal): Promise<PromptVersionDto>;
   /** Descarta un borrador. Una versión publicada no se borra nunca. */

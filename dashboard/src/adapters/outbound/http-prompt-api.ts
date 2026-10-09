@@ -32,6 +32,12 @@ export class HttpPromptApi implements PromptApi {
   ): Promise<PromptVersionDto> {
     return this.request("POST", `/prompts/${e(promptId)}/versions`, input, signal);
   }
+  rebuild(promptId: string, signal?: AbortSignal): Promise<PromptVersionDto> {
+    return this.request("POST", `/prompts/${e(promptId)}/rebuild`, undefined, signal);
+  }
+  rebuildDependents(promptId: string, signal?: AbortSignal): Promise<{ created: Array<{ promptId: string; name: string; version: number }>; skipped: Array<{ promptId: string; name: string; reason: string }> }> {
+    return this.request("POST", `/prompts/${e(promptId)}/rebuild-dependents`, undefined, signal);
+  }
   publishDraft(promptId: string, version: number, signal?: AbortSignal): Promise<PromptVersionDto> {
     return this.request("POST", `/prompts/${e(promptId)}/versions/${version}/publish`, undefined, signal);
   }

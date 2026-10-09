@@ -28,7 +28,9 @@ const prompts = useAsync((signal) => api.listForAgent(experimentId.value, showAr
 void prompts.run();
 
 // ---- tablero: qué corre en cada entorno ----
-const live = computed(() => (prompts.data.value ?? []).filter((p) => !p.archivedAt));
+const live = computed(() => (prompts.data.value ?? []).filter((p) => !p.archivedAt && p.kind !== "fragment"));
+// los fragmentos (ADR-073) no se despliegan por entorno: no entran en el tablero ni en los estados de release
+const fragments = computed(() => (prompts.data.value ?? []).filter((p) => p.kind === "fragment"));
 const coverage = computed(() => environmentCoverage(live.value));
 const summary = computed(() => releaseSummary(live.value));
 const ENV_NOTE: Record<string, (missing: number) => string> = {
@@ -52,6 +54,7 @@ const search = ref("");
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase();
   return (prompts.data.value ?? []).filter((p) => {
+    if (p.kind === "fragment") return false;
     if (q && !p.name.toLowerCase().includes(q) && !p.description.toLowerCase().includes(q)) return false;
     return status.value === "all" || releaseStatus(p).state === status.value;
   });
@@ -80,8 +83,10 @@ function open(promptId: string) {
 }
 
 // ---- create ----
+/** Ejemplo de inclusión para el texto de ayuda (`}}` dentro de una plantilla de Vue la rompe). */
+const example = (ref: string) => `{{> name@${ref}}}`;
 const showCreate = ref(false);
-const form = ref({ name: "", description: "", content: "", message: "" });
+const form = ref({ kind: "prompt" as "prompt" | "fragment", name: "", description: "", content: "", message: "" });
 const creating = ref(false);
 const fieldErrors = ref<Record<string, string>>({});
 async function create() {
@@ -90,7 +95,7 @@ async function create() {
   try {
     const detail = await api.create(experimentId.value, { ...form.value, name: form.value.name.trim() });
     showCreate.value = false;
-    form.value = { name: "", description: "", content: "", message: "" };
+    form.value = { kind: "prompt", name: "", description: "", content: "", message: "" };
     open(detail.prompt.id);
   } catch (error) {
     const err = error as Error & { fields?: Record<string, string> };
@@ -108,7 +113,8 @@ async function create() {
       <div class="actions">
         <TextInput v-model="search" type="search" placeholder="Filter by name…" class="search" />
         <label class="archived-toggle"><input v-model="showArchived" type="checkbox" data-testid="show-archived" @change="prompts.run()" /> Show archived</label>
-        <button v-if="can('prompt:write')" type="button" class="primary-btn" data-testid="new-prompt" @click="showCreate = true">+ New prompt</button>
+        <button v-if="can('prompt:write')" type="button" class="primary-btn" data-testid="new-prompt" @click="form.kind = 'prompt'; showCreate = true">+ New prompt</button>
+        <button v-if="can('prompt:write')" type="button" class="ghost-btn" data-testid="new-fragment" @click="form.kind = 'fragment'; showCreate = true">+ New fragment</button>
       </div>
     </PageHeader>
 
@@ -208,8 +214,32 @@ async function create() {
       </div>
     </template>
 
-    <Modal v-if="showCreate" title="New prompt" medium @close="showCreate = false">
+    <section v-if="fragments.length > 0" class="fragments" data-testid="fragments">
+      <span class="eyebrow">FRAGMENTS</span>
+      <p class="soft small">Shared text that prompts include. Changing one proposes new versions of the prompts that use it.</p>
+      <article
+        v-for="f in fragments"
+        :key="f.id"
+        class="fragment-row"
+        :data-testid="`fragment-row-${f.name}`"
+        tabindex="0"
+        @click="open(f.id)"
+        @keydown.enter="open(f.id)"
+      >
+        <span class="name">{{ f.name }}</span>
+        <span v-if="f.archivedAt" class="mt-pill archived">archived</span>
+        <span class="grow" />
+        <span class="mono">v{{ f.latestVersion }}</span>
+        <span v-for="[tag, version] in sortEnvironments(Object.keys(f.tags)).map((t): [string, number] => [t, f.tags[t]!])" :key="tag" class="mt-pill tag" :class="tag">{{ tag }} → v{{ version }}</span>
+      </article>
+    </section>
+
+    <Modal v-if="showCreate" :title="form.kind === 'fragment' ? 'New fragment' : 'New prompt'" medium @close="showCreate = false">
       <form class="modal-form" @submit.prevent="create">
+        <p v-if="form.kind === 'fragment'" class="hint small" data-testid="fragment-hint">
+          A fragment is text shared by several prompts (tone, policies, format). A prompt includes it with <code>{{ example("pro") }}</code>
+          (by tag) or <code>{{ example("3") }}</code> (by version), and the version it points to when saving is pinned.
+        </p>
         <TextInput v-model="form.name" placeholder="name, e.g. weather-system" mono autofocus :invalid="!!fieldErrors.name" data-testid="prompt-name" />
         <p v-if="fieldErrors.name" class="field-error">{{ fieldErrors.name }}</p>
         <TextInput v-model="form.description" placeholder="What is it for? (optional)" />
@@ -223,6 +253,30 @@ async function create() {
 </template>
 
 <style scoped>
+.fragments {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+.fragment-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--mt-line);
+  background: var(--mt-card);
+  cursor: pointer;
+}
+.fragment-row:hover,
+.fragment-row:focus-visible {
+  background: var(--mt-soft-2);
+  outline: none;
+}
+.hint {
+  margin: 0;
+  color: var(--mt-muted);
+}
 .page {
   flex: 1;
   min-height: 0;

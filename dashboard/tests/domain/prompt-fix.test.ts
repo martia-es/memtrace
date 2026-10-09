@@ -5,7 +5,7 @@ import { node } from "../fakes";
 
 const failed = (name: string, message: string | null, extra: Partial<Parameters<typeof node>[0]> = {}) => node({ name, status: { code: "error", message }, ...extra });
 const version = (n: number, status: "draft" | "published" = "published"): PromptVersionDto => ({
-  version: n, status, origin: null, publishedAt: status === "published" ? "t" : null, content: `v${n}`, variables: [], contentHash: `h${n}`, parentVersion: null, message: "", createdBy: null, createdAt: "t",
+  version: n, status, origin: null, publishedAt: status === "published" ? "t" : null, source: null, includes: [], content: `v${n}`, variables: [], contentHash: `h${n}`, parentVersion: null, message: "", createdBy: null, createdAt: "t",
 });
 
 describe("failureOf (ADR-072)", () => {

@@ -144,7 +144,7 @@ const draft = ref("");
 const message = ref("");
 const saving = ref(false);
 function startEdit() {
-  draft.value = selectedVersion.value?.content ?? "";
+  draft.value = selectedVersion.value?.source ?? selectedVersion.value?.content ?? "";
   message.value = "";
   editing.value = true;
 }
@@ -164,6 +164,44 @@ async function saveVersion(asDraft = false) {
     notifyError("Could not save the version", error);
   } finally {
     saving.value = false;
+  }
+}
+
+// ---- fragmentos (ADR-073) ----
+/** Cómo se incluye un fragmento en un prompt. Va en una función porque `}}` dentro de una plantilla de Vue la rompe. */
+const includeSyntax = (name: string) => `{{> ${name}@pro}}`;
+const isLatestPublished = computed(() => selectedVersion.value !== null && selectedVersion.value.version === latestVersion.value);
+/** versión a la que resuelve hoy una inclusión de la última versión publicada si ya no es la fijada; null si sigue igual */
+const includeOutdated = (name: string, ref: string): number | null => {
+  const status = data.value?.includes.find((i) => i.name === name && i.ref === ref);
+  return status?.outdated && isLatestPublished.value ? status.current : null;
+};
+const anyOutdated = computed(() => (data.value?.includes ?? []).some((i) => i.outdated));
+const outdatedDependents = computed(() => (data.value?.usedBy ?? []).filter((u) => u.outdated).length);
+async function rebuildPrompt() {
+  draftBusy.value = true;
+  try {
+    const saved = await api.rebuild(props.promptId);
+    await detail.run();
+    selected.value = saved.version;
+    $q.notify({ message: `Draft v${saved.version} saved with the current fragments`, color: "positive", timeout: 3000 });
+  } catch (error) {
+    notifyError("Could not rebuild", error);
+  } finally {
+    draftBusy.value = false;
+  }
+}
+async function rebuildDependents() {
+  draftBusy.value = true;
+  try {
+    const { created, skipped } = await api.rebuildDependents(props.promptId);
+    await detail.run();
+    const skippedNote = skipped.length > 0 ? `, ${skipped.length} skipped` : "";
+    $q.notify({ message: `${created.length} ${created.length === 1 ? "draft" : "drafts"} created${skippedNote}. Review them in each prompt`, color: skipped.length > 0 ? "warning" : "positive", timeout: 5000 });
+  } catch (error) {
+    notifyError("Could not rebuild the prompts that use it", error);
+  } finally {
+    draftBusy.value = false;
   }
 }
 
@@ -340,8 +378,12 @@ const changedLines = computed(() => {
   }
   return changed;
 });
+// una versión con fragmentos se lee como la escribió quien la editó, con sus `{{> nombre@tag}}`; «Resolved» es lo que recibe el agente (ADR-073)
+const hasIncludes = computed(() => (selectedVersion.value?.includes.length ?? 0) > 0);
+const view = ref<"source" | "resolved">("source");
+const showingSource = computed(() => hasIncludes.value && view.value === "source");
 const codeLines = computed(() =>
-  (selectedVersion.value?.content ?? "").split("\n").map((text, i) => ({ n: i + 1, parts: splitVariables(text), heading: text.startsWith("#"), changed: changedLines.value.has(i + 1) })),
+  (showingSource.value ? (selectedVersion.value?.source ?? "") : (selectedVersion.value?.content ?? "")).split("\n").map((text, i) => ({ n: i + 1, parts: splitVariables(text), heading: text.startsWith("#"), changed: !showingSource.value && changedLines.value.has(i + 1) })),
 );
 const runningHere = computed(() => (selectedVersion.value ? running(selectedVersion.value.version) : []));
 
@@ -476,9 +518,13 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                     <span class="grow" />
                     <span class="soft">{{ formatDateTime(selectedVersion.createdAt) }}</span>
                     <span v-if="parentOfSelected" class="mt-pill from">from v{{ parentOfSelected.version }}</span>
+                    <span v-if="hasIncludes" class="view-toggle" role="group" aria-label="Text shown">
+                      <button type="button" :class="{ on: view === 'source' }" data-testid="view-source" @click="view = 'source'">Source</button>
+                      <button type="button" :class="{ on: view === 'resolved' }" data-testid="view-resolved" @click="view = 'resolved'">Resolved</button>
+                    </span>
                   </div>
                   <pre class="code" data-testid="version-content"><span v-for="line in codeLines" :key="line.n" class="ln" :class="{ changed: line.changed, heading: line.heading }"><span v-for="(part, i) in line.parts" :key="i" :class="{ variable: part.variable }">{{ part.text }}</span></span></pre>
-                  <div v-if="changedLines.size > 0" class="code-foot"><i /> Lines changed since v{{ parentOfSelected?.version }}</div>
+                  <div v-if="!showingSource && changedLines.size > 0" class="code-foot"><i /> Lines changed since v{{ parentOfSelected?.version }}</div>
                 </div>
 
                 <div class="side">
@@ -489,6 +535,32 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                       <code v-for="name in selectedVersion.variables" :key="name" class="var">{{ asVariable(name) }}</code>
                       <span v-if="selectedVersion.variables.length === 0" class="soft">none</span>
                     </div>
+                  </div>
+                  <div v-if="hasIncludes" class="side-card" data-testid="includes-card">
+                    <span class="eyebrow">INCLUDES</span>
+                    <p class="soft">Fragments pinned to the exact version they had when this was saved.</p>
+                    <ul class="plain">
+                      <li v-for="i in selectedVersion.includes" :key="`${i.name}@${i.ref}`" :data-testid="`include-${i.name}`">
+                        <router-link :to="{ name: 'prompts', params: { experimentId: String(route.params.experimentId) } }" class="link mono">{{ i.name }}@{{ i.ref }}</router-link>
+                        → <b class="mono">v{{ i.version }}</b>
+                        <span v-if="includeOutdated(i.name, i.ref)" class="mt-pill draft-pill" :data-testid="`outdated-${i.name}`">now v{{ includeOutdated(i.name, i.ref) }}</span>
+                      </li>
+                    </ul>
+                    <button v-if="canWrite && isLatestPublished && anyOutdated" type="button" class="primary-btn small" :disabled="draftBusy" data-testid="rebuild" @click="rebuildPrompt">Rebuild with the current fragments</button>
+                    <p v-if="canWrite && isLatestPublished && anyOutdated" class="soft">Saves a draft to review; nothing changes until you publish it.</p>
+                  </div>
+                  <div v-if="data.prompt.kind === 'fragment'" class="side-card" data-testid="used-by-card">
+                    <span class="eyebrow">USED BY</span>
+                    <p v-if="data.usedBy.length === 0" class="soft" data-testid="used-by-empty">No prompt includes this fragment yet. Write <code>{{ includeSyntax(data.prompt.name) }}</code> in a prompt to use it.</p>
+                    <ul v-else class="plain">
+                      <li v-for="u in data.usedBy" :key="u.promptId" :data-testid="`used-by-${u.name}`">
+                        <span class="mono">{{ u.name }}</span> <span class="soft">v{{ u.version }}</span>
+                        <span v-if="u.outdated" class="mt-pill draft-pill">behind</span>
+                      </li>
+                    </ul>
+                    <button v-if="canWrite && outdatedDependents > 0" type="button" class="primary-btn small" :disabled="draftBusy" data-testid="rebuild-dependents" @click="rebuildDependents">
+                      Rebuild {{ outdatedDependents }} {{ outdatedDependents === 1 ? "prompt" : "prompts" }} as drafts
+                    </button>
                   </div>
                   <div class="side-card">
                     <span class="eyebrow">RUNNING IN</span>
@@ -507,8 +579,8 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                 <TextInput v-model="draft" multiline :rows="16" mono data-testid="editor" />
                 <TextInput v-model="message" placeholder="What changed and why? (optional)" data-testid="version-message" />
                 <div class="row">
-                  <button type="submit" class="primary-btn" :disabled="saving || !draft.trim() || draft === selectedVersion.content" data-testid="save-version">Save as new version</button>
-                  <button type="button" class="ghost-btn" :disabled="saving || !draft.trim() || draft === selectedVersion.content" data-testid="save-draft" @click="saveVersion(true)">Save as draft</button>
+                  <button type="submit" class="primary-btn" :disabled="saving || !draft.trim() || draft === (selectedVersion.source ?? selectedVersion.content)" data-testid="save-version">Save as new version</button>
+                  <button type="button" class="ghost-btn" :disabled="saving || !draft.trim() || draft === (selectedVersion.source ?? selectedVersion.content)" data-testid="save-draft" @click="saveVersion(true)">Save as draft</button>
                   <button type="button" class="ghost-btn" @click="editing = false">Cancel</button>
                 </div>
               </form>
@@ -1384,6 +1456,34 @@ h3 {
 }
 .move {
   align-self: center;
+}
+.view-toggle {
+  display: inline-flex;
+  border: 1px solid var(--mt-line);
+  border-radius: var(--mt-radius-lg);
+  overflow: hidden;
+}
+.view-toggle button {
+  padding: 2px 10px;
+  border: none;
+  background: transparent;
+  color: var(--mt-muted);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.view-toggle button.on {
+  background: var(--mt-accent-soft);
+  color: var(--mt-accent-text);
+}
+ul.plain {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
 }
 .draft-pill {
   background: var(--mt-warn-bg);
