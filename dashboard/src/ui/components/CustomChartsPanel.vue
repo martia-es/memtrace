@@ -9,6 +9,7 @@ import { customMetricChartOption, presentResult } from "../custom-metric-chart-o
 import EChart from "./EChart.vue";
 import ChartCatalogEditor from "./ChartCatalogEditor.vue";
 import { usePermissions } from "../composables/usePermissions";
+import { isAttributeShown, type AttributeInfo, type Visibility } from "@/domain/attribute-visibility";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import type { SavedCustomMetricDto } from "@/application/identity-api";
@@ -22,7 +23,6 @@ import {
   describeDefinition,
   findOutlier,
   formatMetricValue,
-  isTechnicalAttribute,
   previousRange,
   singleNumber,
   stepLabel,
@@ -87,7 +87,7 @@ const groupByAttribute = ref("");
 const showTechnical = ref(false);
 const activeTemplate = ref<string | null>(null);
 
-const attributeKeys = ref<{ key: string; count: number }[]>([]);
+const attributeKeys = ref<AttributeInfo[]>([]);
 const attributeKeysLoading = ref(false);
 
 async function loadAttributeKeys() {
@@ -354,10 +354,16 @@ function templateBasis(t: ChartTemplate): string {
 const METRICS = SELECTABLE_METRICS.map((value) => ({ value, label: METRIC_LABELS[value] }));
 const metricLabel = (m: CustomMetricDefinitionDto["metric"]) => METRIC_LABELS[m];
 
-/** Los atributos técnicos (gen_ai.*, memtrace.*…) se esconden salvo que se pida verlos o ya estén elegidos. */
+/** Lo que la persona decidió en el catálogo para un atributo: forzar que se vea, que se oculte, o dejarlo a la clasificación. */
+const visibilityOf = (key: string): Visibility => catalogEntries.value.find((e) => e.kind === "attribute" && e.key === key)?.visibility ?? "auto";
+
+/**
+ * Los selectores ofrecen las categorías y las medidas; esconden los ids, los textos libres y los detalles técnicos (ADR-077) salvo que
+ * la persona lo pida, los fuerce desde el catálogo o ya estén elegidos en la gráfica.
+ */
 const visibleAttributeKeys = computed(() =>
   attributeKeys.value.filter(
-    (k) => showTechnical.value || !isTechnicalAttribute(k.key) || k.key === groupByAttribute.value || filterRows.value.some((r) => r.attribute === k.key),
+    (k) => showTechnical.value || isAttributeShown(k, visibilityOf(k.key)) || k.key === groupByAttribute.value || filterRows.value.some((r) => r.attribute === k.key),
   ),
 );
 const hiddenTechnicalCount = computed(() => attributeKeys.value.length - visibleAttributeKeys.value.length);
@@ -423,7 +429,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
           <span v-else-if="multiStep" class="hint">Comparing {{ selectedSteps.length }} steps: one {{ chartType === "line" || chartType === "area" ? "line" : "bar" }} each. Pick a single step to split it by a detail.</span>
           <span v-else-if="singleStep && !visibleAttributeKeys.length" class="hint">Nothing to split by for this step.</span>
           <button v-if="singleStep && (hiddenTechnicalCount > 0 || showTechnical)" type="button" class="link-btn" @click="showTechnical = !showTechnical">
-            {{ showTechnical ? "Hide technical details" : `Show ${hiddenTechnicalCount} technical detail${hiddenTechnicalCount === 1 ? "" : "s"}` }}
+            {{ showTechnical ? "Show fewer details" : `Show ${hiddenTechnicalCount} more detail${hiddenTechnicalCount === 1 ? "" : "s"}` }}
           </button>
         </div>
 
