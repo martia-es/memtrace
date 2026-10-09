@@ -44,6 +44,16 @@ const lastCheck = computed(() => props.card.deployments.map((d) => d.healthCheck
     </div>
     <EmptyState v-if="card.deployments.length === 0" icon="cloud_off" title="No deployments yet">
       Add the API of this assistant in each environment to start checking its health.
+      <section class="setup" data-testid="setup-guide">
+        <h3>Set up</h3>
+        <ol>
+          <li><strong>Add a deployment.</strong> Pick an environment (DEV, PRE, PRO) and paste the base URL of your assistant's API.</li>
+          <li><strong>Expose a health endpoint.</strong> MemTrace calls <code>/health</code> on that URL, or the one you set, every minute.</li>
+          <li><strong>Optional:</strong> use <em>Edit details</em> to link the repository, so you can deploy from here and trace each version of the code.</li>
+        </ol>
+        <button v-if="canManage && free.length > 0" type="button" class="primary" data-testid="setup-add" @click="modal = {}">Add your first deployment</button>
+        <p v-else-if="!canManage" class="muted">Ask someone with permission to manage this assistant to add its deployments.</p>
+      </section>
     </EmptyState>
     <template v-else>
       <div class="grid">
@@ -81,5 +91,11 @@ const lastCheck = computed(() => props.card.deployments.map((d) => d.healthCheck
 .muted { font-size: 12px; color: var(--mt-muted); }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
 .add { height: 30px; padding: 0 12px; font: inherit; font-size: 13px; font-weight: 700; color: var(--mt-accent-text); background: transparent; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-sm); cursor: pointer; }
+.setup { max-width: 520px; margin: 18px auto 0; padding: 14px 18px; text-align: left; background: var(--mt-card); border: 1px solid var(--mt-line); border-radius: var(--mt-radius); color: var(--mt-ink); }
+.setup h3 { margin: 0 0 8px; font-size: 14px; }
+.setup ol { margin: 0 0 12px; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.45; }
+.setup code { font-family: var(--mt-mono); font-size: 12px; }
+.primary { height: 32px; padding: 0 14px; font: inherit; font-size: 13px; font-weight: 700; color: #fff; background: var(--mt-accent); border: 0; border-radius: var(--mt-radius-sm); cursor: pointer; }
+.primary:focus-visible { outline: 2px solid var(--mt-accent); outline-offset: 2px; }
 .add:focus-visible { outline: 2px solid var(--mt-accent); outline-offset: 2px; }
 </style>
