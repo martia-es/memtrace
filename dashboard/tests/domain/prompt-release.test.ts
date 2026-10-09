@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { environmentCoverage, filterVersions, groupByMonth, releaseStatus, releaseSummary, sortEnvironments, splitVariables, timelineCells } from "@/domain/prompt-release";
+import { environmentCoverage, filterVersions, groupByMonth, releaseStatus, releaseSummary, servingStatus, sortEnvironments, splitVariables, timelineCells } from "@/domain/prompt-release";
 
 const p = (latestVersion: number, tags: Record<string, number>) => ({ latestVersion, tags });
 
@@ -68,5 +68,22 @@ describe("version list helpers", () => {
       { text: " please", variable: false },
     ]);
     expect(splitVariables("")).toEqual([]);
+  });
+});
+
+describe("servingStatus", () => {
+  const tags = { dev: 12, pre: 11, pro: 12 };
+  it("is up to date when the agent runs what its tag points to", () => {
+    expect(servingStatus({ environment: "dev", tag: "dev", version: 12 }, tags, 12)).toEqual({ state: "ok", label: "up to date" });
+  });
+  it("is catching up when the tag already moved on", () => {
+    expect(servingStatus({ environment: "pro", tag: "pro", version: 9 }, tags, 12).state).toBe("catching-up");
+  });
+  it("counts the versions behind only in production", () => {
+    expect(servingStatus({ environment: "pro", tag: "pro", version: 9 }, { pro: 9 }, 12)).toEqual({ state: "behind", label: "3 behind" });
+    expect(servingStatus({ environment: "pre", tag: "pre", version: 11 }, { pre: 11 }, 12).state).toBe("ok");
+  });
+  it("treats a fixed version as what it is", () => {
+    expect(servingStatus({ environment: "pro", tag: "", version: 12 }, tags, 12).state).toBe("ok");
   });
 });

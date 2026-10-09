@@ -808,3 +808,50 @@ describe("promotionImpact", () => {
     expect(impact.willBeBehind.map((d) => d.name)).toEqual(["c"]);
   });
 });
+
+describe("replaying earlier turns in the playground (ADR-075)", () => {
+  function setup(sessionField: string | null) {
+    const repo = fakeRepo();
+    const service = new PromptService(repo);
+    const sent: Array<{ message: string; sessionId: string | null }> = [];
+    const registry = {
+      getCard: async () => ({ deployments: [{ id: "dep-dev", environment: { key: "dev", isProduction: false } }], chat: { sessionField } }),
+      chat: async (_e: string, _d: string, input: { message: string; sessionId: string | null }) => {
+        sent.push({ message: input.message, sessionId: input.sessionId });
+        return { reply: `ok: ${input.message}`, sessionId: sessionField ? "s1" : null, traceId: null, latencyMs: 5 };
+      },
+    };
+    return { service, sent, playground: new PromptPlaygroundService(repo, registry as never, {} as never) };
+  }
+  async function prompt(service: PromptService) {
+    return (await service.create(ORG, USER, { name: "weather-system", content: "uno", experimentIds: [AGENT_A] })).prompt;
+  }
+
+  it("sends the earlier messages first, in the same session, and answers the last one", async () => {
+    const { service, sent, playground } = setup("session_id");
+    const result = await playground.run(await prompt(service), AGENT_A, USER, { deploymentId: "dep-dev", version: 1, message: "¿Lloverá el viernes?", history: ["Hola", "Voy a Valencia"] });
+    expect(sent).toEqual([
+      { message: "Hola", sessionId: null },
+      { message: "Voy a Valencia", sessionId: "s1" },
+      { message: "¿Lloverá el viernes?", sessionId: "s1" },
+    ]);
+    expect(result.reply).toBe("ok: ¿Lloverá el viernes?");
+  });
+
+  it("refuses to replay when the agent keeps no session, instead of dropping the context silently", async () => {
+    const { service, sent, playground } = setup(null);
+    await expect(playground.run(await prompt(service), AGENT_A, USER, { deploymentId: "dep-dev", version: 1, message: "hola", history: ["antes"] })).rejects.toThrow(/no session/);
+    expect(sent).toEqual([]);
+  });
+
+  it("works as before without history, even if the agent keeps no session", async () => {
+    const { service, sent, playground } = setup(null);
+    await playground.run(await prompt(service), AGENT_A, USER, { deploymentId: "dep-dev", version: 1, message: "hola" });
+    expect(sent).toEqual([{ message: "hola", sessionId: null }]);
+  });
+
+  it("limits how many earlier messages are replayed", async () => {
+    const { service, playground } = setup("session_id");
+    await expect(playground.run(await prompt(service), AGENT_A, USER, { deploymentId: "dep-dev", version: 1, message: "hola", history: Array.from({ length: 11 }, () => "x") })).rejects.toBeInstanceOf(ValidationError);
+  });
+});

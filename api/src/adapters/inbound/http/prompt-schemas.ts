@@ -91,4 +91,6 @@ export const playgroundBody = z.object({
   deploymentId: z.string().uuid(),
   version: z.number().int().min(1),
   message: z.string().max(5000),
+  /** mensajes anteriores de la persona, en orden: el agente los recibe en la misma sesión antes de `message` (ADR-075) */
+  history: z.array(z.string().max(5000)).max(10).optional(),
 });

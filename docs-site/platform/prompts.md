@@ -102,10 +102,9 @@ Changing or removing the policy needs `prompt:promote`, and the history shows wh
 
 The **Try it** tab runs your real agent —with its tools and knowledge— using the version you choose for one message. Nothing is promoted and no tag moves.
 
-1. Choose where to run it. Only environments that are not production and need no credentials are offered; production is never used (there, you promote instead).
-2. Choose a version, and optionally another one to **compare with**: both run at the same time, side by side.
-3. Type the message, or paste a **trace id** to load the message of a real conversation. The original answer is shown next to the new ones.
-4. **Run**. Each answer says whether it was **applied**. If it says *NOT applied*, the agent answered without using that version, so the answer is **not** from it: check that the agent reads the prompt with [`memtrace.prompts`](/library/prompts#try-a-version-in-the-real-agent), has `MEMTRACE_ALLOW_PROMPT_OVERRIDE=true` and the `PromptOverrideMiddleware`. The tab also warns beforehand when no agent has reported reading this prompt in that environment.
+1. Read the sentence at the top: **Test** a version **against** another one (optional): both run at the same time, side by side. The agent runs in a non-production environment that needs no credentials; production is never used (there, you promote instead). If you have more than one such environment, a selector appears.
+3. Type the message, or paste a **trace id** to load the message of a real conversation. If the trace belongs to a conversation, the person's **earlier messages** appear above it; the agent receives them first, in the same conversation, and answers them again with the version you are testing (you can edit, remove or add some; it needs the agent's chat to have a session field). The original answer is shown as **Before**, next to the new ones.
+4. **Run**. An answer is flagged only when it was *NOT applied*: the agent answered without using that version, so the answer is **not** from it. Check that the agent reads the prompt with [`memtrace.prompts`](/library/prompts#try-a-version-in-the-real-agent), has `MEMTRACE_ALLOW_PROMPT_OVERRIDE=true` and the `PromptOverrideMiddleware`. The tab also warns beforehand when no agent has reported reading this prompt in that environment.
 
 From a trace's page, **Try another prompt version** opens this tab with that trace loaded, so you can replay the same message with another version. It needs content capture on in the agent to know the message; otherwise type it. Each run is a new conversation with one message.
 
