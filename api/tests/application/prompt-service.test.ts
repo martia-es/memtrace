@@ -163,6 +163,20 @@ describe("PromptService (ADR-067)", () => {
     expect(detail.prompt.experimentIds).toEqual([AGENT_A]);
   });
 
+  it("resolves who created each version and moved each tag, by name or email", async () => {
+    const identity = { getUsersByIds: async (ids: string[]) => ids.map((id) => ({ id, email: `${id}@acme.com`, name: id === USER ? "Marta" : null, image: null })) };
+    const service = new PromptService(fakeRepo(), undefined, identity);
+    const created = await service.create(ORG, USER, { name: "weather-system", content: "Hola", experimentIds: [AGENT_A] });
+    await service.moveTag(created.prompt.id, USER, { tag: "dev", version: 1, reason: "go" }, true);
+    const detail = await service.detail(created.prompt.id);
+    expect(detail.people).toEqual({ [USER]: "Marta" });
+  });
+
+  it("leaves people empty when no identity repository is wired", async () => {
+    const { service, id } = await seeded();
+    expect((await service.detail(id)).people).toEqual({});
+  });
+
   it("a prompt can belong to several agents, and the list filters by agent", async () => {
     const { service, id } = await seeded();
     await service.update(id, { experimentIds: [AGENT_A, AGENT_B] });

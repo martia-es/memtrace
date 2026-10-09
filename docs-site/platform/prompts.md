@@ -18,7 +18,7 @@ Every save creates a new, **immutable version** (`v1`, `v2`, `v3`…): the text,
 
 Variables are written `{{city}}`; MemTrace detects them when you save and lists them on the version.
 
-Inside a prompt, the versions are listed on the left. **Pinned by tags** stays on top, so the versions that `dev`, `pre` and `pro` point to are always one click away; below, **all versions** grouped by month. Type a number (`12`) or a word of the message in the search box to find one. Above the tabs, a strip says what runs in each environment and, when production is behind, by how many versions.
+Inside a prompt, the versions are listed on the left. **Pinned by tags** stays on top, so the versions that `dev`, `pre` and `pro` point to are always one click away; below, **all versions** grouped by month. Each version shows who created it. Type a number (`12`) or a word of the message in the search box to find one. Above the tabs, a strip says what runs in each environment and, when production is behind, by how many versions.
 
 On **Content** the text has numbered lines, the `{{variables}}` are highlighted, and the lines changed since the version it came from are marked.
 
@@ -32,7 +32,7 @@ A tag is a label that points to one version. The tags `dev`, `pre` and `pro` (th
 
 - Moving a **free tag** needs `prompt:write`.
 - Moving an **environment tag** (`dev`, `pre`, `pro`) needs `prompt:promote`, which the `technical` role has by default.
-- Each move is saved in the **history** of the prompt: from which version to which, who did it, when and the reason you wrote.
+- Each move is saved in the **history** of the prompt: from which version to which, who did it, when and the reason you wrote. The author is shown as their name (or email if they have no name).
 - A version can be retrieved by number (`3`) or by tag (`pro`), also through the [API](./api#prompts).
 
 ## Archive instead of delete

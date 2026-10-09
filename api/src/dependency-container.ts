@@ -297,7 +297,7 @@ export function getPromptPlayground(): PromptPlaygroundService {
 
 /** Registro de prompts (ADR-067). Mover un tag de entorno pasa por el gate de promoción (ADR-070). */
 export function getPrompts(): PromptService {
-  if (!globalForContainer.__memtracePrompts) globalForContainer.__memtracePrompts = new PromptService(getPromptRepository(), getPromptGate());
+  if (!globalForContainer.__memtracePrompts) globalForContainer.__memtracePrompts = new PromptService(getPromptRepository(), getPromptGate(), getIdentity().identityRepository);
   return globalForContainer.__memtracePrompts;
 }
 

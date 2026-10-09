@@ -39,6 +39,8 @@ const detail = useAsync((signal) => api.get(props.promptId, signal));
 void detail.run();
 
 const data = computed<PromptDetailDto | null>(() => detail.data.value);
+/** Autor de una versión o de un movimiento de tag; null si no se conoce (usuario borrado o sistema). */
+const authorName = (userId: string | null): string | null => (userId ? data.value?.people?.[userId] ?? null : null);
 const versions = computed(() => data.value?.versions ?? []);
 const archived = computed(() => !!data.value?.prompt.archivedAt);
 const canWrite = computed(() => can("prompt:write") && !archived.value);
@@ -499,6 +501,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   <span class="mono version-date">{{ formatDateTime(v.createdAt) }}</span>
                 </span>
                 <span class="version-msg">{{ v.message || "No message" }}</span>
+                <span v-if="authorName(v.createdBy)" class="version-author" :data-testid="`author-${v.version}`">by {{ authorName(v.createdBy) }}</span>
                 <span v-if="running(v.version).length > 0" class="running" :data-testid="`running-${v.version}`">Running in {{ running(v.version).join(", ") }}</span>
               </button>
             </template>
@@ -862,6 +865,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                     {{ ev.toVersion === null ? "removed (was" : "moved from" }}
                     <span class="mono">{{ ev.fromVersion === null ? "none" : `v${ev.fromVersion}` }}</span>
                     <template v-if="ev.toVersion !== null"> to <span class="mono">v{{ ev.toVersion }}</span></template><template v-else>)</template>
+                    <span v-if="authorName(ev.changedBy)" class="muted" :data-testid="`event-author-${ev.id}`"> · by {{ authorName(ev.changedBy) }}</span>
                     <span class="muted"> · {{ formatDateTime(ev.createdAt) }}</span>
                     <span v-if="ev.reason" class="muted"> · “{{ ev.reason }}”</span>
                     <span v-if="ev.gateBypassed" class="warn" :data-testid="`bypassed-${ev.id}`"> · skipped the evaluation: “{{ ev.bypassReason }}”</span>
@@ -1041,6 +1045,15 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12.5px;
+}
+.version-author {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  color: var(--mt-text-soft, inherit);
+  opacity: 0.75;
 }
 .version-date {
   font-size: 10.5px;

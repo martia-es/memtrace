@@ -18,6 +18,7 @@ export function promptDetail(overrides: Partial<PromptDetailDto> = {}): PromptDe
     policy: null,
     includes: [],
     usedBy: [],
+    people: {},
     ...overrides,
   };
 }

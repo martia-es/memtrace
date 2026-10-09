@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { PromptGatePort } from "@/application/prompt-gate-service";
+import type { IdentityRepository } from "@/application/ports/identity-repository";
 import type { PromptRepository } from "@/application/ports/prompt-repository";
 import { validateBypassReason } from "@/domain/deploy";
 import { PromptGateBlockedError, PromptInvariantError, PromptNotFoundError, PromptPromoteForbiddenError, ValidationError } from "@/domain/errors";
@@ -73,6 +74,8 @@ export interface PromptDetail {
   usedBy: UsedBy[];
   /** política de promoción del prompt; null = sin política, todo se mueve libremente */
   policy: PromptPolicy | null;
+  /** nombre (o email) de quien creó versiones y movió tags, por id de usuario */
+  people: Record<string, string>;
 }
 
 const EVENTS_LIMIT = 100;
@@ -92,6 +95,8 @@ export class PromptService {
     private readonly repo: PromptRepository,
     /** gate de promoción (ADR-070); sin él, los tags se mueven sin comprobar nada */
     private readonly gate?: PromptGatePort,
+    /** resuelve los ids de autor a nombres; sin él, `people` va vacío */
+    private readonly identity?: Pick<IdentityRepository, "getUsersByIds">,
   ) {}
 
   async create(
@@ -133,10 +138,18 @@ export class PromptService {
       this.repo.getPolicy(promptId),
     ]);
     const latest = versions.find((v) => v.status === "published");
-    return { prompt, versions, tags, events, usage, environmentKeys, gatedEnvironments: gatedEnvironments(environmentKeys), policy, ...(await this.fragmentLinks(prompt, latest)) };
+    return { prompt, versions, tags, events, usage, environmentKeys, gatedEnvironments: gatedEnvironments(environmentKeys), policy, people: await this.people(versions, events), ...(await this.fragmentLinks(prompt, latest)) };
   }
 
   /** Los fragmentos que incluye la última versión publicada y, si es un fragmento, los prompts que lo incluyen (ADR-073). */
+  private async people(versions: PromptVersion[], events: PromptTagEvent[]): Promise<Record<string, string>> {
+    if (!this.identity) return {};
+    const ids = [...new Set([...versions.map((v) => v.createdBy), ...events.map((e) => e.changedBy)].filter((id): id is string => id !== null))];
+    if (ids.length === 0) return {};
+    const users = await this.identity.getUsersByIds(ids);
+    return Object.fromEntries(users.map((u) => [u.id, u.name?.trim() || u.email]));
+  }
+
   async fragmentLinks(prompt: Prompt, latest?: PromptVersion): Promise<{ includes: IncludeStatus[]; usedBy: UsedBy[] }> {
     const published = latest ?? (await this.repo.listVersions(prompt.id)).find((v) => v.status === "published");
     return {
