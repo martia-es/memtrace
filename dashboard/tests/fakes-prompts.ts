@@ -1,5 +1,5 @@
 /** Dobles del registro de prompts (ADR-067). */
-import type { ApprovalRequestDto, ApprovalRuleDto, ApprovalRulesResponse, PromptApprovalsResponse, PromptDetailDto, PromptEvidenceResponse, PromptGateDto, PromptMapDto, PromptPlaygroundResponse, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto, VersionEvidenceDto } from "@contract";
+import type { ApprovalRequestDto, ApprovalRuleDto, ApprovalRulesResponse, PromptApprovalsResponse, PromptDetailDto, PromptEvidenceResponse, PromptFailuresResponse, PromptGateDto, PromptMapDto, PromptPlaygroundResponse, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto, VersionEvidenceDto } from "@contract";
 import type { ApprovalScope, NewPromptInput, OpenApprovalInput, PromptApi } from "@/application/prompt-api";
 
 export function promptVersion(version: number, content: string, extra: Partial<PromptVersionDto> = {}): PromptVersionDto {
@@ -168,6 +168,11 @@ export class FakePromptApi implements PromptApi {
   async getEvidence(experimentId: string, promptId: string, range: { from: Date; to: Date }) {
     this.record("getEvidence", experimentId, promptId, range);
     return this.evidence;
+  }
+  failures: PromptFailuresResponse = { items: [], scanned: 0, counts: { error: 0, low_score: 0, human_low: 0, user_dislike: 0 } };
+  async getFailures(experimentId: string, promptId: string, range: { from: Date; to: Date }) {
+    this.record("getFailures", experimentId, promptId, range);
+    return this.failures;
   }
   async moveTag(promptId: string, tag: string, version: number | null, reason: string, bypassReason: string | null = null): Promise<PromptTagEventDto> {
     this.record("moveTag", promptId, tag, version, reason, bypassReason);

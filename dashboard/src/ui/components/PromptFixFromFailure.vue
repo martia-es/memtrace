@@ -2,14 +2,13 @@
 import { computed, onMounted, ref, watch } from "vue";
 import type { PromptVersionDto, PromptUsageDto } from "@contract";
 import { describeApiError } from "@/application/describe-api-error";
-import { baseVersionFor, defaultRationale, failureOf } from "@/domain/prompt-fix";
+import { FAILURE_REASONS, FAILURE_REASON_LABELS, baseVersionFor, defaultRationale, failureOf, type FailureReason } from "@/domain/prompt-fix";
 import { formatDateTime } from "@/domain/format";
 import { promptsUsedBy, replayInputOf } from "@/domain/prompt-playground";
 import { resolveRange } from "@/domain/time-range";
 import { useAsync } from "../composables/useAsync";
 import { usePromptApi } from "../composables/usePromptApi";
 import { useTraceApi } from "../composables/useTraceApi";
-import PromptChips from "./PromptChips.vue";
 import TextInput from "./TextInput.vue";
 
 /**
@@ -41,13 +40,23 @@ const savedDraft = ref<{ version: number; base: number } | null>(null);
 
 const step = computed(() => (savedDraft.value ? 3 : loadedTrace.value ? 2 : 1));
 
-// los fallos recientes de ESTE prompt, para elegir uno en vez de ir a buscar su id a otra pantalla
-const RECENT = 8;
-const recent = useAsync((signal) => traces.listTraces({ ...resolveRange("30d", Date.now()), promptName: props.promptName, hasErrors: true, limit: RECENT }, signal));
-const failures = computed(() => recent.data.value?.items ?? []);
+// los fallos recientes de ESTE prompt, de cualquier origen, para elegir uno en vez de ir a buscar su id a otra pantalla
+const PAGE = 10;
+const reason = ref<FailureReason | "all">("all");
+const shown = ref(PAGE);
+const recent = useAsync((signal) => {
+  const { from, to } = resolveRange("30d", Date.now());
+  return api.getFailures(props.experimentId, props.promptId, { from: new Date(from), to: new Date(to) }, signal);
+});
+const all = computed(() => recent.data.value?.items ?? []);
+const failures = computed(() => (reason.value === "all" ? all.value : all.value.filter((f) => f.reasons.includes(reason.value as FailureReason))));
+const visible = computed(() => failures.value.slice(0, shown.value));
+const counts = computed(() => recent.data.value?.counts ?? { error: 0, low_score: 0, human_low: 0, user_dislike: 0 });
+const filters = computed(() => [{ key: "all" as const, label: "All", n: all.value.length }, ...FAILURE_REASONS.filter((r) => counts.value[r] > 0).map((r) => ({ key: r, label: FAILURE_REASON_LABELS[r], n: counts.value[r] }))]);
 const picking = computed(() => !loadedTrace.value);
 const pasteOpen = ref(false);
-watch(() => props.promptName, () => void recent.run(), { immediate: true });
+watch(reason, () => (shown.value = PAGE));
+watch(() => props.promptId, () => void recent.run(), { immediate: true });
 
 function pick(id: string) {
   traceId.value = id;
@@ -120,27 +129,39 @@ async function save() {
     <section v-if="picking" class="panel picker" data-testid="fix-picker">
       <header>
         <b>Which failure do you want to fix?</b>
-        <span class="faint">Latest failed traces of {{ promptName }}, last 30 days</span>
+        <span class="faint">Last 30 days of {{ promptName }}: errors, low scores, reviewer "no" and 👎 from users</span>
       </header>
       <div v-if="recent.loading.value && !recent.data.value" class="center"><q-spinner size="24px" color="primary" /></div>
       <p v-else-if="recent.error.value" class="warn small pad" role="alert">{{ describeApiError(recent.error.value) }}</p>
-      <p v-else-if="failures.length === 0" class="muted small pad" data-testid="fix-picker-empty">
-        No failed trace used this prompt in the last 30 days. Good news, or the agent is not sending traces yet. You can still paste a trace id below.
+      <p v-else-if="all.length === 0" class="muted small pad" data-testid="fix-picker-empty">
+        No failure found among the latest {{ recent.data.value?.scanned ?? 0 }} traces of this prompt. Good news, or the agent is not sending traces yet. You can still paste a trace id below.
       </p>
-      <ul v-else class="cases">
-        <li v-for="t in failures" :key="t.traceId">
-          <button type="button" class="case" :disabled="trace.loading.value" data-testid="fix-case" @click="pick(t.traceId)">
-            <span class="case-main">
-              <span class="case-said">{{ t.input ?? t.rootSpanName }}</span>
-              <span class="case-error">{{ t.error ?? "A step failed" }}</span>
-            </span>
-            <span class="case-meta">
-              <PromptChips :prompts="t.prompts" :max="1" />
-              <span class="mono faint">{{ formatDateTime(t.startTime) }}</span>
-            </span>
+      <template v-else>
+        <div class="filters" role="group" aria-label="Reason">
+          <button v-for="f in filters" :key="f.key" type="button" class="chip" :class="{ on: reason === f.key }" :data-testid="`fix-filter-${f.key}`" @click="reason = f.key">
+            {{ f.label }} <b>{{ f.n }}</b>
           </button>
-        </li>
-      </ul>
+        </div>
+        <ul class="cases">
+          <li v-for="t in visible" :key="t.traceId">
+            <button type="button" class="case" :disabled="trace.loading.value" data-testid="fix-case" @click="pick(t.traceId)">
+              <span class="case-main">
+                <span class="case-said">{{ t.input ?? "(no input captured)" }}</span>
+                <span v-if="t.error" class="case-error">{{ t.error }}</span>
+                <span v-else-if="t.output" class="case-answer">{{ t.output }}</span>
+              </span>
+              <span class="case-meta">
+                <span v-for="r in t.reasons" :key="r" class="reason" :class="r" data-testid="fix-reason">{{ FAILURE_REASON_LABELS[r] }}</span>
+                <span class="mono faint">{{ formatDateTime(t.startTime) }}</span>
+              </span>
+            </button>
+          </li>
+        </ul>
+        <div class="more">
+          <button v-if="failures.length > visible.length" type="button" class="ghost-btn small" data-testid="fix-more" @click="shown += PAGE">Show {{ Math.min(PAGE, failures.length - visible.length) }} more</button>
+          <span class="faint small" data-testid="fix-scanned">{{ failures.length }} {{ failures.length === 1 ? "failure" : "failures" }} among the latest {{ recent.data.value?.scanned }} traces of this prompt.</span>
+        </div>
+      </template>
       <footer class="paste">
         <button type="button" class="link-btn" data-testid="fix-paste-toggle" @click="pasteOpen = !pasteOpen">Have a trace id? {{ pasteOpen ? "Hide" : "Paste it" }}</button>
         <div v-if="pasteOpen" class="row">
@@ -320,6 +341,53 @@ async function save() {
 .center {
   display: flex;
   justify-content: center;
+}
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--mt-line-2);
+}
+.chip {
+  padding: 3px 10px;
+  border: 1px solid var(--mt-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--mt-muted);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.chip.on {
+  border-color: var(--mt-brand);
+  background: var(--mt-accent-tint);
+  color: var(--mt-accent-text);
+}
+.reason {
+  padding: 1px 8px;
+  border-radius: 4px;
+  background: var(--mt-soft-2);
+  color: var(--mt-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.reason.error {
+  background: var(--mt-highlight-soft);
+  color: var(--mt-highlight-ink);
+}
+.case-answer {
+  color: var(--mt-muted);
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.more {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
 }
 .cases {
   margin: 0;

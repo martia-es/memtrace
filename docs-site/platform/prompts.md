@@ -163,7 +163,7 @@ A **draft** is a version waiting for review. It has a number, so you can **test 
 
 You can save any edit as a draft with **Save as draft** in the editor, but the main way to create one is from a failure:
 
-1. On a **failed trace** that read its prompt from the registry, press **Fix with a prompt change**. Or open the prompt's **Fix a failure** tab: it lists the latest failed traces of that prompt (last 30 days), so you just pick one. Have a trace id from elsewhere? Use **Paste it** under the list.
+1. On a **failed trace** that read its prompt from the registry, press **Fix with a prompt change**. Or open the prompt's **Fix a failure** tab: it lists the recent failures of that prompt (last 30 days) and you pick one. A failure is a trace with a **step that failed**, a **low evaluator score**, a **"no" from a reviewer** or a **👎 from the end user**; each row says which, and you can filter by reason. The list looks at the latest 300 traces of the prompt and shows ten at a time. Have a trace id from elsewhere? Use **Paste it** under the list.
 2. MemTrace shows **what failed** (the deepest failing step, not the ones that only passed the error up), what the person said and what the agent answered. The editor starts from **the version that trace used**, and the reason is filled in with the failure.
 3. Change the text and **Save as draft**. The draft remembers the failure: its page shows what it was for and links to the trace.
 4. **Test it on this case** runs the real agent with the draft and with the version it came from, side by side, on that same message.

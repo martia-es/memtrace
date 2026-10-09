@@ -1,10 +1,11 @@
 import type { ApprovalView } from "@/application/approval-service";
 import type { PromptDetail } from "@/application/prompt-service";
+import type { PromptFailures } from "@/application/prompt-failure-service";
 import type { ApprovalRule } from "@/domain/approval";
 import { USAGE_FRESH_MS, type Prompt, type PromptSummary, type PromptTag, type PromptTagEvent, type PromptUsage, type PromptVersion } from "@/domain/prompt";
 import type { PromptEvidence } from "@/domain/prompt-evidence";
 import type { PromptGateResult, PromptPolicy } from "@/domain/prompt-gate";
-import type { ApprovalRequestDto, ApprovalRuleDto, ApprovalRulesResponse, PromptDetailDto, PromptDto, PromptEvidenceResponse, PromptGateDto, PromptPolicyDto, PromptResolveDto, PromptSummaryDto, PromptTagDto, PromptTagEventDto, PromptUsageDto, PromptVersionDto } from "./contract";
+import type { ApprovalRequestDto, ApprovalRuleDto, ApprovalRulesResponse, PromptDetailDto, PromptDto, PromptEvidenceResponse, PromptFailuresResponse, PromptGateDto, PromptPolicyDto, PromptResolveDto, PromptSummaryDto, PromptTagDto, PromptTagEventDto, PromptUsageDto, PromptVersionDto } from "./contract";
 
 /** Dominio -> contrato HTTP del registro de prompts (ADR-067). Los DTO viven en contract.ts porque los comparte el dashboard. */
 
@@ -105,7 +106,13 @@ export const toPromptDetailDto = (d: PromptDetail, nowMs: number = Date.now()): 
   approvals: d.approvals,
 });
 
-export const toPromptEvidenceResponse = (e: PromptEvidence): PromptEvidenceResponse => ({
+export const toPromptFailuresResponse = (f: PromptFailures): PromptFailuresResponse => ({
+  items: f.items.map((i) => ({ traceId: i.traceId, startTime: new Date(i.startTimeUs / 1000).toISOString(), input: i.input, output: i.output, error: i.error, prompts: i.prompts, reasons: i.reasons })),
+  scanned: f.scanned,
+  counts: f.counts,
+});
+
+export const toPromptEvidenceResponse =(e: PromptEvidence): PromptEvidenceResponse => ({
   range: { from: new Date(e.range.fromMs).toISOString(), to: new Date(e.range.toMs).toISOString() },
   versions: e.versions.map((v) => ({
     version: v.version,
