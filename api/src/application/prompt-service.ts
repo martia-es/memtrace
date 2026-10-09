@@ -1,9 +1,10 @@
 import { createHash, randomBytes } from "node:crypto";
+import type { ApprovalRulesPort } from "@/application/approval-rules";
 import type { PromptGatePort } from "@/application/prompt-gate-service";
 import type { IdentityRepository } from "@/application/ports/identity-repository";
 import type { PromptRepository } from "@/application/ports/prompt-repository";
 import { validateBypassReason } from "@/domain/deploy";
-import { PromptGateBlockedError, PromptInvariantError, PromptNotFoundError, PromptPromoteForbiddenError, ValidationError } from "@/domain/errors";
+import { ApprovalRequiredError, PromptGateBlockedError, PromptInvariantError, PromptNotFoundError, PromptPromoteForbiddenError, ValidationError } from "@/domain/errors";
 import { gatedEnvironments, type PromptPolicy } from "@/domain/prompt-gate";
 import {
   MAX_DESCRIPTION,
@@ -76,6 +77,8 @@ export interface PromptDetail {
   policy: PromptPolicy | null;
   /** nombre (o email) de quien creó versiones y movió tags, por id de usuario */
   people: Record<string, string>;
+  /** qué acciones exigen aprobación en este prompt (ADR-076): publicar una versión y los entornos cuyo tag hay que pedir */
+  approvals: { publish: boolean; promote: string[] };
 }
 
 const EVENTS_LIMIT = 100;
@@ -97,7 +100,14 @@ export class PromptService {
     private readonly gate?: PromptGatePort,
     /** resuelve los ids de autor a nombres; sin él, `people` va vacío */
     private readonly identity?: Pick<IdentityRepository, "getUsersByIds">,
+    /** reglas de aprobación (ADR-076); sin él, nada exige aprobación */
+    private readonly rules?: ApprovalRulesPort,
   ) {}
+
+  /** ¿Exige aprobación esta acción en este prompt? */
+  private requiresApproval(prompt: { organizationId: string; experimentIds: string[] }, action: "publish" | "promote", stage: string): Promise<boolean> {
+    return this.rules ? this.rules.effectiveRule(prompt, action, stage).then((r) => r !== null) : Promise.resolve(false);
+  }
 
   async create(
     organizationId: string,
@@ -110,9 +120,11 @@ export class PromptService {
     const written = validateContent(input.content);
     const experimentIds = await this.agentsOfOrganization(organizationId, input.experimentIds ?? []);
     const { content, source, includes } = await this.expand(organizationId, kind, written);
+    // con una regla de publicación (ADR-076) la primera versión también es una propuesta que otra persona aprueba
+    const status = (await this.requiresApproval({ organizationId, experimentIds }, "publish", "")) ? "draft" : "published";
     const { prompt } = await this.repo.create(
       { organizationId, kind, name, description, experimentIds, createdBy: userId },
-      { content, source, includes, variables: extractVariables(content), contentHash: hash(content), parentVersion: null, message: validateMessage(input.message), createdBy: userId, status: "published", origin: null },
+      { content, source, includes, variables: extractVariables(content), contentHash: hash(content), parentVersion: null, message: validateMessage(input.message), createdBy: userId, status, origin: null },
     );
     return this.detail(prompt.id);
   }
@@ -138,7 +150,11 @@ export class PromptService {
       this.repo.getPolicy(promptId),
     ]);
     const latest = versions.find((v) => v.status === "published");
-    return { prompt, versions, tags, events, usage, environmentKeys, gatedEnvironments: gatedEnvironments(environmentKeys), policy, people: await this.people(versions, events), ...(await this.fragmentLinks(prompt, latest)) };
+    const approvals = {
+      publish: await this.requiresApproval(prompt, "publish", ""),
+      promote: (await Promise.all(environmentKeys.map(async (key) => ((await this.requiresApproval(prompt, "promote", key)) ? key : null)))).filter((k): k is string => k !== null),
+    };
+    return { prompt, versions, tags, events, usage, environmentKeys, gatedEnvironments: gatedEnvironments(environmentKeys), policy, people: await this.people(versions, events), approvals, ...(await this.fragmentLinks(prompt, latest)) };
   }
 
   /** Los fragmentos que incluye la última versión publicada y, si es un fragmento, los prompts que lo incluyen (ADR-073). */
@@ -192,9 +208,11 @@ export class PromptService {
     // se parte de la última versión publicada: un borrador no es base de nada hasta que se publica
     const parentVersion = input.parentVersion === undefined ? (latestPublished?.version ?? null) : input.parentVersion;
     if (parentVersion !== null && !(await this.repo.getVersion(promptId, parentVersion))) throw new ValidationError("Unknown parent version", { parentVersion: `Version ${parentVersion} does not exist` });
+    // con una regla de publicación (ADR-076) una versión nueva nace como borrador: pasa a ser publicada cuando se aprueba
+    const needsReview = !input.draft && (await this.requiresApproval(prompt, "publish", ""));
     return this.repo.addVersion({
       promptId, content, source, includes, variables: extractVariables(content), contentHash, parentVersion, message: validateMessage(input.message), createdBy: userId,
-      status: input.draft ? "draft" : "published", origin: validateOrigin(input.origin),
+      status: input.draft || needsReview ? "draft" : "published", origin: validateOrigin(input.origin),
     });
   }
 
@@ -231,10 +249,16 @@ export class PromptService {
     return { prompt, version };
   }
 
-  /** Publica un borrador: pasa a ser una versión normal, que ya puede recibir tags (y pasar por el gate). */
-  async publishDraft(promptId: string, version: number): Promise<PromptVersion> {
+  /**
+   * Publica un borrador: pasa a ser una versión normal, que ya puede recibir tags (y pasar por el gate). Con una regla de
+   * publicación (ADR-076) solo lo hace una solicitud aprobada (`approved`): publicar directamente es un 409.
+   */
+  async publishDraft(promptId: string, version: number, approved = false): Promise<PromptVersion> {
     const prompt = await this.get(promptId);
     if (prompt.archivedAt) throw new PromptInvariantError("The prompt is archived; restore it before publishing");
+    if (!approved && (await this.requiresApproval(prompt, "publish", ""))) {
+      throw new ApprovalRequiredError("Publishing a version of this prompt needs approval: open a publish request", { action: "publish", stage: "" });
+    }
     const published = await this.repo.publishVersion(promptId, version);
     if (!published) throw new PromptInvariantError(`Version ${version} is not a draft`);
     return published;
@@ -264,6 +288,8 @@ export class PromptService {
     input: { tag: string; version: number | null; reason?: string; bypassReason?: string | null },
     canPromote: boolean,
     canBypass = false,
+    /** el movimiento lo respalda una solicitud de aprobación (ADR-076): quien llama ya comprobó que está aprobada */
+    approved = false,
   ): Promise<PromptTagEvent> {
     const prompt = await this.get(promptId);
     if (prompt.archivedAt) throw new PromptInvariantError("The prompt is archived; restore it before moving tags");
@@ -273,6 +299,11 @@ export class PromptService {
     }
     const isEnvironment = isEnvironmentTag(tag, await this.repo.environmentKeys(prompt.organizationId));
     if (isEnvironment && !canPromote) throw new PromptPromoteForbiddenError(tag);
+
+    // apuntar un entorno a una versión exige aprobación si hay regla (ADR-076); volver a una versión que ya sirvió (rollback) no
+    if (isEnvironment && input.version !== null && !approved && (await this.requiresApproval(prompt, "promote", tag)) && !(await this.repo.wasServed(promptId, tag, input.version))) {
+      throw new ApprovalRequiredError(`Moving "${tag}" to a new version needs approval: open a promotion request`, { action: "promote", stage: tag });
+    }
 
     let record: GateRecord = { verdict: "not_gated", bypassed: false, bypassReason: null };
     if (isEnvironment && input.version !== null && this.gate) {

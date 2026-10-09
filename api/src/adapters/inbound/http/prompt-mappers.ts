@@ -1,8 +1,10 @@
+import type { ApprovalView } from "@/application/approval-service";
 import type { PromptDetail } from "@/application/prompt-service";
+import type { ApprovalRule } from "@/domain/approval";
 import { USAGE_FRESH_MS, type Prompt, type PromptSummary, type PromptTag, type PromptTagEvent, type PromptUsage, type PromptVersion } from "@/domain/prompt";
 import type { PromptEvidence } from "@/domain/prompt-evidence";
 import type { PromptGateResult, PromptPolicy } from "@/domain/prompt-gate";
-import type { PromptDetailDto, PromptDto, PromptEvidenceResponse, PromptGateDto, PromptPolicyDto, PromptResolveDto, PromptSummaryDto, PromptTagDto, PromptTagEventDto, PromptUsageDto, PromptVersionDto } from "./contract";
+import type { ApprovalRequestDto, ApprovalRuleDto, ApprovalRulesResponse, PromptDetailDto, PromptDto, PromptEvidenceResponse, PromptGateDto, PromptPolicyDto, PromptResolveDto, PromptSummaryDto, PromptTagDto, PromptTagEventDto, PromptUsageDto, PromptVersionDto } from "./contract";
 
 /** Dominio -> contrato HTTP del registro de prompts (ADR-067). Los DTO viven en contract.ts porque los comparte el dashboard. */
 
@@ -100,6 +102,7 @@ export const toPromptDetailDto = (d: PromptDetail, nowMs: number = Date.now()): 
   includes: d.includes,
   usedBy: d.usedBy,
   people: d.people,
+  approvals: d.approvals,
 });
 
 export const toPromptEvidenceResponse = (e: PromptEvidence): PromptEvidenceResponse => ({
@@ -122,4 +125,39 @@ export const toPromptEvidenceResponse = (e: PromptEvidence): PromptEvidenceRespo
     firstSeen: new Date(v.firstSeenMs).toISOString(),
     lastSeen: new Date(v.lastSeenMs).toISOString(),
   })),
+});
+
+export const toApprovalRuleDto = (r: ApprovalRule): ApprovalRuleDto => ({ action: r.action, stage: r.stage, requirements: r.requirements, approvers: r.approvers });
+
+export const toApprovalRequestDto = (v: ApprovalView): ApprovalRequestDto => ({
+  id: v.request.id,
+  promptId: v.request.promptId,
+  promptName: v.promptName,
+  action: v.request.action,
+  version: v.request.version,
+  tag: v.request.tag,
+  note: v.request.note,
+  bypassReason: v.request.bypassReason,
+  requestedBy: v.request.requestedBy,
+  status: v.request.status,
+  executionError: v.request.executionError,
+  createdAt: v.request.createdAt,
+  expiresAt: v.request.expiresAt,
+  decidedAt: v.request.decidedAt,
+  executedAt: v.request.executedAt,
+  extraApprovers: v.request.extraApprovers,
+  decisions: v.request.decisions,
+  rule: v.rule ? toApprovalRuleDto(v.rule) : null,
+  evaluation: v.evaluation,
+  people: v.people,
+});
+
+export const toApprovalRulesResponse = (r: {
+  rules: ApprovalRule[];
+  organizationRules?: ApprovalRule[];
+  options: ApprovalRulesResponse["options"];
+}): ApprovalRulesResponse => ({
+  rules: r.rules.map(toApprovalRuleDto),
+  ...(r.organizationRules ? { organizationRules: r.organizationRules.map(toApprovalRuleDto) } : {}),
+  options: r.options,
 });

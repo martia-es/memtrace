@@ -46,6 +46,8 @@ A tag is a label that points to one version. The tags `dev`, `pre` and `pro` (th
 | `prompt:read` | See prompts, versions, compare them and read the tag history. Every role has it |
 | `prompt:write` | Create prompts, save versions, move free tags, archive and restore |
 | `prompt:promote` | Move the environment tags (`dev`, `pre`, `pro`) |
+| `prompt:approve` | Approve or reject [approval requests](#approvals-a-second-opinion-before-a-change). `technical` and `business` have it |
+| `approval:manage` | Define the approval rules of the organization and of its experiments. `org_admin` has it |
 
 Permissions apply to the organization role or to the role in any agent the prompt belongs to. See [Roles & permissions](./roles-and-permissions).
 
@@ -105,6 +107,43 @@ With a policy:
 - If the policy's dataset is deleted, promotions are **blocked** until you choose another one: the gate never opens by itself.
 
 Changing or removing the policy needs `prompt:promote`, and the history shows who moved what and which verdict they got.
+
+## Approvals: a second opinion before a change
+
+By default one person publishes a version and one person moves a tag. If your organization wants someone else to look first, it can turn on **approvals**. They are optional and are defined **per action and per stage**, so each organization writes its own process:
+
+| Action | What it asks for |
+|---|---|
+| **Publish a version** | A version is born as a **draft** (like a pull request). It becomes a normal version only when it is approved. Only the `technical` profile can approve this |
+| **Move an environment tag** | One rule **per environment**: `dev`, `pre`, `pro`… For example `dev` needs one technical person, while `pre` and `pro` need a technical **and** a business person |
+
+### Writing the rules
+
+An **org admin** opens **Admin → organization → Approvals** and, for each action and environment, chooses:
+
+- **Profiles and how many**: "1 approval from `technical`", "1 from `business`"… A person counts for the profile they have.
+- **Default approvers** (optional): specific people who **must always approve**, on top of the profiles.
+
+An environment with no rule works as before. Removing a rule turns approvals off for it.
+
+Each experiment has its own **Approvals** tab (**Admin → experiment**). It starts from the organization's rules and can only make them **stricter**: ask for more people, add a profile or add a default approver. It cannot ask for less than the organization. When a prompt belongs to several agents, the strictest rule among the organization and all of them applies.
+
+### Asking and approving
+
+1. With a rule active, saving an edit creates a **draft**, and moving a protected tag shows **Request approval** instead of **Move**. Write a note for the reviewers. You can **add approvers** to that request on top of the rule's, and add more later.
+2. The people who can decide see it in **Waiting for your approval** at the top of the Prompts list, and in the prompt's **Approvals** tab. Each one can **Approve** or **Reject** and comment.
+3. When everything the rule asks for is in, the change **happens by itself**: the draft is published, or the tag moves. The history shows *Approved by …* and who asked.
+
+What to know:
+
+- **You cannot approve your own request.** Your approval never counts.
+- **Every default approver has to approve**, even when the minimum is already met.
+- **One rejection closes the request.**
+- **The evaluation gate still applies.** If the prompt has a [promotion policy](#promotion-policy-evaluate-before-you-promote), you cannot even open a promotion request for a version that would not pass it, and the gate is checked again when the tag moves. If it stops the move, the request stays *approved* with the reason and you can **try again** later.
+- **Going back is instant.** Pointing a tag back at a version it already served needs no approval.
+- **Nobody could approve?** MemTrace tells you when you open the request (for example, "needs 2 approvals from `business` but only 1 other person has that profile"), instead of leaving it stuck.
+- A request that nobody answers **expires after 7 days**. You can **cancel** your own request any time.
+- If an organization makes a rule stricter after a request was opened, the request is judged with the new rule.
 
 ## Try it: test a version in the real agent
 

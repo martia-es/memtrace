@@ -94,3 +94,29 @@ export const playgroundBody = z.object({
   /** mensajes anteriores de la persona, en orden: el agente los recibe en la misma sesión antes de `message` (ADR-075) */
   history: z.array(z.string().max(5000)).max(10).optional(),
 });
+
+/** Regla de aprobación (ADR-076): qué hace falta para una acción en un paso. El dominio valida perfiles, entornos y límites. */
+export const approvalRuleBody = z.object({
+  action: z.enum(["publish", "promote"]),
+  /** clave del entorno en `promote`; vacío en `publish` */
+  stage: z.string().max(40).default(""),
+  requirements: z.array(z.object({ role: z.string().max(40), min: z.number().int() })).max(10).default([]),
+  approvers: z.array(z.string().uuid()).max(20).default([]),
+});
+
+export const approvalRuleQuery = z.object({ action: z.enum(["publish", "promote"]), stage: z.string().max(40).default("") });
+
+/** Abrir una solicitud: publicar el borrador `version`, o apuntar el entorno `tag` a la versión `version` (ADR-076). */
+export const openApprovalBody = z.object({
+  action: z.enum(["publish", "promote"]),
+  version: z.number().int().min(1),
+  tag: z.string().max(40).optional(),
+  note: text(600).default(""),
+  /** solo para saltarse el gate de evaluación (ADR-070) al ejecutar: exige gobernanza */
+  bypassReason: text(600).nullable().default(null),
+  extraApprovers: z.array(z.string().uuid()).max(10).default([]),
+});
+
+export const approvalDecisionBody = z.object({ decision: z.enum(["approve", "reject"]), comment: text(600).default("") });
+
+export const addApproverBody = z.object({ approverId: z.string().uuid() });

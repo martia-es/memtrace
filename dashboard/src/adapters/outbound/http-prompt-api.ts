@@ -1,5 +1,5 @@
-import type { PromptDetailDto, PromptEvidenceResponse, PromptGateDto, PromptMapDto, PromptListResponse, PromptPlaygroundResponse, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto } from "@contract";
-import type { NewPromptInput, PromptApi } from "@/application/prompt-api";
+import type { ApprovalRequestDto, ApprovalRuleDto, ApprovalRulesResponse, PromptApprovalsResponse, PromptDetailDto, PromptEvidenceResponse, PromptGateDto, PromptMapDto, PromptListResponse, PromptPlaygroundResponse, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto } from "@contract";
+import type { ApprovalScope, NewPromptInput, OpenApprovalInput, PromptApi } from "@/application/prompt-api";
 import { ApiError } from "@/application/trace-api";
 
 type Fetch = typeof fetch;
@@ -68,6 +68,37 @@ export class HttpPromptApi implements PromptApi {
     await this.request("DELETE", `/prompts/${e(promptId)}/policy`, undefined, signal);
   }
 
+  getApprovals(promptId: string, signal?: AbortSignal): Promise<PromptApprovalsResponse> {
+    return this.request("GET", `/prompts/${e(promptId)}/approvals`, undefined, signal);
+  }
+  openApproval(promptId: string, input: OpenApprovalInput, signal?: AbortSignal): Promise<ApprovalRequestDto> {
+    return this.request("POST", `/prompts/${e(promptId)}/approvals`, input, signal);
+  }
+  decideApproval(requestId: string, decision: "approve" | "reject", comment: string, signal?: AbortSignal): Promise<ApprovalRequestDto> {
+    return this.request("POST", `/approvals/${e(requestId)}/decision`, { decision, comment }, signal);
+  }
+  executeApproval(requestId: string, signal?: AbortSignal): Promise<ApprovalRequestDto> {
+    return this.request("POST", `/approvals/${e(requestId)}/execute`, undefined, signal);
+  }
+  cancelApproval(requestId: string, signal?: AbortSignal): Promise<ApprovalRequestDto> {
+    return this.request("POST", `/approvals/${e(requestId)}/cancel`, undefined, signal);
+  }
+  addApprover(requestId: string, approverId: string, signal?: AbortSignal): Promise<ApprovalRequestDto> {
+    return this.request("POST", `/approvals/${e(requestId)}/approvers`, { approverId }, signal);
+  }
+  async approvalInbox(organizationId: string, signal?: AbortSignal): Promise<ApprovalRequestDto[]> {
+    return (await this.request<{ items: ApprovalRequestDto[] }>("GET", `/organizations/${e(organizationId)}/approvals`, undefined, signal)).items;
+  }
+  getApprovalRules(scope: ApprovalScope, signal?: AbortSignal): Promise<ApprovalRulesResponse> {
+    return this.request("GET", `${rulesPath(scope)}`, undefined, signal);
+  }
+  setApprovalRule(scope: ApprovalScope, rule: Pick<ApprovalRuleDto, "action" | "stage" | "requirements" | "approvers">, signal?: AbortSignal): Promise<ApprovalRuleDto> {
+    return this.request("PUT", rulesPath(scope), rule, signal);
+  }
+  async deleteApprovalRule(scope: ApprovalScope, action: "publish" | "promote", stage: string, signal?: AbortSignal): Promise<void> {
+    await this.request("DELETE", `${rulesPath(scope)}?action=${e(action)}&stage=${e(stage)}`, undefined, signal);
+  }
+
   private async request<T>(method: string, path: string, body: unknown, signal?: AbortSignal): Promise<T> {
     let response: Response;
     try {
@@ -85,6 +116,8 @@ export class HttpPromptApi implements PromptApi {
     return (await response.json()) as T;
   }
 }
+
+const rulesPath = (scope: ApprovalScope): string => `/${scope.type === "organization" ? "organizations" : "experiments"}/${e(scope.id)}/approval-rules`;
 
 async function toApiError(response: Response): Promise<ApiError> {
   try {

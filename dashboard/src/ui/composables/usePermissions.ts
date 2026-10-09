@@ -22,7 +22,9 @@ export type Permission =
   | "deploy:run"
   | "prompt:read"
   | "prompt:write"
-  | "prompt:promote";
+  | "prompt:promote"
+  | "prompt:approve"
+  | "approval:manage";
 
 export function hasPermission(target: Pick<ExperimentDto | OrganizationDto, "permissions"> | null | undefined, permission: Permission): boolean {
   return !!target && target.permissions.includes(permission);

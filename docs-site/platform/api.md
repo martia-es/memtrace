@@ -50,6 +50,22 @@ The prompt registry. Session only. A prompt belongs to the organization and to o
 
 **Dependencies.** `GET /api/v1/prompts/{promptId}/map` (`prompt:read`) returns `{ agents: [{ experimentId, name, serving: [{ environment, tag, version, lastSeenAt }] }], dataset, includes, usedBy, impact }`. With `?tag=pro&version=4` it fills `impact`: `{ agents: [{ name, environment, from, to, changes }], pinned, willBeBehind }`, which agents would receive that move. It only reads.
 
+**Approvals.** When an [approval rule](/platform/prompts#approvals-a-second-opinion-before-a-change) applies, publishing a draft or moving a tag directly answers `409` with `approval: { action, stage }`; open a request instead. A new version of a gated prompt is saved as a draft. The prompt detail carries `approvals: { publish, promote: ["pro"] }`. Rollbacks never need approval.
+
+| Endpoint | What it does |
+| --- | --- |
+| `GET /api/v1/organizations/{organizationId}/approval-rules` | The organization's rules `{ rules: [{ action, stage, requirements: [{ role, min }], approvers }], options: { roles, environments, candidates, publishRoles } }`. `approval:manage` |
+| `PUT /api/v1/organizations/{organizationId}/approval-rules` | Creates or replaces one rule: `{ action: "publish" \| "promote", stage?, requirements, approvers }`. `stage` is the environment key for `promote` and empty for `publish`; publishing only accepts `technical`. A rule needs at least one profile or approver. `approval:manage` |
+| `DELETE /api/v1/organizations/{organizationId}/approval-rules?action=&stage=` | Removes the rule. `approval:manage` |
+| `GET` / `PUT` / `DELETE /api/v1/experiments/{experimentId}/approval-rules` | Same for one experiment; the `GET` also returns `organizationRules`. A rule that asks for less than the organization's is refused with `400`: an experiment can only tighten. `approval:manage` |
+| `GET /api/v1/prompts/{promptId}/approvals` | `{ requests, rules, approvers }`: the requests (newest first, each with `evaluation` of what is still missing), the rules that apply today (organization and agents stacked) and the people who can approve on this prompt, to add them to a request. `prompt:read` |
+| `POST /api/v1/prompts/{promptId}/approvals` | Opens a request: `{ action, version, tag?, note?, extraApprovers?, bypassReason? }` (`201`). `409` if no approval is needed, it is a rollback, the evaluation gate would block it, a request is already open or nobody could approve it. `prompt:write` to publish, `prompt:promote` to promote |
+| `POST /api/v1/approvals/{requestId}/decision` | `{ decision: "approve" \| "reject", comment? }`. `403` for the requester or someone without a profile the rule asks for. When all is in, the action runs and the request becomes `executed` |
+| `POST /api/v1/approvals/{requestId}/execute` | Retries an `approved` request that could not run (for example the evaluation gate). Re-checks the rule first |
+| `POST /api/v1/approvals/{requestId}/cancel` | Withdraws it; only the requester |
+| `POST /api/v1/approvals/{requestId}/approvers` | `{ approverId }`: adds someone who must also approve this request |
+| `GET /api/v1/organizations/{organizationId}/approvals` | The inbox: live requests the caller can still decide |
+
 **Fragments.** `POST /organizations/{id}/prompts` accepts `kind: "fragment"`. A version's `content` may include other fragments (syntax in [Prompts](/platform/prompts#fragments-text-shared-between-prompts)); the response keeps `source` (what was written, `null` without includes), `includes: [{ name, ref, version }]` and `content` already resolved. The prompt detail adds `includes` (each with `pinned`, `current`, `outdated`) and, for fragments, `usedBy`.
 
 | Endpoint | What it does |

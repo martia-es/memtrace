@@ -22,6 +22,8 @@ import {
   TraceNotFoundError,
   UserFeedbackValueError,
   ValidationError,
+  ApprovalNotAllowedError,
+  ApprovalRequiredError,
 } from "@/domain/errors";
 import { problem } from "./problem";
 
@@ -55,6 +57,14 @@ export async function identityGuard(run: () => Promise<Response>): Promise<Respo
         headers: { "Content-Type": "application/problem+json", "Cache-Control": "no-store" },
       });
     }
+    if (error instanceof ApprovalRequiredError) {
+      // qué regla aplica viaja en la respuesta para que la pantalla ofrezca abrir la solicitud
+      return new Response(JSON.stringify({ type: "about:blank", title: "Conflict", status: 409, detail: error.message, approval: error.approval }), {
+        status: 409,
+        headers: { "Content-Type": "application/problem+json", "Cache-Control": "no-store" },
+      });
+    }
+    if (error instanceof ApprovalNotAllowedError) return problem(403, "Forbidden", error.message);
     if (error instanceof PromptGateBlockedError) {
       // el veredicto del gate viaja en la respuesta para que la pantalla explique por qué
       return new Response(JSON.stringify({ type: "about:blank", title: "Conflict", status: 409, detail: error.message, gate: error.gate }), {

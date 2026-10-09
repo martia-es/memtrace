@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, inject, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useQuasar } from "quasar";
 import type { PromptSummaryDto } from "@contract";
@@ -7,6 +7,8 @@ import { describeApiError } from "@/application/describe-api-error";
 import { formatDateTime } from "@/domain/format";
 import { extractVariables, includeSyntax } from "@/domain/prompt-fragment";
 import { ENV_ORDER, environmentCoverage, releaseStatus, releaseSummary, sortEnvironments, timelineCells, type ReleaseState } from "@/domain/prompt-release";
+import { CURRENT_EXPERIMENT } from "@/dependency-container";
+import ApprovalInbox from "../components/ApprovalInbox.vue";
 import EnvFlag from "../components/EnvFlag.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import Modal from "../components/Modal.vue";
@@ -23,6 +25,8 @@ const $q = useQuasar();
 const { can } = usePermissions();
 
 const experimentId = computed(() => String(route.params.experimentId));
+const current = inject(CURRENT_EXPERIMENT, computed(() => null));
+const organizationId = computed(() => current.value?.organizationId ?? null);
 const showArchived = ref(false);
 const prompts = useAsync((signal) => api.listForAgent(experimentId.value, showArchived.value, signal));
 void prompts.run().then(() => {
@@ -137,6 +141,8 @@ async function create() {
         <button v-if="can('prompt:write')" type="button" class="primary-btn" data-testid="new-prompt" @click="openCreate('prompt')">+ New prompt</button>
       </div>
     </PageHeader>
+
+    <ApprovalInbox v-if="organizationId" :organization-id="organizationId" />
 
     <ErrorBanner v-if="prompts.error.value" :error="prompts.error.value" @retry="prompts.run()" />
     <div v-else-if="prompts.loading.value && !prompts.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>

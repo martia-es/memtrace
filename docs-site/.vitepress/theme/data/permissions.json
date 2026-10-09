@@ -179,7 +179,26 @@
       "description": "Move the environment tags (dev, pre, pro) of a prompt and set its promotion policy.",
       "unlocks": [
         "Choosing which prompt version runs in each environment",
-        "Creating or removing the promotion policy that requires a passing evaluation before pre and pro"
+        "Creating or removing the promotion policy that requires a passing evaluation before pre and pro",
+        "Asking for approval to move a tag when the organization requires it"
+      ]
+    },
+    {
+      "id": "prompt:approve",
+      "group": "Prompts",
+      "description": "Approve or reject requests to publish a prompt version or promote it to an environment.",
+      "unlocks": [
+        "Answering the requests that wait for you in the approvals inbox",
+        "Being named a default approver of a rule or added to a request"
+      ]
+    },
+    {
+      "id": "approval:manage",
+      "group": "Prompts",
+      "description": "Define the approval rules of the organization and of its experiments.",
+      "unlocks": [
+        "Choosing which profiles and how many people must approve each publication and each environment",
+        "Naming default approvers who always have to approve"
       ]
     }
   ],
@@ -204,7 +223,8 @@
         "governance:manage",
         "prompt:read",
         "prompt:write",
-        "prompt:promote"
+        "prompt:promote",
+        "approval:manage"
       ]
     },
     {
@@ -232,7 +252,8 @@
         "deploy:run",
         "prompt:read",
         "prompt:write",
-        "prompt:promote"
+        "prompt:promote",
+        "prompt:approve"
       ]
     },
     {
@@ -249,7 +270,8 @@
       "permissions": [
         "experiment:read",
         "annotation:write",
-        "prompt:read"
+        "prompt:read",
+        "prompt:approve"
       ]
     },
     {
@@ -349,6 +371,14 @@
     {
       "label": "Point dev / pre / pro to a prompt version",
       "permission": "prompt:promote"
+    },
+    {
+      "label": "Approve or reject a prompt publication or promotion",
+      "permission": "prompt:approve"
+    },
+    {
+      "label": "Define who must approve prompt changes",
+      "permission": "approval:manage"
     }
   ],
   "presets": [

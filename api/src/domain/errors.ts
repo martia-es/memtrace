@@ -164,6 +164,28 @@ export class PromptGateBlockedError extends Error {
   }
 }
 
+/**
+ * La acción (publicar una versión, mover el tag de un entorno) exige aprobación y no hay una solicitud aprobada (ADR-076).
+ * Lleva qué regla aplica para que la pantalla ofrezca abrir la solicitud. HTTP 409.
+ */
+export class ApprovalRequiredError extends Error {
+  constructor(
+    message: string,
+    readonly approval: { action: "publish" | "promote"; stage: string },
+  ) {
+    super(message);
+    this.name = "ApprovalRequiredError";
+  }
+}
+
+/** La persona no puede decidir esta solicitud: es quien la pidió o no tiene el perfil ni el permiso de aprobar (ADR-076). HTTP 403. */
+export class ApprovalNotAllowedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ApprovalNotAllowedError";
+  }
+}
+
 /** El voto de feedback de usuario final no es válido (ADR-062). HTTP 422. */
 export class UserFeedbackValueError extends Error {
   constructor(message: string) {
