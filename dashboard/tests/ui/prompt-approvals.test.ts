@@ -198,7 +198,7 @@ describe("moving an environment behind an approval rule", () => {
   };
   async function openTags(api: FakePromptApi) {
     const ctx = await setup(PromptDetailPage, "technical", api, { promptId: "p1" });
-    await ctx.wrapper.findAll("[role='tab']")[3]!.trigger("click");
+    await ctx.wrapper.get("[data-testid='toggle-release']").trigger("click");
     await flushPromises();
     return ctx;
   }
@@ -248,7 +248,7 @@ describe("approvals tab", () => {
   async function openTab(api: FakePromptApi, me: string) {
     const ctx = await setup(PromptDetailPage, "technical", api, { promptId: "p1" }, "", me);
     await ctx.wrapper.find("[data-testid='pane-content']").exists();
-    await ctx.wrapper.findAll("[role='tab']").find((t) => t.text() === "Approvals")!.trigger("click");
+    await ctx.wrapper.get("[data-testid='toggle-release']").trigger("click");
     await flushPromises();
     return ctx;
   }
