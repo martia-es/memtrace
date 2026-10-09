@@ -119,6 +119,39 @@ export class ClickHouseScoreRepository implements ScoreRepository {
     }
   }
 
+  async listScoresByTraces(serviceName: string, traceIds: string[]): Promise<Array<TraceScore & { traceId: string }>> {
+    if (traceIds.length === 0) return [];
+    try {
+      const result = await this.readClient.query({
+        query: `SELECT i.TraceId AS TraceId, s.DatasetRunId AS DatasetRunId, s.ItemIndex AS ItemIndex, s.Name AS Name, s.Value AS Value, s.DataType AS DataType, s.Source AS Source, s.Comment AS Comment
+                  FROM ${this.database}.eval_scores AS s FINAL
+                 INNER JOIN (
+                   SELECT DatasetRunId, ItemIndex, assumeNotNull(TraceId) AS TraceId FROM ${this.database}.eval_items FINAL
+                    WHERE ServiceName = {serviceName:String} AND TraceId IN {traceIds:Array(String)}
+                 ) AS i ON s.DatasetRunId = i.DatasetRunId AND s.ItemIndex = i.ItemIndex
+                 WHERE s.ServiceName = {serviceName:String}
+                 ORDER BY s.CreatedAt ASC, s.Name ASC
+                 LIMIT 5000`,
+        query_params: { serviceName, traceIds },
+        format: "JSONEachRow",
+      });
+      const rows = await result.json<{ TraceId: string; DatasetRunId: string; ItemIndex: number; Name: string; Value: string; DataType: string; Source: string; Comment: string | null }>();
+      return rows.map((r) => ({
+        traceId: r.TraceId,
+        datasetRunId: r.DatasetRunId,
+        itemIndex: r.ItemIndex,
+        name: r.Name,
+        value: r.Value,
+        dataType: r.DataType as TraceScore["dataType"],
+        source: r.Source,
+        comment: r.Comment,
+      }));
+    } catch (error) {
+      console.error("[memtrace-api] ClickHouse query (scores by traces) failed:", error);
+      throw new RepositoryUnavailableError(error);
+    }
+  }
+
   async listScoresByTrace(serviceName: string, traceId: string): Promise<TraceScore[]> {
     try {
       // eval_items tiene un índice de salto bloom_filter en TraceId; los scores se buscan por (run, item) de esos items.

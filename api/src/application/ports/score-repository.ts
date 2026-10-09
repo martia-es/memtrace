@@ -14,6 +14,8 @@ export interface ScoreRepository {
   materializeRunSummary(serviceName: string, datasetRunId: string): Promise<void>;
   /** Scores automáticos ligados a una traza (`scores.TraceId`), para mostrarlos junto a las anotaciones humanas (ADR-037). */
   listScoresByTrace(serviceName: string, traceId: string): Promise<TraceScore[]>;
+  /** Los mismos scores de varias trazas en una sola consulta (ADR-077); solo aparecen las que tienen alguno. */
+  listScoresByTraces(serviceName: string, traceIds: string[]): Promise<Array<TraceScore & { traceId: string }>>;
   /** Scores `llm_judge` de esos runs (con la identidad del juez), para medir su acuerdo con las etiquetas humanas (ADR-040). `name` filtra por evaluador. */
   listJudgeScoresForRuns(serviceName: string, datasetRunIds: string[], name?: string): Promise<JudgeScoreRow[]>;
 }
