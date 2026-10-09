@@ -6,9 +6,14 @@ import { PromptGateBlockedError, PromptInvariantError, PromptNotFoundError, Prom
 import { gatedEnvironments, type PromptPolicy } from "@/domain/prompt-gate";
 import {
   MAX_DESCRIPTION,
+  MAX_INCLUDES,
   MAX_USAGE_ITEMS,
   TAG_PATTERN,
+  applyIncludes,
   extractVariables,
+  findIncludes,
+  hasMalformedInclude,
+  includeKey,
   isEnvironmentTag,
   validateContent,
   validateMessage,
@@ -16,7 +21,10 @@ import {
   validatePromptName,
   validateTag,
   type GateRecord,
+  type Include,
+  type IncludeRef,
   type Prompt,
+  type PromptKind,
   type PromptSummary,
   type PromptTag,
   type PromptTagEvent,
@@ -30,6 +38,24 @@ export function newOverrideToken(): string {
   return `mto_${randomBytes(32).toString("base64url")}`;
 }
 
+/** Una inclusión de la última versión publicada y a qué versión del fragmento apunta hoy su referencia. */
+export interface IncludeStatus {
+  name: string;
+  ref: string;
+  pinned: number;
+  /** versión a la que resuelve la referencia ahora; null si el fragmento o el tag ya no existen */
+  current: number | null;
+  outdated: boolean;
+}
+
+export interface UsedBy {
+  promptId: string;
+  name: string;
+  /** versión del prompt que incluye el fragmento */
+  version: number;
+  outdated: boolean;
+}
+
 export interface PromptDetail {
   prompt: Prompt;
   versions: PromptVersion[];
@@ -41,6 +67,10 @@ export interface PromptDetail {
   environmentKeys: string[];
   /** entornos que exigen pasar la política para mover su tag (ADR-070): todos menos el primero */
   gatedEnvironments: string[];
+  /** los fragmentos que incluye la última versión publicada y si alguno ha cambiado desde que se fijó (ADR-073) */
+  includes: IncludeStatus[];
+  /** si es un fragmento: los prompts que lo incluyen en su última versión publicada */
+  usedBy: UsedBy[];
   /** política de promoción del prompt; null = sin política, todo se mueve libremente */
   policy: PromptPolicy | null;
 }
@@ -67,15 +97,17 @@ export class PromptService {
   async create(
     organizationId: string,
     userId: string,
-    input: { name: string; description?: string; experimentIds?: string[]; content: string; message?: string },
+    input: { name: string; description?: string; experimentIds?: string[]; content: string; message?: string; kind?: PromptKind },
   ): Promise<PromptDetail> {
     const name = validatePromptName(input.name);
+    const kind = input.kind ?? "prompt";
     const description = this.description(input.description ?? "");
-    const content = validateContent(input.content);
+    const written = validateContent(input.content);
     const experimentIds = await this.agentsOfOrganization(organizationId, input.experimentIds ?? []);
+    const { content, source, includes } = await this.expand(organizationId, kind, written);
     const { prompt } = await this.repo.create(
-      { organizationId, name, description, experimentIds, createdBy: userId },
-      { content, variables: extractVariables(content), contentHash: hash(content), parentVersion: null, message: validateMessage(input.message), createdBy: userId, status: "published", origin: null },
+      { organizationId, kind, name, description, experimentIds, createdBy: userId },
+      { content, source, includes, variables: extractVariables(content), contentHash: hash(content), parentVersion: null, message: validateMessage(input.message), createdBy: userId, status: "published", origin: null },
     );
     return this.detail(prompt.id);
   }
@@ -100,7 +132,12 @@ export class PromptService {
       this.repo.environmentKeys(prompt.organizationId),
       this.repo.getPolicy(promptId),
     ]);
-    return { prompt, versions, tags, events, usage, environmentKeys, gatedEnvironments: gatedEnvironments(environmentKeys), policy };
+    const latest = versions.find((v) => v.status === "published");
+    return {
+      prompt, versions, tags, events, usage, environmentKeys, gatedEnvironments: gatedEnvironments(environmentKeys), policy,
+      includes: prompt.kind === "prompt" && latest ? await this.includeStatus(prompt.organizationId, latest.includes) : [],
+      usedBy: prompt.kind === "fragment" ? await this.usedByStatus(prompt) : [],
+    };
   }
 
   /** Cambia la descripción, archiva/restaura o sustituye los agentes. Los nombres no se cambian: las versiones y las trazas los referencian. */
@@ -125,7 +162,8 @@ export class PromptService {
   ): Promise<PromptVersion> {
     const prompt = await this.get(promptId);
     if (prompt.archivedAt) throw new PromptInvariantError("The prompt is archived; restore it before saving new versions");
-    const content = validateContent(input.content);
+    // lo que se escribe es la FUENTE: las inclusiones se resuelven y se fijan a la versión exacta de cada fragmento (ADR-073)
+    const { content, source, includes } = await this.expand(prompt.organizationId, prompt.kind, validateContent(input.content));
     const contentHash = hash(content);
     const all = await this.repo.listVersions(promptId);
     const [latest] = all;
@@ -137,9 +175,26 @@ export class PromptService {
     const parentVersion = input.parentVersion === undefined ? (latestPublished?.version ?? null) : input.parentVersion;
     if (parentVersion !== null && !(await this.repo.getVersion(promptId, parentVersion))) throw new ValidationError("Unknown parent version", { parentVersion: `Version ${parentVersion} does not exist` });
     return this.repo.addVersion({
-      promptId, content, variables: extractVariables(content), contentHash, parentVersion, message: validateMessage(input.message), createdBy: userId,
+      promptId, content, source, includes, variables: extractVariables(content), contentHash, parentVersion, message: validateMessage(input.message), createdBy: userId,
       status: input.draft ? "draft" : "published", origin: validateOrigin(input.origin),
     });
+  }
+
+  /**
+   * Vuelve a resolver las inclusiones de la última versión publicada contra los fragmentos de hoy y guarda el resultado como
+   * BORRADOR (ADR-073): un cambio en un fragmento llega a los prompts que lo usan como una propuesta que alguien revisa, nunca solo.
+   */
+  async rebuild(promptId: string, userId: string): Promise<PromptVersion> {
+    const prompt = await this.get(promptId);
+    if (prompt.kind !== "prompt") throw new PromptInvariantError("Only prompts include fragments");
+    const latest = (await this.repo.listVersions(promptId)).find((v) => v.status === "published");
+    if (!latest || latest.source === null) throw new PromptInvariantError("The latest version includes no fragments, so there is nothing to rebuild");
+    try {
+      return await this.saveVersion(promptId, userId, { content: latest.source, message: "Rebuilt with the current fragments", draft: true, parentVersion: latest.version });
+    } catch (error) {
+      if (error instanceof PromptInvariantError && /No changes/.test(error.message)) throw new PromptInvariantError("Already up to date: the fragments resolve to the same text");
+      throw error;
+    }
   }
 
   /**
@@ -261,6 +316,60 @@ export class PromptService {
     }
     if (accepted.length > 0) await this.repo.recordUsage(experimentId, env, accepted);
     return accepted.length;
+  }
+
+  /** Resuelve las inclusiones del texto escrito: devuelve el texto servido, la fuente (si hay inclusiones) y las versiones fijadas. */
+  private async expand(organizationId: string, kind: PromptKind, written: string): Promise<{ content: string; source: string | null; includes: Include[] }> {
+    if (hasMalformedInclude(written)) throw new ValidationError("Invalid include", { content: "Write an include as {{> name@tag}} or {{> name@3}}" });
+    const wanted = findIncludes(written);
+    if (wanted.length === 0) return { content: written, source: null, includes: [] };
+    if (kind === "fragment") throw new ValidationError("A fragment cannot include other fragments", { content: "Fragments are flat text; only prompts include them" });
+    if (wanted.length > MAX_INCLUDES) throw new ValidationError("Too many includes", { content: `At most ${MAX_INCLUDES} different fragments` });
+    const resolved = new Map<string, string>();
+    const includes: Include[] = [];
+    for (const want of wanted) {
+      const found = await this.resolveFragment(organizationId, want);
+      resolved.set(includeKey(want), found.content);
+      includes.push({ name: want.name, ref: want.ref, version: found.version });
+    }
+    return { content: validateContent(applyIncludes(written, resolved)), source: written, includes };
+  }
+
+  /** La versión publicada del fragmento a la que apunta `nombre@ref` ahora mismo. */
+  private async resolveFragment(organizationId: string, want: IncludeRef): Promise<{ content: string; version: number }> {
+    const fragment = await this.repo.findByName(organizationId, want.name);
+    if (!fragment || fragment.kind !== "fragment") throw new ValidationError("Unknown fragment", { content: `"${want.name}" is not a fragment of this organization` });
+    if (fragment.archivedAt) throw new ValidationError("Archived fragment", { content: `The fragment "${want.name}" is archived` });
+    const version = /^\d+$/.test(want.ref) ? await this.repo.getVersion(fragment.id, Number(want.ref)) : await this.repo.getVersionByTag(fragment.id, want.ref);
+    if (!version || version.status !== "published") throw new ValidationError("Unknown fragment version", { content: `${includeKey(want)} does not point to a published version of the fragment` });
+    return { content: version.content, version: version.version };
+  }
+
+  private async includeStatus(organizationId: string, includes: Include[]): Promise<IncludeStatus[]> {
+    return Promise.all(
+      includes.map(async (i) => {
+        // una referencia por número no se mueve; una por tag puede apuntar hoy a otra versión
+        const current = /^\d+$/.test(i.ref) ? i.version : await this.resolveFragment(organizationId, i).then((r) => r.version, () => null);
+        return { name: i.name, ref: i.ref, pinned: i.version, current, outdated: current !== null && current !== i.version };
+      }),
+    );
+  }
+
+  private async usedByStatus(fragment: Prompt): Promise<UsedBy[]> {
+    const users = await this.repo.usedBy(fragment.organizationId, fragment.name);
+    return Promise.all(
+      users.map(async (u) => {
+        const status = await this.includeStatus(fragment.organizationId, u.includes.filter((i) => i.name === fragment.name));
+        return { promptId: u.promptId, name: u.name, version: u.version, outdated: status.some((s) => s.outdated) };
+      }),
+    );
+  }
+
+  /** Los prompts que usan este fragmento con una referencia que hoy apunta a otra versión: los candidatos a reconstruirse. */
+  async outdatedDependents(fragmentId: string): Promise<UsedBy[]> {
+    const fragment = await this.get(fragmentId);
+    if (fragment.kind !== "fragment") throw new PromptInvariantError("Only fragments have dependents");
+    return (await this.usedByStatus(fragment)).filter((u) => u.outdated);
   }
 
   private description(raw: string): string {

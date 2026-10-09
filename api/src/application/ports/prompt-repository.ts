@@ -21,6 +21,11 @@ export interface PromptRepository {
 
   /** Añade la versión siguiente (numeración por prompt, atómica). */
   addVersion(input: NewPromptVersion): Promise<PromptVersion>;
+  /**
+   * Los prompts de la organización cuya última versión PUBLICADA incluye el fragmento `fragmentName` (ADR-073), con las
+   * inclusiones de esa versión. Los archivados no cuentan.
+   */
+  usedBy(organizationId: string, fragmentName: string): Promise<Array<{ promptId: string; name: string; version: number; includes: import("@/domain/prompt").Include[] }>>;
   /** Pasa un borrador a publicada. Devuelve null si no existe o ya estaba publicada. */
   publishVersion(promptId: string, version: number): Promise<PromptVersion | null>;
   /** Borra un borrador (nunca una versión publicada). Devuelve false si no existe o ya estaba publicada. */

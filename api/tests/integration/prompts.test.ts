@@ -218,4 +218,38 @@ describe.skipIf(!url)("prompt registry (postgres)", () => {
     expect((await service.list(orgId)).find((p) => p.id === prompt.id)!.latestVersion).toBe(2);
     await expect(service.discardDraft(prompt.id, 2)).rejects.toBeInstanceOf(PromptInvariantError); // published: never deleted
   });
+
+  it("fragments (ADR-073): includes are pinned in the database, immutable, and found back by name through the latest published version", async () => {
+    const repo = new PostgresPromptRepository(pool);
+    const tone = (await service.create(orgId, userId, { name: "frag-tone", kind: "fragment", content: "Sé amable." })).prompt;
+    expect(tone.kind).toBe("fragment");
+    await service.moveTag(tone.id, userId, { tag: "pro", version: 1 }, true);
+
+    const a = await service.create(orgId, userId, { name: "frag-user-a", content: "Hola.\n{{> frag-tone@pro}}", experimentIds: [agentA] });
+    const b = await service.create(orgId, userId, { name: "frag-user-b", content: "{{> frag-tone@1}}", experimentIds: [agentA] });
+    const c = await service.create(orgId, userId, { name: "frag-user-c", content: "Sin inclusiones." });
+
+    const stored = (await service.detail(a.prompt.id)).versions[0]!;
+    expect(stored).toMatchObject({ content: "Hola.\nSé amable.", source: "Hola.\n{{> frag-tone@pro}}", includes: [{ name: "frag-tone", ref: "pro", version: 1 }] });
+    expect((await service.detail(c.prompt.id)).versions[0]).toMatchObject({ source: null, includes: [] });
+    await expect(pool.query("UPDATE prompt_versions SET source = 'otra' WHERE prompt_id = $1", [a.prompt.id])).rejects.toThrow(/immutable/);
+    await expect(pool.query("UPDATE prompt_versions SET includes = '[]' WHERE prompt_id = $1", [a.prompt.id])).rejects.toThrow(/immutable/);
+
+    expect((await repo.usedBy(orgId, "frag-tone")).map((u) => u.name)).toEqual(["frag-user-a", "frag-user-b"]);
+
+    // a prompt stops using the fragment in its latest version: it no longer counts, even if an older version did
+    await service.saveVersion(b.prompt.id, userId, { content: "Ya sin fragmento." });
+    expect((await repo.usedBy(orgId, "frag-tone")).map((u) => u.name)).toEqual(["frag-user-a"]);
+
+    // the fragment moves: the tag-based user is behind and rebuilds as a draft; the number-based one was never behind
+    await service.saveVersion(tone.id, userId, { content: "Sé formal." });
+    await service.moveTag(tone.id, userId, { tag: "pro", version: 2 }, true);
+    expect((await service.detail(tone.id)).usedBy).toEqual([{ promptId: a.prompt.id, name: "frag-user-a", version: 1, outdated: true }]);
+    const draft = await service.rebuild(a.prompt.id, userId);
+    expect(draft).toMatchObject({ status: "draft", content: "Hola.\nSé formal.", includes: [{ name: "frag-tone", ref: "pro", version: 2 }] });
+
+    // an archived dependent stops being listed
+    await service.update(a.prompt.id, { archived: true });
+    expect((await repo.usedBy(orgId, "frag-tone"))).toEqual([]);
+  });
 });

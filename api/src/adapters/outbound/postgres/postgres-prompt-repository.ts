@@ -1,7 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 import type { PromptRepository } from "@/application/ports/prompt-repository";
 import { PromptInvariantError } from "@/domain/errors";
-import type { GateRecord, NewPrompt, NewPromptVersion, Prompt, PromptSummary, PromptTag, PromptTagEvent, PromptUsage, PromptVersion, UsageItem, VersionOrigin } from "@/domain/prompt";
+import type { GateRecord, NewPrompt, NewPromptVersion, Prompt, PromptSummary, PromptTag, PromptTagEvent, PromptUsage, PromptVersion, UsageItem, VersionOrigin, Include } from "@/domain/prompt";
 import type { PromptPolicy } from "@/domain/prompt-gate";
 
 type Ts = Date | string;
@@ -13,6 +13,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 interface PromptRow {
   id: string;
   organization_id: string;
+  kind: "prompt" | "fragment";
   name: string;
   description: string;
   archived_at: Ts | null;
@@ -36,17 +37,20 @@ interface VersionRow {
   status: "draft" | "published";
   origin: VersionOrigin | null;
   published_at: Ts | null;
+  source: string | null;
+  includes: Include[];
 }
 
-const PROMPT_SELECT = `SELECT p.id, p.organization_id, p.name, p.description, p.archived_at, p.created_by, p.created_at, p.updated_at,
+const PROMPT_SELECT = `SELECT p.id, p.organization_id, p.kind, p.name, p.description, p.archived_at, p.created_by, p.created_at, p.updated_at,
        COALESCE((SELECT array_agg(pa.experiment_id::text ORDER BY pa.linked_at) FROM prompt_agents pa WHERE pa.prompt_id = p.id), '{}') AS experiment_ids
   FROM prompts p`;
 
-const VERSION_COLUMNS = "id, prompt_id, version, content, variables, content_hash, parent_version, message, created_by, created_at, status, origin, published_at";
+const VERSION_COLUMNS = "id, prompt_id, version, content, variables, content_hash, parent_version, message, created_by, created_at, status, origin, published_at, source, includes";
 
 const toPrompt = (r: PromptRow): Prompt => ({
   id: r.id,
   organizationId: r.organization_id,
+  kind: r.kind,
   name: r.name,
   description: r.description,
   archivedAt: r.archived_at === null ? null : iso(r.archived_at),
@@ -70,6 +74,8 @@ const toVersion = (r: VersionRow): PromptVersion => ({
   status: r.status,
   origin: r.origin,
   publishedAt: r.published_at === null ? null : iso(r.published_at),
+  source: r.source,
+  includes: r.includes ?? [],
 });
 
 export class PostgresPromptRepository implements PromptRepository {
@@ -106,8 +112,8 @@ export class PostgresPromptRepository implements PromptRepository {
     try {
       return await this.tx(async (client) => {
         const created = await client.query<{ id: string }>(
-          "INSERT INTO prompts (organization_id, name, description, created_by) VALUES ($1, $2, $3, $4) RETURNING id",
-          [input.organizationId, input.name, input.description, input.createdBy],
+          "INSERT INTO prompts (organization_id, kind, name, description, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+          [input.organizationId, input.kind, input.name, input.description, input.createdBy],
         );
         const promptId = created.rows[0]!.id;
         for (const experimentId of input.experimentIds) {
@@ -143,7 +149,7 @@ export class PostgresPromptRepository implements PromptRepository {
       where += ` AND EXISTS (SELECT 1 FROM prompt_agents x WHERE x.prompt_id = p.id AND x.experiment_id = $${params.length})`;
     }
     const { rows } = await this.pool.query<PromptRow & { latest_version: number | null }>(
-      `SELECT p.id, p.organization_id, p.name, p.description, p.archived_at, p.created_by, p.created_at, p.updated_at,
+      `SELECT p.id, p.organization_id, p.kind, p.name, p.description, p.archived_at, p.created_by, p.created_at, p.updated_at,
               COALESCE((SELECT array_agg(pa.experiment_id::text ORDER BY pa.linked_at) FROM prompt_agents pa WHERE pa.prompt_id = p.id), '{}') AS experiment_ids,
               (SELECT MAX(v.version) FROM prompt_versions v WHERE v.prompt_id = p.id AND v.status = 'published') AS latest_version
          FROM prompts p ${where} ORDER BY p.name`,
@@ -192,10 +198,13 @@ export class PostgresPromptRepository implements PromptRepository {
       [input.promptId],
     );
     const { rows } = await client.query<VersionRow>(
-      `INSERT INTO prompt_versions (prompt_id, version, content, variables, content_hash, parent_version, message, created_by, status, origin, published_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CASE WHEN $9 = 'published' THEN now() END)
+      `INSERT INTO prompt_versions (prompt_id, version, content, variables, content_hash, parent_version, message, created_by, status, origin, published_at, source, includes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CASE WHEN $9 = 'published' THEN now() END, $11, $12::jsonb)
        RETURNING ${VERSION_COLUMNS}`,
-      [input.promptId, next.rows[0]!.last_version, input.content, input.variables, input.contentHash, input.parentVersion, input.message, input.createdBy, input.status, input.origin === null ? null : JSON.stringify(input.origin)],
+      [
+        input.promptId, next.rows[0]!.last_version, input.content, input.variables, input.contentHash, input.parentVersion, input.message, input.createdBy, input.status,
+        input.origin === null ? null : JSON.stringify(input.origin), input.source, JSON.stringify(input.includes),
+      ],
     );
     await client.query("UPDATE prompts SET updated_at = now() WHERE id = $1", [input.promptId]);
     return toVersion(rows[0]!);
@@ -203,6 +212,20 @@ export class PostgresPromptRepository implements PromptRepository {
 
   async addVersion(input: NewPromptVersion): Promise<PromptVersion> {
     return this.tx((client) => this.insertVersion(client, input));
+  }
+
+  async usedBy(organizationId: string, fragmentName: string): Promise<Array<{ promptId: string; name: string; version: number; includes: Include[] }>> {
+    const { rows } = await this.pool.query<{ prompt_id: string; name: string; version: number; includes: Include[] }>(
+      `SELECT latest.prompt_id, latest.name, latest.version, latest.includes
+         FROM (SELECT DISTINCT ON (v.prompt_id) v.prompt_id, p.name, v.version, v.includes
+                 FROM prompt_versions v JOIN prompts p ON p.id = v.prompt_id
+                WHERE p.organization_id = $1 AND p.archived_at IS NULL AND v.status = 'published'
+                ORDER BY v.prompt_id, v.version DESC) latest
+        WHERE latest.includes @> $2::jsonb
+        ORDER BY latest.name`,
+      [organizationId, JSON.stringify([{ name: fragmentName }])],
+    );
+    return rows.map((r) => ({ promptId: r.prompt_id, name: r.name, version: r.version, includes: r.includes }));
   }
 
   async publishVersion(promptId: string, version: number): Promise<PromptVersion | null> {

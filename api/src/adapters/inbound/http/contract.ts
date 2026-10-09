@@ -1093,6 +1093,8 @@ export interface AccessGrantsResponse {
 export interface PromptDto {
   id: string;
   organizationId: string;
+  /** `fragment`: texto compartido que otros prompts incluyen con `{{> nombre@tag}}` (ADR-073) */
+  kind: "prompt" | "fragment";
   name: string;
   description: string;
   archivedAt: string | null;
@@ -1117,8 +1119,34 @@ export interface VersionOriginDto {
   rationale: string;
 }
 
+/** Una inclusión de un fragmento, fijada a la versión exacta con la que se resolvió al guardar (ADR-073). */
+export interface IncludeDto {
+  name: string;
+  ref: string;
+  version: number;
+}
+
+export interface IncludeStatusDto {
+  name: string;
+  ref: string;
+  pinned: number;
+  /** versión a la que resuelve la referencia hoy; null si el fragmento o el tag ya no existen */
+  current: number | null;
+  outdated: boolean;
+}
+
+export interface UsedByDto {
+  promptId: string;
+  name: string;
+  version: number;
+  outdated: boolean;
+}
+
 export interface PromptVersionDto {
   version: number;
+  /** lo que escribió quien la editó, con `{{> nombre@tag}}` sin resolver; null si no incluye nada. `content` es el texto ya resuelto */
+  source: string | null;
+  includes: IncludeDto[];
   /** `draft`: propuesta pendiente de revisión; se puede probar y evaluar, pero no recibe tags hasta publicarse */
   status: "draft" | "published";
   origin: VersionOriginDto | null;
@@ -1231,6 +1259,10 @@ export interface PromptDetailDto {
   gatedEnvironments: string[];
   /** null = sin política: cualquier versión puede promoverse */
   policy: PromptPolicyDto | null;
+  /** los fragmentos que incluye la última versión publicada y si han cambiado desde que se fijaron (ADR-073) */
+  includes: IncludeStatusDto[];
+  /** si es un fragmento: los prompts que lo incluyen */
+  usedBy: UsedByDto[];
 }
 
 /** Evidencia de una versión de un prompt (ADR-069): lo que pasó en las trazas que la usaron. */

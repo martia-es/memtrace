@@ -9,6 +9,7 @@ import type { PromptDetailDto, PromptDto, PromptEvidenceResponse, PromptGateDto,
 export const toPromptDto = (p: Prompt): PromptDto => ({
   id: p.id,
   organizationId: p.organizationId,
+  kind: p.kind,
   name: p.name,
   description: p.description,
   archivedAt: p.archivedAt,
@@ -22,6 +23,8 @@ export const toPromptSummaryDto = (p: PromptSummary): PromptSummaryDto => ({ ...
 
 export const toPromptVersionDto = (v: PromptVersion): PromptVersionDto => ({
   version: v.version,
+  source: v.source,
+  includes: v.includes,
   status: v.status,
   origin: v.origin,
   publishedAt: v.publishedAt,
@@ -94,6 +97,8 @@ export const toPromptDetailDto = (d: PromptDetail, nowMs: number = Date.now()): 
   environmentKeys: d.environmentKeys,
   gatedEnvironments: d.gatedEnvironments,
   policy: d.policy ? toPromptPolicyDto(d.policy) : null,
+  includes: d.includes,
+  usedBy: d.usedBy,
 });
 
 export const toPromptEvidenceResponse = (e: PromptEvidence): PromptEvidenceResponse => ({

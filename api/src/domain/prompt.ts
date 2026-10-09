@@ -11,9 +11,13 @@ export const MAX_PROMPT_CONTENT = 100_000;
 export const MAX_DESCRIPTION = 2000;
 export const MAX_MESSAGE = 500;
 
+/** `fragment`: texto compartido (tono, políticas, formato) que otros prompts incluyen con `{{> nombre@tag}}` (ADR-073). */
+export type PromptKind = "prompt" | "fragment";
+
 export interface Prompt {
   id: string;
   organizationId: string;
+  kind: PromptKind;
   name: string;
   description: string;
   archivedAt: string | null;
@@ -59,6 +63,19 @@ export interface PromptVersion {
   origin: VersionOrigin | null;
   /** cuándo se publicó; null mientras es un borrador */
   publishedAt: string | null;
+  /** lo que escribió quien la editó, con las inclusiones `{{> nombre@tag}}` sin resolver; null si no incluye nada (ADR-073) */
+  source: string | null;
+  /** las versiones exactas de los fragmentos con las que se resolvió `content` */
+  includes: Include[];
+}
+
+/** Una inclusión resuelta y fijada: `{{> tone@pro}}` quedó en la versión 4 de `tone` (ADR-073). */
+export interface Include {
+  name: string;
+  /** como lo escribió quien editó: un tag (`pro`) o un número (`3`) */
+  ref: string;
+  /** versión del fragmento con la que se resolvió al guardar */
+  version: number;
 }
 
 export interface PromptTag {
@@ -121,6 +138,7 @@ export const MAX_PLAYGROUND_MESSAGE = 4000;
 
 export interface NewPrompt {
   organizationId: string;
+  kind: PromptKind;
   name: string;
   description: string;
   experimentIds: string[];
@@ -137,6 +155,9 @@ export interface NewPromptVersion {
   createdBy: string;
   status: VersionStatus;
   origin: VersionOrigin | null;
+  /** ver `PromptVersion.source`: null si no incluye nada */
+  source: string | null;
+  includes: Include[];
 }
 
 const TRACE_ID = /^[0-9a-f]{32}$/;
@@ -155,6 +176,37 @@ export function validateOrigin(raw: { traceIds?: string[]; cause?: string | null
   const cause = (raw.cause ?? "").trim().slice(0, 300);
   return { kind: "fix", traceIds, cause: cause === "" ? null : cause, rationale };
 }
+
+// ---- fragmentos (ADR-073) ----
+
+export const MAX_INCLUDES = 20;
+const INCLUDE = /\{\{>\s*([a-z0-9][a-z0-9._-]{0,63})@([a-z][a-z0-9_-]{0,31}|\d+)\s*\}\}/g;
+
+export interface IncludeRef {
+  name: string;
+  ref: string;
+}
+
+const refKey = (i: IncludeRef): string => `${i.name}@${i.ref}`;
+
+/** Las inclusiones del texto, sin repetir y en orden de aparición. */
+export function findIncludes(source: string): IncludeRef[] {
+  const seen = new Map<string, IncludeRef>();
+  for (const m of source.matchAll(INCLUDE)) seen.set(`${m[1]}@${m[2]}`, { name: m[1]!, ref: m[2]! });
+  return [...seen.values()];
+}
+
+/** ¿Hay algún `{{>` que no sea una inclusión bien escrita? Mejor un error claro que un `{{> tone}}` servido al modelo tal cual. */
+export function hasMalformedInclude(source: string): boolean {
+  return (source.match(/\{\{>/g) ?? []).length !== (source.match(INCLUDE) ?? []).length;
+}
+
+/** Sustituye cada inclusión por el texto del fragmento resuelto (`nombre@ref` -> contenido). Lo que se inserta no se vuelve a interpretar. */
+export function applyIncludes(source: string, resolved: ReadonlyMap<string, string>): string {
+  return source.replace(INCLUDE, (_all, name: string, ref: string) => resolved.get(`${name}@${ref}`) ?? "");
+}
+
+export { refKey as includeKey };
 
 export function validatePromptName(raw: string): string {
   const name = raw.trim();

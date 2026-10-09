@@ -31,7 +31,7 @@ function fakeRepo() {
     create: async (input: NewPrompt, first: Omit<NewPromptVersion, "promptId">) => {
       if ([...prompts.values()].some((p) => p.name === input.name)) throw new PromptInvariantError(`A prompt named "${input.name}" already exists in this organization`);
       const id = `p${++seq}`;
-      const prompt: Prompt = { id, organizationId: input.organizationId, name: input.name, description: input.description, archivedAt: null, createdBy: input.createdBy, createdAt: "t", updatedAt: "t", experimentIds: input.experimentIds };
+      const prompt: Prompt = { id, organizationId: input.organizationId, kind: input.kind, name: input.name, description: input.description, archivedAt: null, createdBy: input.createdBy, createdAt: "t", updatedAt: "t", experimentIds: input.experimentIds };
       prompts.set(id, prompt);
       versions.set(id, []);
       tags.set(id, new Map());
@@ -69,10 +69,19 @@ function fakeRepo() {
         id: `v${++seq}`, promptId: input.promptId, version: number, content: input.content, variables: input.variables, contentHash: input.contentHash,
         parentVersion: input.parentVersion, message: input.message, createdBy: input.createdBy, createdAt: "t",
         status: input.status, origin: input.origin, publishedAt: input.status === "published" ? "t" : null,
+        source: input.source, includes: input.includes,
       };
       list.push(version);
       return version;
     },
+    usedBy: async (_org, fragmentName) =>
+      [...prompts.values()]
+        .filter((p) => !p.archivedAt)
+        .flatMap((p) => {
+          const latest = (versions.get(p.id) ?? []).filter((v) => v.status === "published").sort((a, b) => b.version - a.version)[0];
+          return latest && latest.includes.some((i) => i.name === fragmentName) ? [{ promptId: p.id, name: p.name, version: latest.version, includes: latest.includes }] : [];
+        })
+        .sort((a, b) => a.name.localeCompare(b.name)),
     publishVersion: async (id, n) => {
       const found = versions.get(id)?.find((v) => v.version === n);
       if (!found || found.status !== "draft") return null;
@@ -593,5 +602,136 @@ describe("drafts and fixes from failures (ADR-072)", () => {
     await service.saveVersion(id, USER, { content: "dos", draft: true });
     expect((await service.resolve(id, "2")).status).toBe("draft");
     expect((await service.resolveForAgent(AGENT_A, ORG, "weather-system", { version: 2 })).version.status).toBe("draft");
+  });
+});
+
+describe("fragments (ADR-073)", () => {
+  async function seeded() {
+    const service = new PromptService(fakeRepo());
+    const tone = (await service.create(ORG, USER, { name: "tone", kind: "fragment", content: "Sé amable y breve." })).prompt;
+    await service.moveTag(tone.id, USER, { tag: "pro", version: 1 }, true);
+    return { service, tone };
+  }
+  const agent = { name: "weather-system", experimentIds: [AGENT_A] };
+
+  it("creates a fragment as a prompt of its own kind", async () => {
+    const { tone } = await seeded();
+    expect(tone.kind).toBe("fragment");
+  });
+
+  it("resolves an include by tag and pins the exact version of the fragment", async () => {
+    const { service } = await seeded();
+    const created = await service.create(ORG, USER, { ...agent, content: "Eres un asistente del tiempo.\n{{> tone@pro}}\nCiudad: {{ciudad}}." });
+    const v1 = created.versions[0]!;
+    expect(v1.content).toBe("Eres un asistente del tiempo.\nSé amable y breve.\nCiudad: {{ciudad}}.");
+    expect(v1.source).toBe("Eres un asistente del tiempo.\n{{> tone@pro}}\nCiudad: {{ciudad}}.");
+    expect(v1.includes).toEqual([{ name: "tone", ref: "pro", version: 1 }]);
+    expect(v1.variables).toEqual(["ciudad"]);
+  });
+
+  it("resolves an include by version number", async () => {
+    const { service } = await seeded();
+    const created = await service.create(ORG, USER, { ...agent, content: "{{> tone@1}}" });
+    expect(created.versions[0]).toMatchObject({ content: "Sé amable y breve.", includes: [{ name: "tone", ref: "1", version: 1 }] });
+  });
+
+  it("a version without includes keeps no source: content is what was written", async () => {
+    const { service } = await seeded();
+    const created = await service.create(ORG, USER, { ...agent, content: "Texto normal." });
+    expect(created.versions[0]).toMatchObject({ content: "Texto normal.", source: null, includes: [] });
+  });
+
+  it("brings the fragment's variables to the prompt", async () => {
+    const service = new PromptService(fakeRepo());
+    await service.create(ORG, USER, { name: "policy", kind: "fragment", content: "Cumple la política de {{pais}}." });
+    const frag = (await service.list(ORG)).find((p) => p.name === "policy")!;
+    await service.moveTag(frag.id, USER, { tag: "pro", version: 1 }, true);
+    const created = await service.create(ORG, USER, { ...agent, content: "Hola {{ciudad}}. {{> policy@pro}}" });
+    expect(created.versions[0]!.variables).toEqual(["ciudad", "pais"]);
+  });
+
+  it("is reproducible: the version keeps the text it was saved with even when the fragment changes later", async () => {
+    const { service, tone } = await seeded();
+    const created = await service.create(ORG, USER, { ...agent, content: "{{> tone@pro}}" });
+    await service.saveVersion(tone.id, USER, { content: "Sé formal." });
+    await service.moveTag(tone.id, USER, { tag: "pro", version: 2 }, true);
+    const detail = await service.detail(created.prompt.id);
+    expect(detail.versions[0]!.content).toBe("Sé amable y breve."); // not retroactively changed
+    expect(detail.includes).toEqual([{ name: "tone", ref: "pro", pinned: 1, current: 2, outdated: true }]);
+  });
+
+  it("a reference by number never goes out of date", async () => {
+    const { service, tone } = await seeded();
+    const created = await service.create(ORG, USER, { ...agent, content: "{{> tone@1}}" });
+    await service.saveVersion(tone.id, USER, { content: "Sé formal." });
+    expect((await service.detail(created.prompt.id)).includes).toEqual([{ name: "tone", ref: "1", pinned: 1, current: 1, outdated: false }]);
+  });
+
+  it("rejects an include that cannot be resolved, saying which", async () => {
+    const { service } = await seeded();
+    const create = (content: string) => service.create(ORG, USER, { ...agent, name: `p-${Math.random().toString(36).slice(2, 8)}`, content });
+    await expect(create("{{> nope@pro}}")).rejects.toThrow(ValidationError);
+    await expect(create("{{> tone@stable}}")).rejects.toThrow(ValidationError); // the fragment has no such tag
+    await expect(create("{{> tone@9}}")).rejects.toThrow(ValidationError);
+    await expect(create("{{> tone}}")).rejects.toThrow(ValidationError); // no reference: not guessed
+  });
+
+  it("cannot include a normal prompt, an archived fragment or a draft", async () => {
+    const { service, tone } = await seeded();
+    const why = async (promise: Promise<unknown>) => ((await promise.catch((e) => e)) as ValidationError).fields.content;
+    await service.create(ORG, USER, { name: "plain", content: "texto" });
+    expect(await why(service.create(ORG, USER, { ...agent, content: "{{> plain@1}}" }))).toContain("not a fragment");
+    await service.saveVersion(tone.id, USER, { content: "Borrador", draft: true });
+    expect(await why(service.create(ORG, USER, { ...agent, name: "uses-draft", content: "{{> tone@2}}" }))).toContain("published");
+    await service.update(tone.id, { archived: true });
+    expect(await why(service.create(ORG, USER, { ...agent, name: "uses-archived", content: "{{> tone@pro}}" }))).toContain("archived");
+  });
+
+  it("fragments are flat: a fragment cannot include another", async () => {
+    const { service } = await seeded();
+    await expect(service.create(ORG, USER, { name: "nested", kind: "fragment", content: "{{> tone@pro}}" })).rejects.toThrow(/cannot include other fragments/);
+  });
+
+  it("limits how many fragments one prompt includes", async () => {
+    const { service } = await seeded();
+    const many = Array.from({ length: 21 }, (_, i) => `{{> tone@${i + 1}}}`).join("\n");
+    await expect(service.create(ORG, USER, { ...agent, content: many })).rejects.toThrow(/Too many includes/);
+  });
+
+  it("editing the source keeps the includes; the saved text is deduplicated on the resolved text", async () => {
+    const { service } = await seeded();
+    const { prompt } = await service.create(ORG, USER, { ...agent, content: "Intro.\n{{> tone@pro}}" });
+    await expect(service.saveVersion(prompt.id, USER, { content: "Intro.\n{{> tone@pro}}" })).rejects.toThrow(/No changes/);
+    const next = await service.saveVersion(prompt.id, USER, { content: "Intro nueva.\n{{> tone@pro}}" });
+    expect(next).toMatchObject({ source: "Intro nueva.\n{{> tone@pro}}", includes: [{ name: "tone", ref: "pro", version: 1 }] });
+  });
+
+  it("lists the prompts that use a fragment and which of them are behind", async () => {
+    const { service, tone } = await seeded();
+    const a = await service.create(ORG, USER, { ...agent, name: "uses-tag", content: "{{> tone@pro}}" });
+    await service.create(ORG, USER, { ...agent, name: "uses-number", content: "{{> tone@1}}" });
+    await service.saveVersion(tone.id, USER, { content: "Sé formal." });
+    await service.moveTag(tone.id, USER, { tag: "pro", version: 2 }, true);
+    const usedBy = (await service.detail(tone.id)).usedBy;
+    expect(usedBy.map((u) => [u.name, u.outdated])).toEqual([["uses-number", false], ["uses-tag", true]]);
+    expect((await service.outdatedDependents(tone.id)).map((u) => u.promptId)).toEqual([a.prompt.id]);
+  });
+
+  it("rebuilding re-resolves against today's fragments and proposes the result as a DRAFT", async () => {
+    const { service, tone } = await seeded();
+    const { prompt } = await service.create(ORG, USER, { ...agent, content: "Intro.\n{{> tone@pro}}" });
+    await service.saveVersion(tone.id, USER, { content: "Sé formal." });
+    await service.moveTag(tone.id, USER, { tag: "pro", version: 2 }, true);
+    const draft = await service.rebuild(prompt.id, USER);
+    expect(draft).toMatchObject({ status: "draft", content: "Intro.\nSé formal.", includes: [{ name: "tone", ref: "pro", version: 2 }], message: "Rebuilt with the current fragments" });
+    expect((await service.detail(prompt.id)).versions.find((v) => v.version === 1)!.content).toBe("Intro.\nSé amable y breve."); // the published one is untouched
+  });
+
+  it("does not rebuild what is already up to date, or what includes nothing", async () => {
+    const { service } = await seeded();
+    const withInclude = await service.create(ORG, USER, { ...agent, content: "{{> tone@pro}}" });
+    await expect(service.rebuild(withInclude.prompt.id, USER)).rejects.toThrow(/Already up to date/);
+    const plain = await service.create(ORG, USER, { name: "plain-2", content: "nada" });
+    await expect(service.rebuild(plain.prompt.id, USER)).rejects.toThrow(/nothing to rebuild/);
   });
 });

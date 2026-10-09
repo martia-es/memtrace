@@ -5,6 +5,8 @@ import { z } from "zod";
 const text = (max: number) => z.string().max(max);
 
 export const createPromptBody = z.object({
+  /** `fragment`: texto compartido que otros prompts incluyen (ADR-073) */
+  kind: z.enum(["prompt", "fragment"]).default("prompt"),
   name: text(100),
   description: text(2100).default(""),
   /** agentes a los que pertenece; vacío = solo de la organización por ahora */
