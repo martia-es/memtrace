@@ -18,6 +18,7 @@ import CommitLink from "../components/CommitLink.vue";
 import PromptChips from "../components/PromptChips.vue";
 import Button from "../components/Button.vue";
 import Pill from "../components/Pill.vue";
+import DataTable from "../components/DataTable.vue";
 
 const api = useTraceApi();
 const route = useRoute();
@@ -120,7 +121,7 @@ function sourceSuffix(s: ScoreDto): string | null {
 
       <div v-else class="items-area">
       <div class="mt-card table-card">
-        <table class="items">
+        <DataTable class="items" sticky>
           <thead>
             <tr>
               <th class="idx">#</th>
@@ -150,7 +151,7 @@ function sourceSuffix(s: ScoreDto): string | null {
               <td v-if="hasAnyTraceId" class="mono muted trace-id" :title="item.traceId ?? undefined">{{ item.traceId ?? "–" }}</td>
             </tr>
           </tbody>
-        </table>
+        </DataTable>
       </div>
       <RunItemPanel
         v-if="selectedItem"
@@ -241,33 +242,7 @@ function sourceSuffix(s: ScoreDto): string | null {
 .items td:nth-child(6) {
   width: 150px;
 }
-th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  height: 38px;
-  padding: 0 16px;
-  background: var(--mt-soft);
-  border-bottom: 1px solid var(--mt-line);
-  color: var(--mt-muted);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-align: left;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-td {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--mt-line-2);
-  vertical-align: top;
-}
-.item-row:last-child td {
-  border-bottom: 0;
-}
-.item-row:hover td {
-  background: var(--mt-soft-2);
-}
+
 .idx {
   color: var(--mt-faint);
   font-size: 12px;
@@ -315,4 +290,5 @@ td {
   white-space: nowrap;
   font-size: 12px;
 }
+.items td { vertical-align: top; }
 </style>

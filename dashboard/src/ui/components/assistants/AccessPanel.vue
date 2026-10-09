@@ -12,6 +12,7 @@ import ErrorBanner from "../ErrorBanner.vue";
 import AddAccessModal from "./AddAccessModal.vue";
 import PersonAvatar from "./PersonAvatar.vue";
 import Button from "../Button.vue";
+import DataTable from "../DataTable.vue";
 
 /** Quién puede llamar a un entorno (ADR-053). Documentado y sincronizado desde el proveedor de identidad; MemTrace no lo hace cumplir. */
 const props = defineProps<{ experimentId: string; deployment: DeploymentSummaryDto; canGovern: boolean; nowMs: number }>();
@@ -55,7 +56,7 @@ function saved() {
     <EmptyState v-else-if="(grants.data.value ?? []).length === 0 && !grants.loading.value" icon="lock_open" title="No access defined">
       Nobody is listed yet for {{ deployment.environment.label }}.
     </EmptyState>
-    <table v-else class="grid">
+    <DataTable v-else class="grid" bare>
       <thead><tr><th>Who</th><th>Type</th><th>People</th><th>Source</th><th /></tr></thead>
       <tbody>
         <tr v-for="g in grants.data.value ?? []" :key="g.id">
@@ -69,7 +70,7 @@ function saved() {
           <td class="end"><Button variant="link" v-if="canGovern" @click="remove(g.id)">Remove</Button></td>
         </tr>
       </tbody>
-    </table>
+    </DataTable>
     <AddAccessModal v-if="adding" :experiment-id="experimentId" :deployment-id="deployment.id" :env-label="deployment.environment.label" @close="adding = false" @saved="saved" />
   </section>
 </template>
@@ -81,9 +82,7 @@ function saved() {
 h2 { margin: 0; font-size: 14px; font-weight: 800; }
 p { margin: 2px 0 0; font-size: 12px; color: var(--mt-muted); }
 .mono { font-family: var(--mt-mono); font-weight: 500; }
-.grid { width: 100%; border-collapse: collapse; font-size: 13px; }
-th { height: 32px; padding: 0 10px; text-align: left; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--mt-muted); background: var(--mt-soft); }
-td { height: 42px; padding: 0 10px; border-top: 1px solid var(--mt-line-2); }
+
 .who { font-weight: 700; }
 .person-cell { display: inline-flex; align-items: center; gap: 8px; }
 .muted { color: var(--mt-muted); }

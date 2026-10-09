@@ -5,6 +5,7 @@ import { useRoute } from "vue-router";
 import { formatDuration } from "@/domain/format";
 import Button from "./Button.vue";
 import Pill from "./Pill.vue";
+import Card from "./Card.vue";
 
 const route = useRoute();
 const props = defineProps<{ item: DatasetRunItemResultDto; position: number; total: number; hasPrev: boolean; hasNext: boolean }>();
@@ -68,23 +69,23 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
     <div class="body">
       <h3 class="question">{{ text(item.input) }}</h3>
 
-      <section v-if="item.error" class="card err-card">
+      <Card as="section" gap="sm" v-if="item.error" class="card err-card">
         <h4>Error</h4>
         <pre class="block err">{{ item.error }}</pre>
-      </section>
+      </Card>
 
       <div class="outputs">
-        <section class="card">
+        <Card as="section" gap="sm" class="card">
           <h4>Expected output</h4>
           <pre class="block" :class="{ empty: item.expectedOutput == null }">{{ text(item.expectedOutput) }}</pre>
-        </section>
-        <section class="card" :class="{ 'err-card': failedCount > 0 && !item.error }">
+        </Card>
+        <Card as="section" gap="sm" class="card" :class="{ 'err-card': failedCount > 0 && !item.error }">
           <h4>Generated output</h4>
           <pre class="block" :class="{ empty: item.output == null }">{{ text(item.output) }}</pre>
-        </section>
+        </Card>
       </div>
 
-      <section class="card flush">
+      <Card as="section" gap="sm" class="card flush">
         <h4 class="bar">Scores</h4>
         <p v-if="scores.length === 0" class="muted pad">This item has no scores.</p>
         <div v-for="s in scores" :key="s.name" class="score" :class="{ bad: failed(s) }" :data-testid="`run-item-score-${s.name}`">
@@ -98,16 +99,16 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
           <p v-else class="muted small">No explanation recorded by the evaluator.</p>
           <p v-if="judgeLine(s)" class="muted small">Judge: {{ judgeLine(s) }}</p>
         </div>
-      </section>
+      </Card>
 
-      <section v-if="telemetry" class="card">
+      <Card as="section" gap="sm" v-if="telemetry" class="card">
         <h4>Telemetry</h4>
         <div class="telemetry">
           <div><span class="muted small">Latency</span><strong class="mono">{{ formatDuration(telemetry.latencyMs) }}</strong></div>
           <div><span class="muted small">Tokens in / out</span><strong class="mono">{{ telemetry.inputTokens }} / {{ telemetry.outputTokens }}</strong></div>
           <div v-if="telemetry.costUsd !== null"><span class="muted small">Cost</span><strong class="mono">${{ telemetry.costUsd.toFixed(4) }}</strong></div>
         </div>
-      </section>
+      </Card>
     </div>
   </aside>
 </template>
@@ -121,7 +122,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
 .body { flex: 1; min-height: 0; overflow: auto; padding: 18px 20px 24px; display: flex; flex-direction: column; gap: 14px; }
 .question { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.35; overflow-wrap: anywhere; }
 .outputs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.card { background: var(--mt-card, #fff); border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.card { padding: 12px 16px; }
 .card.flush { padding: 0; gap: 0; overflow: hidden; }
 .card.err-card { border-color: var(--mt-err); }
 h4 { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--mt-muted); }

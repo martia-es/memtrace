@@ -19,6 +19,8 @@ import CommitLink from "../components/CommitLink.vue";
 import Button from "../components/Button.vue";
 import Checkbox from "../components/Checkbox.vue";
 import Pill from "../components/Pill.vue";
+import Pagination from "../components/Pagination.vue";
+import DataTable from "../components/DataTable.vue";
 
 const PAGE_SIZE = 20;
 
@@ -129,7 +131,7 @@ function openRun(run: RunListItemDto) {
     <EmptyState v-else-if="items.length === 0" icon="search_off" title="No matches">Try a different search or dataset.</EmptyState>
 
     <div v-else class="mt-card table-card">
-      <table class="runs">
+      <DataTable class="runs" sticky nowrap>
         <thead>
           <tr>
             <th class="pick" />
@@ -171,7 +173,7 @@ function openRun(run: RunListItemDto) {
             </td>
           </tr>
         </tbody>
-      </table>
+      </DataTable>
     </div>
 
     <div v-if="picked.length > 0" class="compare-bar" data-testid="compare-bar">
@@ -183,14 +185,7 @@ function openRun(run: RunListItemDto) {
       </div>
     </div>
 
-    <div v-if="items.length > 0" class="pager">
-      <span class="muted">{{ filtered.length }} run{{ filtered.length === 1 ? "" : "s" }}</span>
-      <div class="pager-controls">
-        <Button size="sm" :disabled="page <= 1" @click="page -= 1">Prev</Button>
-        <span class="muted mono">Page {{ page }} / {{ pageCount }}</span>
-        <Button size="sm" :disabled="page >= pageCount" @click="page += 1">Next</Button>
-      </div>
-    </div>
+    <Pagination v-if="items.length > 0" v-model:page="page" :page-count="pageCount">{{ filtered.length }} run{{ filtered.length === 1 ? "" : "s" }}</Pagination>
   </div>
 </template>
 
@@ -269,33 +264,7 @@ function openRun(run: RunListItemDto) {
   overflow: auto;
   padding: 0;
 }
-.runs {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  height: 34px;
-  padding: 0 14px;
-  background: var(--mt-soft);
-  border-bottom: 1px solid var(--mt-line);
-  color: var(--mt-muted);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-align: left;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-td {
-  height: 46px;
-  padding: 0 14px;
-  border-bottom: 1px solid var(--mt-line-2);
-  white-space: nowrap;
-}
+
 .num {
   text-align: right;
 }
@@ -312,18 +281,6 @@ td {
 .run-row:focus-visible {
   background: var(--mt-soft-2);
   outline: none;
-}
-.pager {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-shrink: 0;
-  font-size: 12.5px;
-}
-.pager-controls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
 }
 
 .pick {

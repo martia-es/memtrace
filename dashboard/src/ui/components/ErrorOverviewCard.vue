@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import type { ErrorOverviewResponse } from "@contract";
 import { formatCount, formatRelativeTime } from "@/domain/format";
 import { errorTrend, impactLabel } from "@/domain/error-overview";
+import Card from "./Card.vue";
 
 const props = defineProps<{ overview: ErrorOverviewResponse }>();
 defineEmits<{ view: [] }>();
@@ -30,7 +31,7 @@ const rows = computed(() => {
 </script>
 
 <template>
-  <section class="card" aria-label="What is going wrong" data-testid="error-overview">
+  <Card as="section" padding="none" class="card" aria-label="What is going wrong" data-testid="error-overview">
     <div class="head">
       <h2>What is going wrong</h2>
       <span class="count-badge">{{ rows.length }}</span>
@@ -70,11 +71,11 @@ const rows = computed(() => {
         </div>
       </div>
     </div>
-  </section>
+  </Card>
 </template>
 
 <style scoped>
-.card { display: flex; flex-direction: column; min-width: 0; overflow: hidden; background: var(--mt-card); border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); }
+.card { overflow: hidden; }
 .head { display: flex; align-items: center; gap: 8px; padding: 12px 16px; }
 .head h2 { margin: 0; font-size: 14px; font-weight: 800; }
 .count-badge { padding: 1px 7px; border-radius: var(--mt-radius-xs); background: var(--mt-highlight-soft); color: var(--mt-highlight-ink); font-size: 11px; font-weight: 800; }

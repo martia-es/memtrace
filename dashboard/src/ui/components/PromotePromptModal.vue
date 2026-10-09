@@ -10,6 +10,7 @@ import StatusChip from "./StatusChip.vue";
 import TextInput from "./TextInput.vue";
 import Button from "./Button.vue";
 import Checkbox from "./Checkbox.vue";
+import FormField from "./FormField.vue";
 
 /**
  * Promoción de una versión a un entorno protegido (ADR-070). Antes de mover el tag dice si hay una evaluación exitosa de
@@ -99,11 +100,10 @@ async function send() {
         <template v-if="!gate.allowed">
           <Checkbox v-if="canBypass" class="bypass" v-model="bypassing" data-testid="bypass-toggle"> Promote anyway (emergency)</Checkbox>
           <p v-else class="hint" data-testid="no-bypass">Skipping the evaluation needs the governance permission.</p>
-          <label v-if="bypassing" class="field">
-            <span>Why? It stays in the history of this prompt.</span>
+          <FormField label="Why? It stays in the history of this prompt." v-if="bypassing">
             <TextInput v-model="bypassReason" multiline :rows="2" :invalid="!!fieldErrors.bypassReason" data-testid="bypass-reason" />
             <span v-if="fieldErrors.bypassReason" class="field-error">{{ fieldErrors.bypassReason }}</span>
-          </label>
+          </FormField>
         </template>
       </template>
       <div class="actions">
@@ -129,7 +129,7 @@ dd { margin: 0; }
 .hint { margin: 0; font-size: 13px; color: var(--mt-muted); line-height: 1.5; }
 .problem { margin: 0; padding: 10px 12px; font-size: 13px; color: var(--mt-err-ink); background: var(--mt-err-bg); border-radius: var(--mt-radius-sm); }
 .bypass { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
-.field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+
 .field-error { color: var(--mt-err-ink); font-size: 12px; }
 .actions { display: flex; justify-content: flex-end; gap: 10px; }
 .ghost { height: 36px; padding: 0 16px; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); background: transparent; color: var(--mt-ink); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }

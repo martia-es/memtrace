@@ -9,6 +9,8 @@ import ErrorBanner from "../components/ErrorBanner.vue";
 import FilterPill from "../components/FilterPill.vue";
 import PageHeader from "../components/PageHeader.vue";
 import Button from "../components/Button.vue";
+import Pagination from "../components/Pagination.vue";
+import DataTable from "../components/DataTable.vue";
 
 const PAGE_SIZE = 50;
 
@@ -109,7 +111,7 @@ const items = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, 
     <EmptyState v-else-if="items.length === 0" icon="toll" title="No models found">Try a different search.</EmptyState>
 
     <div v-else class="mt-card table-card">
-      <table class="pricing">
+      <DataTable class="pricing" sticky nowrap>
         <thead>
           <tr>
             <th v-for="c in columns" :key="c.key" :class="{ num: c.num, active: sortKey === c.key }" :aria-sort="ariaSort(c.key)">
@@ -142,17 +144,10 @@ const items = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, 
             <td class="muted updated" :title="p.updatedAt">{{ formatRelativeTime(p.updatedAt, now) }}</td>
           </tr>
         </tbody>
-      </table>
+      </DataTable>
     </div>
 
-    <div v-if="items.length > 0" class="pager">
-      <span class="muted">{{ filtered.length }} models</span>
-      <div class="pager-controls">
-        <Button size="sm" :disabled="page <= 1" @click="page -= 1">Prev</Button>
-        <span class="muted mono">Page {{ page }} / {{ pageCount }}</span>
-        <Button size="sm" :disabled="page >= pageCount" @click="page += 1">Next</Button>
-      </div>
-    </div>
+    <Pagination v-if="items.length > 0" v-model:page="page" :page-count="pageCount">{{ filtered.length }} models</Pagination>
   </div>
 </template>
 
@@ -196,23 +191,7 @@ const items = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, 
   overflow: auto;
   padding: 0;
 }
-.pricing {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  font-size: 13px;
-}
-th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  height: 38px;
-  padding: 0 16px;
-  background: var(--mt-soft);
-  border-bottom: 1px solid var(--mt-line);
-  text-align: left;
-  white-space: nowrap;
-}
+
 .sort {
   display: inline-flex;
   align-items: center;
@@ -240,18 +219,7 @@ th.active .arrow {
   color: var(--mt-accent);
   opacity: 1;
 }
-td {
-  height: 48px;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--mt-line-2);
-  white-space: nowrap;
-}
-tbody tr:hover td {
-  background: var(--mt-soft-2);
-}
-tbody tr:last-child td {
-  border-bottom: 0;
-}
+
 .name {
   max-width: 420px;
   overflow: hidden;
@@ -311,18 +279,6 @@ tbody tr:last-child td {
 }
 .updated {
   font-size: 12.5px;
-}
-.pager {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-shrink: 0;
-  font-size: 12.5px;
-}
-.pager-controls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
 }
 
 </style>

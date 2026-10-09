@@ -15,6 +15,7 @@ import { describeApiError } from "@/application/describe-api-error";
 import { useAssistantApi } from "../../composables/useAssistantApi";
 import Modal from "../Modal.vue";
 import Button from "../Button.vue";
+import FormField from "../FormField.vue";
 
 const props = defineProps<{ card: AssistantCardDto }>();
 const emit = defineEmits<{ close: []; saved: [] }>();
@@ -67,49 +68,43 @@ const LIFECYCLE_OPTIONS: { label: string; value: "active" | "retired" }[] = [
 <template>
   <Modal :title="`Edit ${card.name}`" @close="emit('close')">
     <form class="modal-form" @submit.prevent="save">
-      <label class="field"><span>Description</span><TextInput multiline v-model="form.description" :rows="3" /></label>
-      <label class="field">
-        <span>Lifecycle</span>
+      <FormField label="Description"><TextInput multiline v-model="form.description" :rows="3" /></FormField>
+      <FormField label="Lifecycle">
         <Select v-model="form.lifecycle" :options="LIFECYCLE_OPTIONS" />
-      </label>
+      </FormField>
       <fieldset class="chat">
         <legend>Chat endpoint</legend>
-        <label class="field">
-          <span>Path</span>
+        <FormField label="Path">
           <TextInput v-model="form.chatPath" :invalid="!!fieldErrors.path" placeholder="/api/chat" data-testid="chat-path" />
           <span v-if="fieldErrors.path" class="field-error">{{ fieldErrors.path }}</span>
           <p class="hint">Same in every environment: the host comes from each deployment. Leave empty if the agent has no chat.</p>
-        </label>
+        </FormField>
         <div v-if="form.chatPath.trim() !== ''" class="row">
-          <label class="field"><span>Message field</span><TextInput v-model="form.requestField" :invalid="!!fieldErrors.requestField" /></label>
-          <label class="field"><span>Reply field</span><TextInput v-model="form.responseField" :invalid="!!fieldErrors.responseField" placeholder="reply or data.answer" /></label>
+          <FormField label="Message field"><TextInput v-model="form.requestField" :invalid="!!fieldErrors.requestField" /></FormField>
+          <FormField label="Reply field"><TextInput v-model="form.responseField" :invalid="!!fieldErrors.responseField" placeholder="reply or data.answer" /></FormField>
         </div>
-        <label v-if="form.chatPath.trim() !== ''" class="field">
-          <span>Session field (optional)</span>
+        <FormField label="Session field (optional)" v-if="form.chatPath.trim() !== ''">
           <TextInput v-model="form.sessionField" placeholder="session_id" />
           <p class="hint">JSON key that carries the conversation id, in the request and in the reply.</p>
-        </label>
-        <label v-if="form.chatPath.trim() !== ''" class="field">
-          <span>Trace id field (optional)</span>
+        </FormField>
+        <FormField label="Trace id field (optional)" v-if="form.chatPath.trim() !== ''">
           <TextInput v-model="form.traceIdField" :invalid="!!fieldErrors.traceIdField" placeholder="trace_id" data-testid="chat-trace-id-field" />
           <p class="hint">Key of the reply with the id of the trace that produced it. With it, each answer in MemTrace's chat gets 👍/👎 and the vote is saved on that trace.</p>
-        </label>
+        </FormField>
       </fieldset>
       <fieldset class="chat">
         <legend>Source repository</legend>
         <div class="row">
-          <label class="field"><span>Provider</span><Select v-model="form.repoProvider" :options="PROVIDERS" /></label>
-          <label class="field">
-            <span>Repository URL</span>
+          <FormField label="Provider"><Select v-model="form.repoProvider" :options="PROVIDERS" /></FormField>
+          <FormField label="Repository URL">
             <TextInput v-model="form.repoUrl" :invalid="!!fieldErrors.url" placeholder="https://github.com/acme/weather" data-testid="repo-url" />
             <span v-if="fieldErrors.url" class="field-error">{{ fieldErrors.url }}</span>
-          </label>
+          </FormField>
         </div>
-        <label v-if="form.repoUrl.trim() !== ''" class="field">
-          <span>Deploy workflow (optional)</span>
+        <FormField label="Deploy workflow (optional)" v-if="form.repoUrl.trim() !== ''">
           <TextInput v-model="form.deployWorkflow" :invalid="!!fieldErrors.deployWorkflow" placeholder="deploy.yml" data-testid="deploy-workflow" />
           <p class="hint">The pipeline MemTrace will trigger to deploy. Leave the URL empty if the agent has no repository. No credentials are stored here.</p>
-        </label>
+        </FormField>
       </fieldset>
       <div class="actions"><Button variant="primary" type="submit" :disabled="saving">Save</Button></div>
     </form>

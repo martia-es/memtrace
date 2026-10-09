@@ -11,6 +11,7 @@ import PageHeader from "../components/PageHeader.vue";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
 import Button from "../components/Button.vue";
+import DataTable from "../components/DataTable.vue";
 
 const api = useTraceApi();
 const router = useRouter();
@@ -78,7 +79,7 @@ async function createDataset() {
     <EmptyState v-else-if="filtered.length === 0" icon="search_off" title="No matches">Try a different search.</EmptyState>
 
     <div v-else class="mt-card table-card">
-      <table class="datasets">
+      <DataTable class="datasets" sticky nowrap>
         <thead>
           <tr>
             <th>Dataset</th>
@@ -95,7 +96,7 @@ async function createDataset() {
             <td class="muted mono">{{ formatDateTime(d.createdAt) }}</td>
           </tr>
         </tbody>
-      </table>
+      </DataTable>
     </div>
 
     <Modal v-if="showCreateModal" title="New dataset" @close="showCreateModal = false">
@@ -143,33 +144,7 @@ async function createDataset() {
   overflow: auto;
   padding: 0;
 }
-.datasets {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  height: 34px;
-  padding: 0 14px;
-  background: var(--mt-soft);
-  border-bottom: 1px solid var(--mt-line);
-  color: var(--mt-muted);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-align: left;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-td {
-  height: 46px;
-  padding: 0 14px;
-  border-bottom: 1px solid var(--mt-line-2);
-  white-space: nowrap;
-}
+
 .num {
   text-align: right;
 }

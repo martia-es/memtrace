@@ -148,69 +148,6 @@ h6 {
   box-shadow: var(--mt-shadow);
 }
 
-/* tabla de datos compartida: envolverla en .mt-table-wrap */
-.mt-table-wrap {
-  overflow-x: auto;
-  border: 1px solid var(--mt-line);
-  border-radius: var(--mt-radius-lg);
-}
-
-.mt-table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  font-size: 13px;
-}
-
-.mt-table th {
-  height: 36px;
-  padding: 0 14px;
-  background: var(--mt-soft);
-  border-bottom: 1px solid var(--mt-line);
-  color: var(--mt-muted);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-align: left;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.mt-table td {
-  padding: 11px 14px;
-  border-bottom: 1px solid var(--mt-line-2);
-  color: var(--mt-ink);
-  vertical-align: middle;
-}
-
-.mt-table tbody tr:last-child td {
-  border-bottom: 0;
-}
-
-.mt-table tbody tr:hover td {
-  background: var(--mt-soft-2);
-}
-
-.mt-table .num {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-.mt-table .strong {
-  font-weight: 700;
-}
-
-.mt-table .muted {
-  color: var(--mt-muted);
-}
-
-.mt-table .preview {
-  max-width: 420px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .mt-segmented {
   display: inline-flex;
   gap: 2px;

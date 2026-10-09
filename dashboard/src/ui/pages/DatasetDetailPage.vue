@@ -15,6 +15,8 @@ import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
 import Button from "../components/Button.vue";
 import Pill from "../components/Pill.vue";
+import Pagination from "../components/Pagination.vue";
+import DataTable from "../components/DataTable.vue";
 
 const PAGE_SIZE = 20;
 
@@ -112,7 +114,7 @@ function openRun(runId: string) {
           <ErrorBanner v-if="versions.error.value" :error="versions.error.value" @retry="versions.run()" />
           <div v-else-if="versions.loading.value && !versions.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
           <div v-else class="mt-card table-card">
-            <table class="items">
+            <DataTable class="items" sticky nowrap>
               <thead>
                 <tr>
                   <th>Version</th>
@@ -146,7 +148,7 @@ function openRun(runId: string) {
                   </td>
                 </tr>
               </tbody>
-            </table>
+            </DataTable>
           </div>
           <DatasetVersionDiffModal
             v-if="inspectedVersion"
@@ -167,7 +169,7 @@ function openRun(runId: string) {
           </EmptyState>
           <EmptyState v-else-if="pagedRuns.length === 0" icon="search_off" title="No matches">Try a different search.</EmptyState>
           <div v-else class="mt-card table-card">
-            <table class="items">
+            <DataTable class="items" sticky nowrap>
               <thead>
                 <tr>
                   <th>Run</th>
@@ -191,16 +193,9 @@ function openRun(runId: string) {
                   <td class="muted mono">{{ formatDateTime(r.createdAt) }}</td>
                 </tr>
               </tbody>
-            </table>
+            </DataTable>
           </div>
-          <div v-if="pagedRuns.length > 0" class="pager">
-            <span class="muted">{{ filteredRuns.length }} run{{ filteredRuns.length === 1 ? "" : "s" }}</span>
-            <div class="pager-controls">
-              <Button size="sm" :disabled="runPage <= 1" @click="runPage -= 1">Prev</Button>
-              <span class="muted mono">Page {{ runPage }} / {{ runPageCount }}</span>
-              <Button size="sm" :disabled="runPage >= runPageCount" @click="runPage += 1">Next</Button>
-            </div>
-          </div>
+          <Pagination v-if="pagedRuns.length > 0" v-model:page="runPage" :page-count="runPageCount">{{ filteredRuns.length }} run{{ filteredRuns.length === 1 ? "" : "s" }}</Pagination>
         </q-tab-panel>
       </q-tab-panels>
     </template>
@@ -250,33 +245,7 @@ function openRun(runId: string) {
   overflow: auto;
   padding: 0;
 }
-.items {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  height: 34px;
-  padding: 0 14px;
-  background: var(--mt-soft);
-  border-bottom: 1px solid var(--mt-line);
-  color: var(--mt-muted);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-align: left;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-td {
-  height: 44px;
-  padding: 0 14px;
-  border-bottom: 1px solid var(--mt-line-2);
-  white-space: nowrap;
-}
+
 .cell {
   max-width: 360px;
   overflow: hidden;
@@ -333,19 +302,6 @@ td {
   align-items: center;
   gap: 4px;
   white-space: nowrap;
-}
-
-.pager {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-shrink: 0;
-  font-size: 12.5px;
-}
-.pager-controls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
 }
 
 </style>

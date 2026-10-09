@@ -16,6 +16,7 @@ import { useTraceApi } from "../composables/useTraceApi";
 import Button from "./Button.vue";
 import Checkbox from "./Checkbox.vue";
 import Pill from "./Pill.vue";
+import DataTable from "./DataTable.vue";
 
 /**
  * Resultados de una cola para el perfil técnico (ADR-050): qué respondió cada revisor por item y criterio, los
@@ -170,7 +171,7 @@ async function promote() {
     <p v-else-if="!rows.length" class="muted" data-testid="results-empty">{{ onlyDisagreements ? "No items where reviewers disagree." : "No items in this queue yet." }}</p>
 
     <div v-else class="scroll">
-      <table>
+      <DataTable sticky density="sm">
         <thead>
           <tr>
             <th />
@@ -205,7 +206,7 @@ async function promote() {
           </tr>
 
         </tbody>
-      </table>
+      </DataTable>
     </div>
 
     <div v-if="rows.length" class="promote" data-testid="promote-bar">
@@ -301,25 +302,7 @@ async function promote() {
   border: 1px solid var(--mt-line);
   border-radius: var(--mt-radius-lg);
 }
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12.5px;
-}
-th {
-  position: sticky;
-  top: 0;
-  background: var(--mt-soft);
-  color: var(--mt-muted);
-  font-size: 11.5px;
-  text-align: left;
-  padding: 6px 10px;
-}
-td {
-  padding: 6px 10px;
-  border-top: 1px solid var(--mt-line);
-  vertical-align: top;
-}
+
 tr.flagged td:first-child {
   box-shadow: inset 3px 0 0 var(--mt-err-ink);
 }

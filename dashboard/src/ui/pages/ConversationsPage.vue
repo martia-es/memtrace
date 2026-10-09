@@ -27,6 +27,7 @@ import { useLiveRefresh } from "../composables/useLiveRefresh";
 import { usePagedList } from "../composables/usePagedList";
 import { useTraceApi } from "../composables/useTraceApi";
 import { useExperimentRepo } from "../composables/useExperimentRepo";
+import DataTable from "../components/DataTable.vue";
 
 const PAGE_SIZE = 50;
 const api = useTraceApi();
@@ -267,7 +268,7 @@ const footer = computed(() => {
         <ErrorBanner v-if="active.error.value" :error="active.error.value" @retry="reload" />
 
         <div class="list">
-          <table v-if="grouped && conversations.items.value.length" class="conversations">
+          <DataTable v-if="grouped && conversations.items.value.length" class="conversations" sticky nowrap>
             <thead>
               <tr><th>Conversation</th><th>Prompt</th><th>Last activity</th><th class="num">Turns</th><th class="num">Active time</th><th class="num">Tokens</th><th class="num">Cost</th><th>Status</th><th>Annotation</th><th>User feedback</th></tr>
             </thead>
@@ -297,7 +298,7 @@ const footer = computed(() => {
                 <td><FeedbackChip :feedback="feedback.get(c.conversationId)" /></td>
               </tr>
             </tbody>
-          </table>
+          </DataTable>
           <TraceTable
             v-else-if="!grouped && traces.items.value.length"
             :items="traces.items.value"
@@ -487,33 +488,7 @@ const footer = computed(() => {
   min-height: 0;
   overflow-y: auto;
 }
-.conversations {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  padding: 0 14px;
-  height: 34px;
-  background: var(--mt-soft);
-  border-bottom: 1px solid var(--mt-line);
-  color: var(--mt-muted);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-align: left;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-td {
-  padding: 0 14px;
-  height: 50px;
-  border-bottom: 1px solid var(--mt-line-2);
-  white-space: nowrap;
-}
+
 .num {
   text-align: right;
 }

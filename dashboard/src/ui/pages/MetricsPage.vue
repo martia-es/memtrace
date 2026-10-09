@@ -24,6 +24,7 @@ import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import { useRoute, useRouter } from "vue-router";
 import Button from "../components/Button.vue";
+import Card from "../components/Card.vue";
 
 const api = useTraceApi();
 const identityApi = useIdentityApi();
@@ -423,7 +424,7 @@ function swapAgents() {
           </section>
 
           <div class="overview-row split">
-            <section class="card" aria-label="Activity">
+            <Card as="section" gap="sm" class="card" aria-label="Activity">
               <div class="card-head">
                 <h2>Activity</h2>
                 <span class="legend"><i class="sw" style="background: var(--mt-accent)" />Conversations</span>
@@ -431,9 +432,9 @@ function swapAgents() {
                 <span class="legend"><i class="sw line" style="background: var(--mt-highlight)" />p95 latency</span>
               </div>
               <EChart :option="activityOption" height="200px" label="Conversations, errors, and p95 latency" />
-            </section>
+            </Card>
 
-            <section class="card attention" aria-label="Needs attention">
+            <Card as="section" gap="sm" class="card attention" aria-label="Needs attention">
               <div class="card-head">
                 <h2>Needs attention</h2>
                 <span v-if="attention.length" class="attention-count">{{ attention.length }}</span>
@@ -446,13 +447,13 @@ function swapAgents() {
                 <span class="attn-text"><strong>{{ a.title }}</strong><span>{{ a.text }}</span></span>
                 <span class="attn-cta">{{ a.cta }} →</span>
               </button>
-            </section>
+            </Card>
           </div>
 
           <ErrorOverviewCard v-if="errorOverview.data.value && errorOverview.data.value.categories.length" :overview="errorOverview.data.value" @view="goToErrors" />
 
           <div class="overview-row thirds">
-            <section class="card list-card" aria-label="Models">
+            <Card as="section" gap="sm" class="card list-card" aria-label="Models">
               <div class="card-head"><h2>Models</h2><span class="spacer" /><span class="card-link">{{ data.byModel.length }} in range</span></div>
               <p v-if="!topModels.length" class="list-empty">No LLM calls in this range.</p>
               <div v-for="m in topModels" :key="m.model" class="model-row">
@@ -460,9 +461,9 @@ function swapAgents() {
                 <span class="mono muted right">{{ formatDuration(m.p95Ms) }}</span>
                 <span class="mono right">{{ formatCostUsd(m.costUsd) ?? "–" }}</span>
               </div>
-            </section>
+            </Card>
 
-            <section class="card list-card" aria-label="Human review quality">
+            <Card as="section" gap="sm" class="card list-card" aria-label="Human review quality">
               <div class="card-head">
                 <h2>Human review quality</h2><span class="spacer" />
                 <a class="card-link" @click="goToReview">Review →</a>
@@ -472,9 +473,9 @@ function swapAgents() {
                 <div class="quality-line"><span class="quality-name">{{ q.name }}</span><span class="mono">{{ q.value }}</span></div>
                 <div class="bar"><div class="bar-fill" :class="{ low: q.low }" :style="{ width: `${q.width}%` }" /></div>
               </div>
-            </section>
+            </Card>
 
-            <section class="card list-card" aria-label="Latest evaluation runs">
+            <Card as="section" gap="sm" class="card list-card" aria-label="Latest evaluation runs">
               <div class="card-head">
                 <h2>Latest evaluation runs</h2><span class="spacer" />
                 <a class="card-link" @click="router.push({ name: 'runs', params: { experimentId } })">All runs →</a>
@@ -484,7 +485,7 @@ function swapAgents() {
                 <span class="run-text"><strong>{{ r.name }}</strong><span>{{ r.when }}</span></span>
                 <span class="run-score" :class="r.tone">{{ r.score }}</span>
               </a>
-            </section>
+            </Card>
           </div>
         </template>
       </q-tab-panel>
@@ -687,17 +688,7 @@ function swapAgents() {
 .overview-row.split { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
 .overview-row.thirds { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
-.card {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-  overflow: hidden;
-  padding: 14px 16px;
-  background: var(--mt-card);
-  border: 1px solid var(--mt-line);
-  border-radius: var(--mt-radius-lg);
-}
+.card { gap: 10px; overflow: hidden; }
 .card.list-card, .card.attention { gap: 0; padding: 0; }
 .card-head { display: flex; align-items: center; gap: 12px; }
 .card.list-card .card-head, .card.attention .card-head { padding: 12px 16px; }

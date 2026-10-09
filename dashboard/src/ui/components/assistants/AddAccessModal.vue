@@ -9,6 +9,7 @@ import { useAssistantApi } from "../../composables/useAssistantApi";
 import Modal from "../Modal.vue";
 import PersonPicker from "./PersonPicker.vue";
 import Button from "../Button.vue";
+import FormField from "../FormField.vue";
 
 /** Añade quién puede llamar a un despliegue. MemTrace lo documenta y lo sincroniza; no lo hace cumplir (ADR-053). */
 const props = defineProps<{ experimentId: string; deploymentId: string; envLabel: string }>();
@@ -48,16 +49,15 @@ const SUBJECT_OPTIONS: { label: string; value: GrantSubjectTypeDto }[] = [
 <template>
   <Modal :title="`Who can call ${envLabel}`" @close="emit('close')">
     <form class="modal-form" @submit.prevent="save">
-      <label class="field">
-        <span>Add</span>
+      <FormField label="Add">
         <Select v-model="form.subjectType" :options="SUBJECT_OPTIONS" data-testid="grant-type" />
-      </label>
+      </FormField>
       <template v-if="form.subjectType === 'group'">
-        <label class="field"><span>Group</span><TextInput v-model="form.group" placeholder="Support-Agents" autofocus /></label>
-        <label class="field"><span>People in the group (optional)</span><TextInput v-model="form.members" type="number" min="0" /></label>
+        <FormField label="Group"><TextInput v-model="form.group" placeholder="Support-Agents" autofocus /></FormField>
+        <FormField label="People in the group (optional)"><TextInput v-model="form.members" type="number" min="0" /></FormField>
         <p class="hint">Use the same group name or id you mapped in Settings → Identity.</p>
       </template>
-      <div v-else-if="form.subjectType === 'user'" class="field"><span>Person</span><PersonPicker v-model="form.person" :experiment-id="experimentId" /></div>
+      <FormField v-else-if="form.subjectType === 'user'" as="div" label="Person"><PersonPicker v-model="form.person" :experiment-id="experimentId" /></FormField>
       <p v-else class="hint">Anyone signed in to the organization will be listed as allowed.</p>
       <div class="actions"><Button variant="primary" type="submit" :disabled="saving || !canSave">Add access</Button></div>
     </form>

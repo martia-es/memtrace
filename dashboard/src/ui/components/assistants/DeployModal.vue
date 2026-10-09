@@ -12,6 +12,7 @@ import Modal from "../Modal.vue";
 import StatusChip from "../StatusChip.vue";
 import Button from "../Button.vue";
 import Checkbox from "../Checkbox.vue";
+import FormField from "../FormField.vue";
 
 /**
  * Despliegue de un entorno (ADR-064). MemTrace no despliega: dispara el CI del repo con el commit al que apunta hoy la rama
@@ -81,11 +82,10 @@ async function send() {
         <template v-if="!gate.allowed">
           <p class="hint">Run the offline evaluation from your CI on this commit, then come back. Evaluations run on a laptop with uncommitted changes do not count.</p>
           <Checkbox v-if="canBypass" class="bypass" v-model="bypassing" data-testid="bypass-toggle"> Deploy anyway (hotfix)</Checkbox>
-          <label v-if="bypassing" class="field">
-            <span>Why? It stays in the deployment history.</span>
+          <FormField label="Why? It stays in the deployment history." v-if="bypassing">
             <TextInput v-model="reason" multiline :rows="2" :invalid="!!fieldErrors.bypassReason" data-testid="bypass-reason" />
             <span v-if="fieldErrors.bypassReason" class="field-error">{{ fieldErrors.bypassReason }}</span>
-          </label>
+          </FormField>
         </template>
       </template>
       <div class="actions">
@@ -108,7 +108,7 @@ dd { margin: 0; }
 .hint { margin: 0; font-size: 13px; color: var(--mt-muted); line-height: 1.5; }
 .problem { margin: 0; padding: 10px 12px; font-size: 13px; color: var(--mt-error-text, var(--mt-ink)); background: var(--mt-error-soft, var(--mt-bg)); border-radius: var(--mt-radius-sm); }
 .bypass { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
-.field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; }
+
 .field-error { color: var(--mt-error-text, #b3261e); font-weight: 500; }
 .actions { display: flex; justify-content: flex-end; gap: 8px; }
 

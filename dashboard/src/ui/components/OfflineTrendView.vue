@@ -17,6 +17,8 @@ import {
   type EvaluatorSummary,
 } from "../offline-eval-chart-option";
 import EChart from "./EChart.vue";
+import DataTable from "./DataTable.vue";
+import Card from "./Card.vue";
 
 const props = defineProps<{ runs: RunListItemDto[]; targets?: EvaluatorTargets }>();
 const emit = defineEmits<{ "open-run": [run: RunListItemDto]; compare: [ids: [string, string]] }>();
@@ -148,7 +150,7 @@ function openAt(index: number) {
     </div>
 
     <div class="charts">
-      <section v-if="hasPassFail" class="card">
+      <Card as="section" padding="lg" v-if="hasPassFail" class="card">
         <header class="card-head">
           <div>
             <h3>Latest run: passed vs failed</h3>
@@ -156,9 +158,9 @@ function openAt(index: number) {
           </div>
         </header>
         <EChart :option="passFailOption" :height="`${Math.max(160, summary.length * 64 + 60)}px`" label="Passed and failed items per evaluator in the latest run" />
-      </section>
+      </Card>
 
-      <section v-if="passRateSeries.length" class="card">
+      <Card as="section" padding="lg" v-if="passRateSeries.length" class="card">
         <header class="card-head">
           <div>
             <h3>Pass rate over runs</h3>
@@ -167,9 +169,9 @@ function openAt(index: number) {
         </header>
         <EChart v-if="hasTrend" :option="passRateOption" height="280px" label="Pass rate per evaluator across offline runs" @click="openAt" />
         <p v-else class="empty-trend">Only one run so far. Change your agent and run <code>run_experiment</code> again to see whether it improves.</p>
-      </section>
+      </Card>
 
-      <section v-if="averageSeries.length" class="card">
+      <Card as="section" padding="lg" v-if="averageSeries.length" class="card">
         <header class="card-head">
           <div>
             <h3>Average score over runs</h3>
@@ -178,18 +180,17 @@ function openAt(index: number) {
         </header>
         <EChart v-if="hasTrend" :option="averageOption" height="280px" label="Average score per evaluator across offline runs" @click="openAt" />
         <p v-else class="empty-trend">Only one run so far: the trend appears after the next one.</p>
-      </section>
+      </Card>
     </div>
 
-    <section class="card">
+    <Card as="section" padding="lg" class="card">
       <header class="card-head">
         <div>
           <h3>Runs</h3>
           <p class="sub">Select a run to inspect its items, or compare two of them.</p>
         </div>
       </header>
-      <div class="mt-table-wrap">
-        <table class="mt-table">
+      <DataTable>
           <thead>
             <tr>
               <th>Run</th>
@@ -210,15 +211,14 @@ function openAt(index: number) {
               <td class="actions"><button type="button" class="open" @click.stop="emit('open-run', r)">Open</button></td>
             </tr>
           </tbody>
-        </table>
-      </div>
-    </section>
+      </DataTable>
+    </Card>
   </div>
 </template>
 
 <style scoped>
 .trend { display: flex; flex-direction: column; gap: 16px; font-family: var(--mt-sans); }
-.card { background: var(--mt-card); border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); padding: 18px 20px; min-width: 0; }
+
 .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
 h3 { margin: 0; font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
 .sub { margin: 4px 0 0; color: var(--mt-muted); font-size: 12.5px; }

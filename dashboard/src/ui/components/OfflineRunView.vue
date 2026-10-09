@@ -13,6 +13,8 @@ import KpiCard from "./KpiCard.vue";
 import Select from "./Select.vue";
 import Button from "./Button.vue";
 import Pill from "./Pill.vue";
+import DataTable from "./DataTable.vue";
+import Card from "./Card.vue";
 
 const props = defineProps<{ runs: RunListItemDto[]; runId: string | null }>();
 const emit = defineEmits<{ "update:runId": [id: string] }>();
@@ -63,7 +65,7 @@ function openFull() {
       <KpiCard v-for="a in current.aggregates.filter((x) => x.passRate !== null || x.average !== null)" :key="a.name" :label="a.name" :value="aggregateValueLabel(a)" :tone="aggregateTone(a)" />
     </div>
 
-    <section class="card">
+    <Card as="section" padding="lg" gap="md" class="card">
       <h3>Latency</h3>
       <div v-if="detail.loading.value" class="hint">Reading linked traces…</div>
       <template v-else-if="latency && latency.count > 0">
@@ -77,12 +79,12 @@ function openFull() {
         <p class="hint">Read from the traces linked to {{ latency.count }} of {{ latency.total }} items.</p>
       </template>
       <p v-else class="hint">Latency, tokens and cost come from each item's trace. None found for this run: call <code>memtrace.init_tracer()</code> before <code>run_experiment</code> so every item is traced.</p>
-    </section>
+    </Card>
 
-    <section class="card">
+    <Card as="section" padding="lg" gap="md" class="card">
       <h3>Items needing attention <span class="hint">({{ problemItems.length }} of {{ detail.data.value?.items.length ?? 0 }})</span></h3>
       <p v-if="detail.data.value && problemItems.length === 0" class="hint">No item failed a boolean evaluator or errored.</p>
-      <div v-else-if="problemItems.length" class="mt-table-wrap"><table class="mt-table layout-fixed">
+      <DataTable v-else-if="problemItems.length" class="layout-fixed">
         <thead><tr><th>Input</th><th>Output</th><th class="failed-col">Failed</th></tr></thead>
         <tbody>
           <tr v-for="item in problemItems.slice(0, SHOWN)" :key="item.itemIndex">
@@ -91,9 +93,9 @@ function openFull() {
             <td><Pill tone="error" v-for="n in failedScores(item)" :key="n" class="fail">{{ n }}</Pill><span v-if="!failedScores(item).length" class="muted">–</span></td>
           </tr>
         </tbody>
-      </table></div>
+      </DataTable>
       <p v-if="problemItems.length > SHOWN" class="hint">Showing {{ SHOWN }}; open the full item list for the rest.</p>
-    </section>
+    </Card>
   </div>
 </template>
 
@@ -108,9 +110,8 @@ function openFull() {
 .kpi-row { display: flex; flex-wrap: wrap; gap: 12px; }
 h3 { margin: 0 0 12px; font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
 h3 .hint { font-weight: 400; }
-.card { background: var(--mt-card); border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); padding: 18px 20px; min-width: 0; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; }
+.card { flex-shrink: 0; gap: 10px; }
 .card h3 { margin: 0; }
-.card .mt-table-wrap { flex-shrink: 0; max-width: 100%; }
 .layout-fixed { table-layout: fixed; }
 .layout-fixed .preview { max-width: none; }
 .layout-fixed th:first-child { width: 34%; }

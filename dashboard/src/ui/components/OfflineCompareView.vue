@@ -9,6 +9,8 @@ import { useTraceApi } from "../composables/useTraceApi";
 import ErrorBanner from "./ErrorBanner.vue";
 import Select from "./Select.vue";
 import Pill from "./Pill.vue";
+import DataTable from "./DataTable.vue";
+import Card from "./Card.vue";
 
 const props = defineProps<{ runs: RunListItemDto[]; /** baseline and candidate chosen elsewhere (Evaluations → Compare runs) */ initialIds?: [string, string] | null }>();
 
@@ -151,7 +153,7 @@ const netVerdict = computed(() => (regressions.value === 0 && improvements.value
         <div class="run-chip b"><span class="tag-ab">B · candidate</span><strong>{{ offlineRunLabel(runB) }}</strong><span class="meta">{{ runB.datasetName }} v{{ runB.versionMajor }}.{{ runB.versionMinor }} · {{ formatDateTime(runB.createdAt) }}</span></div>
       </section>
 
-      <section class="card">
+      <Card as="section" padding="lg" gap="md" class="card">
         <div class="card-head"><h3>Metrics</h3><span class="legend"><i class="sw a" /> A <i class="sw b" /> B</span></div>
         <div v-for="d in deltas" :key="d.name" class="metric">
           <div class="metric-name">
@@ -165,13 +167,13 @@ const netVerdict = computed(() => (regressions.value === 0 && improvements.value
           <Pill :tone="d.delta === null || d.delta === 0 ? 'neutral' : d.delta > 0 ? 'ok' : 'error'" class="delta-pill">{{ d.delta !== null && d.delta !== 0 ? (d.delta > 0 ? "▲ " : "▼ ") : "" }}{{ fmtDelta(d.delta, d.isRate) }}</Pill>
         </div>
         <p v-if="!deltas.length" class="hint">Neither run has numeric or boolean evaluators.</p>
-      </section>
+      </Card>
 
       <ErrorBanner v-if="loaded.error.value" :error="loaded.error.value" @retry="loaded.run()" />
       <div v-else-if="loaded.loading.value" class="hint">Loading items, traces and dataset changes…</div>
 
       <template v-else-if="loaded.data.value">
-        <section class="card">
+        <Card as="section" padding="lg" gap="md" class="card">
           <h3>Dataset</h3>
           <p v-if="sameVersion" class="hint">Same dataset version (v{{ runA.versionMajor }}.{{ runA.versionMinor }}): the difference does not come from the data.</p>
           <template v-else-if="sameDataset && loaded.data.value.diff">
@@ -181,7 +183,7 @@ const netVerdict = computed(() => (regressions.value === 0 && improvements.value
               +{{ diffCounts.added }} added, ~{{ diffCounts.modified }} modified, −{{ diffCounts.removed }} removed, {{ loaded.data.value.diff.unchangedCount }} unchanged.
               Metrics may move because the items changed, not only the agent.
             </p>
-            <div v-if="changes.length" class="mt-table-wrap"><table class="mt-table">
+            <DataTable v-if="changes.length">
               <thead><tr><th>Change</th><th>Input</th></tr></thead>
               <tbody>
                 <tr v-for="c in changes.slice(0, SHOWN)" :key="c.originItemId">
@@ -189,13 +191,13 @@ const netVerdict = computed(() => (regressions.value === 0 && improvements.value
                   <td class="preview" :title="preview((c.after ?? c.before)?.input)">{{ preview((c.after ?? c.before)?.input) }}</td>
                 </tr>
               </tbody>
-            </table></div>
+            </DataTable>
             <p v-if="changes.length > SHOWN" class="hint">Showing {{ SHOWN }} of {{ changes.length }} changes.</p>
           </template>
           <p v-else class="hint">The dataset version diff is not available for these runs.</p>
-        </section>
+        </Card>
 
-        <section class="card">
+        <Card as="section" padding="lg" gap="md" class="card">
           <h3>Items <span class="hint">({{ loaded.data.value.pairing.paired.length }} in both · {{ loaded.data.value.pairing.onlyA.length }} only in A · {{ loaded.data.value.pairing.onlyB.length }} only in B)</span></h3>
           <div class="outcomes" :class="netVerdict">
             <div class="outcome bad"><strong>{{ regressions }}</strong><span>regressed</span></div>
@@ -208,7 +210,7 @@ const netVerdict = computed(() => (regressions.value === 0 && improvements.value
             <div class="seg flat" :style="{ flex: unchangedPairs }" />
           </div>
           <p class="hint">Items are matched by identical input.</p>
-          <div v-if="flips.length" class="mt-table-wrap"><table class="mt-table">
+          <DataTable v-if="flips.length">
             <thead><tr><th>Input</th><th>Evaluator</th><th>A → B</th><th>Dataset</th></tr></thead>
             <tbody>
               <tr v-for="(f, i) in flips.slice(0, SHOWN)" :key="`${f.pair.key}-${f.evaluator}-${i}`">
@@ -218,11 +220,11 @@ const netVerdict = computed(() => (regressions.value === 0 && improvements.value
                 <td><Pill tone="warn" v-if="datasetChangeFor(changes, f.pair.a.input)">{{ datasetChangeFor(changes, f.pair.a.input)!.kind }}</Pill><span v-else class="hint">–</span></td>
               </tr>
             </tbody>
-          </table></div>
+          </DataTable>
           <p v-if="flips.length > SHOWN" class="hint">Showing {{ SHOWN }} of {{ flips.length }}; regressions first.</p>
-        </section>
+        </Card>
 
-        <section class="card">
+        <Card as="section" padding="lg" gap="md" class="card">
           <h3>Latency</h3>
           <template v-if="hasLatency">
             <div v-for="r in latencyRows" :key="r.label" class="metric">
@@ -240,7 +242,7 @@ const netVerdict = computed(() => (regressions.value === 0 && improvements.value
             </div>
           </template>
           <p v-else class="hint">Latency is not recorded for these runs: no item has a linked trace (ADR-044). Call <code>memtrace.init_tracer()</code> before <code>run_experiment</code>.</p>
-        </section>
+        </Card>
       </template>
     </template>
   </div>
@@ -257,7 +259,7 @@ const netVerdict = computed(() => (regressions.value === 0 && improvements.value
 .hint code { font-family: var(--mt-mono); font-size: 12px; background: var(--mt-soft); padding: 1px 5px; border-radius: var(--mt-radius-sm); }
 h3 { margin: 0; font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
 h3 .hint { font-weight: 400; }
-.card { background: var(--mt-card); border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); padding: 18px 20px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+
 .card-head { display: flex; justify-content: space-between; align-items: center; }
 .notice { border: 1px solid var(--mt-warn); background: var(--mt-warn-bg); color: var(--mt-warn-ink); border-radius: var(--mt-radius-lg); padding: 10px 14px; font-size: 12.5px; }
 

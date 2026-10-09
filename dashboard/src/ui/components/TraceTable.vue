@@ -7,6 +7,7 @@ import StatusBadge from "./StatusBadge.vue";
 import AnnotationChip from "./AnnotationChip.vue";
 import FeedbackChip from "./FeedbackChip.vue";
 import PromptChips from "./PromptChips.vue";
+import DataTable from "./DataTable.vue";
 
 const props = defineProps<{
   items: TraceSummaryDto[];
@@ -34,7 +35,7 @@ const activate = (traceId: string) => (props.selectable ? emit("select", traceId
 </script>
 
 <template>
-  <table class="traces">
+  <DataTable class="traces" sticky nowrap>
     <thead>
       <tr>
         <th>Trace</th>
@@ -84,37 +85,11 @@ const activate = (traceId: string) => (props.selectable ? emit("select", traceId
         <td v-if="annotatable"><button type="button" class="annotate-btn" data-testid="row-annotate" @click.stop="$emit('annotate', t.traceId)" @dblclick.stop @keydown.enter.stop>Annotate</button></td>
       </tr>
     </tbody>
-  </table>
+  </DataTable>
 </template>
 
 <style scoped>
-.traces {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  padding: 0 12px;
-  height: 34px;
-  background: var(--mt-soft);
-  border-bottom: 1px solid var(--mt-line);
-  color: var(--mt-muted);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-align: left;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-td {
-  padding: 0 12px;
-  height: 46px;
-  border-bottom: 1px solid var(--mt-line-2);
-  white-space: nowrap;
-}
+
 .num {
   text-align: right;
 }

@@ -12,6 +12,7 @@ import { useAssistantApi } from "../../composables/useAssistantApi";
 import Modal from "../Modal.vue";
 import Button from "../Button.vue";
 import Checkbox from "../Checkbox.vue";
+import FormField from "../FormField.vue";
 
 /** Alta o edición de un despliegue (ADR-053). Nunca se piden secretos: solo cómo se autentica. */
 const props = defineProps<{ experimentId: string; deployment?: DeploymentSummaryDto; environments: EnvironmentDto[] }>();
@@ -80,44 +81,38 @@ const authOptions = Object.entries(AUTH_LABEL).map(([value, label]) => ({ label,
 <template>
   <Modal :title="editing ? `Edit ${d!.environment.label} deployment` : 'Add a deployment'" medium @close="emit('close')">
     <form class="modal-form" @submit.prevent="save">
-      <label v-if="!editing" class="field">
-        <span>Environment</span>
+      <FormField label="Environment" v-if="!editing">
         <Select v-model="form.environmentKey" :options="environmentOptions" data-testid="deployment-environment" />
-      </label>
-      <label class="field">
-        <span>API URL</span>
+      </FormField>
+      <FormField label="API URL">
         <TextInput v-model="form.apiUrl" :invalid="!!fieldErrors.apiUrl" placeholder="https://api.example.com/weather" autofocus />
         <span v-if="fieldErrors.apiUrl" class="field-error">{{ fieldErrors.apiUrl }}</span>
-      </label>
-      <label class="field">
-        <span>Health URL (optional)</span>
+      </FormField>
+      <FormField label="Health URL (optional)">
         <TextInput v-model="form.healthUrl" :invalid="!!fieldErrors.healthUrl" placeholder="Defaults to the API URL + /health" />
         <span v-if="fieldErrors.healthUrl" class="field-error">{{ fieldErrors.healthUrl }}</span>
-      </label>
+      </FormField>
       <div class="row">
-        <label class="field"><span>Version</span><TextInput v-model="form.version" placeholder="v1.4.0" /></label>
-        <label class="field">
-          <span>Branch or tag (optional)</span>
+        <FormField label="Version"><TextInput v-model="form.version" placeholder="v1.4.0" /></FormField>
+        <FormField label="Branch or tag (optional)">
           <TextInput v-model="form.deployRef" :invalid="!!fieldErrors.deployRef" placeholder="main" data-testid="deploy-ref" />
           <span v-if="fieldErrors.deployRef" class="field-error">{{ fieldErrors.deployRef }}</span>
-        </label>
+        </FormField>
       </div>
-      <label class="field">
-        <span>Authentication</span>
+      <FormField label="Authentication">
         <Select v-model="form.authMethod" :options="authOptions" />
-      </label>
+      </FormField>
       <div v-if="form.authMethod !== 'none'" class="row">
-        <label class="field"><span>Provider</span><TextInput v-model="form.authProvider" placeholder="Entra ID" /></label>
-        <label class="field"><span>Audience</span><TextInput v-model="form.authAudience" placeholder="api://weather-assistant" /></label>
+        <FormField label="Provider"><TextInput v-model="form.authProvider" placeholder="Entra ID" /></FormField>
+        <FormField label="Audience"><TextInput v-model="form.authAudience" placeholder="api://weather-assistant" /></FormField>
       </div>
       <p v-if="form.authMethod !== 'none'" class="hint">MemTrace never stores secrets: only how this deployment authenticates.</p>
       <div class="row row-health">
         <Checkbox class="check" v-model="form.healthCheckEnabled">Check /health automatically</Checkbox>
-        <label class="field">
-          <span>Check every (seconds)</span>
+        <FormField label="Check every (seconds)">
           <TextInput v-model="form.interval" :invalid="!!fieldErrors.healthIntervalSeconds" type="number" min="15" placeholder="Environment default" />
           <span v-if="fieldErrors.healthIntervalSeconds" class="field-error">{{ fieldErrors.healthIntervalSeconds }}</span>
-        </label>
+        </FormField>
       </div>
       <div class="actions">
         <Button variant="primary" type="submit" :disabled="saving || !canSave">{{ editing ? "Save" : "Add deployment" }}</Button>

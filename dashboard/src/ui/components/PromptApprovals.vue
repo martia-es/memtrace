@@ -13,6 +13,7 @@ import ApprovalFlowChart from "./ApprovalFlowChart.vue";
 import StatusChip from "./StatusChip.vue";
 import TextInput from "./TextInput.vue";
 import Button from "./Button.vue";
+import Card from "./Card.vue";
 
 /**
  * Pestaña Approvals de un prompt (ADR-076): qué exige hoy cada paso y las solicitudes abiertas y pasadas. Quien puede
@@ -84,7 +85,7 @@ const who = (r: ApprovalRequestDto, id: string | null) => (id ? (r.people[id] ??
       <p v-if="info.loading.value && !info.data.value" class="muted">Loading…</p>
       <p v-else-if="requests.length === 0" class="muted" data-testid="no-requests">No requests yet.</p>
       <ul v-else class="list">
-        <li v-for="r in requests" :key="r.id" class="card" :data-testid="`request-${r.id}`">
+        <Card as="li" padding="sm" gap="sm" v-for="r in requests" :key="r.id" class="card" :data-testid="`request-${r.id}`">
           <header>
             <b data-testid="request-title">{{ requestTitle(r) }}</b>
             <StatusChip :tone="REQUEST_STATUS[r.status].tone" :label="REQUEST_STATUS[r.status].label" />
@@ -122,7 +123,7 @@ const who = (r: ApprovalRequestDto, id: string | null) => (id ? (r.people[id] ??
             <Button v-if="r.status === 'approved' && isMine(r)" :disabled="busy === r.id" data-testid="retry" @click="retry(r)">Try again</Button>
             <Button v-if="isMine(r)" :disabled="busy === r.id" data-testid="cancel" @click="cancel(r)">Cancel request</Button>
           </div>
-        </li>
+        </Card>
       </ul>
     </section>
   </div>
@@ -133,7 +134,7 @@ const who = (r: ApprovalRequestDto, id: string | null) => (id ? (r.people[id] ??
 h3 { margin: 0 0 8px; font-size: 14px; }
 .muted { color: var(--mt-muted); font-size: 12px; margin: 0; }
 .list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
-.card { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-sm); font-size: 13px; }
+.card { font-size: 13px; }
 header { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .note { margin: 0; color: var(--mt-ink); }
 .progress, .decisions { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px 14px; }

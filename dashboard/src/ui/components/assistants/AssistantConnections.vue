@@ -12,6 +12,7 @@ import ErrorBanner from "../ErrorBanner.vue";
 import StatusChip from "../StatusChip.vue";
 import DeclareConnectionModal from "./DeclareConnectionModal.vue";
 import Button from "../Button.vue";
+import DataTable from "../DataTable.vue";
 
 /** Pestaña «Connections»: servidores MCP, tools y agentes, declarados y observados (ADR-053). */
 const props = defineProps<{ card: AssistantCardDto; canManage: boolean; canGovern: boolean; nowMs: number }>();
@@ -83,7 +84,7 @@ const sync = () =>
         <header><h2>{{ g.title }}</h2><span>{{ g.hint }}</span></header>
         <p v-if="g.items.length === 0" class="none">None yet.</p>
         <div v-else class="scroll">
-          <table class="grid">
+          <DataTable class="grid" bare>
             <thead>
               <tr>
                 <th>Name</th><th v-if="g.kind === 'tool'">Via</th><th>Source</th><th v-if="g.kind !== 'agent'" class="num">Calls</th><th v-if="g.kind !== 'agent'" class="num">Errors</th><th>Last seen</th><th>Status</th><th />
@@ -107,7 +108,7 @@ const sync = () =>
                 </td>
               </tr>
             </tbody>
-          </table>
+          </DataTable>
         </div>
       </section>
     </template>
@@ -128,9 +129,7 @@ h2 { margin: 0; font-size: 14px; font-weight: 800; }
 header span { font-size: 12px; color: var(--mt-muted); }
 .none { margin: 0; padding: 4px 16px 14px; font-size: 13px; color: var(--mt-faint); }
 .scroll { overflow-x: auto; }
-.grid { width: 100%; border-collapse: collapse; font-size: 13px; }
-th { height: 30px; padding: 0 10px; text-align: left; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--mt-muted); background: var(--mt-soft); white-space: nowrap; }
-td { height: 40px; padding: 0 10px; border-top: 1px solid var(--mt-line-2); white-space: nowrap; }
+
 th:first-child, td:first-child { padding-left: 16px; }
 .num { text-align: right; }
 .mono { font-family: var(--mt-mono); font-size: 12px; }

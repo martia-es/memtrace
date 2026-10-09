@@ -11,6 +11,7 @@ import Modal from "./Modal.vue";
 import TextInput from "./TextInput.vue";
 import Button from "./Button.vue";
 import Checkbox from "./Checkbox.vue";
+import FormField from "./FormField.vue";
 
 /**
  * Pedir aprobación (ADR-076) para publicar un borrador o apuntar un entorno a una versión. Enseña qué exige la regla de
@@ -69,10 +70,9 @@ async function send() {
           <p class="muted">Your own approval never counts: someone else has to look at it.</p>
         </section>
 
-        <label class="field">
-          <span>Note for the reviewers (optional)</span>
+        <FormField label="Note for the reviewers (optional)">
           <TextInput v-model="note" multiline :rows="3" placeholder="What changes and why" data-testid="request-note" />
-        </label>
+        </FormField>
 
         <fieldset v-if="candidates.length > 0" class="people">
           <legend>Also ask these people <span class="muted">(each one will have to approve)</span></legend>
@@ -96,7 +96,7 @@ async function send() {
 .rule { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border: 1px solid var(--mt-line); font-size: 14px; }
 .rule p { margin: 0; }
 .muted { color: var(--mt-muted); font-size: 12px; }
-.field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+
 .people { border: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
 legend { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
 .person { display: flex; align-items: center; gap: 8px; font-size: 13px; }
