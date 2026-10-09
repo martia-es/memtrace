@@ -1,6 +1,6 @@
 # ADR-077: Editable Data Catalog for Custom Charts
 
-* **Status**: Accepted — phase 1 (editable names) implemented; phases 2 and 3 designed, not built yet
+* **Status**: Accepted — phases 1 (editable names) and 2 (automatic classification) implemented; phase 3 designed, not built yet
 * **Date**: 2026-10-09
 * **Deciders**: MemTrace Core Team
 * **Extends**: [ADR-027](../evaluation/adr-027-custom-metrics-on-custom-spans.md), [ADR-030](../evaluation/adr-030-expand-custom-charts-builder.md), [ADR-057](adr-057-business-vocabulary-for-custom-charts.md)
@@ -24,7 +24,7 @@ Three phases, one branch and one pull request each. They share one idea: **disco
 
 **Rules**: a name is 1–80 characters, whitespace collapsed, no control characters; two entries of the same kind in one experiment cannot share a name (case-insensitive), because two options with the same label are indistinguishable in a selector; at most 500 edits per experiment.
 
-**`visibility`** (`auto` / `shown` / `hidden`) is stored from the start so phase 2 needs no new migration; phase 1 accepts it through the API but its screen only edits names.
+**`visibility`** (`auto` / `shown` / `hidden`) is stored from the start so phase 2 needed no new migration; phase 1 accepted it through the API and phase 2 gave it a screen.
 
 **Authorization**: reading the catalog needs `experiment:read` (every chart uses the names); editing needs the new permission `catalog:manage`, granted by the built-in `technical` and `business` roles. Both profiles know the domain and a name is shared by the experiment, so it is deliberately not limited to technical people. As roles are data (ADR-052) an organization can grant or remove it without a code change. `org_admin` and `governance` do not read data and do not get it.
 
@@ -32,9 +32,28 @@ Three phases, one branch and one pull request each. They share one idea: **disco
 
 **Screen**: a "Rename things" button in Custom charts opens an editor listing the steps and attributes detected in the current range plus anything renamed earlier that has no activity now (so it can always be undone). The automatic name is the placeholder; emptying the field resets it.
 
-### Phase 2 — Automatic classification (designed)
+### Phase 2 — Automatic classification (implemented)
 
-A pure function `classifyAttribute` turns statistics computed in ClickHouse for a (steps, range) pair — distinct count, share of numeric values, average length, share that looks like an id — into `category`, `number`, `id`, `text` or `technical` (the existing name pattern). Ids, free text and technical keys are hidden from the group-by and filter selectors by default; `visibility` lets a person force `shown` or `hidden`. Deterministic rules, no AI; the thresholds live in one place and the cost is bounded by the range, the 200-key limit and the existing query limiter. `attribute-keys` gains `kind`, `distinct` and `numeric` fields (additive, backward compatible).
+**Statistics, computed where the data is.** `getAttributeKeys` measures each key in one ClickHouse query over the chosen steps and range: spans carrying it, non-empty values, distinct values (`uniqIf`, approximate on purpose: enough to classify and cheaper than `uniqExact`), values that are finite numbers (`isFinite(toFloat64OrNull(value))`, so `nan` and `inf` are not numbers), average length and values shaped like an id. Cost stays bounded by the range, the existing 200-key limit and the query limiter.
+
+**A pure function decides.** `classifyAttribute` (domain, no I/O) returns `kind` (`category`, `number`, `id`, `text`, `technical`), `numeric` and `hiddenByDefault`. Rules in order, all thresholds in one file:
+
+| Order | Rule | Kind |
+|---|---|---|
+| 1 | The key is instrumentation plumbing (`memtrace.*`, `otel.*`, `gen_ai.usage.*`, `exception.*`…) | `technical` |
+| 2 | The key is named like an id (`customer_id`, `user.uuid`, `customerId`) | `id` |
+| 3 | At least 80 % of values look like an id: uuid, hex of 24+ characters or a number of 12+ digits (long words are not ids) | `id` |
+| 4 | At least 95 % of values are numbers | `category` if 20 distinct values or fewer (a rating), else `number` |
+| 5 | Average length above 60 characters | `text` |
+| 6 | 20+ values and at least 80 % of them different | `id` |
+| 7 | More than 200 distinct values | `id` |
+| 8 | Anything else | `category` |
+
+`id`, `text` and `technical` are hidden by default; `category` and `number` stay visible. `numeric` is independent of `kind`, so phase 3 can offer a rating as a measure even though it is also a category. Numbers are deliberately **not** hidden: they were selectable before and hiding them would be a regression until phase 3 gives them their own picker.
+
+**The person has the last word.** The effective rule is `shown` → show, `hidden` → hide, `auto` → follow `hiddenByDefault` (`isAttributeShown`). The builder shows anything already chosen in the chart even if it is hidden, and "Show N more details" reveals the rest. The catalog editor shows each attribute's kind, how many different values it has, why it is hidden and a selector (Automatic / Always show / Always hide); resetting a name keeps a forced visibility, which is undone with its own selector.
+
+**API.** `attribute-keys` items gain `kind`, `distinct`, `numeric` and `hiddenByDefault` (additive). The dashboard falls back to the old name pattern when an older API does not send them.
 
 ### Phase 3 — Numeric metrics on attributes (designed)
 
@@ -48,7 +67,7 @@ A pure function `classifyAttribute` turns statistics computed in ClickHouse for 
 
 ## Not in phase 1
 
-Showing or hiding from the screen (phase 2), classification (phase 2), numeric metrics (phase 3), an organization-wide catalog, per-name translations and a change history.
+Numeric metrics (phase 3), an organization-wide catalog, per-name translations and a change history. Phase 2 does not classify steps (they are few and named), does not learn from corrections and does not use AI.
 
 ## Alternatives considered
 
