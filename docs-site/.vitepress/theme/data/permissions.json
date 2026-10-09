@@ -193,6 +193,15 @@
       ]
     },
     {
+      "id": "catalog:manage",
+      "group": "Metrics",
+      "description": "Name and hide the steps and attributes that the Custom charts offer.",
+      "unlocks": [
+        "Renaming a step or attribute so the charts speak your business language",
+        "Hiding an attribute from the selectors, or showing one that was hidden automatically"
+      ]
+    },
+    {
       "id": "approval:manage",
       "group": "Prompts",
       "description": "Define the approval rules of the organization and of its experiments.",
@@ -253,7 +262,8 @@
         "prompt:read",
         "prompt:write",
         "prompt:promote",
-        "prompt:approve"
+        "prompt:approve",
+        "catalog:manage"
       ]
     },
     {
@@ -271,7 +281,8 @@
         "experiment:read",
         "annotation:write",
         "prompt:read",
-        "prompt:approve"
+        "prompt:approve",
+        "catalog:manage"
       ]
     },
     {
@@ -379,6 +390,10 @@
     {
       "label": "Define who must approve prompt changes",
       "permission": "approval:manage"
+    },
+    {
+      "label": "Rename and hide steps and attributes in the Custom charts",
+      "permission": "catalog:manage"
     }
   ],
   "presets": [

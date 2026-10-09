@@ -1368,6 +1368,22 @@ export interface PromptApprovalsResponse {
   approvers: { userId: string; name: string; roles: string[] }[];
 }
 
+/** Una edición del catálogo de datos de las Custom charts (ADR-077): el nombre de negocio y la visibilidad de un paso o atributo. */
+export interface ChartCatalogEntryDto {
+  kind: "step" | "attribute";
+  /** la clave técnica: `memtrace.step_type` o la clave del atributo; no cambia al renombrar */
+  key: string;
+  /** null = sin nombre propio: vale el del diccionario o el humanizado */
+  displayName: string | null;
+  /** `auto`: lo decide la clasificación; `shown` / `hidden` lo fuerza una persona */
+  visibility: "auto" | "shown" | "hidden";
+  updatedAt: string;
+}
+
+export interface ChartCatalogResponse {
+  items: ChartCatalogEntryDto[];
+}
+
 /** Evidencia de una versión de un prompt (ADR-069): lo que pasó en las trazas que la usaron. */
 export interface VersionEvidenceDto {
   version: number;

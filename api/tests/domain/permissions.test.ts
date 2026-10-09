@@ -11,7 +11,7 @@ describe("built-in roles (ADR-052)", () => {
   });
 
   it("business reads the dashboard and labels, but curates and configures nothing", () => {
-    expect(role("business").permissions).toEqual(["experiment:read", "annotation:write", "prompt:read", "prompt:approve"]);
+    expect(role("business").permissions).toEqual(["experiment:read", "annotation:write", "prompt:read", "prompt:approve", "catalog:manage"]);
   });
 
   it("technical does the curation and keeps its own API key, but invites nobody", () => {
@@ -35,6 +35,13 @@ describe("built-in roles (ADR-052)", () => {
     expect(role("org_admin").permissions).not.toContain("prompt:approve");
     expect(role("technical").permissions).not.toContain("approval:manage");
     expect(role("business").permissions).not.toContain("approval:manage");
+  });
+
+  it("catalog (ADR-077): both working profiles can name and hide the items of the Custom charts, org_admin and governance cannot", () => {
+    expect(role("technical").permissions).toContain("catalog:manage");
+    expect(role("business").permissions).toContain("catalog:manage");
+    expect(role("org_admin").permissions).not.toContain("catalog:manage");
+    expect(role("governance").permissions).not.toContain("catalog:manage");
   });
 
   it("governance permissions (ADR-053): org_admin and governance see and decide, technical only maintains its own assistant", () => {

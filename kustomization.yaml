@@ -73,6 +73,7 @@ configMapGenerator:
       - migrations/postgres/036_prompt_drafts.sql
       - migrations/postgres/037_prompt_fragments.sql
       - migrations/postgres/038_prompt_approvals.sql
+      - migrations/postgres/039_chart_catalog.sql
     options:
       disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
   - name: clickhouse-config
