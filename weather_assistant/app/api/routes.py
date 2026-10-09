@@ -21,7 +21,8 @@ async def chat(payload: ChatRequest, request: Request) -> ChatResponse:
     session_id = payload.session_id or str(uuid.uuid4())
 
     # Un solo span para el turno: el guardarraíl y el agente cuelgan de la misma traza (ADR-026).
-    with trace_step_context("conversation_turn", step_type="chain"):
+    # `session` agrupa los turnos de esta sesión en una conversación de MemTrace (sin ella cada turno queda aislado).
+    with memtrace.session(session_id), trace_step_context("conversation_turn", step_type="chain"):
         trace_id = memtrace.current_trace_id()
         verdict = run_input_guardrail(payload.message)
         if verdict.blocked:

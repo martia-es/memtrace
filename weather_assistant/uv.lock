@@ -1239,6 +1239,8 @@ requires-dist = [
     { name = "anthropic", marker = "extra == 'eval-judges'", specifier = ">=0.30" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
     { name = "httpx", marker = "extra == 'eval'", specifier = ">=0.27" },
+    { name = "langchain", marker = "python_full_version >= '3.10' and extra == 'dev'", specifier = ">=1.0.0" },
+    { name = "langchain", marker = "python_full_version >= '3.10' and extra == 'langchain-agents'", specifier = ">=1.0.0" },
     { name = "langchain-core", marker = "extra == 'dev'", specifier = ">=0.1.0" },
     { name = "langchain-core", marker = "extra == 'langchain'", specifier = ">=0.1.0" },
     { name = "langchain-core", marker = "extra == 'otel-langchain'", specifier = ">=0.1.0" },
@@ -1260,7 +1262,7 @@ requires-dist = [
     { name = "wrapt", marker = "python_full_version < '3.10' and extra == 'dev'", specifier = "<2" },
     { name = "wrapt", marker = "python_full_version < '3.10' and extra == 'otel-langchain'", specifier = "<2" },
 ]
-provides-extras = ["http", "langchain", "otel-langchain", "pydantic-ai", "pii", "eval", "eval-judges", "dev"]
+provides-extras = ["http", "langchain", "langchain-agents", "otel-langchain", "pydantic-ai", "pii", "eval", "eval-judges", "dev"]
 
 [[package]]
 name = "more-itertools"
