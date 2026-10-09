@@ -28,10 +28,13 @@ import { DeployGateService } from "@/application/deploy-gate-service";
 import { DeployService } from "@/application/deploy-service";
 import { GithubAppDispatcher, UnconfiguredDispatcher } from "@/adapters/outbound/github/github-app-dispatcher";
 import { PostgresDeployRunRepository } from "@/adapters/outbound/postgres/postgres-deploy-run-repository";
+import { PostgresApprovalRepository } from "@/adapters/outbound/postgres/postgres-approval-repository";
 import { PostgresPromptRepository } from "@/adapters/outbound/postgres/postgres-prompt-repository";
 import { PromptService } from "@/application/prompt-service";
 import { PromptEvidenceService } from "@/application/prompt-evidence-service";
 import { PromptMapService } from "@/application/prompt-map-service";
+import { ApprovalRuleResolver } from "@/application/approval-rules";
+import { ApprovalService } from "@/application/approval-service";
 import { PromptGateService } from "@/application/prompt-gate-service";
 import { PromptPlaygroundService } from "@/application/prompt-playground-service";
 import { ClickHousePromptEvidenceRepository } from "@/adapters/outbound/clickhouse/clickhouse-prompt-evidence-repository";
@@ -62,6 +65,8 @@ const globalForContainer = globalThis as unknown as {
   __memtraceDeployRuns?: PostgresDeployRunRepository;
   __memtraceDeploy?: DeployService;
   __memtracePrompts?: PromptService;
+  __memtraceApprovals?: ApprovalService;
+  __memtraceApprovalRepository?: PostgresApprovalRepository;
   __memtracePromptEvidence?: PromptEvidenceService;
   __memtracePromptGate?: PromptGateService;
   __memtracePromptMap?: PromptMapService;
@@ -281,6 +286,19 @@ export function getPromptGate(): PromptGateService {
   return globalForContainer.__memtracePromptGate;
 }
 
+function getApprovalRepository(): PostgresApprovalRepository {
+  if (!globalForContainer.__memtraceApprovalRepository) globalForContainer.__memtraceApprovalRepository = new PostgresApprovalRepository(getPostgresPool());
+  return globalForContainer.__memtraceApprovalRepository;
+}
+
+/** Aprobaciones de prompts (ADR-076): reglas por organización y experimento, solicitudes y decisiones. */
+export function getApprovals(): ApprovalService {
+  if (!globalForContainer.__memtraceApprovals) {
+    globalForContainer.__memtraceApprovals = new ApprovalService(getApprovalRepository(), getPrompts(), getPromptRepository(), getPromptGate(), getIdentity().identityRepository);
+  }
+  return globalForContainer.__memtraceApprovals;
+}
+
 /** Mapa de dependencias de un prompt e impacto antes de promover (ADR-074). */
 export function getPromptMap(): PromptMapService {
   if (!globalForContainer.__memtracePromptMap) globalForContainer.__memtracePromptMap = new PromptMapService(getPrompts(), getPromptRepository(), getIdentity().identityRepository);
@@ -297,7 +315,7 @@ export function getPromptPlayground(): PromptPlaygroundService {
 
 /** Registro de prompts (ADR-067). Mover un tag de entorno pasa por el gate de promoción (ADR-070). */
 export function getPrompts(): PromptService {
-  if (!globalForContainer.__memtracePrompts) globalForContainer.__memtracePrompts = new PromptService(getPromptRepository(), getPromptGate(), getIdentity().identityRepository);
+  if (!globalForContainer.__memtracePrompts) globalForContainer.__memtracePrompts = new PromptService(getPromptRepository(), getPromptGate(), getIdentity().identityRepository, new ApprovalRuleResolver(getApprovalRepository()));
   return globalForContainer.__memtracePrompts;
 }
 

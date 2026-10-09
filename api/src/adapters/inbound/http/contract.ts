@@ -1297,6 +1297,75 @@ export interface PromptDetailDto {
   usedBy: UsedByDto[];
   /** nombre (o email) de quien creó versiones y movió tags, por id de usuario */
   people: Record<string, string>;
+  /** qué acciones exigen aprobación (ADR-076): publicar una versión y los entornos cuyo tag hay que pedir */
+  approvals: { publish: boolean; promote: string[] };
+}
+
+/** Qué hace falta para una acción en un paso (ADR-076). `stage` es la clave del entorno en `promote` y vacío en `publish`. */
+export interface ApprovalRuleDto {
+  action: "publish" | "promote";
+  stage: string;
+  requirements: { role: string; min: number }[];
+  /** personas concretas que tienen que aprobar sí o sí */
+  approvers: string[];
+}
+
+export interface ApprovalRequestDto {
+  id: string;
+  promptId: string;
+  promptName: string;
+  action: "publish" | "promote";
+  version: number;
+  tag: string;
+  note: string;
+  bypassReason: string | null;
+  requestedBy: string | null;
+  status: "pending" | "approved" | "rejected" | "cancelled" | "expired" | "executed";
+  /** por qué una solicitud aprobada no pudo ejecutarse todavía */
+  executionError: string | null;
+  createdAt: string;
+  expiresAt: string;
+  decidedAt: string | null;
+  executedAt: string | null;
+  extraApprovers: string[];
+  decisions: { userId: string; decision: "approve" | "reject"; comment: string; decidedAt: string }[];
+  /** la regla efectiva de hoy; null si ya no hay */
+  rule: ApprovalRuleDto | null;
+  evaluation: {
+    outcome: "approved" | "pending" | "rejected";
+    roles: { role: string; need: number; have: number }[];
+    missingApprovers: string[];
+    rejectedBy: string | null;
+    reason: string;
+  };
+  /** nombre (o email) de cada persona que aparece, por id de usuario */
+  people: Record<string, string>;
+}
+
+export interface ApprovalOptionsDto {
+  /** perfiles (roles de experimento) que se pueden pedir */
+  roles: string[];
+  /** entornos de la organización, en orden */
+  environments: string[];
+  /** personas que se pueden nombrar aprobadoras por defecto */
+  candidates: { userId: string; email: string; name: string | null; roles: string[] }[];
+  /** perfiles que pueden aprobar cada acción; `publish` es una revisión técnica */
+  publishRoles: string[];
+}
+
+/** Reglas de un ámbito. En un experimento, `organizationRules` es el suelo que no puede aflojar. */
+export interface ApprovalRulesResponse {
+  rules: ApprovalRuleDto[];
+  organizationRules?: ApprovalRuleDto[];
+  options: ApprovalOptionsDto;
+}
+
+export interface PromptApprovalsResponse {
+  requests: ApprovalRequestDto[];
+  /** lo que exige hoy cada acción sobre este prompt, con la organización y los agentes apilados */
+  rules: ApprovalRuleDto[];
+  /** las personas que pueden aprobar sobre este prompt: a quién se puede añadir a una solicitud */
+  approvers: { userId: string; name: string; roles: string[] }[];
 }
 
 /** Evidencia de una versión de un prompt (ADR-069): lo que pasó en las trazas que la usaron. */

@@ -22,6 +22,8 @@ export const PERMISSIONS = [
   "prompt:read",
   "prompt:write",
   "prompt:promote",
+  "prompt:approve",
+  "approval:manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -39,13 +41,13 @@ export interface Role {
  * documentar el catálogo. En producción manda lo que haya en la base de datos.
  */
 export const BUILT_IN_ROLES: Role[] = [
-  { name: "org_admin", scope: "organization", permissions: ["org:manage", "experiment:create", "member:manage", "apikey:manage_all", "governance:read", "governance:manage", "prompt:read", "prompt:write", "prompt:promote"] },
+  { name: "org_admin", scope: "organization", permissions: ["org:manage", "experiment:create", "member:manage", "apikey:manage_all", "governance:read", "governance:manage", "prompt:read", "prompt:write", "prompt:promote", "approval:manage"] },
   {
     name: "technical",
     scope: "experiment",
-    permissions: ["experiment:read", "trace:read_technical", "annotation:write", "queue:manage", "queue:curate", "scoreconfig:manage", "dataset:write", "apikey:manage_own", "assistant:manage", "deploy:run", "prompt:read", "prompt:write", "prompt:promote"],
+    permissions: ["experiment:read", "trace:read_technical", "annotation:write", "queue:manage", "queue:curate", "scoreconfig:manage", "dataset:write", "apikey:manage_own", "assistant:manage", "deploy:run", "prompt:read", "prompt:write", "prompt:promote", "prompt:approve"],
   },
-  { name: "business", scope: "experiment", permissions: ["experiment:read", "annotation:write", "prompt:read"] },
+  { name: "business", scope: "experiment", permissions: ["experiment:read", "annotation:write", "prompt:read", "prompt:approve"] },
   /** Revisa el catálogo de asistentes (ADR-053): solo metadatos, ningún dato de trazas. Se asigna por grupo del IdP o a mano. */
   { name: "governance", scope: "organization", permissions: ["governance:read", "governance:manage", "prompt:read"] },
 ];
