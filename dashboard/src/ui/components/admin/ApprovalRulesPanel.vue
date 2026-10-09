@@ -4,7 +4,7 @@ import { useQuasar } from "quasar";
 import type { ApprovalRulesResponse } from "@contract";
 import type { ApprovalScope } from "@/application/prompt-api";
 import { describeApiError } from "@/application/describe-api-error";
-import { belowFloor, describeRule, profileLabel, ruleFor, steps } from "@/domain/approvals";
+import { belowFloor, describeRule, profileLabel, ruleFor, stepLabel, steps } from "@/domain/approvals";
 import { usePromptApi } from "../../composables/usePromptApi";
 
 /**
@@ -40,6 +40,35 @@ const rows = computed(() => steps(data.value?.options.environments ?? []));
 const names = computed(() => Object.fromEntries((data.value?.options.candidates ?? []).map((c) => [c.userId, c.name?.trim() || c.email])));
 const floorOf = (action: "publish" | "promote", stage: string) => ruleFor(data.value?.organizationRules ?? [], action, stage);
 const allowedRoles = (action: "publish" | "promote") => (action === "publish" ? data.value?.options.publishRoles : data.value?.options.roles) ?? [];
+
+// ---- organigrama: quién aprueba en cada paso (lo heredado de la organización, aparte de lo propio) ----
+type Row = { action: "publish" | "promote"; stage: string };
+interface Person { key: string; label: string; kind: "role" | "approver"; inherited: boolean }
+
+const hasRule = (row: Row) => !!ruleFor(data.value?.rules ?? [], row.action, row.stage) || (isExperiment.value && !!floorOf(row.action, row.stage));
+const isEditing = (row: Row) => editing.value?.action === row.action && editing.value.stage === row.stage;
+
+/** Los nodos de un paso: perfiles (cuántos de cada) y personas obligatorias; en un experimento, marcando lo que pone la organización. */
+function peopleOf(row: Row): Person[] {
+  const own = ruleFor(data.value?.rules ?? [], row.action, row.stage);
+  const floor = isExperiment.value ? floorOf(row.action, row.stage) : null;
+  const out: Person[] = [];
+  const seen = new Set<string>();
+  for (const [rule, inherited] of [[floor, true], [own, false]] as const) {
+    for (const r of rule?.requirements ?? []) {
+      const key = `role:${r.role}`;
+      if (inherited || !seen.has(key)) out.push({ key: key + inherited, label: `${r.min} × ${profileLabel(r.role)}`, kind: "role", inherited });
+      if (inherited) seen.add(key);
+    }
+    for (const id of rule?.approvers ?? []) {
+      const key = `approver:${id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ key, label: names.value[id] ?? "Someone", kind: "approver", inherited });
+    }
+  }
+  return out;
+}
 
 // ---- editor de un paso ----
 const editing = ref<{ action: "publish" | "promote"; stage: string } | null>(null);
@@ -114,68 +143,106 @@ async function remove(row: { action: "publish" | "promote"; stage: string }) {
         <template v-else>Choose, for each step, who has to approve before it happens. A step without a rule works as before. Experiments can add to these rules, never loosen them.</template>
       </p>
 
-      <ul class="adm-list steps">
-        <li v-for="row in rows" :key="row.action + row.stage" class="step" :data-testid="`rule-${row.action}-${row.stage || 'publish'}`">
-          <div class="head">
-            <div class="adm-item-main">
-              <span class="adm-item-title">{{ row.label }}</span>
-              <span class="adm-item-meta" data-testid="rule-summary">{{ describeRule(ruleFor(data.rules, row.action, row.stage), names) }}</span>
-              <span v-if="isExperiment && floorOf(row.action, row.stage)" class="adm-item-meta floor" data-testid="rule-floor">Organization: {{ describeRule(floorOf(row.action, row.stage), names) }}</span>
+      <div class="chart" role="group" aria-label="Who has to approve each step">
+        <div class="root"><span class="root-node">A change to a prompt</span></div>
+        <ul class="branches">
+          <li v-for="row in rows" :key="row.action + row.stage" class="branch" :class="{ open: isEditing(row) }" :data-testid="`rule-${row.action}-${row.stage || 'publish'}`">
+            <div class="step" :class="{ none: !hasRule(row) }">
+              <span class="step-title">{{ row.label }}</span>
+              <span class="step-summary" data-testid="rule-summary">{{ describeRule(ruleFor(data.rules, row.action, row.stage), names) }}</span>
+              <span v-if="isExperiment && floorOf(row.action, row.stage)" class="step-floor" data-testid="rule-floor">Organization: {{ describeRule(floorOf(row.action, row.stage), names) }}</span>
+              <span class="step-actions">
+                <button class="adm-btn ghost small" type="button" :disabled="saving" data-testid="rule-edit" @click="edit(row)">{{ ruleFor(data.rules, row.action, row.stage) ? "Edit" : "Set up" }}</button>
+                <button v-if="ruleFor(data.rules, row.action, row.stage)" class="adm-btn danger small" type="button" :disabled="saving" data-testid="rule-remove" @click="remove(row)">Remove</button>
+              </span>
             </div>
-            <button class="adm-btn ghost small" type="button" :disabled="saving" data-testid="rule-edit" @click="edit(row)">{{ ruleFor(data.rules, row.action, row.stage) ? "Edit" : "Set up" }}</button>
-            <button v-if="ruleFor(data.rules, row.action, row.stage)" class="adm-btn danger small" type="button" :disabled="saving" data-testid="rule-remove" @click="remove(row)">Remove</button>
-          </div>
+            <ul v-if="hasRule(row)" class="people">
+              <li v-for="p in peopleOf(row)" :key="p.key" class="person" :class="[p.kind, { inherited: p.inherited }]">
+                <span class="who">{{ p.label }}</span>
+                <span class="tag">{{ p.inherited ? "organization" : p.kind === "approver" ? "always" : "any of" }}</span>
+              </li>
+            </ul>
+            <p v-else class="nobody">No approval</p>
+          </li>
+        </ul>
+      </div>
 
-          <form v-if="editing && editing.action === row.action && editing.stage === row.stage" class="editor" data-testid="rule-editor" @submit.prevent="save">
-            <fieldset>
-              <legend>Who has to approve</legend>
-              <p v-if="row.action === 'publish'" class="adm-hint">Publishing a version is a review of the text, so only technical profiles can approve it.</p>
-              <label v-for="role in allowedRoles(row.action)" :key="role" class="role">
-                <input type="checkbox" :checked="(draft.mins[role] ?? 0) > 0" :data-testid="`role-${role}`" @change="toggleRole(role, ($event.target as HTMLInputElement).checked)" />
-                <span>{{ profileLabel(role) }}</span>
-                <input
-                  type="number"
-                  min="1"
-                  max="10"
-                  class="min"
-                  :disabled="(draft.mins[role] ?? 0) === 0"
-                  :value="draft.mins[role] || ''"
-                  :aria-label="`Approvals needed from ${profileLabel(role)}`"
-                  :data-testid="`min-${role}`"
-                  @input="setMin(role, ($event.target as HTMLInputElement).value)"
-                />
-                <span class="adm-hint">approval(s)</span>
-              </label>
-            </fieldset>
-            <fieldset>
-              <legend>Default approvers <span class="adm-hint">(optional) — these people always have to approve</span></legend>
-              <p v-if="data.options.candidates.length === 0" class="adm-hint">Nobody can approve yet: add members with a technical or business role to an experiment first.</p>
-              <label v-for="c in data.options.candidates" :key="c.userId" class="role">
-                <input type="checkbox" :checked="draft.approvers.includes(c.userId)" :data-testid="`approver-${c.userId}`" @change="toggleApprover(c.userId, ($event.target as HTMLInputElement).checked)" />
-                <span>{{ c.name?.trim() || c.email }}</span>
-                <span class="adm-hint">{{ c.roles.map(profileLabel).join(", ") }}</span>
-              </label>
-            </fieldset>
-            <p v-if="floorProblem" class="problem" role="alert" data-testid="rule-floor-problem">{{ floorProblem }}</p>
-            <div class="actions">
-              <button class="adm-btn ghost small" type="button" @click="editing = null">Cancel</button>
-              <button class="adm-btn primary small" type="submit" :disabled="!canSave" data-testid="rule-save">{{ saving ? "Saving…" : "Save rule" }}</button>
-            </div>
-          </form>
-        </li>
-      </ul>
+      <form v-if="editing" class="editor" data-testid="rule-editor" @submit.prevent="save">
+        <h4>{{ stepLabel(editing.action, editing.stage) }}</h4>
+        <fieldset>
+          <legend>Who has to approve</legend>
+          <p v-if="editing.action === 'publish'" class="adm-hint">Publishing a version is a review of the text, so only technical profiles can approve it.</p>
+          <label v-for="role in allowedRoles(editing.action)" :key="role" class="role">
+            <input type="checkbox" :checked="(draft.mins[role] ?? 0) > 0" :data-testid="`role-${role}`" @change="toggleRole(role, ($event.target as HTMLInputElement).checked)" />
+            <span>{{ profileLabel(role) }}</span>
+            <input
+              type="number"
+              min="1"
+              max="10"
+              class="min"
+              :disabled="(draft.mins[role] ?? 0) === 0"
+              :value="draft.mins[role] || ''"
+              :aria-label="`Approvals needed from ${profileLabel(role)}`"
+              :data-testid="`min-${role}`"
+              @input="setMin(role, ($event.target as HTMLInputElement).value)"
+            />
+            <span class="adm-hint">approval(s)</span>
+          </label>
+        </fieldset>
+        <fieldset>
+          <legend>Default approvers <span class="adm-hint">(optional) — these people always have to approve</span></legend>
+          <p v-if="data.options.candidates.length === 0" class="adm-hint">Nobody can approve yet: add members with a technical or business role to an experiment first.</p>
+          <label v-for="c in data.options.candidates" :key="c.userId" class="role">
+            <input type="checkbox" :checked="draft.approvers.includes(c.userId)" :data-testid="`approver-${c.userId}`" @change="toggleApprover(c.userId, ($event.target as HTMLInputElement).checked)" />
+            <span>{{ c.name?.trim() || c.email }}</span>
+            <span class="adm-hint">{{ c.roles.map(profileLabel).join(", ") }}</span>
+          </label>
+        </fieldset>
+        <p v-if="floorProblem" class="problem" role="alert" data-testid="rule-floor-problem">{{ floorProblem }}</p>
+        <div class="actions">
+          <button class="adm-btn ghost small" type="button" @click="editing = null">Cancel</button>
+          <button class="adm-btn primary small" type="submit" :disabled="!canSave" data-testid="rule-save">{{ saving ? "Saving…" : "Save rule" }}</button>
+        </div>
+      </form>
     </template>
   </div>
 </template>
 
 <style scoped>
-.rules { display: flex; flex-direction: column; gap: 10px; }
-.steps { display: flex; flex-direction: column; gap: 8px; }
-.step { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-sm); list-style: none; }
-.head { display: flex; align-items: center; gap: 10px; }
-.head .adm-item-main { flex: 1; }
-.floor { color: var(--mt-muted); }
-.editor { display: flex; flex-direction: column; gap: 12px; padding-top: 10px; border-top: 1px dashed var(--mt-line); }
+.rules { display: flex; flex-direction: column; gap: 14px; }
+
+/* organigrama: raíz arriba, una rama por paso y debajo las personas que tienen que aprobar */
+.chart { display: flex; flex-direction: column; align-items: center; gap: 0; padding: 16px 8px 8px; overflow-x: auto; }
+.root-node { display: inline-block; padding: 8px 16px; font-size: 13px; font-weight: 800; color: #fff; background: var(--mt-accent, var(--mt-ink)); border-radius: var(--mt-radius-sm); }
+.root { position: relative; padding-bottom: 20px; }
+.root::after { content: ""; position: absolute; left: 50%; bottom: 0; width: 2px; height: 20px; background: var(--mt-line); }
+.branches { display: flex; justify-content: center; gap: 12px; margin: 0; padding: 0; list-style: none; min-width: min-content; }
+.branch { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 8px; width: 210px; padding-top: 20px; }
+/* conectores: barra horizontal entre hermanos + gancho vertical hasta cada paso */
+.branch::before { content: ""; position: absolute; top: 0; left: -6px; right: -6px; height: 2px; background: var(--mt-line); }
+.branch:first-child::before { left: 50%; }
+.branch:last-child::before { right: 50%; }
+.branch:only-child::before { display: none; }
+.branch::after { content: ""; position: absolute; top: 0; left: 50%; width: 2px; height: 20px; background: var(--mt-line); }
+.step { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; background: var(--mt-surface, transparent); border: 1.5px solid var(--mt-accent, var(--mt-ink)); border-radius: var(--mt-radius-sm); }
+.step.none { border-style: dashed; border-color: var(--mt-line); }
+.branch.open .step { box-shadow: 0 0 0 3px var(--mt-soft); }
+.step-title { font-size: 13px; font-weight: 800; color: var(--mt-ink); }
+.step-summary { font-size: 12px; color: var(--mt-muted); }
+.step-floor { font-size: 11.5px; color: var(--mt-muted); }
+.step-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.people { position: relative; display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0 0 0 14px; list-style: none; }
+.people::before { content: ""; position: absolute; left: 4px; top: -8px; bottom: 14px; width: 2px; background: var(--mt-line); }
+.person { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; font-size: 12.5px; background: var(--mt-soft); border-radius: var(--mt-radius-xs); }
+.person::before { content: ""; position: absolute; left: -10px; top: 50%; width: 10px; height: 2px; background: var(--mt-line); }
+.person .who { font-weight: 700; color: var(--mt-ink); }
+.person .tag { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--mt-muted); }
+.person.approver .who::before { content: "★ "; color: var(--mt-accent, var(--mt-ink)); }
+.person.inherited { background: transparent; border: 1px dashed var(--mt-line); }
+.nobody { margin: 0; padding-left: 14px; font-size: 12px; color: var(--mt-muted); }
+
+.editor { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-sm); }
+.editor h4 { margin: 0; font-size: 14px; }
 fieldset { border: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
 legend { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
 .role { display: flex; align-items: center; gap: 8px; font-size: 13px; }
