@@ -45,6 +45,9 @@ export interface ConversationListQuery extends TimeRange {
   text?: string;
   /** solo las conversaciones con algún turno generado por este commit, completo o prefijo (ADR-065) */
   revision?: string;
+  /** solo las conversaciones con algún span que usó este prompt del registro, y opcionalmente esta versión (ADR-068) */
+  promptName?: string;
+  promptVersion?: number;
   limit: number;
   cursor?: ConversationCursor;
 }

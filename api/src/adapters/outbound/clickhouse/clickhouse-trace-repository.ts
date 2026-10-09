@@ -558,6 +558,16 @@ export class ClickHouseTraceRepository implements TraceRepository {
       where.push("startsWith(Revision, {revision:String})");
       p.revision = q.revision.toLowerCase();
     }
+    if (q.promptName) {
+      // el prompt lo marca el span que lo usa (no la raíz del turno): la conversación entra si algún span suyo lo usó (ADR-068)
+      const version = q.promptVersion ? " AND PromptVersion = {promptVersion:UInt32}" : "";
+      where.push(
+        `ConversationId IN (SELECT ConversationId FROM ${this.spans} WHERE ConversationId != '' AND PromptName = {promptName:String}${version} AND Timestamp >= fromUnixTimestamp64Milli({fromMs:Int64}) AND Timestamp < fromUnixTimestamp64Milli({toWithWindowMs:Int64}))`,
+      );
+      p.promptName = q.promptName;
+      if (q.promptVersion) p.promptVersion = q.promptVersion;
+      p.toWithWindowMs = q.toMs + TRACE_WINDOW_MS;
+    }
     const having = q.cursor ? "HAVING (lastUs, ConversationId) < ({cursorUs:Int64}, {cursorId:String})" : "";
     if (q.cursor) {
       p.cursorUs = q.cursor.lastActivityUs;

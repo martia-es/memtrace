@@ -60,6 +60,7 @@ export const listConversationsQuery = z.object({
   hasErrors: boolean.optional(),
   text: z.string().min(1).max(200).optional(),
   revision: z.string().regex(/^[0-9a-fA-F]{7,64}$/).optional(),
+  ...promptFilterShape,
   limit: z.coerce.number().int().optional(),
   cursor: z.string().max(512).optional(),
 });

@@ -55,6 +55,8 @@ export interface ListConversationsInput {
   hasErrors?: boolean;
   text?: string;
   revision?: string;
+  promptName?: string;
+  promptVersion?: number;
   limit?: number;
   cursor?: ConversationCursor;
 }
@@ -117,7 +119,7 @@ export class TraceQueryService {
 
   listConversations(input: ListConversationsInput): Promise<Page<ConversationListItem, ConversationCursor>> {
     // las entradas inválidas fallan ya, no dentro de la promesa
-    const query = { ...resolveTimeRange(input, this.now()), service: input.service, hasErrors: input.hasErrors, text: input.text, revision: input.revision, limit: this.pageSize(input.limit), cursor: input.cursor };
+    const query = { ...resolveTimeRange(input, this.now()), service: input.service, hasErrors: input.hasErrors, text: input.text, revision: input.revision, promptName: input.promptName, promptVersion: input.promptVersion, limit: this.pageSize(input.limit), cursor: input.cursor };
     return this.repository.listConversations(query).then(async (page) => ({ items: await this.withHighlights(page.items), nextCursor: page.nextCursor }));
   }
 

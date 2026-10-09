@@ -125,6 +125,15 @@ describe("conversations endpoints", () => {
     expect(repo.lastConversationQuery).toMatchObject({ cursor, limit: 5 });
   });
 
+  it("filters conversations by prompt and version, and exposes the prompts each one used (ADR-068)", async () => {
+    const { repo, handlers } = setup();
+    repo.conversationPage = { items: [{ ...summary("c1"), prompts: [{ name: "weather-system", version: 2 }] }], nextCursor: null };
+    const response = await handlers.listConversations(get("/conversations?promptName=weather-system&promptVersion=2"));
+    expect(repo.lastConversationQuery).toMatchObject({ promptName: "weather-system", promptVersion: 2 });
+    expect((await response.json()).items[0].prompts).toEqual([{ name: "weather-system", version: 2 }]);
+    expect((await handlers.listConversations(get("/conversations?promptName=Bad%20Name"))).status).toBe(400);
+  });
+
   it("rejects an invalid cursor or limit", async () => {
     const { handlers } = setup();
     expect((await handlers.listConversations(get("/conversations?cursor=%%%"))).status).toBe(400);
