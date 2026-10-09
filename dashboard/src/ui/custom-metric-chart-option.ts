@@ -1,13 +1,13 @@
 import type { CustomMetricDefinitionDto, CustomMetricPointDto } from "@contract";
 import type { EChartsCoreOption } from "echarts/core";
 import { chartColors } from "./chart-theme";
-import { formatMetricValue, presentPointLabel } from "@/domain/custom-chart-vocabulary";
+import { NO_NAMES, formatMetricValue, presentPointLabel, type NameCatalog } from "@/domain/custom-chart-vocabulary";
 
 type MetricResult = { points: CustomMetricPointDto[]; timeseries: { bucketStart: string; points: CustomMetricPointDto[] }[] };
 
 /** Etiquetas de negocio para los puntos que son step types (sin desglose por atributo, ADR-057). */
-export function presentResult(result: MetricResult, def: Pick<CustomMetricDefinitionDto, "groupByAttribute">): MetricResult {
-  const map = (p: CustomMetricPointDto) => ({ ...p, label: presentPointLabel(p.label, def) });
+export function presentResult(result: MetricResult, def: Pick<CustomMetricDefinitionDto, "groupByAttribute">, names: NameCatalog = NO_NAMES): MetricResult {
+  const map = (p: CustomMetricPointDto) => ({ ...p, label: presentPointLabel(p.label, def, names) });
   return { points: result.points.map(map), timeseries: result.timeseries.map((b) => ({ ...b, points: b.points.map(map) })) };
 }
 

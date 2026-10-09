@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import TextInput from "@/ui/components/TextInput.vue";
 import Select from "./Select.vue";
-import type { CustomMetricDefinitionDto, CustomMetricPointDto } from "@contract";
+import type { ChartCatalogEntryDto, CustomMetricDefinitionDto, CustomMetricPointDto } from "@contract";
 import type { EChartsCoreOption } from "echarts/core";
 import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
 import { useQuasar } from "quasar";
 import { customMetricChartOption, presentResult } from "../custom-metric-chart-option";
 import EChart from "./EChart.vue";
+import ChartCatalogEditor from "./ChartCatalogEditor.vue";
+import { usePermissions } from "../composables/usePermissions";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import type { SavedCustomMetricDto } from "@/application/identity-api";
@@ -15,6 +17,7 @@ import {
   METRIC_LABELS,
   SELECTABLE_METRICS,
   attributeLabel,
+  buildNames,
   describeChange,
   describeDefinition,
   findOutlier,
@@ -34,6 +37,20 @@ const props = defineProps<{ experimentId: string; range: RangeParams }>();
 const api = useTraceApi();
 const identityApi = useIdentityApi();
 const $q = useQuasar();
+const { can } = usePermissions();
+
+// ---- nombres de negocio editados en el catálogo (ADR-077): tienen prioridad sobre el diccionario y lo humanizado ----
+const catalogEntries = ref<ChartCatalogEntryDto[]>([]);
+const names = computed(() => buildNames(catalogEntries.value));
+const showCatalog = ref(false);
+async function loadCatalog() {
+  try {
+    catalogEntries.value = await identityApi.listChartCatalog(props.experimentId);
+  } catch {
+    // sin catálogo las gráficas siguen funcionando con los nombres automáticos
+    catalogEntries.value = [];
+  }
+}
 
 type Result = { points: CustomMetricPointDto[]; timeseries: { bucketStart: string; points: CustomMetricPointDto[] }[] };
 
@@ -51,7 +68,7 @@ async function loadStepKinds() {
     stepKindsLoading.value = false;
   }
 }
-const templates = computed(() => templatesFor(stepKinds.value.map((s) => s.stepType)));
+const templates = computed(() => templatesFor(stepKinds.value.map((s) => s.stepType), names.value));
 const QUESTIONS_COLLAPSED = 6;
 const showAllQuestions = ref(false);
 const questionsOpen = ref(false);
@@ -144,7 +161,7 @@ async function applyTemplate(t: ChartTemplate) {
   chartTypeTouched.value = true;
   filterRows.value = [];
   nameTouched.value = false;
-  newChartName.value = suggestName(currentDefinition());
+  newChartName.value = suggestName(currentDefinition(), names.value);
   await loadAttributeKeys();
 }
 
@@ -160,13 +177,13 @@ function currentDefinition(): CustomMetricDefinitionDto {
   };
 }
 
-const description = computed(() => describeDefinition(currentDefinition()));
+const description = computed(() => describeDefinition(currentDefinition(), names.value));
 
 // ---- nombre sugerido: se rellena solo hasta que la persona lo edita ----
 const newChartName = ref("");
 const nameTouched = ref(false);
 watch(
-  () => suggestName(currentDefinition()),
+  () => suggestName(currentDefinition(), names.value),
   (suggested) => {
     if (!nameTouched.value && hasSteps.value) newChartName.value = suggested;
   },
@@ -255,7 +272,7 @@ function resetBuilder() {
 }
 
 // ---- opciones de ECharts a partir del resultado (compartido con MetricReportView, ADR-035) ----
-const present = presentResult;
+const present = (result: Parameters<typeof presentResult>[0], def: Parameters<typeof presentResult>[1]) => presentResult(result, def, names.value);
 function optionFor(result: Result, def: Pick<CustomMetricDefinitionDto, "groupByAttribute" | "metric">, type: CustomMetricDefinitionDto["chartType"]): EChartsCoreOption {
   return customMetricChartOption(present(result, def), type, $q.dark.isActive, def.metric);
 }
@@ -319,7 +336,7 @@ async function removeSaved(id: string) {
 }
 
 watch(() => props.range, () => { void loadStepKinds(); void loadSaved(); }, { immediate: true });
-watch(() => props.experimentId, () => void loadSaved());
+watch(() => props.experimentId, () => { void loadSaved(); void loadCatalog(); }, { immediate: true });
 
 const CHART_TYPES: { value: CustomMetricDefinitionDto["chartType"]; label: string }[] = [
   { value: "line", label: "Over time" },
@@ -332,7 +349,7 @@ const CHART_TYPES: { value: CustomMetricDefinitionDto["chartType"]; label: strin
 /** "Based on 1,284 tool calls": cuántos datos hay detrás de cada pregunta. */
 function templateBasis(t: ChartTemplate): string {
   const n = stepKinds.value.filter((s) => t.requires.includes(s.stepType)).reduce((sum, s) => sum + s.count, 0);
-  return `Based on ${n.toLocaleString()} ${stepLabel(t.requires[0] ?? "").toLowerCase()}`;
+  return `Based on ${n.toLocaleString()} ${stepLabel(t.requires[0] ?? "", names.value).toLowerCase()}`;
 }
 const METRICS = SELECTABLE_METRICS.map((value) => ({ value, label: METRIC_LABELS[value] }));
 const metricLabel = (m: CustomMetricDefinitionDto["metric"]) => METRIC_LABELS[m];
@@ -346,13 +363,13 @@ const visibleAttributeKeys = computed(() =>
 const hiddenTechnicalCount = computed(() => attributeKeys.value.length - visibleAttributeKeys.value.length);
 const groupByOptions = computed(() => [
   { label: "— don't break down —", value: "" },
-  ...visibleAttributeKeys.value.map((k) => ({ label: attributeLabel(k.key), value: k.key })),
+  ...visibleAttributeKeys.value.map((k) => ({ label: attributeLabel(k.key, names.value), value: k.key })),
 ]);
 const filterAttributeOptions = computed(() => [
   { label: "Choose a detail…", value: "" },
-  ...visibleAttributeKeys.value.map((k) => ({ label: attributeLabel(k.key), value: k.key })),
+  ...visibleAttributeKeys.value.map((k) => ({ label: attributeLabel(k.key, names.value), value: k.key })),
 ]);
-const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) => (def.groupByAttribute ? attributeLabel(def.groupByAttribute) : "Step");
+const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) => (def.groupByAttribute ? attributeLabel(def.groupByAttribute, names.value) : "Step");
 </script>
 
 <template>
@@ -383,15 +400,18 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
         </template>
 
         <div class="field">
-          <label>I want to see… <span class="label-note">(pick one or several to compare)</span></label>
+          <label>I want to see… <span class="label-note">(pick one or several to compare)</span>
+            <button v-if="can('catalog:manage')" type="button" class="link-btn rename" data-testid="open-catalog" @click="showCatalog = true">Rename things</button>
+          </label>
           <div class="chip-select">
             <span v-if="stepKindsLoading" class="hint">Loading…</span>
             <span v-else-if="!stepKinds.length" class="hint">No activity in this range yet.</span>
             <button v-for="k in stepKinds" :key="k.stepType" type="button" class="chip" :class="{ on: selectedSteps.includes(k.stepType) }" :aria-pressed="selectedSteps.includes(k.stepType)" @click="toggleStep(k.stepType)">
-              {{ stepLabel(k.stepType) }}<span class="n">{{ k.count.toLocaleString() }}</span>
+              {{ stepLabel(k.stepType, names) }}<span class="n">{{ k.count.toLocaleString() }}</span>
             </button>
           </div>
         </div>
+        <ChartCatalogEditor v-if="showCatalog" :experiment-id="experimentId" :range="range" :entries="catalogEntries" @close="showCatalog = false" @changed="catalogEntries = $event" />
         <div class="field">
           <label>Measured as…</label>
           <Select v-model="metric" :options="METRICS" :disabled="!hasSteps" />

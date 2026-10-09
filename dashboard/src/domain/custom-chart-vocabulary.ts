@@ -16,6 +16,25 @@ export interface ChartDefinition {
   filters: { attribute: string; values: string[] }[];
 }
 
+// ---- nombres editados (ADR-077) ----
+
+/** Los nombres que el experimento ha puesto a sus pasos y atributos, por clave técnica. Tienen prioridad sobre todo lo demás. */
+export interface NameCatalog {
+  steps: Record<string, string>;
+  attributes: Record<string, string>;
+}
+
+export const NO_NAMES: NameCatalog = { steps: {}, attributes: {} };
+
+/** Solo cuentan las ediciones con nombre propio: una que solo cambia la visibilidad no renombra nada. */
+export function buildNames(entries: ReadonlyArray<{ kind: "step" | "attribute"; key: string; displayName: string | null }>): NameCatalog {
+  const names: NameCatalog = { steps: {}, attributes: {} };
+  for (const e of entries) {
+    if (e.displayName) (e.kind === "step" ? names.steps : names.attributes)[e.key] = e.displayName;
+  }
+  return names;
+}
+
 // ---- nombres de pasos ----
 
 /** `input_guardrail` / `inputGuardrail` / `input.guardrail` → "Input guardrail". */
@@ -40,8 +59,9 @@ export function isBuiltInStep(stepType: string): boolean {
   return stepType in BUILT_IN_STEPS;
 }
 
-export function stepLabel(stepType: string): string {
-  return BUILT_IN_STEPS[stepType] ?? humanize(stepType);
+/** Cascada de nombres: el que ha puesto la persona, el del diccionario y, si no hay, el identificador humanizado. */
+export function stepLabel(stepType: string, names: NameCatalog = NO_NAMES): string {
+  return names.steps[stepType] ?? BUILT_IN_STEPS[stepType] ?? humanize(stepType);
 }
 
 // ---- atributos ----
@@ -61,8 +81,8 @@ export function isTechnicalAttribute(key: string): boolean {
   return TECHNICAL_ATTRIBUTE.test(key);
 }
 
-export function attributeLabel(key: string): string {
-  return ATTRIBUTE_LABELS[key] ?? humanize(key);
+export function attributeLabel(key: string, names: NameCatalog = NO_NAMES): string {
+  return names.attributes[key] ?? ATTRIBUTE_LABELS[key] ?? humanize(key);
 }
 
 // ---- métricas ----
@@ -163,42 +183,43 @@ export function suggestChartType(groupByAttribute: string | null): ChartKind {
 }
 
 /** "tool calls", "guardrail input and tool calls", "model calls, tool calls and 2 more". */
-export function stepsPhrase(stepTypes: string[]): string {
-  const names = stepTypes.map((s) => stepLabel(s).toLowerCase());
+export function stepsPhrase(stepTypes: string[], catalog: NameCatalog = NO_NAMES): string {
+  const names = stepTypes.map((s) => stepLabel(s, catalog).toLowerCase());
   if (names.length <= 1) return names[0] ?? "selected steps";
   if (names.length === 2) return `${names[0]} and ${names[1]}`;
   if (names.length === 3) return `${names[0]}, ${names[1]} and ${names[2]}`;
   return `${names[0]}, ${names[1]} and ${names.length - 2} more`;
 }
 
-export function suggestName(def: Pick<ChartDefinition, "metric" | "stepTypes" | "groupByAttribute">): string {
-  const step = stepsPhrase(def.stepTypes);
-  const by = def.groupByAttribute ? ` by ${attributeLabel(def.groupByAttribute).toLowerCase()}` : "";
+export function suggestName(def: Pick<ChartDefinition, "metric" | "stepTypes" | "groupByAttribute">, names: NameCatalog = NO_NAMES): string {
+  const step = stepsPhrase(def.stepTypes, names);
+  const by = def.groupByAttribute ? ` by ${attributeLabel(def.groupByAttribute, names).toLowerCase()}` : "";
   return `${METRIC_TITLE[def.metric]} ${step}${by}`;
 }
 
 /** Una frase que sustituye al antiguo "X axis / Series". */
-export function describeDefinition(def: ChartDefinition): string {
+export function describeDefinition(def: ChartDefinition, names: NameCatalog = NO_NAMES): string {
   if (!def.stepTypes.length) return "Pick what you want to measure to see a description here.";
-  const step = stepsPhrase(def.stepTypes);
+  const step = stepsPhrase(def.stepTypes, names);
+  const attr = (key: string) => attributeLabel(key, names).toLowerCase();
   const timeBased = def.chartType === "line" || def.chartType === "area";
   const layout = timeBased
     ? def.groupByAttribute
-      ? `over time, one line per ${attributeLabel(def.groupByAttribute).toLowerCase()}`
+      ? `over time, one line per ${attr(def.groupByAttribute)}`
       : "over time"
     : def.chartType === "number"
       ? "as a single number"
       : def.groupByAttribute
-        ? `for each ${attributeLabel(def.groupByAttribute).toLowerCase()}`
+        ? `for each ${attr(def.groupByAttribute)}`
         : "for each kind of step";
   const active = def.filters.filter((f) => f.attribute && f.values.length);
-  const only = active.length ? `, only when ${active.map((f) => `${attributeLabel(f.attribute).toLowerCase()} is ${f.values.join(" or ")}`).join(" and ")}` : "";
+  const only = active.length ? `, only when ${active.map((f) => `${attr(f.attribute)} is ${f.values.join(" or ")}`).join(" and ")}` : "";
   return `Shows ${METRIC_PHRASE[def.metric]} ${step} ${layout}${only}.`;
 }
 
 /** Cuando no se desglosa por atributo, las etiquetas de los puntos son step types: se muestran con su nombre de negocio. */
-export function presentPointLabel(label: string, def: Pick<ChartDefinition, "groupByAttribute">): string {
-  return def.groupByAttribute ? label : stepLabel(label);
+export function presentPointLabel(label: string, def: Pick<ChartDefinition, "groupByAttribute">, names: NameCatalog = NO_NAMES): string {
+  return def.groupByAttribute ? label : stepLabel(label, names);
 }
 
 // ---- plantillas ("empieza por una pregunta") ----
@@ -227,15 +248,15 @@ const BUILT_IN_TEMPLATES: ChartTemplate[] = [
 ];
 
 /** Plantillas aplicables a lo detectado en las trazas, más dos preguntas por cada paso propio del usuario. */
-export function templatesFor(stepTypes: string[]): ChartTemplate[] {
+export function templatesFor(stepTypes: string[], names: NameCatalog = NO_NAMES): ChartTemplate[] {
   const available = new Set(stepTypes);
   const builtIn = BUILT_IN_TEMPLATES.filter((t) => t.requires.every((r) => available.has(r)));
   const custom = stepTypes
     .filter((s) => !isBuiltInStep(s))
     .slice(0, 6)
     .flatMap<ChartTemplate>((s) => [
-      { id: `custom-count-${s}`, question: `How often does "${stepLabel(s)}" happen?`, requires: [s], definition: def({ chartType: "line", stepTypes: [s], metric: "count" }) },
-      { id: `custom-fail-${s}`, question: `How often does "${stepLabel(s)}" fail?`, requires: [s], definition: def({ chartType: "number", stepTypes: [s], metric: "error_rate" }) },
+      { id: `custom-count-${s}`, question: `How often does "${stepLabel(s, names)}" happen?`, requires: [s], definition: def({ chartType: "line", stepTypes: [s], metric: "count" }) },
+      { id: `custom-fail-${s}`, question: `How often does "${stepLabel(s, names)}" fail?`, requires: [s], definition: def({ chartType: "number", stepTypes: [s], metric: "error_rate" }) },
     ]);
   return [...builtIn, ...custom];
 }
