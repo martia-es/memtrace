@@ -16,6 +16,7 @@ import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
 import { useExperimentRepo } from "../composables/useExperimentRepo";
 import CommitLink from "../components/CommitLink.vue";
+import Button from "../components/Button.vue";
 
 const PAGE_SIZE = 20;
 
@@ -184,9 +185,9 @@ function openRun(run: RunListItemDto) {
     <div v-if="items.length > 0" class="pager">
       <span class="muted">{{ filtered.length }} run{{ filtered.length === 1 ? "" : "s" }}</span>
       <div class="pager-controls">
-        <button type="button" class="page-btn" :disabled="page <= 1" @click="page -= 1">Prev</button>
+        <Button size="sm" :disabled="page <= 1" @click="page -= 1">Prev</Button>
         <span class="muted mono">Page {{ page }} / {{ pageCount }}</span>
-        <button type="button" class="page-btn" :disabled="page >= pageCount" @click="page += 1">Next</button>
+        <Button size="sm" :disabled="page >= pageCount" @click="page += 1">Next</Button>
       </div>
     </div>
   </div>
@@ -323,24 +324,7 @@ td {
   align-items: center;
   gap: 10px;
 }
-.page-btn {
-  height: 30px;
-  padding: 0 12px;
-  border: 1px solid var(--mt-line);
-  border-radius: var(--mt-radius-sm);
-  background: var(--mt-card);
-  color: var(--mt-ink);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-.page-btn:hover:not(:disabled) {
-  background: var(--mt-soft);
-}
-.page-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
+
 .pick {
   width: 18px;
   padding-right: 0;

@@ -14,6 +14,7 @@ import Modal from "./Modal.vue";
 import QueueResults from "./QueueResults.vue";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
+import Button from "./Button.vue";
 
 /** Progreso, trabajo por revisor, rúbrica y items de una cola (ADR-039). Los admins pueden cambiar `requiredAnnotations` y retirar items del reparto. */
 const props = defineProps<{ queueId: string; canManage: boolean; initialTab?: "summary" | "results" | "settings" }>();
@@ -136,7 +137,7 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
             max="10"
             aria-label="Reviews required per item"
             @input="required = Number(($event.target as HTMLInputElement).value)" />
-          <button type="button" class="small-btn" :disabled="required === null || required === detail.data.value.requiredAnnotations" @click="saveRequired">Apply</button>
+          <Button size="sm" :disabled="required === null || required === detail.data.value.requiredAnnotations" @click="saveRequired">Apply</Button>
         </div>
         <p class="muted">Raising it reopens items that were already completed; lowering it can complete them.</p>
       </section>
@@ -159,7 +160,7 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
           <input v-model="assigned" type="checkbox" :value="m.userId" :checked="currentReviewers.includes(m.userId)" @change="assigned = assigned ?? [...currentReviewers]" />
           {{ m.name ?? m.email }} <span class="muted">{{ m.email }}</span>
         </label>
-        <button type="button" class="small-btn" :disabled="!reviewersChanged || !currentReviewers.length" @click="saveReviewers">Apply</button>
+        <Button size="sm" :disabled="!reviewersChanged || !currentReviewers.length" @click="saveReviewers">Apply</Button>
         <p v-if="currentReviewers.length < detail.data.value.requiredAnnotations" class="muted">At least {{ detail.data.value.requiredAnnotations }} reviewers are needed.</p>
       </section>
 
@@ -214,7 +215,7 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
             </router-link>
             <span v-else class="mono">{{ label(item) }}</span>
             <span class="pill" :class="item.status">{{ item.status === "skipped" ? "unreviewable" : item.status }}</span>
-            <button v-if="canManage && item.status !== 'skipped'" type="button" class="small-btn" @click="markUnreviewable(item)">Mark unreviewable</button>
+            <Button class="push" size="sm" v-if="canManage && item.status !== 'skipped'" @click="markUnreviewable(item)">Mark unreviewable</Button>
           </li>
         </ul>
       </section>
@@ -334,24 +335,6 @@ h3 {
 .pill.warning {
   color: #92400e;
 }
-.small-btn {
-  margin-left: auto;
-  height: 26px;
-  padding: 0 10px;
-  border-radius: var(--mt-radius-sm);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  color: var(--mt-ink);
-  font: inherit;
-  font-size: 11.5px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.req-row .small-btn {
-  margin-left: 0;
-}
-.small-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+
+.push { margin-left: auto; }
 </style>

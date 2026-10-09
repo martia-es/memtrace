@@ -37,7 +37,7 @@ describe("CustomChartsPanel", () => {
     await flushPromises();
     expect(mounted.text()).toContain("What do you want to know?");
 
-    await mounted.find("button.link-btn").trigger("click");
+    await mounted.find("button.mt-btn.v-link").trigger("click");
     const total = mounted.findAll(".question-card").length;
     expect(total).toBeGreaterThan(5);
     const settle = async () => {
@@ -48,7 +48,7 @@ describe("CustomChartsPanel", () => {
     await mounted.findAll(".question-card")[0]!.trigger("click");
     await settle();
     for (let i = 0; i < total; i++) {
-      if (!mounted.find(".pill").exists()) await mounted.findAll("button.link-btn").find((b) => b.text().startsWith("Try another"))!.trigger("click");
+      if (!mounted.find(".pill").exists()) await mounted.findAll("button.mt-btn.v-link").find((b) => b.text().startsWith("Try another"))!.trigger("click");
       await mounted.findAll(".pill")[i]!.trigger("click");
       await settle();
       expect(vueErrors, `question ${i}`).toEqual([]);

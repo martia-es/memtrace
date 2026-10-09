@@ -7,6 +7,7 @@ import { useIdentityApi } from "../../composables/useIdentityApi";
 import { applyOrganizationTheme, themeCssVars } from "../../composables/useOrganizationTheme";
 import { ASSISTANT_DISPLAY_MODES, MODE_LABELS, type AssistantDisplayMode } from "@/domain/assistant-display";
 import { notifyErrorWith } from "../../composables/useAdminDirectory";
+import Button from "../Button.vue";
 
 /** Apariencia de la organización (ADR-019, ADR-063): colores, esquinas, fuente y cómo se ve el asistente. Solo org_admin la cambia. */
 const props = defineProps<{ organization: OrganizationDto; canManage: boolean }>();
@@ -113,7 +114,7 @@ function reset() {
         <div class="color-input">
           <input v-if="canManage" type="color" :value="draft.secondaryColor ?? DEFAULT_SECONDARY" aria-label="Secondary color" @input="draft.secondaryColor = ($event.target as HTMLInputElement).value" />
           <span class="adm-code">{{ draft.secondaryColor ?? "default" }}</span>
-          <button v-if="canManage && draft.secondaryColor" class="adm-btn ghost" type="button" @click="draft.secondaryColor = null">Clear</button>
+          <Button v-if="canManage && draft.secondaryColor" @click="draft.secondaryColor = null">Clear</Button>
         </div>
       </div>
 
@@ -153,8 +154,8 @@ function reset() {
       </div>
 
       <div v-if="canManage" class="actions">
-        <button class="adm-btn ghost" type="button" @click="reset">Reset to default</button>
-        <button class="adm-btn primary" type="button" :disabled="saving || !dirty" @click="save">Save appearance</button>
+        <Button @click="reset">Reset to default</Button>
+        <Button variant="primary" :disabled="saving || !dirty" @click="save">Save appearance</Button>
       </div>
       <p v-else class="adm-hint">Only an org_admin can change this.</p>
     </div>

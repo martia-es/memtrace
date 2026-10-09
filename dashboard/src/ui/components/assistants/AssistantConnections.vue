@@ -11,6 +11,7 @@ import EmptyState from "../EmptyState.vue";
 import ErrorBanner from "../ErrorBanner.vue";
 import StatusChip from "../StatusChip.vue";
 import DeclareConnectionModal from "./DeclareConnectionModal.vue";
+import Button from "../Button.vue";
 
 /** Pestaña «Connections»: servidores MCP, tools y agentes, declarados y observados (ADR-053). */
 const props = defineProps<{ card: AssistantCardDto; canManage: boolean; canGovern: boolean; nowMs: number }>();
@@ -67,8 +68,8 @@ const sync = () =>
     </section>
 
     <div v-if="canManage" class="toolbar">
-      <button type="button" class="ghost" :disabled="busy" @click="sync">Find tools in traces</button>
-      <button type="button" class="ghost" @click="declaring = true">Declare connection</button>
+      <Button :disabled="busy" @click="sync">Find tools in traces</Button>
+      <Button @click="declaring = true">Declare connection</Button>
     </div>
 
     <ErrorBanner v-if="connections.error.value" :error="connections.error.value" @retry="connections.run()" />
@@ -99,10 +100,10 @@ const sync = () =>
                 <td><StatusChip :tone="STATUS[c.status].tone" :label="STATUS[c.status].label" /></td>
                 <td class="actions">
                   <template v-if="canGovern">
-                    <button v-if="c.status !== 'approved'" type="button" class="link" :disabled="busy" @click="decide(c, 'approved')">Approve</button>
-                    <button v-if="c.status !== 'blocked'" type="button" class="link danger" :disabled="busy" @click="decide(c, 'blocked')">Block</button>
+                    <Button variant="link" v-if="c.status !== 'approved'" :disabled="busy" @click="decide(c, 'approved')">Approve</Button>
+                    <Button variant="link" v-if="c.status !== 'blocked'" :disabled="busy" @click="decide(c, 'blocked')" class="danger">Block</Button>
                   </template>
-                  <button v-if="canManage && c.declared" type="button" class="link muted" :disabled="busy" @click="undeclare(c)">Remove declaration</button>
+                  <Button variant="link" v-if="canManage && c.declared" :disabled="busy" @click="undeclare(c)" class="muted">Remove declaration</Button>
                 </td>
               </tr>
             </tbody>

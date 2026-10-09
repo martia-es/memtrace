@@ -9,6 +9,7 @@ import { useAsync } from "../composables/useAsync";
 import { usePromptApi } from "../composables/usePromptApi";
 import Modal from "./Modal.vue";
 import TextInput from "./TextInput.vue";
+import Button from "./Button.vue";
 
 /**
  * Pedir aprobación (ADR-076) para publicar un borrador o apuntar un entorno a una versión. Enseña qué exige la regla de
@@ -84,8 +85,8 @@ async function send() {
         <p v-if="problem" class="problem" role="alert" data-testid="request-error">{{ problem }}</p>
       </template>
       <div class="actions">
-        <button type="button" class="ghost" @click="emit('close')">Cancel</button>
-        <button type="button" class="primary-btn" :disabled="sending || (info.loading.value && !info.data.value)" data-testid="request-send" @click="send">{{ sending ? "Sending…" : "Send request" }}</button>
+        <Button @click="emit('close')">Cancel</Button>
+        <Button variant="primary" :disabled="sending || (info.loading.value && !info.data.value)" data-testid="request-send" @click="send">{{ sending ? "Sending…" : "Send request" }}</Button>
       </div>
     </div>
   </Modal>
@@ -104,6 +105,5 @@ legend { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
 .problem { margin: 0; padding: 10px 12px; font-size: 13px; color: var(--mt-err-ink); background: var(--mt-err-bg); border-radius: var(--mt-radius-sm); }
 .actions { display: flex; justify-content: flex-end; gap: 10px; }
 .ghost { height: 36px; padding: 0 16px; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); background: transparent; color: var(--mt-ink); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
-.primary-btn { height: 36px; padding: 0 18px; border: none; border-radius: var(--mt-radius-lg); background: var(--mt-accent); color: var(--mt-accent-ink); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
-.primary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 </style>

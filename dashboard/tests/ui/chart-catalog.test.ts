@@ -175,7 +175,7 @@ describe("attribute classification in the builder and the catalog (ADR-078, phas
     await w.findAll("button.chip").find((c) => c.text().startsWith("Tool calls"))!.trigger("click");
     await flushPromises();
   };
-  const moreDetails = (w: VueWrapper) => w.findAll("button.link-btn").find((b) => /more detail|fewer details/.test(b.text()));
+  const moreDetails = (w: VueWrapper) => w.findAll("button.mt-btn.v-link").find((b) => /more detail|fewer details/.test(b.text()));
 
   it("offers categories and measures to split by, and hides ids, free texts and instrumentation detail", async () => {
     const w = await open(new FakeIdentityApi());

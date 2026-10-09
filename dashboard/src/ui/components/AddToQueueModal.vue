@@ -5,6 +5,7 @@ import ErrorBanner from "./ErrorBanner.vue";
 import Modal from "./Modal.vue";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
+import Button from "./Button.vue";
 
 /**
  * Mete esta traza, o items de un run, en una cola de revisión existente (ADR-039). Las colas se crean en Review (solo admins).
@@ -70,7 +71,7 @@ async function add() {
         <span class="name">{{ q.name }}</span>
         <span class="muted">{{ q.progress.pending }} pending</span>
       </label>
-      <button type="submit" class="primary-btn" :disabled="!selected || saving">Add</button>
+      <Button variant="primary" type="submit" :disabled="!selected || saving">Add</Button>
     </form>
   </Modal>
 </template>
@@ -121,19 +122,5 @@ async function add() {
   font-size: 12.5px;
   margin: 0;
 }
-.primary-btn {
-  height: 36px;
-  border-radius: var(--mt-radius-lg);
-  border: none;
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.primary-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+
 </style>

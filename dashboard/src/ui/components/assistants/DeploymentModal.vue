@@ -10,6 +10,7 @@ import type { DeploymentInput } from "@/application/assistant-api";
 import { AUTH_LABEL } from "@/domain/assistants";
 import { useAssistantApi } from "../../composables/useAssistantApi";
 import Modal from "../Modal.vue";
+import Button from "../Button.vue";
 
 /** Alta o edición de un despliegue (ADR-053). Nunca se piden secretos: solo cómo se autentica. */
 const props = defineProps<{ experimentId: string; deployment?: DeploymentSummaryDto; environments: EnvironmentDto[] }>();
@@ -118,11 +119,11 @@ const authOptions = Object.entries(AUTH_LABEL).map(([value, label]) => ({ label,
         </label>
       </div>
       <div class="actions">
-        <button type="submit" class="primary-btn" :disabled="saving || !canSave">{{ editing ? "Save" : "Add deployment" }}</button>
+        <Button variant="primary" type="submit" :disabled="saving || !canSave">{{ editing ? "Save" : "Add deployment" }}</Button>
         <div class="spacer" />
         <template v-if="editing">
-          <button v-if="!confirmingDelete" type="button" class="danger-btn" @click="confirmingDelete = true">Remove</button>
-          <button v-else type="button" class="danger-btn" :disabled="saving" @click="remove">Confirm remove</button>
+          <Button variant="danger" v-if="!confirmingDelete" @click="confirmingDelete = true">Remove</Button>
+          <Button variant="danger" v-else :disabled="saving" @click="remove">Confirm remove</Button>
         </template>
       </div>
     </form>

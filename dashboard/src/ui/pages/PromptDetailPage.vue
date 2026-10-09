@@ -29,6 +29,7 @@ import { useAsync } from "../composables/useAsync";
 import { usePermissions } from "../composables/usePermissions";
 import { usePromptApi } from "../composables/usePromptApi";
 import { useTraceApi } from "../composables/useTraceApi";
+import Button from "../components/Button.vue";
 
 const props = defineProps<{ promptId: string }>();
 const api = usePromptApi();
@@ -459,7 +460,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
     >
       <div class="actions">
         <span v-if="archived" class="mt-pill archived" data-testid="archived-badge">archived</span>
-        <button v-if="can('prompt:write')" type="button" class="ghost-btn" data-testid="toggle-archived" @click="toggleArchived">{{ archived ? "Restore" : "Archive" }}</button>
+        <Button v-if="can('prompt:write')" data-testid="toggle-archived" @click="toggleArchived">{{ archived ? "Restore" : "Archive" }}</Button>
       </div>
     </PageHeader>
 
@@ -549,10 +550,10 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   </template>
                 </div>
                 <div v-if="canWrite" class="draft-actions">
-                  <button type="button" class="ghost-btn" data-testid="draft-test" @click="testDraft(selectedVersion.version, selectedVersion.parentVersion, selectedVersion.origin?.traceIds[0] ?? null)">Test it</button>
-                  <button v-if="approvalRules.publish" type="button" class="primary-btn" :disabled="draftBusy" data-testid="draft-request" @click="requesting = { action: 'publish', version: selectedVersion.version }">Request approval</button>
-                  <button v-else type="button" class="primary-btn" :disabled="draftBusy" data-testid="draft-publish" @click="publishSelected">Publish</button>
-                  <button type="button" class="ghost-btn" :disabled="draftBusy" data-testid="draft-discard" @click="discardSelected">Discard</button>
+                  <Button data-testid="draft-test" @click="testDraft(selectedVersion.version, selectedVersion.parentVersion, selectedVersion.origin?.traceIds[0] ?? null)">Test it</Button>
+                  <Button variant="primary" v-if="approvalRules.publish" :disabled="draftBusy" data-testid="draft-request" @click="requesting = { action: 'publish', version: selectedVersion.version }">Request approval</Button>
+                  <Button variant="primary" v-else :disabled="draftBusy" data-testid="draft-publish" @click="publishSelected">Publish</Button>
+                  <Button :disabled="draftBusy" data-testid="draft-discard" @click="discardSelected">Discard</Button>
                 </div>
               </section>
               <section v-if="!editing && data.prompt.kind === 'fragment' && outdatedDependents > 0" class="dependents-banner" data-testid="dependents-banner">
@@ -560,9 +561,9 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   <b>{{ outdatedDependents }} {{ outdatedDependents === 1 ? "prompt still includes" : "prompts still include" }} an older version of this fragment.</b>
                   <p class="small">Nothing changes in production by itself. MemTrace can prepare a draft in {{ outdatedDependents === 1 ? "it" : "each one" }}; you review, test it in the playground and publish.</p>
                 </div>
-                <button v-if="canWrite" type="button" class="primary-btn" :disabled="draftBusy" data-testid="rebuild-dependents" @click="rebuildDependents">
+                <Button variant="primary" v-if="canWrite" :disabled="draftBusy" data-testid="rebuild-dependents" @click="rebuildDependents">
                   Prepare {{ outdatedDependents === 1 ? "a draft" : `drafts for ${outdatedDependents} prompts` }}
-                </button>
+                </Button>
               </section>
               <div v-if="!editing" class="content-grid">
                 <div class="code-card">
@@ -600,7 +601,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                         <span v-if="includeOutdated(i.name, i.ref)" class="mt-pill draft-pill" :data-testid="`outdated-${i.name}`">now v{{ includeOutdated(i.name, i.ref) }}</span>
                       </li>
                     </ul>
-                    <button v-if="canWrite && isLatestPublished && anyOutdated" type="button" class="primary-btn small" :disabled="draftBusy" data-testid="rebuild" @click="rebuildPrompt">Rebuild with the current fragments</button>
+                    <Button variant="primary" size="sm" v-if="canWrite && isLatestPublished && anyOutdated" :disabled="draftBusy" data-testid="rebuild" @click="rebuildPrompt">Rebuild with the current fragments</Button>
                     <p v-if="canWrite && isLatestPublished && anyOutdated" class="soft">Saves a draft to review; nothing changes until you publish it.</p>
                   </div>
                   <div v-if="data.prompt.kind === 'fragment'" class="side-card" data-testid="used-by-card">
@@ -622,7 +623,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   <div v-if="canWrite" class="side-card next">
                     <span class="eyebrow">NEXT VERSION</span>
                     <p>Saving creates the next version. Earlier versions never change, and the tags stay where they are until someone moves them. Not sure yet? Save it as a draft and test it first.</p>
-                    <button type="button" class="primary-btn" data-testid="edit-version" @click="startEdit">Edit as new version</button>
+                    <Button variant="primary" data-testid="edit-version" @click="startEdit">Edit as new version</Button>
                   </div>
                 </div>
               </div>
@@ -632,18 +633,18 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   <PromptEditor v-model="draft" :experiment-id="String(route.params.experimentId)" :fragments="data.prompt.kind !== 'fragment'" :rows="18" />
                   <TextInput v-model="message" placeholder="What changed and why? (optional)" data-testid="version-message" />
                   <div class="row">
-                    <button type="submit" class="primary-btn" :disabled="saving || !draft.trim() || draft === (selectedVersion.source ?? selectedVersion.content)" data-testid="save-version">Save as new version</button>
-                    <button type="button" class="ghost-btn" :disabled="saving || !draft.trim() || draft === (selectedVersion.source ?? selectedVersion.content)" data-testid="save-draft" @click="saveVersion(true)">Save as draft</button>
-                    <button type="button" class="ghost-btn" @click="editing = false">Cancel</button>
+                    <Button variant="primary" type="submit" :disabled="saving || !draft.trim() || draft === (selectedVersion.source ?? selectedVersion.content)" data-testid="save-version">Save as new version</Button>
+                    <Button :disabled="saving || !draft.trim() || draft === (selectedVersion.source ?? selectedVersion.content)" data-testid="save-draft" @click="saveVersion(true)">Save as draft</Button>
+                    <Button @click="editing = false">Cancel</Button>
                   </div>
                 </form>
               </div>
             </div>
 
             <div class="actions-bar" data-testid="action-bar">
-              <button type="button" class="ghost-btn" data-testid="open-compare" @click="panel = 'compare'">Compare</button>
-              <button v-if="canWrite" type="button" class="ghost-btn" data-testid="open-try" @click="panel = 'try'">Try it</button>
-              <button v-if="canWrite" type="button" class="ghost-btn" data-testid="open-fix" @click="panel = 'fix'">Fix a failure</button>
+              <Button data-testid="open-compare" @click="panel = 'compare'">Compare</Button>
+              <Button v-if="canWrite" data-testid="open-try" @click="panel = 'try'">Try it</Button>
+              <Button v-if="canWrite" data-testid="open-fix" @click="panel = 'fix'">Fix a failure</Button>
             </div>
 
             <section class="fold" :class="{ open: isOpen('release') }" data-testid="fold-release">
@@ -670,8 +671,8 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   </span>
                   <div v-if="canPromote" class="move">
                     <Select :model-value="pending[key] ?? tagVersion(key)" :options="versionOptions" placeholder="Point to…" @update:model-value="pending[key] = $event" />
-                    <button type="button" class="ghost-btn small" :disabled="moving || pending[key] == null || pending[key] === tagVersion(key)" :data-testid="`move-${key}`" @click="moveEnvironment(key)">{{ pending[key] != null && needsApproval(key, pending[key]!) ? "Request approval" : "Move" }}</button>
-                    <button v-if="tagVersion(key) !== null" type="button" class="icon-btn" :aria-label="`Remove the ${key} tag`" title="Remove the tag" @click="moveTag(key, null)">×</button>
+                    <Button size="sm" :disabled="moving || pending[key] == null || pending[key] === tagVersion(key)" :data-testid="`move-${key}`" @click="moveEnvironment(key)">{{ pending[key] != null && needsApproval(key, pending[key]!) ? "Request approval" : "Move" }}</Button>
+                    <Button variant="icon" v-if="tagVersion(key) !== null" :aria-label="`Remove the ${key} tag`" title="Remove the tag" @click="moveTag(key, null)">×</Button>
                   </div>
                 </div>
                 <div class="other-tags">
@@ -685,7 +686,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   </div>
                   <form v-if="canWrite && selected !== null" class="add-tag" @submit.prevent="addFreeTag">
                     <TextInput v-model="newTag" placeholder="new-tag" mono size="sm" data-testid="new-tag" />
-                    <button type="submit" class="primary-btn small" :disabled="moving || !newTag.trim()" data-testid="add-tag">Tag v{{ selected }}</button>
+                    <Button variant="primary" size="sm" type="submit" :disabled="moving || !newTag.trim()" data-testid="add-tag">Tag v{{ selected }}</Button>
                   </form>
                 </div>
               </section>
@@ -747,8 +748,8 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                     <p class="muted small">The evaluation has to run with the agent reading that exact version through <code>memtrace.prompts</code>. Each evaluator must reach its target pass rate.</p>
                   </template>
                   <div v-if="canPromote" class="row">
-                    <button type="button" class="ghost-btn small" data-testid="edit-policy" @click="startPolicy">{{ policy ? "Edit policy" : "Add policy" }}</button>
-                    <button v-if="policy" type="button" class="ghost-btn small" data-testid="remove-policy" @click="removePolicy">Remove policy</button>
+                    <Button size="sm" data-testid="edit-policy" @click="startPolicy">{{ policy ? "Edit policy" : "Add policy" }}</Button>
+                    <Button size="sm" v-if="policy" data-testid="remove-policy" @click="removePolicy">Remove policy</Button>
                   </div>
                 </div>
                 <form v-else class="policy-form" data-testid="policy-form" @submit.prevent="savePolicy">
@@ -762,8 +763,8 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   </div>
                   <p class="muted small">Protected: {{ gated.join(", ") || "none" }}. {{ environmentKeys[0] ?? "The first environment" }} stays free to iterate.</p>
                   <div class="row">
-                    <button type="submit" class="primary-btn small" :disabled="savingPolicy || policyDataset === null" data-testid="save-policy">Save policy</button>
-                    <button type="button" class="ghost-btn small" @click="editingPolicy = false">Cancel</button>
+                    <Button variant="primary" size="sm" type="submit" :disabled="savingPolicy || policyDataset === null" data-testid="save-policy">Save policy</Button>
+                    <Button size="sm" @click="editingPolicy = false">Cancel</Button>
                   </div>
                 </form>
                 </div>
@@ -864,7 +865,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
               <header class="drawer-head">
                 <strong>{{ PANEL_TITLE[panel] }}</strong>
                 <span class="grow" />
-                <button type="button" class="ghost-btn small" data-testid="close-drawer" @click="panel = null">Close</button>
+                <Button size="sm" data-testid="close-drawer" @click="panel = null">Close</Button>
               </header>
             <div v-if="panel === 'compare' && selectedVersion" class="pane" data-testid="pane-compare">
               <div class="compare-bar compare-toolbar">
@@ -1732,22 +1733,7 @@ h3 {
 .move :deep(.select-trigger) {
   min-width: 96px;
 }
-.icon-btn {
-  width: 26px;
-  height: 26px;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--mt-muted);
-  font: inherit;
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-}
-.icon-btn:hover {
-  background: var(--mt-soft);
-  color: var(--mt-ink);
-}
+
 .other-tags {
   display: flex;
   flex-wrap: wrap;
@@ -1958,40 +1944,6 @@ ul.plain {
   padding-bottom: 0;
 }
 
-.primary-btn,
-.ghost-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 36px;
-  padding: 0 16px;
-  border-radius: var(--mt-radius-lg);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.primary-btn {
-  border: none;
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-}
-.ghost-btn {
-  border: 1px solid var(--mt-line);
-  background: transparent;
-  color: var(--mt-ink);
-}
-.primary-btn.small,
-.ghost-btn.small {
-  height: 30px;
-  padding: 0 12px;
-  font-size: 12.5px;
-}
-.primary-btn:disabled,
-.ghost-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
 @media (max-width: 1100px) {
   .body,
   .content-grid,

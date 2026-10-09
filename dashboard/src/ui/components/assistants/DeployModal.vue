@@ -10,6 +10,7 @@ import TextInput from "@/ui/components/TextInput.vue";
 import CommitLink from "../CommitLink.vue";
 import Modal from "../Modal.vue";
 import StatusChip from "../StatusChip.vue";
+import Button from "../Button.vue";
 
 /**
  * Despliegue de un entorno (ADR-064). MemTrace no despliega: dispara el CI del repo con el commit al que apunta hoy la rama
@@ -89,8 +90,8 @@ async function send() {
         </template>
       </template>
       <div class="actions">
-        <button type="button" class="ghost" @click="emit('close')">Cancel</button>
-        <button type="button" class="primary-btn" :disabled="!canSend" data-testid="deploy-confirm" @click="send">{{ sending ? "Starting…" : gate && !gate.allowed ? "Deploy anyway" : "Deploy" }}</button>
+        <Button @click="emit('close')">Cancel</Button>
+        <Button variant="primary" :disabled="!canSend" data-testid="deploy-confirm" @click="send">{{ sending ? "Starting…" : gate && !gate.allowed ? "Deploy anyway" : "Deploy" }}</Button>
       </div>
     </div>
   </Modal>
@@ -111,9 +112,5 @@ dd { margin: 0; }
 .field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; }
 .field-error { color: var(--mt-error-text, #b3261e); font-weight: 500; }
 .actions { display: flex; justify-content: flex-end; gap: 8px; }
-.primary-btn, .ghost { height: 32px; padding: 0 14px; font: inherit; font-size: 13px; font-weight: 700; border-radius: var(--mt-radius-sm); cursor: pointer; }
-.primary-btn { color: var(--mt-accent-ink); background: var(--mt-accent); border: 1px solid transparent; }
-.primary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.ghost { color: var(--mt-accent-text); background: var(--mt-card); border: 1px solid var(--mt-line); }
-.primary-btn:focus-visible, .ghost:focus-visible { outline: 2px solid var(--mt-accent); outline-offset: 2px; }
+
 </style>

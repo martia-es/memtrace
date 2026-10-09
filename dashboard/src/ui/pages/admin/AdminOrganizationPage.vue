@@ -14,6 +14,7 @@ import InviteForm from "../../components/admin/InviteForm.vue";
 import OrganizationAppearance from "../../components/admin/OrganizationAppearance.vue";
 import OrganizationIdentity from "../../components/admin/OrganizationIdentity.vue";
 import ApprovalRulesPanel from "../../components/admin/ApprovalRulesPanel.vue";
+import Button from "../../components/Button.vue";
 
 /** Nivel 2: una organización. Pestañas: experimentos (siempre), y miembros + identidad + apariencia solo para org_admin. */
 const props = defineProps<{ organizationId: string }>();
@@ -118,7 +119,7 @@ async function inviteOrgAdmin({ email }: { email: string }) {
               <h3 class="adm-section-title">Experiments</h3>
               <p class="adm-hint">An experiment is one agent. Open one to connect it, manage its keys, score configs and members.</p>
             </div>
-            <button v-if="isOrgAdmin" class="adm-btn primary mt-new" type="button" @click="showCreate = true">+ New experiment</button>
+            <Button variant="primary" v-if="isOrgAdmin" @click="showCreate = true" class="mt-new">+ New experiment</Button>
           </div>
 
           <ul v-if="orgExperiments.length" class="adm-list">
@@ -183,7 +184,7 @@ async function inviteOrgAdmin({ email }: { email: string }) {
         <TextInput mono v-model="serviceName" placeholder="service.name, e.g. support-agent" autofocus @input="onServiceInput" />
         <TextInput v-model="displayName" placeholder="Display name" @input="displayTouched = true" />
         <TextInput multiline v-model="description" :rows="2" placeholder="What does this agent do, and for whom? (optional)" />
-        <button type="submit" class="adm-btn primary" :disabled="creating || !serviceName.trim() || !displayName.trim()">Create experiment</button>
+        <Button variant="primary" type="submit" :disabled="creating || !serviceName.trim() || !displayName.trim()">Create experiment</Button>
       </form>
     </Modal>
   </q-page>

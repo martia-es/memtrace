@@ -34,6 +34,7 @@ import {
   templatesFor,
   type ChartTemplate,
 } from "@/domain/custom-chart-vocabulary";
+import Button from "./Button.vue";
 
 const props = defineProps<{ experimentId: string; range: RangeParams }>();
 
@@ -427,16 +428,16 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
               <span class="q-basis">{{ templateBasis(t) }}</span>
             </button>
           </div>
-          <button v-if="templates.length > QUESTIONS_COLLAPSED" type="button" class="link-btn" @click="showAllQuestions = !showAllQuestions">
+          <Button class="self-start" variant="link" v-if="templates.length > QUESTIONS_COLLAPSED" @click="showAllQuestions = !showAllQuestions">
             {{ showAllQuestions ? "Show fewer questions" : `Show all ${templates.length} questions` }}
-          </button>
+          </Button>
           <div class="cc-divider" />
           <div class="eyebrow">Or build it yourself</div>
         </template>
 
         <div class="field">
           <label>I want to see… <span class="label-note">(pick one or several to compare)</span>
-            <button v-if="can('catalog:manage')" type="button" class="link-btn rename" data-testid="open-catalog" @click="showCatalog = true">Rename things</button>
+            <Button variant="link" v-if="can('catalog:manage')" data-testid="open-catalog" @click="showCatalog = true" class="rename">Rename things</Button>
           </label>
           <div class="chip-select">
             <span v-if="stepKindsLoading" class="hint">Loading…</span>
@@ -462,9 +463,9 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
           <span v-if="attributeKeysLoading" class="hint">Loading details…</span>
           <span v-else-if="multiStep" class="hint">Comparing {{ selectedSteps.length }} steps: one {{ chartType === "line" || chartType === "area" ? "line" : "bar" }} each. Pick a single step to split it by a detail.</span>
           <span v-else-if="singleStep && !visibleAttributeKeys.length" class="hint">Nothing to split by for this step.</span>
-          <button v-if="singleStep && (hiddenTechnicalCount > 0 || showTechnical)" type="button" class="link-btn" @click="showTechnical = !showTechnical">
+          <Button class="self-start" variant="link" v-if="singleStep && (hiddenTechnicalCount > 0 || showTechnical)" @click="showTechnical = !showTechnical">
             {{ showTechnical ? "Show fewer details" : `Show ${hiddenTechnicalCount} more detail${hiddenTechnicalCount === 1 ? "" : "s"}` }}
-          </button>
+          </Button>
         </div>
 
         <div class="field">
@@ -472,7 +473,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
           <div v-for="(row, i) in filterRows" :key="i" class="filter-block">
             <div class="filter-row">
               <Select v-model="row.attribute" :options="filterAttributeOptions" :disabled="!singleStep" @update:model-value="loadFilterRowValues(row)" />
-              <q-btn flat dense no-caps size="sm" icon="close" aria-label="Remove condition" @click="removeFilterRow(i)" />
+              <Button variant="icon" size="sm" aria-label="Remove condition" @click="removeFilterRow(i)"><q-icon name="close" size="16px" /></Button>
             </div>
             <div v-if="row.attribute" class="value-box">
               <span v-if="row.loading" class="hint">Loading values…</span>
@@ -494,9 +495,9 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
 
         <template v-if="templates.length && hasSteps">
           <div class="cc-divider" />
-          <button type="button" class="link-btn" @click="questionsOpen = !questionsOpen">
+          <Button class="self-start" variant="link" @click="questionsOpen = !questionsOpen">
             {{ questionsOpen ? "Hide questions" : `Try another question (${templates.length})` }}
-          </button>
+          </Button>
           <div v-if="questionsOpen" class="pill-row">
             <button v-for="t in templates" :key="t.id" type="button" class="pill" :class="{ on: activeTemplate === t.id }" @click="applyTemplate(t)">
               {{ t.question }}
@@ -554,8 +555,8 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
 
           <div class="preview-foot">
             <span class="hint foot-hint">{{ chartTypeTouched ? "" : "Chart type suggested for this data. Change it any time." }}</span>
-            <q-btn outline no-caps label="Start over" @click="resetBuilder" />
-            <q-btn unelevated no-caps color="primary" label="Save to Metrics" :disable="!previewResult || !newChartName.trim()" :loading="saving" @click="saveChart" />
+            <Button @click="resetBuilder">Start over</Button>
+            <Button variant="primary" :disabled="!previewResult || !newChartName.trim()" :loading="saving" @click="saveChart">Save to Metrics</Button>
           </div>
         </template>
       </div>
@@ -571,7 +572,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
         <div v-for="m in saved" :key="m.id" class="saved-card">
           <div class="saved-head">
             <span class="name">{{ m.name }}</span>
-            <q-btn flat dense no-caps size="sm" icon="close" :aria-label="`Delete ${m.name}`" @click="removeSaved(m.id)" />
+            <Button variant="icon" size="sm" :aria-label="`Delete ${m.name}`" @click="removeSaved(m.id)"><q-icon name="close" size="16px" /></Button>
           </div>
           <div v-if="savedResults[m.id]" class="saved-chart">
             <div v-if="m.definition.chartType === 'number'" class="number-tile small">
@@ -793,17 +794,6 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
   color: var(--mt-ink);
 }
 
-.link-btn {
-  align-self: flex-start;
-  padding: 0;
-  font-family: inherit;
-  font-size: 11.5px;
-  color: var(--mt-muted);
-  background: none;
-  border: none;
-  cursor: pointer;
-  text-decoration: underline;
-}
 .cc-grid {
   display: grid;
   grid-template-columns: 380px minmax(0, 1fr);
@@ -1053,4 +1043,5 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
 .foot-hint {
   flex: 1;
 }
+.self-start { align-self: flex-start; }
 </style>

@@ -14,6 +14,7 @@ const PROVIDERS: { label: string; value: RepoProvider }[] = [
 import { describeApiError } from "@/application/describe-api-error";
 import { useAssistantApi } from "../../composables/useAssistantApi";
 import Modal from "../Modal.vue";
+import Button from "../Button.vue";
 
 const props = defineProps<{ card: AssistantCardDto }>();
 const emit = defineEmits<{ close: []; saved: [] }>();
@@ -110,7 +111,7 @@ const LIFECYCLE_OPTIONS: { label: string; value: "active" | "retired" }[] = [
           <p class="hint">The pipeline MemTrace will trigger to deploy. Leave the URL empty if the agent has no repository. No credentials are stored here.</p>
         </label>
       </fieldset>
-      <div class="actions"><button type="submit" class="primary-btn" :disabled="saving">Save</button></div>
+      <div class="actions"><Button variant="primary" type="submit" :disabled="saving">Save</Button></div>
     </form>
   </Modal>
 </template>

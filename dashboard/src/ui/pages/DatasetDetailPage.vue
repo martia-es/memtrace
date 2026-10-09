@@ -13,6 +13,7 @@ import DatasetItemsEditor from "../components/DatasetItemsEditor.vue";
 import PageHeader from "../components/PageHeader.vue";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
+import Button from "../components/Button.vue";
 
 const PAGE_SIZE = 20;
 
@@ -194,9 +195,9 @@ function openRun(runId: string) {
           <div v-if="pagedRuns.length > 0" class="pager">
             <span class="muted">{{ filteredRuns.length }} run{{ filteredRuns.length === 1 ? "" : "s" }}</span>
             <div class="pager-controls">
-              <button type="button" class="page-btn" :disabled="runPage <= 1" @click="runPage -= 1">Prev</button>
+              <Button size="sm" :disabled="runPage <= 1" @click="runPage -= 1">Prev</Button>
               <span class="muted mono">Page {{ runPage }} / {{ runPageCount }}</span>
-              <button type="button" class="page-btn" :disabled="runPage >= runPageCount" @click="runPage += 1">Next</button>
+              <Button size="sm" :disabled="runPage >= runPageCount" @click="runPage += 1">Next</Button>
             </div>
           </div>
         </q-tab-panel>
@@ -332,26 +333,7 @@ td {
   gap: 4px;
   white-space: nowrap;
 }
-.icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: none;
-  border-radius: var(--mt-radius-sm);
-  background: transparent;
-  color: var(--mt-muted);
-  cursor: pointer;
-}
-.icon-btn:hover {
-  background: var(--mt-soft);
-  color: var(--mt-ink);
-}
-.icon-btn.danger:hover {
-  color: var(--mt-error-ink, #c0392b);
-}
+
 .pager {
   display: flex;
   align-items: center;
@@ -363,24 +345,6 @@ td {
   display: flex;
   align-items: center;
   gap: 10px;
-}
-.page-btn {
-  height: 30px;
-  padding: 0 12px;
-  border: 1px solid var(--mt-line);
-  border-radius: var(--mt-radius-sm);
-  background: var(--mt-card);
-  color: var(--mt-ink);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-.page-btn:hover:not(:disabled) {
-  background: var(--mt-soft);
-}
-.page-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 
 </style>

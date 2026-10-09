@@ -10,6 +10,7 @@ import { useAsync } from "../composables/useAsync";
 import { usePromptApi } from "../composables/usePromptApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import TextInput from "./TextInput.vue";
+import Button from "./Button.vue";
 
 /**
  * Arreglar un prompt desde un fallo real (ADR-072): se ve qué falló en la traza, se parte de la versión que la produjo, se
@@ -122,7 +123,7 @@ async function save() {
           <span class="step-dot">{{ step > i + 1 ? "✓" : i + 1 }}</span>{{ label }}
         </li>
       </ol>
-      <button v-if="loadedTrace" type="button" class="ghost-btn small" data-testid="fix-back" @click="backToList">← Pick another failure</button>
+      <Button size="sm" v-if="loadedTrace" data-testid="fix-back" @click="backToList">← Pick another failure</Button>
     </div>
     <p v-if="problem" class="warn small" role="alert" data-testid="fix-problem">{{ problem }}</p>
 
@@ -158,15 +159,15 @@ async function save() {
           </li>
         </ul>
         <div class="more">
-          <button v-if="failures.length > visible.length" type="button" class="ghost-btn small" data-testid="fix-more" @click="shown += PAGE">Show {{ Math.min(PAGE, failures.length - visible.length) }} more</button>
+          <Button size="sm" v-if="failures.length > visible.length" data-testid="fix-more" @click="shown += PAGE">Show {{ Math.min(PAGE, failures.length - visible.length) }} more</Button>
           <span class="faint small" data-testid="fix-scanned">{{ failures.length }} {{ failures.length === 1 ? "failure" : "failures" }} among the latest {{ recent.data.value?.scanned }} traces of this prompt.</span>
         </div>
       </template>
       <footer class="paste">
-        <button type="button" class="link-btn" data-testid="fix-paste-toggle" @click="pasteOpen = !pasteOpen">Have a trace id? {{ pasteOpen ? "Hide" : "Paste it" }}</button>
+        <Button class="self-start" variant="link" data-testid="fix-paste-toggle" @click="pasteOpen = !pasteOpen">Have a trace id? {{ pasteOpen ? "Hide" : "Paste it" }}</Button>
         <div v-if="pasteOpen" class="row">
           <TextInput v-model="traceId" mono placeholder="Trace id of the failure" class="trace-id" data-testid="fix-trace" @keydown.enter.prevent="load" />
-          <button type="button" class="ghost-btn small" :disabled="trace.loading.value || traceId.trim() === ''" data-testid="fix-load" @click="load">Load</button>
+          <Button size="sm" :disabled="trace.loading.value || traceId.trim() === ''" data-testid="fix-load" @click="load">Load</Button>
         </div>
       </footer>
     </section>
@@ -210,7 +211,7 @@ async function save() {
         </div>
         <footer class="save">
           <span class="muted small">Saved as a <b>draft</b>: no tag, not published. A person reviews it first.</span>
-          <button type="button" class="primary-btn" :disabled="!canSave" data-testid="fix-save" @click="save">{{ saving ? "Saving…" : "Save as draft" }}</button>
+          <Button variant="primary" :disabled="!canSave" data-testid="fix-save" @click="save">{{ saving ? "Saving…" : "Save as draft" }}</Button>
         </footer>
       </section>
       <p v-else class="warn small" data-testid="fix-no-base">This prompt has no published version to start from.</p>
@@ -219,7 +220,7 @@ async function save() {
     <section v-if="savedDraft && loadedTrace" class="panel saved" data-testid="fix-saved">
       <p><b>Draft v{{ savedDraft.version }} saved.</b> It has no tag and is not published.</p>
       <div class="row">
-        <button type="button" class="primary-btn" data-testid="fix-test" @click="emit('test', savedDraft.version, savedDraft.base, loadedTrace)">Test it on this case</button>
+        <Button variant="primary" data-testid="fix-test" @click="emit('test', savedDraft.version, savedDraft.base, loadedTrace)">Test it on this case</Button>
         <span class="muted small">Runs the real agent with the draft and with v{{ savedDraft.base }}, side by side.</span>
       </div>
     </section>
@@ -446,16 +447,7 @@ async function save() {
   padding: 10px 16px;
   background: var(--mt-soft-2);
 }
-.link-btn {
-  align-self: flex-start;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--mt-accent-text);
-  font: inherit;
-  font-size: 12.5px;
-  cursor: pointer;
-}
+
 .grid {
   display: flex;
   gap: 14px;
@@ -568,37 +560,6 @@ async function save() {
     width: auto;
   }
 }
-.primary-btn,
-.ghost-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 36px;
-  padding: 0 16px;
-  border-radius: var(--mt-radius-lg);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.primary-btn {
-  border: none;
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-}
-.ghost-btn {
-  border: 1px solid var(--mt-line);
-  background: transparent;
-  color: var(--mt-ink);
-}
-.ghost-btn.small {
-  height: 30px;
-  padding: 0 12px;
-  font-size: 12.5px;
-}
-.primary-btn:disabled,
-.ghost-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+
+.self-start { align-self: flex-start; }
 </style>

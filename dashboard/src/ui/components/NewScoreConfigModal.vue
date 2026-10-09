@@ -7,6 +7,7 @@ import { useIdentityApi } from "../composables/useIdentityApi";
 import { parseCategories, parseTargetPercent } from "../score-config-form";
 import Modal from "./Modal.vue";
 import Select from "./Select.vue";
+import Button from "./Button.vue";
 
 /** Formulario de nueva score config (ADR-036), compartido por Admin → Score configs y el panel de anotación (ADR-037). */
 const props = defineProps<{ experimentId: string }>();
@@ -73,7 +74,7 @@ async function create() {
         <p class="hint">Optional <code>=number</code> after a label gives it a value, used for correlation with judge scores.</p>
       </template>
       <TextInput multiline v-model="form.description" :rows="2" placeholder="Guideline shown to the annotator (optional)" />
-      <button type="submit" class="primary-btn" :disabled="saving || !canCreate">Create</button>
+      <Button class="self-start" variant="primary" type="submit" :disabled="saving || !canCreate">Create</Button>
     </form>
   </Modal>
 </template>
@@ -101,21 +102,6 @@ async function create() {
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
-.primary-btn {
-  align-self: flex-start;
-  height: 34px;
-  padding: 0 16px;
-  border-radius: var(--mt-radius-lg);
-  border: none;
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.primary-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+
+.self-start { align-self: flex-start; }
 </style>

@@ -367,7 +367,7 @@ describe("DatasetDetailPage — spreadsheet editing (ADR-041)", () => {
     expect(bar.text()).toContain("2 unpublished changes");
     expect(bar.text()).toContain("v3.0");
 
-    await bar.find(".primary-btn").trigger("click");
+    await bar.find(".mt-btn.v-primary").trigger("click");
     await flushPromises();
     expect(api.commitDatasetChangesCalls).toHaveLength(1);
     expect(api.commitDatasetChangesCalls[0]!.changes).toEqual({

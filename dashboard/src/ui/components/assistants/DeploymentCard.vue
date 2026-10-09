@@ -11,6 +11,7 @@ import { DEPLOY_STATUS, HEALTH_LABEL, HEALTH_TONE, accessSummary, authSummary, f
 import CommitLink from "../CommitLink.vue";
 import StatusChip from "../StatusChip.vue";
 import HealthBars from "./HealthBars.vue";
+import Button from "../Button.vue";
 
 /** Un entorno de un asistente: estado de /health, disponibilidad de 24 h y datos del despliegue (ADR-053). */
 const props = defineProps<{ experimentId: string; deployment: DeploymentSummaryDto; selected: boolean; canManage: boolean; nowMs: number; chatPath?: string | null; talkable?: boolean; deployable?: boolean; refreshKey?: number; repo?: RepoConfigDto | null }>();
@@ -68,8 +69,8 @@ const mono = new Set(["API", "Health", "Chat", "Latency", "Version", "Deploys fr
       <div class="spacer" />
       <button v-if="deployable" type="button" class="talk" data-testid="deploy" @click="emit('deploy')"><q-icon name="rocket_launch" size="14px" />Deploy</button>
       <button v-if="talkable" type="button" class="talk" data-testid="talk" @click="emit('talk')"><q-icon name="chat_bubble_outline" size="14px" />Chat</button>
-      <button v-if="canManage" type="button" class="link" :disabled="checking" data-testid="check-now" @click="checkNow"><q-icon name="sync" size="14px" :class="{ spin: checking }" />{{ checking ? "Syncing…" : "Sync" }}</button>
-      <button v-if="canManage" type="button" class="link" @click="emit('edit')"><q-icon name="edit" size="14px" />Edit</button>
+      <Button variant="link" v-if="canManage" :disabled="checking" data-testid="check-now" @click="checkNow"><q-icon name="sync" size="14px" :class="{ spin: checking }" />{{ checking ? "Syncing…" : "Sync" }}</Button>
+      <Button variant="link" v-if="canManage" @click="emit('edit')"><q-icon name="edit" size="14px" />Edit</Button>
     </header>
     <div class="uptime">
       <HealthBars :checks="checks" :now-ms="nowMs" />

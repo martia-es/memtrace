@@ -27,6 +27,7 @@ import { useTraceApi } from "../composables/useTraceApi";
 import { useExperimentRepo } from "../composables/useExperimentRepo";
 import CommitLink from "../components/CommitLink.vue";
 import PromptChips from "../components/PromptChips.vue";
+import Button from "../components/Button.vue";
 
 const props = defineProps<{ traceId: string }>();
 const api = useTraceApi();
@@ -133,30 +134,30 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
           <PromptChips :prompts="promptsUsed" />
           <span class="commit" data-testid="trace-revision"><span class="commit-label">Commit</span><CommitLink :revision="trace.data.value.revision" :repo="repo" /></span>
           <div class="actions">
-            <button type="button" class="btn" aria-label="Copy trace ID" @click="copyId">Copy ID</button>
-            <button type="button" class="btn" data-testid="add-to-dataset-btn" @click="addingToDataset = true">Add to dataset</button>
-            <button type="button" class="btn" data-testid="add-to-queue-btn" @click="addingToQueue = true">Add to queue</button>
-            <button
+            <Button aria-label="Copy trace ID" @click="copyId">Copy ID</Button>
+            <Button data-testid="add-to-dataset-btn" @click="addingToDataset = true">Add to dataset</Button>
+            <Button data-testid="add-to-queue-btn" @click="addingToQueue = true">Add to queue</Button>
+            <Button
               v-if="promptsUsed.length > 0"
-              type="button"
-              class="btn"
+             
+             
               :title="`Run the same message with another version of ${promptsUsed[0]!.name} (this trace used v${promptsUsed[0]!.version})`"
               data-testid="replay-btn"
               @click="replayWithAnotherVersion"
             >
               Try another prompt version
-            </button>
-            <button
+            </Button>
+            <Button
               v-if="promptsUsed.length > 0 && trace.data.value.errorCount > 0"
-              type="button"
-              class="btn"
+             
+             
               :title="`Propose a change to ${promptsUsed[0]!.name} that fixes this failure, as a draft to review`"
               data-testid="fix-btn"
               @click="fixThisFailure"
             >
               Fix with a prompt change
-            </button>
-            <button type="button" class="btn primary" data-testid="annotate-btn" @click="annotating = true">Annotate</button>
+            </Button>
+            <Button variant="primary" data-testid="annotate-btn" @click="annotating = true">Annotate</Button>
           </div>
         </div>
         <div class="meta-line">
@@ -198,9 +199,9 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
           <div class="tree-head">
             <h2>Spans</h2>
             <div class="tree-actions">
-              <button type="button" class="link-btn" @click="treeRef?.expandAll()">Expand all</button>
+              <Button variant="link" @click="treeRef?.expandAll()">Expand all</Button>
               <span class="dot-sep">·</span>
-              <button type="button" class="link-btn" @click="treeRef?.collapseAll()">Collapse all</button>
+              <Button variant="link" @click="treeRef?.collapseAll()">Collapse all</Button>
               <span class="mono muted meta">{{ formatDuration(trace.data.value.durationMs) }}</span>
             </div>
           </div>
@@ -460,19 +461,7 @@ h2 {
 .tree-head .meta {
   font-size: 12px;
 }
-.link-btn {
-  border: 0;
-  background: none;
-  padding: 0;
-  color: var(--mt-accent-text);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.link-btn:hover {
-  text-decoration: underline;
-}
+
 .dot-sep {
   color: var(--mt-line);
 }

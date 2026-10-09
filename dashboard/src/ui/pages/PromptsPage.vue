@@ -19,6 +19,7 @@ import { useApprovalInbox } from "../composables/useApprovalInbox";
 import { useAsync } from "../composables/useAsync";
 import { usePermissions } from "../composables/usePermissions";
 import { usePromptApi } from "../composables/usePromptApi";
+import Button from "../components/Button.vue";
 
 const api = usePromptApi();
 const route = useRoute();
@@ -141,7 +142,7 @@ async function create() {
     <PageHeader :crumbs="[{ label: 'Prompts' }, { label: 'Prompts' }]" icon="M4 6h16M4 12h16M4 18h10" title="Prompts">
       <div class="actions">
         <TextInput v-model="search" type="search" placeholder="Filter by name…" class="search" />
-        <button v-if="can('prompt:write')" type="button" class="primary-btn" data-testid="new-prompt" @click="openCreate('prompt')">+ New prompt</button>
+        <Button variant="primary" v-if="can('prompt:write')" data-testid="new-prompt" @click="openCreate('prompt')">+ New prompt</Button>
       </div>
     </PageHeader>
 
@@ -160,17 +161,17 @@ async function create() {
           <h3>New prompt</h3>
           <p>The text your agent runs with. Use <code>{{ sampleVariable }}</code> for the parts that change.</p>
           <pre class="sample">You are a weather assistant. Answer in {{ sampleVariable }}.</pre>
-          <button v-if="can('prompt:write')" type="button" class="primary-btn" data-testid="empty-new-prompt" @click="openCreate('prompt')">+ New prompt</button>
+          <Button variant="primary" v-if="can('prompt:write')" data-testid="empty-new-prompt" @click="openCreate('prompt')">+ New prompt</Button>
         </article>
         <article class="welcome-card">
           <span class="eyebrow">FRAGMENT</span>
           <h3>New fragment</h3>
           <p>Text shared by several prompts (tone, policies, format). Edit it once and the prompts that use it get a new draft.</p>
           <pre class="sample">In your prompt: {{ sampleInclude }}</pre>
-          <button v-if="can('prompt:write')" type="button" class="outline-btn" data-testid="empty-new-fragment" @click="openCreate('fragment')">+ New fragment</button>
+          <Button v-if="can('prompt:write')" data-testid="empty-new-fragment" @click="openCreate('fragment')">+ New fragment</Button>
         </article>
       </div>
-      <button v-if="!showArchived" type="button" class="link-btn" data-testid="show-archived-empty" @click="showArchived = true; prompts.run()">Show archived prompts</button>
+      <Button variant="link" v-if="!showArchived" data-testid="show-archived-empty" @click="showArchived = true; prompts.run()">Show archived prompts</Button>
     </section>
 
     <template v-else>
@@ -278,7 +279,7 @@ async function create() {
           <span class="eyebrow">FRAGMENTS · {{ fragments.length }}</span>
           <p class="soft small">Shared text that prompts include with <code>{{ sampleInclude }}</code>. Changing one proposes a new version of every prompt that uses it.</p>
         </div>
-        <button v-if="can('prompt:write')" type="button" class="outline-btn" data-testid="new-fragment" @click="openCreate('fragment')">+ New fragment</button>
+        <Button v-if="can('prompt:write')" data-testid="new-fragment" @click="openCreate('fragment')">+ New fragment</Button>
       </div>
       <p v-if="fragments.length === 0" class="soft small fragments-empty" data-testid="fragments-empty">No fragments yet.</p>
       <article
@@ -332,8 +333,8 @@ async function create() {
         <div class="modal-foot">
           <span v-if="form.kind === 'fragment'" class="soft small">Creates v1, published. Nothing runs in an agent until a prompt includes it.</span>
           <span class="grow" />
-          <button type="button" class="ghost-btn" @click="showCreate = false">Cancel</button>
-          <button type="submit" class="primary-btn" :disabled="creating || !form.name.trim() || !form.content.trim()" data-testid="create-prompt">{{ form.kind === "fragment" ? "Create fragment" : "Create" }}</button>
+          <Button @click="showCreate = false">Cancel</Button>
+          <Button variant="primary" type="submit" :disabled="creating || !form.name.trim() || !form.content.trim()" data-testid="create-prompt">{{ form.kind === "fragment" ? "Create fragment" : "Create" }}</Button>
         </div>
       </form>
     </Modal>
@@ -541,40 +542,6 @@ code {
   font-size: 11.5px;
   line-height: 1.55;
   white-space: pre-wrap;
-}
-.welcome-card .primary-btn,
-.welcome-card .outline-btn {
-  margin-top: 4px;
-  height: 36px;
-}
-.outline-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 32px;
-  padding: 0 14px;
-  border: 1px solid var(--mt-accent);
-  border-radius: 6px;
-  background: var(--mt-card);
-  color: var(--mt-accent-text);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.outline-btn:hover {
-  background: var(--mt-accent-tint);
-}
-.link-btn {
-  border: none;
-  background: none;
-  color: var(--mt-accent-text);
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 700;
-  cursor: pointer;
-  text-decoration: underline;
 }
 
 /* ---- tablero ---- */
@@ -1036,36 +1003,11 @@ code {
   align-items: center;
   gap: 10px;
 }
-.modal-foot .primary-btn {
-  height: 36px;
-}
+
 .field-error {
   margin: -6px 0 0;
   font-size: 12px;
   color: var(--mt-err-ink);
 }
-.primary-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 40px;
-  padding: 0 20px;
-  border-radius: var(--mt-radius-lg);
-  border: none;
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.15s ease;
-}
-.primary-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.primary-btn:not(:disabled):hover {
-  opacity: 0.9;
-}
+
 </style>

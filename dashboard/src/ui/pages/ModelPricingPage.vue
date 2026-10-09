@@ -8,6 +8,7 @@ import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import FilterPill from "../components/FilterPill.vue";
 import PageHeader from "../components/PageHeader.vue";
+import Button from "../components/Button.vue";
 
 const PAGE_SIZE = 50;
 
@@ -147,9 +148,9 @@ const items = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, 
     <div v-if="items.length > 0" class="pager">
       <span class="muted">{{ filtered.length }} models</span>
       <div class="pager-controls">
-        <button type="button" class="page-btn" :disabled="page <= 1" @click="page -= 1">Prev</button>
+        <Button size="sm" :disabled="page <= 1" @click="page -= 1">Prev</Button>
         <span class="muted mono">Page {{ page }} / {{ pageCount }}</span>
-        <button type="button" class="page-btn" :disabled="page >= pageCount" @click="page += 1">Next</button>
+        <Button size="sm" :disabled="page >= pageCount" @click="page += 1">Next</Button>
       </div>
     </div>
   </div>
@@ -323,22 +324,5 @@ tbody tr:last-child td {
   align-items: center;
   gap: 10px;
 }
-.page-btn {
-  height: 30px;
-  padding: 0 12px;
-  border: 1px solid var(--mt-line);
-  border-radius: var(--mt-radius-sm);
-  background: var(--mt-card);
-  color: var(--mt-ink);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-.page-btn:hover:not(:disabled) {
-  background: var(--mt-soft);
-}
-.page-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
+
 </style>

@@ -11,6 +11,7 @@ import { useTraceApi } from "../composables/useTraceApi";
 import ErrorBanner from "./ErrorBanner.vue";
 import KpiCard from "./KpiCard.vue";
 import Select from "./Select.vue";
+import Button from "./Button.vue";
 
 const props = defineProps<{ runs: RunListItemDto[]; runId: string | null }>();
 const emit = defineEmits<{ "update:runId": [id: string] }>();
@@ -50,7 +51,7 @@ function openFull() {
   <div class="run-view" v-if="current">
     <div class="toolbar">
       <div class="picker"><Select :model-value="current.id" :options="runOptions" placeholder="Select run" @update:model-value="emit('update:runId', $event)" /></div>
-      <button type="button" class="link" @click="openFull">Open full item list →</button>
+      <Button variant="link" @click="openFull">Open full item list →</Button>
     </div>
 
     <p class="hint">{{ current.datasetName }} · dataset v{{ current.versionMajor }}.{{ current.versionMinor }} · {{ current.itemCount }} items · {{ formatDateTime(current.createdAt) }}</p>

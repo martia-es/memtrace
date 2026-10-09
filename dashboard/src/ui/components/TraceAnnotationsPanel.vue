@@ -10,6 +10,7 @@ import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import { numericChoices } from "../score-config-form";
 import NewScoreConfigModal from "./NewScoreConfigModal.vue";
+import Button from "./Button.vue";
 
 /**
  * Anotación humana de una traza (ADR-037): una persona puntúa la traza (o un span) con las rúbricas del
@@ -185,7 +186,7 @@ const scopeOf = (annotation: AnnotationDto) => (annotation.spanId ? `span ${shor
             :placeholder="`${config.minValue} – ${config.maxValue}`"
             :aria-label="`${config.name} value`" />
           <TextInput v-model="drafts[config.id]!.comment" placeholder="Comment (optional)" :aria-label="`${config.name} comment`" maxlength="5000" />
-          <button type="button" class="primary-btn" :disabled="savingId === config.id || !isDirty(config)" @click="save(config)">Save</button>
+          <Button variant="primary" :disabled="savingId === config.id || !isDirty(config)" @click="save(config)">Save</Button>
         </div>
       </section>
 
@@ -197,7 +198,7 @@ const scopeOf = (annotation: AnnotationDto) => (annotation.spanId ? `span ${shor
             <span class="row-value mono">{{ a.value }}</span>
             <span class="hint">{{ authorOf(a) }} · {{ scopeOf(a) }}</span>
             <span v-if="a.comment" class="row-comment">“{{ a.comment }}”</span>
-            <button v-if="canAct(a)" type="button" class="small-btn" @click="retract(a)">Retract</button>
+            <Button class="push" variant="danger" size="sm" v-if="canAct(a)" @click="retract(a)">Retract</Button>
           </li>
         </ul>
       </section>
@@ -296,22 +297,7 @@ const scopeOf = (annotation: AnnotationDto) => (annotation.spanId ? `span ${shor
   flex-wrap: wrap;
   gap: 4px;
 }
-.primary-btn {
-  height: 32px;
-  padding: 0 16px;
-  border-radius: var(--mt-radius-lg);
-  border: none;
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.primary-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+
 .list h3 {
   margin: 0 0 6px;
   color: var(--mt-muted);
@@ -349,19 +335,7 @@ const scopeOf = (annotation: AnnotationDto) => (annotation.spanId ? `span ${shor
   color: var(--mt-muted);
   font-style: italic;
 }
-.small-btn {
-  margin-left: auto;
-  height: 24px;
-  padding: 0 10px;
-  border-radius: var(--mt-radius-sm);
-  border: 1px solid var(--mt-err-ink);
-  background: transparent;
-  color: var(--mt-err-ink);
-  font: inherit;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-}
+
 .queues {
   display: flex;
   flex-wrap: wrap;
@@ -377,4 +351,5 @@ const scopeOf = (annotation: AnnotationDto) => (annotation.spanId ? `span ${shor
   font-weight: 600;
   text-decoration: none;
 }
+.push { margin-left: auto; }
 </style>

@@ -8,6 +8,7 @@ import { formatDateTime } from "@/domain/format";
 import { blankRow, buildCommit, isDirty, nextVersionLabel, pasteGrid, parseClipboardGrid, rowProblem, rowState, rowsFromItems, summarize, type DraftRow } from "../dataset-draft";
 import Modal from "./Modal.vue";
 import { useTraceApi } from "../composables/useTraceApi";
+import Button from "./Button.vue";
 
 /**
  * Editor de items estilo hoja de cálculo (ADR-041): se edita en la propia tabla, todo queda en un
@@ -178,8 +179,8 @@ defineExpose({ dirty });
       <TextInput type="search" v-model="search" placeholder="Search items…" class="search" />
       <template v-if="selected.size > 0">
         <span class="muted">{{ selected.size }} selected</span>
-        <button type="button" class="ghost-btn small" @click="duplicateSelected">Duplicate</button>
-        <button type="button" class="ghost-btn small danger" @click="removeSelected">Delete</button>
+        <Button size="sm" @click="duplicateSelected">Duplicate</Button>
+        <Button variant="danger" size="sm" @click="removeSelected">Delete</Button>
       </template>
       <span class="spacer" />
       <span class="muted hint">Enter ↓ next row · Shift+Enter new line · paste cells from Excel/Sheets · ⌘/Ctrl+Enter publish</span>
@@ -236,20 +237,20 @@ defineExpose({ dirty });
             </td>
             <td class="row-actions">
               <template v-if="rowState(row) !== 'empty'">
-                <button v-if="row.removed" type="button" class="ghost-btn small" @click="restore(row)">Restore</button>
+                <Button size="sm" v-if="row.removed" @click="restore(row)">Restore</Button>
                 <template v-else>
-                  <button v-if="rowState(row) === 'modified'" type="button" class="icon-btn" title="Undo changes to this row" aria-label="Undo changes to this row" @click="revert(row)">
+                  <Button variant="icon" v-if="rowState(row) === 'modified'" title="Undo changes to this row" aria-label="Undo changes to this row" @click="revert(row)">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6M3.5 13a9 9 0 1 0 2.6-6.4L3 9" /></svg>
-                  </button>
-                  <button type="button" class="icon-btn" title="Details (metadata, audit)" aria-label="Details" @click="detailKey = row.key">
+                  </Button>
+                  <Button variant="icon" title="Details (metadata, audit)" aria-label="Details" @click="detailKey = row.key">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
-                  </button>
-                  <button type="button" class="icon-btn" title="Duplicate" aria-label="Duplicate" @click="duplicate(row)">
+                  </Button>
+                  <Button variant="icon" title="Duplicate" aria-label="Duplicate" @click="duplicate(row)">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V6a2 2 0 0 1 2-2h8" /></svg>
-                  </button>
-                  <button type="button" class="icon-btn danger" title="Delete" aria-label="Delete" @click="remove(row)">
+                  </Button>
+                  <Button variant="icon" title="Delete" aria-label="Delete" @click="remove(row)" class="danger">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6" /></svg>
-                  </button>
+                  </Button>
                 </template>
               </template>
             </td>
@@ -267,8 +268,8 @@ defineExpose({ dirty });
         <span v-if="summary.removed" class="removed">−{{ summary.removed }} deleted</span>
         <span class="muted">→ will be saved as one version, <b>{{ nextLabel }}</b></span>
       </div>
-      <button type="button" class="ghost-btn" :disabled="publishing" @click="discard">Discard</button>
-      <button type="button" class="primary-btn" :disabled="publishing || summary.problems > 0" @click="publish">{{ publishing ? "Publishing…" : `Publish ${nextLabel}` }}</button>
+      <Button :disabled="publishing" @click="discard">Discard</Button>
+      <Button variant="primary" :disabled="publishing || summary.problems > 0" @click="publish">{{ publishing ? "Publishing…" : `Publish ${nextLabel}` }}</Button>
     </div>
 
     <Modal v-if="detailRow" title="Item details" @close="detailKey = null">
@@ -284,7 +285,7 @@ defineExpose({ dirty });
             <template v-else>Never edited</template>
           </p>
         </template>
-        <button type="button" class="primary-btn" @click="detailKey = null">Done</button>
+        <Button variant="primary" @click="detailKey = null">Done</Button>
       </div>
     </Modal>
   </div>
@@ -451,26 +452,7 @@ td {
   text-align: right;
   padding-top: 2px;
 }
-.icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: none;
-  border-radius: var(--mt-radius-sm);
-  background: transparent;
-  color: var(--mt-muted);
-  cursor: pointer;
-}
-.icon-btn:hover {
-  background: var(--mt-soft);
-  color: var(--mt-ink);
-}
-.icon-btn.danger:hover {
-  color: var(--mt-err-ink, #c0392b);
-}
+
 .publish-bar {
   position: sticky;
   bottom: 0;
@@ -498,49 +480,7 @@ td {
 .removed {
   color: var(--mt-err-ink);
 }
-.ghost-btn {
-  flex-shrink: 0;
-  height: 32px;
-  padding: 0 13px;
-  border-radius: var(--mt-radius-lg);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  color: var(--mt-muted);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.ghost-btn:hover:not(:disabled) {
-  color: var(--mt-ink);
-  border-color: var(--mt-accent);
-}
-.ghost-btn.small {
-  height: 26px;
-  padding: 0 10px;
-  font-size: 11.5px;
-}
-.ghost-btn.danger:hover {
-  color: var(--mt-err-ink, #c0392b);
-  border-color: var(--mt-err-ink, #c0392b);
-}
-.ghost-btn:disabled,
-.primary-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.primary-btn {
-  height: 36px;
-  padding: 0 18px;
-  border-radius: var(--mt-radius-lg);
-  border: none;
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
+
 .modal-form {
   display: flex;
   flex-direction: column;

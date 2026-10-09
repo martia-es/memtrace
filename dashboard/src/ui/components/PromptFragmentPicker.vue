@@ -6,6 +6,7 @@ import { sortEnvironments, splitVariables } from "@/domain/prompt-release";
 import EnvFlag from "./EnvFlag.vue";
 import ErrorBanner from "./ErrorBanner.vue";
 import TextInput from "./TextInput.vue";
+import Button from "./Button.vue";
 
 /**
  * Panel de fragmentos que acompaña al editor del prompt (ADR-073), siempre visible: enseña a qué versión resuelve cada
@@ -114,7 +115,7 @@ const tagsOf = (f: PromptSummaryDto) => sortEnvironments(Object.keys(f.tags)).ma
     <div class="foot">
       <code v-if="snippet" class="snippet" data-testid="fragment-snippet">{{ snippet }}</code>
       <span class="grow" />
-      <button type="button" class="primary-btn" :disabled="!snippet" data-testid="fragment-insert" @click="emit('insert', snippet)">Insert</button>
+      <Button variant="primary" :disabled="!snippet" data-testid="fragment-insert" @click="emit('insert', snippet)">Insert</Button>
     </div>
   </aside>
 </template>
@@ -281,25 +282,5 @@ const tagsOf = (f: PromptSummaryDto) => sortEnvironments(Object.keys(f.tags)).ma
   font-size: 12px;
   overflow-wrap: anywhere;
 }
-.primary-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 34px;
-  padding: 0 16px;
-  border-radius: var(--mt-radius-lg);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.primary-btn {
-  border: none;
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-}
-.primary-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+
 </style>

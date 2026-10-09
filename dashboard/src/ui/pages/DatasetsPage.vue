@@ -10,6 +10,7 @@ import Modal from "../components/Modal.vue";
 import PageHeader from "../components/PageHeader.vue";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
+import Button from "../components/Button.vue";
 
 const api = useTraceApi();
 const router = useRouter();
@@ -60,7 +61,7 @@ async function createDataset() {
     <PageHeader :crumbs="[{ label: 'Evaluations' }, { label: 'Datasets' }]" icon="M4 6a2 2 0 0 1 2-2h3l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" title="Datasets">
       <div class="actions">
         <TextInput type="search" v-model="search" placeholder="Filter by name…" class="search" />
-        <button type="button" class="primary-btn mt-new" @click="showCreateModal = true">+ New dataset</button>
+        <Button variant="primary" @click="showCreateModal = true" class="mt-new">+ New dataset</Button>
       </div>
     </PageHeader>
 
@@ -100,7 +101,7 @@ async function createDataset() {
     <Modal v-if="showCreateModal" title="New dataset" @close="showCreateModal = false">
       <form class="modal-form" @submit.prevent="createDataset">
         <TextInput v-model="newDatasetName" placeholder="Dataset name" autofocus />
-        <button type="submit" class="primary-btn" :disabled="creating || !newDatasetName.trim()">Create</button>
+        <Button variant="primary" type="submit" :disabled="creating || !newDatasetName.trim()">Create</Button>
       </form>
     </Modal>
   </div>
@@ -190,27 +191,5 @@ td {
   flex-direction: column;
   gap: 12px;
 }
-.primary-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 40px;
-  padding: 0 20px;
-  border-radius: var(--mt-radius-lg);
-  border: none;
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.15s ease;
-}
-.primary-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.primary-btn:not(:disabled):hover {
-  opacity: 0.9;
-}
+
 </style>

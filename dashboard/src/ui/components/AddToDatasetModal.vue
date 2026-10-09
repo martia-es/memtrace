@@ -9,6 +9,7 @@ import ErrorBanner from "./ErrorBanner.vue";
 import Modal from "./Modal.vue";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
+import Button from "./Button.vue";
 
 /**
  * Promueve esta traza a un item de dataset (ADR-038). El item es una COPIA: la persona ve y puede corregir la entrada
@@ -86,7 +87,7 @@ async function save() {
         <strong>The agent answered:</strong> {{ draft.observedOutput }}<br />
         It is saved as context in the item's metadata, not as the expected output.
       </p>
-      <button type="submit" class="primary-btn" data-testid="save" :disabled="!canSave">Add to dataset</button>
+      <Button variant="primary" type="submit" data-testid="save" :disabled="!canSave">Add to dataset</Button>
     </form>
   </Modal>
 </template>
@@ -135,19 +136,5 @@ async function save() {
   background: var(--mt-soft);
   white-space: pre-wrap;
 }
-.primary-btn {
-  height: 36px;
-  border-radius: var(--mt-radius-lg);
-  border: none;
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.primary-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+
 </style>

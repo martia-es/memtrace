@@ -12,6 +12,7 @@ import { usePromptApi } from "../composables/usePromptApi";
 import ApprovalFlowChart from "./ApprovalFlowChart.vue";
 import StatusChip from "./StatusChip.vue";
 import TextInput from "./TextInput.vue";
+import Button from "./Button.vue";
 
 /**
  * Pestaña Approvals de un prompt (ADR-076): qué exige hoy cada paso y las solicitudes abiertas y pasadas. Quien puede
@@ -106,8 +107,8 @@ const who = (r: ApprovalRequestDto, id: string | null) => (id ? (r.people[id] ??
 
           <div v-if="canDecideNow(r, userId)" class="decide" data-testid="decide">
             <TextInput v-model="comments[r.id]" placeholder="Comment (optional)" :data-testid="`comment-${r.id}`" />
-            <button type="button" class="primary-btn" :disabled="busy === r.id" data-testid="approve" @click="decide(r, 'approve')">Approve</button>
-            <button type="button" class="ghost" :disabled="busy === r.id" data-testid="reject" @click="decide(r, 'reject')">Reject</button>
+            <Button variant="primary" :disabled="busy === r.id" data-testid="approve" @click="decide(r, 'approve')">Approve</Button>
+            <Button :disabled="busy === r.id" data-testid="reject" @click="decide(r, 'reject')">Reject</Button>
           </div>
 
           <div v-if="live(r) && (isMine(r) || canDecideNow(r, userId))" class="more">
@@ -116,10 +117,10 @@ const who = (r: ApprovalRequestDto, id: string | null) => (id ? (r.people[id] ??
                 <option :value="undefined">Add an approver…</option>
                 <option v-for="p in addable(r)" :key="p.userId" :value="p.userId">{{ p.name }} · {{ p.roles.map(profileLabel).join(", ") }}</option>
               </select>
-              <button type="button" class="ghost" :disabled="!adding[r.id] || busy === r.id" data-testid="add-approver" @click="addApprover(r)">Add</button>
+              <Button :disabled="!adding[r.id] || busy === r.id" data-testid="add-approver" @click="addApprover(r)">Add</Button>
             </template>
-            <button v-if="r.status === 'approved' && isMine(r)" type="button" class="ghost" :disabled="busy === r.id" data-testid="retry" @click="retry(r)">Try again</button>
-            <button v-if="isMine(r)" type="button" class="ghost" :disabled="busy === r.id" data-testid="cancel" @click="cancel(r)">Cancel request</button>
+            <Button v-if="r.status === 'approved' && isMine(r)" :disabled="busy === r.id" data-testid="retry" @click="retry(r)">Try again</Button>
+            <Button v-if="isMine(r)" :disabled="busy === r.id" data-testid="cancel" @click="cancel(r)">Cancel request</Button>
           </div>
         </li>
       </ul>
@@ -145,6 +146,6 @@ header { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .decide > :first-child { flex: 1; min-width: 200px; }
 select { height: 32px; padding: 0 8px; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-xs); background: transparent; color: var(--mt-ink); font: inherit; }
 .ghost { height: 32px; padding: 0 14px; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); background: transparent; color: var(--mt-ink); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
-.primary-btn { height: 32px; padding: 0 16px; border: none; border-radius: var(--mt-radius-lg); background: var(--mt-accent); color: var(--mt-accent-ink); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>

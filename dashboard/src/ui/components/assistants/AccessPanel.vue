@@ -11,6 +11,7 @@ import EmptyState from "../EmptyState.vue";
 import ErrorBanner from "../ErrorBanner.vue";
 import AddAccessModal from "./AddAccessModal.vue";
 import PersonAvatar from "./PersonAvatar.vue";
+import Button from "../Button.vue";
 
 /** Quién puede llamar a un entorno (ADR-053). Documentado y sincronizado desde el proveedor de identidad; MemTrace no lo hace cumplir. */
 const props = defineProps<{ experimentId: string; deployment: DeploymentSummaryDto; canGovern: boolean; nowMs: number }>();
@@ -48,7 +49,7 @@ function saved() {
         <h2>Who can call it in <span class="mono">{{ deployment.environment.label }}</span></h2>
         <p>Documented here and synced from the identity provider. MemTrace does not enforce it.</p>
       </div>
-      <button v-if="canGovern" type="button" class="primary-btn" @click="adding = true">Add access</button>
+      <Button variant="primary" v-if="canGovern" @click="adding = true">Add access</Button>
     </header>
     <ErrorBanner v-if="grants.error.value" :error="grants.error.value" @retry="grants.run()" />
     <EmptyState v-else-if="(grants.data.value ?? []).length === 0 && !grants.loading.value" icon="lock_open" title="No access defined">
@@ -65,7 +66,7 @@ function saved() {
           <td><span class="tag" :class="g.subjectType">{{ TYPE_LABEL[g.subjectType] }}</span></td>
           <td class="mono">{{ g.memberCount ?? (g.subjectType === "user" ? 1 : "–") }}</td>
           <td class="muted">{{ SOURCE_LABEL[g.source] }}<template v-if="g.syncedAt"> · {{ formatRelativeTime(g.syncedAt, nowMs) }}</template></td>
-          <td class="end"><button v-if="canGovern" type="button" class="link" @click="remove(g.id)">Remove</button></td>
+          <td class="end"><Button variant="link" v-if="canGovern" @click="remove(g.id)">Remove</Button></td>
         </tr>
       </tbody>
     </table>
@@ -92,6 +93,5 @@ td { height: 42px; padding: 0 10px; border-top: 1px solid var(--mt-line-2); }
 .tag.everyone { background: var(--mt-highlight-soft); color: var(--mt-highlight-ink); }
 .link { font: inherit; font-size: 12px; font-weight: 700; color: var(--mt-accent-text); background: none; border: none; cursor: pointer; }
 .link:hover { text-decoration: underline; }
-.primary-btn { height: 30px; padding: 0 12px; font: inherit; font-size: 13px; font-weight: 700; color: var(--mt-accent-ink); background: var(--mt-accent); border: none; border-radius: var(--mt-radius-sm); cursor: pointer; }
-.primary-btn:focus-visible { outline: 2px solid var(--mt-accent); outline-offset: 2px; }
+
 </style>

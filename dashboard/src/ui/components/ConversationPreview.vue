@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref } from "vue";
 import TraceTimeline from "./TraceTimeline.vue";
+import Button from "./Button.vue";
 
 /**
  * Panel de vista previa de la lista de Conversations (ADR-048): permite leer una conversación o una traza sin
@@ -104,7 +105,7 @@ onBeforeUnmount(stopDrag);
     <header class="head">
       <div class="head-top">
         <span class="eyebrow">PREVIEW</span>
-        <button type="button" class="link" data-testid="preview-open" @click="$emit('open')">{{ openLabel ?? "Open full view" }} ↗</button>
+        <Button variant="link" data-testid="preview-open" @click="$emit('open')">{{ openLabel ?? "Open full view" }} ↗</Button>
         <button type="button" class="close" aria-label="Close preview" data-testid="preview-close" @click="$emit('close')">✕</button>
       </div>
       <h2 class="title" :title="title">{{ title }}</h2>
@@ -129,9 +130,9 @@ onBeforeUnmount(stopDrag);
         <span class="v mono">{{ s.v }}</span>
       </div>
       <div v-if="showActions" class="actions" :title="actionsHint">
-        <button type="button" class="btn primary" data-testid="preview-annotate" :disabled="actionsDisabled" @click="$emit('annotate')">Annotate</button>
-        <button type="button" class="btn" data-testid="preview-add-to-queue" :disabled="actionsDisabled" @click="$emit('addToQueue')">Add to queue</button>
-        <button type="button" class="btn" data-testid="preview-add-to-dataset" :disabled="actionsDisabled" @click="$emit('addToDataset')">Add to dataset</button>
+        <Button variant="primary" data-testid="preview-annotate" :disabled="actionsDisabled" @click="$emit('annotate')">Annotate</Button>
+        <Button data-testid="preview-add-to-queue" :disabled="actionsDisabled" @click="$emit('addToQueue')">Add to queue</Button>
+        <Button data-testid="preview-add-to-dataset" :disabled="actionsDisabled" @click="$emit('addToDataset')">Add to dataset</Button>
       </div>
     </footer>
   </aside>

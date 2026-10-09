@@ -152,7 +152,7 @@ describe("TraceAnnotationsPanel", () => {
 
   it("lets a member retract only their own label", async () => {
     const { wrapper, trace } = await mountPanel([config()], [annotation(), annotation({ annotator: { id: "u2", name: "Luis" } })]);
-    const buttons = wrapper.findAll('[data-testid="annotation-row"] .small-btn');
+    const buttons = wrapper.findAll('[data-testid="annotation-row"] .mt-btn.s-sm');
     expect(buttons).toHaveLength(1);
     await buttons[0]!.trigger("click");
     await flushPromises();

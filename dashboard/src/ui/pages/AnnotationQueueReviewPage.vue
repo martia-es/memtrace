@@ -18,6 +18,7 @@ import { usePermissions } from "../composables/usePermissions";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
 import { numericChoices } from "../score-config-form";
+import Button from "../components/Button.vue";
 
 /**
  * Pantalla de revisión (ADR-039): a un lado la traza (mismos componentes que el detalle de traza), al otro la
@@ -177,7 +178,7 @@ const progress = computed(() => queue.value?.progress);
 
     <EmptyState v-else-if="finished" icon="task_alt" title="Nothing left to review here">
       You have reviewed everything this queue has for you.
-      <div class="q-mt-md"><button type="button" class="primary-btn" @click="back">Back to queues</button></div>
+      <div class="q-mt-md"><Button variant="primary" @click="back">Back to queues</Button></div>
     </EmptyState>
 
     <div v-else-if="item" class="cols">
@@ -201,9 +202,9 @@ const progress = computed(() => queue.value?.progress);
               <p v-if="!turns.length" class="gone">This trace has no content saved. Skip it or check the technical view.</p>
             </ConversationThread>
 
-            <button v-if="can('trace:read_technical')" type="button" class="link" :aria-expanded="showTrace" data-testid="trace-toggle" @click="showTrace = !showTrace">
+            <Button variant="link" v-if="can('trace:read_technical')" :aria-expanded="showTrace" data-testid="trace-toggle" @click="showTrace = !showTrace">
               {{ showTrace ? "Hide technical trace" : "Show technical trace" }}
-            </button>
+            </Button>
             <div v-if="showTrace && can('trace:read_technical')" class="trace-cols" data-testid="technical-trace">
               <SpanTree :roots="roots" :total-ms="trace.data.value.durationMs" :selected-id="selectedNode?.spanId ?? null" @select="(id: string) => (selectedSpan = id)" />
               <SpanInspector v-if="selectedNode" :node="selectedNode" empty-hint="This span has no content saved." />
@@ -257,9 +258,9 @@ const progress = computed(() => queue.value?.progress);
           />
         </section>
         <div class="buttons">
-          <button type="button" class="small-btn" :disabled="busy" data-testid="mark-unreviewable" @click="markUnreviewable">Mark unreviewable</button>
-          <button type="button" class="small-btn" :disabled="busy" data-testid="skip" @click="skip">Skip</button>
-          <button type="button" class="primary-btn" :disabled="busy || !ready" data-testid="submit" @click="submit">Submit &amp; next</button>
+          <Button size="sm" :disabled="busy" data-testid="mark-unreviewable" @click="markUnreviewable">Mark unreviewable</Button>
+          <Button size="sm" :disabled="busy" data-testid="skip" @click="skip">Skip</Button>
+          <Button variant="primary" :disabled="busy || !ready" data-testid="submit" @click="submit">Submit &amp; next</Button>
         </div>
         <p class="hint">Keys 1–9 pick an answer for the first open criterion · Enter submits</p>
       </aside>
@@ -496,29 +497,5 @@ const progress = computed(() => queue.value?.progress);
   background: var(--mt-card);
   border-top: 1px solid var(--mt-line);
 }
-.small-btn,
-.primary-btn {
-  height: 34px;
-  padding: 0 16px;
-  border-radius: var(--mt-radius-sm);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.small-btn {
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  color: var(--mt-ink);
-}
-.primary-btn {
-  border: none;
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-}
-.small-btn:disabled,
-.primary-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+
 </style>

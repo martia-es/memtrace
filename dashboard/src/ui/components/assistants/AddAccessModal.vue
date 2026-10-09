@@ -8,6 +8,7 @@ import { describeApiError } from "@/application/describe-api-error";
 import { useAssistantApi } from "../../composables/useAssistantApi";
 import Modal from "../Modal.vue";
 import PersonPicker from "./PersonPicker.vue";
+import Button from "../Button.vue";
 
 /** Añade quién puede llamar a un despliegue. MemTrace lo documenta y lo sincroniza; no lo hace cumplir (ADR-053). */
 const props = defineProps<{ experimentId: string; deploymentId: string; envLabel: string }>();
@@ -58,7 +59,7 @@ const SUBJECT_OPTIONS: { label: string; value: GrantSubjectTypeDto }[] = [
       </template>
       <div v-else-if="form.subjectType === 'user'" class="field"><span>Person</span><PersonPicker v-model="form.person" :experiment-id="experimentId" /></div>
       <p v-else class="hint">Anyone signed in to the organization will be listed as allowed.</p>
-      <div class="actions"><button type="submit" class="primary-btn" :disabled="saving || !canSave">Add access</button></div>
+      <div class="actions"><Button variant="primary" type="submit" :disabled="saving || !canSave">Add access</Button></div>
     </form>
   </Modal>
 </template>

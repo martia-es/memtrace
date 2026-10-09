@@ -13,6 +13,7 @@ import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import type { MetricReportDto, SavedCustomMetricDto } from "@/application/identity-api";
 import type { RangeParams } from "@/application/trace-api";
+import Button from "./Button.vue";
 
 const props = defineProps<{ experimentId: string; reportId: string; range: RangeParams }>();
 const emit = defineEmits<{ renamed: [name: string]; deleted: [] }>();
@@ -191,8 +192,8 @@ async function sendEmail() {
       <div class="report-title">
         <template v-if="renaming">
           <TextInput class="rename-input" v-model="renameValue" @keyup.enter="saveRename" @keyup.escape="renaming = false" />
-          <q-btn unelevated no-caps dense size="sm" color="primary" label="Save" :disable="!renameValue.trim()" @click="saveRename" />
-          <q-btn flat no-caps dense size="sm" label="Cancel" @click="renaming = false" />
+          <Button variant="primary" size="sm" :disabled="!renameValue.trim()" @click="saveRename">Save</Button>
+          <Button size="sm" @click="renaming = false">Cancel</Button>
         </template>
         <template v-else>
           <h3>{{ report?.name }}</h3>
@@ -202,13 +203,13 @@ async function sendEmail() {
 
       <div class="report-actions">
         <template v-if="editMode">
-          <button type="button" class="small-btn" @click="cancelEdit">Cancel</button>
-          <button type="button" class="small-btn primary" :disabled="savingLayout" @click="saveLayout">Save layout</button>
+          <Button size="sm" @click="cancelEdit">Cancel</Button>
+          <Button variant="primary" size="sm" :disabled="savingLayout" @click="saveLayout">Save layout</Button>
         </template>
         <template v-else>
-          <button type="button" class="small-btn" @click="openSendDialog">Send by email</button>
-          <button type="button" class="small-btn" @click="enterEdit">Edit layout</button>
-          <button type="button" class="small-btn danger" @click="confirmingDelete = true">Delete</button>
+          <Button size="sm" @click="openSendDialog">Send by email</Button>
+          <Button size="sm" @click="enterEdit">Edit layout</Button>
+          <Button variant="danger" size="sm" @click="confirmingDelete = true">Delete</Button>
         </template>
       </div>
     </div>
@@ -228,7 +229,7 @@ async function sendEmail() {
       <template v-if="editMode">Use the chips above to add a chart you've already saved in Custom charts.</template>
       <template v-else>
         <p class="hint">Add charts you've already saved in Custom charts.</p>
-        <q-btn unelevated no-caps dense color="primary" label="Edit layout" @click="enterEdit" />
+        <Button variant="primary" size="sm" @click="enterEdit">Edit layout</Button>
       </template>
     </EmptyState>
 
@@ -237,7 +238,7 @@ async function sendEmail() {
         <div class="report-chart-card">
           <div class="report-chart-head">
             <span class="name">{{ chartById.get(item.i)?.name }}</span>
-            <q-btn v-if="editMode" flat dense no-caps size="sm" icon="close" @click="removeFromLayout(item.i)" />
+            <Button variant="icon" size="sm" v-if="editMode" @click="removeFromLayout(item.i)"><q-icon name="close" size="16px" /></Button>
           </div>
           <div class="report-chart-body">
             <template v-if="chartById.get(item.i)">
@@ -270,8 +271,8 @@ async function sendEmail() {
       <q-card class="confirm-card">
         <q-card-section>Delete report "{{ report?.name }}"? Its saved charts aren't affected.</q-card-section>
         <q-card-actions align="right">
-          <q-btn flat no-caps label="Cancel" @click="confirmingDelete = false" />
-          <q-btn unelevated no-caps color="negative" label="Delete" @click="confirmDelete" />
+          <Button @click="confirmingDelete = false">Cancel</Button>
+          <Button variant="danger" @click="confirmDelete">Delete</Button>
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -286,8 +287,8 @@ async function sendEmail() {
           <p v-if="sendSuccess" class="success-text">Sent.</p>
         </q-card-section>
         <q-card-actions align="right">
-          <q-btn flat no-caps label="Close" @click="sendDialogOpen = false" />
-          <q-btn unelevated no-caps color="primary" label="Send" :loading="sending" :disable="!sendEmails.trim()" @click="sendEmail" />
+          <Button @click="sendDialogOpen = false">Close</Button>
+          <Button variant="primary" :loading="sending" :disabled="!sendEmails.trim()" @click="sendEmail">Send</Button>
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -336,35 +337,7 @@ async function sendEmail() {
 .icon-link:hover {
   color: var(--mt-accent);
 }
-.small-btn {
-  height: 28px;
-  padding: 0 12px;
-  border-radius: var(--mt-radius-sm);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  color: var(--mt-ink);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.small-btn:hover:not(:disabled) {
-  border-color: var(--mt-accent);
-  color: var(--mt-accent);
-}
-.small-btn.primary {
-  border-color: var(--mt-accent);
-  color: var(--mt-accent);
-}
-.small-btn.danger {
-  border-color: transparent;
-  background: none;
-  color: var(--mt-danger, #c10015);
-}
-.small-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+
 .report-actions {
   display: flex;
   align-items: center;
@@ -372,37 +345,6 @@ async function sendEmail() {
   flex-wrap: wrap;
 }
 
-/* Reemplaza el look por defecto de Quasar (pill redondeada, sombra al foco) por el estilo plano del
-   resto del dashboard: borde fino, radio pequeño, sin sombra. */
-.report-actions :deep(.q-btn) {
-  box-shadow: none;
-  border-radius: var(--mt-radius-sm, 8px);
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: -0.005em;
-  min-height: 36px;
-  padding: 0 14px;
-}
-.report-actions :deep(.q-btn--outline) {
-  border: 1px solid var(--mt-line);
-  color: var(--mt-ink);
-}
-.report-actions :deep(.q-btn--outline:hover) {
-  border-color: var(--mt-accent);
-  color: var(--mt-accent);
-}
-.report-actions :deep(.q-btn--outline .q-focus-helper) {
-  display: none;
-}
-.report-actions :deep(.q-btn--unelevated) {
-  background: var(--mt-accent) !important;
-}
-.report-actions :deep(.q-btn--flat) {
-  padding: 0 10px;
-}
-.report-actions :deep(.q-btn--flat:hover) {
-  background: color-mix(in srgb, var(--mt-err-ink) 10%, transparent);
-}
 .add-chart-row {
   display: flex;
   align-items: center;

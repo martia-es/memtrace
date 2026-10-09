@@ -4,6 +4,7 @@ import { useQuasar } from "quasar";
 import type { ApiKeyDto, ExperimentDto } from "@/application/identity-api";
 import { useIdentityApi } from "../../composables/useIdentityApi";
 import { formatDate, notifyErrorWith } from "../../composables/useAdminDirectory";
+import Button from "../Button.vue";
 
 /**
  * API keys de un experimento (ADR-013). Una clave identifica al experimento cuando un agente envía trazas.
@@ -78,14 +79,14 @@ function copy(text: string) {
       <p class="revealed-title">New key created. Copy it now, it won't be shown again.</p>
       <div class="adm-snippet">
         <pre>{{ envSnippet(revealed) }}</pre>
-        <button class="adm-btn" type="button" @click="copy(envSnippet(revealed))">Copy</button>
+        <Button @click="copy(envSnippet(revealed))">Copy</Button>
       </div>
-      <button class="adm-btn ghost small dismiss" type="button" @click="revealed = null">I've copied it</button>
+      <Button size="sm" @click="revealed = null" class="dismiss">I've copied it</Button>
     </div>
 
     <div class="toolbar-row">
       <h4 class="adm-section-title">Active keys ({{ keys.length }})</h4>
-      <button v-if="canManage" class="adm-btn primary" type="button" :disabled="generating" @click="generate">Create API key</button>
+      <Button variant="primary" v-if="canManage" :disabled="generating" @click="generate">Create API key</Button>
     </div>
 
     <ul v-if="keys.length" class="adm-list">
@@ -94,7 +95,7 @@ function copy(text: string) {
           <span class="adm-item-title mono">{{ k.keyPrefix }}…</span>
           <span class="adm-item-meta">created {{ formatDate(k.createdAt) }} · last used {{ formatDate(k.lastUsedAt) }}</span>
         </div>
-        <button v-if="canManage" class="adm-btn danger" type="button" @click="revoke(k.id)">Revoke</button>
+        <Button variant="danger" v-if="canManage" @click="revoke(k.id)">Revoke</Button>
       </li>
     </ul>
     <p v-else-if="!loading" class="adm-empty">

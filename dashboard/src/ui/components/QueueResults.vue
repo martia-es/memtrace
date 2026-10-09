@@ -13,6 +13,7 @@ import ErrorBanner from "./ErrorBanner.vue";
 import TraceThreadPreview from "./TraceThreadPreview.vue";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
+import Button from "./Button.vue";
 
 /**
  * Resultados de una cola para el perfil técnico (ADR-050): qué respondió cada revisor por item y criterio, los
@@ -159,7 +160,7 @@ async function promote() {
     <div class="toolbar">
       <label class="check"><input v-model="onlyDisagreements" type="checkbox" data-testid="only-disagreements" /> Only disagreements</label>
       <span v-if="results.data.value" class="muted">{{ results.data.value.total }} item{{ results.data.value.total === 1 ? "" : "s" }}</span>
-      <button type="button" class="small-btn" :disabled="!readyRows.length" data-testid="select-ready" @click="readyRows.forEach((r) => selected.add(r.id))">Select all ready</button>
+      <Button class="push" size="sm" :disabled="!readyRows.length" data-testid="select-ready" @click="readyRows.forEach((r) => selected.add(r.id))">Select all ready</Button>
     </div>
 
     <ErrorBanner v-if="results.error.value" :error="results.error.value" @retry="results.run()" />
@@ -198,7 +199,7 @@ async function promote() {
                 <span v-else-if="crit.status === 'disagreement'" class="pill warn">disagreement</span>
               </template>
             </td>
-            <td><button type="button" class="small-btn" data-testid="resolve-btn" @click="open(row)">{{ row.needsResolution ? "Resolve" : "Open" }}</button></td>
+            <td><Button size="sm" data-testid="resolve-btn" @click="open(row)">{{ row.needsResolution ? "Resolve" : "Open" }}</Button></td>
           </tr>
 
         </tbody>
@@ -209,7 +210,7 @@ async function promote() {
       <strong>{{ chosen.length }} selected</strong>
       <Select v-model="datasetId" :options="datasetOptions" placeholder="Choose a dataset…" aria-label="Dataset" data-testid="promote-dataset" />
       <Select v-model="referenceId" :options="referenceOptions" aria-label="Expected output from" data-testid="promote-config" />
-      <button type="button" class="small-btn primary" data-testid="promote-run" :disabled="!canPromote" @click="promote">Add to dataset</button>
+      <Button variant="primary" size="sm" data-testid="promote-run" :disabled="!canPromote" @click="promote">Add to dataset</Button>
       <p class="muted" data-testid="promote-help">{{ referenceHelp }}</p>
       <p v-if="promoteHint" class="muted hint" data-testid="promote-hint">{{ promoteHint }}</p>
       <p class="muted">Items are copies and each batch of 100 creates one new dataset version. Rows where reviewers disagree can’t be selected until you resolve them.</p>
@@ -247,8 +248,8 @@ async function promote() {
             </div>
             <TextInput multiline class="expected" v-if="drafts[key(openedRow, crit.configId)]" v-model="drafts[key(openedRow, crit.configId)]!.expected" :rows="3" placeholder="Correct answer (optional): what the agent should have said. It becomes the dataset item’s expected output." aria-label="Correct answer" />
             <div class="decide">
-              <button type="button" class="small-btn" :disabled="!drafts[key(openedRow, crit.configId)]?.value" data-testid="save-resolution" @click="save(openedRow, crit)">Save decision</button>
-              <button v-if="crit.resolution" type="button" class="small-btn" data-testid="clear-resolution" @click="clear(openedRow, crit)">Clear decision</button>
+              <Button size="sm" :disabled="!drafts[key(openedRow, crit.configId)]?.value" data-testid="save-resolution" @click="save(openedRow, crit)">Save decision</Button>
+              <Button size="sm" v-if="crit.resolution" data-testid="clear-resolution" @click="clear(openedRow, crit)">Clear decision</Button>
             </div>
           </div>
         </div>
@@ -271,9 +272,7 @@ async function promote() {
   gap: 12px;
   margin-bottom: 8px;
 }
-.toolbar .small-btn {
-  margin-left: auto;
-}
+
 .check {
   display: flex;
   align-items: center;
@@ -436,24 +435,6 @@ select {
   font: inherit;
   font-size: 12.5px;
 }
-.small-btn {
-  height: 28px;
-  padding: 0 12px;
-  border-radius: var(--mt-radius-sm);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  color: var(--mt-ink);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.small-btn.primary {
-  border-color: var(--mt-accent);
-  color: var(--mt-accent);
-}
-.small-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+
+.push { margin-left: auto; }
 </style>

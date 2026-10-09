@@ -15,6 +15,7 @@ import QueueDetailModal from "../components/QueueDetailModal.vue";
 import { useAsync } from "../composables/useAsync";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTraceApi } from "../composables/useTraceApi";
+import Button from "../components/Button.vue";
 
 /**
  * Colas de revisión (ADR-039): qué trazas hay que revisar, con qué rúbrica y cuánto va hecho. Cualquier
@@ -179,7 +180,7 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
 <template>
   <div class="page">
     <PageHeader :crumbs="[{ label: 'Review' }, { label: VIEW_TITLES[tab] }]" :icon="ICON" :title="VIEW_TITLES[tab]">
-      <button v-if="canManage" type="button" class="primary-btn mt-new" data-testid="new-queue" @click="openCreate">+ New queue</button>
+      <Button variant="primary" v-if="canManage" data-testid="new-queue" @click="openCreate" class="mt-new">+ New queue</Button>
     </PageHeader>
 
     <section v-if="pendingTotal > 0" class="inbox" data-testid="inbox">
@@ -288,7 +289,7 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
             <label v-if="form.picked[c.id]?.on" class="muted"><input v-model="form.picked[c.id]!.required" type="checkbox" /> required</label>
           </div>
         </fieldset>
-        <button type="submit" class="primary-btn" :disabled="creating || !form.name.trim() || !rubric.length || !form.reviewerIds.length || form.requiredAnnotations > form.reviewerIds.length">Create</button>
+        <Button variant="primary" type="submit" :disabled="creating || !form.name.trim() || !rubric.length || !form.reviewerIds.length || form.requiredAnnotations > form.reviewerIds.length">Create</Button>
       </form>
     </Modal>
 
@@ -304,7 +305,7 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
         <label class="inline">Slower than (ms) <TextInput v-model="filter.minDurationMs" type="number" min="0" aria-label="Minimum duration" /></label>
         <label class="inline">{{ filter.random ? "Sample of" : "At most" }} <TextInput v-model="filter.limit" type="number" min="1" max="500" aria-label="Limit" /> traces</label>
         <label class="inline"><input v-model="filter.random" type="checkbox" aria-label="Random sample" /> Pick them at random from all matches instead of the first ones</label>
-        <button type="submit" class="primary-btn" :disabled="adding">Add traces</button>
+        <Button variant="primary" type="submit" :disabled="adding">Add traces</Button>
       </form>
     </Modal>
   </div>
@@ -587,23 +588,5 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
   justify-content: space-between;
   font-size: 13px;
 }
-.primary-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 40px;
-  padding: 0 20px;
-  border-radius: var(--mt-radius-lg);
-  border: none;
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.primary-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+
 </style>

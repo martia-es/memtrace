@@ -11,6 +11,7 @@ import { useTraceApi } from "../composables/useTraceApi";
 import ErrorBanner from "./ErrorBanner.vue";
 import Select from "./Select.vue";
 import TextInput from "./TextInput.vue";
+import Button from "./Button.vue";
 
 /**
  * Probar versiones de un prompt en el asistente real (ADR-071): se ejecuta el agente de verdad, con sus tools y su RAG, sin
@@ -126,7 +127,7 @@ async function run() {
         <Select v-model="first" :options="versionOptions" data-testid="playground-first" />
         <b>against</b>
         <Select v-model="second" :options="secondOptions" placeholder="nothing" data-testid="playground-second" />
-        <button v-if="second !== null" type="button" class="ghost-btn small" data-testid="playground-clear" @click="second = null">Clear</button>
+        <Button size="sm" v-if="second !== null" data-testid="playground-clear" @click="second = null">Clear</Button>
         <template v-if="deploymentOptions.length > 1">
           <span class="muted">in</span>
           <Select v-model="deploymentId" :options="deploymentOptions" data-testid="playground-deployment" />
@@ -165,9 +166,9 @@ async function run() {
         </div>
         <footer>
           <TextInput v-model="traceId" mono size="sm" placeholder="or load it from a trace id" class="trace-id" data-testid="playground-trace" @keydown.enter.prevent="loadTrace" />
-          <button type="button" class="ghost-btn small" :disabled="loadingTrace || traceId.trim() === ''" data-testid="playground-load" @click="loadTrace">Load</button>
+          <Button size="sm" :disabled="loadingTrace || traceId.trim() === ''" data-testid="playground-load" @click="loadTrace">Load</Button>
           <span class="grow" />
-          <button type="button" class="primary-btn" :disabled="!canRun" data-testid="playground-run" @click="run">{{ running ? "Running…" : "Run" }}</button>
+          <Button variant="primary" :disabled="!canRun" data-testid="playground-run" @click="run">{{ running ? "Running…" : "Run" }}</Button>
         </footer>
       </section>
 
@@ -358,39 +359,7 @@ async function run() {
   background: var(--mt-err-bg);
   color: var(--mt-err-ink);
 }
-.primary-btn,
-.ghost-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 36px;
-  padding: 0 16px;
-  border-radius: var(--mt-radius-lg);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.primary-btn {
-  border: none;
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-}
-.ghost-btn {
-  border: 1px solid var(--mt-line);
-  background: transparent;
-  color: var(--mt-ink);
-}
-.ghost-btn.small {
-  height: 30px;
-  padding: 0 12px;
-  font-size: 12.5px;
-}
-.primary-btn:disabled,
-.ghost-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+
 @media (max-width: 900px) {
   .results {
     flex-direction: column;

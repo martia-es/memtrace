@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { describeApiError } from "@/application/describe-api-error";
+import Button from "./Button.vue";
 
 const props = defineProps<{ error: Error }>();
 defineEmits<{ retry: [] }>();
@@ -12,7 +13,7 @@ const message = computed(() => describeApiError(props.error));
   <q-banner class="error-banner" role="alert">
     <template #avatar><q-icon name="error_outline" /></template>
     {{ message }}
-    <template #action><q-btn flat no-caps dense label="Retry" class="retry" @click="$emit('retry')" /></template>
+    <template #action><Button size="sm" class="retry" @click="$emit('retry')">Retry</Button></template>
   </q-banner>
 </template>
 

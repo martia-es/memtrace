@@ -7,6 +7,7 @@ import { describeApiError } from "@/application/describe-api-error";
 import { belowFloor, describeRule, profileLabel, ruleFor, stepLabel, steps } from "@/domain/approvals";
 import { usePromptApi } from "../../composables/usePromptApi";
 import ApprovalFlowChart, { type FlowStep } from "../ApprovalFlowChart.vue";
+import Button from "../Button.vue";
 
 /**
  * Reglas de aprobación de prompts (ADR-076), de la organización o de un experimento: por cada paso (publicar una versión y
@@ -151,9 +152,9 @@ async function remove(row: { action: "publish" | "promote"; stage: string }) {
 
       <ApprovalFlowChart :steps="flowSteps" :names="names" test-prefix="rule">
         <template #actions="{ step }">
-          <button class="adm-btn small" :class="isEditing(step) ? 'primary' : 'ghost'" type="button" :disabled="saving" data-testid="rule-edit" @click="edit(step)">
+          <Button size="sm" :class="isEditing(step) ? 'primary' : 'ghost'" :disabled="saving" data-testid="rule-edit" @click="edit(step)">
             {{ isEditing(step) ? "Editing…" : ruleFor(data.rules, step.action, step.stage) ? "Edit rule" : "Set up" }}
-          </button>
+          </Button>
         </template>
       </ApprovalFlowChart>
 
@@ -202,8 +203,8 @@ async function remove(row: { action: "publish" | "promote"; stage: string }) {
               <p class="small">The person who asks never counts as an approver. A rejection closes the request. It expires after 7 days.</p>
               <p v-if="floorProblem" class="problem" role="alert" data-testid="rule-floor-problem">{{ floorProblem }}</p>
               <div class="actions">
-                <button class="adm-btn ghost small" type="button" @click="editing = null">Cancel</button>
-                <button class="adm-btn primary small" type="submit" :disabled="!canSave" data-testid="rule-save">{{ saving ? "Saving…" : "Save rule" }}</button>
+                <Button size="sm" @click="editing = null">Cancel</Button>
+                <Button variant="primary" size="sm" type="submit" :disabled="!canSave" data-testid="rule-save">{{ saving ? "Saving…" : "Save rule" }}</Button>
               </div>
             </div>
           </div>

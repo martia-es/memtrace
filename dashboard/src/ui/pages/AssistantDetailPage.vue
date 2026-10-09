@@ -15,6 +15,7 @@ import PageHeader from "../components/PageHeader.vue";
 import StatusChip from "../components/StatusChip.vue";
 import TabBar from "../components/TabBar.vue";
 import { initials } from "@/domain/assistants";
+import Button from "../components/Button.vue";
 
 /** Ficha de un asistente (ADR-053): entornos con su salud y accesos, y conexiones declaradas y observadas. */
 const props = defineProps<{ experimentId: string }>();
@@ -102,7 +103,7 @@ const editing = ref(false);
             </div>
           </dl>
         </div>
-        <button v-if="canManage" type="button" class="ghost" data-testid="edit-assistant" @click="editing = true">Edit details</button>
+        <Button v-if="canManage" data-testid="edit-assistant" @click="editing = true">Edit details</Button>
       </section>
 
       <CiSetup :repo="card.data.value.repo" />

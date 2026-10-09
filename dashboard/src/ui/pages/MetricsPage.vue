@@ -23,6 +23,7 @@ import { useFilters } from "../composables/useFilters";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import { useRoute, useRouter } from "vue-router";
+import Button from "../components/Button.vue";
 
 const api = useTraceApi();
 const identityApi = useIdentityApi();
@@ -380,8 +381,8 @@ function swapAgents() {
           <TextInput v-model="newReportName" placeholder="Report name" @keyup.enter="createReport" />
         </q-card-section>
         <q-card-actions align="right">
-          <q-btn flat no-caps label="Cancel" @click="creatingReport = false" />
-          <q-btn unelevated no-caps color="primary" label="Create" :disable="!newReportName.trim()" :loading="creatingReportBusy" @click="createReport" />
+          <Button @click="creatingReport = false">Cancel</Button>
+          <Button variant="primary" :disabled="!newReportName.trim()" :loading="creatingReportBusy" @click="createReport">Create</Button>
         </q-card-actions>
       </q-card>
     </q-dialog>

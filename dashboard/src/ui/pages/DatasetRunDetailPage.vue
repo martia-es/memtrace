@@ -16,6 +16,7 @@ import { useTraceApi } from "../composables/useTraceApi";
 import { useExperimentRepo } from "../composables/useExperimentRepo";
 import CommitLink from "../components/CommitLink.vue";
 import PromptChips from "../components/PromptChips.vue";
+import Button from "../components/Button.vue";
 
 const api = useTraceApi();
 const route = useRoute();
@@ -107,9 +108,9 @@ function sourceSuffix(s: ScoreDto): string | null {
 
       <JudgeHumanAgreement :scope="{ datasetRunId: runId }" @select-item="showItem">
         <template #actions>
-          <button v-if="run.data.value!.items.length > 0" type="button" class="small-btn" data-testid="add-run-items-to-queue" @click="addingToQueue = true">
+          <Button size="sm" v-if="run.data.value!.items.length > 0" data-testid="add-run-items-to-queue" @click="addingToQueue = true">
             Send items to a review queue
-          </button>
+          </Button>
         </template>
       </JudgeHumanAgreement>
       <AddToQueueModal v-if="addingToQueue" :run="{ datasetRunId: runId, itemCount: run.data.value!.run.itemCount }" @close="addingToQueue = false" />
@@ -291,16 +292,7 @@ td {
 .item-row.highlighted td {
   background: var(--mt-warn-bg, rgba(245, 158, 11, 0.14));
 }
-.small-btn {
-  height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--mt-line);
-  border-radius: var(--mt-radius-lg);
-  background: var(--mt-card, #fff);
-  color: var(--mt-ink);
-  font-size: 12.5px;
-  cursor: pointer;
-}
+
 .item-row.error td:nth-child(4) .preview {
   color: var(--mt-err-ink);
 }

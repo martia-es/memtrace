@@ -3,6 +3,7 @@ import type { DatasetRunItemResultDto, ScoreDto } from "@contract";
 import { computed, onBeforeUnmount, onMounted } from "vue";
 import { useRoute } from "vue-router";
 import { formatDuration } from "@/domain/format";
+import Button from "./Button.vue";
 
 const route = useRoute();
 const props = defineProps<{ item: DatasetRunItemResultDto; position: number; total: number; hasPrev: boolean; hasNext: boolean }>();
@@ -55,11 +56,11 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
         <span v-else class="mt-pill ok">all passed</span>
       </div>
       <div class="nav">
-        <router-link v-if="traceLink" class="small-btn" :to="traceLink" data-testid="run-item-trace">Open trace</router-link>
+        <Button v-if="traceLink" size="sm" :to="traceLink" data-testid="run-item-trace">Open trace</Button>
         <span v-else-if="item.traceId" class="muted small" data-testid="run-item-no-trace" title="The trace was not stored or has expired">Trace not available</span>
-        <button type="button" class="icon-btn" :disabled="!hasPrev" aria-label="Previous item" data-testid="run-item-prev" @click="emit('prev')">‹</button>
-        <button type="button" class="icon-btn" :disabled="!hasNext" aria-label="Next item" data-testid="run-item-next" @click="emit('next')">›</button>
-        <button type="button" class="icon-btn" aria-label="Close" data-testid="run-item-close" @click="emit('close')">✕</button>
+        <Button variant="icon" :disabled="!hasPrev" aria-label="Previous item" data-testid="run-item-prev" @click="emit('prev')">‹</Button>
+        <Button variant="icon" :disabled="!hasNext" aria-label="Next item" data-testid="run-item-next" @click="emit('next')">›</Button>
+        <Button variant="icon" aria-label="Close" data-testid="run-item-close" @click="emit('close')">✕</Button>
       </div>
     </header>
 
@@ -115,8 +116,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
 .head { flex: none; height: 52px; box-sizing: border-box; padding: 0 14px 0 20px; display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--mt-card, #fff); border-bottom: 1px solid var(--mt-line); font-size: 14px; }
 .title { display: flex; align-items: center; gap: 10px; }
 .nav { display: flex; align-items: center; gap: 6px; }
-.icon-btn { width: 32px; height: 32px; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); background: var(--mt-card, #fff); color: var(--mt-ink); cursor: pointer; font: inherit; font-size: 15px; font-weight: 700; }
-.icon-btn:disabled { opacity: 0.4; cursor: default; }
+
 .body { flex: 1; min-height: 0; overflow: auto; padding: 18px 20px 24px; display: flex; flex-direction: column; gap: 14px; }
 .question { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.35; overflow-wrap: anywhere; }
 .outputs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
@@ -141,5 +141,5 @@ h4.bar { padding: 11px 16px; background: var(--mt-soft); border-bottom: 1px soli
 .small { font-size: 12px; }
 .telemetry { display: flex; gap: 32px; flex-wrap: wrap; }
 .telemetry div { display: flex; flex-direction: column; gap: 2px; }
-.small-btn { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); background: var(--mt-card, #fff); color: var(--mt-ink); font-size: 12.5px; font-weight: 600; text-decoration: none; }
+
 </style>

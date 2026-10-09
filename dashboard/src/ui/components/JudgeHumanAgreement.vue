@@ -6,6 +6,7 @@ import { describePopulation, formatKappa, formatRate, itemIndexOfTarget, kappaLa
 import ErrorBanner from "./ErrorBanner.vue";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
+import Button from "./Button.vue";
 
 /**
  * "Agreement with human labels" (ADR-040): por evaluador, cuánto coinciden el juez LLM y las personas. La parte que
@@ -111,7 +112,7 @@ function targetLabel(target: string): string {
             <h3>Where they differ ({{ m.disagreements.length }}{{ m.disagreements.length >= 100 ? "+" : "" }})</h3>
             <ul>
               <li v-for="d in m.disagreements.slice(0, 20)" :key="d.target">
-                <button v-if="runId && itemIndexOfTarget(d.target, runId) !== null" type="button" class="link" @click="emit('select-item', itemIndexOfTarget(d.target, runId)!)">{{ targetLabel(d.target) }}</button>
+                <Button variant="link" v-if="runId && itemIndexOfTarget(d.target, runId) !== null" @click="emit('select-item', itemIndexOfTarget(d.target, runId)!)">{{ targetLabel(d.target) }}</Button>
                 <span v-else class="mono">{{ targetLabel(d.target) }}</span>
                 <span class="muted">judge <strong>{{ d.judge }}</strong> · human <strong>{{ d.human }}</strong></span>
               </li>

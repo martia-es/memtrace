@@ -8,6 +8,7 @@ import { usePromptApi } from "../composables/usePromptApi";
 import Modal from "./Modal.vue";
 import StatusChip from "./StatusChip.vue";
 import TextInput from "./TextInput.vue";
+import Button from "./Button.vue";
 
 /**
  * Promoción de una versión a un entorno protegido (ADR-070). Antes de mover el tag dice si hay una evaluación exitosa de
@@ -107,8 +108,8 @@ async function send() {
         </template>
       </template>
       <div class="actions">
-        <button type="button" class="ghost" @click="emit('close')">Cancel</button>
-        <button type="button" class="primary-btn" :disabled="!canSend" data-testid="promote-confirm" @click="send">{{ sending ? "Promoting…" : gate && !gate.allowed ? "Promote anyway" : "Promote" }}</button>
+        <Button @click="emit('close')">Cancel</Button>
+        <Button variant="primary" :disabled="!canSend" data-testid="promote-confirm" @click="send">{{ sending ? "Promoting…" : gate && !gate.allowed ? "Promote anyway" : "Promote" }}</Button>
       </div>
     </div>
   </Modal>
@@ -133,6 +134,5 @@ dd { margin: 0; }
 .field-error { color: var(--mt-err-ink); font-size: 12px; }
 .actions { display: flex; justify-content: flex-end; gap: 10px; }
 .ghost { height: 36px; padding: 0 16px; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); background: transparent; color: var(--mt-ink); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
-.primary-btn { height: 36px; padding: 0 18px; border: none; border-radius: var(--mt-radius-lg); background: var(--mt-accent); color: var(--mt-accent-ink); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
-.primary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 </style>

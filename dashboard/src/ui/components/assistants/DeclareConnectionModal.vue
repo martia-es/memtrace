@@ -7,6 +7,7 @@ import type { ConnectionKindDto } from "@contract";
 import { describeApiError } from "@/application/describe-api-error";
 import { useAssistantApi } from "../../composables/useAssistantApi";
 import Modal from "../Modal.vue";
+import Button from "../Button.vue";
 
 /** Declara una conexión que el asistente debe usar: servidor MCP, tool o agente (ADR-053). */
 const props = defineProps<{ experimentId: string }>();
@@ -47,7 +48,7 @@ const KIND_OPTIONS: { label: string; value: ConnectionKindDto }[] = [
       <label class="field"><span>Name</span><TextInput v-model="form.name" placeholder="weather-mcp" autofocus /></label>
       <label v-if="form.kind === 'tool'" class="field"><span>Exposed by MCP server (optional)</span><TextInput v-model="form.via" placeholder="weather-mcp" /></label>
       <p class="hint">Declared connections are approved by governance. Anything the assistant uses that is not declared shows up for review once it appears in traces.</p>
-      <div class="actions"><button type="submit" class="primary-btn" :disabled="saving || !canSave">Declare</button></div>
+      <div class="actions"><Button variant="primary" type="submit" :disabled="saving || !canSave">Declare</Button></div>
     </form>
   </Modal>
 </template>
