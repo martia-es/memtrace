@@ -285,6 +285,30 @@ export class PostgresPromptRepository implements PromptRepository {
     return rows.length > 0;
   }
 
+  async createOverride(input: { tokenHash: string; experimentId: string; promptId: string; version: number; userId: string; ttlSeconds: number }): Promise<void> {
+    await this.pool.query("DELETE FROM prompt_overrides WHERE expires_at < now() - interval '1 hour'");
+    await this.pool.query(
+      `INSERT INTO prompt_overrides (token_hash, experiment_id, prompt_id, version, created_by, expires_at)
+       VALUES ($1, $2, $3, $4, $5, now() + make_interval(secs => $6))`,
+      [input.tokenHash, input.experimentId, input.promptId, input.version, input.userId, input.ttlSeconds],
+    );
+  }
+
+  async consumeOverride(tokenHash: string, experimentId: string): Promise<{ promptId: string; version: number } | null> {
+    const { rows } = await this.pool.query<{ prompt_id: string; version: number }>(
+      `UPDATE prompt_overrides SET resolved_count = resolved_count + 1, last_resolved_at = now()
+        WHERE token_hash = $1 AND experiment_id = $2 AND expires_at > now()
+        RETURNING prompt_id, version`,
+      [tokenHash, experimentId],
+    );
+    return rows[0] ? { promptId: rows[0].prompt_id, version: rows[0].version } : null;
+  }
+
+  async overrideUses(tokenHash: string): Promise<number> {
+    const { rows } = await this.pool.query<{ resolved_count: number }>("SELECT resolved_count FROM prompt_overrides WHERE token_hash = $1", [tokenHash]);
+    return rows[0]?.resolved_count ?? 0;
+  }
+
   async getPolicy(promptId: string): Promise<PromptPolicy | null> {
     if (!UUID.test(promptId)) return null;
     const { rows } = await this.pool.query<{ prompt_id: string; dataset_id: string | null; required_runs: number; updated_by: string | null; updated_at: Ts }>(

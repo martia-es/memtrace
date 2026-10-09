@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { PromptService } from "@/application/prompt-service";
+import { PromptPlaygroundService } from "@/application/prompt-playground-service";
+import { PromptService, hashOverrideToken } from "@/application/prompt-service";
 import type { PromptRepository } from "@/application/ports/prompt-repository";
-import { PromptGateBlockedError, PromptInvariantError, PromptNotFoundError, PromptPromoteForbiddenError, ValidationError } from "@/domain/errors";
+import { AssistantNotFoundError, PromptGateBlockedError, PromptInvariantError, PromptNotFoundError, PromptPromoteForbiddenError, ValidationError } from "@/domain/errors";
+import { PROMPT_OVERRIDE_HEADER } from "@/domain/prompt";
 import type { GateRecord, NewPrompt, NewPromptVersion, Prompt, PromptSummary, PromptTag, PromptTagEvent, PromptUsage, PromptVersion, UsageItem } from "@/domain/prompt";
 import type { PromptGateResult, PromptPolicy } from "@/domain/prompt-gate";
 
@@ -19,6 +21,7 @@ function fakeRepo() {
   const events = new Map<string, PromptTagEvent[]>();
   const usage: Array<UsageItem & { experimentId: string; environment: string }> = [];
   const policies = new Map<string, PromptPolicy>();
+  const overrides = new Map<string, { experimentId: string; promptId: string; version: number; expired: boolean; uses: number }>();
   let seq = 0;
 
   const repo: PromptRepository = {
@@ -83,6 +86,16 @@ function fakeRepo() {
     },
     tagEvents: async (id) => events.get(id) ?? [],
     wasServed: async (id, tag, version) => (events.get(id) ?? []).some((e) => e.tag === tag && e.toVersion === version && !e.gateBypassed),
+    createOverride: async (input) => {
+      overrides.set(input.tokenHash, { experimentId: input.experimentId, promptId: input.promptId, version: input.version, expired: input.ttlSeconds <= 0, uses: 0 });
+    },
+    consumeOverride: async (tokenHash, experimentId) => {
+      const found = overrides.get(tokenHash);
+      if (!found || found.expired || found.experimentId !== experimentId) return null;
+      found.uses += 1;
+      return { promptId: found.promptId, version: found.version };
+    },
+    overrideUses: async (tokenHash) => overrides.get(tokenHash)?.uses ?? 0,
     getPolicy: async (id) => policies.get(id) ?? null,
     setPolicy: async (id, policy, userId) => {
       const saved: PromptPolicy = { promptId: id, datasetId: policy.datasetId, requiredRuns: policy.requiredRuns, updatedBy: userId, updatedAt: "t" };
@@ -98,7 +111,7 @@ function fakeRepo() {
     listUsage: async (id): Promise<PromptUsage[]> =>
       usage.filter((u) => u.promptId === id).map((u) => ({ experimentId: u.experimentId, environment: u.environment, tag: u.tag, version: u.version, firstSeenAt: "t", lastSeenAt: "t" })),
   };
-  return repo;
+  return Object.assign(repo, { __overrides: overrides });
 }
 
 async function seeded() {
@@ -357,5 +370,113 @@ describe("promotion gate in PromptService (ADR-070)", () => {
     const detail = await service.detail(created.prompt.id);
     expect(detail.policy).toMatchObject({ datasetId: "d1", requiredRuns: 2 });
     expect(detail.gatedEnvironments).toEqual(["pre", "pro"]);
+  });
+});
+
+describe("override tokens and the playground (ADR-071)", () => {
+  const DEV = { id: "dep-dev", environment: { key: "dev", isProduction: false } };
+  const PRO = { id: "dep-pro", environment: { key: "pro", isProduction: true } };
+
+  /** Un agente de mentira: lee la cabecera y, si `listens`, presenta el token a MemTrace como haría el SDK. */
+  function setup(options: { listens?: boolean } = {}) {
+    const repo = fakeRepo();
+    const service = new PromptService(repo);
+    const sent: Array<Record<string, string> | undefined> = [];
+    let tokenSeen: string | null = null;
+    const registry = {
+      getCard: async () => ({ deployments: [DEV, PRO] }),
+      chat: async (_experimentId: string, _deploymentId: string, input: { message: string; headers?: Record<string, string> }) => {
+        sent.push(input.headers);
+        tokenSeen = input.headers?.[PROMPT_OVERRIDE_HEADER] ?? null;
+        let reply = `respuesta con el prompt del tag a "${input.message}"`;
+        if ((options.listens ?? true) && tokenSeen) {
+          const granted = await service.resolveOverride(AGENT_A, ORG, "weather-system", tokenSeen);
+          reply = `respuesta con v${granted.version.version}: ${granted.version.content}`;
+        }
+        return { reply, sessionId: null, traceId: "a".repeat(32), latencyMs: 12 };
+      },
+    };
+    const playground = new PromptPlaygroundService(repo, registry as never, {} as never);
+    return { repo, service, playground, sent, token: () => tokenSeen };
+  }
+
+  async function seeded(ctx: ReturnType<typeof setup>) {
+    const created = await ctx.service.create(ORG, USER, { name: "weather-system", content: "uno", experimentIds: [AGENT_A] });
+    await ctx.service.saveVersion(created.prompt.id, USER, { content: "dos" });
+    return { prompt: created.prompt };
+  }
+
+  it("runs the chosen version in the real agent and proves the agent applied it", async () => {
+    const ctx = setup();
+    const { prompt } = await seeded(ctx);
+    const result = await ctx.playground.run(prompt, AGENT_A, USER, { deploymentId: "dep-dev", version: 2, message: "¿Lloverá?" });
+    expect(result).toMatchObject({ version: 2, applied: true, traceId: "a".repeat(32) });
+    expect(result.reply).toBe("respuesta con v2: dos");
+  });
+
+  it("says so when the agent answered without asking for the version, instead of passing the answer off as that version's", async () => {
+    const ctx = setup({ listens: false });
+    const { prompt } = await seeded(ctx);
+    const result = await ctx.playground.run(prompt, AGENT_A, USER, { deploymentId: "dep-dev", version: 2, message: "hola" });
+    expect(result.applied).toBe(false);
+    expect(result.reply).toContain("del tag");
+  });
+
+  it("never runs against a production environment, and does not even mint a token", async () => {
+    const ctx = setup();
+    const { prompt } = await seeded(ctx);
+    await expect(ctx.playground.run(prompt, AGENT_A, USER, { deploymentId: "dep-pro", version: 1, message: "hola" })).rejects.toBeInstanceOf(PromptInvariantError);
+    expect(ctx.sent).toEqual([]);
+    expect(ctx.repo.__overrides.size).toBe(0);
+  });
+
+  it("sends the token in the override header and stores only its hash", async () => {
+    const ctx = setup();
+    const { prompt } = await seeded(ctx);
+    await ctx.playground.run(prompt, AGENT_A, USER, { deploymentId: "dep-dev", version: 1, message: "hola" });
+    const token = ctx.token()!;
+    expect(token).toMatch(/^mto_[A-Za-z0-9_-]{40,}$/);
+    expect(ctx.repo.__overrides.has(token)).toBe(false);
+    expect(ctx.repo.__overrides.has(hashOverrideToken(token))).toBe(true);
+  });
+
+  it("every run gets its own token", async () => {
+    const ctx = setup();
+    const { prompt } = await seeded(ctx);
+    await ctx.playground.run(prompt, AGENT_A, USER, { deploymentId: "dep-dev", version: 1, message: "a" });
+    const first = ctx.token();
+    await ctx.playground.run(prompt, AGENT_A, USER, { deploymentId: "dep-dev", version: 2, message: "b" });
+    expect(ctx.token()).not.toBe(first);
+    expect(ctx.repo.__overrides.size).toBe(2);
+  });
+
+  it("rejects what cannot be run: another agent's prompt, an unknown deployment or version, an empty or huge message", async () => {
+    const ctx = setup();
+    const { prompt } = await seeded(ctx);
+    const run = (extra: object) => ctx.playground.run(prompt, AGENT_A, USER, { deploymentId: "dep-dev", version: 1, message: "hola", ...extra });
+    await expect(ctx.playground.run(prompt, AGENT_B, USER, { deploymentId: "dep-dev", version: 1, message: "hola" })).rejects.toBeInstanceOf(PromptNotFoundError);
+    await expect(run({ deploymentId: "nope" })).rejects.toBeInstanceOf(AssistantNotFoundError);
+    await expect(run({ version: 9 })).rejects.toBeInstanceOf(PromptNotFoundError);
+    await expect(run({ message: "   " })).rejects.toBeInstanceOf(ValidationError);
+    await expect(run({ message: "x".repeat(4001) })).rejects.toBeInstanceOf(ValidationError);
+    expect(ctx.sent).toEqual([]);
+  });
+
+  it("a token only works for the agent and the prompt it was issued for", async () => {
+    const ctx = setup();
+    const { prompt } = await seeded(ctx);
+    await ctx.service.create(ORG, USER, { name: "other-prompt", content: "otro", experimentIds: [AGENT_A] });
+    await ctx.playground.run(prompt, AGENT_A, USER, { deploymentId: "dep-dev", version: 1, message: "hola" });
+    const token = ctx.token()!;
+    await expect(ctx.service.resolveOverride(AGENT_A, ORG, "other-prompt", token)).rejects.toBeInstanceOf(PromptNotFoundError); // another prompt
+    await expect(ctx.service.resolveOverride(AGENT_B, ORG, "weather-system", token)).rejects.toBeInstanceOf(PromptNotFoundError); // another agent
+    await expect(ctx.service.resolveOverride(AGENT_A, ORG, "weather-system", "mto_inventado_inventado")).rejects.toBeInstanceOf(PromptNotFoundError);
+  });
+
+  it("an expired token is the same as no token", async () => {
+    const ctx = setup();
+    const { prompt } = await seeded(ctx);
+    await ctx.repo.createOverride({ tokenHash: hashOverrideToken("mto_caducado_caducado"), experimentId: AGENT_A, promptId: prompt.id, version: 1, userId: USER, ttlSeconds: 0 });
+    await expect(ctx.service.resolveOverride(AGENT_A, ORG, "weather-system", "mto_caducado_caducado")).rejects.toBeInstanceOf(PromptNotFoundError);
   });
 });

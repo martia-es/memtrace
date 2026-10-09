@@ -9,6 +9,7 @@ import { PostgresIdentityRepository } from "@/adapters/outbound/postgres/postgre
 import { PostgresPromptRepository } from "@/adapters/outbound/postgres/postgres-prompt-repository";
 import { PromptService } from "@/application/prompt-service";
 import { PromptInvariantError, PromptNotFoundError, PromptPromoteForbiddenError } from "@/domain/errors";
+import { hashOverrideToken } from "@/application/prompt-service";
 
 const url = process.env.POSTGRES_INTEGRATION_URL;
 
@@ -160,5 +161,35 @@ describe.skipIf(!url)("prompt registry (postgres)", () => {
     expect((await service.detail(prompt.id)).usage.map((u) => u.experimentId)).toEqual([extra]);
     await pool.query(`DELETE FROM experiments WHERE id = $1`, [extra]);
     expect((await service.detail(prompt.id)).usage).toEqual([]);
+  });
+
+  it("override tokens (ADR-071): bound to an agent, counted when presented, expiring, and stored only as a hash", async () => {
+    const repo = new PostgresPromptRepository(pool);
+    const { prompt } = await service.create(orgId, userId, { name: "override-me", content: "uno", experimentIds: [agentA] });
+    const token = "mto_integration_token_integration_token";
+    await repo.createOverride({ tokenHash: hashOverrideToken(token), experimentId: agentA, promptId: prompt.id, version: 1, userId, ttlSeconds: 60 });
+
+    expect(await repo.overrideUses(hashOverrideToken(token))).toBe(0);
+    expect(await repo.consumeOverride(hashOverrideToken(token), agentB)).toBeNull(); // another agent
+    expect(await repo.consumeOverride(hashOverrideToken("mto_other_other_other_other"), agentA)).toBeNull(); // unknown token
+    expect(await repo.consumeOverride(hashOverrideToken(token), agentA)).toEqual({ promptId: prompt.id, version: 1 });
+    expect(await repo.consumeOverride(hashOverrideToken(token), agentA)).toEqual({ promptId: prompt.id, version: 1 }); // a request may compile several times
+    expect(await repo.overrideUses(hashOverrideToken(token))).toBe(2);
+
+    const stored = await pool.query<{ token_hash: string }>("SELECT token_hash FROM prompt_overrides WHERE prompt_id = $1", [prompt.id]);
+    expect(stored.rows.map((r) => r.token_hash)).toEqual([hashOverrideToken(token)]);
+    expect(JSON.stringify(stored.rows)).not.toContain(token);
+
+    await pool.query("UPDATE prompt_overrides SET expires_at = now() - interval '1 second' WHERE prompt_id = $1", [prompt.id]);
+    expect(await repo.consumeOverride(hashOverrideToken(token), agentA)).toBeNull(); // expired
+    expect(await repo.overrideUses(hashOverrideToken(token))).toBe(2); // and the expired attempt was not counted
+  });
+
+  it("override tokens disappear with their prompt", async () => {
+    const repo = new PostgresPromptRepository(pool);
+    const { prompt } = await service.create(orgId, userId, { name: "override-cascade", content: "uno", experimentIds: [agentA] });
+    await repo.createOverride({ tokenHash: hashOverrideToken("mto_cascade_cascade_cascade_cascade"), experimentId: agentA, promptId: prompt.id, version: 1, userId, ttlSeconds: 60 });
+    await pool.query("DELETE FROM prompts WHERE id = $1", [prompt.id]);
+    expect((await pool.query("SELECT 1 FROM prompt_overrides WHERE token_hash = $1", [hashOverrideToken("mto_cascade_cascade_cascade_cascade")])).rowCount).toBe(0);
   });
 });

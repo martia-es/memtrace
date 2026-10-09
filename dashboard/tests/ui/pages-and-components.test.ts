@@ -4,7 +4,8 @@ import { defineComponent, h } from "vue";
 import { describe, expect, it } from "vitest";
 import { createMemoryHistory, createRouter } from "vue-router";
 import { ApiError } from "@/application/trace-api";
-import { CURRENT_EXPERIMENT, IDENTITY_API, TRACE_API } from "@/dependency-container";
+import { CURRENT_EXPERIMENT, IDENTITY_API, PROMPT_API, TRACE_API } from "@/dependency-container";
+import { FakePromptApi } from "../fakes-prompts";
 import ErrorBanner from "@/ui/components/ErrorBanner.vue";
 import TraceDetailPage from "@/ui/pages/TraceDetailPage.vue";
 import ConversationsPage from "@/ui/pages/ConversationsPage.vue";
@@ -26,7 +27,7 @@ async function setup(component: object, api: FakeTraceApi, path: string, props: 
   // QPage solo funciona dentro de un layout, igual que en la app
   const Host = defineComponent({ setup: () => () => h(QLayout, () => h(QPageContainer, () => h(component, props))) });
   const wrapper = mount(Host, {
-    global: { plugins: [[Quasar, { plugins: { Dark, Notify } }], router], provide: { [TRACE_API as symbol]: api, [IDENTITY_API as symbol]: new FakeIdentityApi(), [CURRENT_EXPERIMENT as symbol]: { value: { myRole: role, permissions: permissionsOf(role) } } } },
+    global: { plugins: [[Quasar, { plugins: { Dark, Notify } }], router], provide: { [TRACE_API as symbol]: api, [IDENTITY_API as symbol]: new FakeIdentityApi(), [PROMPT_API as symbol]: new FakePromptApi(), [CURRENT_EXPERIMENT as symbol]: { value: { myRole: role, permissions: permissionsOf(role) } } } },
   });
   await flushPromises();
   return { wrapper, router };

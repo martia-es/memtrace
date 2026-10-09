@@ -13,6 +13,7 @@ import EnvFlag from "../components/EnvFlag.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import PageHeader from "../components/PageHeader.vue";
 import PromotePromptModal from "../components/PromotePromptModal.vue";
+import PromptPlayground from "../components/PromptPlayground.vue";
 import PromptDiff from "../components/PromptDiff.vue";
 import Select from "../components/Select.vue";
 import TabBar from "../components/TabBar.vue";
@@ -82,7 +83,9 @@ const TABS = [
   { id: "compare", label: "Compare" },
   { id: "evidence", label: "Evidence" },
   { id: "tags", label: "Tags & history" },
+  { id: "try", label: "Try it" },
 ];
+const replayTrace = typeof route.query.trace === "string" ? route.query.trace : null;
 const tab = ref(TABS.some((t) => t.id === route.query.tab) ? String(route.query.tab) : "content");
 
 // ---- evidencia (ADR-069) ----
@@ -534,6 +537,17 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   </div>
                 </div>
               </template>
+            </div>
+
+            <div v-else-if="tab === 'try'" class="pane" data-testid="pane-try">
+              <PromptPlayground
+                :experiment-id="String(route.params.experimentId)"
+                :prompt-id="promptId"
+                :versions="versions"
+                :selected="selected"
+                :usage="data.usage"
+                :initial-trace="replayTrace"
+              />
             </div>
 
             <div v-else-if="tab === 'tags'" class="pane tags-pane" data-testid="pane-tags">

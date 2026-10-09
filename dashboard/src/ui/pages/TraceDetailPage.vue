@@ -4,6 +4,7 @@ import { computed, ref, useTemplateRef, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { formatCostUsd, formatCount, formatDateTime, formatDuration, shortId } from "@/domain/format";
 import { conversationTurns } from "@/domain/review-thread";
+import { promptsUsedBy } from "@/domain/prompt-playground";
 import { traceThread } from "@/domain/trace-thread";
 import { findNode, firstErrorNode } from "@/domain/waterfall";
 import ConversationThread from "../components/ConversationThread.vue";
@@ -21,6 +22,7 @@ import { usePermissions } from "../composables/usePermissions";
 import { useAsync } from "../composables/useAsync";
 import { useFilters } from "../composables/useFilters";
 import { useLiveRefresh } from "../composables/useLiveRefresh";
+import { usePromptApi } from "../composables/usePromptApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import { useExperimentRepo } from "../composables/useExperimentRepo";
 import CommitLink from "../components/CommitLink.vue";
@@ -72,6 +74,26 @@ const closeAnnotate = () => {
   labelsVersion.value++;
 };
 const addingToQueue = ref(false);
+
+// ---- probar otra versión del prompt con este mismo mensaje (ADR-071) ----
+const promptApi = usePromptApi();
+const promptsUsed = computed(() => promptsUsedBy(roots.value));
+const replayProblem = ref<string | null>(null);
+async function replayWithAnotherVersion() {
+  const used = promptsUsed.value[0];
+  if (!used) return;
+  replayProblem.value = null;
+  try {
+    const found = (await promptApi.listForAgent(experimentId.value, true)).find((p) => p.name === used.name);
+    if (!found) {
+      replayProblem.value = `The prompt "${used.name}" does not belong to this agent in MemTrace.`;
+      return;
+    }
+    await router.push({ name: "prompt", params: { experimentId: experimentId.value, promptId: found.id }, query: { tab: "try", trace: props.traceId } });
+  } catch (error) {
+    replayProblem.value = error instanceof Error ? error.message : "Could not open the prompt";
+  }
+}
 const addingToDataset = ref(false);
 
 const hint = "This span has no content saved. Enable MEMTRACE_CAPTURE_CONTENT=true on the agent to see it here (it's saved as-is: check privacy).";
@@ -109,6 +131,16 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
             <button type="button" class="btn" aria-label="Copy trace ID" @click="copyId">Copy ID</button>
             <button type="button" class="btn" data-testid="add-to-dataset-btn" @click="addingToDataset = true">Add to dataset</button>
             <button type="button" class="btn" data-testid="add-to-queue-btn" @click="addingToQueue = true">Add to queue</button>
+            <button
+              v-if="promptsUsed.length > 0"
+              type="button"
+              class="btn"
+              :title="`Run the same message with another version of ${promptsUsed[0]!.name} (this trace used v${promptsUsed[0]!.version})`"
+              data-testid="replay-btn"
+              @click="replayWithAnotherVersion"
+            >
+              Try another prompt version
+            </button>
             <button type="button" class="btn primary" data-testid="annotate-btn" @click="annotating = true">Annotate</button>
           </div>
         </div>
@@ -122,6 +154,7 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
         </div>
       </header>
 
+      <p v-if="replayProblem" class="bad replay-problem" role="alert" data-testid="replay-problem">{{ replayProblem }}</p>
       <TraceFeedbackStrip :trace-id="traceId" />
 
       <div class="body">

@@ -22,7 +22,17 @@ export async function GET(request: Request, context: { params: Promise<{ experim
     if (!experiment) return problem(404, "Not Found", "Experiment not found");
 
     const params = new URL(request.url).searchParams;
-    const { name, tag, version } = parseOrThrow(resolvePromptQuery, { name: params.get("name") ?? undefined, tag: params.get("tag") ?? undefined, version: params.get("version") ?? undefined });
+    const { name, tag, version, override } = parseOrThrow(resolvePromptQuery, {
+      name: params.get("name") ?? undefined,
+      tag: params.get("tag") ?? undefined,
+      version: params.get("version") ?? undefined,
+      override: params.get("override") ?? undefined,
+    });
+    if (override !== undefined) {
+      // un override es para UNA petición del playground (ADR-071): nunca se cachea ni se responde 304
+      const granted = await getPrompts().resolveOverride(experimentId, experiment.organizationId, name, override);
+      return json(toPromptResolveDto(granted.prompt, granted.version, null, true));
+    }
     const resolved = await getPrompts().resolveForAgent(experimentId, experiment.organizationId, name, { tag, version });
 
     const etag = promptEtag(resolved.version);

@@ -67,7 +67,7 @@ export const toPromptUsageDto = (u: PromptUsage, nowMs: number): PromptUsageDto 
   active: nowMs - Date.parse(u.lastSeenAt) < USAGE_FRESH_MS,
 });
 
-export const toPromptResolveDto = (prompt: Prompt, version: PromptVersion, tag: string | null): PromptResolveDto => ({
+export const toPromptResolveDto = (prompt: Prompt, version: PromptVersion, tag: string | null, playground = false): PromptResolveDto => ({
   name: prompt.name,
   version: version.version,
   tag,
@@ -75,6 +75,7 @@ export const toPromptResolveDto = (prompt: Prompt, version: PromptVersion, tag: 
   variables: version.variables,
   contentHash: version.contentHash,
   archived: prompt.archivedAt !== null,
+  playground,
 });
 
 /** ETag de una versión servida al SDK: cambia con la versión y con el texto. */

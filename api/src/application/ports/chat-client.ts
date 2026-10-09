@@ -9,5 +9,6 @@ export interface ChatCallResult {
 
 /** Hace el POST de chat a un asistente (ADR-055). Con las mismas reglas SSRF que el sondeo de /health. */
 export interface ChatClient {
-  send(url: string, body: Record<string, string>): Promise<ChatCallResult>;
+  /** `headers` se suman a las de siempre (p. ej. el token del playground, ADR-071). */
+  send(url: string, body: Record<string, string>, headers?: Record<string, string>): Promise<ChatCallResult>;
 }

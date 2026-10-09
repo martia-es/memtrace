@@ -1,5 +1,5 @@
 /** Dobles del registro de prompts (ADR-067). */
-import type { PromptDetailDto, PromptEvidenceResponse, PromptGateDto, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto, VersionEvidenceDto } from "@contract";
+import type { PromptDetailDto, PromptEvidenceResponse, PromptGateDto, PromptPlaygroundResponse, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto, VersionEvidenceDto } from "@contract";
 import type { NewPromptInput, PromptApi } from "@/application/prompt-api";
 
 export function promptVersion(version: number, content: string, extra: Partial<PromptVersionDto> = {}): PromptVersionDto {
@@ -47,6 +47,10 @@ export class FakePromptApi implements PromptApi {
   detail: PromptDetailDto = promptDetail();
   gate: PromptGateDto = gateResult();
   moveError: Error | null = null;
+  /** Lo que contesta el agente a cada versión: por defecto, aplicado y con un texto que dice de qué versión es. */
+  playground: (version: number, message: string) => PromptPlaygroundResponse | Error = (version, message) => ({
+    reply: `Answer of v${version} to "${message}"`, sessionId: null, traceId: "c".repeat(32), latencyMs: 420, version, applied: true,
+  });
   evidence: PromptEvidenceResponse = { range: { from: "2026-10-01T00:00:00.000Z", to: "2026-10-08T00:00:00.000Z" }, versions: [] };
 
   private record(method: string, ...args: unknown[]) {
@@ -80,6 +84,12 @@ export class FakePromptApi implements PromptApi {
     this.record("moveTag", promptId, tag, version, reason, bypassReason);
     if (this.moveError) throw this.moveError;
     return { id: "e2", tag, fromVersion: null, toVersion: version, changedBy: "u1", reason, createdAt: "2026-10-08T11:00:00.000Z", gateVerdict: "allowed", gateBypassed: bypassReason !== null, bypassReason };
+  }
+  async runPlayground(experimentId: string, promptId: string, input: { deploymentId: string; version: number; message: string }) {
+    this.record("runPlayground", experimentId, promptId, input);
+    const result = this.playground(input.version, input.message);
+    if (result instanceof Error) throw result;
+    return result;
   }
   async previewGate(promptId: string, tag: string, version: number) {
     this.record("previewGate", promptId, tag, version);

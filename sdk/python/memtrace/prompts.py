@@ -14,8 +14,10 @@ the version that produced it. Needs `pip install 'memtrace-ai[eval]'`, `MEMTRACE
 `MEMTRACE_API_KEY`; the prompt must belong to that agent in MemTrace.
 """
 import asyncio
-from typing import Optional
+from typing import ContextManager, Optional
 
+from memtrace.adapters.inbound.asgi import PromptOverrideMiddleware
+from memtrace.application.prompt_override import use_override
 from memtrace.application.prompt_registry import PromptHandle
 from memtrace.dependency_container import get_prompt_registry
 from memtrace.domain.prompt import MissingVariableError, PromptError, PromptNotFoundError, PromptUnavailableError
@@ -23,6 +25,8 @@ from memtrace.domain.prompt import MissingVariableError, PromptError, PromptNotF
 __all__ = [
     "get",
     "aget",
+    "override",
+    "PromptOverrideMiddleware",
     "PromptHandle",
     "PromptError",
     "PromptNotFoundError",
@@ -47,3 +51,13 @@ def get(name: str, *, tag: Optional[str] = None, version: Optional[int] = None, 
 async def aget(name: str, *, tag: Optional[str] = None, version: Optional[int] = None, default: Optional[str] = None) -> PromptHandle:
     """`get()` for async code (a FastAPI `lifespan`): the wait for MemTrace happens in a thread, not in the event loop."""
     return await asyncio.to_thread(get, name, tag=tag, version=version, default=default)
+
+
+def override(token: Optional[str]) -> ContextManager[None]:
+    """Runs a block as if MemTrace's playground had asked for it: `compile()` inside it uses the version `token` grants.
+
+    For frameworks without ASGI (Flask, Django, a queue worker): read the `x-memtrace-prompt-override` header yourself and
+    wrap the handling of the request. Needs `MEMTRACE_ALLOW_PROMPT_OVERRIDE=true`; otherwise it changes nothing.
+    ``with prompts.override(request.headers.get("x-memtrace-prompt-override")): ...``
+    """
+    return use_override(token)

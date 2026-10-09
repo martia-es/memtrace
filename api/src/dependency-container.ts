@@ -32,6 +32,7 @@ import { PostgresPromptRepository } from "@/adapters/outbound/postgres/postgres-
 import { PromptService } from "@/application/prompt-service";
 import { PromptEvidenceService } from "@/application/prompt-evidence-service";
 import { PromptGateService } from "@/application/prompt-gate-service";
+import { PromptPlaygroundService } from "@/application/prompt-playground-service";
 import { ClickHousePromptEvidenceRepository } from "@/adapters/outbound/clickhouse/clickhouse-prompt-evidence-repository";
 import { PostgresScoreConfigRepository } from "@/adapters/outbound/postgres/postgres-score-config-repository";
 import { PostgresIdentityRepository } from "@/adapters/outbound/postgres/postgres-identity-repository";
@@ -62,6 +63,7 @@ const globalForContainer = globalThis as unknown as {
   __memtracePrompts?: PromptService;
   __memtracePromptEvidence?: PromptEvidenceService;
   __memtracePromptGate?: PromptGateService;
+  __memtracePromptPlayground?: PromptPlaygroundService;
   __memtracePromptEvidenceRepository?: ClickHousePromptEvidenceRepository;
   __memtracePromptRepository?: PostgresPromptRepository;
   __memtraceHealthProber?: HealthProber;
@@ -275,6 +277,14 @@ export function getPromptGate(): PromptGateService {
     );
   }
   return globalForContainer.__memtracePromptGate;
+}
+
+/** Playground contra el asistente real (ADR-071): el chat del agente con un override efímero de la versión a probar. */
+export function getPromptPlayground(): PromptPlaygroundService {
+  if (!globalForContainer.__memtracePromptPlayground) {
+    globalForContainer.__memtracePromptPlayground = new PromptPlaygroundService(getPromptRepository(), getAssistantRegistry(), getChatClient());
+  }
+  return globalForContainer.__memtracePromptPlayground;
 }
 
 /** Registro de prompts (ADR-067). Mover un tag de entorno pasa por el gate de promoción (ADR-070). */

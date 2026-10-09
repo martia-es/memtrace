@@ -1,4 +1,4 @@
-import type { PromptDetailDto, PromptEvidenceResponse, PromptGateDto, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto } from "@contract";
+import type { PromptDetailDto, PromptEvidenceResponse, PromptGateDto, PromptPlaygroundResponse, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto } from "@contract";
 
 /** Puerto de salida: registro de prompts (ADR-067). */
 
@@ -26,6 +26,11 @@ export interface PromptApi {
    * (ADR-070) los entornos protegidos exigen una evaluación exitosa; `bypassReason` se salta ese gate (exige gobernanza).
    */
   moveTag(promptId: string, tag: string, version: number | null, reason: string, bypassReason?: string | null, signal?: AbortSignal): Promise<PromptTagEventDto>;
+  /**
+   * Prueba una versión en el asistente real, sin mover ningún tag (ADR-071). Ejecuta el agente de verdad, solo en entornos que
+   * no son de producción. `applied: false` = el agente respondió sin aplicar la versión: la respuesta no es suya.
+   */
+  runPlayground(experimentId: string, promptId: string, input: { deploymentId: string; version: number; message: string }, signal?: AbortSignal): Promise<PromptPlaygroundResponse>;
   /** ¿Puede ese tag apuntar a esa versión? Veredicto del gate de promoción y por qué (ADR-070). */
   previewGate(promptId: string, tag: string, version: number, signal?: AbortSignal): Promise<PromptGateDto>;
   /** Crea o cambia la política de promoción: dataset de evaluación y runs seguidos que deben pasar. */

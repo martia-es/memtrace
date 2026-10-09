@@ -8,6 +8,8 @@ Contract (JSON keys are camelCase):
          -> 200 {"name", "version", "tag", "content", "variables", "contentHash", "archived"} + ETag
          -> 304 when `If-None-Match` carries the ETag of the version the caller already has
          -> 404 the prompt, tag or version does not exist for this agent
+    GET  {base_url}/prompts/resolve?name=&override=<token>   (playground, ADR-071)
+         -> 200 the version the token grants, 404 if MemTrace does not recognize the token for this prompt
     POST {base_url}/prompts/usage   body {"environment": str | null, "items": [{"name", "tag", "version"}]}  -> 200
 """
 import threading
@@ -65,6 +67,22 @@ class HttpPromptClient:
                 archived=bool(body.get("archived", False)),
             ),
             response.headers.get("ETag"),
+        )
+
+    def fetch_override(self, name: str, token: str) -> Optional[PromptVersion]:
+        response = self._send("GET", "/prompts/resolve", params={"name": name, "override": token})
+        if response.status_code == 404:
+            return None
+        if response.status_code >= 400:
+            raise PromptSourceError(f"MemTrace answered {response.status_code}: {_detail(response)}")
+        body = response.json()
+        return PromptVersion(
+            name=body["name"],
+            version=int(body["version"]),
+            content=body["content"],
+            variables=tuple(body.get("variables") or ()),
+            content_hash=body.get("contentHash", ""),
+            archived=bool(body.get("archived", False)),
         )
 
     def report(self, environment: Optional[str], items: Sequence[UsedPrompt]) -> None:

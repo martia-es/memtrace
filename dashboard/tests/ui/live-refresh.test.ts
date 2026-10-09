@@ -3,7 +3,8 @@ import { Dark, Notify, QLayout, QPageContainer, Quasar } from "quasar";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defineComponent, effectScope, h, nextTick } from "vue";
 import { createMemoryHistory, createRouter } from "vue-router";
-import { IDENTITY_API, TRACE_API } from "@/dependency-container";
+import { IDENTITY_API, PROMPT_API, TRACE_API } from "@/dependency-container";
+import { FakePromptApi } from "../fakes-prompts";
 import { setRefreshSeconds, useLiveRefresh } from "@/ui/composables/useLiveRefresh";
 import TraceDetailPage from "@/ui/pages/TraceDetailPage.vue";
 import ConversationsPage from "@/ui/pages/ConversationsPage.vue";
@@ -104,7 +105,7 @@ async function mountPage(component: object, api: FakeTraceApi, path: string, pro
   await router.push(path);
   await router.isReady();
   const Host = defineComponent({ setup: () => () => h(QLayout, () => h(QPageContainer, () => h(component, props))) });
-  const wrapper = mount(Host, { global: { plugins: [[Quasar, { plugins: { Dark, Notify } }], router], provide: { [TRACE_API as symbol]: api, [IDENTITY_API as symbol]: new FakeIdentityApi() } } });
+  const wrapper = mount(Host, { global: { plugins: [[Quasar, { plugins: { Dark, Notify } }], router], provide: { [TRACE_API as symbol]: api, [IDENTITY_API as symbol]: new FakeIdentityApi(), [PROMPT_API as symbol]: new FakePromptApi() } } });
   await vi.advanceTimersByTimeAsync(0);
   await flushPromises();
   return wrapper;

@@ -18,7 +18,7 @@ const SERVICE = `pe-${randomBytes(4).toString("hex")}`;
 const OTHER_SERVICE = `${SERVICE}-other`;
 const PROMPT = "weather-system";
 const hex = (n: number) => randomBytes(n).toString("hex");
-const T = { t1: hex(16), t2: hex(16), t3: hex(16), t4: hex(16), t5: hex(16), t6: hex(16), t7: hex(16), t8: hex(16) };
+const T = { t1: hex(16), t2: hex(16), t3: hex(16), t4: hex(16), t5: hex(16), t6: hex(16), t7: hex(16), t8: hex(16), t9: hex(16) };
 const RUN = `run-${SERVICE}`;
 
 const T0 = Date.now() - 10 * 60_000;
@@ -98,6 +98,8 @@ describe.skipIf(!enabled)("ClickHousePromptEvidenceRepository (integration, ADR-
       { trace: T.t5, name: "turno", offsetMs: 500, durationMs: 100, status: "ERROR", message: "401 Unauthorized" },
       { trace: T.t6, name: "llm", offsetMs: 600, durationMs: 100, attrs: llm(9999, 9999, stamp("other-prompt", 1)) },
       { trace: T.t8, name: "llm", offsetMs: 700, durationMs: 100, service: OTHER_SERVICE, attrs: llm(9999, 9999, stamp(PROMPT, 1)) },
+      // una prueba del playground (ADR-071): mensaje inventado, con un fallo, que no debe contar como evidencia de la versión 1
+      { trace: T.t9, name: "llm", offsetMs: 800, durationMs: 100, status: "ERROR", message: "429 Too Many Requests", attrs: llm(5000, 500, { ...stamp(PROMPT, 1), "memtrace.playground": "true" }) },
     ];
     await insert("otel_traces", spans.map(toRow));
 
@@ -145,6 +147,13 @@ describe.skipIf(!enabled)("ClickHousePromptEvidenceRepository (integration, ADR-
     expect((await version(1)).traces).toBe(3); // t1, t2, t7
     expect((await version(2)).traces).toBe(3); // t3, t4, t7
     expect((await version(1)).conversations).toBe(2);
+  });
+
+  it("leaves playground tests out of the evidence (invented messages must not move the error rate)", async () => {
+    const v1 = await version(1);
+    expect(v1.traces).toBe(3); // t9 is a playground trace of v1 with an error and 5000 tokens: not counted
+    expect(v1.errorTraces).toBe(1);
+    expect(v1.inputTokens).toBe(1700);
   });
 
   it("counts a trace as failed when any of its spans failed, even if the root succeeded", async () => {

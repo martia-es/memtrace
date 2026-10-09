@@ -23,6 +23,10 @@ class PromptSource(Protocol):
         Raises `PromptNotFoundError` when it does not exist for this agent, `PromptSourceError` on transient failures.
         """
 
+    def fetch_override(self, name: str, token: str) -> Optional[PromptVersion]:
+        """The version a playground token grants for prompt `name`, or `None` if MemTrace does not recognize it (expired,
+        another agent's, another prompt's). Raises `PromptSourceError` on transient failures."""
+
 
 @dataclass(frozen=True)
 class UsedPrompt:

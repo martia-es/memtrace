@@ -98,6 +98,19 @@ With a policy:
 
 Changing or removing the policy needs `prompt:promote`, and the history shows who moved what and which verdict they got.
 
+## Try it: test a version in the real agent
+
+The **Try it** tab runs your real agent —with its tools and knowledge— using the version you choose for one message. Nothing is promoted and no tag moves.
+
+1. Choose where to run it. Only environments that are not production and need no credentials are offered; production is never used (there, you promote instead).
+2. Choose a version, and optionally another one to **compare with**: both run at the same time, side by side.
+3. Type the message, or paste a **trace id** to load the message of a real conversation. The original answer is shown next to the new ones.
+4. **Run**. Each answer says whether it was **applied**. If it says *NOT applied*, the agent answered without using that version, so the answer is **not** from it: check that the agent reads the prompt with [`memtrace.prompts`](/library/prompts#try-a-version-in-the-real-agent), has `MEMTRACE_ALLOW_PROMPT_OVERRIDE=true` and the `PromptOverrideMiddleware`. The tab also warns beforehand when no agent has reported reading this prompt in that environment.
+
+From a trace's page, **Try another prompt version** opens this tab with that trace loaded, so you can replay the same message with another version. It needs content capture on in the agent to know the message; otherwise type it. Each run is a new conversation with one message.
+
+Running the agent has real effects (its tools run), so it needs `prompt:write` and read access to the agent. Tests are marked on the trace and are **not counted** as evidence of a version or toward the promotion policy.
+
 ::: info Coming next
-Replaying a real conversation with another version, and proposing a fix from a failed trace.
+Proposing a fix for a failed trace, validated against the failing cases.
 :::

@@ -54,8 +54,10 @@ export const resolvePromptQuery = z
     name: z.string().min(1).max(100),
     tag: z.string().min(1).max(40).optional(),
     version: z.coerce.number().int().min(1).optional(),
+    /** token de un override del playground (ADR-071), en lugar de un tag o una versión */
+    override: z.string().min(10).max(200).optional(),
   })
-  .refine((q) => (q.tag === undefined) !== (q.version === undefined), { message: "Send exactly one of tag or version", path: ["tag"] });
+  .refine((q) => [q.tag, q.version, q.override].filter((v) => v !== undefined).length === 1, { message: "Send exactly one of tag, version or override", path: ["tag"] });
 
 /** Latido del SDK: qué versiones está usando el agente (ADR-068). */
 export const usageReportBody = z.object({
@@ -63,4 +65,11 @@ export const usageReportBody = z.object({
   items: z
     .array(z.object({ name: z.string().min(1).max(100), tag: z.string().min(1).max(40).nullable().default(null), version: z.number().int().min(1) }))
     .max(50),
+});
+
+/** Una ejecución del playground: qué versión probar, en qué despliegue (no de producción) y con qué mensaje (ADR-071). */
+export const playgroundBody = z.object({
+  deploymentId: z.string().uuid(),
+  version: z.number().int().min(1),
+  message: z.string().max(5000),
 });
