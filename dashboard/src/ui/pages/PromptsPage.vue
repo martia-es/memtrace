@@ -331,11 +331,12 @@ async function create() {
   min-height: 108px;
   border-radius: 10px;
   overflow: hidden;
-  background: var(--mt-ink);
-  color: #fff;
+  background: var(--mt-card);
+  border: 1px solid var(--mt-line);
+  color: var(--mt-ink);
 }
 .board > * {
-  border-right: 1px solid rgba(255, 255, 255, 0.12);
+  border-right: 1px solid var(--mt-line);
 }
 .board-intro {
   flex: none;
@@ -356,7 +357,7 @@ async function create() {
   font-family: var(--mt-mono);
   font-size: 11px;
   letter-spacing: 0.08em;
-  color: var(--mt-brand);
+  color: var(--mt-accent);
 }
 .board-env {
   flex: 1;
@@ -369,7 +370,7 @@ async function create() {
 }
 .board-env .soft,
 .board-drift .drift-sub {
-  color: rgba(255, 255, 255, 0.62);
+  color: var(--mt-muted);
 }
 .board-env-head {
   display: flex;
@@ -380,13 +381,13 @@ async function create() {
   font-family: var(--mt-mono);
   font-size: 12px;
   letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--mt-muted);
 }
 .env-name.pre {
-  color: #f6c453;
+  color: var(--mt-warn-ink);
 }
 .env-name.pro {
-  color: var(--mt-brand);
+  color: var(--mt-accent-text);
 }
 .big {
   font-size: 26px;
@@ -402,13 +403,13 @@ async function create() {
   max-width: 48px;
   height: 6px;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--mt-line);
 }
 .meter span.on {
-  background: rgba(255, 255, 255, 0.85);
+  background: var(--mt-faint);
 }
 .board-env:nth-of-type(3) .meter span.on {
-  background: #f6c453;
+  background: var(--mt-warn);
 }
 .board-env:nth-of-type(4) .meter span.on {
   background: var(--mt-brand);
@@ -421,8 +422,8 @@ async function create() {
   flex-direction: column;
   justify-content: center;
   gap: 2px;
-  background: var(--mt-highlight);
-  color: var(--mt-ink);
+  background: var(--mt-highlight-soft);
+  color: var(--mt-highlight-ink);
   border-right: none;
 }
 .board-drift .big {
@@ -434,13 +435,17 @@ async function create() {
   font-weight: 700;
 }
 .board-drift .drift-sub {
-  color: var(--mt-ink);
+  color: var(--mt-highlight-ink);
   font-size: 12px;
   font-weight: 600;
   opacity: 0.8;
 }
 .board-drift.calm {
-  background: var(--mt-brand);
+  background: var(--mt-accent-tint);
+  color: var(--mt-accent-text);
+}
+.board-drift.calm .drift-sub {
+  color: var(--mt-accent-text);
 }
 
 /* ---- filtros ---- */
@@ -471,12 +476,13 @@ async function create() {
   color: var(--mt-ink);
 }
 .chip.active {
-  background: var(--mt-ink);
-  border-color: var(--mt-ink);
-  color: #fff;
+  background: var(--mt-accent-tint);
+  border-color: var(--mt-accent-soft);
+  color: var(--mt-accent-text);
+  font-weight: 800;
 }
 .chip.active b {
-  color: #fff;
+  color: var(--mt-accent-text);
 }
 .legend {
   display: inline-flex;
@@ -690,8 +696,8 @@ async function create() {
 .dot.latest {
   width: 16px;
   height: 16px;
-  border-color: var(--mt-ink);
-  background: var(--mt-ink);
+  border-color: var(--mt-accent);
+  background: var(--mt-accent);
 }
 .num {
   font-size: 11px;

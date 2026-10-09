@@ -71,7 +71,7 @@ describe("prompt playground (ADR-071)", () => {
     expect(prompts.calls.find((c) => c.method === "runPlayground")?.args).toEqual(["exp-1", "p1", { deploymentId: "dep-dev", version: 2, message: "¿Lloverá mañana?" }]);
     const result = wrapper.find("[data-testid='playground-result-2']");
     expect(result.text()).toContain('Answer of v2 to "¿Lloverá mañana?"');
-    expect(wrapper.find("[data-testid='applied-2']").text()).toBe("applied");
+    expect(wrapper.find("[data-testid='applied-2']").exists()).toBe(false); // solo se avisa cuando NO se aplicó
     expect(result.find("a").exists()).toBe(true); // link to the trace
   });
 
@@ -88,7 +88,7 @@ describe("prompt playground (ADR-071)", () => {
     const { wrapper } = await openTry({ prompts, assistants: agent() });
     await chooseOption(wrapper.element, "[data-testid='playground-second']", "v1 · first draft");
     await type(wrapper, "playground-message", "hola");
-    expect(wrapper.find("[data-testid='playground-run']").text()).toBe("Run both");
+    expect(wrapper.find("[data-testid='playground-run']").text()).toBe("Run");
     await wrapper.find("[data-testid='playground-run']").trigger("click");
     await flushPromises();
     const versions = prompts.calls.filter((c) => c.method === "runPlayground").map((c) => (c.args[2] as { version: number }).version).sort();
@@ -172,6 +172,43 @@ describe("prompt playground (ADR-071)", () => {
     await wrapper.find("[data-testid='playground-load']").trigger("click");
     await flushPromises();
     expect(wrapper.find("[data-testid='playground-trace-problem']").text()).toContain("MEMTRACE_CAPTURE_CONTENT");
+  });
+  it("brings the earlier messages of the conversation and sends them as history (ADR-075)", async () => {
+    const traces = new FakeTraceApi();
+    const id = "b".repeat(32);
+    traces.detail = traceDetail({ conversationId: "conv-1", roots: [node({ content: { inputMessages: [{ role: "user", content: "¿Lloverá el viernes?" }], outputMessages: [{ role: "assistant", content: "No." }] } })] });
+    traces.transcript = { conversationId: "conv-1", contentCaptured: true, truncated: false, turns: [
+      { traceId: "a".repeat(32), startTime: "2026-09-26T12:00:00Z", model: null, user: "Hola", assistant: "Hola" },
+      { traceId: id, startTime: "2026-09-26T12:01:00Z", model: null, user: "¿Lloverá el viernes?", assistant: "No." },
+    ] };
+    const prompts = new FakePromptApi();
+    const { wrapper } = await openTry({ assistants: agent(), traces, prompts });
+    await type(wrapper, "playground-trace", id);
+    await wrapper.find("[data-testid='playground-load']").trigger("click");
+    await flushPromises();
+    expect((wrapper.find("[data-testid='playground-earlier-0']").element as HTMLInputElement).value).toBe("Hola");
+    await wrapper.find("[data-testid='playground-run']").trigger("click");
+    await flushPromises();
+    expect(prompts.calls.find((c) => c.method === "runPlayground")?.args[2]).toMatchObject({ message: "¿Lloverá el viernes?", history: ["Hola"] });
+  });
+
+  it("lets the person remove an earlier message, and sends no history when none is left", async () => {
+    const traces = new FakeTraceApi();
+    const id = "b".repeat(32);
+    traces.detail = traceDetail({ conversationId: "conv-1", roots: [node({ content: { inputMessages: [{ role: "user", content: "ahora" }], outputMessages: [{ role: "assistant", content: "vale" }] } })] });
+    traces.transcript = { conversationId: "conv-1", contentCaptured: true, truncated: false, turns: [
+      { traceId: "a".repeat(32), startTime: "2026-09-26T12:00:00Z", model: null, user: "antes", assistant: "ok" },
+      { traceId: id, startTime: "2026-09-26T12:01:00Z", model: null, user: "ahora", assistant: "vale" },
+    ] };
+    const prompts = new FakePromptApi();
+    const { wrapper } = await openTry({ assistants: agent(), traces, prompts });
+    await type(wrapper, "playground-trace", id);
+    await wrapper.find("[data-testid='playground-load']").trigger("click");
+    await flushPromises();
+    await wrapper.find("[data-testid='playground-earlier-remove-0']").trigger("click");
+    await wrapper.find("[data-testid='playground-run']").trigger("click");
+    await flushPromises();
+    expect(prompts.calls.find((c) => c.method === "runPlayground")?.args[2]).toEqual({ deploymentId: "dep-dev", version: 2, message: "ahora" });
   });
 });
 

@@ -7,7 +7,7 @@ import { playgroundBody } from "@/adapters/inbound/http/prompt-schemas";
 import { getPromptPlayground, getPrompts } from "@/dependency-container";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 /**
  * Prueba una versión del prompt en el asistente real, sin mover ningún tag (ADR-071). Ejecuta el agente de verdad (con sus
