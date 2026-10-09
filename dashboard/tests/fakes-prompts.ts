@@ -110,6 +110,11 @@ export class FakePromptApi implements PromptApi {
     this.record("approvalInbox", organizationId, experimentId);
     return this.inbox;
   }
+  history: ApprovalRequestDto[] = [];
+  async approvalHistory(scope: ApprovalScope) {
+    this.record("approvalHistory", scope);
+    return this.history;
+  }
   async getApprovalRules(scope: ApprovalScope) {
     this.record("getApprovalRules", scope);
     return this.rules;

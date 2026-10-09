@@ -65,6 +65,8 @@ The prompt registry. Session only. A prompt belongs to the organization and to o
 | `POST /api/v1/approvals/{requestId}/cancel` | Withdraws it; only the requester |
 | `POST /api/v1/approvals/{requestId}/approvers` | `{ approverId }`: adds someone who must also approve this request |
 | `GET /api/v1/organizations/{organizationId}/approvals` | The inbox: live requests the caller can still decide; `?experimentId=` keeps only those of that agent's prompts |
+| `GET /api/v1/organizations/{organizationId}/approvals/history` | Every request of the organization, any status, newest first (up to 200), each with its decisions. `approval:manage` |
+| `GET /api/v1/experiments/{experimentId}/approvals/history` | The same, only for the prompts of that agent. `approval:manage` |
 
 **Fragments.** `POST /organizations/{id}/prompts` accepts `kind: "fragment"`. A version's `content` may include other fragments (syntax in [Prompts](/platform/prompts#fragments-text-shared-between-prompts)); the response keeps `source` (what was written, `null` without includes), `includes: [{ name, ref, version }]` and `content` already resolved. The prompt detail adds `includes` (each with `pinned`, `current`, `outdated`) and, for fragments, `usedBy`.
 

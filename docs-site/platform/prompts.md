@@ -124,9 +124,11 @@ An **org admin** opens **Admin → organization → Approvals** and, for each ac
 - **Profiles and how many**: "1 approval from `technical`", "1 from `business`"… A person counts for the profile they have.
 - **Default approvers** (optional): specific people who **must always approve**, on top of the profiles.
 
+The tab draws the rules as an **org chart**: *a change to a prompt* branches into *Publish a version* and one step per environment, and under each step hang the profiles (`1 × Technical`) and the people marked with ★ who have to approve. A step with no rule is shown dashed as **No approval**. Below the chart, **Approval history** lists every request ever sent (waiting, done, rejected, cancelled or expired) with who asked and what each approver answered, and can be filtered by status.
+
 An environment with no rule works as before. Removing a rule turns approvals off for it.
 
-Each experiment has its own **Approvals** tab (**Admin → experiment**). It starts from the organization's rules and can only make them **stricter**: ask for more people, add a profile or add a default approver. It cannot ask for less than the organization. When a prompt belongs to several agents, the strictest rule among the organization and all of them applies.
+Each experiment has its own **Approvals** tab (**Admin → experiment**). It starts from the organization's rules and can only make them **stricter**: ask for more people, add a profile or add a default approver. It cannot ask for less than the organization; what comes from the organization is drawn with a dashed outline in the chart. When a prompt belongs to several agents, the strictest rule among the organization and all of them applies.
 
 ### Asking and approving
 

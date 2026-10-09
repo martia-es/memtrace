@@ -36,6 +36,7 @@ export interface ApprovalView {
 }
 
 const LIST_LIMIT = 100;
+const HISTORY_LIMIT = 200;
 const MAX_EXTRA_APPROVERS = 10;
 
 /**
@@ -195,6 +196,22 @@ export class ApprovalService {
       if (!prompt || (experimentId && !prompt.experimentIds.includes(experimentId))) continue;
       const [rule, people] = await Promise.all([memo.rule(prompt, request.action, request.tag), memo.people(prompt)]);
       if (this.mayDecide(userId, rule, request, people)) items.push({ request, prompt });
+    }
+    return this.viewAll(items, memo);
+  }
+
+  /** El histórico de solicitudes de la organización (o, con `experimentId`, de los prompts de ese agente), de cualquier estado. */
+  async history(organizationId: string, experimentId?: string): Promise<ApprovalView[]> {
+    const all = await this.approvals.listAllForOrganization(organizationId, HISTORY_LIMIT);
+    const memo = new Memo(this.resolver, this.approvals);
+    const prompts = new Map<string, Promise<Prompt | null>>();
+    const items: Array<{ request: ApprovalRequest; prompt: Prompt }> = [];
+    for (const raw of all) {
+      const request = await this.refresh(raw);
+      if (!prompts.has(request.promptId)) prompts.set(request.promptId, this.promptRepo.get(request.promptId));
+      const prompt = await prompts.get(request.promptId);
+      if (!prompt || (experimentId && !prompt.experimentIds.includes(experimentId))) continue;
+      items.push({ request, prompt });
     }
     return this.viewAll(items, memo);
   }

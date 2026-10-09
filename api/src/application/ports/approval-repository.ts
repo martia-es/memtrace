@@ -39,6 +39,8 @@ export interface ApprovalRepository {
   listRequests(promptId: string, limit: number): Promise<ApprovalRequest[]>;
   /** Solicitudes vivas (pendientes o aprobadas sin ejecutar) de los prompts de la organización. */
   listOpenForOrganization(organizationId: string): Promise<ApprovalRequest[]>;
+  /** Todas las solicitudes (cualquier estado) de los prompts de la organización, más recientes primero. */
+  listAllForOrganization(organizationId: string, limit: number): Promise<ApprovalRequest[]>;
   /** Registra la decisión de la persona (una por solicitud; cambiarla la sustituye). */
   saveDecision(requestId: string, decision: Pick<ApprovalDecision, "userId" | "decision" | "comment">): Promise<void>;
   addExtraApprover(requestId: string, userId: string, addedBy: string): Promise<void>;
