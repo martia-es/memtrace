@@ -8,7 +8,7 @@ import { EMPTY_THEME, type ExperimentDto } from "@/application/identity-api";
 import PromptDetailPage from "@/ui/pages/PromptDetailPage.vue";
 import TraceDetailPage from "@/ui/pages/TraceDetailPage.vue";
 import { permissionsOf } from "../permissions";
-import { FakeAssistantApi, FakeIdentityApi, FakeTraceApi, assistantCard, deploymentDto, node, traceDetail } from "../fakes";
+import { FakeAssistantApi, FakeIdentityApi, FakeTraceApi, assistantCard, deploymentDto, node, summary, traceDetail } from "../fakes";
 import { FakePromptApi, promptDetail, promptSummary, promptVersion } from "../fakes-prompts";
 
 const experiment = (role: string): ExperimentDto => ({ id: "exp-1", organizationId: "org-1", name: "weather", serviceName: "weather-assistant", myRole: role, permissions: permissionsOf(role), organizationTheme: EMPTY_THEME });
@@ -219,7 +219,33 @@ describe("fix a failure (ADR-072)", () => {
     expect(wrapper.find("[data-testid='fix-failure']").exists()).toBe(false);
     expect(wrapper.find("[data-testid='fix-tip']").text()).toContain("propose_fix");
   });
+  it("offers the recent failed traces of this prompt, and a click loads one without pasting an id", async () => {
+    const traces = failingTrace(1);
+    traces.pages = [{ items: [summary({ traceId: TRACE, status: "error", errorCount: 1, input: "¿Lloverá en Sevilla?", error: "429 Too Many Requests" })], nextCursor: null }];
+    const { wrapper } = await openFix({ traces }, "?tab=fix");
+    expect(traces.listCalls[0]).toMatchObject({ promptName: "weather-system", hasErrors: true });
+    const cases = wrapper.findAll("[data-testid='fix-case']");
+    expect(cases).toHaveLength(1);
+    expect(cases[0]!.text()).toContain("¿Lloverá en Sevilla?");
+    expect(cases[0]!.text()).toContain("429 Too Many Requests");
+    await cases[0]!.trigger("click");
+    await flushPromises();
+    expect(wrapper.find("[data-testid='fix-picker']").exists()).toBe(false);
+    expect(wrapper.find("[data-testid='fix-failure']").text()).toContain("get_weather");
+    await wrapper.find("[data-testid='fix-back']").trigger("click");
+    await flushPromises();
+    expect(wrapper.find("[data-testid='fix-picker']").exists()).toBe(true);
+  });
+
+  it("says so when there are no recent failures and keeps pasting an id as a fallback", async () => {
+    const { wrapper } = await openFix({}, "?tab=fix");
+    expect(wrapper.find("[data-testid='fix-picker-empty']").exists()).toBe(true);
+    expect(wrapper.find("[data-testid='fix-trace']").exists()).toBe(false);
+    await wrapper.find("[data-testid='fix-paste-toggle']").trigger("click");
+    expect(wrapper.find("[data-testid='fix-trace']").exists()).toBe(true);
+  });
 });
+
 
 describe("fix button on the trace page (ADR-072)", () => {
   afterEach(() => {
