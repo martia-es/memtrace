@@ -132,7 +132,6 @@ describe("drafts in the prompt page (ADR-072)", () => {
 
   it("never offers a draft as the target of a tag", async () => {
     const { wrapper } = await open(withDraft(), "technical", "?tab=tags");
-    await wrapper.findAll("[role='tab']")[3]!.trigger("click");
     await flushPromises();
     const select = wrapper.find("[data-testid='env-pre'] .select-trigger");
     select.element.dispatchEvent(new Event("click"));

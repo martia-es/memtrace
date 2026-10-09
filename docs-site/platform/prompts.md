@@ -18,7 +18,9 @@ Every save creates a new, **immutable version** (`v1`, `v2`, `v3`…): the text,
 
 Variables are written `{{city}}`; MemTrace detects them when you save and lists them on the version.
 
-Inside a prompt, the versions are listed on the left. **Pinned by tags** stays on top, so the versions that `dev`, `pre` and `pro` point to are always one click away; below, **all versions** grouped by month. Each version shows who created it. Type a number (`12`) or a word of the message in the search box to find one. Above the tabs, a strip says what runs in each environment and, when production is behind, by how many versions.
+Inside a prompt, the versions are listed on the left. **Pinned by tags** stays on top, so the versions that `dev`, `pre` and `pro` point to are always one click away; below, **all versions** grouped by month. Each version shows who created it. Type a number (`12`) or a word of the message in the search box to find one. Above the content, a strip says what runs in each environment and, when production is behind, by how many versions.
+
+The prompt is a **single page**, with no tabs. The text of the selected version is always in view. Under it, the **Compare**, **Try it** and **Fix a failure** buttons open a side panel over the page (close it with **Close** or by clicking outside), and three folded sections — **Release** (tags, promotion policy, history and approvals), **Evidence** and **Used by** (traces and dependencies) — open with a click and show a one-line summary while folded. Old links with `?tab=` still open the right panel or section.
 
 On **Content** the text has numbered lines, the `{{variables}}` are highlighted, and the lines changed since the version it came from are marked.
 
@@ -57,11 +59,11 @@ The [Python SDK](/library/prompts) reads the prompt of an environment with `memt
 
 ## What really runs
 
-The **Tags & history** tab starts with **In use right now**: for each environment, the version each agent reports to be using. *Up to date* means it runs the version its tag points to; *Catching up* means the tag moved and the agent has not picked it up yet (it takes up to 30 seconds, or longer if some replica is stale); *Fixed version* is an agent that asked for a version number instead of a tag; *Not reporting* means it has not reported for 15 minutes. In the version list, a version running somewhere says **Running in pro**. Agents report only when they read their prompt with the SDK.
+The **Release** section starts with **In use right now**: for each environment, the version each agent reports to be using. *Up to date* means it runs the version its tag points to; *Catching up* means the tag moved and the agent has not picked it up yet (it takes up to 30 seconds, or longer if some replica is stale); *Fixed version* is an agent that asked for a version number instead of a tag; *Not reporting* means it has not reported for 15 minutes. In the version list, a version running somewhere says **Running in pro**. Agents report only when they read their prompt with the SDK.
 
 ## Traces of a version
 
-The **Traces** tab lists the traces that used the selected version (or all versions), so you can open the conversation behind any number in Evidence. **Open in Conversations** takes the same search to the full list.
+The **Traces** list in **Used by** shows the traces that used the selected version (or all versions), so you can open the conversation behind any number in Evidence. **Open in Conversations** takes the same search to the full list.
 
 The link also works the other way. A trace, a conversation and every item of an evaluation run show the **prompt and version** that produced them (`weather-system v2`), and clicking it opens that version here. In **Conversations**, `?prompt=weather-system&pv=2` filters the list to one version, and a *Prompt* column shows it on every row.
 
@@ -69,7 +71,7 @@ An agent only shows up when it reads the prompt with [`memtrace.prompts`](/libra
 
 ## Evidence: what each version did
 
-The **Evidence** tab shows, for every version that had traffic in the last 24 hours, 7 or 30 days, what happened in the traces that used it:
+The **Evidence** section shows, for every version that had traffic in the last 24 hours, 7 or 30 days, what happened in the traces that used it:
 
 | Column | Meaning |
 |---|---|
@@ -133,7 +135,7 @@ Each experiment has its own **Approvals** tab (**Admin → experiment**). It sta
 ### Asking and approving
 
 1. With a rule active, saving an edit creates a **draft**, and moving a protected tag shows **Request approval** instead of **Move**. Write a note for the reviewers. You can **add approvers** to that request on top of the rule's, and add more later.
-2. The people who can decide see it, for the agent they have open, in **Waiting for your approval** at the top of **Overview** and of the Prompts list, as a counter next to **Prompts** in the menu, and as a **needs your approval** mark on the prompt's row. They decide in the prompt's **Approvals** tab. Each one can **Approve** or **Reject** and comment.
+2. The people who can decide see it, for the agent they have open, in **Waiting for your approval** at the top of **Overview** and of the Prompts list, as a counter next to **Prompts** in the menu, and as a **needs your approval** mark on the prompt's row. They decide in the prompt's **Release** section, under **Approvals**. Each one can **Approve** or **Reject** and comment.
 3. When everything the rule asks for is in, the change **happens by itself**: the draft is published, or the tag moves. The history shows *Approved by …* and who asked.
 
 What to know:
@@ -149,13 +151,13 @@ What to know:
 
 ## Try it: test a version in the real agent
 
-The **Try it** tab runs your real agent —with its tools and knowledge— using the version you choose for one message. Nothing is promoted and no tag moves.
+The **Try it** panel runs your real agent —with its tools and knowledge— using the version you choose for one message. Nothing is promoted and no tag moves.
 
 1. Read the sentence at the top: **Test** a version **against** another one (optional): both run at the same time, side by side. The agent runs in a non-production environment that needs no credentials; production is never used (there, you promote instead). If you have more than one such environment, a selector appears.
 3. Type the message, or paste a **trace id** to load the message of a real conversation. If the trace belongs to a conversation, the person's **earlier messages** appear above it; the agent receives them first, in the same conversation, and answers them again with the version you are testing (you can edit, remove or add some; it needs the agent's chat to have a session field). The original answer is shown as **Before**, next to the new ones.
-4. **Run**. An answer is flagged only when it was *NOT applied*: the agent answered without using that version, so the answer is **not** from it. Check that the agent reads the prompt with [`memtrace.prompts`](/library/prompts#try-a-version-in-the-real-agent), has `MEMTRACE_ALLOW_PROMPT_OVERRIDE=true` and the `PromptOverrideMiddleware`. The tab also warns beforehand when no agent has reported reading this prompt in that environment.
+4. **Run**. An answer is flagged only when it was *NOT applied*: the agent answered without using that version, so the answer is **not** from it. Check that the agent reads the prompt with [`memtrace.prompts`](/library/prompts#try-a-version-in-the-real-agent), has `MEMTRACE_ALLOW_PROMPT_OVERRIDE=true` and the `PromptOverrideMiddleware`. The panel also warns beforehand when no agent has reported reading this prompt in that environment.
 
-From a trace's page, **Try another prompt version** opens this tab with that trace loaded, so you can replay the same message with another version. It needs content capture on in the agent to know the message; otherwise type it. Each run is a new conversation with one message.
+From a trace's page, **Try another prompt version** opens this panel with that trace loaded, so you can replay the same message with another version. It needs content capture on in the agent to know the message; otherwise type it. Each run is a new conversation with one message.
 
 Running the agent has real effects (its tools run), so it needs `prompt:write` and read access to the agent. Tests are marked on the trace and are **not counted** as evidence of a version or toward the promotion policy.
 
@@ -165,7 +167,7 @@ A **draft** is a version waiting for review. It has a number, so you can **test 
 
 You can save any edit as a draft with **Save as draft** in the editor, but the main way to create one is from a failure:
 
-1. On a **failed trace** that read its prompt from the registry, press **Fix with a prompt change**. Or open the prompt's **Fix a failure** tab: it lists the recent failures of that prompt (last 30 days) and you pick one. A failure is a trace with a **step that failed**, a **low evaluator score**, a **"no" from a reviewer** or a **👎 from the end user**; each row says which, and you can filter by reason. The list looks at the latest 300 traces of the prompt and shows ten at a time. Have a trace id from elsewhere? Use **Paste it** under the list.
+1. On a **failed trace** that read its prompt from the registry, press **Fix with a prompt change**. Or press **Fix a failure** on the prompt: it lists the recent failures of that prompt (last 30 days) and you pick one. A failure is a trace with a **step that failed**, a **low evaluator score**, a **"no" from a reviewer** or a **👎 from the end user**; each row says which, and you can filter by reason. The list looks at the latest 300 traces of the prompt and shows ten at a time. Have a trace id from elsewhere? Use **Paste it** under the list.
 2. MemTrace shows **what failed** (the deepest failing step, not the ones that only passed the error up), what the person said and what the agent answered. The editor starts from **the version that trace used**, and the reason is filled in with the failure.
 3. Change the text and **Save as draft**. The draft remembers the failure: its page shows what it was for and links to the trace.
 4. **Test it on this case** runs the real agent with the draft and with the version it came from, side by side, on that same message.
@@ -193,7 +195,7 @@ Limits: a fragment cannot include another fragment; only published versions can 
 
 ## Dependencies and impact
 
-The **Dependencies** tab answers "what is connected to this prompt?":
+The **Dependencies** list in **Used by** answers "what is connected to this prompt?":
 
 - **Agents that read it**, and what each one *reports serving* in every environment (the tag it follows or the fixed version it asked for, and when it was last seen). An agent linked but not using [`memtrace.prompts`](/library/prompts) shows *has not reported reading it yet*.
 - **Evaluated with**: the dataset and number of runs of its [promotion policy](#promotion-policy-evaluate-before-you-promote), or a note that it has none.
