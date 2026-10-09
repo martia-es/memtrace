@@ -6,12 +6,19 @@
  * cambia el origen del nombre, no los componentes. */
 
 export type ChartKind = "bar" | "pie" | "line" | "area" | "number" | "table";
-export type MetricKind = "count" | "avg_duration" | "p50_duration" | "p95_duration" | "error_rate";
+export type AttributeMetricKind = "sum_attribute" | "avg_attribute" | "min_attribute" | "max_attribute";
+export type MetricKind = "count" | "avg_duration" | "p50_duration" | "p95_duration" | "error_rate" | AttributeMetricKind;
+
+/** Las métricas sobre un atributo numérico (ADR-077, fase 3): total, media, mínimo y máximo. Piden `metricAttribute`. */
+export const ATTRIBUTE_METRICS: AttributeMetricKind[] = ["sum_attribute", "avg_attribute", "min_attribute", "max_attribute"];
+export const isAttributeMetric = (metric: MetricKind): metric is AttributeMetricKind => (ATTRIBUTE_METRICS as string[]).includes(metric);
 
 export interface ChartDefinition {
   chartType: ChartKind;
   stepTypes: string[];
   metric: MetricKind;
+  /** el atributo numérico que miden las métricas `*_attribute`; null o ausente en el resto */
+  metricAttribute?: string | null;
   groupByAttribute: string | null;
   filters: { attribute: string; values: string[] }[];
 }
@@ -72,6 +79,9 @@ const ATTRIBUTE_LABELS: Record<string, string> = {
   "gen_ai.response.model": "Model (served)",
   "gen_ai.system": "Provider",
   "gen_ai.operation.name": "Operation",
+  "gen_ai.usage.input_tokens": "Input tokens",
+  "gen_ai.usage.output_tokens": "Output tokens",
+  "gen_ai.usage.total_tokens": "Total tokens",
 };
 
 /** Claves que son plumbing de instrumentación: se ocultan salvo que se pidan expresamente. */
@@ -93,6 +103,10 @@ export const METRIC_LABELS: Record<MetricKind, string> = {
   p50_duration: "Typical time (median)",
   p95_duration: "How long it takes in the slowest 5%",
   error_rate: "% that fail",
+  sum_attribute: "Total of a number",
+  avg_attribute: "Average of a number",
+  min_attribute: "Lowest value of a number",
+  max_attribute: "Highest value of a number",
 };
 
 /** p50 sigue siendo válido en gráficas ya guardadas, pero el builder no lo ofrece. */
@@ -104,6 +118,10 @@ const METRIC_PHRASE: Record<MetricKind, string> = {
   p50_duration: "the typical time of",
   p95_duration: "the time in the slowest 5% of",
   error_rate: "the % that fail among",
+  sum_attribute: "the total of",
+  avg_attribute: "the average of",
+  min_attribute: "the lowest",
+  max_attribute: "the highest",
 };
 
 const METRIC_TITLE: Record<MetricKind, string> = {
@@ -112,20 +130,37 @@ const METRIC_TITLE: Record<MetricKind, string> = {
   p50_duration: "Typical time of",
   p95_duration: "Slowest-5% time of",
   error_rate: "Failure rate of",
+  sum_attribute: "Total of",
+  avg_attribute: "Average",
+  min_attribute: "Lowest",
+  max_attribute: "Highest",
 };
+
+/** El encabezado de la columna de valores de una tabla: "Total of order total" para una métrica sobre un atributo, la frase de siempre en el resto. */
+export function metricColumnLabel(def: { metric: MetricKind; metricAttribute?: string | null }, names: NameCatalog = NO_NAMES): string {
+  if (!isAttributeMetric(def.metric) || !def.metricAttribute) return METRIC_LABELS[def.metric];
+  return `${METRIC_TITLE[def.metric]} ${attributeLabel(def.metricAttribute, names).toLowerCase()}`;
+}
 
 /** El API devuelve `error_rate` como fracción 0..1 y las duraciones en ms: aquí se muestran con su unidad. */
 export function formatMetricValue(metric: MetricKind, value: number): string {
   if (metric === "error_rate") return `${(value * 100).toLocaleString(undefined, { maximumFractionDigits: 1 })}%`;
   if (metric === "count") return value.toLocaleString();
+  // una medida de negocio (un importe, una nota) no lleva unidad: son los números tal cual, con hasta dos decimales
+  if (isAttributeMetric(metric)) return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
   return value >= 1000 ? `${(value / 1000).toLocaleString(undefined, { maximumFractionDigits: 2 })} s` : `${Math.round(value).toLocaleString()} ms`;
 }
 
-/** Valor del "número único": los conteos se suman; el resto no es sumable, así que con varios puntos se usa la media simple. */
+/**
+ * Valor del "número único": lo que suma se suma (conteos, totales), el mínimo y el máximo toman el menor y el mayor, y lo que no es
+ * sumable (tiempos, tasas, medias) usa la media simple de los puntos.
+ */
 export function singleNumber(metric: MetricKind, points: { value: number }[]): number {
   if (!points.length) return 0;
+  if (metric === "min_attribute") return Math.min(...points.map((p) => p.value));
+  if (metric === "max_attribute") return Math.max(...points.map((p) => p.value));
   const sum = points.reduce((s, p) => s + p.value, 0);
-  return metric === "count" ? sum : sum / points.length;
+  return metric === "count" || metric === "sum_attribute" ? sum : sum / points.length;
 }
 
 // ---- comparación con el periodo anterior ----
@@ -158,13 +193,14 @@ export function describeChange(metric: MetricKind, current: number, previous: nu
   if (Math.abs(pct) < 0.5) return { label: "No change", direction: "flat", tone: "neutral" };
   const text = `${pct > 0 ? "+" : "-"}${Math.abs(pct).toLocaleString(undefined, { maximumFractionDigits: 0 })}%`;
   const direction = pct > 0 ? "up" : "down";
-  const tone = metric === "count" ? "neutral" : pct > 0 ? "bad" : "good";
+  // subir una cifra de negocio (ventas, notas) no es bueno ni malo por sí mismo: solo los tiempos y los fallos juzgan
+  const tone = metric === "count" || isAttributeMetric(metric) ? "neutral" : pct > 0 ? "bad" : "good";
   return { label: `${direction === "up" ? "▲" : "▼"} ${text}`, direction, tone };
 }
 
 /** Un valor que destaca sobre el resto: solo en tasas de fallo y tiempos, donde "más" significa "peor". */
 export function findOutlier(metric: MetricKind, points: { label: string; value: number }[]): { label: string; text: string } | null {
-  if (metric === "count" || points.length < 3) return null;
+  if (metric === "count" || isAttributeMetric(metric) || points.length < 3) return null;
   const top = points.reduce((a, b) => (b.value > a.value ? b : a));
   const rest = points.filter((p) => p !== top);
   const mean = rest.reduce((s, p) => s + p.value, 0) / rest.length;
@@ -191,9 +227,11 @@ export function stepsPhrase(stepTypes: string[], catalog: NameCatalog = NO_NAMES
   return `${names[0]}, ${names[1]} and ${names.length - 2} more`;
 }
 
-export function suggestName(def: Pick<ChartDefinition, "metric" | "stepTypes" | "groupByAttribute">, names: NameCatalog = NO_NAMES): string {
+export function suggestName(def: Pick<ChartDefinition, "metric" | "stepTypes" | "groupByAttribute" | "metricAttribute">, names: NameCatalog = NO_NAMES): string {
   const step = stepsPhrase(def.stepTypes, names);
   const by = def.groupByAttribute ? ` by ${attributeLabel(def.groupByAttribute, names).toLowerCase()}` : "";
+  // sobre un atributo: "Total of order total in tool calls"; el resto, como siempre: "Count of tool calls"
+  if (isAttributeMetric(def.metric) && def.metricAttribute) return `${METRIC_TITLE[def.metric]} ${attributeLabel(def.metricAttribute, names).toLowerCase()} in ${step}${by}`;
   return `${METRIC_TITLE[def.metric]} ${step}${by}`;
 }
 
@@ -214,7 +252,8 @@ export function describeDefinition(def: ChartDefinition, names: NameCatalog = NO
         : "for each kind of step";
   const active = def.filters.filter((f) => f.attribute && f.values.length);
   const only = active.length ? `, only when ${active.map((f) => `${attr(f.attribute)} is ${f.values.join(" or ")}`).join(" and ")}` : "";
-  return `Shows ${METRIC_PHRASE[def.metric]} ${step} ${layout}${only}.`;
+  const measured = isAttributeMetric(def.metric) && def.metricAttribute ? `${METRIC_PHRASE[def.metric]} ${attr(def.metricAttribute)} in ${step}` : `${METRIC_PHRASE[def.metric]} ${step}`;
+  return `Shows ${measured} ${layout}${only}.`;
 }
 
 /** Cuando no se desglosa por atributo, las etiquetas de los puntos son step types: se muestran con su nombre de negocio. */

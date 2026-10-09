@@ -9,14 +9,17 @@ import { customMetricChartOption, presentResult } from "../custom-metric-chart-o
 import EChart from "./EChart.vue";
 import ChartCatalogEditor from "./ChartCatalogEditor.vue";
 import { usePermissions } from "../composables/usePermissions";
-import { isAttributeShown, type AttributeInfo, type Visibility } from "@/domain/attribute-visibility";
+import { isAttributeShown, isMeasure, type AttributeInfo, type Visibility } from "@/domain/attribute-visibility";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import type { SavedCustomMetricDto } from "@/application/identity-api";
 import type { RangeParams } from "@/application/trace-api";
 import {
+  ATTRIBUTE_METRICS,
   METRIC_LABELS,
   SELECTABLE_METRICS,
+  isAttributeMetric,
+  metricColumnLabel,
   attributeLabel,
   buildNames,
   describeChange,
@@ -83,6 +86,8 @@ const hasSteps = computed(() => selectedSteps.value.length > 0);
 const singleStep = computed(() => (selectedSteps.value.length === 1 ? selectedSteps.value[0]! : ""));
 const multiStep = computed(() => selectedSteps.value.length > 1);
 const metric = ref<CustomMetricDefinitionDto["metric"]>("count");
+/** el número que miden las métricas sobre un atributo (ADR-077, fase 3) */
+const metricAttribute = ref("");
 const groupByAttribute = ref("");
 const showTechnical = ref(false);
 const activeTemplate = ref<string | null>(null);
@@ -97,6 +102,8 @@ async function loadAttributeKeys() {
   try {
     const { items } = await api.getAttributeKeys({ ...props.range, stepTypes: [singleStep.value] });
     attributeKeys.value = items;
+    // el número elegido pudo no existir en este paso o rango: se vuelve a contar en vez de medir algo que no hay
+    if (isAttributeMetric(metric.value) && !items.some((k) => k.key === metricAttribute.value && isMeasure(k))) resetMeasure();
   } catch {
     attributeKeys.value = [];
   } finally {
@@ -138,8 +145,15 @@ function toggleFilterRowValue(row: FilterRow, value: string) {
   row.selected = new Set(row.selected);
 }
 
+/** Vuelve a contar: una métrica sobre un número solo vale para un paso concreto y un número que exista en él. */
+function resetMeasure() {
+  metric.value = "count";
+  metricAttribute.value = "";
+}
+
 function toggleStep(id: string) {
   activeTemplate.value = null;
+  if (isAttributeMetric(metric.value)) resetMeasure();
   selectedSteps.value = selectedSteps.value.includes(id) ? selectedSteps.value.filter((x) => x !== id) : [...selectedSteps.value, id];
   groupByAttribute.value = "";
   filterRows.value = [];
@@ -156,6 +170,7 @@ async function applyTemplate(t: ChartTemplate) {
   activeTemplate.value = t.id;
   selectedSteps.value = [...d.stepTypes];
   metric.value = d.metric;
+  metricAttribute.value = d.metricAttribute ?? "";
   groupByAttribute.value = d.groupByAttribute ?? "";
   chartType.value = d.chartType;
   chartTypeTouched.value = true;
@@ -170,6 +185,7 @@ function currentDefinition(): CustomMetricDefinitionDto {
     chartType: chartType.value,
     stepTypes: [...selectedSteps.value],
     metric: metric.value,
+    metricAttribute: isAttributeMetric(metric.value) ? metricAttribute.value || null : null,
     groupByAttribute: groupByAttribute.value.trim() || null,
     filters: filterRows.value
       .filter((r) => r.attribute && r.selected.size > 0)
@@ -208,7 +224,8 @@ let previewSeq = 0;
 
 async function runPreview() {
   const seq = ++previewSeq;
-  if (!hasSteps.value) {
+  // una métrica sobre un número sin número elegido todavía no se puede calcular
+  if (!hasSteps.value || (isAttributeMetric(metric.value) && !metricAttribute.value)) {
     previewResult.value = null;
     summary.value = null;
     previewLoading.value = false;
@@ -259,6 +276,7 @@ function resetBuilder() {
   selectedSteps.value = [];
   activeTemplate.value = null;
   metric.value = "count";
+  metricAttribute.value = "";
   groupByAttribute.value = "";
   chartType.value = "line";
   chartTypeTouched.value = false;
@@ -351,8 +369,19 @@ function templateBasis(t: ChartTemplate): string {
   const n = stepKinds.value.filter((s) => t.requires.includes(s.stepType)).reduce((sum, s) => sum + s.count, 0);
   return `Based on ${n.toLocaleString()} ${stepLabel(t.requires[0] ?? "", names.value).toLowerCase()}`;
 }
-const METRICS = SELECTABLE_METRICS.map((value) => ({ value, label: METRIC_LABELS[value] }));
-const metricLabel = (m: CustomMetricDefinitionDto["metric"]) => METRIC_LABELS[m];
+/** Los números de este paso que se pueden medir. Con varios pasos no hay una lista común: la medida pide un único paso. */
+const measureAttributes = computed(() => (singleStep.value ? attributeKeys.value.filter(isMeasure) : []));
+const METRICS = computed(() => [
+  ...SELECTABLE_METRICS.map((value) => ({ value, label: METRIC_LABELS[value] })),
+  ...(measureAttributes.value.length > 0 ? ATTRIBUTE_METRICS.map((value) => ({ value, label: METRIC_LABELS[value] })) : []),
+]);
+const measureOptions = computed(() => measureAttributes.value.map((k) => ({ label: attributeLabel(k.key, names.value), value: k.key })));
+// al elegir una métrica sobre un número se propone el primero, para que la gráfica se calcule sin un paso más
+watch(metric, (m) => {
+  if (isAttributeMetric(m) && !metricAttribute.value && measureAttributes.value[0]) metricAttribute.value = measureAttributes.value[0].key;
+  if (!isAttributeMetric(m)) metricAttribute.value = "";
+});
+const metricLabel = (def: { metric: CustomMetricDefinitionDto["metric"]; metricAttribute?: string | null }) => metricColumnLabel(def, names.value);
 
 /** Lo que la persona decidió en el catálogo para un atributo: forzar que se vea, que se oculte, o dejarlo a la clasificación. */
 const visibilityOf = (key: string): Visibility => catalogEntries.value.find((e) => e.kind === "attribute" && e.key === key)?.visibility ?? "auto";
@@ -420,7 +449,12 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
         <ChartCatalogEditor v-if="showCatalog" :experiment-id="experimentId" :range="range" :entries="catalogEntries" @close="showCatalog = false" @changed="catalogEntries = $event" />
         <div class="field">
           <label>Measured as…</label>
-          <Select v-model="metric" :options="METRICS" :disabled="!hasSteps" />
+          <Select v-model="metric" :options="METRICS" :disabled="!hasSteps" data-testid="metric-select" />
+          <template v-if="isAttributeMetric(metric)">
+            <label class="sub-label">Of which number?</label>
+            <Select v-model="metricAttribute" :options="measureOptions" data-testid="measure-select" />
+          </template>
+          <span v-else-if="singleStep && !measureAttributes.length && !attributeKeysLoading" class="hint" data-testid="no-measures">This step has no numbers to add up or average.</span>
         </div>
         <div class="field">
           <label>Split by… (optional)</label>
@@ -504,7 +538,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
 
             <template v-if="previewResult">
               <table v-if="chartType === 'table'" class="result-table">
-                <thead><tr><th>{{ groupHeader({ groupByAttribute: groupByAttribute || null }) }}</th><th>{{ metricLabel(metric) }}</th></tr></thead>
+                <thead><tr><th>{{ groupHeader({ groupByAttribute: groupByAttribute || null }) }}</th><th>{{ metricLabel({ metric, metricAttribute }) }}</th></tr></thead>
                 <tbody><tr v-for="p in previewRows" :key="p.label"><td>{{ p.label }}</td><td>{{ formatMetricValue(metric, p.value) }}</td></tr></tbody>
               </table>
               <EChart v-else-if="previewOption" :option="previewOption" height="240px" label="Custom chart preview" />
@@ -544,7 +578,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
               {{ formatMetricValue(m.definition.metric, singleNumber(m.definition.metric, savedResults[m.id]?.points ?? [])) }}
             </div>
             <table v-else-if="m.definition.chartType === 'table'" class="result-table">
-              <thead><tr><th>{{ groupHeader(m.definition) }}</th><th>{{ metricLabel(m.definition.metric) }}</th></tr></thead>
+              <thead><tr><th>{{ groupHeader(m.definition) }}</th><th>{{ metricLabel(m.definition) }}</th></tr></thead>
               <tbody><tr v-for="p in present(savedResults[m.id]!, m.definition).points" :key="p.label"><td>{{ p.label }}</td><td>{{ formatMetricValue(m.definition.metric, p.value) }}</td></tr></tbody>
             </table>
             <EChart v-else :option="optionFor(savedResults[m.id]!, m.definition, m.definition.chartType)" height="180px" :label="m.name" />

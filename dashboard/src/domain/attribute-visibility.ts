@@ -57,6 +57,14 @@ export function automaticLabel(info: AttributeInfo): string {
   return hiddenByDefault(info) ? "Automatic (hidden)" : "Automatic (shown)";
 }
 
+/**
+ * ¿Sirve como medida de una métrica (total, media, mínimo, máximo)? Casi todos sus valores son números y no es un identificador: sumar
+ * ids no significa nada. Los detalles técnicos numéricos (los tokens) sí sirven. Sin clasificación del servidor no se ofrece ninguno.
+ */
+export function isMeasure(info: AttributeInfo): boolean {
+  return info.numeric === true && kindOf(info) !== "id";
+}
+
 /** "1 value", "12 different values"; null si no se sabe. */
 export function distinctLabel(info: AttributeInfo): string | null {
   if (info.distinct === undefined) return null;
