@@ -16,13 +16,24 @@ const link = (promptId: string) => ({ name: "prompt", params: { experimentId: St
 
 <template>
   <section v-if="items.length > 0" class="inbox" data-testid="approval-inbox">
-    <h2>Waiting for your approval <span class="count">{{ items.length }}</span></h2>
+    <header class="inbox-head">
+      <span class="inbox-icon" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10" /></svg>
+      </span>
+      <div class="inbox-body">
+        <h2>Waiting for your approval <span class="count">{{ items.length }}</span></h2>
+        <p>{{ items.length === 1 ? "A change to a prompt is waiting for your decision." : "Changes to prompts are waiting for your decision." }}</p>
+      </div>
+    </header>
     <ul>
       <li v-for="r in items" :key="r.id" :data-testid="`inbox-${r.id}`">
         <router-link :to="link(r.promptId)">
-          <b>{{ r.promptName }}</b>
-          <span>{{ requestTitle(r) }}</span>
+          <span class="what">
+            <b>{{ r.promptName }}</b>
+            <span>{{ requestTitle(r) }}</span>
+          </span>
           <span class="muted">{{ describeRule(r.rule, {}) }} · asked by {{ (r.requestedBy && r.people[r.requestedBy]) || "someone" }} {{ formatRelativeTime(r.createdAt, nowMs) }}</span>
+          <span class="review">Review →</span>
         </router-link>
       </li>
     </ul>
@@ -30,11 +41,39 @@ const link = (promptId: string) => ({ name: "prompt", params: { experimentId: St
 </template>
 
 <style scoped>
-.inbox { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid var(--mt-line); border-left: 3px solid var(--mt-accent); border-radius: var(--mt-radius-sm); }
-h2 { margin: 0; font-size: 14px; }
-.count { margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: var(--mt-accent); color: var(--mt-accent-ink); font-size: 11px; }
-ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
-a { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; color: var(--mt-ink); text-decoration: none; font-size: 13px; padding: 4px 0; }
-a:hover b { text-decoration: underline; }
-.muted { color: var(--mt-muted); font-size: 12px; }
+/* misma familia que el banner de salud del Overview, en el color de la organización (--mt-accent) */
+.inbox {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: var(--mt-radius-lg);
+  border: 1px solid color-mix(in srgb, var(--mt-accent) 30%, transparent);
+  background: var(--mt-accent-tint);
+  color: var(--mt-accent-text);
+}
+.inbox-head { display: flex; align-items: center; gap: 16px; }
+.inbox-icon { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; flex-shrink: 0; border-radius: 50%; background: var(--mt-accent); color: var(--mt-accent-ink); }
+.inbox-body { flex: 1; min-width: 0; }
+h2 { margin: 0; font-size: 16px; font-weight: 800; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
+.inbox-body p { margin: 2px 0 0; font-weight: 500; }
+.count { padding: 1px 9px; border-radius: 999px; background: var(--mt-accent); color: var(--mt-accent-ink); font-size: 12px; font-weight: 700; }
+ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+a {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 9px 12px;
+  border-radius: var(--mt-radius-sm);
+  border: 1px solid color-mix(in srgb, var(--mt-accent) 20%, transparent);
+  background: var(--mt-card);
+  color: var(--mt-ink);
+  text-decoration: none;
+  font-size: 13px;
+}
+a:hover { border-color: var(--mt-accent); }
+.what { display: flex; align-items: baseline; gap: 10px; }
+.muted { flex: 1; min-width: 0; color: var(--mt-muted); font-size: 12px; }
+.review { font-weight: 700; color: var(--mt-accent-text); white-space: nowrap; }
 </style>
