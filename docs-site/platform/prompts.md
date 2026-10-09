@@ -173,7 +173,7 @@ Prefer a model to write the proposal? The SDK can ask **your** LLM with **your**
 
 ## Fragments: text shared between prompts
 
-A **fragment** is text several prompts need (tone, safety policy, output format). Create it with **+ New fragment**, in the *Fragments* section of the Prompts list (or from the empty state). The form shows the `{{variables}}` its text brings and how a prompt will use it; it has versions, tags and history like a prompt, but it is not deployed to an agent. A prompt uses it by choosing **Insert fragment** while editing (pick the fragment, then *Follow tag pro* or *Pin to v5*, and check the preview and the variables it adds), or by writing, anywhere in its text:
+A **fragment** is text several prompts need (tone, safety policy, output format). Create it with **+ New fragment**, in the *Fragments* section of the Prompts list (or from the empty state). The form shows the `{{variables}}` its text brings and how a prompt will use it; it has versions, tags and history like a prompt, but it is not deployed to an agent. A prompt uses it from the **Fragments** panel that sits next to the text, both when you create a prompt and when you edit one (pick the fragment, then *Follow tag pro* or *Pin to v5*, check the preview and the variables it adds, and press **Insert** to add it at the cursor), or by writing, anywhere in its text:
 
 ```text
 {{> tone@pro}}     the version the tag "pro" of the fragment "tone" points to
@@ -182,6 +182,7 @@ A **fragment** is text several prompts need (tone, safety policy, output format)
 
 The reference is **mandatory** (an include without `@tag` or `@number` is rejected). When you save, MemTrace **resolves the include and pins it to the exact version it found**. Your agent receives the final text, already joined, so nothing changes in how you read prompts and there is no extra latency. A version therefore always means the same text: editing a fragment later **never** changes a version that already exists, and its evidence and evaluations stay valid.
 
+- The editor has two views: **Code** (the editable Markdown) and **Rendered** (the Markdown already formatted, with every fragment included as the agent will receive it; a fragment that does not exist or has no published version is flagged).
 - A prompt shows what it wrote (**Source**) or what the agent receives (**Resolved**), and an **Includes** card with each fragment and the version it is pinned to.
 - When a tag moved on, the card says *now v4* and offers **Rebuild with the current fragments**. That saves a **draft** to review, test and publish; it is never published for you. A reference by number never goes out of date.
 - On a fragment, **Used by** lists the prompts that include it in their latest version and which are behind. A banner at the top warns when some are behind, and **Prepare drafts for N prompts** does it for all of them at once, skipping those you cannot write.
