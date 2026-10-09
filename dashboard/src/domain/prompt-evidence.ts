@@ -25,6 +25,8 @@ export interface MetricDelta {
   /** diferencia ya formateada, con signo (`+2.1 pp`, `−120 ms`) */
   change: string;
   direction: Direction;
+  /** longitud de las barras de base y de la versión elegida, de 0 a 1 (null si falta un dato) */
+  bars: { base: number; target: number } | null;
 }
 
 export interface VersionComparison {
@@ -47,6 +49,14 @@ function direction(base: number | null, target: number | null, higherIsBetter: b
   return diff > 0 === higherIsBetter ? "better" : "worse";
 }
 
+/** Barras proporcionales a la mayor de las dos cifras, o a `scale` cuando la métrica ya es una proporción. */
+function barsOf(base: number | null, target: number | null, scale?: number): { base: number; target: number } | null {
+  if (base === null || target === null) return null;
+  const max = scale ?? Math.max(base, target);
+  if (max <= 0) return { base: 0, target: 0 };
+  return { base: Math.min(1, base / max), target: Math.min(1, target / max) };
+}
+
 const percent = (ratio: number | null) => (ratio === null ? "–" : formatPercent(ratio));
 const points = (diffRatio: number) => `${sign(diffRatio)}${Math.abs(diffRatio * 100).toFixed(1)} pp`;
 
@@ -60,6 +70,7 @@ export function compareVersions(base: VersionEvidenceDto, target: VersionEvidenc
     target: percent(target.errorRate),
     change: points(target.errorRate - base.errorRate),
     direction: direction(base.errorRate, target.errorRate, false, 0.005),
+    bars: barsOf(base.errorRate, target.errorRate, 1),
   });
 
   deltas.push({
@@ -69,6 +80,7 @@ export function compareVersions(base: VersionEvidenceDto, target: VersionEvidenc
     target: formatDuration(target.latencyMs.p95),
     change: `${sign(target.latencyMs.p95 - base.latencyMs.p95)}${formatDuration(Math.abs(target.latencyMs.p95 - base.latencyMs.p95))}`,
     direction: direction(base.latencyMs.p95, target.latencyMs.p95, false),
+    bars: barsOf(base.latencyMs.p95, target.latencyMs.p95),
   });
 
   const cost = base.costPerTraceUsd !== null && target.costPerTraceUsd !== null;
@@ -79,6 +91,7 @@ export function compareVersions(base: VersionEvidenceDto, target: VersionEvidenc
     target: formatCostUsd(target.costPerTraceUsd) ?? "–",
     change: cost ? `${sign(target.costPerTraceUsd! - base.costPerTraceUsd!)}${formatCostUsd(Math.abs(target.costPerTraceUsd! - base.costPerTraceUsd!))}` : "–",
     direction: direction(base.costPerTraceUsd, target.costPerTraceUsd, false),
+    bars: barsOf(base.costPerTraceUsd, target.costPerTraceUsd),
   });
 
   const sat = base.feedback.satisfaction !== null && target.feedback.satisfaction !== null;
@@ -89,6 +102,7 @@ export function compareVersions(base: VersionEvidenceDto, target: VersionEvidenc
     target: target.feedback.satisfaction === null ? "–" : `${target.feedback.satisfaction.toFixed(0)}%`,
     change: sat ? `${sign(target.feedback.satisfaction! - base.feedback.satisfaction!)}${Math.abs(target.feedback.satisfaction! - base.feedback.satisfaction!).toFixed(0)} pp` : "–",
     direction: direction(base.feedback.satisfaction, target.feedback.satisfaction, true, 1),
+    bars: barsOf(base.feedback.satisfaction, target.feedback.satisfaction, 100),
   });
 
   // evaluadores que existen en las dos versiones: comparar manzanas con manzanas
@@ -103,6 +117,7 @@ export function compareVersions(base: VersionEvidenceDto, target: VersionEvidenc
       target: boolean ? percent(other.value) : (other.value?.toFixed(2) ?? "–"),
       change: e.value === null || other.value === null ? "–" : boolean ? points(other.value - e.value) : `${sign(other.value - e.value)}${Math.abs(other.value - e.value).toFixed(2)}`,
       direction: direction(e.value, other.value, true, boolean ? 0.005 : 0),
+      bars: barsOf(e.value, other.value, boolean ? 1 : undefined),
     });
   }
 

@@ -24,7 +24,7 @@ On **Content** the text has numbered lines, the `{{variables}}` are highlighted,
 
 To change a prompt, open a version and press **Edit as new version**. The new version remembers the one it started from, which is what **Compare** uses by default.
 
-**Compare** shows two versions side by side, line by line: red is what was removed, green what was added. You can compare the selected version with any other.
+**Compare** shows two versions side by side, line by line, with line numbers and a summary (*2 lines rewritten, 1 added*): red is what was removed, green what was added. You can compare the selected version with any other.
 
 ## Tags: which version runs where
 
@@ -81,7 +81,7 @@ The **Evidence** tab shows, for every version that had traffic in the last 24 ho
 
 Versions with fewer than 30 traces are marked **few traces**: their figures are only indicative. Below the table, **What failed most** adds up the main failure causes of all the versions.
 
-In **Compare**, above the text diff, **How it behaved** puts two versions side by side in one card per metric and says what got *better*, *worse* or has *no change* (less than 5 % of movement is noise). When either version has fewer than 30 traces it warns that the differences may be chance. Use it with a similar period and traffic for both: a version that ran in a quiet week is not comparable with one that ran in a busy one.
+In **Compare**, above the text diff, the **behaviour** cards put two versions side by side, one card per metric with a bar for each version, and say what got *better*, *worse* or has *no change* (less than 5 % of movement is noise). When either version has fewer than 30 traces it warns that the differences may be chance. Use it with a similar period and traffic for both: a version that ran in a quiet week is not comparable with one that ran in a busy one.
 
 To see evaluator results per version, run `run_experiment` in the same process as the agent, reading the prompt with `memtrace.prompts`, so each item's trace carries the version it used. Seeing the evidence needs permission to read the agent's data (`prompt:read` and read access to the experiment).
 
