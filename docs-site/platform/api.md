@@ -48,6 +48,8 @@ The prompt registry. Session only. A prompt belongs to the organization and to o
 | `DELETE /api/v1/prompts/{promptId}/versions/{n}` | Discards a draft; a published version is never deleted (`409`). `prompt:write` |
 | `POST /api/v1/experiments/{experimentId}/prompts/drafts` | For the SDK, with the **agent API key**: `{ name, content, message?, basedOn?, origin? }` → the draft (`201`). It can only create drafts, for prompts of that agent |
 
+**Dependencies.** `GET /api/v1/prompts/{promptId}/map` (`prompt:read`) returns `{ agents: [{ experimentId, name, serving: [{ environment, tag, version, lastSeenAt }] }], dataset, includes, usedBy, impact }`. With `?tag=pro&version=4` it fills `impact`: `{ agents: [{ name, environment, from, to, changes }], pinned, willBeBehind }`, which agents would receive that move. It only reads.
+
 **Fragments.** `POST /organizations/{id}/prompts` accepts `kind: "fragment"`. A version's `content` may include `{{> name@tag}}` or `{{> name@3}}`; the response keeps `source` (what was written, `null` without includes), `includes: [{ name, ref, version }]` and `content` already resolved. The prompt detail adds `includes` (each with `pinned`, `current`, `outdated`) and, for fragments, `usedBy`.
 
 | Endpoint | What it does |

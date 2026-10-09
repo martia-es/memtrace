@@ -142,6 +142,14 @@ The reference is **mandatory** (a bare `{{> tone}}` is rejected). When you save,
 
 Limits: a fragment cannot include another fragment; only published versions can be included; at most 20 different fragments per version. The fragment's `{{variables}}` become variables of the prompt.
 
-::: info Coming next
-A map of what depends on each prompt (agents, datasets, evaluations, fragments) and the impact before promoting.
-:::
+## Dependencies and impact
+
+The **Dependencies** tab answers "what is connected to this prompt?":
+
+- **Agents that read it**, and what each one *reports serving* in every environment (the tag it follows or the fixed version it asked for, and when it was last seen). An agent linked but not using [`memtrace.prompts`](/library/prompts) shows *has not reported reading it yet*.
+- **Evaluated with**: the dataset and number of runs of its [promotion policy](#promotion-policy-evaluate-before-you-promote), or a note that it has none.
+- **Fragments it includes**, pinned to which version (and *now vN* when the tag moved on); on a fragment, **the prompts that include it**.
+
+When you promote, the confirmation shows **Who receives it** before you press the button: the agents that follow that tag with `v3 → v4`, how many use a fixed version and will not notice, and, for a fragment, which prompts include it through that tag (they keep their text and show as *behind* until rebuilt). It is information only: what can block a promotion is still the policy.
+
+What agents report is as fresh as their last check (a few minutes); an agent that has not been seen for 7 days disappears from the list.
