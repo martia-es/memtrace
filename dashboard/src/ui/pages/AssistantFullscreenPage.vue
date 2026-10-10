@@ -7,6 +7,7 @@ import { setKnownThemes, useAssistantDisplay } from "../composables/useAssistant
 import { useChatDock } from "../composables/useChatDock";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { applyOrganizationTheme } from "../composables/useOrganizationTheme";
+import Button from "../components/Button.vue";
 
 /** Chat a pantalla completa, en su propia pestaña (ADR-063). Ruta sin sidebar: hereda sesión y tema de la organización. */
 const route = useRoute();
@@ -36,7 +37,7 @@ onMounted(async () => {
         <b>{{ displayName }}</b>
         <span class="env">{{ target.environmentLabel }}</span>
         <span class="grow" />
-        <button type="button" class="adm-btn ghost" @click="dock.reset()">New conversation</button>
+        <Button @click="dock.reset()">New conversation</Button>
       </header>
       <AssistantChat :display-name="displayName" large />
     </template>

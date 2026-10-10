@@ -1,18 +1,8 @@
 .modal-form { display: flex; flex-direction: column; gap: 12px; }
-.field { display: flex; flex-direction: column; gap: 4px; }
-.field > span { font-size: 12px; font-weight: 700; color: var(--mt-muted); }
+
 .field-error { font-size: 12px; color: var(--mt-err-ink); font-weight: 600; }
 .hint { margin: 0; font-size: 12px; color: var(--mt-muted); }
 .check { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
 .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .actions { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
 .spacer { flex: 1; }
-.primary-btn, .ghost-btn, .danger-btn {
-  height: 34px; padding: 0 14px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
-  border-radius: var(--mt-radius-sm); border: 1px solid transparent;
-}
-.primary-btn { background: var(--mt-accent); color: var(--mt-accent-ink); }
-.primary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.ghost-btn { background: transparent; color: var(--mt-accent-text); border-color: var(--mt-line); }
-.danger-btn { background: transparent; color: var(--mt-err-ink); border-color: var(--mt-err); }
-.primary-btn:focus-visible, .ghost-btn:focus-visible, .danger-btn:focus-visible { outline: 2px solid var(--mt-accent); outline-offset: 2px; }

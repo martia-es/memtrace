@@ -17,6 +17,7 @@ import FilterBar from "../components/FilterBar.vue";
 import LiveControl from "../components/LiveControl.vue";
 import { liveSeconds, liveUpdatedAt, requestRefresh, setRefreshSeconds } from "../composables/useLiveRefresh";
 import { useTopbar } from "../composables/useTopbar";
+import Button from "../components/Button.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -151,11 +152,11 @@ function switchExperiment(experimentId: string | null) {
           </svg>
           <span v-if="!isCollapsed">MemTrace</span>
         </router-link>
-        <button class="collapse-btn" :aria-label="isCollapsed ? 'Expand menu' : 'Collapse menu'" @click="isCollapsed = !isCollapsed">
+        <Button variant="icon" size="sm" class="collapse-btn" :aria-label="isCollapsed ? 'Expand menu' : 'Collapse menu'" @click="isCollapsed = !isCollapsed">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path :d="isCollapsed ? 'M9 18l6-6-6-6' : 'M15 18l-6-6 6-6'" />
           </svg>
-        </button>
+        </Button>
       </div>
       <ExperimentSelect
         v-if="!isCollapsed"
@@ -312,23 +313,8 @@ function switchExperiment(experimentId: string | null) {
   padding: 0;
   flex: 0;
 }
-.collapse-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--mt-muted);
-  cursor: pointer;
-  border-radius: var(--mt-radius-sm);
-}
-.collapse-btn:hover {
-  background: var(--mt-soft);
-  color: var(--mt-ink);
-}
+
+
 .nav {
   display: flex;
   flex-direction: column;

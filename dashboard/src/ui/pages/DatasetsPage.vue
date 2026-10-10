@@ -10,6 +10,10 @@ import Modal from "../components/Modal.vue";
 import PageHeader from "../components/PageHeader.vue";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
+import Button from "../components/Button.vue";
+import DataTable from "../components/DataTable.vue";
+import LoadingState from "../components/LoadingState.vue";
+import Card from "../components/Card.vue";
 
 const api = useTraceApi();
 const router = useRouter();
@@ -60,7 +64,7 @@ async function createDataset() {
     <PageHeader :crumbs="[{ label: 'Evaluations' }, { label: 'Datasets' }]" icon="M4 6a2 2 0 0 1 2-2h3l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" title="Datasets">
       <div class="actions">
         <TextInput type="search" v-model="search" placeholder="Filter by name…" class="search" />
-        <button type="button" class="primary-btn mt-new" @click="showCreateModal = true">+ New dataset</button>
+        <Button variant="primary" @click="showCreateModal = true" class="mt-new">+ New dataset</Button>
       </div>
     </PageHeader>
 
@@ -70,14 +74,14 @@ async function createDataset() {
     </p>
 
     <ErrorBanner v-if="datasets.error.value" :error="datasets.error.value" @retry="datasets.run()" />
-    <div v-else-if="datasets.loading.value && !datasets.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
+    <LoadingState v-else-if="datasets.loading.value && !datasets.data.value" size="lg" />
     <EmptyState v-else-if="(datasets.data.value?.items.length ?? 0) === 0" icon="science" title="No datasets yet">
       Create one with "New dataset", or upload one from <code>memtrace.eval.run_experiment(data="…")</code>.
     </EmptyState>
     <EmptyState v-else-if="filtered.length === 0" icon="search_off" title="No matches">Try a different search.</EmptyState>
 
-    <div v-else class="mt-card table-card">
-      <table class="datasets">
+    <Card padding="none" block v-else class="table-card">
+      <DataTable class="datasets" sticky nowrap>
         <thead>
           <tr>
             <th>Dataset</th>
@@ -94,13 +98,13 @@ async function createDataset() {
             <td class="muted mono">{{ formatDateTime(d.createdAt) }}</td>
           </tr>
         </tbody>
-      </table>
-    </div>
+      </DataTable>
+    </Card>
 
     <Modal v-if="showCreateModal" title="New dataset" @close="showCreateModal = false">
       <form class="modal-form" @submit.prevent="createDataset">
         <TextInput v-model="newDatasetName" placeholder="Dataset name" autofocus />
-        <button type="submit" class="primary-btn" :disabled="creating || !newDatasetName.trim()">Create</button>
+        <Button variant="primary" type="submit" :disabled="creating || !newDatasetName.trim()">Create</Button>
       </form>
     </Modal>
   </div>
@@ -131,44 +135,13 @@ async function createDataset() {
 .muted {
   color: var(--mt-muted);
 }
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 60px;
-}
 .table-card {
   flex: 1;
   min-height: 0;
   overflow: auto;
   padding: 0;
 }
-.datasets {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  height: 34px;
-  padding: 0 14px;
-  background: var(--mt-soft);
-  border-bottom: 1px solid var(--mt-line);
-  color: var(--mt-muted);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-align: left;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-td {
-  height: 46px;
-  padding: 0 14px;
-  border-bottom: 1px solid var(--mt-line-2);
-  white-space: nowrap;
-}
+
 .num {
   text-align: right;
 }
@@ -190,27 +163,5 @@ td {
   flex-direction: column;
   gap: 12px;
 }
-.primary-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 40px;
-  padding: 0 20px;
-  border-radius: var(--mt-radius-lg);
-  border: none;
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.15s ease;
-}
-.primary-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.primary-btn:not(:disabled):hover {
-  opacity: 0.9;
-}
+
 </style>

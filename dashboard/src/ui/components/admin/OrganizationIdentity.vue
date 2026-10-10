@@ -5,9 +5,11 @@ import { computed, reactive, ref } from "vue";
 import { useQuasar } from "quasar";
 import type { ExperimentDto, OrganizationDto } from "@/application/identity-api";
 import { useAsync } from "../../composables/useAsync";
-import { formatDate, notifyErrorWith, ROLE_LABEL } from "../../composables/useAdminDirectory";
+import { formatDate, notifyErrorWith, ROLE_LABEL, roleTone } from "../../composables/useAdminDirectory";
 import { useIdentityApi } from "../../composables/useIdentityApi";
 import ErrorBanner from "../ErrorBanner.vue";
+import Button from "../Button.vue";
+import Pill from "../Pill.vue";
 
 /**
  * Identidad externa de la organización (ADR-052): qué grupo de tu proveedor (Entra ID, Okta, SailPoint…) da qué rol, y
@@ -157,8 +159,8 @@ const roleSelectOptions = computed(() => roleOptions.value.map((r) => ({ label: 
             <span class="adm-item-title mono">{{ m.externalGroup }}</span>
             <span class="adm-item-meta">{{ experimentName(m.experimentId) }}</span>
           </div>
-          <span class="adm-pill" :class="m.role">{{ ROLE_LABEL[m.role] }}</span>
-          <button type="button" class="adm-btn danger small" data-testid="remove-mapping" @click="removeMapping(m.id)">Remove</button>
+          <Pill :tone="roleTone(m.role)">{{ ROLE_LABEL[m.role] }}</Pill>
+          <Button variant="danger" size="sm" data-testid="remove-mapping" @click="removeMapping(m.id)">Remove</Button>
         </li>
       </ul>
       <p v-else class="adm-hint" data-testid="no-mappings">No mappings yet: access is only what you assign by hand.</p>
@@ -194,7 +196,7 @@ const roleSelectOptions = computed(() => roleOptions.value.map((r) => ({ label: 
         <p v-if="previewGroup" class="preview" data-testid="mapping-preview">
           Everyone in <span class="mono">{{ previewGroup }}</span> will get <strong>{{ ROLE_LABEL[form.role] }}</strong> in <strong>{{ previewTarget }}</strong>.
         </p>
-        <div><button type="submit" class="adm-btn primary" :disabled="adding || !form.externalGroup.trim()" data-testid="add-mapping">Add mapping</button></div>
+        <div><Button variant="primary" type="submit" :disabled="adding || !form.externalGroup.trim()" data-testid="add-mapping">Add mapping</Button></div>
       </form>
 
       <details class="where advanced">
@@ -202,7 +204,7 @@ const roleSelectOptions = computed(() => roleOptions.value.map((r) => ({ label: 
         <div class="row">
           <label class="adm-hint" for="claim">Claim name</label>
           <TextInput mono class="claim" id="claim" v-model="claimValue" data-testid="groups-claim" />
-          <button type="button" class="adm-btn ghost small" :disabled="!claimTouched" @click="saveClaim">Save</button>
+          <Button size="sm" :disabled="!claimTouched" @click="saveClaim">Save</Button>
         </div>
         <p class="adm-hint">
           Leave <span class="mono">groups</span> for Entra ID and Okta. Use <span class="mono">roles</span> if you use Entra app roles. If a sign-in token carries no groups at all, nobody's access changes.
@@ -226,12 +228,12 @@ const roleSelectOptions = computed(() => roleOptions.value.map((r) => ({ label: 
       <div class="row">
         <span class="adm-hint">Base URL</span>
         <code class="mono" data-testid="scim-url">{{ identity.scimBaseUrl }}</code>
-        <button type="button" class="adm-btn ghost small" @click="copy(identity.scimBaseUrl)">Copy</button>
+        <Button size="sm" @click="copy(identity.scimBaseUrl)">Copy</Button>
       </div>
 
       <div v-if="newToken" class="adm-card fresh" data-testid="new-token">
         <p class="adm-hint">Copy this token now: it is shown only once.</p>
-        <div class="row"><code class="mono">{{ newToken }}</code><button type="button" class="adm-btn ghost small" @click="copy(newToken)">Copy</button></div>
+        <div class="row"><code class="mono">{{ newToken }}</code><Button size="sm" @click="copy(newToken)">Copy</Button></div>
       </div>
 
       <ul v-if="identity.scimTokens.length" class="adm-list" data-testid="tokens">
@@ -240,10 +242,10 @@ const roleSelectOptions = computed(() => roleOptions.value.map((r) => ({ label: 
             <span class="adm-item-title mono">{{ t.tokenPrefix }}…</span>
             <span class="adm-item-meta">created {{ formatDate(t.createdAt) }} · last used {{ formatDate(t.lastUsedAt) }}</span>
           </div>
-          <button type="button" class="adm-btn danger small" data-testid="revoke-token" @click="revokeToken(t.id)">Revoke</button>
+          <Button variant="danger" size="sm" data-testid="revoke-token" @click="revokeToken(t.id)">Revoke</Button>
         </li>
       </ul>
-      <div><button type="button" class="adm-btn primary" data-testid="create-token" @click="createToken">Create SCIM token</button></div>
+      <div><Button variant="primary" data-testid="create-token" @click="createToken">Create SCIM token</Button></div>
     </section>
   </div>
 </template>

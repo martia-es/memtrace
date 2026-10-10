@@ -12,6 +12,9 @@ import Select from "./Select.vue";
 import OfflineCompareView from "./OfflineCompareView.vue";
 import OfflineRunView from "./OfflineRunView.vue";
 import OfflineTrendView from "./OfflineTrendView.vue";
+import FormField from "./FormField.vue";
+import LoadingState from "./LoadingState.vue";
+import Button from "./Button.vue";
 
 const props = defineProps<{ experimentId: string; range: RangeParams; /** baseline and candidate to compare, from the Evaluations run list */ compareIds?: [string, string] | null }>();
 
@@ -69,17 +72,16 @@ function openRun(run: RunListItemDto) {
         <p class="sub">Results of <code>run_experiment</code> against MemTrace datasets. Only completed runs are shown, so a partial upload never looks like a regression.</p>
       </div>
       <div class="filters">
-        <label class="field">
-          <span class="field-label">Dataset</span>
+        <FormField label="Dataset">
           <Select v-model="datasetSelection" :options="datasetOptions" />
-        </label>
+        </FormField>
       </div>
     </header>
 
-    <button v-if="view !== 'trend'" type="button" class="back" @click="view = 'trend'">← All runs</button>
+    <Button variant="link" v-if="view !== 'trend'" class="back" @click="view = 'trend'">← All runs</Button>
 
     <ErrorBanner v-if="runs.error.value" :error="runs.error.value" @retry="runs.run()" />
-    <div v-else-if="runs.loading.value && !runs.data.value" class="loading-box"><q-spinner size="32px" color="primary" /></div>
+    <LoadingState v-else-if="runs.loading.value && !runs.data.value" size="lg" />
     <EmptyState v-else-if="!allCompleted.length" icon="science" title="No offline evaluation runs">No completed runs yet. Run <code>run_experiment</code> against a MemTrace dataset to see them here.</EmptyState>
 
     <template v-else>
@@ -97,9 +99,8 @@ function openRun(run: RunListItemDto) {
 .sub { margin: 4px 0 0; color: var(--mt-muted); font-size: 13px; max-width: 680px; }
 .sub code { font-family: var(--mt-mono); font-size: 12px; background: var(--mt-soft); padding: 1px 5px; border-radius: var(--mt-radius-sm); }
 .filters { min-width: 220px; }
-.field { display: flex; flex-direction: column; gap: 4px; }
+
 .field-label { color: var(--mt-muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
-.back { align-self: flex-start; padding: 0; border: 0; background: none; color: var(--mt-muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
-.back:hover { color: var(--mt-ink); }
-.loading-box { display: flex; justify-content: center; align-items: center; min-height: 240px; }
+.back { align-self: flex-start; }
+
 </style>

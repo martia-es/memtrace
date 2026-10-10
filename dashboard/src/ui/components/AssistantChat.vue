@@ -5,6 +5,7 @@ import { nextVote, normalizeDraft, type ChatMessage } from "@/domain/chat-dock";
 import ThumbIcon from "./ThumbIcon.vue";
 import { useAssistantApi } from "../composables/useAssistantApi";
 import { useChatDock } from "../composables/useChatDock";
+import Button from "./Button.vue";
 
 /** Conversación con un agente (mensajes, votos y caja de texto). La comparten los tres modos de visualización (ADR-063). */
 const props = defineProps<{ displayName: string; large?: boolean }>();
@@ -82,8 +83,8 @@ function onKey(event: KeyboardEvent) {
       <template v-for="m in state.messages" :key="m.id">
         <div class="msg" :class="m.role">{{ m.text }}</div>
         <div v-if="m.role === 'agent' && m.traceId" class="votes" role="group" aria-label="Rate this answer">
-          <button type="button" class="vote" :class="{ on: m.vote === 1 }" :aria-pressed="m.vote === 1" title="Good answer" aria-label="Good answer" data-testid="vote-up" @click="vote(m, 1)"><ThumbIcon direction="up" :size="15" :filled="m.vote === 1" /></button>
-          <button type="button" class="vote" :class="{ on: m.vote === -1 }" :aria-pressed="m.vote === -1" title="Bad answer" aria-label="Bad answer" data-testid="vote-down" @click="vote(m, -1)"><ThumbIcon direction="down" :size="15" :filled="m.vote === -1" /></button>
+          <Button variant="icon" size="sm" class="vote" :class="{ on: m.vote === 1 }" :aria-pressed="m.vote === 1" title="Good answer" aria-label="Good answer" data-testid="vote-up" @click="vote(m, 1)"><ThumbIcon direction="up" :size="15" :filled="m.vote === 1" /></Button>
+          <Button variant="icon" size="sm" class="vote" :class="{ on: m.vote === -1 }" :aria-pressed="m.vote === -1" title="Bad answer" aria-label="Bad answer" data-testid="vote-down" @click="vote(m, -1)"><ThumbIcon direction="down" :size="15" :filled="m.vote === -1" /></Button>
         </div>
       </template>
       <div v-if="voteError" class="msg error" role="alert">{{ voteError }}</div>
@@ -91,7 +92,7 @@ function onKey(event: KeyboardEvent) {
     </div>
     <form class="compose" @submit.prevent="send">
       <textarea v-model="draft" rows="1" placeholder="Write a message" aria-label="Message" data-testid="chat-input" @keydown="onKey" />
-      <button type="submit" class="send" :disabled="sending || normalizeDraft(draft) === null" data-testid="chat-send">Send</button>
+      <Button variant="primary" type="submit" class="send" :disabled="sending || normalizeDraft(draft) === null" data-testid="chat-send">Send</Button>
     </form>
   </div>
 </template>
@@ -107,15 +108,15 @@ function onKey(event: KeyboardEvent) {
 .msg.error { align-self: flex-start; color: var(--mt-err-ink); border: 1px solid var(--mt-err); }
 .typing { color: var(--mt-muted); }
 .votes { display: flex; gap: 4px; align-self: flex-start; margin: -4px 0 0 6px; }
-.vote { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 26px; padding: 0; color: var(--mt-muted); background: none; border: 1px solid transparent; border-radius: var(--mt-radius-sm); cursor: pointer; }
-.vote:hover { color: var(--mt-ink); background: var(--mt-line); }
+
+
 .vote.on { color: var(--mt-accent-text); background: var(--mt-accent-soft); border-color: var(--mt-accent); }
-.vote:focus-visible, .send:focus-visible { outline: 2px solid var(--mt-accent); outline-offset: 2px; }
+
 .compose { display: flex; align-items: flex-end; gap: 8px; padding: 8px; border-top: 1px solid var(--mt-line); }
 .compose textarea { flex: 1; box-sizing: border-box; min-height: 34px; max-height: 110px; padding: 7px 10px; font: inherit; font-size: 13px; color: var(--mt-ink); background: var(--mt-card); border: 1px solid var(--mt-line); border-radius: var(--mt-radius-sm); resize: none; field-sizing: content; }
 .compose textarea:focus-visible { outline: 2px solid var(--mt-accent); outline-offset: 1px; }
-.send { height: 34px; padding: 0 14px; font: inherit; font-size: 13px; font-weight: 700; color: var(--mt-accent-ink); background: var(--mt-accent); border: none; border-radius: var(--mt-radius-sm); cursor: pointer; }
-.send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+
 .large .msgs { padding: 24px max(16px, 14%); }
 .large .msg, .large .compose textarea { font-size: 14px; }
 .large .compose { padding: 12px max(16px, 14%) 20px; }

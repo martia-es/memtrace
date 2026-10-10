@@ -18,6 +18,9 @@ import { usePermissions } from "../composables/usePermissions";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
 import { numericChoices } from "../score-config-form";
+import Button from "../components/Button.vue";
+import LoadingState from "../components/LoadingState.vue";
+import Card from "../components/Card.vue";
 
 /**
  * Pantalla de revisión (ADR-039): a un lado la traza (mismos componentes que el detalle de traza), al otro la
@@ -162,32 +165,32 @@ const progress = computed(() => queue.value?.progress);
 
 <template>
   <div class="page">
-    <header class="head mt-card">
-      <button type="button" class="crumb" @click="back">← Review</button>
+    <Card as="header" padding="none" block class="head">
+      <Button variant="link" class="crumb" @click="back">← Review</Button>
       <span class="muted">/</span>
       <h1>{{ queue?.name ?? "Queue" }}</h1>
       <div v-if="progress" class="progress-wrap">
         <span class="muted counts" data-testid="progress">{{ progress.completed }} done · {{ progress.pending }} pending</span>
         <div class="bar" aria-hidden="true"><div class="bar-fill" :style="{ width: `${Math.round((progress.completed / Math.max(1, progress.completed + progress.pending + progress.skipped)) * 100)}%` }" /></div>
       </div>
-    </header>
+    </Card>
 
     <ErrorBanner v-if="loadError" :error="loadError" @retry="loadError = null; loadNext()" />
-    <div v-else-if="!queue" class="loading"><q-spinner size="32px" color="primary" /></div>
+    <LoadingState v-else-if="!queue" size="lg" />
 
     <EmptyState v-else-if="finished" icon="task_alt" title="Nothing left to review here">
       You have reviewed everything this queue has for you.
-      <div class="q-mt-md"><button type="button" class="primary-btn" @click="back">Back to queues</button></div>
+      <div class="q-mt-md"><Button variant="primary" @click="back">Back to queues</Button></div>
     </EmptyState>
 
     <div v-else-if="item" class="cols">
-      <section class="mt-card main" aria-label="Item to review">
+      <Card as="section" padding="none" block class="main" aria-label="Item to review">
         <template v-if="item.targetType === 'trace'">
           <ErrorBanner v-if="trace.error.value && !traceGone" :error="trace.error.value" @retry="trace.run()" />
           <p v-else-if="traceGone" class="gone" data-testid="trace-gone">
             This trace is no longer available (it may have been deleted by retention). Skip it; an admin can mark it unreviewable.
           </p>
-          <div v-else-if="!trace.data.value" class="loading"><q-spinner size="28px" color="primary" /></div>
+          <LoadingState v-else-if="!trace.data.value" size="md" />
           <template v-else>
             <h2 class="section-title">Conversation</h2>
             <ConversationThread :turns="turns" answer-label="Reply to review">
@@ -201,9 +204,9 @@ const progress = computed(() => queue.value?.progress);
               <p v-if="!turns.length" class="gone">This trace has no content saved. Skip it or check the technical view.</p>
             </ConversationThread>
 
-            <button v-if="can('trace:read_technical')" type="button" class="link" :aria-expanded="showTrace" data-testid="trace-toggle" @click="showTrace = !showTrace">
+            <Button variant="link" v-if="can('trace:read_technical')" :aria-expanded="showTrace" data-testid="trace-toggle" @click="showTrace = !showTrace">
               {{ showTrace ? "Hide technical trace" : "Show technical trace" }}
-            </button>
+            </Button>
             <div v-if="showTrace && can('trace:read_technical')" class="trace-cols" data-testid="technical-trace">
               <SpanTree :roots="roots" :total-ms="trace.data.value.durationMs" :selected-id="selectedNode?.spanId ?? null" @select="(id: string) => (selectedSpan = id)" />
               <SpanInspector v-if="selectedNode" :node="selectedNode" empty-hint="This span has no content saved." />
@@ -213,9 +216,9 @@ const progress = computed(() => queue.value?.progress);
         <p v-else class="gone">
           Run item #{{ item.itemIndex }} of run <span class="mono">{{ shortId(item.datasetRunId ?? "") }}</span>. Review its input and output in the run's detail.
         </p>
-      </section>
+      </Card>
 
-      <aside class="mt-card rubric" aria-label="Rubric" data-testid="rubric">
+      <Card as="aside" padding="none" block class="rubric" aria-label="Rubric" data-testid="rubric">
         <h2 class="section-title">Your review</h2>
         <p v-if="queue.instructions" class="instructions"><q-icon name="info" size="16px" /> {{ queue.instructions }}</p>
         <section v-for="r in rubric" :key="r.configId" class="criterion" data-testid="rubric-config">
@@ -245,7 +248,7 @@ const progress = computed(() => queue.value?.progress);
             :min="r.config.minValue ?? undefined"
             :max="r.config.maxValue ?? undefined"
             :aria-label="`${r.config.name} value`" />
-          <button v-if="!openNotes[r.configId]" type="button" class="note-toggle" @click="openNotes[r.configId] = true">+ Add note</button>
+          <Button variant="link" v-if="!openNotes[r.configId]" @click="openNotes[r.configId] = true">+ Add note</Button>
           <TextInput
             v-if="openNotes[r.configId] && drafts[r.configId]"
             v-model="drafts[r.configId]!.comment"
@@ -257,12 +260,12 @@ const progress = computed(() => queue.value?.progress);
           />
         </section>
         <div class="buttons">
-          <button type="button" class="small-btn" :disabled="busy" data-testid="mark-unreviewable" @click="markUnreviewable">Mark unreviewable</button>
-          <button type="button" class="small-btn" :disabled="busy" data-testid="skip" @click="skip">Skip</button>
-          <button type="button" class="primary-btn" :disabled="busy || !ready" data-testid="submit" @click="submit">Submit &amp; next</button>
+          <Button size="sm" :disabled="busy" data-testid="mark-unreviewable" @click="markUnreviewable">Mark unreviewable</Button>
+          <Button size="sm" :disabled="busy" data-testid="skip" @click="skip">Skip</Button>
+          <Button variant="primary" :disabled="busy || !ready" data-testid="submit" @click="submit">Submit &amp; next</Button>
         </div>
         <p class="hint">Keys 1–9 pick an answer for the first open criterion · Enter submits</p>
-      </aside>
+      </Card>
     </div>
   </div>
 </template>
@@ -309,24 +312,11 @@ const progress = computed(() => queue.value?.progress);
   background: var(--mt-accent);
   transition: width 0.3s ease;
 }
-.crumb {
-  border: 0;
-  background: none;
-  padding: 0;
-  color: var(--mt-accent-text);
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
+
 .muted {
   color: var(--mt-muted);
   font-size: 12.5px;
   margin: 0;
-}
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 60px;
 }
 .cols {
   flex: 1;
@@ -467,17 +457,7 @@ const progress = computed(() => queue.value?.progress);
   font-weight: 500;
   opacity: 0.6;
 }
-.note-toggle {
-  align-self: flex-start;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--mt-accent-text);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
+
 .hint {
   margin: 0;
   text-align: center;
@@ -496,29 +476,5 @@ const progress = computed(() => queue.value?.progress);
   background: var(--mt-card);
   border-top: 1px solid var(--mt-line);
 }
-.small-btn,
-.primary-btn {
-  height: 34px;
-  padding: 0 16px;
-  border-radius: var(--mt-radius-sm);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.small-btn {
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  color: var(--mt-ink);
-}
-.primary-btn {
-  border: none;
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-}
-.small-btn:disabled,
-.primary-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+
 </style>

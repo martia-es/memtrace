@@ -3,6 +3,9 @@ import type { DatasetRunItemResultDto, ScoreDto } from "@contract";
 import { computed, onBeforeUnmount, onMounted } from "vue";
 import { useRoute } from "vue-router";
 import { formatDuration } from "@/domain/format";
+import Button from "./Button.vue";
+import Pill from "./Pill.vue";
+import Card from "./Card.vue";
 
 const route = useRoute();
 const props = defineProps<{ item: DatasetRunItemResultDto; position: number; total: number; hasPrev: boolean; hasNext: boolean }>();
@@ -17,9 +20,9 @@ function failed(s: ScoreDto): boolean {
   return s.dataType === "boolean" && s.value !== "true";
 }
 
-function pillClass(s: ScoreDto) {
-  if (s.dataType !== "boolean") return "unset";
-  return s.value === "true" ? "ok" : s.value === "false" ? "error" : "unset";
+function pillClass(s: ScoreDto): "neutral" | "ok" | "error" {
+  if (s.dataType !== "boolean") return "neutral";
+  return s.value === "true" ? "ok" : s.value === "false" ? "error" : "neutral";
 }
 
 function sourceLabel(s: ScoreDto): string {
@@ -51,44 +54,44 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
       <div class="title">
         <strong>Item {{ item.itemIndex + 1 }}</strong>
         <span class="muted">{{ position }} of {{ total }}</span>
-        <span v-if="failedCount > 0" class="mt-pill error">{{ failedCount }} failed</span>
-        <span v-else class="mt-pill ok">all passed</span>
+        <Pill tone="error" v-if="failedCount > 0">{{ failedCount }} failed</Pill>
+        <Pill tone="ok" v-else>all passed</Pill>
       </div>
       <div class="nav">
-        <router-link v-if="traceLink" class="small-btn" :to="traceLink" data-testid="run-item-trace">Open trace</router-link>
+        <Button v-if="traceLink" size="sm" :to="traceLink" data-testid="run-item-trace">Open trace</Button>
         <span v-else-if="item.traceId" class="muted small" data-testid="run-item-no-trace" title="The trace was not stored or has expired">Trace not available</span>
-        <button type="button" class="icon-btn" :disabled="!hasPrev" aria-label="Previous item" data-testid="run-item-prev" @click="emit('prev')">‹</button>
-        <button type="button" class="icon-btn" :disabled="!hasNext" aria-label="Next item" data-testid="run-item-next" @click="emit('next')">›</button>
-        <button type="button" class="icon-btn" aria-label="Close" data-testid="run-item-close" @click="emit('close')">✕</button>
+        <Button variant="icon" :disabled="!hasPrev" aria-label="Previous item" data-testid="run-item-prev" @click="emit('prev')">‹</Button>
+        <Button variant="icon" :disabled="!hasNext" aria-label="Next item" data-testid="run-item-next" @click="emit('next')">›</Button>
+        <Button variant="icon" aria-label="Close" data-testid="run-item-close" @click="emit('close')">✕</Button>
       </div>
     </header>
 
     <div class="body">
       <h3 class="question">{{ text(item.input) }}</h3>
 
-      <section v-if="item.error" class="card err-card">
+      <Card as="section" gap="sm" v-if="item.error" class="card err-card">
         <h4>Error</h4>
         <pre class="block err">{{ item.error }}</pre>
-      </section>
+      </Card>
 
       <div class="outputs">
-        <section class="card">
+        <Card as="section" gap="sm" class="card">
           <h4>Expected output</h4>
           <pre class="block" :class="{ empty: item.expectedOutput == null }">{{ text(item.expectedOutput) }}</pre>
-        </section>
-        <section class="card" :class="{ 'err-card': failedCount > 0 && !item.error }">
+        </Card>
+        <Card as="section" gap="sm" class="card" :class="{ 'err-card': failedCount > 0 && !item.error }">
           <h4>Generated output</h4>
           <pre class="block" :class="{ empty: item.output == null }">{{ text(item.output) }}</pre>
-        </section>
+        </Card>
       </div>
 
-      <section class="card flush">
+      <Card as="section" gap="sm" class="card flush">
         <h4 class="bar">Scores</h4>
         <p v-if="scores.length === 0" class="muted pad">This item has no scores.</p>
         <div v-for="s in scores" :key="s.name" class="score" :class="{ bad: failed(s) }" :data-testid="`run-item-score-${s.name}`">
           <div class="score-head">
             <span class="mono name">{{ s.name }}</span>
-            <span class="mt-pill" :class="pillClass(s)">{{ s.dataType === "boolean" ? s.value.toUpperCase() : s.value }}</span>
+            <Pill :tone="pillClass(s)">{{ s.dataType === "boolean" ? s.value.toUpperCase() : s.value }}</Pill>
             <span class="spacer" />
             <span class="muted small">{{ s.dataType }} · {{ sourceLabel(s) }}</span>
           </div>
@@ -96,16 +99,16 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
           <p v-else class="muted small">No explanation recorded by the evaluator.</p>
           <p v-if="judgeLine(s)" class="muted small">Judge: {{ judgeLine(s) }}</p>
         </div>
-      </section>
+      </Card>
 
-      <section v-if="telemetry" class="card">
+      <Card as="section" gap="sm" v-if="telemetry" class="card">
         <h4>Telemetry</h4>
         <div class="telemetry">
           <div><span class="muted small">Latency</span><strong class="mono">{{ formatDuration(telemetry.latencyMs) }}</strong></div>
           <div><span class="muted small">Tokens in / out</span><strong class="mono">{{ telemetry.inputTokens }} / {{ telemetry.outputTokens }}</strong></div>
           <div v-if="telemetry.costUsd !== null"><span class="muted small">Cost</span><strong class="mono">${{ telemetry.costUsd.toFixed(4) }}</strong></div>
         </div>
-      </section>
+      </Card>
     </div>
   </aside>
 </template>
@@ -115,12 +118,11 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
 .head { flex: none; height: 52px; box-sizing: border-box; padding: 0 14px 0 20px; display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--mt-card, #fff); border-bottom: 1px solid var(--mt-line); font-size: 14px; }
 .title { display: flex; align-items: center; gap: 10px; }
 .nav { display: flex; align-items: center; gap: 6px; }
-.icon-btn { width: 32px; height: 32px; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); background: var(--mt-card, #fff); color: var(--mt-ink); cursor: pointer; font: inherit; font-size: 15px; font-weight: 700; }
-.icon-btn:disabled { opacity: 0.4; cursor: default; }
+
 .body { flex: 1; min-height: 0; overflow: auto; padding: 18px 20px 24px; display: flex; flex-direction: column; gap: 14px; }
 .question { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.35; overflow-wrap: anywhere; }
 .outputs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.card { background: var(--mt-card, #fff); border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.card { padding: 12px 16px; }
 .card.flush { padding: 0; gap: 0; overflow: hidden; }
 .card.err-card { border-color: var(--mt-err); }
 h4 { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--mt-muted); }
@@ -141,5 +143,5 @@ h4.bar { padding: 11px 16px; background: var(--mt-soft); border-bottom: 1px soli
 .small { font-size: 12px; }
 .telemetry { display: flex; gap: 32px; flex-wrap: wrap; }
 .telemetry div { display: flex; flex-direction: column; gap: 2px; }
-.small-btn { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); background: var(--mt-card, #fff); color: var(--mt-ink); font-size: 12.5px; font-weight: 600; text-decoration: none; }
+
 </style>

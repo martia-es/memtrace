@@ -10,6 +10,9 @@ import TextInput from "@/ui/components/TextInput.vue";
 import CommitLink from "../CommitLink.vue";
 import Modal from "../Modal.vue";
 import StatusChip from "../StatusChip.vue";
+import Button from "../Button.vue";
+import Checkbox from "../Checkbox.vue";
+import FormField from "../FormField.vue";
 
 /**
  * Despliegue de un entorno (ADR-064). MemTrace no despliega: dispara el CI del repo con el commit al que apunta hoy la rama
@@ -78,19 +81,16 @@ async function send() {
 
         <template v-if="!gate.allowed">
           <p class="hint">Run the offline evaluation from your CI on this commit, then come back. Evaluations run on a laptop with uncommitted changes do not count.</p>
-          <label v-if="canBypass" class="bypass">
-            <input v-model="bypassing" type="checkbox" data-testid="bypass-toggle" /> Deploy anyway (hotfix)
-          </label>
-          <label v-if="bypassing" class="field">
-            <span>Why? It stays in the deployment history.</span>
+          <Checkbox v-if="canBypass" class="bypass" v-model="bypassing" data-testid="bypass-toggle"> Deploy anyway (hotfix)</Checkbox>
+          <FormField label="Why? It stays in the deployment history." v-if="bypassing">
             <TextInput v-model="reason" multiline :rows="2" :invalid="!!fieldErrors.bypassReason" data-testid="bypass-reason" />
             <span v-if="fieldErrors.bypassReason" class="field-error">{{ fieldErrors.bypassReason }}</span>
-          </label>
+          </FormField>
         </template>
       </template>
       <div class="actions">
-        <button type="button" class="ghost" @click="emit('close')">Cancel</button>
-        <button type="button" class="primary-btn" :disabled="!canSend" data-testid="deploy-confirm" @click="send">{{ sending ? "Starting…" : gate && !gate.allowed ? "Deploy anyway" : "Deploy" }}</button>
+        <Button @click="emit('close')">Cancel</Button>
+        <Button variant="primary" :disabled="!canSend" data-testid="deploy-confirm" @click="send">{{ sending ? "Starting…" : gate && !gate.allowed ? "Deploy anyway" : "Deploy" }}</Button>
       </div>
     </div>
   </Modal>
@@ -108,12 +108,8 @@ dd { margin: 0; }
 .hint { margin: 0; font-size: 13px; color: var(--mt-muted); line-height: 1.5; }
 .problem { margin: 0; padding: 10px 12px; font-size: 13px; color: var(--mt-error-text, var(--mt-ink)); background: var(--mt-error-soft, var(--mt-bg)); border-radius: var(--mt-radius-sm); }
 .bypass { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
-.field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; }
+
 .field-error { color: var(--mt-error-text, #b3261e); font-weight: 500; }
 .actions { display: flex; justify-content: flex-end; gap: 8px; }
-.primary-btn, .ghost { height: 32px; padding: 0 14px; font: inherit; font-size: 13px; font-weight: 700; border-radius: var(--mt-radius-sm); cursor: pointer; }
-.primary-btn { color: var(--mt-accent-ink); background: var(--mt-accent); border: 1px solid transparent; }
-.primary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.ghost { color: var(--mt-accent-text); background: var(--mt-card); border: 1px solid var(--mt-line); }
-.primary-btn:focus-visible, .ghost:focus-visible { outline: 2px solid var(--mt-accent); outline-offset: 2px; }
+
 </style>

@@ -37,7 +37,7 @@ describe("CustomChartsPanel", () => {
     await flushPromises();
     expect(mounted.text()).toContain("What do you want to know?");
 
-    await mounted.find("button.link-btn").trigger("click");
+    await mounted.find("button.mt-btn.v-link").trigger("click");
     const total = mounted.findAll(".question-card").length;
     expect(total).toBeGreaterThan(5);
     const settle = async () => {
@@ -48,8 +48,8 @@ describe("CustomChartsPanel", () => {
     await mounted.findAll(".question-card")[0]!.trigger("click");
     await settle();
     for (let i = 0; i < total; i++) {
-      if (!mounted.find(".pill").exists()) await mounted.findAll("button.link-btn").find((b) => b.text().startsWith("Try another"))!.trigger("click");
-      await mounted.findAll(".pill")[i]!.trigger("click");
+      if (!mounted.find(".pill-row .mt-chip").exists()) await mounted.findAll("button.mt-btn.v-link").find((b) => b.text().startsWith("Try another"))!.trigger("click");
+      await mounted.findAll(".pill-row .mt-chip")[i]!.trigger("click");
       await settle();
       expect(vueErrors, `question ${i}`).toEqual([]);
       for (const part of ["Save to Metrics", "I want to see", "Measured as", "Split by", "questions"]) expect(mounted.text(), `question ${i}`).toContain(part);
@@ -66,7 +66,7 @@ describe("CustomChartsPanel", () => {
       attachTo: document.body,
     });
     await flushPromises();
-    const chip = (label: string) => mounted!.findAll("button.chip").find((b) => b.text().startsWith(label))!;
+    const chip = (label: string) => mounted!.findAll("button.mt-chip").find((b) => b.text().startsWith(label))!;
     await chip("Tool calls").trigger("click");
     await chip("Chain").trigger("click");
     await flushPromises();

@@ -11,6 +11,10 @@ import EmptyState from "../EmptyState.vue";
 import ErrorBanner from "../ErrorBanner.vue";
 import AddAccessModal from "./AddAccessModal.vue";
 import PersonAvatar from "./PersonAvatar.vue";
+import Button from "../Button.vue";
+import DataTable from "../DataTable.vue";
+import Card from "../Card.vue";
+import Pill from "../Pill.vue";
 
 /** Quién puede llamar a un entorno (ADR-053). Documentado y sincronizado desde el proveedor de identidad; MemTrace no lo hace cumplir. */
 const props = defineProps<{ experimentId: string; deployment: DeploymentSummaryDto; canGovern: boolean; nowMs: number }>();
@@ -42,19 +46,19 @@ function saved() {
 </script>
 
 <template>
-  <section class="panel mt-card" data-testid="access-panel">
+  <Card as="section" padding="none" block class="panel" data-testid="access-panel">
     <header class="head">
       <div class="title">
         <h2>Who can call it in <span class="mono">{{ deployment.environment.label }}</span></h2>
         <p>Documented here and synced from the identity provider. MemTrace does not enforce it.</p>
       </div>
-      <button v-if="canGovern" type="button" class="primary-btn" @click="adding = true">Add access</button>
+      <Button variant="primary" v-if="canGovern" @click="adding = true">Add access</Button>
     </header>
     <ErrorBanner v-if="grants.error.value" :error="grants.error.value" @retry="grants.run()" />
     <EmptyState v-else-if="(grants.data.value ?? []).length === 0 && !grants.loading.value" icon="lock_open" title="No access defined">
       Nobody is listed yet for {{ deployment.environment.label }}.
     </EmptyState>
-    <table v-else class="grid">
+    <DataTable v-else class="grid" bare>
       <thead><tr><th>Who</th><th>Type</th><th>People</th><th>Source</th><th /></tr></thead>
       <tbody>
         <tr v-for="g in grants.data.value ?? []" :key="g.id">
@@ -62,15 +66,15 @@ function saved() {
             <span v-if="g.user" class="person-cell"><PersonAvatar :name="g.user.name" :email="g.user.email" :image="g.user.image" :size="22" />{{ personLabel(g.user) }}</span>
             <template v-else>{{ g.subjectType === "everyone" ? "Everyone in the organization" : g.externalGroup ?? g.userId }}</template>
           </td>
-          <td><span class="tag" :class="g.subjectType">{{ TYPE_LABEL[g.subjectType] }}</span></td>
+          <td><Pill :tone="g.subjectType === 'group' ? 'info' : g.subjectType === 'everyone' ? 'highlight' : 'neutral'">{{ TYPE_LABEL[g.subjectType] }}</Pill></td>
           <td class="mono">{{ g.memberCount ?? (g.subjectType === "user" ? 1 : "–") }}</td>
           <td class="muted">{{ SOURCE_LABEL[g.source] }}<template v-if="g.syncedAt"> · {{ formatRelativeTime(g.syncedAt, nowMs) }}</template></td>
-          <td class="end"><button v-if="canGovern" type="button" class="link" @click="remove(g.id)">Remove</button></td>
+          <td class="end"><Button variant="link" v-if="canGovern" @click="remove(g.id)">Remove</Button></td>
         </tr>
       </tbody>
-    </table>
+    </DataTable>
     <AddAccessModal v-if="adding" :experiment-id="experimentId" :deployment-id="deployment.id" :env-label="deployment.environment.label" @close="adding = false" @saved="saved" />
-  </section>
+  </Card>
 </template>
 
 <style scoped>
@@ -80,18 +84,12 @@ function saved() {
 h2 { margin: 0; font-size: 14px; font-weight: 800; }
 p { margin: 2px 0 0; font-size: 12px; color: var(--mt-muted); }
 .mono { font-family: var(--mt-mono); font-weight: 500; }
-.grid { width: 100%; border-collapse: collapse; font-size: 13px; }
-th { height: 32px; padding: 0 10px; text-align: left; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--mt-muted); background: var(--mt-soft); }
-td { height: 42px; padding: 0 10px; border-top: 1px solid var(--mt-line-2); }
+
 .who { font-weight: 700; }
 .person-cell { display: inline-flex; align-items: center; gap: 8px; }
 .muted { color: var(--mt-muted); }
 .end { text-align: right; }
-.tag { display: inline-flex; height: 22px; align-items: center; padding: 0 8px; border-radius: var(--mt-radius-xs); font-size: 11.5px; font-weight: 700; background: var(--mt-soft); color: var(--mt-muted); }
-.tag.group { background: var(--mt-accent-tint); color: var(--mt-accent-text); }
-.tag.everyone { background: var(--mt-highlight-soft); color: var(--mt-highlight-ink); }
 .link { font: inherit; font-size: 12px; font-weight: 700; color: var(--mt-accent-text); background: none; border: none; cursor: pointer; }
 .link:hover { text-decoration: underline; }
-.primary-btn { height: 30px; padding: 0 12px; font: inherit; font-size: 13px; font-weight: 700; color: var(--mt-accent-ink); background: var(--mt-accent); border: none; border-radius: var(--mt-radius-sm); cursor: pointer; }
-.primary-btn:focus-visible { outline: 2px solid var(--mt-accent); outline-offset: 2px; }
+
 </style>

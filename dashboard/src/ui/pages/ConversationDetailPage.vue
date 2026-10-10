@@ -17,6 +17,11 @@ import { useFilters } from "../composables/useFilters";
 import { useLiveRefresh } from "../composables/useLiveRefresh";
 import { useTraceApi } from "../composables/useTraceApi";
 import { useExperimentRepo } from "../composables/useExperimentRepo";
+import Pill from "../components/Pill.vue";
+import LoadingState from "../components/LoadingState.vue";
+import Card from "../components/Card.vue";
+import Button from "../components/Button.vue";
+import SegmentedControl from "../components/SegmentedControl.vue";
 
 const props = defineProps<{ conversationId: string }>();
 const api = useTraceApi();
@@ -31,6 +36,7 @@ const MAX_PAGE = 200;
 const turnsLimit = ref(PAGE);
 
 // ---- view toggle: flat table vs unified span tree of the whole conversation ----
+const VIEW_OPTIONS = [{ value: "table", label: "Table" }, { value: "tree", label: "Tree" }];
 const view = computed(() => (route.query.view === "tree" ? "tree" : "table"));
 const setView = (mode: "table" | "tree") => void router.replace({ query: { ...route.query, view: mode === "table" ? undefined : mode } });
 
@@ -119,22 +125,22 @@ const backToList = () => void router.push({ name: "conversations", params: { exp
   <div class="page">
     <TopbarSlot side="left">
       <nav class="crumbs" aria-label="Breadcrumbs">
-        <button type="button" class="crumb" @click="backToList">← Conversations</button>
+        <Button variant="link" class="crumb" @click="backToList">← Conversations</Button>
         <span class="sep">/</span>
         <span class="mono current">{{ conversationId }}</span>
       </nav>
     </TopbarSlot>
 
     <ErrorBanner v-if="detail.error.value" :error="detail.error.value" @retry="load" />
-    <div v-else-if="!conversation" class="loading"><q-spinner size="32px" color="primary" /></div>
+    <LoadingState v-else-if="!conversation" size="lg" />
 
     <template v-if="conversation">
-      <header class="head mt-card">
+      <Card as="header" padding="none" block class="head">
         <div class="titles">
           <div class="title-row">
             <h1 class="leading-none" :title="conversation.title ?? undefined">{{ conversation.title ?? "Conversation" }}</h1>
-            <span v-if="conversation.errorTurns" class="mt-pill error">{{ conversation.errorTurns }} {{ conversation.errorTurns === 1 ? "trace with error" : "traces with error" }}</span>
-            <span v-else-if="conversation.failedSpans" class="mt-pill warn">{{ conversation.failedSpans }} {{ conversation.failedSpans === 1 ? "span with failures" : "spans with failures" }}</span>
+            <Pill tone="error" v-if="conversation.errorTurns">{{ conversation.errorTurns }} {{ conversation.errorTurns === 1 ? "trace with error" : "traces with error" }}</Pill>
+            <Pill tone="warn" v-else-if="conversation.failedSpans">{{ conversation.failedSpans }} {{ conversation.failedSpans === 1 ? "span with failures" : "spans with failures" }}</Pill>
           </div>
           <PromptChips :prompts="conversation.prompts" />
           <span class="muted sub"><span class="mono id">{{ conversationId }}</span> · {{ conversation.serviceNames.join(", ") }} · {{ formatDateTime(conversation.startTime) }}</span>
@@ -142,28 +148,25 @@ const backToList = () => void router.push({ name: "conversations", params: { exp
         <div class="stats">
           <div v-for="s in stats" :key="s.k" class="stat"><span class="muted k">{{ s.k }}</span><span class="v">{{ s.v }}</span></div>
         </div>
-        <div class="view-toggle" role="group" aria-label="View mode">
-          <button type="button" class="toggle-btn" :class="{ active: view === 'table' }" @click="setView('table')">Table</button>
-          <button type="button" class="toggle-btn" :class="{ active: view === 'tree' }" @click="setView('tree')">Tree</button>
-        </div>
-      </header>
+        <SegmentedControl size="sm" class="view-toggle" aria-label="View mode" :options="VIEW_OPTIONS" :model-value="view" @update:model-value="setView($event as 'table' | 'tree')" />
+      </Card>
 
-      <section v-if="view === 'table'" class="mt-card list" aria-label="Conversation traces">
+      <Card as="section" padding="none" block v-if="view === 'table'" class="list" aria-label="Conversation traces">
         <TraceTable v-if="traces.length" :items="traces" :labels="labels" :repo="repo" annotatable @open="openTrace" @annotate="annotatingTrace = $event" />
         <p v-else class="muted empty">This conversation has no traces to show.</p>
-        <button v-if="cursor" type="button" class="more" :disabled="more.loading.value" @click="loadMore">{{ more.loading.value ? "Loading…" : "Load more traces" }}</button>
+        <Button size="sm" v-if="cursor" :disabled="more.loading.value" @click="loadMore">{{ more.loading.value ? "Loading…" : "Load more traces" }}</Button>
         <ErrorBanner v-if="more.error.value" :error="more.error.value" @retry="loadMore" />
-      </section>
+      </Card>
 
       <template v-else>
         <ErrorBanner v-if="tree.error.value" :error="tree.error.value" @retry="tree.run" />
-        <div v-else-if="!tree.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
+        <LoadingState v-else-if="!tree.data.value" size="lg" />
         <div v-else class="cols">
-          <section class="mt-card tree-card" aria-label="Conversation span tree">
+          <Card as="section" padding="none" block class="tree-card" aria-label="Conversation span tree">
             <ConversationTree :turns="tree.data.value.items" :selected-trace-id="selected?.traceId ?? null" :selected-span-id="selected?.spanId ?? null" @select="selectSpan" />
-          </section>
+          </Card>
           <SpanInspector v-if="selectedNode" :node="selectedNode" :empty-hint="hint" />
-          <section v-else class="mt-card empty-card">Select a span to inspect it.</section>
+          <Card as="section" padding="none" block v-else class="empty-card">Select a span to inspect it.</Card>
         </div>
       </template>
     </template>
@@ -195,22 +198,9 @@ const backToList = () => void router.push({ name: "conversations", params: { exp
 .sep {
   color: var(--mt-faint);
 }
-.crumb {
-  border: 0;
-  background: none;
-  padding: 0;
-  color: var(--mt-accent-text);
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
+
 .current {
   color: var(--mt-ink);
-}
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 60px;
 }
 .muted {
   color: var(--mt-muted);
@@ -277,30 +267,7 @@ h1 {
   letter-spacing: -0.02em;
   white-space: nowrap;
 }
-.view-toggle {
-  display: flex;
-  gap: 2px;
-  padding: 3px;
-  border-radius: var(--mt-radius-sm);
-  background: var(--mt-soft);
-  flex-shrink: 0;
-}
-.toggle-btn {
-  border: 0;
-  background: none;
-  padding: 5px 14px;
-  border-radius: var(--mt-radius-xs);
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 700;
-  color: var(--mt-muted);
-  cursor: pointer;
-}
-.toggle-btn.active {
-  background: var(--mt-card);
-  color: var(--mt-ink);
-  box-shadow: 0 0 0 1px var(--mt-line);
-}
+
 .list {
   box-sizing: border-box;
   flex: 1;
@@ -331,20 +298,7 @@ h1 {
   margin: 0;
   padding: 20px;
 }
-.more {
-  display: block;
-  margin: 12px auto;
-  height: 30px;
-  padding: 0 14px;
-  border: 1px solid var(--mt-line);
-  border-radius: var(--mt-radius-sm);
-  background: var(--mt-card);
-  color: var(--mt-accent-text);
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 700;
-  cursor: pointer;
-}
+
 @media (max-width: 1100px) {
   .stats {
     display: none;

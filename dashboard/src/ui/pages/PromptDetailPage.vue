@@ -30,6 +30,12 @@ import { useAsync } from "../composables/useAsync";
 import { usePermissions } from "../composables/usePermissions";
 import { usePromptApi } from "../composables/usePromptApi";
 import { useTraceApi } from "../composables/useTraceApi";
+import Button from "../components/Button.vue";
+import Pill from "../components/Pill.vue";
+import LoadingState from "../components/LoadingState.vue";
+import Card from "../components/Card.vue";
+import Disclosure from "../components/Disclosure.vue";
+import SegmentedControl from "../components/SegmentedControl.vue";
 
 const props = defineProps<{ promptId: string }>();
 const api = usePromptApi();
@@ -145,6 +151,9 @@ const comparison = computed(() => {
   return base && target ? compareVersions(base, target) : null;
 });
 const missingEvidence = computed(() => [compareWith.value, selected.value].filter((v): v is number => v !== null && evidenceOf(v) === null));
+const TEXT_VIEW_OPTIONS = [{ value: "source", label: "Source", testid: "view-source" }, { value: "resolved", label: "Resolved", testid: "view-resolved" }];
+const USAGE_TONE: Record<UsageState, "ok" | "highlight" | "info" | "neutral"> = { in_sync: "ok", behind: "highlight", pinned: "info", stale: "neutral" };
+const DIRECTION_TONE = { better: "ok", worse: "error", same: "neutral", unknown: "neutral" } as const;
 const DIRECTION_LABEL = { better: "Better", worse: "Worse", same: "No change", unknown: "–" } as const;
 
 // ---- comparar ----
@@ -470,13 +479,13 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
       :title="data?.prompt.name ?? 'Prompt'"
     >
       <div class="actions">
-        <span v-if="archived" class="mt-pill archived" data-testid="archived-badge">archived</span>
-        <button v-if="can('prompt:write')" type="button" class="ghost-btn" data-testid="toggle-archived" @click="toggleArchived">{{ archived ? "Restore" : "Archive" }}</button>
+        <Pill v-if="archived" data-testid="archived-badge" class="archived">archived</Pill>
+        <Button v-if="can('prompt:write')" data-testid="toggle-archived" @click="toggleArchived">{{ archived ? "Restore" : "Archive" }}</Button>
       </div>
     </PageHeader>
 
     <ErrorBanner v-if="detail.error.value" :error="detail.error.value" @retry="detail.run()" />
-    <div v-else-if="!data" class="loading"><q-spinner size="32px" color="primary" /></div>
+    <LoadingState v-else-if="!data" size="lg" />
 
     <template v-else>
       <div class="body">
@@ -529,7 +538,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
               >
                 <span class="version-head">
                   <strong class="mono">v{{ v.version }}</strong>
-                  <span v-if="v.status === 'draft'" class="mt-pill draft-pill" :data-testid="`draft-${v.version}`">draft</span>
+                  <Pill v-if="v.status === 'draft'" :data-testid="`draft-${v.version}`" class="draft-pill">draft</Pill>
                   <EnvFlag v-for="tag in tagsByVersion.get(v.version) ?? []" :key="tag" :env="tag" />
                   <span class="grow" />
                   <span class="mono version-date">{{ formatDateTime(v.createdAt) }}</span>
@@ -571,10 +580,10 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   </template>
                 </div>
                 <div v-if="canWrite" class="draft-actions">
-                  <button type="button" class="ghost-btn" data-testid="draft-test" @click="testDraft(selectedVersion.version, selectedVersion.parentVersion, selectedVersion.origin?.traceIds[0] ?? null)">Test it</button>
-                  <button v-if="approvalRules.publish" type="button" class="primary-btn" :disabled="draftBusy" data-testid="draft-request" @click="requesting = { action: 'publish', version: selectedVersion.version }">Request approval</button>
-                  <button v-else type="button" class="primary-btn" :disabled="draftBusy" data-testid="draft-publish" @click="publishSelected">Publish</button>
-                  <button type="button" class="ghost-btn" :disabled="draftBusy" data-testid="draft-discard" @click="discardSelected">Discard</button>
+                  <Button data-testid="draft-test" @click="testDraft(selectedVersion.version, selectedVersion.parentVersion, selectedVersion.origin?.traceIds[0] ?? null)">Test it</Button>
+                  <Button variant="primary" v-if="approvalRules.publish" :disabled="draftBusy" data-testid="draft-request" @click="requesting = { action: 'publish', version: selectedVersion.version }">Request approval</Button>
+                  <Button variant="primary" v-else :disabled="draftBusy" data-testid="draft-publish" @click="publishSelected">Publish</Button>
+                  <Button :disabled="draftBusy" data-testid="draft-discard" @click="discardSelected">Discard</Button>
                 </div>
               </section>
               <section v-if="!editing && data.prompt.kind === 'fragment' && outdatedDependents > 0" class="dependents-banner" data-testid="dependents-banner">
@@ -582,9 +591,9 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   <b>{{ outdatedDependents }} {{ outdatedDependents === 1 ? "prompt still includes" : "prompts still include" }} an older version of this fragment.</b>
                   <p class="small">Nothing changes in production by itself. MemTrace can prepare a draft in {{ outdatedDependents === 1 ? "it" : "each one" }}; you review, test it in the playground and publish.</p>
                 </div>
-                <button v-if="canWrite" type="button" class="primary-btn" :disabled="draftBusy" data-testid="rebuild-dependents" @click="rebuildDependents">
+                <Button variant="primary" v-if="canWrite" :disabled="draftBusy" data-testid="rebuild-dependents" @click="rebuildDependents">
                   Prepare {{ outdatedDependents === 1 ? "a draft" : `drafts for ${outdatedDependents} prompts` }}
-                </button>
+                </Button>
               </section>
               <div v-if="!editing" class="content-grid">
                 <div class="code-card">
@@ -593,15 +602,12 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                     <span class="code-msg">{{ selectedVersion.message || "No message" }}</span>
                     <span class="grow" />
                     <span class="soft">{{ formatDateTime(selectedVersion.createdAt) }}</span>
-                    <span v-if="parentOfSelected" class="mt-pill from">from v{{ parentOfSelected.version }}</span>
-                    <span v-if="hasIncludes" class="view-toggle" role="group" aria-label="Text shown">
-                      <button type="button" :class="{ on: view === 'source' }" data-testid="view-source" @click="view = 'source'">Source</button>
-                      <button type="button" :class="{ on: view === 'resolved' }" data-testid="view-resolved" @click="view = 'resolved'">Resolved</button>
-                    </span>
-                    <button type="button" class="ghost-btn small" data-testid="open-compare" @click="mode = 'compare'">Compare</button>
-                    <button v-if="canWrite" type="button" class="ghost-btn small" data-testid="open-try" @click="mode = 'try'">Try it</button>
-                    <button v-if="canWrite" type="button" class="ghost-btn small" data-testid="open-fix" @click="mode = 'fix'">Fix a failure</button>
-                    <button v-if="canWrite" type="button" class="primary-btn small" data-testid="edit-version" @click="startEdit">Edit as new version</button>
+                    <Pill v-if="parentOfSelected" class="from">from v{{ parentOfSelected.version }}</Pill>
+                    <SegmentedControl v-if="hasIncludes" size="sm" class="view-toggle" aria-label="Text shown" :options="TEXT_VIEW_OPTIONS" :model-value="view" @update:model-value="view = $event as typeof view" />
+                    <Button size="sm" data-testid="open-compare" @click="mode = 'compare'">Compare</Button>
+                    <Button size="sm" v-if="canWrite" data-testid="open-try" @click="mode = 'try'">Try it</Button>
+                    <Button size="sm" v-if="canWrite" data-testid="open-fix" @click="mode = 'fix'">Fix a failure</Button>
+                    <Button variant="primary" size="sm" v-if="canWrite" data-testid="edit-version" @click="startEdit">Edit as new version</Button>
                   </div>
                   <pre class="code" data-testid="version-content"><span v-for="line in codeLines" :key="line.n" class="ln" :class="{ changed: line.changed, heading: line.heading }"><span v-for="(part, i) in line.parts" :key="i" :class="{ variable: part.variable }">{{ part.text }}</span></span></pre>
                   <div v-if="!showingSource && changedLines.size > 0" class="code-foot"><i /> Lines changed since v{{ parentOfSelected?.version }}</div>
@@ -614,19 +620,19 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   <PromptEditor v-model="draft" :experiment-id="String(route.params.experimentId)" :fragments="data.prompt.kind !== 'fragment'" :rows="18" />
                   <TextInput v-model="message" placeholder="What changed and why? (optional)" data-testid="version-message" />
                   <div class="row">
-                    <button type="submit" class="primary-btn" :disabled="saving || !draft.trim() || draft === (selectedVersion.source ?? selectedVersion.content)" data-testid="save-version">Save as new version</button>
-                    <button type="button" class="ghost-btn" :disabled="saving || !draft.trim() || draft === (selectedVersion.source ?? selectedVersion.content)" data-testid="save-draft" @click="saveVersion(true)">Save as draft</button>
-                    <button type="button" class="ghost-btn" @click="editing = false">Cancel</button>
+                    <Button variant="primary" type="submit" :disabled="saving || !draft.trim() || draft === (selectedVersion.source ?? selectedVersion.content)" data-testid="save-version">Save as new version</Button>
+                    <Button :disabled="saving || !draft.trim() || draft === (selectedVersion.source ?? selectedVersion.content)" data-testid="save-draft" @click="saveVersion(true)">Save as draft</Button>
+                    <Button @click="editing = false">Cancel</Button>
                   </div>
                 </form>
               </div>
             </div>
-            <section v-if="!editing" class="mt-card strip-card" data-testid="evidence-strip">
+            <Card as="section" padding="none" block v-if="!editing" class="strip-card" data-testid="evidence-strip">
               <header class="strip-head">
                 <span class="eyebrow">EVIDENCE</span>
                 <span class="soft">Real traces, last {{ rangeLabel }}</span>
                 <span class="grow" />
-                <button type="button" class="link-btn" data-testid="link-evidence" @click="mode = 'evidence'">Open full evidence →</button>
+                <Button variant="link" data-testid="link-evidence" @click="mode = 'evidence'">Open full evidence →</Button>
               </header>
               <p v-if="evidence.loading.value && !evidence.data.value" class="soft strip-note">Loading…</p>
               <p v-else-if="stripRows.length === 0" class="soft strip-note" data-testid="strip-empty">No trace used this prompt in the last {{ rangeLabel }}.</p>
@@ -644,11 +650,11 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   </tr>
                 </tbody>
               </table>
-            </section>
+            </Card>
           </template>
-          <section v-else class="mt-card view-card" :data-testid="`view-${mode}`">
+          <Card as="section" padding="none" block v-else class="view-card" :data-testid="`view-${mode}`">
             <div class="view-bar">
-              <button type="button" class="link-btn back" data-testid="back-to-text" @click="mode = 'text'">← Back to text</button>
+              <Button variant="link" data-testid="back-to-text" @click="mode = 'text'" class="back">← Back to text</Button>
               <strong>{{ VIEW_TITLE[mode].title }}</strong>
               <span class="soft">{{ VIEW_TITLE[mode].sub }}</span>
             </div>
@@ -664,7 +670,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                 </template>
               </div>
               <section v-if="compareVersion" class="behaviour" data-testid="behaviour">
-                <div v-if="evidence.loading.value && !evidence.data.value" class="loading"><q-spinner size="24px" color="primary" /></div>
+                <LoadingState v-if="evidence.loading.value && !evidence.data.value" size="md" />
                 <p v-else-if="evidence.error.value" class="muted small" data-testid="behaviour-error">Could not load the evidence: {{ evidence.error.value.message }}</p>
                 <p v-else-if="!comparison" class="muted small" data-testid="behaviour-empty">
                   No traces used {{ missingEvidence.map((v) => `v${v}`).join(" or ") }} in the last {{ rangeLabel }}, so there is nothing to compare yet.
@@ -678,7 +684,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                     <div v-for="d in comparison.deltas" :key="d.key" class="tile" :data-testid="`delta-${d.key}`">
                       <span class="eyebrow">{{ d.label.toUpperCase() }}</span>
                       <div class="tile-value"><strong>{{ d.target }}</strong><span class="soft">was {{ d.base }}</span></div>
-                      <span class="mt-pill direction" :class="d.direction">{{ d.change }} · {{ DIRECTION_LABEL[d.direction] }}</span>
+                      <Pill :class="d.direction" class="direction">{{ d.change }} · {{ DIRECTION_LABEL[d.direction] }}</Pill>
                       <div v-if="d.bars" class="bars" aria-hidden="true">
                         <span class="bar base"><i :style="{ width: `${Math.max(2, d.bars.base * 100)}%` }" /></span>
                         <span class="bar target" :class="d.direction"><i :style="{ width: `${Math.max(2, d.bars.target * 100)}%` }" /></span>
@@ -723,7 +729,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                 <span class="soft">A trace counts for every version it used.</span>
               </div>
               <ErrorBanner v-if="evidence.error.value" :error="evidence.error.value" @retry="evidence.run()" />
-              <div v-else-if="evidence.loading.value && !evidence.data.value" class="loading"><q-spinner size="28px" color="primary" /></div>
+              <LoadingState v-else-if="evidence.loading.value && !evidence.data.value" size="md" />
               <p v-else-if="evidenceVersions.length === 0" class="muted small" data-testid="evidence-empty">
                 No trace used this prompt in the last {{ rangeLabel }}. Traces show up here when an agent calls <code>compile()</code> inside a traced step.
               </p>
@@ -744,7 +750,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                           <span class="env-stack"><EnvFlag v-for="tag in tagsByVersion.get(e.version) ?? []" :key="tag" :env="tag" /></span>
                         </td>
                         <td class="mono">
-                          <span class="cell-top">{{ formatCount(e.traces) }}<span v-if="sampleQuality(e.traces) === 'low'" class="mt-pill low-sample" :title="`Fewer than ${MIN_TRACES} traces: the figures are only indicative`">few traces</span></span>
+                          <span class="cell-top">{{ formatCount(e.traces) }}<Pill v-if="sampleQuality(e.traces) === 'low'" :title="`Fewer than ${MIN_TRACES} traces: the figures are only indicative`" class="low-sample">few traces</Pill></span>
                           <span class="meter"><span :style="{ width: `${Math.max(3, (e.traces / maxTraces) * 100)}%` }" /></span>
                         </td>
                         <td class="mono" :class="{ bad: e.errorRate >= 0.1 }">
@@ -784,18 +790,18 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   <span class="env-badge" :class="key"><b>{{ key.toUpperCase() }}</b></span>
                   <strong class="mono env-ver">{{ tagVersion(key) === null ? "—" : `v${tagVersion(key)}` }}</strong>
                   <span class="env-msg">{{ messageOf(tagVersion(key)) || "No message" }}</span>
-                  <span v-if="isProtected(key)" class="mt-pill protected" title="Needs a passing evaluation to be promoted" :data-testid="`protected-${key}`">protected</span>
+                  <Pill v-if="isProtected(key)" title="Needs a passing evaluation to be promoted" :data-testid="`protected-${key}`" class="protected">protected</Pill>
                   <span class="env-usage">
                     <template v-if="usageOf(key)">
                       <span class="soft">{{ usageOf(key)!.state === "behind" ? `agent on v${usageOf(key)!.version}` : formatRelativeTime(usageOf(key)!.lastSeenAt, nowMs) }}</span>
-                      <span class="mt-pill usage" :class="usageOf(key)!.state">{{ USAGE_LABEL[usageOf(key)!.state] }}</span>
+                      <Pill :tone="USAGE_TONE[usageOf(key)!.state]" class="usage">{{ USAGE_LABEL[usageOf(key)!.state] }}</Pill>
                     </template>
                     <span v-else class="soft">No agent has reported this environment yet.</span>
                   </span>
                   <div v-if="canPromote" class="move">
                     <Select :model-value="pending[key] ?? tagVersion(key)" :options="versionOptions" placeholder="Point to…" @update:model-value="pending[key] = $event" />
-                    <button type="button" class="ghost-btn small" :disabled="moving || pending[key] == null || pending[key] === tagVersion(key)" :data-testid="`move-${key}`" @click="moveEnvironment(key)">{{ pending[key] != null && needsApproval(key, pending[key]!) ? "Request approval" : "Move" }}</button>
-                    <button v-if="tagVersion(key) !== null" type="button" class="icon-btn" :aria-label="`Remove the ${key} tag`" title="Remove the tag" @click="moveTag(key, null)">×</button>
+                    <Button size="sm" :disabled="moving || pending[key] == null || pending[key] === tagVersion(key)" :data-testid="`move-${key}`" @click="moveEnvironment(key)">{{ pending[key] != null && needsApproval(key, pending[key]!) ? "Request approval" : "Move" }}</Button>
+                    <Button variant="icon" v-if="tagVersion(key) !== null" :aria-label="`Remove the ${key} tag`" title="Remove the tag" @click="moveTag(key, null)">×</Button>
                   </div>
                 </div>
                 <div class="other-tags">
@@ -803,13 +809,13 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   <div class="free-tags">
                     <span v-for="t in freeTags" :key="t.tag" class="free-tag">
                       <span class="mono">{{ t.tag }}</span><strong class="mono">v{{ t.version }}</strong>
-                      <button v-if="canWrite" type="button" class="x" :aria-label="`Remove the ${t.tag} tag`" @click="moveTag(t.tag, null)">×</button>
+                      <Button variant="icon" size="sm" v-if="canWrite" class="x" :aria-label="`Remove the ${t.tag} tag`" @click="moveTag(t.tag, null)">×</Button>
                     </span>
                     <span v-if="freeTags.length === 0" class="soft">No free tags.</span>
                   </div>
                   <form v-if="canWrite && selected !== null" class="add-tag" @submit.prevent="addFreeTag">
                     <TextInput v-model="newTag" placeholder="new-tag" mono size="sm" data-testid="new-tag" />
-                    <button type="submit" class="primary-btn small" :disabled="moving || !newTag.trim()" data-testid="add-tag">Tag v{{ selected }}</button>
+                    <Button variant="primary" size="sm" type="submit" :disabled="moving || !newTag.trim()" data-testid="add-tag">Tag v{{ selected }}</Button>
                   </form>
                 </div>
               </section>
@@ -847,7 +853,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                       <td class="mono tag-name">{{ u.environment || "no environment" }}</td>
                       <td class="mono">v{{ u.version }}</td>
                       <td class="muted">{{ u.tag ? `follows “${u.tag}”` : "fixed version" }}</td>
-                      <td><span class="mt-pill usage" :class="u.state">{{ USAGE_LABEL[u.state] }}</span></td>
+                      <td><Pill :tone="USAGE_TONE[u.state]" class="usage">{{ USAGE_LABEL[u.state] }}</Pill></td>
                       <td v-if="u.state === 'behind'" class="muted small">“{{ u.tag }}” now points to v{{ u.tagVersion }}</td>
                       <td v-else class="muted small">{{ formatRelativeTime(u.lastSeenAt, nowMs) }}</td>
                     </tr>
@@ -871,8 +877,8 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                     <p class="muted small">The evaluation has to run with the agent reading that exact version through <code>memtrace.prompts</code>. Each evaluator must reach its target pass rate.</p>
                   </template>
                   <div v-if="canPromote" class="row">
-                    <button type="button" class="ghost-btn small" data-testid="edit-policy" @click="startPolicy">{{ policy ? "Edit policy" : "Add policy" }}</button>
-                    <button v-if="policy" type="button" class="ghost-btn small" data-testid="remove-policy" @click="removePolicy">Remove policy</button>
+                    <Button size="sm" data-testid="edit-policy" @click="startPolicy">{{ policy ? "Edit policy" : "Add policy" }}</Button>
+                    <Button size="sm" v-if="policy" data-testid="remove-policy" @click="removePolicy">Remove policy</Button>
                   </div>
                 </div>
                 <form v-else class="policy-form" data-testid="policy-form" @submit.prevent="savePolicy">
@@ -886,8 +892,8 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   </div>
                   <p class="muted small">Protected: {{ gated.join(", ") || "none" }}. {{ environmentKeys[0] ?? "The first environment" }} stays free to iterate.</p>
                   <div class="row">
-                    <button type="submit" class="primary-btn small" :disabled="savingPolicy || policyDataset === null" data-testid="save-policy">Save policy</button>
-                    <button type="button" class="ghost-btn small" @click="editingPolicy = false">Cancel</button>
+                    <Button variant="primary" size="sm" type="submit" :disabled="savingPolicy || policyDataset === null" data-testid="save-policy">Save policy</Button>
+                    <Button size="sm" @click="editingPolicy = false">Cancel</Button>
                   </div>
                 </form>
                 </div>
@@ -906,7 +912,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
               <PromptDependencyMap :prompt-id="promptId" :kind="data.prompt.kind" :name="data.prompt.name" :tag-versions="tagVersionMap" :latest="latestVersion" />
             </div>
             </div>
-          </section>
+          </Card>
         </div>
         <aside v-if="showInspector" class="inspector" aria-label="About this version" data-testid="inspector">
           <section class="side-card" data-testid="envs-card">
@@ -917,15 +923,15 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                 <strong class="mono">{{ tagVersion(key) === null ? "—" : `v${tagVersion(key)}` }}</strong>
                 <span class="soft env-line-msg">{{ messageOf(tagVersion(key)) || "No message" }}</span>
               </div>
-              <span v-if="usageOf(key)" class="mt-pill usage" :class="usageOf(key)!.state">{{ USAGE_LABEL[usageOf(key)!.state] }}</span>
-              <button
+              <Pill v-if="usageOf(key)" :class="usageOf(key)!.state" class="usage">{{ USAGE_LABEL[usageOf(key)!.state] }}</Pill>
+              <Button size="sm"
                 v-if="canPromoteSelected && selected !== null && tagVersion(key) !== selected"
-                type="button"
-                class="ghost-btn small"
+               
+               
                 :disabled="moving"
                 :data-testid="`promote-${key}`"
                 @click="promoteSelected(key)"
-              >{{ needsApproval(key, selected) ? "Request approval" : `Promote v${selected}` }}</button>
+              >{{ needsApproval(key, selected) ? "Request approval" : `Promote v${selected}` }}</Button>
             </div>
           </section>
                   <div class="side-card">
@@ -943,10 +949,10 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                       <li v-for="i in selectedVersion?.includes ?? []" :key="`${i.name}@${i.ref}`" :data-testid="`include-${i.name}`">
                         <router-link :to="{ name: 'prompts', params: { experimentId: String(route.params.experimentId) } }" class="link mono">{{ i.name }}@{{ i.ref }}</router-link>
                         → <b class="mono">v{{ i.version }}</b>
-                        <span v-if="includeOutdated(i.name, i.ref)" class="mt-pill draft-pill" :data-testid="`outdated-${i.name}`">now v{{ includeOutdated(i.name, i.ref) }}</span>
+                        <Pill v-if="includeOutdated(i.name, i.ref)" :data-testid="`outdated-${i.name}`" class="draft-pill">now v{{ includeOutdated(i.name, i.ref) }}</Pill>
                       </li>
                     </ul>
-                    <button v-if="canWrite && isLatestPublished && anyOutdated" type="button" class="primary-btn small" :disabled="draftBusy" data-testid="rebuild" @click="rebuildPrompt">Rebuild with the current fragments</button>
+                    <Button variant="primary" size="sm" v-if="canWrite && isLatestPublished && anyOutdated" :disabled="draftBusy" data-testid="rebuild" @click="rebuildPrompt">Rebuild with the current fragments</Button>
                     <p v-if="canWrite && isLatestPublished && anyOutdated" class="soft">Saves a draft to review; nothing changes until you publish it.</p>
                   </div>
                   <div v-if="data.prompt.kind === 'fragment'" class="side-card" data-testid="used-by-card">
@@ -955,8 +961,8 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                     <ul v-else class="plain">
                       <li v-for="u in data.usedBy" :key="u.promptId" :data-testid="`used-by-${u.name}`">
                         <router-link :to="{ name: 'prompt', params: { experimentId: String(route.params.experimentId), promptId: u.promptId } }" class="link mono">{{ u.name }}</router-link> <span class="soft">v{{ u.version }}</span>
-                        <span v-if="u.outdated" class="mt-pill draft-pill">behind</span>
-                        <span v-else class="mt-pill ok-pill">up to date</span>
+                        <Pill v-if="u.outdated" class="draft-pill">behind</Pill>
+                        <Pill v-else class="ok-pill">up to date</Pill>
                       </li>
                     </ul>
                   </div>
@@ -968,7 +974,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
           <section v-if="openRequests.length > 0" class="side-card" data-testid="waiting-card">
             <span class="eyebrow">WAITING FOR APPROVAL</span>
             <p v-for="r in openRequests" :key="r.id" class="small"><b class="mono">{{ requestTitle(r) }}</b></p>
-            <button type="button" class="link-btn" data-testid="link-approvals-open" @click="mode = 'approvals'">See request →</button>
+            <Button variant="link" data-testid="link-approvals-open" @click="mode = 'approvals'">See request →</Button>
           </section>
           <section class="side-card links" data-testid="links-card">
             <span class="eyebrow">MORE ABOUT THIS PROMPT</span>
@@ -1044,11 +1050,6 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
   font-size: 10.5px;
   letter-spacing: 0.08em;
   color: var(--mt-faint);
-}
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 60px;
 }
 .body {
   flex: 1;
@@ -1662,19 +1663,6 @@ h3 {
 .tile .mt-pill {
   align-self: flex-start;
 }
-.direction.better {
-  background: var(--mt-ok-bg);
-  color: var(--mt-ok-ink);
-}
-.direction.worse {
-  background: var(--mt-err-bg);
-  color: var(--mt-err-ink);
-}
-.direction.same,
-.direction.unknown {
-  background: var(--mt-soft);
-  color: var(--mt-muted);
-}
 
 /* evidencia */
 .table-scroll {
@@ -1877,22 +1865,7 @@ h3 {
 .move :deep(.select-trigger) {
   min-width: 96px;
 }
-.icon-btn {
-  width: 26px;
-  height: 26px;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--mt-muted);
-  font: inherit;
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-}
-.icon-btn:hover {
-  background: var(--mt-soft);
-  color: var(--mt-ink);
-}
+
 .other-tags {
   display: flex;
   flex-wrap: wrap;
@@ -1910,25 +1883,7 @@ h3 {
   align-items: center;
   gap: 8px;
 }
-.view-toggle {
-  display: inline-flex;
-  border: 1px solid var(--mt-line);
-  border-radius: var(--mt-radius-lg);
-  overflow: hidden;
-}
-.view-toggle button {
-  padding: 2px 10px;
-  border: none;
-  background: transparent;
-  color: var(--mt-muted);
-  font: inherit;
-  font-size: 11.5px;
-  cursor: pointer;
-}
-.view-toggle button.on {
-  background: var(--mt-accent-soft);
-  color: var(--mt-accent-text);
-}
+
 ul.plain {
   margin: 0;
   padding: 0;
@@ -1965,22 +1920,6 @@ ul.plain {
 .protected {
   background: var(--mt-accent-soft);
   color: var(--mt-accent-text);
-}
-.usage.in_sync {
-  background: var(--mt-ok-bg);
-  color: var(--mt-ok-ink);
-}
-.usage.behind {
-  background: var(--mt-highlight-soft);
-  color: var(--mt-highlight-ink);
-}
-.usage.pinned {
-  background: var(--mt-accent-soft);
-  color: var(--mt-accent-text);
-}
-.usage.stale {
-  background: var(--mt-soft);
-  color: var(--mt-muted);
 }
 .tags {
   border-collapse: collapse;
@@ -2103,40 +2042,6 @@ ul.plain {
   padding-bottom: 0;
 }
 
-.primary-btn,
-.ghost-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 36px;
-  padding: 0 16px;
-  border-radius: var(--mt-radius-lg);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.primary-btn {
-  border: none;
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-}
-.ghost-btn {
-  border: 1px solid var(--mt-line);
-  background: transparent;
-  color: var(--mt-ink);
-}
-.primary-btn.small,
-.ghost-btn.small {
-  height: 30px;
-  padding: 0 12px;
-  font-size: 12.5px;
-}
-.primary-btn:disabled,
-.ghost-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
 @media (max-width: 1100px) {
   .body {
     flex-direction: column;

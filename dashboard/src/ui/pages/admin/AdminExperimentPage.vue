@@ -5,7 +5,7 @@ import { useRoute, useRouter } from "vue-router";
 import "@/styles/admin.css";
 import { useIdentityApi } from "../../composables/useIdentityApi";
 import { hasPermission } from "../../composables/usePermissions";
-import { canManageExperiment, canUseApiKeys, notifyErrorWith, ROLE_LABEL, useAdminDirectory } from "../../composables/useAdminDirectory";
+import { canManageExperiment, canUseApiKeys, notifyErrorWith, ROLE_LABEL, useAdminDirectory, roleTone } from "../../composables/useAdminDirectory";
 import PageHeader from "../../components/PageHeader.vue";
 import TabBar from "../../components/TabBar.vue";
 import ScoreConfigsPanel from "../../components/ScoreConfigsPanel.vue";
@@ -14,6 +14,8 @@ import InviteForm from "../../components/admin/InviteForm.vue";
 import ExperimentApiKeys from "../../components/admin/ExperimentApiKeys.vue";
 import ApprovalRulesPanel from "../../components/admin/ApprovalRulesPanel.vue";
 import ExperimentExport from "../../components/admin/ExperimentExport.vue";
+import Button from "../../components/Button.vue";
+import Pill from "../../components/Pill.vue";
 
 /**
  * Nivel 3: un experimento. Un paso por pestaña, en el orden en que se configura un agente:
@@ -125,9 +127,9 @@ const MEMBER_ROLE_OPTIONS = [
           </div>
           <div class="summary-item">
             <span class="summary-label">Your role</span>
-            <span class="adm-pill" :class="experiment.myRole">{{ ROLE_LABEL[experiment.myRole] }}</span>
+            <Pill :tone="roleTone(experiment.myRole)">{{ ROLE_LABEL[experiment.myRole] }}</Pill>
           </div>
-          <router-link class="adm-btn ghost small" :to="{ name: 'conversations', params: { experimentId: experiment.id } }">Open traces</router-link>
+          <Button class="push" size="sm" :to="{ name: 'conversations', params: { experimentId: experiment.id } }">Open traces</Button>
         </div>
 
         <TabBar v-model="tab" :tabs="tabs" />
@@ -142,7 +144,7 @@ const MEMBER_ROLE_OPTIONS = [
                 <p class="adm-hint">
                   {{ keyCount ? `This experiment has ${keyCount} active key(s).` : "The agent needs a key to prove which experiment its traces belong to." }}
                 </p>
-                <button class="adm-btn primary small" type="button" @click="tab = 'keys'">{{ keyCount ? "Manage API keys" : "Create API key" }}</button>
+                <Button variant="primary" size="sm" @click="tab = 'keys'">{{ keyCount ? "Manage API keys" : "Create API key" }}</Button>
                 <p v-if="!canKeys && !keyCount" class="adm-hint">Only technical profiles and organization admins can create keys.</p>
               </div>
             </li>
@@ -153,7 +155,7 @@ const MEMBER_ROLE_OPTIONS = [
                 <p class="adm-hint">Replace <span class="adm-code">&lt;your-api-key&gt;</span> with the key from step 1.</p>
                 <div class="adm-snippet">
                   <pre>{{ envTemplate }}</pre>
-                  <button class="adm-btn" type="button" @click="copyTemplate">Copy</button>
+                  <Button @click="copyTemplate">Copy</Button>
                 </div>
               </div>
             </li>
@@ -231,9 +233,7 @@ const MEMBER_ROLE_OPTIONS = [
   letter-spacing: 0.04em;
   color: var(--mt-muted);
 }
-.summary .adm-btn {
-  margin-left: auto;
-}
+
 .panel {
   display: flex;
   flex-direction: column;
@@ -254,4 +254,5 @@ const MEMBER_ROLE_OPTIONS = [
 .adm-empty a {
   color: var(--mt-accent);
 }
+.push { margin-left: auto; }
 </style>

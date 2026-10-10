@@ -126,13 +126,13 @@ describe("TraceAnnotationsPanel", () => {
   it("prefills my existing label and marks it as saved", async () => {
     const { wrapper } = await mountPanel([config()], [annotation({ value: "4", comment: "ok" })]);
     expect(wrapper.text()).toContain("your label saved");
-    expect(wrapper.findAll(".choice-btn").find((b) => b.classes("active"))?.text()).toBe("4");
+    expect(wrapper.findAll(".choice-btn").find((b) => b.attributes("aria-pressed") === "true")?.text()).toBe("4");
     expect((wrapper.get('input[aria-label="tone comment"]').element as HTMLInputElement).value).toBe("ok");
   });
 
   it("annotates the selected span when asked", async () => {
     const { wrapper, trace } = await mountPanel([config()], [], { spanId: "aaaaaaaaaaaaaaaa", name: "search" });
-    await wrapper.findAll(".scope-btn").find((b) => b.text() === "Selected span")!.trigger("click");
+    await wrapper.findAll(".mt-segmented button").find((b) => b.text() === "Selected span")!.trigger("click");
     await wrapper.findAll(".choice-btn").find((b) => b.text() === "2")!.trigger("click");
     await wrapper.findAll("button").find((b) => b.text() === "Save")!.trigger("click");
     await flushPromises();
@@ -152,7 +152,7 @@ describe("TraceAnnotationsPanel", () => {
 
   it("lets a member retract only their own label", async () => {
     const { wrapper, trace } = await mountPanel([config()], [annotation(), annotation({ annotator: { id: "u2", name: "Luis" } })]);
-    const buttons = wrapper.findAll('[data-testid="annotation-row"] .small-btn');
+    const buttons = wrapper.findAll('[data-testid="annotation-row"] .mt-btn.s-sm');
     expect(buttons).toHaveLength(1);
     await buttons[0]!.trigger("click");
     await flushPromises();

@@ -8,6 +8,8 @@ import { canManageOrg, initials, notifyErrorWith, useAdminDirectory } from "../.
 import PageHeader from "../../components/PageHeader.vue";
 import EmptyState from "../../components/EmptyState.vue";
 import Modal from "../../components/Modal.vue";
+import Button from "../../components/Button.vue";
+import Pill from "../../components/Pill.vue";
 
 /** Nivel 1 del área de admin: las organizaciones. Cada tarjeta lleva a su organización (nivel 2). */
 const api = useIdentityApi();
@@ -58,8 +60,8 @@ async function createOrganization() {
           </p>
         </div>
         <div class="adm-form-row">
-          <router-link class="adm-btn ghost" :to="{ name: 'admin-members' }">All members</router-link>
-          <button class="adm-btn primary mt-new" type="button" @click="showCreate = true">+ New organization</button>
+          <Button :to="{ name: 'admin-members' }">All members</Button>
+          <Button variant="primary" @click="showCreate = true" class="mt-new">+ New organization</Button>
         </div>
       </div>
 
@@ -80,8 +82,8 @@ async function createOrganization() {
                 <template v-if="canManageOrg(o)"> · {{ memberCount(o.id) }} member(s)</template>
               </span>
             </div>
-            <span v-if="canManageOrg(o)" class="adm-pill org_admin">org_admin</span>
-            <span v-else class="adm-pill">via experiment</span>
+            <Pill tone="accent" v-if="canManageOrg(o)">org_admin</Pill>
+            <Pill v-else>via experiment</Pill>
             <span class="chevron" aria-hidden="true">›</span>
           </router-link>
         </li>
@@ -92,7 +94,7 @@ async function createOrganization() {
       <form class="adm-form" @submit.prevent="createOrganization">
         <p class="adm-hint">Creating it makes you its first org_admin, with access to all of its experiments.</p>
         <TextInput v-model="newName" placeholder="Organization name, e.g. Acme" autofocus />
-        <button type="submit" class="adm-btn primary" :disabled="creating || !newName.trim()">Create organization</button>
+        <Button variant="primary" type="submit" :disabled="creating || !newName.trim()">Create organization</Button>
       </form>
     </Modal>
   </q-page>

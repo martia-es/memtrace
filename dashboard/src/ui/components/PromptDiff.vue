@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { sideBySideDiff, type DiffCell } from "@/domain/text-diff";
+import Card from "./Card.vue";
 
 /** Diferencia de texto entre dos versiones de un prompt, en dos columnas con números de línea (rojo = quitado, verde = añadido). */
 const props = defineProps<{ oldText: string; newText: string; oldLabel: string; newLabel: string }>();
@@ -36,7 +37,7 @@ const mark = (kind: DiffCell["kind"]) => (kind === "add" ? "+" : kind === "del" 
 
 <template>
   <p v-if="identical" class="muted" data-testid="prompt-diff-empty">No differences between {{ oldLabel }} and {{ newLabel }}.</p>
-  <section v-else class="card" data-testid="prompt-diff-card">
+  <Card as="section" padding="none" v-else class="card" data-testid="prompt-diff-card">
     <header class="head"><strong>Prompt changes</strong><span class="summary">{{ summary }}</span></header>
     <div class="diff" data-testid="prompt-diff">
       <div class="side-title">{{ oldLabel }} · base</div>
@@ -46,7 +47,7 @@ const mark = (kind: DiffCell["kind"]) => (kind === "add" ? "+" : kind === "del" 
         <div class="cell" :class="row.right.kind"><span class="no">{{ row.rn }}</span><span class="mark">{{ mark(row.right.kind) }}</span><pre class="line">{{ row.right.text }}</pre></div>
       </template>
     </div>
-  </section>
+  </Card>
 </template>
 
 <style scoped>
@@ -54,12 +55,7 @@ const mark = (kind: DiffCell["kind"]) => (kind === "add" ? "+" : kind === "del" 
   color: var(--mt-muted);
   font-size: 13px;
 }
-.card {
-  border: 1px solid var(--mt-line);
-  border-radius: 10px;
-  background: var(--mt-card);
-  overflow: hidden;
-}
+.card { overflow: hidden; }
 .head {
   display: flex;
   align-items: baseline;

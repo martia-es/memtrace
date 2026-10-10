@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
 import { RANGE_PRESETS, type CustomRange, type RangeSelection } from "@/domain/time-range";
+import Menu from "./Menu.vue";
+import Button from "./Button.vue";
 
 const props = defineProps<{ range: RangeSelection; custom?: CustomRange }>();
 const emit = defineEmits<{ "update:range": [Exclude<RangeSelection, "custom">]; "update:custom": [CustomRange] }>();
@@ -9,6 +11,11 @@ const from = ref(props.custom?.from ?? "");
 const to = ref(props.custom?.to ?? "");
 watch(() => props.custom, (c) => ((from.value = c?.from ?? from.value), (to.value = c?.to ?? to.value)));
 const valid = () => Boolean(from.value) && Boolean(to.value) && from.value <= to.value;
+const menu = ref<{ hide: () => void } | null>(null);
+const apply = () => {
+  emit("update:custom", { from: from.value, to: to.value });
+  menu.value?.hide();
+};
 const fmt = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" });
 </script>
 
@@ -17,13 +24,13 @@ const fmt = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString(undefine
     <button v-for="p in RANGE_PRESETS" :key="p.key" type="button" :aria-pressed="p.key === range" @click="emit('update:range', p.key)">{{ p.label }}</button>
     <button type="button" class="custom" :aria-pressed="range === 'custom'" aria-haspopup="dialog" data-testid="custom-range">
       {{ range === "custom" && custom ? `${fmt(custom.from)} – ${fmt(custom.to)}` : "Custom" }}
-      <q-menu anchor="bottom right" self="top right" :offset="[0, 6]">
-        <form class="menu" @submit.prevent="valid() && emit('update:custom', { from, to })">
+      <Menu ref="menu" anchor="bottom right" self="top right" :offset="[0, 6]">
+        <form class="menu" @submit.prevent="valid() && apply()">
           <label>From <input v-model="from" type="date" :max="to || undefined" required /></label>
           <label>To <input v-model="to" type="date" :min="from || undefined" required /></label>
-          <button v-close-popup="valid()" type="submit" class="apply" :disabled="!valid()">Apply</button>
+          <Button variant="primary" size="sm" type="submit" class="apply" :disabled="!valid()">Apply</Button>
         </form>
-      </q-menu>
+      </Menu>
     </button>
   </div>
   <slot />
@@ -85,19 +92,6 @@ const fmt = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString(undefine
   font: inherit;
   font-weight: 500;
 }
-.apply {
-  height: 32px;
-  border: 0;
-  border-radius: var(--mt-radius-sm);
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 800;
-  cursor: pointer;
-}
-.apply:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+
+
 </style>

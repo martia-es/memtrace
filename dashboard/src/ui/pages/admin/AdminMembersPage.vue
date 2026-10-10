@@ -2,8 +2,9 @@
 import TextInput from "@/ui/components/TextInput.vue";
 import { computed, ref } from "vue";
 import "@/styles/admin.css";
-import { ROLE_LABEL, formatDate, initials, useAdminDirectory } from "../../composables/useAdminDirectory";
+import { ROLE_LABEL, formatDate, initials, useAdminDirectory, roleTone } from "../../composables/useAdminDirectory";
 import PageHeader from "../../components/PageHeader.vue";
+import Pill from "../../components/Pill.vue";
 
 /** Vista transversal: todas las personas con acceso y sus invitaciones pendientes, en un único listado. */
 const dir = useAdminDirectory();
@@ -66,9 +67,9 @@ const filtered = computed(() => {
               <span class="adm-item-title">{{ r.name }}</span>
               <span class="adm-item-meta">{{ r.email }}</span>
             </div>
-            <span class="adm-pill">{{ r.scopeType === "organization" ? "Organization" : "Experiment" }}: {{ r.scope }}</span>
-            <span class="adm-pill" :class="[r.role, { outline: r.pending }]">{{ ROLE_LABEL[r.role] }}</span>
-            <span class="adm-pill" :class="r.pending ? 'pending' : 'active'">{{ r.pending ? `pending · ${formatDate(r.date)}` : "active" }}</span>
+            <Pill>{{ r.scopeType === "organization" ? "Organization" : "Experiment" }}: {{ r.scope }}</Pill>
+            <Pill :tone="roleTone(r.role)" :outline="r.pending">{{ ROLE_LABEL[r.role] }}</Pill>
+            <Pill :tone="r.pending ? 'warn' : 'ok'">{{ r.pending ? `pending · ${formatDate(r.date)}` : "active" }}</Pill>
           </li>
         </ul>
       </div>

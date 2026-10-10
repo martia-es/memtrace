@@ -11,6 +11,10 @@ import EmptyState from "../EmptyState.vue";
 import ErrorBanner from "../ErrorBanner.vue";
 import StatusChip from "../StatusChip.vue";
 import DeclareConnectionModal from "./DeclareConnectionModal.vue";
+import Button from "../Button.vue";
+import DataTable from "../DataTable.vue";
+import LoadingState from "../LoadingState.vue";
+import Card from "../Card.vue";
 
 /** Pestaña «Connections»: servidores MCP, tools y agentes, declarados y observados (ADR-053). */
 const props = defineProps<{ card: AssistantCardDto; canManage: boolean; canGovern: boolean; nowMs: number }>();
@@ -67,22 +71,22 @@ const sync = () =>
     </section>
 
     <div v-if="canManage" class="toolbar">
-      <button type="button" class="ghost" :disabled="busy" @click="sync">Find tools in traces</button>
-      <button type="button" class="ghost" @click="declaring = true">Declare connection</button>
+      <Button :disabled="busy" @click="sync">Find tools in traces</Button>
+      <Button @click="declaring = true">Declare connection</Button>
     </div>
 
     <ErrorBanner v-if="connections.error.value" :error="connections.error.value" @retry="connections.run()" />
-    <div v-else-if="connections.loading.value && !connections.data.value" class="loading"><q-spinner size="28px" color="primary" /></div>
+    <LoadingState v-else-if="connections.loading.value && !connections.data.value" size="md" />
     <EmptyState v-else-if="(connections.data.value ?? []).length === 0" icon="hub" title="No connections yet">
       Declare what this assistant should use, or find the tools it already calls in its traces.
     </EmptyState>
 
     <template v-else>
-      <section v-for="g in groups" :key="g.kind" class="group mt-card" :data-testid="`group-${g.kind}`">
+      <Card as="section" padding="none" block v-for="g in groups" :key="g.kind" class="group" :data-testid="`group-${g.kind}`">
         <header><h2>{{ g.title }}</h2><span>{{ g.hint }}</span></header>
         <p v-if="g.items.length === 0" class="none">None yet.</p>
         <div v-else class="scroll">
-          <table class="grid">
+          <DataTable class="grid" bare>
             <thead>
               <tr>
                 <th>Name</th><th v-if="g.kind === 'tool'">Via</th><th>Source</th><th v-if="g.kind !== 'agent'" class="num">Calls</th><th v-if="g.kind !== 'agent'" class="num">Errors</th><th>Last seen</th><th>Status</th><th />
@@ -99,16 +103,16 @@ const sync = () =>
                 <td><StatusChip :tone="STATUS[c.status].tone" :label="STATUS[c.status].label" /></td>
                 <td class="actions">
                   <template v-if="canGovern">
-                    <button v-if="c.status !== 'approved'" type="button" class="link" :disabled="busy" @click="decide(c, 'approved')">Approve</button>
-                    <button v-if="c.status !== 'blocked'" type="button" class="link danger" :disabled="busy" @click="decide(c, 'blocked')">Block</button>
+                    <Button variant="link" v-if="c.status !== 'approved'" :disabled="busy" @click="decide(c, 'approved')">Approve</Button>
+                    <Button variant="link" v-if="c.status !== 'blocked'" :disabled="busy" @click="decide(c, 'blocked')" class="danger">Block</Button>
                   </template>
-                  <button v-if="canManage && c.declared" type="button" class="link muted" :disabled="busy" @click="undeclare(c)">Remove declaration</button>
+                  <Button variant="link" v-if="canManage && c.declared" :disabled="busy" @click="undeclare(c)" class="muted">Remove declaration</Button>
                 </td>
               </tr>
             </tbody>
-          </table>
+          </DataTable>
         </div>
-      </section>
+      </Card>
     </template>
     <DeclareConnectionModal v-if="declaring" :experiment-id="card.experimentId" @close="declaring = false" @saved="connections.run(); emit('changed')" />
   </div>
@@ -120,16 +124,13 @@ const sync = () =>
 .toolbar { display: flex; gap: 8px; }
 .ghost { height: 30px; padding: 0 12px; font: inherit; font-size: 13px; font-weight: 700; color: var(--mt-accent-text); background: transparent; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-sm); cursor: pointer; }
 .ghost:disabled { opacity: 0.5; }
-.loading { display: flex; justify-content: center; padding: 40px; }
 .group { padding: 0; overflow: hidden; }
 header { display: flex; align-items: baseline; gap: 10px; padding: 12px 16px; }
 h2 { margin: 0; font-size: 14px; font-weight: 800; }
 header span { font-size: 12px; color: var(--mt-muted); }
 .none { margin: 0; padding: 4px 16px 14px; font-size: 13px; color: var(--mt-faint); }
 .scroll { overflow-x: auto; }
-.grid { width: 100%; border-collapse: collapse; font-size: 13px; }
-th { height: 30px; padding: 0 10px; text-align: left; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--mt-muted); background: var(--mt-soft); white-space: nowrap; }
-td { height: 40px; padding: 0 10px; border-top: 1px solid var(--mt-line-2); white-space: nowrap; }
+
 th:first-child, td:first-child { padding-left: 16px; }
 .num { text-align: right; }
 .mono { font-family: var(--mt-mono); font-size: 12px; }

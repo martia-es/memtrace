@@ -6,6 +6,7 @@ import { createMemoryHistory, createRouter } from "vue-router";
 import { CURRENT_EXPERIMENT, IDENTITY_API, TRACE_API } from "@/dependency-container";
 import { EMPTY_THEME, type ExperimentDto } from "@/application/identity-api";
 import CustomChartsPanel from "@/ui/components/CustomChartsPanel.vue";
+import ChartCatalogTable from "@/ui/components/ChartCatalogTable.vue";
 import ChartCatalogPage from "@/ui/pages/ChartCatalogPage.vue";
 import { permissionsOf } from "../permissions";
 import { FakeIdentityApi, FakeTraceApi } from "../fakes";
@@ -48,7 +49,7 @@ async function openPage(identity: FakeIdentityApi, role = "technical") {
 }
 
 const entry = (key: string, displayName: string) => ({ kind: "step" as const, key, displayName, visibility: "auto" as const, updatedAt: "2026-10-09T10:00:00.000Z" });
-const chips = (w: VueWrapper) => w.findAll("button.chip").map((c) => c.text().replace(/\d+$/, "").trim());
+const chips = (w: VueWrapper) => w.findAll("button.mt-chip").map((c) => c.text().replace(/\d+$/, "").trim());
 
 describe("rename right where the step is picked (ADR-079)", () => {
   it("shows a clearly labelled button and a pencil per step only to people who can manage the catalog", async () => {
@@ -94,16 +95,39 @@ describe("rename right where the step is picked (ADR-079)", () => {
 });
 
 describe("Data catalog page (ADR-079)", () => {
-  it("lists steps and attributes and edits them like the builder does", async () => {
+  it("lists steps and attributes, keeps edits pending and saves them all with the Save changes button", async () => {
     const identity = new FakeIdentityApi();
     const w = await openPage(identity);
     expect(w.find("[data-testid='catalog-row-step-chain']").exists()).toBe(true);
     expect(w.find("[data-testid='catalog-row-attribute-city']").exists()).toBe(true);
+    expect(w.find("[data-testid='catalog-savebar']").exists()).toBe(false);
+
     const input = w.find<HTMLInputElement>("[data-testid='catalog-input-step-chain']");
     await input.setValue("Personal data filter");
     await input.trigger("change");
+    await w.find<HTMLSelectElement>("[data-testid='catalog-visibility-attribute-city']").setValue("hidden");
     await flushPromises();
-    expect(identity.catalogCalls.at(-1)).toEqual({ method: "save", args: ["e1", { kind: "step", key: "chain", displayName: "Personal data filter", visibility: undefined }] });
+    expect(identity.catalogCalls).toEqual([]);
+    expect(w.find("[data-testid='catalog-savebar']").text()).toContain("2 unsaved changes");
+
+    await w.find("[data-testid='catalog-save']").trigger("click");
+    await flushPromises();
+    expect(identity.catalogCalls).toEqual([
+      { method: "save", args: ["e1", { kind: "step", key: "chain", displayName: "Personal data filter", visibility: "auto" }] },
+      { method: "save", args: ["e1", { kind: "attribute", key: "city", displayName: null, visibility: "hidden" }] },
+    ]);
+    expect(w.find("[data-testid='catalog-savebar']").exists()).toBe(false);
+  });
+
+  it("discards pending edits without saving", async () => {
+    const identity = new FakeIdentityApi();
+    const w = await openPage(identity);
+    await w.find("[data-testid='catalog-input-step-chain']").setValue("Something");
+    expect(w.find("[data-testid='catalog-savebar']").exists()).toBe(true);
+    await w.find("[data-testid='catalog-discard']").trigger("click");
+    expect(w.find("[data-testid='catalog-savebar']").exists()).toBe(false);
+    expect(w.find<HTMLInputElement>("[data-testid='catalog-input-step-chain']").element.value).toBe("");
+    expect(identity.catalogCalls).toEqual([]);
   });
 
   it("filters by technical key or by the visible name", async () => {
@@ -115,6 +139,29 @@ describe("Data catalog page (ADR-079)", () => {
     expect(w.find("[data-testid='catalog-row-step-tool']").exists()).toBe(false);
     await w.find("[data-testid='catalog-search']").setValue("zzz");
     expect(w.find("[data-testid='catalog-empty-step']").text()).toContain("Nothing matches");
+  });
+
+  it("looks at what the agent reports again when the period changes, keeping pending edits", async () => {
+    const calls: unknown[] = [];
+    class Counting extends Api {
+      async getStepKinds(...args: unknown[]) {
+        calls.push(args[0]);
+        return super.getStepKinds();
+      }
+    }
+    const identity = new FakeIdentityApi();
+    const table = mount(ChartCatalogTable, {
+      props: { experimentId: "e1", range: RANGE, entries: [], manual: true },
+      global: { plugins: [quasar], provide: { ...provide(identity, "technical"), [TRACE_API as symbol]: new Counting() } },
+      attachTo: document.body,
+    });
+    mounted = table;
+    await flushPromises();
+    await table.find("[data-testid='catalog-input-step-chain']").setValue("Mine");
+    await table.setProps({ range: { from: "2026-09-10T00:00:00.000Z", to: "2026-10-10T00:00:00.000Z" } });
+    await flushPromises();
+    expect(calls).toHaveLength(2);
+    expect(table.find<HTMLInputElement>("[data-testid='catalog-input-step-chain']").element.value).toBe("Mine");
   });
 
   it("is read-only for people without the catalog permission", async () => {

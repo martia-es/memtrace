@@ -7,6 +7,11 @@ export const DEFAULT_TARGET_PASS_RATE = 0.8;
 /** Umbral compartido por las tarjetas KPI y las pills: ≥objetivo ok, <50% (o el objetivo, si es menor) mal, si no aviso. */
 export type AggregateTone = "positive" | "warning" | "negative" | "default";
 
+/** Tono de `Pill` para un agregado (la UI no conoce las claves del dominio). */
+export function aggregatePillTone(t: AggregateTone): "ok" | "warn" | "error" | "neutral" {
+  return t === "positive" ? "ok" : t === "warning" ? "warn" : t === "negative" ? "error" : "neutral";
+}
+
 export function aggregateTone(a: ScoreAggregateDto, target: number = DEFAULT_TARGET_PASS_RATE): AggregateTone {
   if (a.passRate === null) return "default";
   if (a.passRate >= target) return "positive";

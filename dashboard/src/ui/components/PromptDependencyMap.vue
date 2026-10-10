@@ -7,6 +7,7 @@ import { useAsync } from "../composables/useAsync";
 import { usePromptApi } from "../composables/usePromptApi";
 import EmptyState from "./EmptyState.vue";
 import EnvFlag from "./EnvFlag.vue";
+import Pill from "./Pill.vue";
 
 /**
  * Mapa de dependencias de un prompt (ADR-074): los agentes que lo leen y qué sirve cada uno por entorno, el dataset con el que
@@ -39,8 +40,8 @@ const wires = (n: number): number[] => Array.from({ length: n }, (_, i) => ((i +
               <b class="mono">{{ i.name }}@{{ i.ref }}</b>
               <span class="line">
                 <span>pinned to <b class="mono">v{{ i.pinned }}</b></span>
-                <span v-if="i.outdated" class="pill out">now v{{ i.current }}</span>
-                <span v-else class="pill ok">current</span>
+                <Pill v-if="i.outdated" tone="highlight">now v{{ i.current }}</Pill>
+                <Pill v-else tone="ok">current</Pill>
               </span>
             </article>
           </section>
@@ -85,7 +86,7 @@ const wires = (n: number): number[] => Array.from({ length: n }, (_, i) => ((i +
             <section class="stack" data-testid="map-used-by">
               <p v-if="data.usedBy.length === 0" class="soft">None yet.</p>
               <article v-for="u in data.usedBy" :key="u.promptId" class="item">
-                <span class="line"><b>{{ u.name }}</b> <span class="soft">v{{ u.version }}</span><span v-if="u.outdated" class="pill out">behind</span></span>
+                <span class="line"><b>{{ u.name }}</b> <span class="soft">v{{ u.version }}</span><Pill v-if="u.outdated" tone="highlight">behind</Pill></span>
               </article>
             </section>
           </template>
@@ -123,9 +124,6 @@ const wires = (n: number): number[] => Array.from({ length: n }, (_, i) => ((i +
 .line { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--mt-muted); }
 .agent-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .serving { display: flex; align-items: center; gap: 10px; font-size: 12.5px; }
-.pill { padding: 2px 8px; border-radius: var(--mt-radius-xs); font-size: 11.5px; font-weight: 700; }
-.pill.ok { background: var(--mt-ok-bg); color: var(--mt-ok-ink); }
-.pill.out, .pill.behind, .pill.catching-up { background: var(--mt-highlight-soft); color: var(--mt-highlight-ink); }
 .wires { width: 100%; height: 100%; min-height: 40px; align-self: stretch; overflow: visible; }
 .wires path { fill: none; stroke: var(--mt-accent-soft); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 .node { align-self: center; min-height: 140px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 12px; text-align: center; border: 1.5px solid var(--mt-brand); border-radius: 12px; background: var(--mt-accent-tint); }

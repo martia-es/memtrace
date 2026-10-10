@@ -5,6 +5,7 @@ import { alignmentLabel, feedbackTone } from "@/domain/feedback";
 import { formatDateTime } from "@/domain/format";
 import ThumbIcon from "./ThumbIcon.vue";
 import { useTraceApi } from "../composables/useTraceApi";
+import Card from "./Card.vue";
 
 /**
  * Lo que el usuario final dijo de esta respuesta (👍/👎, ADR-062), con una franja de color y si coincide con la
@@ -29,7 +30,7 @@ const comments = computed(() => votes.value.filter((v) => v.comment));
 </script>
 
 <template>
-  <section v-if="votes.length" class="strip mt-card" :class="tone" aria-label="User feedback" data-testid="trace-feedback">
+  <Card as="section" padding="none" block v-if="votes.length" class="strip" :class="tone" aria-label="User feedback" data-testid="trace-feedback">
     <div class="line">
       <span class="verdict" aria-hidden="true"><ThumbIcon :direction="tone === 'error' ? 'down' : 'up'" :size="18" filled /></span>
       <b>User feedback</b>
@@ -42,7 +43,7 @@ const comments = computed(() => votes.value.filter((v) => v.comment));
     <ul v-if="comments.length" class="comments">
       <li v-for="(v, i) in comments" :key="i">“{{ v.comment }}” <span class="when mono">{{ formatDateTime(v.createdAt) }}</span></li>
     </ul>
-  </section>
+  </Card>
 </template>
 
 <style scoped>

@@ -61,7 +61,7 @@ async function open(identity: FakeIdentityApi, role = "technical") {
   await flushPromises();
   return mounted;
 }
-const chips = (w: VueWrapper) => w.findAll("button.chip").map((c) => c.text().replace(/\d+$/, "").trim());
+const chips = (w: VueWrapper) => w.findAll("button.mt-chip").map((c) => c.text().replace(/\d+$/, "").trim());
 const byId = <T extends HTMLElement = HTMLElement>(id: string) => document.body.querySelector<T>(`[data-testid='${id}']`);
 async function typeName(id: string, value: string) {
   const input = byId<HTMLInputElement>(id)!;
@@ -172,10 +172,10 @@ describe("attribute classification in the builder and the catalog (ADR-078, phas
     return optionLabels(field.element, ".select-trigger");
   };
   const pickTool = async (w: VueWrapper) => {
-    await w.findAll("button.chip").find((c) => c.text().startsWith("Tool calls"))!.trigger("click");
+    await w.findAll("button.mt-chip").find((c) => c.text().startsWith("Tool calls"))!.trigger("click");
     await flushPromises();
   };
-  const moreDetails = (w: VueWrapper) => w.findAll("button.link-btn").find((b) => /more detail|fewer details/.test(b.text()));
+  const moreDetails = (w: VueWrapper) => w.findAll("button.mt-btn.v-link").find((b) => /more detail|fewer details/.test(b.text()));
 
   it("offers categories and measures to split by, and hides ids, free texts and instrumentation detail", async () => {
     const w = await open(new FakeIdentityApi());

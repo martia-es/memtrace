@@ -5,6 +5,8 @@ import { formatCostUsd, formatCount, formatDateTime, formatDuration } from "@/do
 import { kindMeta } from "@/domain/meta";
 import { genAiRows, spanIo, type IoBlock } from "@/domain/span-io";
 import IoPanel from "./IoPanel.vue";
+import Card from "./Card.vue";
+import SegmentedControl from "./SegmentedControl.vue";
 
 const props = defineProps<{ node: SpanNodeDto; emptyHint: string }>();
 
@@ -84,7 +86,7 @@ const tabs = computed(() => [
 </script>
 
 <template>
-  <section class="inspector mt-card" aria-label="Selected span details">
+  <Card as="section" padding="none" block class="inspector" aria-label="Selected span details">
     <div class="head">
       <span class="kind-box" :style="{ background: cur.kind.bg }"><q-icon :name="cur.kind.icon" :style="{ color: cur.kind.color }" size="16px" /></span>
       <div class="title">
@@ -108,11 +110,7 @@ const tabs = computed(() => [
       <div class="slot"><IoPanel title="Output" :badge="cur.outBadge" :badge-tone="node.status.code === 'error' ? 'error' : 'neutral'" :blocks="cur.output" :json="cur.io.outputJson" :empty-hint="emptyHint" /></div>
 
       <section class="tabs" aria-label="Span metadata">
-        <div class="mt-segmented" role="tablist">
-          <button v-for="t in tabs" :key="t.key" type="button" role="tab" :aria-pressed="tab === t.key" :aria-selected="tab === t.key" @click="tab = t.key">
-            {{ t.label }}<span class="mono count">{{ t.count }}</span>
-          </button>
-        </div>
+        <SegmentedControl tabs :options="tabs.map((t) => ({ value: t.key, label: t.label, count: t.count }))" :model-value="tab" @update:model-value="tab = $event as Tab" />
         <div v-if="tab === 'attrs'" class="kv">
           <div v-for="[k, v] in cur.attrs" :key="k" class="kv-row"><span class="k" :title="k">{{ k }}</span><span class="val" :title="v">{{ v }}</span></div>
           <p v-if="cur.attrs.length === 0" class="muted empty">No additional attributes.</p>
@@ -130,7 +128,7 @@ const tabs = computed(() => [
         </div>
       </section>
     </div>
-  </section>
+  </Card>
 </template>
 
 <style scoped>

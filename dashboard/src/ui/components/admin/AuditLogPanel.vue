@@ -5,6 +5,9 @@ import type { AuditEntryDto } from "@contract";
 import type { ExperimentDto, OrganizationDto } from "@/application/identity-api";
 import { useIdentityApi } from "../../composables/useIdentityApi";
 import { formatDate, notifyErrorWith } from "../../composables/useAdminDirectory";
+import Button from "../Button.vue";
+import DataTable from "../DataTable.vue";
+import FormField from "../FormField.vue";
 
 /**
  * Registro de auditoría de la organización (ADR-084): quién abrió el contenido de una traza o conversación, quién exportó datos y
@@ -87,23 +90,21 @@ function detail(e: AuditEntryDto): string {
     </p>
 
     <div class="filters">
-      <label>
-        <span class="lbl">What</span>
+      <FormField label="What">
         <select v-model="action" aria-label="Filter by action">
           <option v-for="a in ACTIONS" :key="a.value" :value="a.value">{{ a.label }}</option>
         </select>
-      </label>
-      <label>
-        <span class="lbl">Experiment</span>
+      </FormField>
+      <FormField label="Experiment">
         <select v-model="experimentId" aria-label="Filter by experiment">
           <option value="">All</option>
           <option v-for="e in experiments" :key="e.id" :value="e.id">{{ e.name }}</option>
         </select>
-      </label>
+      </FormField>
     </div>
 
     <p v-if="loaded && !items.length" class="adm-empty">Nothing recorded for this filter yet.</p>
-    <table v-else-if="items.length" class="at">
+    <DataTable v-else-if="items.length">
       <thead>
         <tr>
           <th>When</th>
@@ -122,8 +123,8 @@ function detail(e: AuditEntryDto): string {
           <td class="detail">{{ detail(e) }}</td>
         </tr>
       </tbody>
-    </table>
-    <button v-if="nextCursor" class="adm-btn" type="button" :disabled="loading" @click="load(true)">Show older entries</button>
+    </DataTable>
+    <Button v-if="nextCursor" :disabled="loading" @click="load(true)">Show older entries</Button>
   </div>
 </template>
 
@@ -138,16 +139,6 @@ function detail(e: AuditEntryDto): string {
   gap: 14px;
   flex-wrap: wrap;
 }
-.filters label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.lbl {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--mt-muted);
-}
 select {
   padding: 7px 9px;
   border: 1px solid var(--mt-border);
@@ -155,23 +146,6 @@ select {
   background: var(--mt-card);
   color: var(--mt-ink);
   font: inherit;
-}
-.at {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-.at th {
-  text-align: left;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--mt-muted);
-  padding: 6px 8px;
-}
-.at td {
-  padding: 8px;
-  border-top: 1px solid var(--mt-border);
-  vertical-align: top;
 }
 .when {
   white-space: nowrap;
@@ -181,8 +155,5 @@ select {
   font-family: var(--mt-mono);
   font-size: 12px;
   color: var(--mt-muted);
-}
-.adm-btn {
-  align-self: flex-start;
 }
 </style>

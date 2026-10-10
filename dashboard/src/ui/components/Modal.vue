@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import Card from "./Card.vue";
+import Button from "./Button.vue";
 defineProps<{ title: string; medium?: boolean; wide?: boolean; full?: boolean }>();
 const emit = defineEmits<{ close: [] }>();
 </script>
@@ -6,17 +8,20 @@ const emit = defineEmits<{ close: [] }>();
 <template>
   <Teleport to="body">
     <div class="modal-backdrop" @click.self="emit('close')" @keydown.esc="emit('close')">
-      <div class="modal-card mt-card" :class="{ medium, wide, full }" role="dialog" aria-modal="true" :aria-label="title">
+      <Card padding="none" block class="modal-card" :class="{ medium, wide, full }" role="dialog" aria-modal="true" :aria-label="title">
         <div class="modal-header">
           <h2>{{ title }}</h2>
-          <button class="modal-close" type="button" aria-label="Close" @click="emit('close')">
+          <Button variant="icon" class="modal-close" aria-label="Close" @click="emit('close')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
-          </button>
+          </Button>
         </div>
         <div class="modal-body">
           <slot />
         </div>
-      </div>
+        <div v-if="$slots.footer" class="modal-footer">
+          <slot name="footer" />
+        </div>
+      </Card>
     </div>
   </Teleport>
 </template>
@@ -73,20 +78,12 @@ const emit = defineEmits<{ close: [] }>();
 }
 .modal-close {
   flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: none;
-  border-radius: var(--mt-radius-lg);
-  background: transparent;
-  color: var(--mt-muted);
-  cursor: pointer;
 }
-.modal-close:hover {
-  background: var(--mt-soft);
-  color: var(--mt-ink);
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--mt-line);
 }
 </style>

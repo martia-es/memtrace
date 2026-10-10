@@ -2,6 +2,9 @@
 import { computed, ref } from "vue";
 import type { IoBlock } from "@/domain/span-io";
 import MessageBlock from "./MessageBlock.vue";
+import SegmentedControl from "./SegmentedControl.vue";
+import Pill from "./Pill.vue";
+import Button from "./Button.vue";
 
 const props = defineProps<{
   title: string;
@@ -14,6 +17,7 @@ const props = defineProps<{
 }>();
 
 const mode = ref<"text" | "json">("text");
+const MODE_OPTIONS = [{ value: "text", label: "Text" }, { value: "json", label: "JSON" }];
 const collapsed = ref(false);
 const copied = ref(false);
 const copyText = computed(() => (mode.value === "json" ? props.json : props.blocks.map((b) => b.text).join("\n\n")));
@@ -32,19 +36,16 @@ async function copy() {
 <template>
   <section class="panel" :class="{ collapsed }" :aria-label="title">
     <div class="head">
-      <button type="button" class="collapse-btn" :aria-expanded="!collapsed" :aria-label="collapsed ? `Expand ${title.toLowerCase()}` : `Collapse ${title.toLowerCase()}`" @click="collapsed = !collapsed">
+      <Button variant="icon" size="sm" class="collapse-btn" :aria-expanded="!collapsed" :aria-label="collapsed ? `Expand ${title.toLowerCase()}` : `Collapse ${title.toLowerCase()}`" @click="collapsed = !collapsed">
         <q-icon name="chevron_right" size="16px" :class="{ open: !collapsed }" />
-      </button>
+      </Button>
       <h2>{{ title }}</h2>
-      <span class="badge" :class="{ error: badgeTone === 'error' }">{{ badge }}</span>
+      <Pill :tone="badgeTone === 'error' ? 'error' : 'neutral'">{{ badge }}</Pill>
       <template v-if="!collapsed">
-        <div class="mt-segmented small toggle" role="group" :aria-label="`${title} format`">
-          <button type="button" :aria-pressed="mode === 'text'" @click="mode = 'text'">Text</button>
-          <button type="button" :aria-pressed="mode === 'json'" @click="mode = 'json'">JSON</button>
-        </div>
-        <button type="button" class="mt-round-btn copy" :aria-label="`Copy ${title.toLowerCase()}`" :disabled="blocks.length === 0" @click="copy">
+        <SegmentedControl class="toggle" size="sm" :aria-label="`${title} format`" :options="MODE_OPTIONS" :model-value="mode" @update:model-value="mode = $event as 'text' | 'json'" />
+        <Button variant="icon" size="sm" class="mt-round-btn copy" :aria-label="`Copy ${title.toLowerCase()}`" :disabled="blocks.length === 0" @click="copy">
           <q-icon :name="copied ? 'check' : 'content_copy'" size="14px" />
-        </button>
+        </Button>
       </template>
     </div>
     <div v-if="!collapsed" class="body">
@@ -79,22 +80,8 @@ async function copy() {
   gap: 8px;
   padding-right: 6px;
 }
-.collapse-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  flex-shrink: 0;
-  border: 0;
-  border-radius: var(--mt-radius-sm);
-  background: transparent;
-  color: var(--mt-muted);
-  cursor: pointer;
-}
-.collapse-btn:hover {
-  background: var(--mt-soft-2);
-}
+.collapse-btn { flex-shrink: 0; }
+
 .collapse-btn .q-icon {
   transition: transform 0.12s ease;
 }
@@ -107,25 +94,10 @@ h2 {
   font-weight: 600;
   letter-spacing: -0.02em;
 }
-.badge {
-  padding: 2px 10px;
-  border-radius: var(--mt-radius-sm);
-  background: var(--mt-soft);
-  color: var(--mt-muted);
-  font-size: 12px;
-  white-space: nowrap;
-}
-.badge.error {
-  background: var(--mt-err-bg);
-  color: var(--mt-err-ink);
-}
 .toggle {
   margin-left: auto;
 }
-.copy {
-  width: 28px;
-  height: 28px;
-}
+
 /* Sin scroll propio: el lateral entero (SpanInspector .body) es el único contenedor con scroll,
    así ver el input completo no depende de encontrar la caja correcta bajo el ratón. */
 .body {

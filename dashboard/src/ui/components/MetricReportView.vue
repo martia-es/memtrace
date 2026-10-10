@@ -13,6 +13,10 @@ import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import type { MetricReportDto, SavedCustomMetricDto } from "@/application/identity-api";
 import type { RangeParams } from "@/application/trace-api";
+import Button from "./Button.vue";
+import LoadingState from "./LoadingState.vue";
+import Spinner from "./Spinner.vue";
+import Modal from "./Modal.vue";
 
 const props = defineProps<{ experimentId: string; reportId: string; range: RangeParams }>();
 const emit = defineEmits<{ renamed: [name: string]; deleted: [] }>();
@@ -191,24 +195,24 @@ async function sendEmail() {
       <div class="report-title">
         <template v-if="renaming">
           <TextInput class="rename-input" v-model="renameValue" @keyup.enter="saveRename" @keyup.escape="renaming = false" />
-          <q-btn unelevated no-caps dense size="sm" color="primary" label="Save" :disable="!renameValue.trim()" @click="saveRename" />
-          <q-btn flat no-caps dense size="sm" label="Cancel" @click="renaming = false" />
+          <Button variant="primary" size="sm" :disabled="!renameValue.trim()" @click="saveRename">Save</Button>
+          <Button size="sm" @click="renaming = false">Cancel</Button>
         </template>
         <template v-else>
           <h3>{{ report?.name }}</h3>
-          <button v-if="!editMode" type="button" class="icon-link" title="Rename" @click="renameValue = report?.name ?? ''; renaming = true">Rename</button>
+          <Button variant="link" v-if="!editMode" class="icon-link" title="Rename" @click="renameValue = report?.name ?? ''; renaming = true">Rename</Button>
         </template>
       </div>
 
       <div class="report-actions">
         <template v-if="editMode">
-          <button type="button" class="small-btn" @click="cancelEdit">Cancel</button>
-          <button type="button" class="small-btn primary" :disabled="savingLayout" @click="saveLayout">Save layout</button>
+          <Button size="sm" @click="cancelEdit">Cancel</Button>
+          <Button variant="primary" size="sm" :disabled="savingLayout" @click="saveLayout">Save layout</Button>
         </template>
         <template v-else>
-          <button type="button" class="small-btn" @click="openSendDialog">Send by email</button>
-          <button type="button" class="small-btn" @click="enterEdit">Edit layout</button>
-          <button type="button" class="small-btn danger" @click="confirmingDelete = true">Delete</button>
+          <Button size="sm" @click="openSendDialog">Send by email</Button>
+          <Button size="sm" @click="enterEdit">Edit layout</Button>
+          <Button variant="danger" size="sm" @click="confirmingDelete = true">Delete</Button>
         </template>
       </div>
     </div>
@@ -218,17 +222,17 @@ async function sendEmail() {
       <div v-if="!availableCharts.length" class="hint">You don't have any saved charts yet — save one from the "Custom charts" tab first.</div>
       <div v-else-if="!chartsNotInLayout.length" class="hint">All your saved charts are already in this report.</div>
       <div v-else class="add-chart-chips">
-        <button v-for="m in chartsNotInLayout" :key="m.id" type="button" class="chip" @click="addChart(m)">+ {{ m.name }}</button>
+        <Button v-for="m in chartsNotInLayout" :key="m.id" size="sm" @click="addChart(m)">+ {{ m.name }}</Button>
       </div>
     </div>
 
     <ErrorBanner v-if="loadError" :error="loadError" @retry="loadReport" />
-    <div v-else-if="loading && !report" class="loading-box"><q-spinner size="32px" color="primary" /></div>
+    <LoadingState v-else-if="loading && !report" size="lg" />
     <EmptyState v-else-if="report && !layout.length" icon="dashboard" :title="editMode ? 'Add a chart to get started' : 'No charts in this report yet'">
       <template v-if="editMode">Use the chips above to add a chart you've already saved in Custom charts.</template>
       <template v-else>
         <p class="hint">Add charts you've already saved in Custom charts.</p>
-        <q-btn unelevated no-caps dense color="primary" label="Edit layout" @click="enterEdit" />
+        <Button variant="primary" size="sm" @click="enterEdit">Edit layout</Button>
       </template>
     </EmptyState>
 
@@ -237,7 +241,7 @@ async function sendEmail() {
         <div class="report-chart-card">
           <div class="report-chart-head">
             <span class="name">{{ chartById.get(item.i)?.name }}</span>
-            <q-btn v-if="editMode" flat dense no-caps size="sm" icon="close" @click="removeFromLayout(item.i)" />
+            <Button variant="icon" size="sm" v-if="editMode" @click="removeFromLayout(item.i)"><q-icon name="close" size="16px" /></Button>
           </div>
           <div class="report-chart-body">
             <template v-if="chartById.get(item.i)">
@@ -259,38 +263,31 @@ async function sendEmail() {
                 </tbody>
               </table>
               <EChart v-else-if="results[item.i]" :option="optionFor(results[item.i]!, chartById.get(item.i)!.definition.chartType, chartById.get(item.i)!.definition.metric)" height="100%" :label="chartById.get(item.i)!.name" />
-              <div v-else class="loading-box small"><q-spinner size="20px" color="primary" /></div>
+              <div v-else class="loading-box small"><Spinner size="sm" /></div>
             </template>
           </div>
         </div>
       </GridItem>
     </GridLayout>
 
-    <q-dialog v-model="confirmingDelete">
-      <q-card class="confirm-card">
-        <q-card-section>Delete report "{{ report?.name }}"? Its saved charts aren't affected.</q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat no-caps label="Cancel" @click="confirmingDelete = false" />
-          <q-btn unelevated no-caps color="negative" label="Delete" @click="confirmDelete" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+    <Modal v-if="confirmingDelete" title="Delete report" @close="confirmingDelete = false">
+      <p>Delete report "{{ report?.name }}"? Its saved charts aren't affected.</p>
+      <template #footer>
+        <Button @click="confirmingDelete = false">Cancel</Button>
+        <Button variant="danger" @click="confirmDelete">Delete</Button>
+      </template>
+    </Modal>
 
-    <q-dialog v-model="sendDialogOpen">
-      <q-card class="send-card">
-        <q-card-section>
-          <div class="send-title">Send "{{ report?.name }}" by email</div>
-          <p class="hint">Sends a text summary (one table per chart) over the current time range — no PDF attachment.</p>
-          <TextInput v-model="sendEmails" placeholder="emails separated by comma" />
-          <p v-if="sendError" class="error-text">{{ sendError }}</p>
-          <p v-if="sendSuccess" class="success-text">Sent.</p>
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat no-caps label="Close" @click="sendDialogOpen = false" />
-          <q-btn unelevated no-caps color="primary" label="Send" :loading="sending" :disable="!sendEmails.trim()" @click="sendEmail" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+    <Modal v-if="sendDialogOpen" :title="`Send &quot;${report?.name}&quot; by email`" @close="sendDialogOpen = false">
+      <p class="hint">Sends a text summary (one table per chart) over the current time range — no PDF attachment.</p>
+      <TextInput v-model="sendEmails" placeholder="emails separated by comma" aria-label="Emails" />
+      <p v-if="sendError" class="error-text">{{ sendError }}</p>
+      <p v-if="sendSuccess" class="success-text">Sent.</p>
+      <template #footer>
+        <Button @click="sendDialogOpen = false">Close</Button>
+        <Button variant="primary" :loading="sending" :disabled="!sendEmails.trim()" @click="sendEmail">Send</Button>
+      </template>
+    </Modal>
   </section>
 </template>
 
@@ -322,49 +319,9 @@ async function sendEmail() {
 .rename-input {
   width: 240px;
 }
-.icon-link {
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--mt-muted);
-  background: none;
-  border: none;
-  cursor: pointer;
-  text-decoration: underline;
-  padding: 0;
-}
-.icon-link:hover {
-  color: var(--mt-accent);
-}
-.small-btn {
-  height: 28px;
-  padding: 0 12px;
-  border-radius: var(--mt-radius-sm);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  color: var(--mt-ink);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.small-btn:hover:not(:disabled) {
-  border-color: var(--mt-accent);
-  color: var(--mt-accent);
-}
-.small-btn.primary {
-  border-color: var(--mt-accent);
-  color: var(--mt-accent);
-}
-.small-btn.danger {
-  border-color: transparent;
-  background: none;
-  color: var(--mt-danger, #c10015);
-}
-.small-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+
+
+
 .report-actions {
   display: flex;
   align-items: center;
@@ -372,37 +329,6 @@ async function sendEmail() {
   flex-wrap: wrap;
 }
 
-/* Reemplaza el look por defecto de Quasar (pill redondeada, sombra al foco) por el estilo plano del
-   resto del dashboard: borde fino, radio pequeño, sin sombra. */
-.report-actions :deep(.q-btn) {
-  box-shadow: none;
-  border-radius: var(--mt-radius-sm, 8px);
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: -0.005em;
-  min-height: 36px;
-  padding: 0 14px;
-}
-.report-actions :deep(.q-btn--outline) {
-  border: 1px solid var(--mt-line);
-  color: var(--mt-ink);
-}
-.report-actions :deep(.q-btn--outline:hover) {
-  border-color: var(--mt-accent);
-  color: var(--mt-accent);
-}
-.report-actions :deep(.q-btn--outline .q-focus-helper) {
-  display: none;
-}
-.report-actions :deep(.q-btn--unelevated) {
-  background: var(--mt-accent) !important;
-}
-.report-actions :deep(.q-btn--flat) {
-  padding: 0 10px;
-}
-.report-actions :deep(.q-btn--flat:hover) {
-  background: color-mix(in srgb, var(--mt-err-ink) 10%, transparent);
-}
 .add-chart-row {
   display: flex;
   align-items: center;
@@ -425,21 +351,7 @@ async function sendEmail() {
   flex-wrap: wrap;
   gap: 8px;
 }
-.chip {
-  font-family: inherit;
-  cursor: pointer;
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  color: var(--mt-ink);
-  border-radius: var(--mt-radius-sm, 8px);
-  font-size: 12.5px;
-  font-weight: 500;
-  padding: 6px 12px;
-}
-.chip:hover {
-  border-color: var(--mt-accent);
-  color: var(--mt-accent);
-}
+
 .hint {
   font-size: 11.5px;
   color: var(--mt-muted);
@@ -512,17 +424,7 @@ async function sendEmail() {
   text-transform: uppercase;
   letter-spacing: 0.02em;
 }
-.confirm-card,
-.send-card {
-  padding: 8px;
-  min-width: 360px;
-}
-.send-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--mt-ink);
-  margin-bottom: 8px;
-}
+
 .error-text {
   font-size: 12.5px;
   color: var(--mt-err-ink);

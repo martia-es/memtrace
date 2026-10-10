@@ -2,6 +2,7 @@
 import TextInput from "@/ui/components/TextInput.vue";
 import { ref } from "vue";
 import Select from "../Select.vue";
+import Button from "../Button.vue";
 
 /**
  * Invitación inline por email (sin modal): el texto de ayuda dice exactamente qué rol recibe la persona.
@@ -32,7 +33,7 @@ function submit() {
     <div class="adm-form-row">
       <TextInput v-model="email" type="email" placeholder="Email of the person to invite" aria-label="Email" />
       <Select v-if="roleOptions" v-model="role" :options="roleOptions" />
-      <button class="adm-btn primary" type="submit" :disabled="sending || !email.trim()">Send invitation</button>
+      <Button variant="primary" type="submit" :disabled="sending || !email.trim()">Send invitation</Button>
     </div>
   </form>
 </template>

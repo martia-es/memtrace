@@ -19,6 +19,11 @@ import { useApprovalInbox } from "../composables/useApprovalInbox";
 import { useAsync } from "../composables/useAsync";
 import { usePermissions } from "../composables/usePermissions";
 import { usePromptApi } from "../composables/usePromptApi";
+import Button from "../components/Button.vue";
+import Checkbox from "../components/Checkbox.vue";
+import Pill from "../components/Pill.vue";
+import LoadingState from "../components/LoadingState.vue";
+import ToggleChip from "../components/ToggleChip.vue";
 
 const api = usePromptApi();
 const route = useRoute();
@@ -141,14 +146,14 @@ async function create() {
     <PageHeader :crumbs="[{ label: 'Prompts' }, { label: 'Prompts' }]" icon="M4 6h16M4 12h16M4 18h10" title="Prompts">
       <div class="actions">
         <TextInput v-model="search" type="search" placeholder="Filter by name…" class="search" />
-        <button v-if="can('prompt:write')" type="button" class="primary-btn" data-testid="new-prompt" @click="openCreate('prompt')">+ New prompt</button>
+        <Button variant="primary" v-if="can('prompt:write')" data-testid="new-prompt" @click="openCreate('prompt')">+ New prompt</Button>
       </div>
     </PageHeader>
 
     <ApprovalInbox />
 
     <ErrorBanner v-if="prompts.error.value" :error="prompts.error.value" @retry="prompts.run()" />
-    <div v-else-if="prompts.loading.value && !prompts.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
+    <LoadingState v-else-if="prompts.loading.value && !prompts.data.value" size="lg" />
     <section v-else-if="(prompts.data.value?.length ?? 0) === 0" class="welcome" data-testid="empty-state">
       <div class="welcome-head">
         <h2>Version what your agent says</h2>
@@ -160,17 +165,17 @@ async function create() {
           <h3>New prompt</h3>
           <p>The text your agent runs with. Use <code>{{ sampleVariable }}</code> for the parts that change.</p>
           <pre class="sample">You are a weather assistant. Answer in {{ sampleVariable }}.</pre>
-          <button v-if="can('prompt:write')" type="button" class="primary-btn" data-testid="empty-new-prompt" @click="openCreate('prompt')">+ New prompt</button>
+          <Button variant="primary" v-if="can('prompt:write')" data-testid="empty-new-prompt" @click="openCreate('prompt')">+ New prompt</Button>
         </article>
         <article class="welcome-card">
           <span class="eyebrow">FRAGMENT</span>
           <h3>New fragment</h3>
           <p>Text shared by several prompts (tone, policies, format). Edit it once and the prompts that use it get a new draft.</p>
           <pre class="sample">In your prompt: {{ sampleInclude }}</pre>
-          <button v-if="can('prompt:write')" type="button" class="outline-btn" data-testid="empty-new-fragment" @click="openCreate('fragment')">+ New fragment</button>
+          <Button v-if="can('prompt:write')" data-testid="empty-new-fragment" @click="openCreate('fragment')">+ New fragment</Button>
         </article>
       </div>
-      <button v-if="!showArchived" type="button" class="link-btn" data-testid="show-archived-empty" @click="showArchived = true; prompts.run()">Show archived prompts</button>
+      <Button variant="link" v-if="!showArchived" data-testid="show-archived-empty" @click="showArchived = true; prompts.run()">Show archived prompts</Button>
     </section>
 
     <template v-else>
@@ -202,27 +207,12 @@ async function create() {
       </section>
 
       <div class="toolbar">
-        <button
-          v-for="chip in STATUS_CHIPS"
-          :key="chip.id"
-          type="button"
-          class="chip"
-          :class="{ active: status === chip.id }"
-          :data-testid="`status-${chip.id}`"
-          :aria-pressed="status === chip.id"
-          @click="status = chip.id"
-        >
-          {{ chip.label }} <b>{{ chip.count }}</b>
-        </button>
+        <ToggleChip v-for="chip in STATUS_CHIPS" :key="chip.id" :pressed="status === chip.id" :count="chip.count" :data-testid="`status-${chip.id}`" @click="status = chip.id">{{ chip.label }}</ToggleChip>
         <span class="grow" />
         <span class="legend"><i class="bar released" /> released</span>
         <span class="legend"><i class="bar ahead" /> ahead of PRO</span>
         <span class="toolbar-sep" aria-hidden="true" />
-        <label class="archived-switch" :class="{ on: showArchived }">
-          <input v-model="showArchived" type="checkbox" class="sr-only" data-testid="show-archived" @change="prompts.run()" />
-          <span class="switch" aria-hidden="true"><i /></span>
-          Show archived
-        </label>
+        <Checkbox variant="switch" class="archived-switch" v-model="showArchived" data-testid="show-archived" @change="prompts.run()">Show archived</Checkbox>
       </div>
 
       <EmptyState v-if="rows.length === 0" icon="search_off" title="No matches">Try a different search or filter.</EmptyState>
@@ -240,8 +230,8 @@ async function create() {
           <div class="who">
             <div class="who-name">
               <span class="name">{{ r.prompt.name }}</span>
-              <span v-if="r.prompt.archivedAt" class="mt-pill archived">archived</span>
-              <span v-if="awaitingMe.has(r.prompt.id)" class="mt-pill awaiting" :data-testid="`awaiting-${r.prompt.name}`">needs your approval</span>
+              <Pill v-if="r.prompt.archivedAt" class="archived">archived</Pill>
+              <Pill v-if="awaitingMe.has(r.prompt.id)" :data-testid="`awaiting-${r.prompt.name}`" class="awaiting">needs your approval</Pill>
             </div>
             <div v-if="r.prompt.description" class="desc">{{ r.prompt.description }}</div>
             <div class="who-foot">
@@ -252,7 +242,7 @@ async function create() {
 
           <div class="tags-col">
             <span class="latest mono">v{{ r.prompt.latestVersion }}</span>
-            <span v-for="[tag, version] in r.tags" :key="tag" class="mt-pill tag" :class="tag" :data-testid="`tag-${r.prompt.name}-${tag}`">{{ tag }} → v{{ version }}</span>
+            <Pill v-for="[tag, version] in r.tags" :key="tag" :class="tag" :data-testid="`tag-${r.prompt.name}-${tag}`" class="tag">{{ tag }} → v{{ version }}</Pill>
             <span v-if="r.tags.length === 0" class="soft">no tags</span>
           </div>
 
@@ -278,7 +268,7 @@ async function create() {
           <span class="eyebrow">FRAGMENTS · {{ fragments.length }}</span>
           <p class="soft small">Shared text that prompts include with <code>{{ sampleInclude }}</code>. Changing one proposes a new version of every prompt that uses it.</p>
         </div>
-        <button v-if="can('prompt:write')" type="button" class="outline-btn" data-testid="new-fragment" @click="openCreate('fragment')">+ New fragment</button>
+        <Button v-if="can('prompt:write')" data-testid="new-fragment" @click="openCreate('fragment')">+ New fragment</Button>
       </div>
       <p v-if="fragments.length === 0" class="soft small fragments-empty" data-testid="fragments-empty">No fragments yet.</p>
       <article
@@ -291,11 +281,11 @@ async function create() {
         @keydown.enter="open(f.id)"
       >
         <span class="name">{{ f.name }}</span>
-        <span v-if="f.archivedAt" class="mt-pill archived">archived</span>
+        <Pill v-if="f.archivedAt" class="archived">archived</Pill>
         <span v-if="f.description" class="soft frag-desc">{{ f.description }}</span>
         <span class="grow" />
         <span class="mono">v{{ f.latestVersion }}</span>
-        <span v-for="[tag, version] in sortEnvironments(Object.keys(f.tags)).map((t): [string, number] => [t, f.tags[t]!])" :key="tag" class="mt-pill tag" :class="tag">{{ tag }} → v{{ version }}</span>
+        <Pill v-for="[tag, version] in sortEnvironments(Object.keys(f.tags)).map((t): [string, number] => [t, f.tags[t]!])" :key="tag" :class="tag" class="tag">{{ tag }} → v{{ version }}</Pill>
       </article>
     </section>
 
@@ -332,8 +322,8 @@ async function create() {
         <div class="modal-foot">
           <span v-if="form.kind === 'fragment'" class="soft small">Creates v1, published. Nothing runs in an agent until a prompt includes it.</span>
           <span class="grow" />
-          <button type="button" class="ghost-btn" @click="showCreate = false">Cancel</button>
-          <button type="submit" class="primary-btn" :disabled="creating || !form.name.trim() || !form.content.trim()" data-testid="create-prompt">{{ form.kind === "fragment" ? "Create fragment" : "Create" }}</button>
+          <Button @click="showCreate = false">Cancel</Button>
+          <Button variant="primary" type="submit" :disabled="creating || !form.name.trim() || !form.content.trim()" data-testid="create-prompt">{{ form.kind === "fragment" ? "Create fragment" : "Create" }}</Button>
         </div>
       </form>
     </Modal>
@@ -410,22 +400,9 @@ code {
 .search {
   width: 240px;
 }
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 60px;
-}
 .soft {
   color: var(--mt-muted);
   font-size: 12px;
-}
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
 }
 .toolbar-sep {
   width: 1px;
@@ -445,33 +422,6 @@ code {
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
-}
-.archived-switch:focus-within {
-  outline: 2px solid var(--mt-accent);
-  outline-offset: 2px;
-}
-.switch {
-  position: relative;
-  width: 26px;
-  height: 14px;
-  border-radius: 7px;
-  background: var(--mt-line);
-}
-.switch i {
-  position: absolute;
-  left: 2px;
-  top: 2px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--mt-card);
-  transition: transform 0.15s ease;
-}
-.archived-switch.on .switch {
-  background: var(--mt-accent);
-}
-.archived-switch.on .switch i {
-  transform: translateX(12px);
 }
 
 /* ---- estado vacío ---- */
@@ -541,40 +491,6 @@ code {
   font-size: 11.5px;
   line-height: 1.55;
   white-space: pre-wrap;
-}
-.welcome-card .primary-btn,
-.welcome-card .outline-btn {
-  margin-top: 4px;
-  height: 36px;
-}
-.outline-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 32px;
-  padding: 0 14px;
-  border: 1px solid var(--mt-accent);
-  border-radius: 6px;
-  background: var(--mt-card);
-  color: var(--mt-accent-text);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.outline-btn:hover {
-  background: var(--mt-accent-tint);
-}
-.link-btn {
-  border: none;
-  background: none;
-  color: var(--mt-accent-text);
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 700;
-  cursor: pointer;
-  text-decoration: underline;
 }
 
 /* ---- tablero ---- */
@@ -712,31 +628,6 @@ code {
 }
 .grow {
   flex: 1;
-}
-.chip {
-  height: 28px;
-  padding: 0 12px;
-  border: 1px solid var(--mt-line);
-  border-radius: 14px;
-  background: var(--mt-card);
-  color: var(--mt-muted);
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.chip b {
-  margin-left: 6px;
-  color: var(--mt-ink);
-}
-.chip.active {
-  background: var(--mt-accent-tint);
-  border-color: var(--mt-accent-soft);
-  color: var(--mt-accent-text);
-  font-weight: 800;
-}
-.chip.active b {
-  color: var(--mt-accent-text);
 }
 .legend {
   display: inline-flex;
@@ -1036,36 +927,11 @@ code {
   align-items: center;
   gap: 10px;
 }
-.modal-foot .primary-btn {
-  height: 36px;
-}
+
 .field-error {
   margin: -6px 0 0;
   font-size: 12px;
   color: var(--mt-err-ink);
 }
-.primary-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 40px;
-  padding: 0 20px;
-  border-radius: var(--mt-radius-lg);
-  border: none;
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.15s ease;
-}
-.primary-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.primary-btn:not(:disabled):hover {
-  opacity: 0.9;
-}
+
 </style>

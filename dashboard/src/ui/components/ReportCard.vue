@@ -4,6 +4,8 @@ import { formatDateTime } from "@/domain/format";
 import type { ChartKind } from "@/domain/custom-chart-vocabulary";
 import type { MetricReportDto, MetricReportSummaryDto } from "@/application/identity-api";
 import { useIdentityApi } from "../composables/useIdentityApi";
+import Spinner from "./Spinner.vue";
+import Card from "./Card.vue";
 
 const props = defineProps<{ experimentId: string; report: MetricReportSummaryDto }>();
 
@@ -45,9 +47,9 @@ function kind(c: { definition: { chartType: ChartKind } }): ChartKind {
 </script>
 
 <template>
-  <router-link :to="{ name: 'overview-report', params: { experimentId, reportId: report.id } }" class="mt-card report-card" data-testid="report-link">
+  <Card as="router-link" padding="none" block :to="{ name: 'overview-report', params: { experimentId, reportId: report.id } }" class="report-card" data-testid="report-link">
     <div class="preview" :class="{ empty: !loading && !charts.length }">
-      <q-spinner v-if="loading" size="18px" color="grey-6" />
+      <Spinner v-if="loading" size="sm" />
       <span v-else-if="!charts.length" class="preview-empty">No charts yet</span>
       <div v-for="c in charts" v-else :key="c.customMetricId" class="mini" :style="boxStyle(c)">
         <div v-if="kind(c) === 'bar'" class="mini-bars">
@@ -69,7 +71,7 @@ function kind(c: { definition: { chartType: ChartKind } }): ChartKind {
         <span>Updated {{ formatDateTime(report.updatedAt) }}</span>
       </div>
     </div>
-  </router-link>
+  </Card>
 </template>
 
 <style scoped>

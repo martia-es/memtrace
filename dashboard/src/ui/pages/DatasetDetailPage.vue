@@ -5,7 +5,7 @@ import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useQuasar } from "quasar";
 import { formatDateTime } from "@/domain/format";
-import { aggregateTone, aggregateValueLabel } from "@/domain/evaluation";
+import { aggregateTone, aggregatePillTone, aggregateValueLabel } from "@/domain/evaluation";
 import DatasetVersionDiffModal from "../components/DatasetVersionDiffModal.vue";
 import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
@@ -13,6 +13,14 @@ import DatasetItemsEditor from "../components/DatasetItemsEditor.vue";
 import PageHeader from "../components/PageHeader.vue";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
+import Button from "../components/Button.vue";
+import Pill from "../components/Pill.vue";
+import Pagination from "../components/Pagination.vue";
+import DataTable from "../components/DataTable.vue";
+import LoadingState from "../components/LoadingState.vue";
+import Card from "../components/Card.vue";
+import TabBar from "../components/TabBar.vue";
+import TabPanel from "../components/TabPanel.vue";
 
 const PAGE_SIZE = 20;
 
@@ -30,6 +38,7 @@ function notifyError(action: string, error: unknown) {
   $q.notify({ message: `${action}: ${detail}`, color: "negative", timeout: 4000 });
 }
 
+const DETAIL_TABS = [{ id: "items", label: "Items" }, { id: "versions", label: "Versions" }, { id: "runs", label: "Runs" }];
 const activeTab = ref<"items" | "versions" | "runs">("items");
 
 // ---- versions (ADR-032): historial puramente informativo, nunca se crean a mano ----
@@ -89,28 +98,24 @@ function openRun(runId: string) {
 
     <ErrorBanner v-if="dataset.error.value" :error="dataset.error.value" @retry="dataset.run()" />
     <template v-else>
-      <q-tabs v-model="activeTab" class="tabs" active-color="primary" indicator-color="primary" align="left" no-caps dense>
-        <q-tab name="items" label="Items" />
-        <q-tab name="versions" label="Versions" />
-        <q-tab name="runs" label="Runs" />
-      </q-tabs>
+      <TabBar :tabs="DETAIL_TABS" :model-value="activeTab" @update:model-value="activeTab = $event as typeof activeTab" />
 
-      <q-tab-panels v-model="activeTab" keep-alive class="tab-panels">
+      <div class="tab-panels">
         <!-- Items -->
-        <q-tab-panel name="items" class="tab-panel">
+        <TabPanel :active="activeTab === 'items'" class="tab-panel">
           <p class="hint muted">Current version: v{{ latestVersion?.major ?? 1 }}.{{ latestVersion?.minor ?? 0 }} — edit directly in the table; when you press Publish, all your changes are saved as <b>a single version</b>.</p>
           <ErrorBanner v-if="items.error.value" :error="items.error.value" @retry="items.run()" />
-          <div v-else-if="items.loading.value && !items.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
+          <LoadingState v-else-if="items.loading.value && !items.data.value" size="lg" />
           <DatasetItemsEditor v-else :dataset-id="datasetId" :items="items.data.value?.items ?? []" :version="latestVersion" @published="afterItemMutation" />
-        </q-tab-panel>
+        </TabPanel>
 
         <!-- Versions: historial de solo lectura, generado automáticamente (ADR-032) -->
-        <q-tab-panel name="versions" class="tab-panel">
+        <TabPanel :active="activeTab === 'versions'" class="tab-panel">
           <p class="hint muted">Every time you publish changes in Items a version is created on its own — adding or removing items bumps the major, editing content only bumps the minor. Press ⓘ to see what changed and compare it with any earlier version.</p>
           <ErrorBanner v-if="versions.error.value" :error="versions.error.value" @retry="versions.run()" />
-          <div v-else-if="versions.loading.value && !versions.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
-          <div v-else class="mt-card table-card">
-            <table class="items">
+          <LoadingState v-else-if="versions.loading.value && !versions.data.value" size="lg" />
+          <Card padding="none" block v-else class="table-card">
+            <DataTable class="items" sticky nowrap>
               <thead>
                 <tr>
                   <th>Version</th>
@@ -138,14 +143,14 @@ function openRun(runId: string) {
                   <td class="muted">{{ v.createdByEmail }}</td>
                   <td class="muted mono">{{ formatDateTime(v.createdAt) }}</td>
                   <td class="info-cell">
-                    <button class="info-btn" type="button" :aria-label="`Details of v${v.major}.${v.minor}`" @click="inspectedVersion = v">
+                    <Button variant="icon" size="sm" class="info-btn" :aria-label="`Details of v${v.major}.${v.minor}`" @click="inspectedVersion = v">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
-                    </button>
+                    </Button>
                   </td>
                 </tr>
               </tbody>
-            </table>
-          </div>
+            </DataTable>
+          </Card>
           <DatasetVersionDiffModal
             v-if="inspectedVersion"
             :dataset-id="datasetId"
@@ -153,19 +158,19 @@ function openRun(runId: string) {
             :versions="versions.data.value?.items ?? []"
             @close="inspectedVersion = null"
           />
-        </q-tab-panel>
+        </TabPanel>
 
         <!-- Runs -->
-        <q-tab-panel name="runs" class="tab-panel">
+        <TabPanel :active="activeTab === 'runs'" class="tab-panel">
           <TextInput type="search" v-model="runSearch" placeholder="Filter by run name…" class="search" />
           <ErrorBanner v-if="runs.error.value" :error="runs.error.value" @retry="runs.run()" />
-          <div v-else-if="runs.loading.value && !runs.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
+          <LoadingState v-else-if="runs.loading.value && !runs.data.value" size="lg" />
           <EmptyState v-else-if="(runs.data.value?.items.length ?? 0) === 0" icon="playlist_add_check" title="No runs yet">
             Run <code>run_experiment(data="{{ datasetId }}", …)</code> from your script.
           </EmptyState>
           <EmptyState v-else-if="pagedRuns.length === 0" icon="search_off" title="No matches">Try a different search.</EmptyState>
-          <div v-else class="mt-card table-card">
-            <table class="items">
+          <Card padding="none" block v-else class="table-card">
+            <DataTable class="items" sticky nowrap>
               <thead>
                 <tr>
                   <th>Run</th>
@@ -178,29 +183,22 @@ function openRun(runId: string) {
               <tbody>
                 <tr v-for="r in pagedRuns" :key="r.id" class="run-row" tabindex="0" @click="openRun(r.id)" @keydown.enter="openRun(r.id)">
                   <td class="name">{{ r.name }}</td>
-                  <td class="num mono">v{{ r.versionMajor }}.{{ r.versionMinor }} <span v-if="r.status === 'running'" class="mt-pill warn" title="Still receiving results, or the process stopped before finishing">running</span></td>
+                  <td class="num mono">v{{ r.versionMajor }}.{{ r.versionMinor }} <Pill tone="warn" v-if="r.status === 'running'" title="Still receiving results, or the process stopped before finishing">running</Pill></td>
                   <td v-for="m in runMetricNames" :key="m" class="num">
-                    <span v-if="runMetricCell(r, m)" class="mt-pill" :class="{ ok: aggregateTone(runMetricCell(r, m)!) === 'positive', warn: aggregateTone(runMetricCell(r, m)!) === 'warning', error: aggregateTone(runMetricCell(r, m)!) === 'negative', unset: aggregateTone(runMetricCell(r, m)!) === 'default' }">
+                    <Pill v-if="runMetricCell(r, m)" :tone="aggregatePillTone(aggregateTone(runMetricCell(r, m)!))">
                       {{ aggregateValueLabel(runMetricCell(r, m)!) }}
-                    </span>
+                    </Pill>
                     <span v-else class="muted">–</span>
                   </td>
                   <td class="num mono">{{ r.itemCount }}</td>
                   <td class="muted mono">{{ formatDateTime(r.createdAt) }}</td>
                 </tr>
               </tbody>
-            </table>
-          </div>
-          <div v-if="pagedRuns.length > 0" class="pager">
-            <span class="muted">{{ filteredRuns.length }} run{{ filteredRuns.length === 1 ? "" : "s" }}</span>
-            <div class="pager-controls">
-              <button type="button" class="page-btn" :disabled="runPage <= 1" @click="runPage -= 1">Prev</button>
-              <span class="muted mono">Page {{ runPage }} / {{ runPageCount }}</span>
-              <button type="button" class="page-btn" :disabled="runPage >= runPageCount" @click="runPage += 1">Next</button>
-            </div>
-          </div>
-        </q-tab-panel>
-      </q-tab-panels>
+            </DataTable>
+          </Card>
+          <Pagination v-if="pagedRuns.length > 0" v-model:page="runPage" :page-count="runPageCount">{{ filteredRuns.length }} run{{ filteredRuns.length === 1 ? "" : "s" }}</Pagination>
+        </TabPanel>
+      </div>
     </template>
 
   </div>
@@ -218,11 +216,6 @@ function openRun(runId: string) {
 }
 .muted {
   color: var(--mt-muted);
-}
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 60px;
 }
 .tabs {
   flex-shrink: 0;
@@ -248,33 +241,7 @@ function openRun(runId: string) {
   overflow: auto;
   padding: 0;
 }
-.items {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  height: 34px;
-  padding: 0 14px;
-  background: var(--mt-soft);
-  border-bottom: 1px solid var(--mt-line);
-  color: var(--mt-muted);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-align: left;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-td {
-  height: 44px;
-  padding: 0 14px;
-  border-bottom: 1px solid var(--mt-line-2);
-  white-space: nowrap;
-}
+
 .cell {
   max-width: 360px;
   overflow: hidden;
@@ -315,72 +282,13 @@ td {
   width: 40px;
   text-align: right;
 }
-.info-btn {
-  display: inline-flex;
-  padding: 4px;
-  border: none;
-  background: transparent;
-  color: var(--mt-muted);
-  cursor: pointer;
-}
-.info-btn:hover {
-  color: var(--mt-ink);
-}
+
+
 .row-actions {
   display: flex;
   align-items: center;
   gap: 4px;
   white-space: nowrap;
-}
-.icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: none;
-  border-radius: var(--mt-radius-sm);
-  background: transparent;
-  color: var(--mt-muted);
-  cursor: pointer;
-}
-.icon-btn:hover {
-  background: var(--mt-soft);
-  color: var(--mt-ink);
-}
-.icon-btn.danger:hover {
-  color: var(--mt-error-ink, #c0392b);
-}
-.pager {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-shrink: 0;
-  font-size: 12.5px;
-}
-.pager-controls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.page-btn {
-  height: 30px;
-  padding: 0 12px;
-  border: 1px solid var(--mt-line);
-  border-radius: var(--mt-radius-sm);
-  background: var(--mt-card);
-  color: var(--mt-ink);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-.page-btn:hover:not(:disabled) {
-  background: var(--mt-soft);
-}
-.page-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 
 </style>

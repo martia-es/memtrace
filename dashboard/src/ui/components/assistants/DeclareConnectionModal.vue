@@ -7,6 +7,8 @@ import type { ConnectionKindDto } from "@contract";
 import { describeApiError } from "@/application/describe-api-error";
 import { useAssistantApi } from "../../composables/useAssistantApi";
 import Modal from "../Modal.vue";
+import Button from "../Button.vue";
+import FormField from "../FormField.vue";
 
 /** Declara una conexión que el asistente debe usar: servidor MCP, tool o agente (ADR-053). */
 const props = defineProps<{ experimentId: string }>();
@@ -40,14 +42,13 @@ const KIND_OPTIONS: { label: string; value: ConnectionKindDto }[] = [
 <template>
   <Modal title="Declare a connection" @close="emit('close')">
     <form class="modal-form" @submit.prevent="save">
-      <label class="field">
-        <span>Type</span>
+      <FormField label="Type">
         <Select v-model="form.kind" :options="KIND_OPTIONS" data-testid="connection-kind" />
-      </label>
-      <label class="field"><span>Name</span><TextInput v-model="form.name" placeholder="weather-mcp" autofocus /></label>
-      <label v-if="form.kind === 'tool'" class="field"><span>Exposed by MCP server (optional)</span><TextInput v-model="form.via" placeholder="weather-mcp" /></label>
+      </FormField>
+      <FormField label="Name"><TextInput v-model="form.name" placeholder="weather-mcp" autofocus /></FormField>
+      <FormField label="Exposed by MCP server (optional)" v-if="form.kind === 'tool'"><TextInput v-model="form.via" placeholder="weather-mcp" /></FormField>
       <p class="hint">Declared connections are approved by governance. Anything the assistant uses that is not declared shows up for review once it appears in traces.</p>
-      <div class="actions"><button type="submit" class="primary-btn" :disabled="saving || !canSave">Declare</button></div>
+      <div class="actions"><Button variant="primary" type="submit" :disabled="saving || !canSave">Declare</Button></div>
     </form>
   </Modal>
 </template>

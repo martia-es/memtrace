@@ -7,6 +7,7 @@ import { useAsync } from "../composables/useAsync";
 import { usePromptApi } from "../composables/usePromptApi";
 import PromptFragmentPicker from "./PromptFragmentPicker.vue";
 import TextInput from "./TextInput.vue";
+import SegmentedControl from "./SegmentedControl.vue";
 
 /**
  * Editor del texto de un prompt (ADR-073): a la izquierda el texto, con la vista «Code» (editable) o «Rendered» (markdown ya
@@ -22,6 +23,7 @@ const props = withDefaults(defineProps<{ modelValue: string; experimentId: strin
 });
 const emit = defineEmits<{ "update:modelValue": [value: string] }>();
 
+const VIEW_OPTIONS = [{ value: "code", label: "Code", testid: "editor-view-code" }, { value: "rendered", label: "Rendered", testid: "editor-view-rendered" }];
 const view = ref<"code" | "rendered">("code");
 const hint = computed(() => (view.value === "code" ? "Markdown. Use {{variable}} for the parts that change." : "How it reads, with each fragment included."));
 
@@ -109,10 +111,7 @@ async function insert(snippet: string) {
   <div class="prompt-editor" :class="{ 'with-panel': fragments }">
     <div class="main">
       <div class="bar">
-        <span class="view-toggle" role="group" aria-label="View">
-          <button type="button" :class="{ on: view === 'code' }" data-testid="editor-view-code" @click="view = 'code'">Code</button>
-          <button type="button" :class="{ on: view === 'rendered' }" data-testid="editor-view-rendered" @click="view = 'rendered'">Rendered</button>
-        </span>
+        <SegmentedControl size="sm" class="view-toggle" aria-label="View" :options="VIEW_OPTIONS" :model-value="view" @update:model-value="view = $event as typeof view" />
         <span class="soft">{{ hint }}</span>
       </div>
       <div v-show="view === 'code'" ref="box" @focusout="rememberCaret" @keyup="rememberCaret" @mouseup="rememberCaret">
@@ -160,28 +159,7 @@ async function insert(snippet: string) {
   color: var(--mt-muted);
   font-size: 12px;
 }
-.view-toggle {
-  display: inline-flex;
-  border: 1px solid var(--mt-line);
-  border-radius: 6px;
-  overflow: hidden;
-}
-.view-toggle button {
-  height: 28px;
-  padding: 0 12px;
-  border: none;
-  background: var(--mt-card);
-  color: var(--mt-muted);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.view-toggle button.on {
-  background: var(--mt-accent-tint);
-  color: var(--mt-accent-text);
-  font-weight: 800;
-}
+
 .rendered {
   min-height: 320px;
   padding: 14px 18px;

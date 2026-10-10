@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import type { IoBlock } from "@/domain/span-io";
+import Button from "./Button.vue";
 
 defineProps<{ block: IoBlock }>();
 
@@ -43,9 +44,9 @@ async function copyCall(i: number, name: string, args: Record<string, unknown>) 
       </span>
       <span class="role">{{ roleName(block.role) }}</span>
       <span v-if="block.label.toLowerCase() !== roleName(block.role).toLowerCase() && block.label !== block.role" class="tag mono">{{ block.label }}</span>
-      <button v-if="!block.hideText && block.text" type="button" class="copy-btn" aria-label="Copy" @click="copyText(block.text)">
+      <Button variant="icon" size="sm" v-if="!block.hideText && block.text" class="copy-btn" aria-label="Copy" @click="copyText(block.text)">
         <q-icon :name="copiedText ? 'check' : 'content_copy'" size="12px" />
-      </button>
+      </Button>
     </header>
 
     <div v-if="!block.hideText" class="body">
@@ -59,9 +60,9 @@ async function copyCall(i: number, name: string, args: Record<string, unknown>) 
         <q-icon name="bolt" size="13px" class="call-icon" />
         <span class="fn mono">{{ c.name }}</span>
         <span v-if="c.id" class="chip mono">{{ c.id }}</span>
-        <button type="button" class="copy-btn" aria-label="Copy call" @click="copyCall(i, c.name, c.args)">
+        <Button variant="icon" size="sm" class="copy-btn" aria-label="Copy call" @click="copyCall(i, c.name, c.args)">
           <q-icon :name="copiedCall === i ? 'check' : 'content_copy'" size="12px" />
-        </button>
+        </Button>
       </div>
       <dl v-if="Object.keys(c.args).length" class="args mono">
         <div v-for="(v, k) in c.args" :key="k" class="arg">
@@ -122,29 +123,12 @@ async function copyCall(i: number, name: string, args: Record<string, unknown>) 
   font-size: 11px;
   color: var(--mt-faint);
 }
-.copy-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  margin-left: auto;
-  border: 0;
-  border-radius: var(--mt-radius-sm);
-  background: transparent;
-  color: var(--mt-faint);
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.1s ease;
-}
+.copy-btn { margin-left: auto; }
 .msg:hover .copy-btn,
 .call:hover .copy-btn {
   opacity: 1;
 }
-.copy-btn:hover {
-  background: var(--mt-soft-2);
-  color: var(--mt-ink);
-}
+
 
 .body {
   padding-left: 28px;

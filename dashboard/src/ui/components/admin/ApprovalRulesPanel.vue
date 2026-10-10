@@ -7,6 +7,8 @@ import { describeApiError } from "@/application/describe-api-error";
 import { belowFloor, describeRule, profileLabel, ruleFor, stepLabel, steps } from "@/domain/approvals";
 import { usePromptApi } from "../../composables/usePromptApi";
 import ApprovalFlowChart, { type FlowStep } from "../ApprovalFlowChart.vue";
+import Button from "../Button.vue";
+import Checkbox from "../Checkbox.vue";
 
 /**
  * Reglas de aprobación de prompts (ADR-076), de la organización o de un experimento: por cada paso (publicar una versión y
@@ -151,9 +153,9 @@ async function remove(row: { action: "publish" | "promote"; stage: string }) {
 
       <ApprovalFlowChart :steps="flowSteps" :names="names" test-prefix="rule">
         <template #actions="{ step }">
-          <button class="adm-btn small" :class="isEditing(step) ? 'primary' : 'ghost'" type="button" :disabled="saving" data-testid="rule-edit" @click="edit(step)">
+          <Button size="sm" :class="isEditing(step) ? 'primary' : 'ghost'" :disabled="saving" data-testid="rule-edit" @click="edit(step)">
             {{ isEditing(step) ? "Editing…" : ruleFor(data.rules, step.action, step.stage) ? "Edit rule" : "Set up" }}
-          </button>
+          </Button>
         </template>
       </ApprovalFlowChart>
 
@@ -163,14 +165,14 @@ async function remove(row: { action: "publish" | "promote"; stage: string }) {
           <header>
             <span class="env">{{ editing.action === "publish" ? "PUBLISH" : editing.stage }}</span>
             <h4>Rule for {{ stepLabel(editing.action, editing.stage).toLowerCase() }}</h4>
-            <button v-if="ruleFor(data.rules, editing.action, editing.stage)" class="remove" type="button" :disabled="saving" data-testid="rule-remove" @click="remove(editing)">Remove rule</button>
+            <Button variant="danger" size="sm" v-if="ruleFor(data.rules, editing.action, editing.stage)" class="remove" :disabled="saving" data-testid="rule-remove" @click="remove(editing)">Remove rule</Button>
           </header>
           <div class="cols">
             <fieldset>
               <legend>Profiles</legend>
               <p v-if="editing.action === 'publish'" class="adm-hint">Publishing a version is a review of the text, so only technical profiles can approve it.</p>
               <label v-for="role in allowedRoles(editing.action)" :key="role" class="row" :class="{ on: (draft.mins[role] ?? 0) > 0 }">
-                <input type="checkbox" :checked="(draft.mins[role] ?? 0) > 0" :data-testid="`role-${role}`" @change="toggleRole(role, ($event.target as HTMLInputElement).checked)" />
+                <Checkbox :checked="(draft.mins[role] ?? 0) > 0" :data-testid="`role-${role}`" @change="toggleRole(role, ($event.target as HTMLInputElement).checked)" />
                 <span class="grow">{{ profileLabel(role) }}</span>
                 <input
                   type="number"
@@ -189,12 +191,9 @@ async function remove(row: { action: "publish" | "promote"; stage: string }) {
             <fieldset>
               <legend>People who must always approve <span>· optional</span></legend>
               <p v-if="data.options.candidates.length === 0" class="adm-hint">Nobody can approve yet: add members with a technical or business role to an experiment first.</p>
-              <label v-for="c in data.options.candidates" :key="c.userId" class="row" :class="{ on: draft.approvers.includes(c.userId) }">
-                <input type="checkbox" :checked="draft.approvers.includes(c.userId)" :data-testid="`approver-${c.userId}`" @change="toggleApprover(c.userId, ($event.target as HTMLInputElement).checked)" />
-                <span class="mark person">{{ initials(c.name?.trim() || c.email) }}</span>
+              <Checkbox v-for="c in data.options.candidates" :key="c.userId" class="row" :class="{ on: draft.approvers.includes(c.userId) }" :checked="draft.approvers.includes(c.userId)" :data-testid="`approver-${c.userId}`" @change="toggleApprover(c.userId, ($event.target as HTMLInputElement).checked)"> <span class="mark person">{{ initials(c.name?.trim() || c.email) }}</span>
                 <span class="grow">{{ c.name?.trim() || c.email }}</span>
-                <span class="adm-hint">{{ c.roles.map(profileLabel).join(", ") }}</span>
-              </label>
+                <span class="adm-hint">{{ c.roles.map(profileLabel).join(", ") }}</span></Checkbox>
             </fieldset>
             <div class="means">
               <span class="kicker">What this means</span>
@@ -202,8 +201,8 @@ async function remove(row: { action: "publish" | "promote"; stage: string }) {
               <p class="small">The person who asks never counts as an approver. A rejection closes the request. It expires after 7 days.</p>
               <p v-if="floorProblem" class="problem" role="alert" data-testid="rule-floor-problem">{{ floorProblem }}</p>
               <div class="actions">
-                <button class="adm-btn ghost small" type="button" @click="editing = null">Cancel</button>
-                <button class="adm-btn primary small" type="submit" :disabled="!canSave" data-testid="rule-save">{{ saving ? "Saving…" : "Save rule" }}</button>
+                <Button size="sm" @click="editing = null">Cancel</Button>
+                <Button variant="primary" size="sm" type="submit" :disabled="!canSave" data-testid="rule-save">{{ saving ? "Saving…" : "Save rule" }}</Button>
               </div>
             </div>
           </div>
@@ -227,7 +226,7 @@ async function remove(row: { action: "publish" | "promote"; stage: string }) {
 header { display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-bottom: 1px solid var(--mt-line); }
 header h4 { flex: 1; margin: 0; font-size: 15px; font-weight: 800; }
 .env { height: 22px; padding: 0 8px; display: inline-flex; align-items: center; border-radius: 4px; font: 800 11px/1 var(--mt-mono, monospace); background: var(--mt-accent, var(--mt-ink)); color: var(--mt-accent-ink, #fff); }
-.remove { border: none; background: none; padding: 0; font: inherit; font-weight: 700; color: var(--mt-err-ink); cursor: pointer; }
+
 .cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 @media (max-width: 900px) { .cols { grid-template-columns: minmax(0, 1fr); } }
 fieldset { border: none; margin: 0; padding: 16px 20px; display: flex; flex-direction: column; gap: 8px; border-right: 1px solid var(--mt-line); min-width: 0; }

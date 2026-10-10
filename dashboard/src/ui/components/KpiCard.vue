@@ -1,15 +1,16 @@
 <script setup lang="ts">
+import Card from "./Card.vue";
 defineProps<{ label: string; value: string; hint?: string; tone?: "default" | "positive" | "warning" | "negative" }>();
 </script>
 
 <template>
-  <q-card flat class="kpi mt-card">
-    <q-card-section class="kpi-body">
+  <Card as="div" padding="none" block class="kpi">
+    <div class="kpi-body">
       <div class="label">{{ label }}</div>
       <div class="value" :class="tone">{{ value }}</div>
       <div v-if="hint" class="hint">{{ hint }}</div>
-    </q-card-section>
-  </q-card>
+    </div>
+  </Card>
 </template>
 
 <style scoped>

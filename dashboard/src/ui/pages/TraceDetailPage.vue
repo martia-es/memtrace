@@ -27,6 +27,11 @@ import { useTraceApi } from "../composables/useTraceApi";
 import { useExperimentRepo } from "../composables/useExperimentRepo";
 import CommitLink from "../components/CommitLink.vue";
 import PromptChips from "../components/PromptChips.vue";
+import Button from "../components/Button.vue";
+import Pill from "../components/Pill.vue";
+import LoadingState from "../components/LoadingState.vue";
+import Card from "../components/Card.vue";
+import TabBar from "../components/TabBar.vue";
 
 const props = defineProps<{ traceId: string }>();
 const api = useTraceApi();
@@ -64,6 +69,10 @@ const select = (spanId: string) => void router.replace({ query: { ...route.query
 const { can } = usePermissions();
 const canTechnical = computed(() => can("trace:read_technical"));
 const tab = computed<"conversation" | "trace">(() => (!canTechnical.value || route.query.tab === "conversation" ? "conversation" : "trace"));
+const viewTabs = computed(() => [
+  { id: "conversation", label: "Conversation" },
+  ...(canTechnical.value ? [{ id: "trace", label: "Technical trace", count: formatCount(trace.data.value?.spanCount ?? 0) }] : []),
+]);
 const setTab = (value: "conversation" | "trace") => void router.replace({ query: { ...route.query, tab: value === "trace" ? undefined : value } });
 const turns = computed(() => conversationTurns(traceThread(roots.value)));
 
@@ -112,51 +121,51 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
   <div class="page">
     <TopbarSlot side="left">
       <nav class="crumbs" aria-label="Breadcrumbs">
-        <button type="button" class="crumb" @click="goList">← Conversations</button>
+        <Button variant="link" class="crumb" @click="goList">← Conversations</Button>
         <template v-if="conversationId">
           <span class="sep">/</span>
-          <button type="button" class="crumb mono" @click="goConversation">{{ conversationId }}</button>
+          <Button variant="link" class="crumb mono" @click="goConversation">{{ conversationId }}</Button>
         </template>
         <span class="sep">/</span>
         <span class="mono current">{{ shortId(traceId) }}</span>
       </nav>
     </TopbarSlot>
     <ErrorBanner v-if="trace.error.value" :error="trace.error.value" @retry="trace.run()" />
-    <div v-else-if="!trace.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
+    <LoadingState v-else-if="!trace.data.value" size="lg" />
 
     <template v-if="trace.data.value">
-      <header class="head mt-card">
+      <Card as="header" padding="none" block class="head">
         <div class="title-row">
           <h1 :title="rootName">{{ rootName }}</h1>
           <StatusBadge :status="trace.data.value.status" show-label />
-          <span v-if="trace.data.value.framework" class="mt-pill unset">{{ trace.data.value.framework }}</span>
+          <Pill v-if="trace.data.value.framework">{{ trace.data.value.framework }}</Pill>
           <PromptChips :prompts="promptsUsed" />
           <span class="commit" data-testid="trace-revision"><span class="commit-label">Commit</span><CommitLink :revision="trace.data.value.revision" :repo="repo" /></span>
           <div class="actions">
-            <button type="button" class="btn" aria-label="Copy trace ID" @click="copyId">Copy ID</button>
-            <button type="button" class="btn" data-testid="add-to-dataset-btn" @click="addingToDataset = true">Add to dataset</button>
-            <button type="button" class="btn" data-testid="add-to-queue-btn" @click="addingToQueue = true">Add to queue</button>
-            <button
+            <Button aria-label="Copy trace ID" @click="copyId">Copy ID</Button>
+            <Button data-testid="add-to-dataset-btn" @click="addingToDataset = true">Add to dataset</Button>
+            <Button data-testid="add-to-queue-btn" @click="addingToQueue = true">Add to queue</Button>
+            <Button
               v-if="promptsUsed.length > 0"
-              type="button"
-              class="btn"
+             
+             
               :title="`Run the same message with another version of ${promptsUsed[0]!.name} (this trace used v${promptsUsed[0]!.version})`"
               data-testid="replay-btn"
               @click="replayWithAnotherVersion"
             >
               Try another prompt version
-            </button>
-            <button
+            </Button>
+            <Button
               v-if="promptsUsed.length > 0 && trace.data.value.errorCount > 0"
-              type="button"
-              class="btn"
+             
+             
               :title="`Propose a change to ${promptsUsed[0]!.name} that fixes this failure, as a draft to review`"
               data-testid="fix-btn"
               @click="fixThisFailure"
             >
               Fix with a prompt change
-            </button>
-            <button type="button" class="btn primary" data-testid="annotate-btn" @click="annotating = true">Annotate</button>
+            </Button>
+            <Button variant="primary" data-testid="annotate-btn" @click="annotating = true">Annotate</Button>
           </div>
         </div>
         <div class="meta-line">
@@ -167,20 +176,16 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
           <span v-if="trace.data.value.totalTokens">Tokens <b class="mono">{{ formatCount(trace.data.value.totalTokens) }}</b></span>
           <span v-if="trace.data.value.totalCostUsd">Cost <b class="mono">{{ formatCostUsd(trace.data.value.totalCostUsd) }}</b></span>
         </div>
-      </header>
+      </Card>
 
       <p v-if="replayProblem" class="bad replay-problem" role="alert" data-testid="replay-problem">{{ replayProblem }}</p>
       <TraceFeedbackStrip :trace-id="traceId" />
 
       <div class="body">
       <div class="main">
-      <div class="tabs" role="tablist" aria-label="Trace views">
-        <button type="button" role="tab" class="tab" :class="{ active: tab === 'conversation' }" :aria-selected="tab === 'conversation'" data-testid="tab-conversation" @click="setTab('conversation')">Conversation</button>
-        <button v-if="canTechnical" type="button" role="tab" class="tab" :class="{ active: tab === 'trace' }" :aria-selected="tab === 'trace'" data-testid="tab-trace" @click="setTab('trace')">
-          Technical trace<span class="tab-count mono">{{ formatCount(trace.data.value.spanCount) }}</span>
-        </button>
-        <span class="tabs-hint">{{ tab === "trace" ? "Select a span to see its input, output and metadata" : "The messages exchanged, without ids or raw JSON" }}</span>
-      </div>
+      <TabBar :tabs="viewTabs" :model-value="tab" @update:model-value="setTab($event as 'conversation' | 'trace')">
+        <template #trailing><span class="tabs-hint">{{ tab === "trace" ? "Select a span to see its input, output and metadata" : "The messages exchanged, without ids or raw JSON" }}</span></template>
+      </TabBar>
 
       <div v-if="trace.data.value.truncated" class="banner warn">Trace has more than 5000 spans: only showing the first ones.</div>
       <div v-if="hasOrphans" class="banner warn">
@@ -188,27 +193,27 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
         <template v-else>Some spans have no parent in the trace (lost or not yet exported) and are shown as roots.</template>
       </div>
 
-      <section v-if="tab === 'conversation'" class="mt-card thread-card" aria-label="Conversation">
+      <Card as="section" padding="none" block v-if="tab === 'conversation'" class="thread-card" aria-label="Conversation">
         <ConversationThread v-if="turns.length" :turns="turns" />
         <p v-else class="muted empty-thread">This trace has no message content saved. Enable <code>MEMTRACE_CAPTURE_CONTENT=true</code> on the agent to read the conversation here.</p>
-      </section>
+      </Card>
 
       <div v-else class="cols">
-        <section class="mt-card tree-card" aria-label="Span tree">
+        <Card as="section" padding="none" block class="tree-card" aria-label="Span tree">
           <div class="tree-head">
             <h2>Spans</h2>
             <div class="tree-actions">
-              <button type="button" class="link-btn" @click="treeRef?.expandAll()">Expand all</button>
+              <Button variant="link" @click="treeRef?.expandAll()">Expand all</Button>
               <span class="dot-sep">·</span>
-              <button type="button" class="link-btn" @click="treeRef?.collapseAll()">Collapse all</button>
+              <Button variant="link" @click="treeRef?.collapseAll()">Collapse all</Button>
               <span class="mono muted meta">{{ formatDuration(trace.data.value.durationMs) }}</span>
             </div>
           </div>
           <SpanTree ref="treeRef" :roots="roots" :total-ms="trace.data.value.durationMs" :selected-id="selectedNode?.spanId ?? null" @select="select" />
-        </section>
+        </Card>
 
         <SpanInspector v-if="selectedNode" :node="selectedNode" :empty-hint="hint" />
-        <section v-else class="mt-card empty-card">This trace has no spans to show.</section>
+        <Card as="section" padding="none" block v-else class="empty-card">This trace has no spans to show.</Card>
       </div>
 
       </div>
@@ -248,22 +253,9 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
 .sep {
   color: var(--mt-faint);
 }
-.crumb {
-  border: 0;
-  background: none;
-  padding: 0;
-  color: var(--mt-accent-text);
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
+
 .current {
   color: var(--mt-ink);
-}
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 60px;
 }
 .muted {
   color: var(--mt-muted);
@@ -349,42 +341,6 @@ h2 {
   align-items: center;
   gap: 5px;
 }
-.mt-pill.unset {
-  background: var(--mt-soft);
-  color: var(--mt-muted);
-}
-.tabs {
-  display: flex;
-  align-items: flex-end;
-  gap: 4px;
-  border-bottom: 1px solid var(--mt-line);
-  flex-shrink: 0;
-}
-.tab {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 9px 12px;
-  margin-bottom: -1px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: none;
-  color: var(--mt-muted);
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-.tab.active {
-  color: var(--mt-ink);
-  border-bottom-color: var(--mt-accent);
-}
-.tab-count {
-  padding: 0 5px;
-  border-radius: var(--mt-radius-xs);
-  background: var(--mt-soft);
-  font-size: 11px;
-  font-weight: 500;
-}
 .tabs-hint {
   margin-left: auto;
   padding-bottom: 9px;
@@ -460,19 +416,7 @@ h2 {
 .tree-head .meta {
   font-size: 12px;
 }
-.link-btn {
-  border: 0;
-  background: none;
-  padding: 0;
-  color: var(--mt-accent-text);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.link-btn:hover {
-  text-decoration: underline;
-}
+
 .dot-sep {
   color: var(--mt-line);
 }

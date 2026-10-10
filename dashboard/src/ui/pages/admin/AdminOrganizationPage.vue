@@ -5,7 +5,7 @@ import { useQuasar } from "quasar";
 import { useRoute, useRouter } from "vue-router";
 import "@/styles/admin.css";
 import { useIdentityApi } from "../../composables/useIdentityApi";
-import { canManageOrg, notifyErrorWith, ROLE_LABEL, useAdminDirectory } from "../../composables/useAdminDirectory";
+import { canManageOrg, notifyErrorWith, ROLE_LABEL, useAdminDirectory, roleTone } from "../../composables/useAdminDirectory";
 import PageHeader from "../../components/PageHeader.vue";
 import TabBar from "../../components/TabBar.vue";
 import Modal from "../../components/Modal.vue";
@@ -17,6 +17,8 @@ import ApprovalRulesPanel from "../../components/admin/ApprovalRulesPanel.vue";
 import OrganizationRetention from "../../components/admin/OrganizationRetention.vue";
 import AuditLogPanel from "../../components/admin/AuditLogPanel.vue";
 import { hasPermission } from "../../composables/usePermissions";
+import Button from "../../components/Button.vue";
+import Pill from "../../components/Pill.vue";
 
 /** Nivel 2: una organización. Pestañas: experimentos (siempre), y miembros + identidad + apariencia solo para org_admin. */
 const props = defineProps<{ organizationId: string }>();
@@ -125,7 +127,7 @@ async function inviteOrgAdmin({ email }: { email: string }) {
               <h3 class="adm-section-title">Experiments</h3>
               <p class="adm-hint">An experiment is one agent. Open one to connect it, manage its keys, score configs and members.</p>
             </div>
-            <button v-if="isOrgAdmin" class="adm-btn primary mt-new" type="button" @click="showCreate = true">+ New experiment</button>
+            <Button variant="primary" v-if="isOrgAdmin" @click="showCreate = true" class="mt-new">+ New experiment</Button>
           </div>
 
           <ul v-if="orgExperiments.length" class="adm-list">
@@ -135,7 +137,7 @@ async function inviteOrgAdmin({ email }: { email: string }) {
                   <span class="adm-item-title">{{ e.name }}</span>
                   <span class="adm-item-meta">service.name: <span class="mono">{{ e.serviceName }}</span></span>
                 </div>
-                <span class="adm-pill" :class="e.myRole">{{ ROLE_LABEL[e.myRole] }}</span>
+                <Pill :tone="roleTone(e.myRole)">{{ ROLE_LABEL[e.myRole] }}</Pill>
                 <span class="chevron" aria-hidden="true">›</span>
               </router-link>
             </li>
@@ -195,7 +197,7 @@ async function inviteOrgAdmin({ email }: { email: string }) {
         <TextInput mono v-model="serviceName" placeholder="service.name, e.g. support-agent" autofocus @input="onServiceInput" />
         <TextInput v-model="displayName" placeholder="Display name" @input="displayTouched = true" />
         <TextInput multiline v-model="description" :rows="2" placeholder="What does this agent do, and for whom? (optional)" />
-        <button type="submit" class="adm-btn primary" :disabled="creating || !serviceName.trim() || !displayName.trim()">Create experiment</button>
+        <Button variant="primary" type="submit" :disabled="creating || !serviceName.trim() || !displayName.trim()">Create experiment</Button>
       </form>
     </Modal>
   </q-page>

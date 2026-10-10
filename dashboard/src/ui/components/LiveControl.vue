@@ -2,6 +2,8 @@
 import { onBeforeUnmount, ref } from "vue";
 import { formatRelativeTime } from "@/domain/format";
 import { REFRESH_OPTIONS, type RefreshSeconds } from "@/domain/refresh";
+import Menu from "./Menu.vue";
+import MenuItem from "./MenuItem.vue";
 
 defineProps<{ seconds: RefreshSeconds; updatedAt: number | null; loading?: boolean }>();
 defineEmits<{ "update:seconds": [RefreshSeconds]; refresh: [] }>();
@@ -16,23 +18,15 @@ onBeforeUnmount(() => clearInterval(ticker));
   <button type="button" class="live" aria-haspopup="menu" aria-label="Auto-refresh">
     <span class="dot" :class="{ on: seconds > 0 }" aria-hidden="true" />
     {{ seconds > 0 ? "Live" : "Paused" }}
-    <q-menu anchor="bottom right" self="top right" :offset="[0, 6]">
+    <Menu auto-close anchor="bottom right" self="top right" :offset="[0, 6]">
       <div class="menu" role="group" aria-label="Refresh interval">
         <span class="status" aria-live="off">{{ updatedAt ? `Updated ${formatRelativeTime(new Date(updatedAt).toISOString(), now)}` : "Loading…" }}</span>
-        <button
-          v-for="s in REFRESH_OPTIONS"
-          :key="s"
-          v-close-popup
-          type="button"
-          class="opt"
-          :aria-pressed="s === seconds"
-          @click="$emit('update:seconds', s)"
-        >
+        <MenuItem v-for="s in REFRESH_OPTIONS" :key="s" :active="s === seconds" @click="$emit('update:seconds', s)">
           {{ s === 0 ? "Off" : `Every ${s} s` }}
-        </button>
-        <button v-close-popup type="button" class="opt refresh" :disabled="loading" @click="$emit('refresh')">Refresh now</button>
+        </MenuItem>
+        <MenuItem class="refresh" :disabled="loading" @click="$emit('refresh')">Refresh now</MenuItem>
       </div>
-    </q-menu>
+    </Menu>
   </button>
 </template>
 
@@ -78,26 +72,7 @@ onBeforeUnmount(() => clearInterval(ticker));
   font-size: 11.5px;
   white-space: nowrap;
 }
-.opt {
-  padding: 7px 10px;
-  border: 0;
-  border-radius: var(--mt-radius-xs);
-  background: transparent;
-  color: var(--mt-ink);
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  text-align: left;
-  cursor: pointer;
-}
-.opt:hover {
-  background: var(--mt-soft);
-}
-.opt[aria-pressed="true"] {
-  background: var(--mt-accent-tint);
-  color: var(--mt-accent-text);
-}
-.opt.refresh {
+.refresh {
   margin-top: 4px;
   border-top: 1px solid var(--mt-line);
   border-radius: 0;

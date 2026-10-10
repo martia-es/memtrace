@@ -9,6 +9,8 @@ import ErrorBanner from "./ErrorBanner.vue";
 import Modal from "./Modal.vue";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
+import Button from "./Button.vue";
+import FormField from "./FormField.vue";
 
 /**
  * Promueve esta traza a un item de dataset (ADR-038). El item es una COPIA: la persona ve y puede corregir la entrada
@@ -67,26 +69,23 @@ async function save() {
     <ErrorBanner v-if="datasets.error.value" :error="datasets.error.value" @retry="datasets.run()" />
     <p v-else-if="datasets.data.value && !items.length" class="muted" data-testid="no-datasets">There are no datasets yet. Create one in Datasets.</p>
     <form v-else class="form" @submit.prevent="save">
-      <label class="field">
-        <span>Dataset</span>
+      <FormField label="Dataset">
         <Select v-model="datasetId" :options="datasetOptions" placeholder="Choose a dataset…" data-testid="dataset-select" />
-      </label>
-      <label class="field">
-        <span>Input</span>
+      </FormField>
+      <FormField label="Input">
         <TextInput v-model="input" multiline mono :rows="5" data-testid="input" spellcheck="false" />
         <small v-if="!draft" class="warn" data-testid="no-content">No input was saved in this trace: type the input to use.</small>
         <small v-else class="muted">Copied from the trace. Remove personal data here: the item is a long-lived copy.</small>
-      </label>
-      <label class="field">
-        <span>Expected output</span>
+      </FormField>
+      <FormField label="Expected output">
         <TextInput v-model="expected" multiline mono :rows="3" data-testid="expected" spellcheck="false" placeholder="The correct answer (optional)" />
         <small v-if="!expected.trim()" class="muted" data-testid="no-expected">Without it, only evaluators that need no reference (e.g. LLM-as-judge) can score this item.</small>
-      </label>
+      </FormField>
       <p v-if="draft?.observedOutput" class="observed muted">
         <strong>The agent answered:</strong> {{ draft.observedOutput }}<br />
         It is saved as context in the item's metadata, not as the expected output.
       </p>
-      <button type="submit" class="primary-btn" data-testid="save" :disabled="!canSave">Add to dataset</button>
+      <Button variant="primary" type="submit" data-testid="save" :disabled="!canSave">Add to dataset</Button>
     </form>
   </Modal>
 </template>
@@ -97,13 +96,7 @@ async function save() {
   flex-direction: column;
   gap: 10px;
 }
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 13px;
-  font-weight: 600;
-}
+
 .field select,
 .field textarea {
   border: 1px solid var(--mt-line);
@@ -135,19 +128,5 @@ async function save() {
   background: var(--mt-soft);
   white-space: pre-wrap;
 }
-.primary-btn {
-  height: 36px;
-  border-radius: var(--mt-radius-lg);
-  border: none;
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.primary-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+
 </style>

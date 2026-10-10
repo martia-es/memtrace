@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref } from "vue";
 import TraceTimeline from "./TraceTimeline.vue";
+import Button from "./Button.vue";
+import LoadingState from "./LoadingState.vue";
+import Card from "./Card.vue";
 
 /**
  * Panel de vista previa de la lista de Conversations (ADR-048): permite leer una conversación o una traza sin
@@ -85,7 +88,7 @@ onBeforeUnmount(stopDrag);
 </script>
 
 <template>
-  <aside class="preview mt-card" :class="{ dragging }" :style="{ width: `${width}px` }" aria-label="Preview">
+  <Card as="aside" padding="none" block class="preview" :class="{ dragging }" :style="{ width: `${width}px` }" aria-label="Preview">
     <div
       class="resize"
       role="separator"
@@ -104,15 +107,15 @@ onBeforeUnmount(stopDrag);
     <header class="head">
       <div class="head-top">
         <span class="eyebrow">PREVIEW</span>
-        <button type="button" class="link" data-testid="preview-open" @click="$emit('open')">{{ openLabel ?? "Open full view" }} ↗</button>
-        <button type="button" class="close" aria-label="Close preview" data-testid="preview-close" @click="$emit('close')">✕</button>
+        <Button variant="link" data-testid="preview-open" @click="$emit('open')">{{ openLabel ?? "Open full view" }} ↗</Button>
+        <Button variant="icon" size="sm" class="close" aria-label="Close preview" data-testid="preview-close" @click="$emit('close')">✕</Button>
       </div>
       <h2 class="title" :title="title">{{ title }}</h2>
       <span class="sub mono">{{ subtitle }}</span>
     </header>
 
     <div class="thread">
-      <div v-if="loading" class="state"><q-spinner size="22px" color="primary" /></div>
+      <LoadingState v-if="loading" size="md" />
       <template v-else-if="messages.length">
         <div v-for="(m, i) in messages" :key="i" class="bubble" :class="m.role">
           <span class="who">{{ m.role === "user" ? "USER" : "ASSISTANT" }}</span>
@@ -129,12 +132,12 @@ onBeforeUnmount(stopDrag);
         <span class="v mono">{{ s.v }}</span>
       </div>
       <div v-if="showActions" class="actions" :title="actionsHint">
-        <button type="button" class="btn primary" data-testid="preview-annotate" :disabled="actionsDisabled" @click="$emit('annotate')">Annotate</button>
-        <button type="button" class="btn" data-testid="preview-add-to-queue" :disabled="actionsDisabled" @click="$emit('addToQueue')">Add to queue</button>
-        <button type="button" class="btn" data-testid="preview-add-to-dataset" :disabled="actionsDisabled" @click="$emit('addToDataset')">Add to dataset</button>
+        <Button variant="primary" data-testid="preview-annotate" :disabled="actionsDisabled" @click="$emit('annotate')">Annotate</Button>
+        <Button data-testid="preview-add-to-queue" :disabled="actionsDisabled" @click="$emit('addToQueue')">Add to queue</Button>
+        <Button data-testid="preview-add-to-dataset" :disabled="actionsDisabled" @click="$emit('addToDataset')">Add to dataset</Button>
       </div>
     </footer>
-  </aside>
+  </Card>
 </template>
 
 <style scoped>
@@ -198,14 +201,7 @@ onBeforeUnmount(stopDrag);
 .link:hover {
   text-decoration: underline;
 }
-.close {
-  border: 0;
-  background: none;
-  padding: 2px 4px;
-  color: var(--mt-faint);
-  font-size: 14px;
-  cursor: pointer;
-}
+
 .title {
   margin: 0;
   font-size: 15px;

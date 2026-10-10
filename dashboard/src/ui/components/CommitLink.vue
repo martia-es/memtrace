@@ -3,6 +3,7 @@ import { computed } from "vue";
 import type { RepoConfigDto } from "@contract";
 import { commitUrl } from "@/domain/assistants";
 import { shortRevision } from "@/domain/format";
+import Pill from "./Pill.vue";
 
 /** Versión del código (ADR-065): SHA corto, enlazado al commit si el agente declara su repositorio. */
 const props = defineProps<{ revision: string | null; repo?: RepoConfigDto | null; dirty?: boolean | null }>();
@@ -13,6 +14,12 @@ const title = computed(() =>
 </script>
 
 <template>
-  <a v-if="href" :href="href" target="_blank" rel="noopener noreferrer" class="mt-pill unset mono" :title="title" data-testid="commit-link" @click.stop>{{ shortRevision(revision) }}<template v-if="dirty"> ✱</template></a>
-  <span v-else class="mt-pill unset mono" :title="title" data-testid="commit-link">{{ shortRevision(revision) }}<template v-if="dirty"> ✱</template></span>
+  <a v-if="href" :href="href" target="_blank" rel="noopener noreferrer" class="commit-link" :title="title" data-testid="commit-link" @click.stop><Pill mono>{{ shortRevision(revision) }}<template v-if="dirty"> ✱</template></Pill></a>
+  <Pill mono v-else :title="title" data-testid="commit-link">{{ shortRevision(revision) }}<template v-if="dirty"> ✱</template></Pill>
 </template>
+
+<style scoped>
+.commit-link {
+  text-decoration: none;
+}
+</style>

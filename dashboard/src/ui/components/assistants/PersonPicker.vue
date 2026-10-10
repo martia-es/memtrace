@@ -5,6 +5,7 @@ import type { AssistantPersonDto } from "@contract";
 import { personLabel } from "@/domain/assistants";
 import { useAssistantApi } from "../../composables/useAssistantApi";
 import PersonAvatar from "./PersonAvatar.vue";
+import Button from "../Button.vue";
 
 /** Selector de una persona de la organización: se busca por nombre o email y cada opción lleva su foto. */
 const props = defineProps<{ experimentId: string; modelValue: AssistantPersonDto | null }>();
@@ -78,7 +79,7 @@ const empty = computed(() => !loading.value && !failed.value && results.value.le
     <div v-if="modelValue" class="chosen">
       <PersonAvatar :name="modelValue.name" :email="modelValue.email" :image="modelValue.image" :size="28" />
       <span class="who"><strong>{{ personLabel(modelValue) }}</strong><small v-if="modelValue.name">{{ modelValue.email }}</small></span>
-      <button type="button" class="link" @click="clear">Change</button>
+      <Button variant="link" @click="clear">Change</Button>
     </div>
     <template v-else>
       <TextInput

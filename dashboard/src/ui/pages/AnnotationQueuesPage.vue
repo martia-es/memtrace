@@ -15,6 +15,12 @@ import QueueDetailModal from "../components/QueueDetailModal.vue";
 import { useAsync } from "../composables/useAsync";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTraceApi } from "../composables/useTraceApi";
+import Button from "../components/Button.vue";
+import Checkbox from "../components/Checkbox.vue";
+import LoadingState from "../components/LoadingState.vue";
+import Card from "../components/Card.vue";
+import Menu from "../components/Menu.vue";
+import MenuItem from "../components/MenuItem.vue";
 
 /**
  * Colas de revisión (ADR-039): qué trazas hay que revisar, con qué rúbrica y cuánto va hecho. Cualquier
@@ -179,7 +185,7 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
 <template>
   <div class="page">
     <PageHeader :crumbs="[{ label: 'Review' }, { label: VIEW_TITLES[tab] }]" :icon="ICON" :title="VIEW_TITLES[tab]">
-      <button v-if="canManage" type="button" class="primary-btn mt-new" data-testid="new-queue" @click="openCreate">+ New queue</button>
+      <Button variant="primary" v-if="canManage" data-testid="new-queue" @click="openCreate" class="mt-new">+ New queue</Button>
     </PageHeader>
 
     <section v-if="pendingTotal > 0" class="inbox" data-testid="inbox">
@@ -188,7 +194,7 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
         <h2>{{ pendingTotal }} {{ pendingTotal === 1 ? "conversation is" : "conversations are" }} waiting for you</h2>
         <p>Across {{ pendingQueues.length }} {{ pendingQueues.length === 1 ? "queue" : "queues" }} · nobody gets the same item twice, and you can skip anything you are unsure about</p>
       </div>
-      <button type="button" class="inbox-cta" data-testid="continue-reviewing" @click="continueReviewing">Continue reviewing →</button>
+      <Button data-testid="continue-reviewing" @click="continueReviewing">Continue reviewing →</Button>
     </section>
     <section v-if="curateTotal > 0" class="inbox curate" data-testid="curate-inbox">
       <div class="inbox-text">
@@ -196,13 +202,13 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
         <h2>{{ curateTotal }} reviewed {{ curateTotal === 1 ? "item is" : "items are" }} waiting for your decision</h2>
         <p>Reviewers have finished {{ curateTotal === 1 ? "it" : "them" }} in {{ curateQueues.length }} {{ curateQueues.length === 1 ? "queue" : "queues" }}. Check their answers, settle any disagreement and add the good ones to a dataset.</p>
       </div>
-      <button type="button" class="inbox-cta" data-testid="open-results" @click="openDetail(curateQueues[0]!.id, 'results')">Open results →</button>
+      <Button data-testid="open-results" @click="openDetail(curateQueues[0]!.id, 'results')">Open results →</Button>
     </section>
 
     <p v-if="pendingTotal === 0 && curateTotal === 0 && queues.data.value?.items.length" class="hint muted">You are all caught up.</p>
 
     <ErrorBanner v-if="queues.error.value" :error="queues.error.value" @retry="queues.run()" />
-    <div v-else-if="queues.loading.value && !queues.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
+    <LoadingState v-else-if="queues.loading.value && !queues.data.value" size="lg" />
     <EmptyState v-else-if="(queues.data.value?.items.length ?? 0) === 0" icon="rate_review" title="No review queues yet">
       {{ canManage ? 'Create one with "New queue" (you need at least one score config first).' : "Ask an experiment admin to create one." }}
     </EmptyState>
@@ -210,7 +216,7 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
       {{ tab === "archived" ? "No archived queues." : tab === "assigned" ? "You are not assigned to any queue." : "You are all caught up." }}
     </p>
 
-    <div v-if="visibleQueues.length" class="mt-card table-card">
+    <Card padding="none" block v-if="visibleQueues.length" class="table-card">
       <div class="grid head">
         <span>Queue</span>
         <span>Rubric</span>
@@ -235,31 +241,30 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
           <span v-if="canCurate && q.toCurate > 0" class="curate-note" data-testid="queue-to-curate">{{ q.toCurate }} to review &amp; add to a dataset</span>
         </div>
         <div class="avatars" data-testid="queue-reviewers">
-          <q-avatar v-for="r in q.assignedReviewers" :key="r.userId" size="26px" class="avatar" color="primary" text-color="white" :aria-label="r.name ?? 'Former member'" data-testid="queue-reviewer">
+          <span v-for="r in q.assignedReviewers" :key="r.userId" class="avatar" :title="r.name ?? 'Former member'" :aria-label="r.name ?? 'Former member'" data-testid="queue-reviewer">
             <img v-if="r.image" :src="r.image" :alt="r.name ?? 'Former member'" referrerpolicy="no-referrer" />
             <span v-else>{{ initials(r.name) }}</span>
-            <q-tooltip>{{ r.name ?? "Former member" }}</q-tooltip>
-          </q-avatar>
+          </span>
         </div>
         <div class="actions">
-          <button v-if="q.isReviewer && q.progress.pending > 0 && !q.archivedAt" type="button" class="cta accent" @click="review(q.id)">Review</button>
-          <button v-else-if="canCurate && !q.archivedAt" type="button" class="cta" data-testid="queue-results-btn" @click="openDetail(q.id, 'results')">View results</button>
-          <button v-else type="button" class="cta" @click="openDetail(q.id)">Details</button>
-          <button type="button" class="more" aria-label="More actions" data-testid="queue-more">
+          <Button variant="primary" size="sm" v-if="q.isReviewer && q.progress.pending > 0 && !q.archivedAt" @click="review(q.id)">Review</Button>
+          <Button size="sm" v-else-if="canCurate && !q.archivedAt" data-testid="queue-results-btn" @click="openDetail(q.id, 'results')">View results</Button>
+          <Button size="sm" v-else @click="openDetail(q.id)">Details</Button>
+          <Button variant="icon" size="sm" class="more" aria-label="More actions" data-testid="queue-more">
             ⋯
-            <q-menu auto-close anchor="bottom right" self="top right" :offset="[0, 6]" class="queue-menu">
+            <Menu auto-close anchor="bottom right" self="top right" :offset="[0, 6]" class="queue-menu">
               <div class="menu-list">
-                <button v-if="!q.archivedAt" type="button" @click="addTo = q">Add traces</button>
-                <button v-if="canCurate && q.toCurate > 0" type="button" @click="openDetail(q.id, 'results')">Review results</button>
-                <button type="button" @click="openDetail(q.id)">Details</button>
-                <button v-if="canManage && !q.archivedAt" type="button" @click="setArchived(q, true)">Archive</button>
-                <button v-if="canManage && q.archivedAt" type="button" @click="setArchived(q, false)">Restore</button>
+                <MenuItem v-if="!q.archivedAt" @click="addTo = q">Add traces</MenuItem>
+                <MenuItem v-if="canCurate && q.toCurate > 0" @click="openDetail(q.id, 'results')">Review results</MenuItem>
+                <MenuItem @click="openDetail(q.id)">Details</MenuItem>
+                <MenuItem v-if="canManage && !q.archivedAt" @click="setArchived(q, true)">Archive</MenuItem>
+                <MenuItem v-if="canManage && q.archivedAt" @click="setArchived(q, false)">Restore</MenuItem>
               </div>
-            </q-menu>
-          </button>
+            </Menu>
+          </Button>
         </div>
       </div>
-    </div>
+    </Card>
     <p class="footnote muted">A queue is a batch of conversations that people review with a rubric. Business reviewers rate quality; technical reviewers can promote the best examples into a dataset.</p>
 
     <QueueDetailModal v-if="detailQueueId" :queue-id="detailQueueId" :can-manage="canManage" :initial-tab="detailTab" @close="detailQueueId = null" @changed="queues.run()" />
@@ -277,18 +282,18 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
           <p class="muted">Only the people you pick can annotate in this queue.</p>
           <p v-if="!members.length" class="muted">This experiment has no members yet. Invite them in Admin → your experiment.</p>
           <div v-for="m in members" :key="m.userId" class="rubric-row">
-            <label><input v-model="form.reviewerIds" type="checkbox" :value="m.userId" /> {{ m.name ?? m.email }} <span class="muted">{{ m.email }}</span></label>
+            <Checkbox v-model="form.reviewerIds" :value="m.userId"> {{ m.name ?? m.email }} <span class="muted">{{ m.email }}</span></Checkbox>
           </div>
         </fieldset>
         <fieldset class="rubric">
           <legend>Rubric</legend>
           <p v-if="!configs.length" class="muted">No score configs yet. Create them in Admin → your experiment → Score configs.</p>
           <div v-for="c in configs" :key="c.id" class="rubric-row">
-            <label><input v-model="form.picked[c.id]!.on" type="checkbox" /> {{ c.name }}</label>
-            <label v-if="form.picked[c.id]?.on" class="muted"><input v-model="form.picked[c.id]!.required" type="checkbox" /> required</label>
+            <Checkbox v-model="form.picked[c.id]!.on"> {{ c.name }}</Checkbox>
+            <Checkbox v-if="form.picked[c.id]?.on" class="muted" v-model="form.picked[c.id]!.required"> required</Checkbox>
           </div>
         </fieldset>
-        <button type="submit" class="primary-btn" :disabled="creating || !form.name.trim() || !rubric.length || !form.reviewerIds.length || form.requiredAnnotations > form.reviewerIds.length">Create</button>
+        <Button variant="primary" type="submit" :disabled="creating || !form.name.trim() || !rubric.length || !form.reviewerIds.length || form.requiredAnnotations > form.reviewerIds.length">Create</Button>
       </form>
     </Modal>
 
@@ -300,11 +305,11 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
           Root status
           <Select v-model="filter.status" :options="STATUS_OPTIONS" aria-label="Root status" />
         </label>
-        <label class="inline"><input v-model="filter.hasErrors" type="checkbox" /> Only traces with a failed span</label>
+        <Checkbox class="inline" v-model="filter.hasErrors"> Only traces with a failed span</Checkbox>
         <label class="inline">Slower than (ms) <TextInput v-model="filter.minDurationMs" type="number" min="0" aria-label="Minimum duration" /></label>
         <label class="inline">{{ filter.random ? "Sample of" : "At most" }} <TextInput v-model="filter.limit" type="number" min="1" max="500" aria-label="Limit" /> traces</label>
-        <label class="inline"><input v-model="filter.random" type="checkbox" aria-label="Random sample" /> Pick them at random from all matches instead of the first ones</label>
-        <button type="submit" class="primary-btn" :disabled="adding">Add traces</button>
+        <Checkbox class="inline" v-model="filter.random" aria-label="Random sample"> Pick them at random from all matches instead of the first ones</Checkbox>
+        <Button variant="primary" type="submit" :disabled="adding">Add traces</Button>
       </form>
     </Modal>
   </div>
@@ -326,11 +331,6 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
 }
 .muted {
   color: var(--mt-muted);
-}
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 60px;
 }
 .inbox {
   display: flex;
@@ -362,18 +362,6 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
 .inbox p {
   margin: 0;
   opacity: 0.9;
-}
-.inbox-cta {
-  height: 40px;
-  padding: 0 22px;
-  border: 0;
-  border-radius: var(--mt-radius-sm);
-  background: var(--mt-card);
-  color: var(--mt-accent-text);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 800;
-  cursor: pointer;
 }
 .curate-note {
   display: inline-flex;
@@ -488,11 +476,24 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
   display: flex;
 }
 .avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--mt-accent);
+  color: var(--mt-accent-ink);
   border: 2px solid var(--mt-card);
   margin-left: -6px;
   font-size: 10px;
   font-weight: 800;
   box-sizing: border-box;
+}
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .avatar:first-child {
   margin-left: 0;
@@ -506,7 +507,6 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
   justify-content: flex-end;
   gap: 8px;
 }
-.cta,
 .more {
   height: 32px;
   border-radius: var(--mt-radius-sm);
@@ -516,14 +516,6 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
   font: inherit;
   font-weight: 800;
   cursor: pointer;
-}
-.cta {
-  padding: 0 14px;
-}
-.cta.accent {
-  background: var(--mt-accent);
-  border-color: var(--mt-accent);
-  color: var(--mt-accent-ink);
 }
 .more {
   width: 32px;
@@ -536,22 +528,7 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
   min-width: 160px;
   padding: 4px;
 }
-.menu-list button {
-  height: 32px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: var(--mt-radius-xs);
-  background: none;
-  color: var(--mt-ink);
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  text-align: left;
-  cursor: pointer;
-}
-.menu-list button:hover {
-  background: var(--mt-soft);
-}
+
 .footnote {
   max-width: 760px;
   margin: 0;
@@ -587,23 +564,5 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
   justify-content: space-between;
   font-size: 13px;
 }
-.primary-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 40px;
-  padding: 0 20px;
-  border-radius: var(--mt-radius-lg);
-  border: none;
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.primary-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+
 </style>

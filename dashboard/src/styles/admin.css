@@ -55,55 +55,6 @@
   color: var(--mt-muted);
 }
 
-/* ---- buttons & inputs ---- */
-.adm-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 36px;
-  padding: 0 16px;
-  border-radius: var(--mt-radius-lg);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: opacity 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-}
-.adm-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.adm-btn.primary {
-  border: none;
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-}
-.adm-btn.primary:not(:disabled):hover {
-  opacity: 0.9;
-}
-.adm-btn.ghost {
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  color: var(--mt-muted);
-}
-.adm-btn.ghost:hover {
-  color: var(--mt-ink);
-  border-color: var(--mt-accent);
-}
-.adm-btn.danger {
-  border: 1px solid var(--mt-err-ink);
-  background: transparent;
-  color: var(--mt-err-ink);
-  height: 28px;
-  padding: 0 10px;
-  font-size: 12px;
-}
-.adm-btn.small {
-  height: 30px;
-  padding: 0 12px;
-  font-size: 12px;
-}
 .adm-form {
   display: flex;
   flex-direction: column;
@@ -202,37 +153,6 @@ a.adm-item:hover {
 }
 
 /* ---- pills ---- */
-.adm-pill {
-  flex-shrink: 0;
-  padding: 3px 10px;
-  border-radius: var(--mt-radius-sm);
-  font-size: 11px;
-  font-weight: 700;
-  white-space: nowrap;
-  background: var(--mt-soft);
-  color: var(--mt-muted);
-}
-.adm-pill.org_admin {
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-}
-.adm-pill.technical,
-.adm-pill.business {
-  background: var(--mt-soft);
-  color: var(--mt-ink);
-}
-.adm-pill.outline {
-  background: transparent;
-  border: 1px solid var(--mt-line-2);
-}
-.adm-pill.active {
-  background: var(--mt-ok-bg);
-  color: var(--mt-ok-ink);
-}
-.adm-pill.pending {
-  background: var(--mt-warn-bg);
-  color: var(--mt-warn-ink);
-}
 
 /* ---- snippets ---- */
 .adm-snippet {
@@ -249,7 +169,7 @@ a.adm-item:hover {
   white-space: pre-wrap;
   word-break: break-all;
 }
-.adm-snippet .adm-btn {
+.adm-snippet .mt-btn {
   position: absolute;
   top: 8px;
   right: 8px;

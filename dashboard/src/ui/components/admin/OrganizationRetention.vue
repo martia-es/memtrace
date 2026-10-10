@@ -5,6 +5,9 @@ import type { RetentionPolicyDto } from "@contract";
 import type { OrganizationDto } from "@/application/identity-api";
 import { useIdentityApi } from "../../composables/useIdentityApi";
 import { notifyErrorWith } from "../../composables/useAdminDirectory";
+import Button from "../Button.vue";
+import DataTable from "../DataTable.vue";
+import FormField from "../FormField.vue";
 
 /**
  * Cuánto tiempo se guardan las trazas (ADR-084): un plazo por organización y, si hace falta, uno más corto por experimento
@@ -92,14 +95,13 @@ async function saveExperiment(id: string, days: number | null) {
         The dashboard shows the last 30 days at most. A longer period keeps older traces so you can <strong>export</strong> them (Admin › experiment › Export), not to browse them.
       </p>
       <div v-if="policy" class="line">
-        <label class="field">
-          <span class="lbl">Organization default</span>
+        <FormField label="Organization default">
           <span class="inp">
             <input v-model.number="orgDays" type="number" :min="policy.minDays" :max="policy.maxDays" step="1" aria-label="Organization retention in days" @keyup.enter="saveOrg" />
             <span class="unit">days</span>
           </span>
-        </label>
-        <button class="adm-btn primary" type="button" :disabled="!orgDirty || !orgValid || savingOrg" @click="saveOrg">Save</button>
+        </FormField>
+        <Button variant="primary" :disabled="!orgDirty || !orgValid || savingOrg" @click="saveOrg">Save</Button>
         <span v-if="!orgValid" class="warn">Choose a whole number from {{ policy.minDays }} to {{ policy.maxDays }}.</span>
         <span v-else-if="willTrim" class="warn">
           {{ willTrim }} experiment{{ willTrim === 1 ? "" : "s" }} with a longer own period will use this one instead.
@@ -112,7 +114,7 @@ async function saveExperiment(id: string, days: number | null) {
       <h3 class="adm-section-title">By experiment</h3>
       <p class="adm-hint">An experiment can keep its traces for less time than the organization, never for more. Leave it empty to use the organization's.</p>
       <p v-if="!policy.experiments.length" class="adm-empty">This organization has no experiments yet.</p>
-      <table v-else class="rt">
+      <DataTable v-else>
         <thead>
           <tr>
             <th>Experiment</th>
@@ -145,22 +147,21 @@ async function saveExperiment(id: string, days: number | null) {
               <span class="eff" :class="{ short: e.overrideDays !== null }">{{ e.effectiveDays }} days</span>
             </td>
             <td class="act">
-              <button
-                class="adm-btn small"
-                type="button"
+              <Button
+                size="sm"
                 :disabled="!experimentDirty(e.experimentId, e.overrideDays) || !experimentValid(e.experimentId) || savingExperiment === e.experimentId"
                 @click="saveExperiment(e.experimentId, drafts[e.experimentId] ?? null)"
               >
                 Save
-              </button>
-              <button v-if="e.overrideDays !== null" class="adm-btn ghost small" type="button" :disabled="savingExperiment === e.experimentId" @click="saveExperiment(e.experimentId, null)">
+              </Button>
+              <Button v-if="e.overrideDays !== null" size="sm" variant="link" :disabled="savingExperiment === e.experimentId" @click="saveExperiment(e.experimentId, null)">
                 Use default
-              </button>
+              </Button>
               <span v-if="!experimentValid(e.experimentId)" class="warn">1 to {{ policy.defaultDays }}</span>
             </td>
           </tr>
         </tbody>
-      </table>
+      </DataTable>
     </div>
   </div>
 </template>
@@ -181,16 +182,6 @@ async function saveExperiment(id: string, days: number | null) {
   align-items: flex-end;
   gap: 12px;
   flex-wrap: wrap;
-}
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.lbl {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--mt-muted);
 }
 .inp {
   display: inline-flex;
@@ -213,23 +204,6 @@ async function saveExperiment(id: string, days: number | null) {
 .warn {
   color: var(--mt-warn, #b45309);
   font-size: 12px;
-}
-.rt {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-.rt th {
-  text-align: left;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--mt-muted);
-  padding: 6px 8px;
-}
-.rt td {
-  padding: 8px;
-  border-top: 1px solid var(--mt-border);
-  vertical-align: middle;
 }
 .name {
   display: block;

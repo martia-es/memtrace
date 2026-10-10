@@ -15,6 +15,8 @@ import PageHeader from "../components/PageHeader.vue";
 import StatusChip from "../components/StatusChip.vue";
 import TabBar from "../components/TabBar.vue";
 import { initials } from "@/domain/assistants";
+import Button from "../components/Button.vue";
+import LoadingState from "../components/LoadingState.vue";
 
 /** Ficha de un asistente (ADR-053): entornos con su salud y accesos, y conexiones declaradas y observadas. */
 const props = defineProps<{ experimentId: string }>();
@@ -60,7 +62,7 @@ const editing = ref(false);
     </PageHeader>
 
     <ErrorBanner v-if="card.error.value" :error="card.error.value" @retry="card.run()" />
-    <div v-else-if="!card.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
+    <LoadingState v-else-if="!card.data.value" size="lg" />
 
     <template v-else>
       <section class="intro">
@@ -102,7 +104,7 @@ const editing = ref(false);
             </div>
           </dl>
         </div>
-        <button v-if="canManage" type="button" class="ghost" data-testid="edit-assistant" @click="editing = true">Edit details</button>
+        <Button v-if="canManage" data-testid="edit-assistant" @click="editing = true">Edit details</Button>
       </section>
 
       <CiSetup :repo="card.data.value.repo" />
@@ -119,7 +121,6 @@ const editing = ref(false);
 <style scoped>
 .owner { display: inline-flex; align-items: center; gap: 8px; }
 .page { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; padding: 16px 24px 24px; background: var(--mt-bg); }
-.loading { display: flex; justify-content: center; padding: 60px; }
 .ghost { height: 32px; padding: 0 12px; font: inherit; font-size: 13px; font-weight: 700; color: var(--mt-accent-text); background: var(--mt-card); border: 1px solid var(--mt-line); border-radius: var(--mt-radius-sm); cursor: pointer; }
 .intro { display: flex; align-items: flex-start; gap: 16px; padding: 16px 18px; background: var(--mt-card); border: 1px solid var(--mt-line); border-radius: var(--mt-radius); }
 .avatar { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 10px; font-weight: 800; font-size: 15px; background: var(--mt-accent-soft); color: var(--mt-accent-text); }

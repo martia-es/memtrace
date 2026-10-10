@@ -13,6 +13,12 @@ import ErrorBanner from "./ErrorBanner.vue";
 import TraceThreadPreview from "./TraceThreadPreview.vue";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
+import Button from "./Button.vue";
+import Checkbox from "./Checkbox.vue";
+import Pill from "./Pill.vue";
+import DataTable from "./DataTable.vue";
+import LoadingState from "./LoadingState.vue";
+import ToggleChip from "./ToggleChip.vue";
 
 /**
  * Resultados de una cola para el perfil técnico (ADR-050): qué respondió cada revisor por item y criterio, los
@@ -157,17 +163,17 @@ async function promote() {
       Open a row to read the conversation that was evaluated next to the reviewers' answers.
     </p>
     <div class="toolbar">
-      <label class="check"><input v-model="onlyDisagreements" type="checkbox" data-testid="only-disagreements" /> Only disagreements</label>
+      <Checkbox class="check" v-model="onlyDisagreements" data-testid="only-disagreements"> Only disagreements</Checkbox>
       <span v-if="results.data.value" class="muted">{{ results.data.value.total }} item{{ results.data.value.total === 1 ? "" : "s" }}</span>
-      <button type="button" class="small-btn" :disabled="!readyRows.length" data-testid="select-ready" @click="readyRows.forEach((r) => selected.add(r.id))">Select all ready</button>
+      <Button class="push" size="sm" :disabled="!readyRows.length" data-testid="select-ready" @click="readyRows.forEach((r) => selected.add(r.id))">Select all ready</Button>
     </div>
 
     <ErrorBanner v-if="results.error.value" :error="results.error.value" @retry="results.run()" />
-    <div v-else-if="!results.data.value" class="loading"><q-spinner size="24px" color="primary" /></div>
+    <LoadingState v-else-if="!results.data.value" size="md" />
     <p v-else-if="!rows.length" class="muted" data-testid="results-empty">{{ onlyDisagreements ? "No items where reviewers disagree." : "No items in this queue yet." }}</p>
 
     <div v-else class="scroll">
-      <table>
+      <DataTable sticky density="sm">
         <thead>
           <tr>
             <th />
@@ -178,7 +184,7 @@ async function promote() {
         </thead>
         <tbody v-for="row in rows" :key="row.id">
           <tr data-testid="result-row" :class="{ flagged: row.needsResolution }">
-            <td><input type="checkbox" :checked="selected.has(row.id)" :disabled="rowReadiness(row) !== 'ready'" :aria-label="`Select ${shortId(row.traceId ?? row.id)}`" data-testid="result-select" @change="toggle(row)" /></td>
+            <td><Checkbox :checked="selected.has(row.id)" :disabled="rowReadiness(row) !== 'ready'" :aria-label="`Select ${shortId(row.traceId ?? row.id)}`" data-testid="result-select" @change="toggle(row)" /></td>
             <td>
               <router-link v-if="row.traceId" :to="{ name: 'trace', params: { experimentId, traceId: row.traceId } }" class="mono" @click="emit('close')">Trace {{ shortId(row.traceId) }}</router-link>
               <span v-else class="mono">Run {{ shortId(row.datasetRunId ?? "") }} · item {{ row.itemIndex }}</span>
@@ -194,22 +200,22 @@ async function promote() {
                 <span v-for="l in crit.labels" :key="l.userId" class="lbl" :class="{ muted: !l.isReviewer }" :title="[l.comment, l.isReviewer ? '' : 'No longer a reviewer'].filter(Boolean).join(' · ')">
                   {{ l.name ?? "Former member" }}: <strong>{{ show(c, l.value) }}</strong>
                 </span>
-                <span v-if="crit.resolution" class="pill ok" data-testid="resolved-pill">resolved: {{ show(c, crit.resolution.value) }}</span>
-                <span v-else-if="crit.status === 'disagreement'" class="pill warn">disagreement</span>
+                <Pill v-if="crit.resolution" tone="ok" data-testid="resolved-pill">resolved: {{ show(c, crit.resolution.value) }}</Pill>
+                <Pill v-else-if="crit.status === 'disagreement'" tone="warn">disagreement</Pill>
               </template>
             </td>
-            <td><button type="button" class="small-btn" data-testid="resolve-btn" @click="open(row)">{{ row.needsResolution ? "Resolve" : "Open" }}</button></td>
+            <td><Button size="sm" data-testid="resolve-btn" @click="open(row)">{{ row.needsResolution ? "Resolve" : "Open" }}</Button></td>
           </tr>
 
         </tbody>
-      </table>
+      </DataTable>
     </div>
 
     <div v-if="rows.length" class="promote" data-testid="promote-bar">
       <strong>{{ chosen.length }} selected</strong>
       <Select v-model="datasetId" :options="datasetOptions" placeholder="Choose a dataset…" aria-label="Dataset" data-testid="promote-dataset" />
       <Select v-model="referenceId" :options="referenceOptions" aria-label="Expected output from" data-testid="promote-config" />
-      <button type="button" class="small-btn primary" data-testid="promote-run" :disabled="!canPromote" @click="promote">Add to dataset</button>
+      <Button variant="primary" size="sm" data-testid="promote-run" :disabled="!canPromote" @click="promote">Add to dataset</Button>
       <p class="muted" data-testid="promote-help">{{ referenceHelp }}</p>
       <p v-if="promoteHint" class="muted hint" data-testid="promote-hint">{{ promoteHint }}</p>
       <p class="muted">Items are copies and each batch of 100 creates one new dataset version. Rows where reviewers disagree can’t be selected until you resolve them.</p>
@@ -233,22 +239,21 @@ async function promote() {
             <div v-if="drafts[key(openedRow, crit.configId)] && configById.get(crit.configId)" class="decide">
               <span class="muted">Verdict (settles the disagreement)</span>
               <template v-if="valueChoices(configById.get(crit.configId)!)">
-                <button
+                <ToggleChip
                   v-for="c in valueChoices(configById.get(crit.configId)!)"
                   :key="c.value"
-                  type="button"
                   class="choice"
-                  :class="{ on: drafts[key(openedRow, crit.configId)]!.value === c.value }"
+                  :pressed="drafts[key(openedRow, crit.configId)]!.value === c.value"
                   data-testid="choice"
                   @click="drafts[key(openedRow, crit.configId)]!.value = c.value"
-                >{{ c.label }}</button>
+                >{{ c.label }}</ToggleChip>
               </template>
               <TextInput v-else v-model="drafts[key(openedRow, crit.configId)]!.value" type="number" aria-label="Final value" />
             </div>
             <TextInput multiline class="expected" v-if="drafts[key(openedRow, crit.configId)]" v-model="drafts[key(openedRow, crit.configId)]!.expected" :rows="3" placeholder="Correct answer (optional): what the agent should have said. It becomes the dataset item’s expected output." aria-label="Correct answer" />
             <div class="decide">
-              <button type="button" class="small-btn" :disabled="!drafts[key(openedRow, crit.configId)]?.value" data-testid="save-resolution" @click="save(openedRow, crit)">Save decision</button>
-              <button v-if="crit.resolution" type="button" class="small-btn" data-testid="clear-resolution" @click="clear(openedRow, crit)">Clear decision</button>
+              <Button size="sm" :disabled="!drafts[key(openedRow, crit.configId)]?.value" data-testid="save-resolution" @click="save(openedRow, crit)">Save decision</Button>
+              <Button size="sm" v-if="crit.resolution" data-testid="clear-resolution" @click="clear(openedRow, crit)">Clear decision</Button>
             </div>
           </div>
         </div>
@@ -271,19 +276,12 @@ async function promote() {
   gap: 12px;
   margin-bottom: 8px;
 }
-.toolbar .small-btn {
-  margin-left: auto;
-}
+
 .check {
   display: flex;
   align-items: center;
   gap: 6px;
   font-size: 12.5px;
-}
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 24px;
 }
 .muted {
   color: var(--mt-muted);
@@ -300,25 +298,7 @@ async function promote() {
   border: 1px solid var(--mt-line);
   border-radius: var(--mt-radius-lg);
 }
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12.5px;
-}
-th {
-  position: sticky;
-  top: 0;
-  background: var(--mt-soft);
-  color: var(--mt-muted);
-  font-size: 11.5px;
-  text-align: left;
-  padding: 6px 10px;
-}
-td {
-  padding: 6px 10px;
-  border-top: 1px solid var(--mt-line);
-  vertical-align: top;
-}
+
 tr.flagged td:first-child {
   box-shadow: inset 3px 0 0 var(--mt-err-ink);
 }
@@ -328,21 +308,6 @@ td.disagree {
 .lbl {
   display: block;
   white-space: nowrap;
-}
-.pill {
-  display: inline-block;
-  margin-top: 2px;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: var(--mt-card);
-  font-size: 11px;
-  font-weight: 600;
-}
-.pill.ok {
-  color: var(--mt-ok-ink, var(--mt-accent));
-}
-.pill.warn {
-  color: var(--mt-err-ink);
 }
 .split {
   flex: 1;
@@ -396,22 +361,6 @@ h4 {
   gap: 6px;
   margin: 6px 0;
 }
-.choice {
-  height: 26px;
-  padding: 0 10px;
-  border-radius: var(--mt-radius-sm);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  color: var(--mt-ink);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-.choice.on {
-  border-color: var(--mt-accent);
-  color: var(--mt-accent);
-  font-weight: 700;
-}
 .promote {
   display: flex;
   flex-wrap: wrap;
@@ -436,24 +385,6 @@ select {
   font: inherit;
   font-size: 12.5px;
 }
-.small-btn {
-  height: 28px;
-  padding: 0 12px;
-  border-radius: var(--mt-radius-sm);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  color: var(--mt-ink);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.small-btn.primary {
-  border-color: var(--mt-accent);
-  color: var(--mt-accent);
-}
-.small-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+
+.push { margin-left: auto; }
 </style>

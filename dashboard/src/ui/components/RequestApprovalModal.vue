@@ -9,6 +9,9 @@ import { useAsync } from "../composables/useAsync";
 import { usePromptApi } from "../composables/usePromptApi";
 import Modal from "./Modal.vue";
 import TextInput from "./TextInput.vue";
+import Button from "./Button.vue";
+import Checkbox from "./Checkbox.vue";
+import FormField from "./FormField.vue";
 
 /**
  * Pedir aprobación (ADR-076) para publicar un borrador o apuntar un entorno a una versión. Enseña qué exige la regla de
@@ -67,25 +70,21 @@ async function send() {
           <p class="muted">Your own approval never counts: someone else has to look at it.</p>
         </section>
 
-        <label class="field">
-          <span>Note for the reviewers (optional)</span>
+        <FormField label="Note for the reviewers (optional)">
           <TextInput v-model="note" multiline :rows="3" placeholder="What changes and why" data-testid="request-note" />
-        </label>
+        </FormField>
 
         <fieldset v-if="candidates.length > 0" class="people">
           <legend>Also ask these people <span class="muted">(each one will have to approve)</span></legend>
-          <label v-for="p in candidates" :key="p.userId" class="person">
-            <input type="checkbox" :checked="extra.includes(p.userId)" :data-testid="`extra-${p.userId}`" @change="toggle(p.userId, ($event.target as HTMLInputElement).checked)" />
-            <span>{{ p.name }}</span>
-            <span class="muted">{{ p.roles.map(profileLabel).join(", ") }}</span>
-          </label>
+          <Checkbox v-for="p in candidates" :key="p.userId" class="person" :checked="extra.includes(p.userId)" :data-testid="`extra-${p.userId}`" @change="toggle(p.userId, ($event.target as HTMLInputElement).checked)"> <span>{{ p.name }}</span>
+            <span class="muted">{{ p.roles.map(profileLabel).join(", ") }}</span></Checkbox>
         </fieldset>
 
         <p v-if="problem" class="problem" role="alert" data-testid="request-error">{{ problem }}</p>
       </template>
       <div class="actions">
-        <button type="button" class="ghost" @click="emit('close')">Cancel</button>
-        <button type="button" class="primary-btn" :disabled="sending || (info.loading.value && !info.data.value)" data-testid="request-send" @click="send">{{ sending ? "Sending…" : "Send request" }}</button>
+        <Button @click="emit('close')">Cancel</Button>
+        <Button variant="primary" :disabled="sending || (info.loading.value && !info.data.value)" data-testid="request-send" @click="send">{{ sending ? "Sending…" : "Send request" }}</Button>
       </div>
     </div>
   </Modal>
@@ -97,13 +96,12 @@ async function send() {
 .rule { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border: 1px solid var(--mt-line); font-size: 14px; }
 .rule p { margin: 0; }
 .muted { color: var(--mt-muted); font-size: 12px; }
-.field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+
 .people { border: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
 legend { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
 .person { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .problem { margin: 0; padding: 10px 12px; font-size: 13px; color: var(--mt-err-ink); background: var(--mt-err-bg); border-radius: var(--mt-radius-sm); }
 .actions { display: flex; justify-content: flex-end; gap: 10px; }
 .ghost { height: 36px; padding: 0 16px; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); background: transparent; color: var(--mt-ink); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
-.primary-btn { height: 36px; padding: 0 18px; border: none; border-radius: var(--mt-radius-lg); background: var(--mt-accent); color: var(--mt-accent-ink); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
-.primary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 </style>

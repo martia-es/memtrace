@@ -10,6 +10,8 @@ import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import { numericChoices } from "../score-config-form";
 import NewScoreConfigModal from "./NewScoreConfigModal.vue";
+import Button from "./Button.vue";
+import SegmentedControl from "./SegmentedControl.vue";
 
 /**
  * Anotación humana de una traza (ADR-037): una persona puntúa la traza (o un span) con las rúbricas del
@@ -59,6 +61,7 @@ async function load() {
 void load();
 
 // ---- scope: the whole trace or the span selected in the tree ----
+const SCOPE_OPTIONS = [{ value: "trace", label: "Whole trace" }, { value: "span", label: "Selected span" }];
 const onSpan = ref(false);
 const scopeSpanId = computed(() => (onSpan.value && props.span ? props.span.spanId : null));
 watch(() => props.span, (span) => {
@@ -136,8 +139,7 @@ const scopeOf = (annotation: AnnotationDto) => (annotation.spanId ? `span ${shor
 
     <template v-else>
       <div v-if="span" class="scope" role="group" aria-label="What to annotate">
-        <button type="button" class="scope-btn" :class="{ active: !onSpan }" @click="onSpan = false">Whole trace</button>
-        <button type="button" class="scope-btn" :class="{ active: onSpan }" :title="span.name" @click="onSpan = true">Selected span</button>
+        <SegmentedControl size="sm" aria-label="Annotate" :options="SCOPE_OPTIONS" :model-value="onSpan ? 'span' : 'trace'" @update:model-value="onSpan = $event === 'span'" />
         <span class="hint span-name">{{ span.name }}</span>
       </div>
 
@@ -152,7 +154,7 @@ const scopeOf = (annotation: AnnotationDto) => (annotation.spanId ? `span ${shor
         There are no score configs yet — they define what you can score.
         <template v-if="!canModerate">Ask an experiment admin to create them.</template>
       </p>
-      <button v-if="canModerate" type="button" class="scope-btn mt-new" data-testid="new-config" @click="showNewConfig = true">+ New score config</button>
+      <Button v-if="canModerate" size="sm" class="mt-new" data-testid="new-config" @click="showNewConfig = true">+ New score config</Button>
       <NewScoreConfigModal v-if="showNewConfig" :experiment-id="experimentId" @close="showNewConfig = false" @created="load" />
 
       <section v-for="config in configs" :key="config.id" class="config" data-testid="annotation-config">
@@ -164,16 +166,7 @@ const scopeOf = (annotation: AnnotationDto) => (annotation.spanId ? `span ${shor
 
         <div class="controls" v-if="drafts[config.id]">
           <div v-if="choices(config)" class="choice-row">
-            <button
-              v-for="choice in choices(config)"
-              :key="choice.value"
-              type="button"
-              class="choice-btn"
-              :class="{ active: drafts[config.id]!.value === choice.value }"
-              @click="drafts[config.id]!.value = choice.value"
-            >
-              {{ choice.label }}
-            </button>
+            <SegmentedControl size="sm" class="choice-group" :options="choices(config)!.map((c) => ({ value: c.value, label: c.label, class: 'choice-btn' }))" :model-value="drafts[config.id]!.value" @update:model-value="drafts[config.id]!.value = $event as typeof drafts[string]['value']" />
           </div>
           <TextInput
             v-else
@@ -185,7 +178,7 @@ const scopeOf = (annotation: AnnotationDto) => (annotation.spanId ? `span ${shor
             :placeholder="`${config.minValue} – ${config.maxValue}`"
             :aria-label="`${config.name} value`" />
           <TextInput v-model="drafts[config.id]!.comment" placeholder="Comment (optional)" :aria-label="`${config.name} comment`" maxlength="5000" />
-          <button type="button" class="primary-btn" :disabled="savingId === config.id || !isDirty(config)" @click="save(config)">Save</button>
+          <Button variant="primary" :disabled="savingId === config.id || !isDirty(config)" @click="save(config)">Save</Button>
         </div>
       </section>
 
@@ -197,7 +190,7 @@ const scopeOf = (annotation: AnnotationDto) => (annotation.spanId ? `span ${shor
             <span class="row-value mono">{{ a.value }}</span>
             <span class="hint">{{ authorOf(a) }} · {{ scopeOf(a) }}</span>
             <span v-if="a.comment" class="row-comment">“{{ a.comment }}”</span>
-            <button v-if="canAct(a)" type="button" class="small-btn" @click="retract(a)">Retract</button>
+            <Button class="push" variant="danger" size="sm" v-if="canAct(a)" @click="retract(a)">Retract</Button>
           </li>
         </ul>
       </section>
@@ -239,26 +232,6 @@ const scopeOf = (annotation: AnnotationDto) => (annotation.spanId ? `span ${shor
   align-items: center;
   gap: 6px;
 }
-.scope-btn,
-.choice-btn {
-  height: 28px;
-  min-width: 34px;
-  padding: 0 12px;
-  border-radius: var(--mt-radius-sm);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  color: var(--mt-muted);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.scope-btn.active,
-.choice-btn.active {
-  background: var(--mt-accent);
-  border-color: var(--mt-accent);
-  color: var(--mt-accent-ink);
-}
 .config {
   display: flex;
   flex-direction: column;
@@ -296,22 +269,7 @@ const scopeOf = (annotation: AnnotationDto) => (annotation.spanId ? `span ${shor
   flex-wrap: wrap;
   gap: 4px;
 }
-.primary-btn {
-  height: 32px;
-  padding: 0 16px;
-  border-radius: var(--mt-radius-lg);
-  border: none;
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.primary-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+
 .list h3 {
   margin: 0 0 6px;
   color: var(--mt-muted);
@@ -349,19 +307,7 @@ const scopeOf = (annotation: AnnotationDto) => (annotation.spanId ? `span ${shor
   color: var(--mt-muted);
   font-style: italic;
 }
-.small-btn {
-  margin-left: auto;
-  height: 24px;
-  padding: 0 10px;
-  border-radius: var(--mt-radius-sm);
-  border: 1px solid var(--mt-err-ink);
-  background: transparent;
-  color: var(--mt-err-ink);
-  font: inherit;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-}
+
 .queues {
   display: flex;
   flex-wrap: wrap;
@@ -377,4 +323,5 @@ const scopeOf = (annotation: AnnotationDto) => (annotation.spanId ? `span ${shor
   font-weight: 600;
   text-decoration: none;
 }
+.push { margin-left: auto; }
 </style>

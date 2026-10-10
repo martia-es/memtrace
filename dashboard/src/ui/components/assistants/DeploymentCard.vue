@@ -11,6 +11,7 @@ import { DEPLOY_STATUS, HEALTH_LABEL, HEALTH_TONE, accessSummary, authSummary, f
 import CommitLink from "../CommitLink.vue";
 import StatusChip from "../StatusChip.vue";
 import HealthBars from "./HealthBars.vue";
+import Button from "../Button.vue";
 
 /** Un entorno de un asistente: estado de /health, disponibilidad de 24 h y datos del despliegue (ADR-053). */
 const props = defineProps<{ experimentId: string; deployment: DeploymentSummaryDto; selected: boolean; canManage: boolean; nowMs: number; chatPath?: string | null; talkable?: boolean; deployable?: boolean; refreshKey?: number; repo?: RepoConfigDto | null }>();
@@ -66,10 +67,10 @@ const mono = new Set(["API", "Health", "Chat", "Latency", "Version", "Deploys fr
       <span class="key">{{ deployment.environment.label }}</span>
       <StatusChip :tone="HEALTH_TONE[deployment.healthStatus]" :label="HEALTH_LABEL[deployment.healthStatus]" />
       <div class="spacer" />
-      <button v-if="deployable" type="button" class="talk" data-testid="deploy" @click="emit('deploy')"><q-icon name="rocket_launch" size="14px" />Deploy</button>
-      <button v-if="talkable" type="button" class="talk" data-testid="talk" @click="emit('talk')"><q-icon name="chat_bubble_outline" size="14px" />Chat</button>
-      <button v-if="canManage" type="button" class="link" :disabled="checking" data-testid="check-now" @click="checkNow"><q-icon name="sync" size="14px" :class="{ spin: checking }" />{{ checking ? "Syncing…" : "Sync" }}</button>
-      <button v-if="canManage" type="button" class="link" @click="emit('edit')"><q-icon name="edit" size="14px" />Edit</button>
+      <Button size="sm" v-if="deployable" data-testid="deploy" @click="emit('deploy')"><q-icon name="rocket_launch" size="14px" />Deploy</Button>
+      <Button size="sm" v-if="talkable" data-testid="talk" @click="emit('talk')"><q-icon name="chat_bubble_outline" size="14px" />Chat</Button>
+      <Button variant="link" v-if="canManage" :disabled="checking" data-testid="check-now" @click="checkNow"><q-icon name="sync" size="14px" :class="{ spin: checking }" />{{ checking ? "Syncing…" : "Sync" }}</Button>
+      <Button variant="link" v-if="canManage" @click="emit('edit')"><q-icon name="edit" size="14px" />Edit</Button>
     </header>
     <div class="uptime">
       <HealthBars :checks="checks" :now-ms="nowMs" />
@@ -82,7 +83,7 @@ const mono = new Set(["API", "Health", "Chat", "Latency", "Version", "Deploys fr
         <dd v-else :class="{ mono: mono.has(label) }" :title="value">{{ value }}</dd>
       </template>
     </dl>
-    <button type="button" class="select" :aria-pressed="selected" @click="emit('select')">{{ selected ? "Showing who can call it" : "Show who can call it" }}</button>
+    <Button size="sm" class="select" :aria-pressed="selected" @click="emit('select')">{{ selected ? "Showing who can call it" : "Show who can call it" }}</Button>
   </article>
 </template>
 
@@ -93,17 +94,15 @@ const mono = new Set(["API", "Health", "Chat", "Latency", "Version", "Deploys fr
 .key { font-family: var(--mt-mono); font-size: 14px; font-weight: 500; letter-spacing: 0.02em; }
 .spacer { flex: 1; }
 .link { display: inline-flex; align-items: center; gap: 4px; }
-.talk { display: inline-flex; align-items: center; gap: 5px; }
+
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.link, .select { font: inherit; font-size: 12px; font-weight: 700; color: var(--mt-accent-text); background: none; border: none; padding: 0; cursor: pointer; }
-.talk { height: 26px; padding: 0 12px; font: inherit; font-size: 12px; font-weight: 700; color: var(--mt-accent-ink); background: var(--mt-accent); border: none; border-radius: var(--mt-radius-sm); cursor: pointer; }
-.talk:focus-visible { outline: 2px solid var(--mt-accent); outline-offset: 2px; }
-.link:hover:not(:disabled), .select:hover { text-decoration: underline; }
+.link { font: inherit; font-size: 12px; font-weight: 700; color: var(--mt-accent-text); background: none; border: none; padding: 0; cursor: pointer; }
+
+.link:hover:not(:disabled) { text-decoration: underline; }
 .link:disabled { opacity: 0.5; cursor: default; }
 .head .link + .link { margin-left: 4px; }
 .select { align-self: flex-start; }
-.select[aria-pressed="true"] { color: var(--mt-muted); cursor: default; text-decoration: none; }
 .uptime { display: flex; flex-direction: column; gap: 5px; }
 .uptime-legend { display: flex; justify-content: space-between; font-size: 11px; color: var(--mt-faint); }
 .uptime-legend b { font-family: var(--mt-mono); font-weight: 500; color: var(--mt-ink); }

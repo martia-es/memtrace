@@ -204,6 +204,9 @@ with session(conversation_id):
     install: "npm install memtrace-ai pydantic-ai",
     example: `import { initTracer, session, traceStep } from "memtrace-ai";
 import { Agent } from "pydantic-ai";
+import Card from "./Card.vue";
+import SegmentedControl from "./SegmentedControl.vue";
+import Button from "./Button.vue";
 
 initTracer({ serviceName: "my-agent" });
 
@@ -247,7 +250,7 @@ const guide = computed(() => {
 </script>
 
 <template>
-  <div class="onboarding mt-card">
+  <Card padding="none" block class="onboarding">
     <div class="intro">
       <q-icon name="forum" size="32px" class="intro-icon" />
       <div class="intro-title">No traces detected yet</div>
@@ -257,32 +260,12 @@ const guide = computed(() => {
     <div class="pickers">
       <div class="picker">
         <span class="picker-label">Framework</span>
-        <div class="mt-segmented">
-          <button
-            v-for="fw in FRAMEWORKS"
-            :key="fw.id"
-            type="button"
-            :aria-pressed="selectedFramework === fw.id"
-            @click="selectedFramework = fw.id"
-          >
-            {{ fw.label }}
-          </button>
-        </div>
+        <SegmentedControl :options="FRAMEWORKS.map((fw) => ({ value: fw.id, label: fw.label }))" :model-value="selectedFramework" @update:model-value="selectedFramework = $event as typeof selectedFramework" />
       </div>
 
       <div class="picker">
         <span class="picker-label">Language</span>
-        <div class="mt-segmented">
-          <button
-            v-for="lang in LANGUAGES"
-            :key="lang.id"
-            type="button"
-            :aria-pressed="selectedLanguage === lang.id"
-            @click="selectedLanguage = lang.id"
-          >
-            {{ lang.label }}
-          </button>
-        </div>
+        <SegmentedControl :options="LANGUAGES.map((l) => ({ value: l.id, label: l.label }))" :model-value="selectedLanguage" @update:model-value="selectedLanguage = $event as typeof selectedLanguage" />
       </div>
     </div>
 
@@ -291,27 +274,27 @@ const guide = computed(() => {
         <span class="step-label">Install</span>
         <div class="snippet">
           <pre><code>{{ guide.install }}</code></pre>
-          <button class="copy" type="button" title="Copy" @click="copy(guide.install, 'install')">
+          <Button variant="icon" size="sm" class="copy" title="Copy" @click="copy(guide.install, 'install')">
             <q-icon :name="copiedKey === 'install' ? 'check' : 'content_copy'" size="15px" />
-          </button>
+          </Button>
         </div>
       </li>
 
       <li class="step">
         <div class="step-header">
           <span class="step-label">Set environment variables</span>
-          <button class="generate-key-btn" type="button" :disabled="generatingApiKey" @click="generateApiKey">
+          <Button class="generate-key-btn" :disabled="generatingApiKey" @click="generateApiKey">
             {{ generatedApiKey ? "Generate another API key" : "Generate API key" }}
-          </button>
+          </Button>
         </div>
         <p v-if="generatedApiKey" class="key-warning">
           Copy it now — it won't be shown in full again. If you leave this screen you'll need to generate a new one.
         </p>
         <div class="snippet">
           <pre><code>{{ guide.env }}</code></pre>
-          <button class="copy" type="button" title="Copy" @click="copy(guide.env, 'env')">
+          <Button variant="icon" size="sm" class="copy" title="Copy" @click="copy(guide.env, 'env')">
             <q-icon :name="copiedKey === 'env' ? 'check' : 'content_copy'" size="15px" />
-          </button>
+          </Button>
         </div>
       </li>
 
@@ -319,13 +302,13 @@ const guide = computed(() => {
         <span class="step-label">Instrument your agent</span>
         <div class="snippet">
           <pre><code>{{ guide.example }}</code></pre>
-          <button class="copy" type="button" title="Copy" @click="copy(guide.example, 'example')">
+          <Button variant="icon" size="sm" class="copy" title="Copy" @click="copy(guide.example, 'example')">
             <q-icon :name="copiedKey === 'example' ? 'check' : 'content_copy'" size="15px" />
-          </button>
+          </Button>
         </div>
       </li>
     </ol>
-  </div>
+  </Card>
 </template>
 
 <style scoped>
@@ -404,22 +387,8 @@ const guide = computed(() => {
   justify-content: space-between;
   gap: 12px;
 }
-.generate-key-btn {
-  flex-shrink: 0;
-  height: 30px;
-  padding: 0 14px;
-  border-radius: var(--mt-radius-lg);
-  border: none;
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.generate-key-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
+.generate-key-btn { flex-shrink: 0; }
+
 .key-warning {
   margin: -2px 0 0;
   font-size: 12px;
@@ -446,25 +415,8 @@ const guide = computed(() => {
   white-space: pre;
 }
 
-.copy {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border: 0;
-  border-radius: var(--mt-radius-sm);
-  background: var(--mt-card);
-  color: var(--mt-muted);
-  cursor: pointer;
-  box-shadow: 0 1px 3px rgba(20, 60, 35, 0.12);
-}
-.copy:hover {
-  color: var(--mt-ink);
-}
+.copy { position: absolute; top: 8px; right: 8px; }
+
 
 @media (max-width: 560px) {
   .onboarding {

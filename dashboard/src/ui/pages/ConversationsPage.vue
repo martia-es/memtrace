@@ -27,6 +27,11 @@ import { useLiveRefresh } from "../composables/useLiveRefresh";
 import { usePagedList } from "../composables/usePagedList";
 import { useTraceApi } from "../composables/useTraceApi";
 import { useExperimentRepo } from "../composables/useExperimentRepo";
+import DataTable from "../components/DataTable.vue";
+import LoadingState from "../components/LoadingState.vue";
+import Card from "../components/Card.vue";
+import SegmentedControl from "../components/SegmentedControl.vue";
+import Button from "../components/Button.vue";
 
 const PAGE_SIZE = 50;
 const api = useTraceApi();
@@ -35,6 +40,7 @@ const route = useRoute();
 const experimentId = computed(() => route.params.experimentId as string);
 const currentExperiment = inject(CURRENT_EXPERIMENT, computed(() => null));
 const f = useFilters();
+const LIST_MODES = [{ value: "conversation", label: "Conversations", class: "mode-conversations" }, { value: "flat", label: "Traces", class: "mode-traces" }];
 const grouped = computed(() => f.group.value === "conversation");
 
 // Ungrouped (default): all traces. Grouped: one row per conversation.
@@ -234,7 +240,7 @@ const footer = computed(() => {
   <q-page class="page">
     <PageHeader :crumbs="[{ label: 'MemTrace', to: { name: 'overview', params: { experimentId } } }, { label: 'Conversations' }]" icon="M4 5h16v11H9l-5 4z" title="Conversations" />
 
-    <section class="kpis mt-card" aria-label="Summary">
+    <Card as="section" padding="none" block class="kpis" aria-label="Summary">
       <template v-if="kpis.length">
         <div v-for="(k, i) in kpis" :key="k.k" class="kpi" :class="{ first: i === 0 }">
           <span class="kpi-k">{{ k.k }}</span>
@@ -243,18 +249,11 @@ const footer = computed(() => {
       </template>
       <div v-else-if="overview.error.value" class="kpi-msg">Could not load summary.</div>
       <div v-else class="kpi-msg">Loading summary…</div>
-    </section>
+    </Card>
 
     <div class="views-row">
-      <div class="mt-segmented small" role="group" aria-label="List mode">
-        <button type="button" class="mode-conversations" :aria-pressed="grouped" @click="f.setGroup('conversation')">Conversations</button>
-        <button type="button" class="mode-traces" :aria-pressed="!grouped" @click="f.setGroup('flat')">Traces</button>
-      </div>
-      <div class="quick-tabs" role="tablist" aria-label="Quick views">
-        <button v-for="v in quickViews" :key="v.key" type="button" role="tab" class="quick" :class="{ active: quick === v.key }" :aria-selected="quick === v.key" @click="f.setQuickView(v.key)">
-          {{ v.label }}<span v-if="v.count !== null" class="quick-count mono">{{ v.count }}</span>
-        </button>
-      </div>
+      <SegmentedControl size="sm" aria-label="List mode" :options="LIST_MODES" :model-value="grouped ? 'conversation' : 'flat'" @update:model-value="f.setGroup($event as 'conversation' | 'flat')" />
+      <SegmentedControl tabs class="quick-tabs" size="sm" aria-label="Quick views" :options="quickViews.map((v) => ({ value: v.key, label: v.label, count: v.count ?? undefined, class: 'quick' }))" :model-value="quick" @update:model-value="f.setQuickView($event as typeof quick)" />
       <button v-if="f.prompt.value" type="button" class="prompt-filter" data-testid="prompt-filter" :title="'Remove the prompt filter'" @click="f.setPrompt(undefined)">
         Prompt: <b>{{ f.prompt.value }}{{ f.promptVersion.value ? ` v${f.promptVersion.value}` : "" }}</b> ✕
       </button>
@@ -263,11 +262,11 @@ const footer = computed(() => {
     </div>
 
     <div class="body">
-      <section class="table-card mt-card">
+      <Card as="section" padding="none" block class="table-card">
         <ErrorBanner v-if="active.error.value" :error="active.error.value" @retry="reload" />
 
         <div class="list">
-          <table v-if="grouped && conversations.items.value.length" class="conversations">
+          <DataTable v-if="grouped && conversations.items.value.length" class="conversations" sticky nowrap>
             <thead>
               <tr><th>Conversation</th><th>Prompt</th><th>Last activity</th><th class="num">Turns</th><th class="num">Active time</th><th class="num">Tokens</th><th class="num">Cost</th><th>Status</th><th>Annotation</th><th>User feedback</th></tr>
             </thead>
@@ -297,7 +296,7 @@ const footer = computed(() => {
                 <td><FeedbackChip :feedback="feedback.get(c.conversationId)" /></td>
               </tr>
             </tbody>
-          </table>
+          </DataTable>
           <TraceTable
             v-else-if="!grouped && traces.items.value.length"
             :items="traces.items.value"
@@ -320,17 +319,17 @@ const footer = computed(() => {
             :service-name="currentExperiment?.serviceName ?? ''"
             :experiment-id="experimentId"
           />
-          <div v-if="active.loading.value && active.items.value.length === 0" class="spinner"><q-spinner size="28px" color="primary" /></div>
+          <LoadingState v-if="active.loading.value && active.items.value.length === 0" size="md" />
         </div>
 
         <ErrorBanner v-if="active.moreError.value" :error="active.moreError.value" @retry="active.loadMore" />
         <div class="footer">
           <span class="count">{{ footer }}</span>
-          <button v-if="active.nextCursor.value" type="button" class="more" :disabled="active.moreLoading.value" @click="active.loadMore">
+          <Button size="sm" v-if="active.nextCursor.value" :disabled="active.moreLoading.value" @click="active.loadMore">
             {{ active.moreLoading.value ? "Loading…" : "Load more" }}
-          </button>
+          </Button>
         </div>
-      </section>
+      </Card>
 
       <ConversationPreview
         v-if="preview"
@@ -435,35 +434,9 @@ const footer = computed(() => {
   width: 280px;
 }
 .quick-tabs {
-  display: flex;
-  gap: 4px;
   align-self: flex-end;
 }
-.quick {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 9px 10px;
-  margin-bottom: -1px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: none;
-  color: var(--mt-muted);
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-.quick.active {
-  color: var(--mt-ink);
-  border-bottom-color: var(--mt-accent);
-}
-.quick-count {
-  padding: 0 5px;
-  border-radius: var(--mt-radius-xs);
-  background: var(--mt-soft);
-  color: var(--mt-muted);
-  font-size: 11px;
-}
+
 .body {
   flex: 1;
   min-height: 0;
@@ -487,33 +460,7 @@ const footer = computed(() => {
   min-height: 0;
   overflow-y: auto;
 }
-.conversations {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  padding: 0 14px;
-  height: 34px;
-  background: var(--mt-soft);
-  border-bottom: 1px solid var(--mt-line);
-  color: var(--mt-muted);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-align: left;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-td {
-  padding: 0 14px;
-  height: 50px;
-  border-bottom: 1px solid var(--mt-line-2);
-  white-space: nowrap;
-}
+
 .num {
   text-align: right;
 }
@@ -562,11 +509,6 @@ td {
   text-align: center;
   color: var(--mt-muted);
 }
-.spinner {
-  display: flex;
-  justify-content: center;
-  padding: 40px;
-}
 .footer {
   display: flex;
   align-items: center;
@@ -582,21 +524,7 @@ td {
   font-size: 12px;
   color: var(--mt-muted);
 }
-.more {
-  height: 28px;
-  padding: 0 12px;
-  border: 1px solid var(--mt-line);
-  border-radius: var(--mt-radius-sm);
-  background: var(--mt-card);
-  color: var(--mt-accent-text);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.more:disabled {
-  opacity: 0.6;
-}
+
 @keyframes fade-new {
   from { background: var(--mt-accent-soft); }
 }

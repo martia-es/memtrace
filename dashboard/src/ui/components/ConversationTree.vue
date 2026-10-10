@@ -4,6 +4,7 @@ import { computed, ref } from "vue";
 import { formatCostUsd, formatCount, formatDateTime, formatDuration } from "@/domain/format";
 import StatusBadge from "./StatusBadge.vue";
 import SpanTree from "./SpanTree.vue";
+import Pill from "./Pill.vue";
 
 const props = defineProps<{ turns: TraceDetailResponse[]; selectedTraceId: string | null; selectedSpanId: string | null }>();
 const emit = defineEmits<{ select: [traceId: string, spanId: string] }>();
@@ -52,10 +53,10 @@ const summary = computed(() => {
           <span class="muted run-time">{{ formatDateTime(t.startTime) }}</span>
           <span class="run-pills">
             <StatusBadge :status="t.status" />
-            <span class="mt-pill unset">{{ formatDuration(t.durationMs) }}</span>
-            <span v-if="t.totalTokens" class="mt-pill unset">{{ formatCount(t.totalTokens) }} tok</span>
-            <span v-if="t.totalCostUsd" class="mt-pill unset">{{ formatCostUsd(t.totalCostUsd) }}</span>
-            <span v-if="t.errorCount" class="mt-pill error">{{ t.errorCount }} err</span>
+            <Pill>{{ formatDuration(t.durationMs) }}</Pill>
+            <Pill v-if="t.totalTokens">{{ formatCount(t.totalTokens) }} tok</Pill>
+            <Pill v-if="t.totalCostUsd">{{ formatCostUsd(t.totalCostUsd) }}</Pill>
+            <Pill tone="error" v-if="t.errorCount">{{ t.errorCount }} err</Pill>
           </span>
         </button>
         <div v-show="!collapsed.has(t.traceId)" class="run-body">
@@ -178,14 +179,6 @@ const summary = computed(() => {
   border-radius: var(--mt-radius-sm);
   font-size: 11px;
   font-weight: 600;
-}
-.mt-pill.error {
-  background: var(--mt-err-bg);
-  color: var(--mt-err-ink);
-}
-.mt-pill.unset {
-  background: var(--mt-soft);
-  color: var(--mt-ink);
 }
 .run-body {
   padding: 8px 8px 10px;

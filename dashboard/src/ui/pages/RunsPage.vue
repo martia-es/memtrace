@@ -5,7 +5,7 @@ import { computed, ref, watch } from "vue";
 import { useQuasar } from "quasar";
 import { useRoute, useRouter } from "vue-router";
 import { formatDateTime, formatPercent } from "@/domain/format";
-import { aggregateTone, aggregateValueLabel } from "@/domain/evaluation";
+import { aggregateTone, aggregatePillTone, aggregateValueLabel } from "@/domain/evaluation";
 import { buildOfflineSeries, offlineEvalChartOption, summarizeEvaluators, type EvaluatorSummary } from "../offline-eval-chart-option";
 import EChart from "../components/EChart.vue";
 import EmptyState from "../components/EmptyState.vue";
@@ -16,6 +16,13 @@ import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
 import { useExperimentRepo } from "../composables/useExperimentRepo";
 import CommitLink from "../components/CommitLink.vue";
+import Button from "../components/Button.vue";
+import Checkbox from "../components/Checkbox.vue";
+import Pill from "../components/Pill.vue";
+import Pagination from "../components/Pagination.vue";
+import DataTable from "../components/DataTable.vue";
+import LoadingState from "../components/LoadingState.vue";
+import Card from "../components/Card.vue";
 
 const PAGE_SIZE = 20;
 
@@ -74,7 +81,7 @@ function deltaLabel(s: EvaluatorSummary): string {
   const sign = s.delta > 0 ? "+" : "";
   return s.kind === "passRate" ? `${sign}${(s.delta * 100).toFixed(1)} pp` : `${sign}${s.delta.toFixed(2)}`;
 }
-const deltaClass = (s: EvaluatorSummary) => (s.status === "improving" ? "ok" : s.status === "regressing" ? "error" : "unset");
+const deltaClass = (s: EvaluatorSummary) => (s.status === "improving" ? "ok" : s.status === "regressing" ? "error" : "neutral");
 
 // ---- compare: tick two completed runs and jump to the comparison (ADR-048); the first ticked is the baseline ----
 const picked = ref<string[]>([]);
@@ -104,29 +111,29 @@ function openRun(run: RunListItemDto) {
     </div>
 
     <section v-if="hasTrend" class="insights">
-      <div class="mt-card insight">
+      <Card padding="none" block class="insight">
         <h2>Score trend</h2>
         <EChart :option="trendOption" height="150px" label="Pass rate per evaluator across runs" />
-      </div>
-      <div class="mt-card insight">
+      </Card>
+      <Card padding="none" block class="insight">
         <h2>Latest vs previous run</h2>
         <div v-for="s in deltas" :key="s.name" class="delta-row">
           <span class="delta-name">{{ s.name }}</span>
           <span class="mono muted">{{ fmt(s.previous, s.kind) }} → <b class="ink">{{ fmt(s.latest, s.kind) }}</b></span>
-          <span class="mt-pill mono" :class="deltaClass(s)">{{ deltaLabel(s) }}</span>
+          <Pill mono :tone="deltaClass(s)">{{ deltaLabel(s) }}</Pill>
         </div>
-      </div>
+      </Card>
     </section>
 
     <ErrorBanner v-if="runs.error.value" :error="runs.error.value" @retry="runs.run()" />
-    <div v-else-if="runs.loading.value && !runs.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
+    <LoadingState v-else-if="runs.loading.value && !runs.data.value" size="lg" />
     <EmptyState v-else-if="(runs.data.value?.items.length ?? 0) === 0" icon="playlist_add_check" title="No runs yet">
       Run <code>run_experiment(data="…", …)</code> from your script, or open a dataset and run it manually.
     </EmptyState>
     <EmptyState v-else-if="items.length === 0" icon="search_off" title="No matches">Try a different search or dataset.</EmptyState>
 
-    <div v-else class="mt-card table-card">
-      <table class="runs">
+    <Card padding="none" block v-else class="table-card">
+      <DataTable class="runs" sticky nowrap>
         <thead>
           <tr>
             <th class="pick" />
@@ -142,53 +149,45 @@ function openRun(run: RunListItemDto) {
         <tbody>
           <tr v-for="r in items" :key="r.id" class="run-row" :class="{ picked: isPicked(r) }" tabindex="0" @click="openRun(r)" @keydown.enter="openRun(r)">
             <td class="pick" @click.stop>
-              <input
-                type="checkbox"
+              <Checkbox
+               
                 class="pick-box"
                 data-testid="pick-run"
                 :checked="isPicked(r)"
                 :disabled="r.status !== 'completed'"
                 :title="r.status !== 'completed' ? 'Only completed runs can be compared' : undefined"
                 :aria-label="`Select ${r.name} to compare`"
-                @change="togglePick(r)"
-              />
+                @change="togglePick(r)" />
             </td>
             <td class="name">{{ r.name }}</td>
             <td class="muted">{{ r.datasetName }} <span class="mono faint">v{{ r.versionMajor }}.{{ r.versionMinor }}</span></td>
             <td @click.stop><CommitLink :revision="r.revision" :repo="repo" :dirty="r.revisionDirty" /></td>
             <td class="muted">{{ formatDateTime(r.createdAt) }}</td>
             <td v-for="m in metricNames" :key="m" class="center">
-              <span v-if="metricCell(r, m)" class="mt-pill" :class="{ ok: aggregateTone(metricCell(r, m)!) === 'positive', warn: aggregateTone(metricCell(r, m)!) === 'warning', error: aggregateTone(metricCell(r, m)!) === 'negative', unset: aggregateTone(metricCell(r, m)!) === 'default' }">
+              <Pill v-if="metricCell(r, m)" :tone="aggregatePillTone(aggregateTone(metricCell(r, m)!))">
                 {{ aggregateValueLabel(metricCell(r, m)!) }}
-              </span>
+              </Pill>
               <span v-else class="muted">–</span>
             </td>
             <td class="num mono">{{ r.itemCount }}</td>
             <td>
-              <span class="mt-pill" :class="r.status === 'running' ? 'warn' : 'ok'" :title="r.status === 'running' ? 'Still receiving results, or the process stopped before finishing' : undefined">{{ r.status === "running" ? "Running" : "Completed" }}</span>
+              <Pill :tone="r.status === 'running' ? 'warn' : 'ok'" :title="r.status === 'running' ? 'Still receiving results, or the process stopped before finishing' : undefined">{{ r.status === "running" ? "Running" : "Completed" }}</Pill>
             </td>
           </tr>
         </tbody>
-      </table>
-    </div>
+      </DataTable>
+    </Card>
 
     <div v-if="picked.length > 0" class="compare-bar" data-testid="compare-bar">
       <span class="compare-title">{{ picked.length }} {{ picked.length === 1 ? "run" : "runs" }} selected</span>
       <span class="compare-sub">{{ picked.length === 2 ? `${pickedRuns[0]?.name} (baseline) vs ${pickedRuns[1]?.name}` : "Pick one more run to compare" }}</span>
       <div class="compare-actions">
-        <button type="button" class="compare-clear" @click="picked = []">Clear</button>
-        <button type="button" class="compare-go" data-testid="compare-go" :disabled="picked.length !== 2" @click="compare">Compare runs →</button>
+        <Button variant="link" class="compare-clear" @click="picked = []">Clear</Button>
+        <Button variant="primary" class="compare-go" data-testid="compare-go" :disabled="picked.length !== 2" @click="compare">Compare runs →</Button>
       </div>
     </div>
 
-    <div v-if="items.length > 0" class="pager">
-      <span class="muted">{{ filtered.length }} run{{ filtered.length === 1 ? "" : "s" }}</span>
-      <div class="pager-controls">
-        <button type="button" class="page-btn" :disabled="page <= 1" @click="page -= 1">Prev</button>
-        <span class="muted mono">Page {{ page }} / {{ pageCount }}</span>
-        <button type="button" class="page-btn" :disabled="page >= pageCount" @click="page += 1">Next</button>
-      </div>
-    </div>
+    <Pagination v-if="items.length > 0" v-model:page="page" :page-count="pageCount">{{ filtered.length }} run{{ filtered.length === 1 ? "" : "s" }}</Pagination>
   </div>
 </template>
 
@@ -256,44 +255,13 @@ function openRun(run: RunListItemDto) {
 .muted {
   color: var(--mt-muted);
 }
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 60px;
-}
 .table-card {
   flex: 1;
   min-height: 0;
   overflow: auto;
   padding: 0;
 }
-.runs {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  height: 34px;
-  padding: 0 14px;
-  background: var(--mt-soft);
-  border-bottom: 1px solid var(--mt-line);
-  color: var(--mt-muted);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-align: left;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-td {
-  height: 46px;
-  padding: 0 14px;
-  border-bottom: 1px solid var(--mt-line-2);
-  white-space: nowrap;
-}
+
 .num {
   text-align: right;
 }
@@ -311,36 +279,7 @@ td {
   background: var(--mt-soft-2);
   outline: none;
 }
-.pager {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-shrink: 0;
-  font-size: 12.5px;
-}
-.pager-controls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.page-btn {
-  height: 30px;
-  padding: 0 12px;
-  border: 1px solid var(--mt-line);
-  border-radius: var(--mt-radius-sm);
-  background: var(--mt-card);
-  color: var(--mt-ink);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-.page-btn:hover:not(:disabled) {
-  background: var(--mt-soft);
-}
-.page-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
+
 .pick {
   width: 18px;
   padding-right: 0;
@@ -379,28 +318,7 @@ td {
   align-items: center;
   gap: 12px;
 }
-.compare-clear {
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  font-weight: 700;
-  opacity: 0.8;
-  cursor: pointer;
-}
-.compare-go {
-  height: 34px;
-  padding: 0 18px;
-  border: 0;
-  border-radius: var(--mt-radius-sm);
-  background: var(--mt-brand);
-  color: var(--mt-ink);
-  font: inherit;
-  font-weight: 800;
-  cursor: pointer;
-}
-.compare-go:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
+
+
+
 </style>

@@ -25,6 +25,11 @@ const ROLE_LABELS: Record<string, string> = { org_admin: "org_admin", technical:
 /** Etiqueta de un rol; un rol propio que no conocemos se muestra con su nombre. */
 export const ROLE_LABEL: Record<string, string> = new Proxy(ROLE_LABELS, { get: (t, k) => t[k as string] ?? String(k) });
 
+/** Tono de `Pill` de un rol: org_admin destaca; el resto, neutro. */
+export function roleTone(role: string): "accent" | "neutral" {
+  return role === "org_admin" ? "accent" : "neutral";
+}
+
 export function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return "?";

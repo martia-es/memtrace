@@ -12,6 +12,9 @@ import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import FilterPill from "../components/FilterPill.vue";
 import PageHeader from "../components/PageHeader.vue";
+import Checkbox from "../components/Checkbox.vue";
+import LoadingState from "../components/LoadingState.vue";
+import Card from "../components/Card.vue";
 
 /** Catálogo de asistentes de la organización (ADR-053): una tarjeta de presentación por experimento registrado. */
 const ORG_KEY = "memtrace:assistantsOrganizationId";
@@ -118,26 +121,26 @@ const organizationOptions = computed(() => readable.value.map((o) => ({ label: o
     </PageHeader>
 
     <ErrorBanner v-if="catalog.error.value" :error="catalog.error.value" @retry="catalog.run()" />
-    <div v-else-if="(organizations.loading.value || catalog.loading.value) && !catalog.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
+    <LoadingState v-else-if="(organizations.loading.value || catalog.loading.value) && !catalog.data.value" size="lg" />
     <EmptyState v-else-if="!organization" icon="lock" title="No access to the catalog">
       You need the governance permission in an organization to see its assistants. Ask an organization admin.
     </EmptyState>
 
     <template v-else>
-      <section class="summary mt-card" aria-label="Summary">
+      <Card as="section" padding="none" block class="summary" aria-label="Summary">
         <div class="stat"><b>{{ summary.assistants }}</b><span>assistants</span></div>
         <div class="stat ok"><b>{{ summary.up }} / {{ summary.deployed }}</b><span>environments up</span></div>
         <div class="stat" :class="{ err: summary.attention > 0 }"><b>{{ summary.attention }}</b><span>degraded or down</span></div>
         <div class="stat" :class="{ warn: summary.toReview > 0 }"><b>{{ summary.toReview }}</b><span>connections to review</span></div>
         <div class="grow" />
         <span class="hint">Health is checked automatically; this page refreshes every 30 s</span>
-      </section>
+      </Card>
 
       <div class="filters">
         <TextInput type="search" v-model="search" placeholder="Search by name, description or owner…" class="search" />
         <FilterPill label="Environment" :model-value="environment" :options="environmentOptions" all-label="All" @update:model-value="environment = $event" />
         <FilterPill label="Status" :model-value="status" :options="statusOptions" all-label="All" @update:model-value="status = $event" />
-        <label class="toggle"><input v-model="onlyIssues" type="checkbox" />Only with issues</label>
+        <Checkbox class="toggle" v-model="onlyIssues">Only with issues</Checkbox>
       </div>
 
       <EmptyState v-if="cards.length === 0" icon="smart_toy" title="No agents yet">
@@ -158,7 +161,6 @@ const organizationOptions = computed(() => readable.value.map((o) => ({ label: o
 .org-select { min-width: 180px; }
 .primary { display: inline-flex; align-items: center; height: 32px; padding: 0 14px; text-decoration: none; font: inherit; font-size: 13px; font-weight: 700; color: var(--mt-accent-ink); background: var(--mt-accent); border: none; border-radius: var(--mt-radius-sm); cursor: pointer; }
 .primary:focus-visible { outline: 2px solid var(--mt-accent); outline-offset: 2px; }
-.loading { display: flex; justify-content: center; padding: 60px; }
 .summary { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 28px; padding: 10px 18px; }
 .stat { display: flex; align-items: baseline; gap: 8px; }
 .stat b { font-size: 22px; font-weight: 800; letter-spacing: -0.03em; }

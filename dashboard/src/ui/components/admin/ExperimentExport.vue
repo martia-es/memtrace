@@ -4,6 +4,8 @@ import type { ExperimentDto } from "@/application/identity-api";
 import { useIdentityApi } from "../../composables/useIdentityApi";
 import { describeApiError } from "@/application/describe-api-error";
 import { ApiError } from "@/application/trace-api";
+import Button from "../Button.vue";
+import FormField from "../FormField.vue";
 
 /**
  * Exportar los datos de un experimento (ADR-084) en JSON Lines: un tipo de dato y un rango de hasta 31 días por descarga.
@@ -59,28 +61,25 @@ async function check() {
     </p>
 
     <div class="row">
-      <label>
-        <span class="lbl">What</span>
+      <FormField label="What">
         <select v-model="kind" aria-label="Kind of data" @change="ready = null">
           <option v-for="k in KINDS" :key="k.value" :value="k.value">{{ k.label }}</option>
         </select>
-      </label>
-      <label>
-        <span class="lbl">From</span>
+      </FormField>
+      <FormField label="From">
         <input v-model="from" type="date" aria-label="From date" @change="ready = null" />
-      </label>
-      <label>
-        <span class="lbl">To (included)</span>
+      </FormField>
+      <FormField label="To (included)">
         <input v-model="to" type="date" aria-label="To date" @change="ready = null" />
-      </label>
-      <button class="adm-btn primary" type="button" :disabled="checking || !from || !to" @click="check">Prepare export</button>
+      </FormField>
+      <Button variant="primary" :loading="checking" :disabled="!from || !to" @click="check">Prepare export</Button>
     </div>
     <p class="adm-hint">{{ hint }}</p>
 
     <p v-if="error" class="err" role="alert">{{ error }}</p>
     <div v-if="ready" class="ready">
       <span>{{ ready.rows.toLocaleString("en-US") }} record{{ ready.rows === 1 ? "" : "s" }} ready.</span>
-      <a v-if="ready.rows > 0" class="adm-btn primary" :href="ready.url" download>Download</a>
+      <a v-if="ready.rows > 0" class="download" :href="ready.url" download>Download</a>
       <span v-else class="adm-hint">Nothing in that range.</span>
     </div>
   </div>
@@ -97,16 +96,6 @@ async function check() {
   gap: 14px;
   align-items: flex-end;
   flex-wrap: wrap;
-}
-label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.lbl {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--mt-muted);
 }
 select,
 input {
@@ -128,7 +117,24 @@ input {
   gap: 12px;
   font-size: 13px;
 }
-.ready a {
+/* un enlace de descarga real (clic central, copiar dirección): Button no sirve archivos, así que repite su aspecto principal */
+.download {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: var(--mt-radius-lg);
+  background: var(--mt-accent);
+  color: var(--mt-accent-ink);
+  font-size: 13px;
+  font-weight: 600;
   text-decoration: none;
+}
+.download:hover {
+  opacity: 0.9;
+}
+.download:focus-visible {
+  outline: 2px solid var(--mt-accent);
+  outline-offset: 2px;
 }
 </style>

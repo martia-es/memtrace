@@ -16,6 +16,11 @@ import { useTraceApi } from "../composables/useTraceApi";
 import { useExperimentRepo } from "../composables/useExperimentRepo";
 import CommitLink from "../components/CommitLink.vue";
 import PromptChips from "../components/PromptChips.vue";
+import Button from "../components/Button.vue";
+import Pill from "../components/Pill.vue";
+import DataTable from "../components/DataTable.vue";
+import LoadingState from "../components/LoadingState.vue";
+import Card from "../components/Card.vue";
 
 const api = useTraceApi();
 const route = useRoute();
@@ -53,9 +58,9 @@ function preview(value: unknown): string {
   return typeof value === "string" ? value : JSON.stringify(value);
 }
 
-function scorePillClass(s: ScoreDto) {
-  if (s.dataType !== "boolean") return "unset";
-  return s.value === "true" ? "ok" : s.value === "false" ? "error" : "unset";
+function scorePillClass(s: ScoreDto): "neutral" | "ok" | "error" {
+  if (s.dataType !== "boolean") return "neutral";
+  return s.value === "true" ? "ok" : s.value === "false" ? "error" : "neutral";
 }
 
 /** Tooltip de un score: razonamiento del juez y, si lo hay, qué modelo y rúbrica lo emitieron (ADR-043). */
@@ -83,7 +88,7 @@ function sourceSuffix(s: ScoreDto): string | null {
     <PageHeader :crumbs="[{ label: 'Evaluation', to: { name: 'datasets' } }, { label: run.data.value?.dataset.name ?? '…', to: { name: 'dataset', params: { datasetId } } }, { label: run.data.value?.run.name ?? runId }]" icon="playlist_add_check" :title="run.data.value?.run.name ?? 'Run'" />
 
     <ErrorBanner v-if="run.error.value" :error="run.error.value" @retry="run.run()" />
-    <div v-else-if="run.loading.value && !run.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
+    <LoadingState v-else-if="run.loading.value && !run.data.value" size="lg" />
     <template v-else>
       <div class="artifacts">
         <span class="artifact">Dataset: <router-link :to="{ name: 'dataset', params: { datasetId } }">{{ run.data.value!.dataset.name }}</router-link></span>
@@ -91,7 +96,7 @@ function sourceSuffix(s: ScoreDto): string | null {
         <span v-if="run.data.value!.run.revision" class="artifact">Code version: <CommitLink :revision="run.data.value!.run.revision" :repo="repo" :dirty="run.data.value!.run.revisionDirty" /></span>
         <span v-if="runPrompts.length > 0" class="artifact" data-testid="run-prompts">Prompt: <PromptChips :prompts="runPrompts" :max="4" /></span>
         <span class="artifact">{{ run.data.value!.run.itemCount }} items</span>
-        <span v-if="run.data.value!.run.status === 'running'" class="artifact mt-pill warn" title="Still receiving results, or the process stopped before finishing">running</span>
+        <Pill tone="warn" v-if="run.data.value!.run.status === 'running'" title="Still receiving results, or the process stopped before finishing" class="artifact">running</Pill>
         <span class="artifact">{{ formatDateTime(run.data.value!.run.createdAt) }}</span>
       </div>
 
@@ -107,9 +112,9 @@ function sourceSuffix(s: ScoreDto): string | null {
 
       <JudgeHumanAgreement :scope="{ datasetRunId: runId }" @select-item="showItem">
         <template #actions>
-          <button v-if="run.data.value!.items.length > 0" type="button" class="small-btn" data-testid="add-run-items-to-queue" @click="addingToQueue = true">
+          <Button size="sm" v-if="run.data.value!.items.length > 0" data-testid="add-run-items-to-queue" @click="addingToQueue = true">
             Send items to a review queue
-          </button>
+          </Button>
         </template>
       </JudgeHumanAgreement>
       <AddToQueueModal v-if="addingToQueue" :run="{ datasetRunId: runId, itemCount: run.data.value!.run.itemCount }" @close="addingToQueue = false" />
@@ -117,8 +122,8 @@ function sourceSuffix(s: ScoreDto): string | null {
       <EmptyState v-if="run.data.value!.items.length === 0" icon="playlist_add_check" title="No items">This run has no items.</EmptyState>
 
       <div v-else class="items-area">
-      <div class="mt-card table-card">
-        <table class="items">
+      <Card padding="none" block class="table-card">
+        <DataTable class="items" sticky>
           <thead>
             <tr>
               <th class="idx">#</th>
@@ -139,17 +144,17 @@ function sourceSuffix(s: ScoreDto): string | null {
               <td>
                 <div class="scores">
                   <span v-if="item.scores.length === 0" class="muted">–</span>
-                  <span v-for="s in item.scores" :key="s.name" class="mt-pill" :class="scorePillClass(s)" :title="scoreTitle(s)">
+                  <Pill v-for="s in item.scores" :key="s.name" :tone="scorePillClass(s)" :title="scoreTitle(s)">
                     {{ s.name }}={{ s.value }}<span v-if="sourceSuffix(s)" class="source"> · {{ sourceSuffix(s) }}</span>
-                  </span>
+                  </Pill>
                 </div>
               </td>
               <td v-if="hasAnyTraceId"><PromptChips :prompts="item.telemetry?.prompts ?? []" :max="2" /></td>
               <td v-if="hasAnyTraceId" class="mono muted trace-id" :title="item.traceId ?? undefined">{{ item.traceId ?? "–" }}</td>
             </tr>
           </tbody>
-        </table>
-      </div>
+        </DataTable>
+      </Card>
       <RunItemPanel
         v-if="selectedItem"
         :item="selectedItem"
@@ -175,11 +180,6 @@ function sourceSuffix(s: ScoreDto): string | null {
   gap: 12px;
   padding: 16px 24px 20px;
   background: var(--mt-bg);
-}
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 60px;
 }
 .artifacts {
   display: flex;
@@ -239,33 +239,7 @@ function sourceSuffix(s: ScoreDto): string | null {
 .items td:nth-child(6) {
   width: 150px;
 }
-th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  height: 38px;
-  padding: 0 16px;
-  background: var(--mt-soft);
-  border-bottom: 1px solid var(--mt-line);
-  color: var(--mt-muted);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-align: left;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-td {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--mt-line-2);
-  vertical-align: top;
-}
-.item-row:last-child td {
-  border-bottom: 0;
-}
-.item-row:hover td {
-  background: var(--mt-soft-2);
-}
+
 .idx {
   color: var(--mt-faint);
   font-size: 12px;
@@ -291,16 +265,7 @@ td {
 .item-row.highlighted td {
   background: var(--mt-warn-bg, rgba(245, 158, 11, 0.14));
 }
-.small-btn {
-  height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--mt-line);
-  border-radius: var(--mt-radius-lg);
-  background: var(--mt-card, #fff);
-  color: var(--mt-ink);
-  font-size: 12.5px;
-  cursor: pointer;
-}
+
 .item-row.error td:nth-child(4) .preview {
   color: var(--mt-err-ink);
 }
@@ -322,4 +287,5 @@ td {
   white-space: nowrap;
   font-size: 12px;
 }
+.items td { vertical-align: top; }
 </style>

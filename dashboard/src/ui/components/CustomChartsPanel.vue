@@ -35,6 +35,9 @@ import {
   templatesFor,
   type ChartTemplate,
 } from "@/domain/custom-chart-vocabulary";
+import Button from "./Button.vue";
+import ToggleChip from "./ToggleChip.vue";
+import SegmentedControl from "./SegmentedControl.vue";
 
 const props = defineProps<{ experimentId: string; range: RangeParams }>();
 
@@ -458,19 +461,19 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
               <span class="q-basis">{{ templateBasis(t) }}</span>
             </button>
           </div>
-          <button v-if="templates.length > QUESTIONS_COLLAPSED" type="button" class="link-btn" @click="showAllQuestions = !showAllQuestions">
+          <Button class="self-start" variant="link" v-if="templates.length > QUESTIONS_COLLAPSED" @click="showAllQuestions = !showAllQuestions">
             {{ showAllQuestions ? "Show fewer questions" : `Show all ${templates.length} questions` }}
-          </button>
+          </Button>
           <div class="cc-divider" />
           <div class="eyebrow">Or build it yourself</div>
         </template>
 
         <div class="field">
           <label>I want to see… <span class="label-note">(pick one or several to compare)</span>
-            <button v-if="can('catalog:manage')" type="button" class="rename-btn" data-testid="open-catalog" @click="showCatalog = true">
+            <Button v-if="can('catalog:manage')" size="sm" class="rename-btn" data-testid="open-catalog" @click="showCatalog = true">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
               Customize names
-            </button>
+            </Button>
           </label>
           <div class="chip-select">
             <span v-if="stepKindsLoading" class="hint">Loading…</span>
@@ -480,17 +483,15 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
                 <input v-model="stepDraft" type="text" maxlength="80" :placeholder="stepLabel(k.stepType)" :aria-label="`Name for ${k.stepType}`" data-testid="step-rename-input" autofocus @keydown.enter.prevent="commitRename" @keydown.esc.prevent="editingStep = null" @blur="commitRename" />
               </span>
               <span v-else class="chip-wrap" :class="{ renamed: isRenamed(k.stepType) }">
-                <button type="button" class="chip" :class="{ on: selectedSteps.includes(k.stepType) }" :aria-pressed="selectedSteps.includes(k.stepType)" @click="toggleStep(k.stepType)">
-                  {{ stepLabel(k.stepType, names) }}<span class="n">{{ k.count.toLocaleString() }}</span>
-                </button>
-                <button v-if="can('catalog:manage')" type="button" class="chip-pencil" :aria-label="`Rename ${stepLabel(k.stepType, names)}`" :data-testid="`rename-step-${k.stepType}`" @click="startRename(k.stepType)">
+                <ToggleChip :pressed="selectedSteps.includes(k.stepType)" :count="k.count.toLocaleString()" @click="toggleStep(k.stepType)">{{ stepLabel(k.stepType, names) }}</ToggleChip>
+                <Button v-if="can('catalog:manage')" variant="icon" size="sm" class="chip-pencil" :aria-label="`Rename ${stepLabel(k.stepType, names)}`" :data-testid="`rename-step-${k.stepType}`" @click="startRename(k.stepType)">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
-                </button>
+                </Button>
               </span>
             </template>
           </div>
           <span v-if="stepRenameError" class="hint error-text" role="alert" data-testid="step-rename-error">{{ stepRenameError }}</span>
-          <button v-if="can('catalog:manage') && stepKinds.length" type="button" class="link-btn" data-testid="open-catalog-page" @click="router?.push({ name: 'overview-catalog', params: { experimentId } })">Manage all names and details</button>
+          <Button v-if="can('catalog:manage') && stepKinds.length" variant="link" class="self-start" data-testid="open-catalog-page" @click="router?.push({ name: 'overview-catalog', params: { experimentId } })">Manage all names and details</Button>
         </div>
         <ChartCatalogEditor v-if="showCatalog" :experiment-id="experimentId" :range="range" :entries="catalogEntries" @close="showCatalog = false" @changed="catalogEntries = $event" />
         <div class="field">
@@ -508,9 +509,9 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
           <span v-if="attributeKeysLoading" class="hint">Loading details…</span>
           <span v-else-if="multiStep" class="hint">Comparing {{ selectedSteps.length }} steps: one {{ chartType === "line" || chartType === "area" ? "line" : "bar" }} each. Pick a single step to split it by a detail.</span>
           <span v-else-if="singleStep && !visibleAttributeKeys.length" class="hint">Nothing to split by for this step.</span>
-          <button v-if="singleStep && (hiddenTechnicalCount > 0 || showTechnical)" type="button" class="link-btn" @click="showTechnical = !showTechnical">
+          <Button class="self-start" variant="link" v-if="singleStep && (hiddenTechnicalCount > 0 || showTechnical)" @click="showTechnical = !showTechnical">
             {{ showTechnical ? "Show fewer details" : `Show ${hiddenTechnicalCount} more detail${hiddenTechnicalCount === 1 ? "" : "s"}` }}
-          </button>
+          </Button>
         </div>
 
         <div class="field">
@@ -518,7 +519,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
           <div v-for="(row, i) in filterRows" :key="i" class="filter-block">
             <div class="filter-row">
               <Select v-model="row.attribute" :options="filterAttributeOptions" :disabled="!singleStep" @update:model-value="loadFilterRowValues(row)" />
-              <q-btn flat dense no-caps size="sm" icon="close" aria-label="Remove condition" @click="removeFilterRow(i)" />
+              <Button variant="icon" size="sm" aria-label="Remove condition" @click="removeFilterRow(i)"><q-icon name="close" size="16px" /></Button>
             </div>
             <div v-if="row.attribute" class="value-box">
               <span v-if="row.loading" class="hint">Loading values…</span>
@@ -526,27 +527,23 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
               <template v-else>
                 <span class="hint">Only include these:</span>
                 <div class="chip-select">
-                  <button v-for="v in row.values" :key="v.value" type="button" class="chip" :class="{ on: row.selected.has(v.value) }" @click="toggleFilterRowValue(row, v.value)">
-                    {{ v.value }}<span class="n">{{ v.count }}</span>
-                  </button>
+                  <ToggleChip v-for="v in row.values" :key="v.value" :pressed="row.selected.has(v.value)" :count="v.count" @click="toggleFilterRowValue(row, v.value)">{{ v.value }}</ToggleChip>
                 </div>
               </template>
             </div>
           </div>
           <div>
-            <button type="button" class="add-condition" :disabled="!singleStep" @click="addFilterRow">+ Add condition</button>
+            <Button variant="link" class="add-condition" :disabled="!singleStep" @click="addFilterRow">+ Add condition</Button>
           </div>
         </div>
 
         <template v-if="templates.length && hasSteps">
           <div class="cc-divider" />
-          <button type="button" class="link-btn" @click="questionsOpen = !questionsOpen">
+          <Button class="self-start" variant="link" @click="questionsOpen = !questionsOpen">
             {{ questionsOpen ? "Hide questions" : `Try another question (${templates.length})` }}
-          </button>
+          </Button>
           <div v-if="questionsOpen" class="pill-row">
-            <button v-for="t in templates" :key="t.id" type="button" class="pill" :class="{ on: activeTemplate === t.id }" @click="applyTemplate(t)">
-              {{ t.question }}
-            </button>
+            <ToggleChip v-for="t in templates" :key="t.id" :pressed="activeTemplate === t.id" @click="applyTemplate(t)">{{ t.question }}</ToggleChip>
           </div>
         </template>
       </div>
@@ -566,11 +563,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
               <TextInput v-model="newChartName" placeholder="Name this chart" @update:model-value="nameTouched = true" />
               <span class="hint">{{ description }}</span>
             </div>
-            <div class="seg" role="group" aria-label="Chart type">
-              <button v-for="t in CHART_TYPES" :key="t.value" type="button" class="seg-btn" :class="{ on: chartType === t.value }" @click="pickChartType(t.value)">
-                {{ t.label }}
-              </button>
-            </div>
+            <SegmentedControl class="seg" aria-label="Chart type" :options="CHART_TYPES.map((t) => ({ value: t.value, label: t.label, class: 'seg-btn' }))" :model-value="chartType" @update:model-value="pickChartType($event as typeof chartType)" />
           </div>
 
           <div class="preview-body" :class="{ stale: previewLoading }">
@@ -600,8 +593,8 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
 
           <div class="preview-foot">
             <span class="hint foot-hint">{{ chartTypeTouched ? "" : "Chart type suggested for this data. Change it any time." }}</span>
-            <q-btn outline no-caps label="Start over" @click="resetBuilder" />
-            <q-btn unelevated no-caps color="primary" label="Save to Metrics" :disable="!previewResult || !newChartName.trim()" :loading="saving" @click="saveChart" />
+            <Button @click="resetBuilder">Start over</Button>
+            <Button variant="primary" :disabled="!previewResult || !newChartName.trim()" :loading="saving" @click="saveChart">Save to Metrics</Button>
           </div>
         </template>
       </div>
@@ -617,7 +610,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
         <div v-for="m in saved" :key="m.id" class="saved-card">
           <div class="saved-head">
             <span class="name">{{ m.name }}</span>
-            <q-btn flat dense no-caps size="sm" icon="close" :aria-label="`Delete ${m.name}`" @click="removeSaved(m.id)" />
+            <Button variant="icon" size="sm" :aria-label="`Delete ${m.name}`" @click="removeSaved(m.id)"><q-icon name="close" size="16px" /></Button>
           </div>
           <div v-if="savedResults[m.id]" class="saved-chart">
             <div v-if="m.definition.chartType === 'number'" class="number-tile small">
@@ -685,15 +678,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
   font-size: 11.5px;
   color: var(--mt-muted);
 }
-.chip {
-  font-family: inherit;
-  cursor: pointer;
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  color: var(--mt-ink);
-  border-radius: var(--mt-radius-sm, 8px);
-  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
-}
+
 .chip-select {
   display: flex;
   flex-wrap: wrap;
@@ -704,32 +689,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
   min-height: 40px;
   background: var(--mt-card);
 }
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 12.5px;
-  font-weight: 500;
-  padding: 4px 9px 4px 6px;
-  background: var(--mt-soft);
-}
-.chip:hover {
-  border-color: var(--mt-muted);
-}
-.chip .n {
-  color: var(--mt-muted);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
-.chip.on {
-  background: var(--mt-accent);
-  border-color: var(--mt-accent);
-  color: var(--mt-accent-ink, #fff);
-}
-.chip.on .n {
-  color: inherit;
-  opacity: 0.8;
-}
+
 .filter-row {
   display: flex;
   gap: 8px;
@@ -839,24 +799,12 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
   color: var(--mt-ink);
 }
 
-.rename-btn { display: inline-flex; align-items: center; gap: 5px; margin-left: 10px; padding: 3px 10px; border: 1px solid var(--mt-accent); border-radius: 999px; background: transparent; color: var(--mt-accent); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
-.rename-btn:hover { background: var(--mt-soft); }
+.rename-btn { margin-left: 10px; }
 .chip-wrap { display: inline-flex; align-items: center; gap: 2px; }
-.chip-pencil { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border: none; border-radius: 50%; background: transparent; color: var(--mt-muted); cursor: pointer; opacity: 0.45; }
-.chip-wrap:hover .chip-pencil, .chip-pencil:focus-visible { opacity: 1; background: var(--mt-soft); }
-.chip-wrap.renamed .chip { border-style: dashed; }
+.chip-pencil { opacity: 0.45; }
+.chip-wrap:hover .chip-pencil, .chip-pencil:focus-visible { opacity: 1; }
+.chip-wrap.renamed :deep(.mt-chip) { border-style: dashed; }
 .chip-edit input { height: 30px; padding: 0 10px; border: 1px solid var(--mt-accent); border-radius: 999px; background: transparent; color: var(--mt-ink); font: inherit; font-size: 13px; }
-.link-btn {
-  align-self: flex-start;
-  padding: 0;
-  font-family: inherit;
-  font-size: 11.5px;
-  color: var(--mt-muted);
-  background: none;
-  border: none;
-  cursor: pointer;
-  text-decoration: underline;
-}
 .cc-grid {
   display: grid;
   grid-template-columns: 380px minmax(0, 1fr);
@@ -944,31 +892,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
   flex-wrap: wrap;
   gap: 6px;
 }
-.pill {
-  padding: 5px 10px;
-  font-size: 12px;
-  font-weight: 700;
-  border-radius: 999px;
-}
-.pill.on {
-  border-color: var(--mt-accent);
-  background: color-mix(in srgb, var(--mt-accent) 10%, transparent);
-}
-.add-condition {
-  font-family: inherit;
-  cursor: pointer;
-  padding: 5px 10px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--mt-muted);
-  background: none;
-  border: 1px dashed var(--mt-muted);
-  border-radius: var(--mt-radius-sm, 8px);
-}
-.add-condition:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
+
 .cc-preview-card {
   display: flex;
   flex-direction: column;
@@ -1021,29 +945,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
   flex-direction: column;
   gap: 4px;
 }
-.seg {
-  display: flex;
-  gap: 2px;
-  padding: 3px;
-  border-radius: var(--mt-radius-sm, 8px);
-  background: var(--mt-soft);
-}
-.seg-btn {
-  font-family: inherit;
-  cursor: pointer;
-  padding: 6px 11px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--mt-muted);
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-}
-.seg-btn.on {
-  color: var(--mt-ink);
-  background: var(--mt-card);
-  box-shadow: var(--mt-shadow);
-}
+
 .preview-body {
   padding: 16px 22px;
   display: flex;
@@ -1106,4 +1008,5 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
 .foot-hint {
   flex: 1;
 }
+.self-start { align-self: flex-start; }
 </style>

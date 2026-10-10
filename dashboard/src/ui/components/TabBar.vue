@@ -1,6 +1,6 @@
 <script setup lang="ts">
-/** Pestañas de una página de detalle. El estado vive en la URL (?tab=) para que se pueda enlazar y volver atrás. */
-defineProps<{ tabs: { id: string; label: string; count?: number }[]; modelValue: string }>();
+/** Pestañas de una página de detalle (y de modales). Cada pestaña lleva data-testid="tab-<id>"; el slot `trailing` va al final de la barra. El estado vive en la URL (?tab=) para que se pueda enlazar y volver atrás. */
+defineProps<{ tabs: { id: string; label: string; count?: number | string }[]; modelValue: string }>();
 defineEmits<{ "update:modelValue": [id: string] }>();
 </script>
 
@@ -14,11 +14,13 @@ defineEmits<{ "update:modelValue": [id: string] }>();
       class="tab"
       :class="{ active: t.id === modelValue }"
       :aria-selected="t.id === modelValue"
+      :data-testid="`tab-${t.id}`"
       @click="$emit('update:modelValue', t.id)"
     >
       {{ t.label }}
       <span v-if="t.count !== undefined" class="tab-count">{{ t.count }}</span>
     </button>
+    <slot name="trailing" />
   </div>
 </template>
 

@@ -7,6 +7,7 @@ import { useIdentityApi } from "../composables/useIdentityApi";
 import { formatCategories, formatTargetPercent, describeScale, parseCategories, parseTargetPercent } from "../score-config-form";
 import Modal from "./Modal.vue";
 import NewScoreConfigModal from "./NewScoreConfigModal.vue";
+import Button from "./Button.vue";
 
 /**
  * Rúbricas de anotación de un experimento (ADR-036). Cualquier miembro las ve; solo un admin puede
@@ -111,9 +112,9 @@ async function setArchived(config: ScoreConfigDto, archived: boolean) {
         <span class="type-pill">{{ TYPE_LABEL[c.dataType] }}</span>
         <span v-if="c.archivedAt" class="type-pill archived-pill">archived</span>
         <template v-if="canManage">
-          <button v-if="!c.archivedAt" class="small-btn" type="button" @click="openEdit(c)">Edit</button>
-          <button v-if="!c.archivedAt" class="small-btn danger" type="button" @click="setArchived(c, true)">Archive</button>
-          <button v-else class="small-btn" type="button" @click="setArchived(c, false)">Unarchive</button>
+          <Button size="sm" v-if="!c.archivedAt" @click="openEdit(c)">Edit</Button>
+          <Button variant="danger" size="sm" v-if="!c.archivedAt" @click="setArchived(c, true)">Archive</Button>
+          <Button size="sm" v-else @click="setArchived(c, false)">Unarchive</Button>
         </template>
       </li>
     </ul>
@@ -122,8 +123,8 @@ async function setArchived(config: ScoreConfigDto, archived: boolean) {
     </p>
 
     <div class="config-actions">
-      <button v-if="canManage" class="primary-btn mt-new" type="button" @click="showCreate = true">+ New score config</button>
-      <button class="link-btn" type="button" @click="toggleArchived">{{ showArchived ? "Hide archived" : "Show archived" }}</button>
+      <Button variant="primary" v-if="canManage" @click="showCreate = true" class="mt-new">+ New score config</Button>
+      <Button variant="link" @click="toggleArchived">{{ showArchived ? "Hide archived" : "Show archived" }}</Button>
     </div>
 
     <NewScoreConfigModal v-if="showCreate" :experiment-id="experimentId" @close="showCreate = false" @created="load" />
@@ -142,7 +143,7 @@ async function setArchived(config: ScoreConfigDto, archived: boolean) {
           <p class="hint">Add lines to add categories. Existing ones can't be removed, renamed or re-valued.</p>
         </template>
         <TextInput multiline v-model="edit.description" :rows="2" placeholder="Guideline shown to the annotator (optional)" />
-        <button type="submit" class="primary-btn" :disabled="saving || (editing.dataType === 'boolean' && Number.isNaN(parseTargetPercent(edit.target)))">Save</button>
+        <Button class="self-start" variant="primary" type="submit" :disabled="saving || (editing.dataType === 'boolean' && Number.isNaN(parseTargetPercent(edit.target)))">Save</Button>
       </form>
     </Modal>
   </div>
@@ -216,41 +217,13 @@ async function setArchived(config: ScoreConfigDto, archived: boolean) {
   background: var(--mt-warn-bg);
   color: var(--mt-warn-ink);
 }
-.small-btn {
-  height: 26px;
-  padding: 0 10px;
-  border-radius: var(--mt-radius-sm);
-  border: 1px solid var(--mt-line);
-  background: transparent;
-  color: var(--mt-muted);
-  font: inherit;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.small-btn:hover {
-  color: var(--mt-ink);
-  border-color: var(--mt-accent);
-}
-.small-btn.danger {
-  border-color: var(--mt-err-ink);
-  color: var(--mt-err-ink);
-}
+
 .config-actions {
   display: flex;
   align-items: center;
   gap: 12px;
 }
-.link-btn {
-  background: none;
-  border: none;
-  padding: 0;
-  color: var(--mt-muted);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-  text-decoration: underline;
-}
+
 .modal-form {
   display: flex;
   flex-direction: column;
@@ -261,21 +234,6 @@ async function setArchived(config: ScoreConfigDto, archived: boolean) {
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
-.primary-btn {
-  align-self: flex-start;
-  height: 34px;
-  padding: 0 16px;
-  border-radius: var(--mt-radius-lg);
-  border: none;
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.primary-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+
+.self-start { align-self: flex-start; }
 </style>

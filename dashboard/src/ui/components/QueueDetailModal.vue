@@ -14,6 +14,12 @@ import Modal from "./Modal.vue";
 import QueueResults from "./QueueResults.vue";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
+import Button from "./Button.vue";
+import Checkbox from "./Checkbox.vue";
+import Pill from "./Pill.vue";
+import { aggregatePillTone } from "@/domain/evaluation";
+import LoadingState from "./LoadingState.vue";
+import TabBar from "./TabBar.vue";
 
 /** Progreso, trabajo por revisor, rúbrica y items de una cola (ADR-039). Los admins pueden cambiar `requiredAnnotations` y retirar items del reparto. */
 const props = defineProps<{ queueId: string; canManage: boolean; initialTab?: "summary" | "results" | "settings" }>();
@@ -106,14 +112,12 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
 <template>
   <Modal :title="detail.data.value?.name ?? 'Queue'" wide @close="emit('close')">
     <ErrorBanner v-if="detail.error.value" :error="detail.error.value" @retry="detail.run()" />
-    <div v-else-if="!detail.data.value" class="loading"><q-spinner size="28px" color="primary" /></div>
+    <LoadingState v-else-if="!detail.data.value" size="md" />
 
     <div v-else class="detail" data-testid="queue-detail">
       <p v-if="detail.data.value.instructions" class="instructions">{{ detail.data.value.instructions }}</p>
 
-      <nav v-if="canManage" class="tabs" role="tablist" aria-label="Queue sections">
-        <button v-for="t in TABS" :key="t.id" type="button" role="tab" class="tab" :class="{ on: tab === t.id }" :aria-selected="tab === t.id" :data-testid="`tab-${t.id}`" @click="tab = t.id">{{ t.label }}</button>
-      </nav>
+      <TabBar v-if="canManage" :tabs="TABS" :model-value="tab" @update:model-value="tab = $event as Tab" />
 
       <QueueResults v-if="canManage && tab === 'results'" :queue-id="queueId" @close="emit('close')" />
 
@@ -136,7 +140,7 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
             max="10"
             aria-label="Reviews required per item"
             @input="required = Number(($event.target as HTMLInputElement).value)" />
-          <button type="button" class="small-btn" :disabled="required === null || required === detail.data.value.requiredAnnotations" @click="saveRequired">Apply</button>
+          <Button size="sm" :disabled="required === null || required === detail.data.value.requiredAnnotations" @click="saveRequired">Apply</Button>
         </div>
         <p class="muted">Raising it reopens items that were already completed; lowering it can complete them.</p>
       </section>
@@ -146,8 +150,8 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
         <ul class="plain">
           <li v-for="c in detail.data.value.configs" :key="c.id">
             <strong>{{ c.name }}</strong> <span class="muted">{{ describeScale(c) }}</span>
-            <span v-if="detail.data.value.rubric.find((r) => r.configId === c.id)?.required" class="pill">required</span>
-            <span v-if="c.archivedAt" class="pill warn">archived</span>
+            <Pill v-if="detail.data.value.rubric.find((r) => r.configId === c.id)?.required">required</Pill>
+            <Pill v-if="c.archivedAt" tone="warn">archived</Pill>
           </li>
         </ul>
       </section>
@@ -155,11 +159,8 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
       <section v-if="canManage && showSettings">
         <h3>Who can annotate</h3>
         <p class="muted">Only these people can pull and label items. Removing someone keeps what they already labeled.</p>
-        <label v-for="m in members" :key="m.userId" class="req-row">
-          <input v-model="assigned" type="checkbox" :value="m.userId" :checked="currentReviewers.includes(m.userId)" @change="assigned = assigned ?? [...currentReviewers]" />
-          {{ m.name ?? m.email }} <span class="muted">{{ m.email }}</span>
-        </label>
-        <button type="button" class="small-btn" :disabled="!reviewersChanged || !currentReviewers.length" @click="saveReviewers">Apply</button>
+        <Checkbox v-for="m in members" :key="m.userId" class="req-row" :model-value="currentReviewers" :value="m.userId" @update:model-value="assigned = $event as string[]"> {{ m.name ?? m.email }} <span class="muted">{{ m.email }}</span></Checkbox>
+        <Button size="sm" :disabled="!reviewersChanged || !currentReviewers.length" @click="saveReviewers">Apply</Button>
         <p v-if="currentReviewers.length < detail.data.value.requiredAnnotations" class="muted">At least {{ detail.data.value.requiredAnnotations }} reviewers are needed.</p>
       </section>
 
@@ -184,7 +185,7 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
         <ul class="plain">
           <li v-for="m in judgeMetrics" :key="m.name">
             <strong>{{ m.name }}</strong>
-            <span class="pill" :class="judgeVerdict(m.kappa).tone">{{ judgeVerdict(m.kappa).text }}</span>
+            <Pill :tone="aggregatePillTone(judgeVerdict(m.kappa).tone)">{{ judgeVerdict(m.kappa).text }}</Pill>
           </li>
         </ul>
       </section>
@@ -213,8 +214,8 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
               Run {{ shortId(item.datasetRunId) }} · item {{ item.itemIndex }}
             </router-link>
             <span v-else class="mono">{{ label(item) }}</span>
-            <span class="pill" :class="item.status">{{ item.status === "skipped" ? "unreviewable" : item.status }}</span>
-            <button v-if="canManage && item.status !== 'skipped'" type="button" class="small-btn" @click="markUnreviewable(item)">Mark unreviewable</button>
+            <Pill :tone="item.status === 'completed' ? 'ok' : item.status === 'skipped' ? 'warn' : 'neutral'">{{ item.status === "skipped" ? "unreviewable" : item.status }}</Pill>
+            <Button class="push" size="sm" v-if="canManage && item.status !== 'skipped'" @click="markUnreviewable(item)">Mark unreviewable</Button>
           </li>
         </ul>
       </section>
@@ -223,31 +224,6 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
 </template>
 
 <style scoped>
-.tabs {
-  display: flex;
-  gap: 4px;
-  border-bottom: 1px solid var(--mt-line);
-}
-.tab {
-  padding: 6px 14px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: none;
-  color: var(--mt-muted);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.tab.on {
-  border-bottom-color: var(--mt-accent);
-  color: var(--mt-ink);
-}
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 30px;
-}
 .detail {
   display: flex;
   flex-direction: column;
@@ -312,46 +288,6 @@ h3 {
   max-height: 260px;
   overflow: auto;
 }
-.pill {
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: var(--mt-card);
-  color: var(--mt-muted);
-  font-size: 11px;
-  font-weight: 600;
-}
-.pill.completed {
-  color: var(--mt-ok-ink, var(--mt-accent));
-}
-.pill.warn,
-.pill.skipped,
-.pill.negative {
-  color: var(--mt-err-ink);
-}
-.pill.positive {
-  color: var(--mt-ok-ink, var(--mt-accent));
-}
-.pill.warning {
-  color: #92400e;
-}
-.small-btn {
-  margin-left: auto;
-  height: 26px;
-  padding: 0 10px;
-  border-radius: var(--mt-radius-sm);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  color: var(--mt-ink);
-  font: inherit;
-  font-size: 11.5px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.req-row .small-btn {
-  margin-left: 0;
-}
-.small-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+
+.push { margin-left: auto; }
 </style>

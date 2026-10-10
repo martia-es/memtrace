@@ -23,6 +23,11 @@ import { useFilters } from "../composables/useFilters";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import { useRoute, useRouter } from "vue-router";
+import Button from "../components/Button.vue";
+import Card from "../components/Card.vue";
+import Spinner from "../components/Spinner.vue";
+import Modal from "../components/Modal.vue";
+import TabPanel from "../components/TabPanel.vue";
 
 const api = useTraceApi();
 const identityApi = useIdentityApi();
@@ -62,7 +67,6 @@ watch([f.rangeSig, f.service], reload, { immediate: true });
 const data = computed(() => overview.data.value);
 const customChartsRange = computed(() => f.resolve());
 const empty = computed(() => data.value !== null && data.value.totals.traces === 0 && data.value.totals.spans === 0);
-
 
 const successRate = computed(() => (data.value ? 1 - data.value.totals.errorRate : 1));
 const health = computed(() => {
@@ -373,25 +377,20 @@ function swapAgents() {
   <q-page class="page">
     <PageHeader :crumbs="crumbs" icon="M3 11l9-8 9 8v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z" :title="pageTitle" />
 
-    <q-dialog v-model="creatingReport">
-      <q-card class="create-report-card">
-        <q-card-section>
-          <div class="create-report-title">New report</div>
-          <TextInput v-model="newReportName" placeholder="Report name" @keyup.enter="createReport" />
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat no-caps label="Cancel" @click="creatingReport = false" />
-          <q-btn unelevated no-caps color="primary" label="Create" :disable="!newReportName.trim()" :loading="creatingReportBusy" @click="createReport" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+    <Modal v-if="creatingReport" title="New report" @close="creatingReport = false">
+      <TextInput v-model="newReportName" placeholder="Report name" aria-label="Report name" @keyup.enter="createReport" />
+      <template #footer>
+        <Button @click="creatingReport = false">Cancel</Button>
+        <Button variant="primary" :disabled="!newReportName.trim()" :loading="creatingReportBusy" @click="createReport">Create</Button>
+      </template>
+    </Modal>
 
-    <q-tab-panels :model-value="activePanel" keep-alive class="metrics-tab-panels">
-      <q-tab-panel name="overview" class="metrics-tab-panel">
+    <div class="metrics-tab-panels">
+      <TabPanel :active="activePanel === 'overview'" class="metrics-tab-panel">
         <ApprovalInbox class="overview-approvals" />
         <ErrorBanner v-if="overview.error.value" :error="overview.error.value" @retry="reload" />
         <div v-else-if="overview.loading.value && !data" class="loading-box">
-          <q-spinner size="32px" color="primary" />
+          <Spinner size="lg" />
         </div>
 
         <EmptyState v-else-if="empty" icon="insights" title="No data in this range">Run an instrumented agent or extend the time range.</EmptyState>
@@ -406,7 +405,7 @@ function swapAgents() {
               <h2>{{ health.title }}</h2>
               <p>{{ health.text }}<template v-if="attention.length"> {{ attention.length }} {{ attention.length === 1 ? "thing" : "things" }} could use a look.</template></p>
             </div>
-            <button v-if="attention.length" type="button" class="health-cta" @click="goToFirstAttention">See what needs attention</button>
+            <Button v-if="attention.length" @click="goToFirstAttention">See what needs attention</Button>
           </section>
 
           <section class="kpi-grid" aria-label="Key figures">
@@ -422,7 +421,7 @@ function swapAgents() {
           </section>
 
           <div class="overview-row split">
-            <section class="card" aria-label="Activity">
+            <Card as="section" gap="sm" class="card" aria-label="Activity">
               <div class="card-head">
                 <h2>Activity</h2>
                 <span class="legend"><i class="sw" style="background: var(--mt-accent)" />Conversations</span>
@@ -430,9 +429,9 @@ function swapAgents() {
                 <span class="legend"><i class="sw line" style="background: var(--mt-highlight)" />p95 latency</span>
               </div>
               <EChart :option="activityOption" height="200px" label="Conversations, errors, and p95 latency" />
-            </section>
+            </Card>
 
-            <section class="card attention" aria-label="Needs attention">
+            <Card as="section" gap="sm" class="card attention" aria-label="Needs attention">
               <div class="card-head">
                 <h2>Needs attention</h2>
                 <span v-if="attention.length" class="attention-count">{{ attention.length }}</span>
@@ -445,13 +444,13 @@ function swapAgents() {
                 <span class="attn-text"><strong>{{ a.title }}</strong><span>{{ a.text }}</span></span>
                 <span class="attn-cta">{{ a.cta }} →</span>
               </button>
-            </section>
+            </Card>
           </div>
 
           <ErrorOverviewCard v-if="errorOverview.data.value && errorOverview.data.value.categories.length" :overview="errorOverview.data.value" @view="goToErrors" />
 
           <div class="overview-row thirds">
-            <section class="card list-card" aria-label="Models">
+            <Card as="section" gap="sm" class="card list-card" aria-label="Models">
               <div class="card-head"><h2>Models</h2><span class="spacer" /><span class="card-link">{{ data.byModel.length }} in range</span></div>
               <p v-if="!topModels.length" class="list-empty">No LLM calls in this range.</p>
               <div v-for="m in topModels" :key="m.model" class="model-row">
@@ -459,9 +458,9 @@ function swapAgents() {
                 <span class="mono muted right">{{ formatDuration(m.p95Ms) }}</span>
                 <span class="mono right">{{ formatCostUsd(m.costUsd) ?? "–" }}</span>
               </div>
-            </section>
+            </Card>
 
-            <section class="card list-card" aria-label="Human review quality">
+            <Card as="section" gap="sm" class="card list-card" aria-label="Human review quality">
               <div class="card-head">
                 <h2>Human review quality</h2><span class="spacer" />
                 <a class="card-link" @click="goToReview">Review →</a>
@@ -471,9 +470,9 @@ function swapAgents() {
                 <div class="quality-line"><span class="quality-name">{{ q.name }}</span><span class="mono">{{ q.value }}</span></div>
                 <div class="bar"><div class="bar-fill" :class="{ low: q.low }" :style="{ width: `${q.width}%` }" /></div>
               </div>
-            </section>
+            </Card>
 
-            <section class="card list-card" aria-label="Latest evaluation runs">
+            <Card as="section" gap="sm" class="card list-card" aria-label="Latest evaluation runs">
               <div class="card-head">
                 <h2>Latest evaluation runs</h2><span class="spacer" />
                 <a class="card-link" @click="router.push({ name: 'runs', params: { experimentId } })">All runs →</a>
@@ -483,12 +482,12 @@ function swapAgents() {
                 <span class="run-text"><strong>{{ r.name }}</strong><span>{{ r.when }}</span></span>
                 <span class="run-score" :class="r.tone">{{ r.score }}</span>
               </a>
-            </section>
+            </Card>
           </div>
         </template>
-      </q-tab-panel>
+      </TabPanel>
 
-      <q-tab-panel name="compare" class="metrics-tab-panel">
+      <TabPanel :active="activePanel === 'compare'" class="metrics-tab-panel">
         <AgentCompareView
           :name-a="agentAName"
           :name-b="agentBName"
@@ -503,25 +502,25 @@ function swapAgents() {
           @swap="swapAgents"
           @retry="loadCompare"
         />
-      </q-tab-panel>
+      </TabPanel>
 
-      <q-tab-panel name="custom" class="metrics-tab-panel">
+      <TabPanel :active="activePanel === 'custom'" class="metrics-tab-panel">
         <CustomChartsPanel :experiment-id="experimentId" :range="customChartsRange" />
-      </q-tab-panel>
+      </TabPanel>
 
-      <q-tab-panel name="reports" class="metrics-tab-panel">
+      <TabPanel :active="activePanel === 'reports'" class="metrics-tab-panel">
         <div class="reports-head">
           <p class="reports-hint">A report is a saved set of custom charts you can share with the rest of the experiment.</p>
-          <button type="button" class="add-report-btn mt-new" data-testid="new-report" @click="openCreateReport">+ New report</button>
+          <Button size="sm" class="add-report-btn mt-new" data-testid="new-report" @click="openCreateReport">+ New report</Button>
         </div>
         <ErrorBanner v-if="reports.error.value" :error="reports.error.value" @retry="reports.run()" />
         <EmptyState v-else-if="reports.data.value && reports.data.value.length === 0" icon="dashboard" title="No reports yet">Create one to group the charts you check every week.</EmptyState>
         <div v-else class="report-list">
           <ReportCard v-for="r in reports.data.value ?? []" :key="r.id" :experiment-id="experimentId" :report="r" />
         </div>
-      </q-tab-panel>
+      </TabPanel>
 
-      <q-tab-panel name="report" class="metrics-tab-panel">
+      <TabPanel :active="activePanel === 'report'" class="metrics-tab-panel">
         <MetricReportView
           v-if="reportId"
           :key="reportId"
@@ -531,8 +530,8 @@ function swapAgents() {
           @renamed="(name) => onReportRenamed(reportId!, name)"
           @deleted="onReportDeleted"
         />
-      </q-tab-panel>
-    </q-tab-panels>
+      </TabPanel>
+    </div>
   </q-page>
 </template>
 
@@ -554,22 +553,9 @@ function swapAgents() {
   min-height: 240px;
 }
 
-.add-report-btn {
-  flex-shrink: 0;
-  font-family: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--mt-muted);
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 10px 4px;
-  white-space: nowrap;
-}
+.add-report-btn { flex-shrink: 0; }
 
-.add-report-btn:hover {
-  color: var(--mt-accent);
-}
+
 
 .reports-head {
   display: flex;
@@ -588,20 +574,6 @@ function swapAgents() {
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 16px;
 }
-
-.create-report-card {
-  padding: 8px;
-  min-width: 360px;
-}
-
-.create-report-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--mt-ink);
-  margin-bottom: 8px;
-}
-
-
 
 .metrics-tab-panels {
   background: transparent;
@@ -643,19 +615,6 @@ function swapAgents() {
 .health-body { flex: 1; min-width: 0; }
 .health-body h2 { margin: 0; font-size: 16px; font-weight: 800; letter-spacing: -0.01em; }
 .health-body p { margin: 2px 0 0; font-weight: 500; }
-.health-cta {
-  height: 32px;
-  padding: 0 14px;
-  border-radius: var(--mt-radius-sm);
-  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
-  background: var(--mt-card);
-  color: inherit;
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.health-cta:hover { background: var(--mt-soft-2); }
 
 .kpi-grid {
   display: grid;
@@ -686,17 +645,7 @@ function swapAgents() {
 .overview-row.split { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
 .overview-row.thirds { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
-.card {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-  overflow: hidden;
-  padding: 14px 16px;
-  background: var(--mt-card);
-  border: 1px solid var(--mt-line);
-  border-radius: var(--mt-radius-lg);
-}
+.card { gap: 10px; overflow: hidden; }
 .card.list-card, .card.attention { gap: 0; padding: 0; }
 .card-head { display: flex; align-items: center; gap: 12px; }
 .card.list-card .card-head, .card.attention .card-head { padding: 12px 16px; }

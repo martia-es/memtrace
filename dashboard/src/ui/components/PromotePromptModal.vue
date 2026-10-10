@@ -8,6 +8,9 @@ import { usePromptApi } from "../composables/usePromptApi";
 import Modal from "./Modal.vue";
 import StatusChip from "./StatusChip.vue";
 import TextInput from "./TextInput.vue";
+import Button from "./Button.vue";
+import Checkbox from "./Checkbox.vue";
+import FormField from "./FormField.vue";
 
 /**
  * Promoción de una versión a un entorno protegido (ADR-070). Antes de mover el tag dice si hay una evaluación exitosa de
@@ -95,20 +98,17 @@ async function send() {
           <p class="hint">Run the offline evaluation on the policy's dataset with the agent reading v{{ version }} (<code>memtrace.prompts</code>), then come back.</p>
         </template>
         <template v-if="!gate.allowed">
-          <label v-if="canBypass" class="bypass">
-            <input v-model="bypassing" type="checkbox" data-testid="bypass-toggle" /> Promote anyway (emergency)
-          </label>
+          <Checkbox v-if="canBypass" class="bypass" v-model="bypassing" data-testid="bypass-toggle"> Promote anyway (emergency)</Checkbox>
           <p v-else class="hint" data-testid="no-bypass">Skipping the evaluation needs the governance permission.</p>
-          <label v-if="bypassing" class="field">
-            <span>Why? It stays in the history of this prompt.</span>
+          <FormField label="Why? It stays in the history of this prompt." v-if="bypassing">
             <TextInput v-model="bypassReason" multiline :rows="2" :invalid="!!fieldErrors.bypassReason" data-testid="bypass-reason" />
             <span v-if="fieldErrors.bypassReason" class="field-error">{{ fieldErrors.bypassReason }}</span>
-          </label>
+          </FormField>
         </template>
       </template>
       <div class="actions">
-        <button type="button" class="ghost" @click="emit('close')">Cancel</button>
-        <button type="button" class="primary-btn" :disabled="!canSend" data-testid="promote-confirm" @click="send">{{ sending ? "Promoting…" : gate && !gate.allowed ? "Promote anyway" : "Promote" }}</button>
+        <Button @click="emit('close')">Cancel</Button>
+        <Button variant="primary" :disabled="!canSend" data-testid="promote-confirm" @click="send">{{ sending ? "Promoting…" : gate && !gate.allowed ? "Promote anyway" : "Promote" }}</Button>
       </div>
     </div>
   </Modal>
@@ -129,10 +129,9 @@ dd { margin: 0; }
 .hint { margin: 0; font-size: 13px; color: var(--mt-muted); line-height: 1.5; }
 .problem { margin: 0; padding: 10px 12px; font-size: 13px; color: var(--mt-err-ink); background: var(--mt-err-bg); border-radius: var(--mt-radius-sm); }
 .bypass { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
-.field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+
 .field-error { color: var(--mt-err-ink); font-size: 12px; }
 .actions { display: flex; justify-content: flex-end; gap: 10px; }
 .ghost { height: 36px; padding: 0 16px; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); background: transparent; color: var(--mt-ink); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
-.primary-btn { height: 36px; padding: 0 18px; border: none; border-radius: var(--mt-radius-lg); background: var(--mt-accent); color: var(--mt-accent-ink); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
-.primary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 </style>

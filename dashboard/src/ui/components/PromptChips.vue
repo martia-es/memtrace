@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { useRoute } from "vue-router";
 import type { PromptRefDto } from "@contract";
+import Pill from "./Pill.vue";
 
 /**
  * Las versiones de prompt del registro que usó una traza, conversación o item de evaluación (ADR-068). Cada una enlaza a esa
@@ -20,11 +21,11 @@ const to = (p: PromptRefDto) => ({ name: "prompts", params: { experimentId: Stri
       v-for="p in shown"
       :key="`${p.name}@${p.version}`"
       :to="to(p)"
-      class="mt-pill prompt-chip"
+      class="prompt-chip"
       :title="`Prompt ${p.name}, version ${p.version}: open it`"
       :data-testid="`prompt-chip-${p.name}-${p.version}`"
       @click.stop
-    >{{ p.name }} <b>v{{ p.version }}</b></router-link>
+    ><Pill>{{ p.name }} <b>v{{ p.version }}</b></Pill></router-link>
     <span v-if="hidden > 0" class="more soft" :title="prompts.slice(shown.length).map((p) => `${p.name} v${p.version}`).join(', ')">+{{ hidden }}</span>
   </span>
 </template>

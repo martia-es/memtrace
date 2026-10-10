@@ -8,6 +8,9 @@ import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
 import ErrorBanner from "./ErrorBanner.vue";
 import Select from "./Select.vue";
+import Pill from "./Pill.vue";
+import DataTable from "./DataTable.vue";
+import Card from "./Card.vue";
 
 const props = defineProps<{ runs: RunListItemDto[]; /** baseline and candidate chosen elsewhere (Evaluations → Compare runs) */ initialIds?: [string, string] | null }>();
 
@@ -115,11 +118,11 @@ function latWidth(v: number | null, r: LatencyRow): string {
   return `${Math.max(2, (v / Math.max(r.a ?? 0, r.b ?? 0)) * 100)}%`;
 }
 /** Latency: lower is better, so a drop is the good direction. */
-function latDelta(r: LatencyRow): { text: string; cls: string } {
-  if (r.a === null || r.b === null || r.a === 0) return { text: "–", cls: "unset" };
+function latDelta(r: LatencyRow): { text: string; tone: "neutral" | "ok" | "error" } {
+  if (r.a === null || r.b === null || r.a === 0) return { text: "–", tone: "neutral" };
   const pct = ((r.b - r.a) / r.a) * 100;
-  if (Math.abs(pct) < 1) return { text: "≈ 0%", cls: "unset" };
-  return { text: `${pct > 0 ? "+" : ""}${pct.toFixed(0)}%`, cls: pct < 0 ? "ok" : "error" };
+  if (Math.abs(pct) < 1) return { text: "≈ 0%", tone: "neutral" };
+  return { text: `${pct > 0 ? "+" : ""}${pct.toFixed(0)}%`, tone: pct < 0 ? "ok" : "error" };
 }
 const unchangedPairs = computed(() => {
   const l = loaded.data.value;
@@ -150,27 +153,27 @@ const netVerdict = computed(() => (regressions.value === 0 && improvements.value
         <div class="run-chip b"><span class="tag-ab">B · candidate</span><strong>{{ offlineRunLabel(runB) }}</strong><span class="meta">{{ runB.datasetName }} v{{ runB.versionMajor }}.{{ runB.versionMinor }} · {{ formatDateTime(runB.createdAt) }}</span></div>
       </section>
 
-      <section class="card">
+      <Card as="section" padding="lg" gap="md" class="card">
         <div class="card-head"><h3>Metrics</h3><span class="legend"><i class="sw a" /> A <i class="sw b" /> B</span></div>
         <div v-for="d in deltas" :key="d.name" class="metric">
           <div class="metric-name">
             <strong>{{ d.name }}</strong>
-            <span v-if="d.judgeChanged" class="mt-pill warn" title="The judge model or rubric differs between A and B (ADR-043)">⚠ judge changed</span>
+            <Pill tone="warn" v-if="d.judgeChanged" title="The judge model or rubric differs between A and B (ADR-043)">⚠ judge changed</Pill>
           </div>
           <div class="bars">
             <div class="bar-row"><div class="track"><div class="fill a" :style="{ width: barWidth(d.a, d) }" /></div><span class="val">{{ fmt(d.a, d.isRate) }}</span></div>
             <div class="bar-row"><div class="track"><div class="fill b" :class="tone(d.delta)" :style="{ width: barWidth(d.b, d) }" /></div><span class="val">{{ fmt(d.b, d.isRate) }}</span></div>
           </div>
-          <span class="mt-pill delta-pill" :class="d.delta === null || d.delta === 0 ? 'unset' : d.delta > 0 ? 'ok' : 'error'">{{ d.delta !== null && d.delta !== 0 ? (d.delta > 0 ? "▲ " : "▼ ") : "" }}{{ fmtDelta(d.delta, d.isRate) }}</span>
+          <Pill :tone="d.delta === null || d.delta === 0 ? 'neutral' : d.delta > 0 ? 'ok' : 'error'" class="delta-pill">{{ d.delta !== null && d.delta !== 0 ? (d.delta > 0 ? "▲ " : "▼ ") : "" }}{{ fmtDelta(d.delta, d.isRate) }}</Pill>
         </div>
         <p v-if="!deltas.length" class="hint">Neither run has numeric or boolean evaluators.</p>
-      </section>
+      </Card>
 
       <ErrorBanner v-if="loaded.error.value" :error="loaded.error.value" @retry="loaded.run()" />
       <div v-else-if="loaded.loading.value" class="hint">Loading items, traces and dataset changes…</div>
 
       <template v-else-if="loaded.data.value">
-        <section class="card">
+        <Card as="section" padding="lg" gap="md" class="card">
           <h3>Dataset</h3>
           <p v-if="sameVersion" class="hint">Same dataset version (v{{ runA.versionMajor }}.{{ runA.versionMinor }}): the difference does not come from the data.</p>
           <template v-else-if="sameDataset && loaded.data.value.diff">
@@ -180,21 +183,21 @@ const netVerdict = computed(() => (regressions.value === 0 && improvements.value
               +{{ diffCounts.added }} added, ~{{ diffCounts.modified }} modified, −{{ diffCounts.removed }} removed, {{ loaded.data.value.diff.unchangedCount }} unchanged.
               Metrics may move because the items changed, not only the agent.
             </p>
-            <div v-if="changes.length" class="mt-table-wrap"><table class="mt-table">
+            <DataTable v-if="changes.length">
               <thead><tr><th>Change</th><th>Input</th></tr></thead>
               <tbody>
                 <tr v-for="c in changes.slice(0, SHOWN)" :key="c.originItemId">
-                  <td><span class="mt-pill" :class="c.kind === 'added' ? 'ok' : c.kind === 'removed' ? 'error' : 'warn'">{{ c.kind }}</span></td>
+                  <td><Pill :tone="c.kind === 'added' ? 'ok' : c.kind === 'removed' ? 'error' : 'warn'">{{ c.kind }}</Pill></td>
                   <td class="preview" :title="preview((c.after ?? c.before)?.input)">{{ preview((c.after ?? c.before)?.input) }}</td>
                 </tr>
               </tbody>
-            </table></div>
+            </DataTable>
             <p v-if="changes.length > SHOWN" class="hint">Showing {{ SHOWN }} of {{ changes.length }} changes.</p>
           </template>
           <p v-else class="hint">The dataset version diff is not available for these runs.</p>
-        </section>
+        </Card>
 
-        <section class="card">
+        <Card as="section" padding="lg" gap="md" class="card">
           <h3>Items <span class="hint">({{ loaded.data.value.pairing.paired.length }} in both · {{ loaded.data.value.pairing.onlyA.length }} only in A · {{ loaded.data.value.pairing.onlyB.length }} only in B)</span></h3>
           <div class="outcomes" :class="netVerdict">
             <div class="outcome bad"><strong>{{ regressions }}</strong><span>regressed</span></div>
@@ -207,21 +210,21 @@ const netVerdict = computed(() => (regressions.value === 0 && improvements.value
             <div class="seg flat" :style="{ flex: unchangedPairs }" />
           </div>
           <p class="hint">Items are matched by identical input.</p>
-          <div v-if="flips.length" class="mt-table-wrap"><table class="mt-table">
+          <DataTable v-if="flips.length">
             <thead><tr><th>Input</th><th>Evaluator</th><th>A → B</th><th>Dataset</th></tr></thead>
             <tbody>
               <tr v-for="(f, i) in flips.slice(0, SHOWN)" :key="`${f.pair.key}-${f.evaluator}-${i}`">
                 <td class="preview" :title="preview(f.pair.a.input)">{{ preview(f.pair.a.input) }}</td>
                 <td class="strong">{{ f.evaluator }}</td>
-                <td><span class="mt-pill" :class="f.outcome === 'improved' ? 'ok' : 'error'">{{ f.before }} → {{ f.after }}</span></td>
-                <td><span v-if="datasetChangeFor(changes, f.pair.a.input)" class="mt-pill warn">{{ datasetChangeFor(changes, f.pair.a.input)!.kind }}</span><span v-else class="hint">–</span></td>
+                <td><Pill :tone="f.outcome === 'improved' ? 'ok' : 'error'">{{ f.before }} → {{ f.after }}</Pill></td>
+                <td><Pill tone="warn" v-if="datasetChangeFor(changes, f.pair.a.input)">{{ datasetChangeFor(changes, f.pair.a.input)!.kind }}</Pill><span v-else class="hint">–</span></td>
               </tr>
             </tbody>
-          </table></div>
+          </DataTable>
           <p v-if="flips.length > SHOWN" class="hint">Showing {{ SHOWN }} of {{ flips.length }}; regressions first.</p>
-        </section>
+        </Card>
 
-        <section class="card">
+        <Card as="section" padding="lg" gap="md" class="card">
           <h3>Latency</h3>
           <template v-if="hasLatency">
             <div v-for="r in latencyRows" :key="r.label" class="metric">
@@ -230,7 +233,7 @@ const netVerdict = computed(() => (regressions.value === 0 && improvements.value
                 <div class="bar-row"><div class="track"><div class="fill a" :style="{ width: latWidth(r.a, r) }" /></div><span class="val">{{ r.a !== null ? formatDuration(r.a) : "–" }}</span></div>
                 <div class="bar-row"><div class="track"><div class="fill b" :style="{ width: latWidth(r.b, r) }" /></div><span class="val">{{ r.b !== null ? formatDuration(r.b) : "–" }}</span></div>
               </div>
-              <span class="mt-pill delta-pill" :class="latDelta(r).cls">{{ latDelta(r).text }}</span>
+              <Pill :tone="latDelta(r).tone" class="delta-pill">{{ latDelta(r).text }}</Pill>
             </div>
             <div class="facts">
               <div class="fact"><span>tokens in / out</span><strong>{{ loaded.data.value.latA.inputTokens }} / {{ loaded.data.value.latA.outputTokens }}</strong><i>→</i><strong>{{ loaded.data.value.latB.inputTokens }} / {{ loaded.data.value.latB.outputTokens }}</strong></div>
@@ -239,7 +242,7 @@ const netVerdict = computed(() => (regressions.value === 0 && improvements.value
             </div>
           </template>
           <p v-else class="hint">Latency is not recorded for these runs: no item has a linked trace (ADR-044). Call <code>memtrace.init_tracer()</code> before <code>run_experiment</code>.</p>
-        </section>
+        </Card>
       </template>
     </template>
   </div>
@@ -256,7 +259,7 @@ const netVerdict = computed(() => (regressions.value === 0 && improvements.value
 .hint code { font-family: var(--mt-mono); font-size: 12px; background: var(--mt-soft); padding: 1px 5px; border-radius: var(--mt-radius-sm); }
 h3 { margin: 0; font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
 h3 .hint { font-weight: 400; }
-.card { background: var(--mt-card); border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); padding: 18px 20px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+
 .card-head { display: flex; justify-content: space-between; align-items: center; }
 .notice { border: 1px solid var(--mt-warn); background: var(--mt-warn-bg); color: var(--mt-warn-ink); border-radius: var(--mt-radius-lg); padding: 10px 14px; font-size: 12.5px; }
 
