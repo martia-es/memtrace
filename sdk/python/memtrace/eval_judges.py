@@ -12,8 +12,8 @@ so they drop straight into `run_experiment(evaluators=[...])` alongside `exact_m
     correctness = Correctness(client=AnthropicJudgeClient())
     result = run_experiment(data=[...], task=my_agent, evaluators=[correctness], name="v2")
 
-Requires the `eval-judges` extra for the bundled Anthropic client: `pip install
-"memtrace-ai[eval-judges]"` — not needed if you bring your own `LLMClient`.
+Requires the `eval` extra for the bundled Anthropic client: `pip install
+"memtrace-ai[eval]"` — not needed if you bring your own `LLMClient`.
 """
 from memtrace.application.eval_ports import LLMClient, LLMReply
 from memtrace.application.judges import Correctness, Faithfulness, LLMJudgeEvaluator

@@ -159,5 +159,5 @@ def test_missing_extra_raises_clear_import_error(monkeypatch, spans):
     monkeypatch.setattr(builtins, "__import__", fake_import)
     with pytest.raises(ImportError, match="memtrace-ai\\[pydantic-ai\\]"):
         memtrace.enable_pydantic_ai_instrumentation()
-    with pytest.raises(ImportError, match="memtrace-ai\\[otel-langchain\\]"):
+    with pytest.raises(ImportError, match="memtrace-ai\\[langchain\\]"):
         memtrace.enable_langchain_instrumentation()

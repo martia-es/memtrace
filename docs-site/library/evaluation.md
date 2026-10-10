@@ -182,8 +182,7 @@ Changing the model or editing a judge's prompt changes the hash, so you can tell
 ## Install
 
 ```bash
-pip install "memtrace-ai[eval]"         # MemTrace dataset source and results sink
-pip install "memtrace-ai[eval-judges]"  # bundled AnthropicJudgeClient
+pip install "memtrace-ai[eval]"   # MemTrace dataset source, results sink and bundled AnthropicJudgeClient
 ```
 
-Neither is needed if you only use local data and `sink=None`, and `eval-judges` is not needed if you pass your own `LLMClient`.
+Not needed if you only use local data and `sink=None` and pass your own `LLMClient`.

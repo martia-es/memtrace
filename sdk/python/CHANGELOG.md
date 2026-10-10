@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Changed
+- **Fewer extras.** `otel-langchain` and `langchain-agents` are merged into `langchain` (handler, `prompt_middleware` and auto-instrumentation; on Python 3.9, `wrapt<2`), and `eval-judges` into `eval` (adds `anthropic`). The old extra names no longer exist.
 - **Masks are now `****`** everywhere. Secrets were masked as `[REDACTED]` and `presidio_redactor` replaced personal data with `<ENTITY_TYPE>` (`<PERSON>`, `<ES_NIF>`...); both now use the same fixed `****`, which also hides the length of the data. Code or dashboards that matched the old strings must be updated; `memtrace.domain.serialization.REDACTED` keeps pointing at the mask.
 
 ### Fixed
@@ -12,7 +13,6 @@
 - Both auto-instrumentations now respect `MEMTRACE_CAPTURE_CONTENT` (prompts and completions were
   always recorded before).
 - Spans created by auto-instrumented libraries inside `with session(...)` now carry that session id.
-- The `otel-langchain` extra installs `langchain-core` and, on Python 3.9, `wrapt<2`.
 
 ### Added
 - `prompts.propose_fix(name, cases, llm)` and `prompts.save_draft(...)` (ADR-072): ask **your** LLM (any object with `complete(system=, prompt=)`, like the judges' client) for a fix of a prompt from `FixCase`s and save it in MemTrace as a **draft** for a person to review, test and publish. A proposal that changes the prompt's `{{variables}}` or leaves it unchanged is refused (`FixProposalError`) and nothing is saved. Asking for a draft by number (`prompts.get(name, version=N)`, to evaluate it) logs a warning.

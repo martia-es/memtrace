@@ -63,7 +63,7 @@ agent = create_agent(
 )
 ```
 
-A value that is a function (like `city` above) is called with LangChain's `ModelRequest` on every call, so a variable can come from the state or the run context; the other values are fixed. The middleware *replaces* the system message: do not also pass `system_prompt=`. It works with `invoke` and `ainvoke`. Needs `pip install "memtrace-ai[langchain-agents]"` (LangChain 1.0, Python 3.10+).
+A value that is a function (like `city` above) is called with LangChain's `ModelRequest` on every call, so a variable can come from the state or the run context; the other values are fixed. The middleware *replaces* the system message: do not also pass `system_prompt=`. It works with `invoke` and `ainvoke`. Needs `pip install "memtrace-ai[langchain]"` (LangChain 1.0, Python 3.10+).
 
 For a hand-made chain (LCEL), resolve the prompt inside it, when it runs:
 
@@ -117,7 +117,7 @@ When a prompt fails on real cases, you can ask a model to propose a change and s
 
 ```python
 from memtrace import prompts
-from memtrace.adapters.outbound.llm.anthropic_client import AnthropicJudgeClient   # pip install "memtrace-ai[eval-judges]"
+from memtrace.adapters.outbound.llm.anthropic_client import AnthropicJudgeClient   # pip install "memtrace-ai[eval]"
 
 draft = prompts.propose_fix(
     "weather-system",
