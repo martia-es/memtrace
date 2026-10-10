@@ -226,7 +226,7 @@ export function toErrorOverviewResponse(o: ErrorOverview): ErrorOverviewResponse
   };
 }
 
-/** Cruza los experimentos visibles con su uso por experimento (ADR-077); sin datos en el rango = ceros, no se omite. */
+/** Cruza los experimentos visibles con su uso por experimento (ADR-088); sin datos en el rango = ceros, no se omite. */
 export function toExperimentUsageResponse(experiments: { id: string; name: string; serviceName: string }[], items: ServiceUsage[]): ExperimentUsageResponse {
   const byExperiment = new Map(items.map((i) => [i.experimentId, i]));
   return {

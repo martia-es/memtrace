@@ -16,7 +16,7 @@ const base = configFromEnv();
 const config = { ...base, password: process.env.CLICKHOUSE_PASSWORD ?? "memtrace-dev-only", writePassword: process.env.CLICKHOUSE_WRITE_USER ? base.writePassword : (process.env.CLICKHOUSE_PASSWORD ?? "memtrace-dev-only") };
 const SERVICE = `it-eval-${randomBytes(4).toString("hex")}`;
 const SCOPE = { experimentId: `exp-${SERVICE}`, serviceName: SERVICE };
-const OTHER_SCOPE = { experimentId: "exp-other", serviceName: SERVICE }; // mismo servicio, otro experimento (ADR-077)
+const OTHER_SCOPE = { experimentId: "exp-other", serviceName: SERVICE }; // mismo servicio, otro experimento (ADR-088)
 const RUN = "run-1";
 const TRACE = randomBytes(16).toString("hex");
 const hex8 = () => randomBytes(8).toString("hex");

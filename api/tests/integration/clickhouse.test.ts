@@ -55,7 +55,7 @@ interface Row {
   events?: { name: string; offsetMs: number; attrs: Record<string, string> }[];
 }
 
-/** Un experimento por servicio de prueba; el gateway de ingesta (ADR-078) lo estampa en el recurso y la columna ExperimentId lo copia. */
+/** Un experimento por servicio de prueba; el gateway de ingesta (ADR-089) lo estampa en el recurso y la columna ExperimentId lo copia. */
 const sc = (service: string): TenantScope => ({ experimentId: `exp-${service}`, serviceName: service });
 
 const toRow = (r: Row) => ({

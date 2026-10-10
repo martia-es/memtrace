@@ -7,7 +7,7 @@ type Actor = { id: string; email: string | null };
 const who = (actor: Actor) => ({ actorUserId: actor.id, actorEmail: actor.email });
 
 /**
- * Casos de uso de la relación partner (ADR-080). Quién puede llamarlos (org_admin del CLIENTE) lo decide la route; aquí
+ * Casos de uso de la relación partner (ADR-091). Quién puede llamarlos (org_admin del CLIENTE) lo decide la route; aquí
  * van las reglas que no dependen de quién llama: el alcance de un grant, el rol y que la persona sea de la consultora.
  */
 export class PartnershipService {

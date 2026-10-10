@@ -78,7 +78,7 @@ export interface ExperimentSummary extends Experiment {
 export type ExperimentAccess = {
   role: string;
   permissions: Permission[];
-  /** el acceso viene solo de un grant de consultora (ADR-080): se deja constancia en la auditoría */
+  /** el acceso viene solo de un grant de consultora (ADR-091): se deja constancia en la auditoría */
   viaPartner?: boolean;
 } | null;
 

@@ -1,5 +1,5 @@
 /**
- * Backfill de ExperimentId (ADR-077): asigna el experimento a las filas anteriores a la migración 013 de ClickHouse.
+ * Backfill de ExperimentId (ADR-088): asigna el experimento a las filas anteriores a la migración 013 de ClickHouse.
  * Una pasada, idempotente, pensada para un Job de Kubernetes (o `make backfill-experiment-id`). Necesita un usuario de
  * ClickHouse con ALTER/INSERT/SELECT (el `default` del clúster local), no el de solo lectura de la API.
  */

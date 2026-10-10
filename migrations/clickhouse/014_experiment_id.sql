@@ -1,8 +1,8 @@
--- Aislamiento por experimento (ADR-077). Hasta ahora todo el almacén se acotaba por ServiceName, que solo es único dentro
+-- Aislamiento por experimento (ADR-088). Hasta ahora todo el almacén se acotaba por ServiceName, que solo es único dentro
 -- de una organización: dos clientes con el mismo `service.name` verían las trazas del otro. Cada fila lleva ahora el
 -- identificador del experimento (UUID de Postgres) y las consultas lo exigen además del ServiceName.
 --
--- otel_traces: el gateway de ingesta (ADR-078) fija el atributo de recurso `memtrace.experiment_id` y la columna lo copia al
+-- otel_traces: el gateway de ingesta (ADR-089) fija el atributo de recurso `memtrace.experiment_id` y la columna lo copia al
 -- insertar, así que el exporter del Collector no cambia. Es DEFAULT y no MATERIALIZED a propósito: una columna
 -- MATERIALIZED no admite ALTER ... UPDATE, y las filas anteriores a esta migración hay que asignarlas con el backfill
 -- (api/src/worker/backfill-experiment-id.ts). Hasta que se asignen valen '' y ninguna consulta las devuelve (falla cerrado).

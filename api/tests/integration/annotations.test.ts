@@ -14,7 +14,7 @@ const enabled = Boolean(process.env.CLICKHOUSE_INTEGRATION);
 const config = { ...configFromEnv(), password: process.env.CLICKHOUSE_PASSWORD ?? "memtrace-dev-only" };
 const SERVICE = `it-ann-${randomBytes(4).toString("hex")}`;
 const SCOPE = { experimentId: `exp-${SERVICE}`, serviceName: SERVICE };
-const OTHER_SCOPE = { experimentId: "exp-other", serviceName: SERVICE }; // mismo servicio, otro experimento (ADR-077)
+const OTHER_SCOPE = { experimentId: "exp-other", serviceName: SERVICE }; // mismo servicio, otro experimento (ADR-088)
 const TRACE = randomBytes(16).toString("hex");
 
 const annotation = (overrides: Partial<Annotation> = {}): Annotation => ({

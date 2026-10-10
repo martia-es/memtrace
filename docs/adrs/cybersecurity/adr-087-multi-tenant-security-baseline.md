@@ -1,10 +1,10 @@
-# ADR-076: Multi-Tenant Security Baseline
+# ADR-087: Multi-Tenant Security Baseline
 
 * **Status**: Accepted — all four P0 items are implemented; P1 and P2 remain open. The isolation of the network layer still has to be checked on a cluster that enforces `NetworkPolicy`
 * **Date**: 2026-10-09
 * **Deciders**: MemTrace Core Team
 * **Related**: [ADR-013](../identity/adr-013-identity-postgres-and-oauth-rbac.md), [ADR-021](../sdk/adr-021-sdk-explicit-tracer-provider-and-content-redaction.md), [ADR-052](../identity/adr-052-permission-based-roles-and-external-identity-mapping.md)
-* **Children**: [ADR-077](adr-077-strict-tenant-isolation-in-clickhouse.md), [ADR-078](adr-078-ingestion-identity-binding.md), [ADR-079](adr-079-network-segmentation-and-collector-access.md), [ADR-080](adr-080-client-boundary-for-multi-client-organizations.md)
+* **Children**: [ADR-088](adr-088-strict-tenant-isolation-in-clickhouse.md), [ADR-089](adr-089-ingestion-identity-binding.md), [ADR-090](adr-090-network-segmentation-and-collector-access.md), [ADR-091](adr-091-client-boundary-for-multi-client-organizations.md)
 
 ## Context and Problem Statement
 
@@ -33,19 +33,19 @@ This ADR is the umbrella: it lists **what has to be addressed**, in what order, 
 
 | Item | Gap | Owner |
 |---|---|---|
-| Tenant isolation in ClickHouse | Data is scoped by `ServiceName`, which is unique only per organization | [ADR-077](adr-077-strict-tenant-isolation-in-clickhouse.md) — implemented |
-| Ingestion identity binding | The gateway accepts any valid key for any `service.name` | [ADR-078](adr-078-ingestion-identity-binding.md) — implemented |
-| Network segmentation | No `NetworkPolicy`; the Collector accepts OTLP from any pod without auth | [ADR-079](adr-079-network-segmentation-and-collector-access.md) — implemented, to verify on a cluster |
-| Client boundary | `org_admin` sees every experiment of the organization | [ADR-080](adr-080-client-boundary-for-multi-client-organizations.md) — implemented (backend) |
+| Tenant isolation in ClickHouse | Data is scoped by `ServiceName`, which is unique only per organization | [ADR-088](adr-088-strict-tenant-isolation-in-clickhouse.md) — implemented |
+| Ingestion identity binding | The gateway accepts any valid key for any `service.name` | [ADR-089](adr-089-ingestion-identity-binding.md) — implemented |
+| Network segmentation | No `NetworkPolicy`; the Collector accepts OTLP from any pod without auth | [ADR-090](adr-090-network-segmentation-and-collector-access.md) — implemented, to verify on a cluster |
+| Client boundary | `org_admin` sees every experiment of the organization | [ADR-091](adr-091-client-boundary-for-multi-client-organizations.md) — implemented (backend) |
 
 ### P1 — before a public or enterprise launch (ADRs to write when scheduled)
 
 | Item | Gap |
 |---|---|
-| Encryption in transit | No Ingress/TLS and no encryption between services. Security headers are done ([ADR-081](adr-081-security-headers-and-ingest-rate-limits.md)); HSTS belongs to the TLS terminator |
+| Encryption in transit | No Ingress/TLS and no encryption between services. Security headers are done ([ADR-092](adr-092-security-headers-and-ingest-rate-limits.md)); HSTS belongs to the TLS terminator |
 | Encryption at rest and secrets | Kubernetes secrets are base64; no volume encryption; no secret manager (ADR-013 left it open); no per-client keys |
-| General audit log | Done for security actions and consultancy access ([ADR-082](adr-082-security-audit-log.md)). Missing: reads by the client's own staff, logins, retention |
-| Rate limiting and quotas | Ingest gateway done, per experiment and per origin for invalid keys ([ADR-081](adr-081-security-headers-and-ingest-rate-limits.md)). Missing: the rest of the API, per-tenant quotas |
+| General audit log | Done for security actions and consultancy access ([ADR-093](adr-093-security-audit-log.md)). Missing: reads by the client's own staff, logins, retention |
+| Rate limiting and quotas | Ingest gateway done, per experiment and per origin for invalid keys ([ADR-092](adr-092-security-headers-and-ingest-rate-limits.md)). Missing: the rest of the API, per-tenant quotas |
 | Erasure and per-client retention | TTL is fixed for everyone; no delete-by-experiment/user/session; no data export |
 | Server-side PII policy | Redaction happens only if the client configures the SDK; add an organization policy enforced at the gateway |
 | Third-party data flows | LLM judges and the playground send content to external providers; inventory them and let an organization disable them |
@@ -64,7 +64,7 @@ This ADR is the umbrella: it lists **what has to be addressed**, in what order, 
 
 1. Security work is tracked as ADRs in this folder (`docs/adrs/cybersecurity/`), one per decision, all owned by this umbrella.
 2. P0 items are implemented in the order of the table above, each in its own branch and with a cross-tenant test (see Verification).
-3. No new feature that stores or reads tenant data may merge without the isolation test of ADR-077 covering it.
+3. No new feature that stores or reads tenant data may merge without the isolation test of ADR-088 covering it.
 
 ## Verification
 

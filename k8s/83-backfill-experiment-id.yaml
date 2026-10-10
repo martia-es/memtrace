@@ -1,4 +1,4 @@
-# Backfill de ExperimentId (ADR-077). Asigna el experimento a las filas de ClickHouse anteriores a la migración 013:
+# Backfill de ExperimentId (ADR-088). Asigna el experimento a las filas de ClickHouse anteriores a la migración 013:
 # solo cuando el `service_name` es de UN experimento (si lo comparten dos organizaciones no se adivina y esas filas
 # quedan sin asignar, invisibles, y el log lo avisa). Idempotente: repetirlo no duplica ni cambia nada.
 # Misma imagen que la API (`make api` la reconstruye). Si corre antes de que la migración 013 haya terminado, falla y

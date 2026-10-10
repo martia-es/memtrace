@@ -1,5 +1,5 @@
 /**
- * Backfill de ExperimentId contra el ClickHouse real (ADR-077): las filas anteriores a la migración 013 valen '' y no las
+ * Backfill de ExperimentId contra el ClickHouse real (ADR-088): las filas anteriores a la migración 013 valen '' y no las
  * ve nadie; el backfill las asigna cuando el servicio es de un solo experimento y deja el resto sin tocar.
  */
 import { createClient, type ClickHouseClient } from "@clickhouse/client";

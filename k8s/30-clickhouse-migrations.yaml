@@ -63,11 +63,11 @@ spec:
           for t in eval_items eval_scores eval_run_summaries annotations user_feedback; do
             $CH --query "GRANT INSERT ON memtrace.$t TO api_writer"
           done
-          # Usuario de lectura de la API (ADR-079): solo SELECT, y no puede cambiar `readonly` (=2 permite fijar max_threads por consulta)
+          # Usuario de lectura de la API (ADR-090): solo SELECT, y no puede cambiar `readonly` (=2 permite fijar max_threads por consulta)
           $CH --query "CREATE USER IF NOT EXISTS api_reader IDENTIFIED WITH sha256_password BY '$CLICKHOUSE_READER_PASSWORD' SETTINGS readonly = 2"
           $CH --query "ALTER USER api_reader IDENTIFIED WITH sha256_password BY '$CLICKHOUSE_READER_PASSWORD'"
           $CH --query "GRANT SELECT ON memtrace.* TO api_reader"
-          # Usuario del Collector (ADR-079): INSERT en las trazas. El exporter 0.96 ejecuta CREATE ... IF NOT EXISTS al arrancar
+          # Usuario del Collector (ADR-090): INSERT en las trazas. El exporter 0.96 ejecuta CREATE ... IF NOT EXISTS al arrancar
           # (base, tablas de trazas y su vista) y la vista materializada lee Timestamp y TraceId del bloque insertado; no puede
           # leer el contenido de los spans, ni borrar o alterar nada.
           $CH --query "CREATE USER IF NOT EXISTS collector IDENTIFIED WITH sha256_password BY '$CLICKHOUSE_COLLECTOR_PASSWORD'"

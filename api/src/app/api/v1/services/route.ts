@@ -3,7 +3,7 @@ import { getHandlers, getIdentity } from "@/dependency-container";
 
 export const dynamic = "force-dynamic";
 
-/** Servicios con datos, solo de los experimentos que la persona puede leer (ADR-077). Antes no exigía sesión y listaba los de todos. */
+/** Servicios con datos, solo de los experimentos que la persona puede leer (ADR-088). Antes no exigía sesión y listaba los de todos. */
 export async function GET(request: Request) {
   const user = await requireUser();
   if (user instanceof Response) return user;

@@ -13,7 +13,7 @@ const enabled = Boolean(process.env.CLICKHOUSE_INTEGRATION);
 const config = { ...configFromEnv(), password: process.env.CLICKHOUSE_PASSWORD ?? "memtrace-dev-only" };
 const SERVICE = `it-fb-${randomBytes(4).toString("hex")}`;
 const SCOPE = { experimentId: `exp-${SERVICE}`, serviceName: SERVICE };
-const OTHER_SCOPE = { experimentId: "exp-other", serviceName: SERVICE }; // mismo servicio, otro experimento (ADR-077)
+const OTHER_SCOPE = { experimentId: "exp-other", serviceName: SERVICE }; // mismo servicio, otro experimento (ADR-088)
 const TRACE = randomBytes(16).toString("hex");
 
 const vote = (overrides: Partial<UserFeedback> = {}): UserFeedback => ({
@@ -65,7 +65,7 @@ describe.skipIf(!enabled)("ClickHouseUserFeedbackRepository (integration)", () =
     expect((await repo.listRecent(SCOPE, ...range, 10, -1)).map((v) => v.endUserId)).toEqual(["u-1"]);
   });
 
-  it("never returns another experiment's votes, even when it shares the service name (ADR-077)", async () => {
+  it("never returns another experiment's votes, even when it shares the service name (ADR-088)", async () => {
     expect(await repo.listForTrace(OTHER_SCOPE, TRACE)).toEqual([]);
     expect((await repo.summarize(OTHER_SCOPE, ...range)).total).toBe(0);
   });

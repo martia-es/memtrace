@@ -1,5 +1,5 @@
 /**
- * Cabeceras de seguridad (ADR-081). nginx sustituye las `add_header` del nivel superior cuando un `location` define las
+ * Cabeceras de seguridad (ADR-092). nginx sustituye las `add_header` del nivel superior cuando un `location` define las
  * suyas (p. ej. Cache-Control), así que cada location debe incluir el fichero de cabeceras o se queda sin ellas.
  */
 import { readFileSync } from "node:fs";

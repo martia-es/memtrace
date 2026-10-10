@@ -1,10 +1,10 @@
-# ADR-080: Client Boundary for Multi-Client Organizations
+# ADR-091: Client Boundary for Multi-Client Organizations
 
 * **Status**: Accepted — option A, backend implemented (2026-10-10). The dashboard screens for it are still to do
 * **Date**: 2026-10-09
 * **Deciders**: MemTrace Core Team (option chosen by the product owner on 2026-10-10)
-* **Parent**: [ADR-076](adr-076-multi-tenant-security-baseline.md)
-* **Related**: [ADR-013](../identity/adr-013-identity-postgres-and-oauth-rbac.md), [ADR-052](../identity/adr-052-permission-based-roles-and-external-identity-mapping.md), [ADR-077](adr-077-strict-tenant-isolation-in-clickhouse.md)
+* **Parent**: [ADR-087](adr-087-multi-tenant-security-baseline.md)
+* **Related**: [ADR-013](../identity/adr-013-identity-postgres-and-oauth-rbac.md), [ADR-052](../identity/adr-052-permission-based-roles-and-external-identity-mapping.md), [ADR-088](adr-088-strict-tenant-isolation-in-clickhouse.md)
 
 ## Context and Problem Statement
 
@@ -17,14 +17,14 @@ The isolation boundary must be the **client**, and the consultancy must still be
 
 ## Decision Outcome
 
-**Option A: one organization per client, plus a partner relationship.** The client organization stays the hard isolation boundary already used by queries (ADR-077), API keys, SCIM and themes. A consultancy is just another organization, the *partner*; the client decides what its people can do.
+**Option A: one organization per client, plus a partner relationship.** The client organization stays the hard isolation boundary already used by queries (ADR-088), API keys, SCIM and themes. A consultancy is just another organization, the *partner*; the client decides what its people can do.
 
 | Option considered | Why not |
 |---|---|
 | B. A client level inside one organization | The boundary would sit inside one tenant, so a role mistake crosses clients; touches every permission check and screen |
 | C. Per-experiment deny for `org_admin` | Opt-out instead of opt-in: the default would still be "sees everything" |
 
-### Model (migration `038_partnerships.sql`)
+### Model (migration `043_partnerships.sql`)
 
 - `organization_partnerships(client, partner, created_by, revoked_at…)`: created by an `org_admin` **of the client**, naming the partner by the id of its organization. One active relationship per pair. By itself it grants nothing.
 - `partner_grants(partnership, user, role, experiment_id | NULL, granted_by, revoked_at…)`: the client picks a *person* (by email, who must be a member of the partner organization), an **experiment role** (`technical`, `business`, any role with experiment scope) and a scope: the whole client organization (NULL, including experiments created later) or one experiment.
@@ -38,7 +38,7 @@ The isolation boundary must be the **client**, and the consultancy must still be
 4. **A grant lives only as long as the person belongs to the partner.** It counts only while the relationship and the grant are active and the person has been a member of the partner organization *since before* the grant. Removing someone from the consultancy (manually or via SCIM) cuts their access to every client at once, and re-adding them does not bring it back: the client has to grant it again.
 5. **Permissions come from one place.** `resolveExperimentAccess` and `listExperimentsForUser` take the union of the organization role, the experiment role and the partner grants; no route compares role names (ADR-052).
 6. **Cross-client views are metadata.** `GET /api/v1/partner/clients` returns the clients and experiments granted to the caller and the role; the data of a client opens through the ordinary experiment routes, which require the grant.
-7. The history is kept in the tables (who granted, who revoked, when). A general audit log of *reads* is still a P1 item of ADR-076.
+7. The history is kept in the tables (who granted, who revoked, when). A general audit log of *reads* is still a P1 item of ADR-087.
 
 ### API
 
@@ -46,7 +46,7 @@ For the client's `org_admin`: `GET|POST /organizations/{id}/partnerships`, `DELE
 
 ## Answers to the open questions
 
-- **Who owns the data when the contract ends?** The client organization owns it; the partner never holds a copy, only access. Ending the relationship removes the access immediately. Export and deletion on request remain P1 (ADR-076).
+- **Who owns the data when the contract ends?** The client organization owns it; the partner never holds a copy, only access. Ending the relationship removes the access immediately. Export and deletion on request remain P1 (ADR-087).
 - **Unified list of clients for the consultancy?** `GET /partner/clients` provides the data; the dashboard home is pending.
 - **Roles for partners?** The existing experiment roles, because roles are data: a client that wants read-only support creates an experiment role with just `experiment:read` and grants that.
 - **One login, several organizations?** The experiment list already spans organizations, each item carries its organization; there is no "active organization" to select.
@@ -66,5 +66,5 @@ For the client's `org_admin`: `GET|POST /organizations/{id}/partnerships`, `DELE
 
 ## Consequences
 
-- **Positive**: the consultancy scenario is a first-class, safe-by-default use case; the client keeps control and can cut access at any time; offboarding at the consultancy propagates to all clients; the isolation boundary and the tenant model of the data (ADR-077) do not change.
+- **Positive**: the consultancy scenario is a first-class, safe-by-default use case; the client keeps control and can cut access at any time; offboarding at the consultancy propagates to all clients; the isolation boundary and the tenant model of the data (ADR-088) do not change.
 - **Negative**: a second kind of access path to reason about in the authorization queries; the consultancy cannot see a unified view of its clients' data (by design); cross-organization identities need the person to exist in the partner organization first.

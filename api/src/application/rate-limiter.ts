@@ -1,5 +1,5 @@
 /**
- * Límite de peticiones por clave en ventana fija (ADR-081). Vive en memoria de cada réplica: con N réplicas el límite
+ * Límite de peticiones por clave en ventana fija (ADR-092). Vive en memoria de cada réplica: con N réplicas el límite
  * efectivo es N veces mayor, y se reinicia al reiniciar el pod. Es una defensa contra abuso y errores de configuración
  * (un agente en un bucle), no una cuota de facturación.
  */

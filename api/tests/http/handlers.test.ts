@@ -15,7 +15,7 @@ function setup() {
 }
 const get = (path: string) => new Request(`http://localhost/api/v1${path}`);
 
-describe("tenant scope (ADR-077)", () => {
+describe("tenant scope (ADR-088)", () => {
   it("never takes the tenant from the query string", async () => {
     const { repo, handlers } = setup();
     await handlers.listTraces(get("/traces?service=victim&experimentId=other&scope=x"), SCOPE);

@@ -1,5 +1,5 @@
 /**
- * Registro de auditoría (ADR-082). Solo acciones de seguridad: conceder y quitar acceso, claves de agente, y el acceso de
+ * Registro de auditoría (ADR-093). Solo acciones de seguridad: conceder y quitar acceso, claves de agente, y el acceso de
  * una consultora a los datos de un cliente. Es append-only y sobrevive al borrado de lo que describe.
  */
 export const AUDIT_ACTIONS = [

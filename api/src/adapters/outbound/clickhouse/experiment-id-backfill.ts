@@ -1,7 +1,7 @@
 import type { ClickHouseClient } from "@clickhouse/client";
 
 /**
- * Asigna el experimento a las filas anteriores a la migración 013 (ADR-077). Solo se asigna cuando el `ServiceName`
+ * Asigna el experimento a las filas anteriores a la migración 013 (ADR-088). Solo se asigna cuando el `ServiceName`
  * pertenece a UN experimento: si dos organizaciones lo comparten no hay forma de saber de quién es cada fila, y se
  * dejan sin asignar (ningún tenant las ve) para que alguien decida. No adivina.
  */

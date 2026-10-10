@@ -1,5 +1,5 @@
 /**
- * Postura de red y de contenedores de los manifiestos (ADR-079). No sustituye probar el clúster real (`make netpol-check`),
+ * Postura de red y de contenedores de los manifiestos (ADR-090). No sustituye probar el clúster real (`make netpol-check`),
  * pero impide que un cambio abra sin querer un camino al Collector o a los almacenes.
  */
 import { readdirSync, readFileSync } from "node:fs";
@@ -122,7 +122,7 @@ describe("containers", () => {
   });
 });
 
-describe("ClickHouse users (ADR-079)", () => {
+describe("ClickHouse users (ADR-090)", () => {
   const secret = docs.find(({ doc }) => doc.kind === "Secret" && doc.metadata.name === "clickhouse-credentials")!.doc;
   const envOf = (app: string) => workloads.find((w) => w.app === app)!.template.spec.containers.flatMap((c: Doc) => c.env ?? []) as Doc[];
 

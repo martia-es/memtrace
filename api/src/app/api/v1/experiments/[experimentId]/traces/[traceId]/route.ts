@@ -7,6 +7,6 @@ export async function GET(request: Request, context: { params: Promise<{ experim
   const { experimentId, traceId } = await context.params;
   const access = await requireExperimentRead(experimentId);
   if (access instanceof Response) return access;
-  // El lookup va acotado al experimento (ADR-077): una traza de otro experimento responde 404, aunque se conozca su id.
+  // El lookup va acotado al experimento (ADR-088): una traza de otro experimento responde 404, aunque se conozca su id.
   return getHandlers().getTrace(request, access.scope, traceId);
 }

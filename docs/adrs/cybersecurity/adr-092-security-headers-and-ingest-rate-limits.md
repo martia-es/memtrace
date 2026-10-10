@@ -1,13 +1,13 @@
-# ADR-081: Security Headers and Ingest Rate Limits
+# ADR-092: Security Headers and Ingest Rate Limits
 
 * **Status**: Accepted — implemented (2026-10-10). TLS itself and a general API rate limit are still open
 * **Date**: 2026-10-10
 * **Deciders**: MemTrace Core Team
-* **Parent**: [ADR-076](adr-076-multi-tenant-security-baseline.md)
+* **Parent**: [ADR-087](adr-087-multi-tenant-security-baseline.md)
 
 ## Context and Problem Statement
 
-Two P1 items of ADR-076 were cheap to close and reduce real risk:
+Two P1 items of ADR-087 were cheap to close and reduce real risk:
 
 - The dashboard and docs nginx sent no security headers: no Content-Security-Policy, no framing protection, no `nosniff`. A single XSS in a dashboard that shows prompts and completions captured from third parties would run with the session of an `org_admin`.
 - The ingest gateway accepted any number of requests per key and any number of invalid keys per origin. A looping agent or a leaked key could saturate the Collector, and nothing slowed down key guessing.

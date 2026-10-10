@@ -1,7 +1,7 @@
 /**
- * Contra un Postgres real con las migraciones aplicadas (hasta la 038). Opt-in: `POSTGRES_INTEGRATION_URL=postgres://… npm run test:integration`.
+ * Contra un Postgres real con las migraciones aplicadas (hasta la 043). Opt-in: `POSTGRES_INTEGRATION_URL=postgres://… npm run test:integration`.
  * Una consultora (P) con dos personas opera a dos clientes (C1, C2) sin que ser de la consultora dé acceso a nada: el
- * aislamiento entre clientes lo decide cada cliente (ADR-080).
+ * aislamiento entre clientes lo decide cada cliente (ADR-091).
  */
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";

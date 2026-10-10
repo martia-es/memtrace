@@ -1,4 +1,4 @@
--- Relación partner entre organizaciones (ADR-080, opción A). Una consultora (organización partner) opera las
+-- Relación partner entre organizaciones (ADR-091, opción A). Una consultora (organización partner) opera las
 -- organizaciones de sus clientes sin que ser de la consultora dé acceso a nada: cada cliente decide, en su propia
 -- organización, qué personas de la consultora entran, con qué rol y en qué experimentos.
 --

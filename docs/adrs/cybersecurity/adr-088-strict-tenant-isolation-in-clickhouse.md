@@ -1,9 +1,9 @@
-# ADR-077: Strict Tenant Isolation in ClickHouse
+# ADR-088: Strict Tenant Isolation in ClickHouse
 
-* **Status**: Accepted — implemented (2026-10-10). Row policies and a read-only query user remain open (P2 in ADR-076)
+* **Status**: Accepted — implemented (2026-10-10). Row policies and a read-only query user remain open (P2 in ADR-087)
 * **Date**: 2026-10-09
 * **Deciders**: MemTrace Core Team
-* **Parent**: [ADR-076](adr-076-multi-tenant-security-baseline.md)
+* **Parent**: [ADR-087](adr-087-multi-tenant-security-baseline.md)
 * **Related**: [ADR-003](../storage/adr-003-clickhouse-schema-and-migrations.md), [ADR-013](../identity/adr-013-identity-postgres-and-oauth-rbac.md)
 
 ## Context and Problem Statement
@@ -30,8 +30,8 @@ The query API injects the experiment's `service_name` into every read (`withServ
 1. Add `ExperimentId UUID` to all tenant tables through versioned migrations, as the **first** column of `ORDER BY` so it is also the cheapest filter. Backfill existing rows by mapping `ServiceName` to the experiment when it is unambiguous; ambiguous rows are reported, not guessed.
 2. The repositories take an `ExperimentScope` value (non-optional) instead of an optional `service` string. A query without scope does not compile; the SQL builder always emits `ExperimentId = {experimentId:UUID}`.
 3. Cross-experiment endpoints (such as ADR-023 usage) receive an explicit list of experiment ids already authorized for the user; they never run unscoped.
-4. The ingestion path stamps `ExperimentId` (see [ADR-078](adr-078-ingestion-identity-binding.md)), so a client cannot choose it.
-5. Add ClickHouse row policies per tenant and a read-only user for the query API as a second layer (tracked as P2 in ADR-076).
+4. The ingestion path stamps `ExperimentId` (see [ADR-089](adr-089-ingestion-identity-binding.md)), so a client cannot choose it.
+5. Add ClickHouse row policies per tenant and a read-only user for the query API as a second layer (tracked as P2 in ADR-087).
 
 ## Findings during implementation
 
@@ -45,7 +45,7 @@ Reading every query showed the problem was wider than the ADR first described:
 ## Implementation
 
 - `domain/tenant.ts`: `TenantScope { experimentId, serviceName }`, built only by `requirePermission` / `resolveApiKey`. `assertTenantScope` throws on an empty value, because `''` would match the rows from before the migration.
-- Migration `013_experiment_id.sql`: `otel_traces.ExperimentId` is a `DEFAULT` column read from the resource attribute that the gateway stamps (ADR-078); the five API-written tables get the column inside the sorting key (ClickHouse only allows that for a column added in the same `ALTER` and without a `DEFAULT` expression).
+- Migration `014_experiment_id.sql`: `otel_traces.ExperimentId` is a `DEFAULT` column read from the resource attribute that the gateway stamps (ADR-089); the five API-written tables get the column inside the sorting key (ClickHouse only allows that for a column added in the same `ALTER` and without a `DEFAULT` expression).
 - Every repository method takes the scope and emits `ServiceName = … AND ExperimentId = …` (`tenant-sql.ts`). `ServiceName` stays first so the primary key still prunes parts. Sub-queries (`hasErrors`, text, prompt filters) carry the predicate as well.
 - HTTP handlers receive the scope from the route; the `service` query parameter is gone from the schemas and `withServiceFilter` was deleted.
 - Cross-experiment endpoints (`/services`, `/experiments/usage`) receive the list of experiments the user can read and group by `ExperimentId`.
@@ -71,4 +71,4 @@ Originally planned checks:
 - **Positive**: isolation no longer depends on naming; a missing filter fails loudly; renaming a service no longer orphans history.
 - **Negative**: migration of every tenant table and of local data; larger sorting keys; the SDK and Collector contract (`service.name`) is unchanged but is no longer the identity of the tenant.
 - **Decided**: `ServiceName` stays in the key and in the predicate; it is what lets ClickHouse prune parts.
-- **Rollout**: rows written before the migration are invisible until `make backfill-experiment-id` runs. Agents keep sending traces through the gateway (ADR-078); a Collector reachable directly would write rows with no experiment, which nobody can read (ADR-079 closes that path).
+- **Rollout**: rows written before the migration are invisible until `make backfill-experiment-id` runs. Agents keep sending traces through the gateway (ADR-089); a Collector reachable directly would write rows with no experiment, which nobody can read (ADR-090 closes that path).

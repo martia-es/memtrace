@@ -1,5 +1,5 @@
 /**
- * Asignación de identidad de tenant a un export OTLP (ADR-078).
+ * Asignación de identidad de tenant a un export OTLP (ADR-089).
  *
  * El gateway de ingesta no se fía de lo que el agente dice ser: quita `service.name` y `memtrace.experiment_id` de
  * cada Resource y pone los del experimento al que pertenece la API key. Así el tenant de un span lo decide la

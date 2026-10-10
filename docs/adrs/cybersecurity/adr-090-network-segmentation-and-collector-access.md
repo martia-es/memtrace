@@ -1,19 +1,19 @@
-# ADR-079: Network Segmentation and Collector Access
+# ADR-090: Network Segmentation and Collector Access
 
 * **Status**: Accepted — implemented (2026-10-10). Not verified on a cluster that enforces `NetworkPolicy`; pod hardening of the databases is still open
 * **Date**: 2026-10-09
 * **Deciders**: MemTrace Core Team
-* **Parent**: [ADR-076](adr-076-multi-tenant-security-baseline.md)
-* **Related**: [ADR-001](../infra/adr-001-otel-collector-clickhouse.md), [ADR-002](../infra/adr-002-local-kubernetes-k3d.md), [ADR-077](adr-077-strict-tenant-isolation-in-clickhouse.md), [ADR-078](adr-078-ingestion-identity-binding.md)
+* **Parent**: [ADR-087](adr-087-multi-tenant-security-baseline.md)
+* **Related**: [ADR-001](../infra/adr-001-otel-collector-clickhouse.md), [ADR-002](../infra/adr-002-local-kubernetes-k3d.md), [ADR-088](adr-088-strict-tenant-isolation-in-clickhouse.md), [ADR-089](adr-089-ingestion-identity-binding.md)
 
 ## Context and Problem Statement
 
-The ingestion gateway of ADR-078 only protects tenants if it is the *only* way to write traces. In the manifests as they were:
+The ingestion gateway of ADR-089 only protects tenants if it is the *only* way to write traces. In the manifests as they were:
 
 - the OTel Collector listened on 4317 (gRPC) and 4318 (HTTP) with no authentication, and `make up` forwarded both ports to the developer's machine, so any pod, or anyone on the machine, could write traces for any tenant;
 - there was no `NetworkPolicy`: ClickHouse and Postgres accepted connections from any pod;
 - every component connected to ClickHouse as `default`, the administrator. The API's "read-only client" was only a setting sent by the client itself;
-- the documented local flow (README, `make dev-data`, the SDK defaults) sent traces straight to the Collector. After ADR-077 those traces carry no experiment and nobody can read them.
+- the documented local flow (README, `make dev-data`, the SDK defaults) sent traces straight to the Collector. After ADR-088 those traces carry no experiment and nobody can read them.
 
 ## Decision Outcome
 
@@ -21,7 +21,7 @@ Three independent layers, so that losing one (for example a CNI that does not en
 
 ### 1. The Collector only talks to the gateway, and proves it
 
-- OTLP **HTTP only** (4318). gRPC is removed: it would bypass the API-key validation and the identity assignment of ADR-078.
+- OTLP **HTTP only** (4318). gRPC is removed: it would bypass the API-key validation and the identity assignment of ADR-089.
 - `bearertokenauth` on the receiver. The gateway presents a shared token (`INGEST_INTERNAL_TOKEN`, secret `ingest-internal`); anything else gets `401` from the Collector itself. This works with any CNI.
 - `make up` and `make forward` no longer forward the Collector. Agents use `http://localhost:8080/api/v1/ingest` with an API key, `make dev-data` requires `MEMTRACE_API_KEY`, and the README and docs-site say so.
 
@@ -48,7 +48,7 @@ The API needs arbitrary outbound destinations (identity provider, Resend, GitHub
 | `api_writer` (ADR-045) | API evaluation writes | `INSERT` on five evaluation tables |
 | `collector` | OTel Collector | `INSERT` on the trace tables, `SELECT(Timestamp, TraceId)` on `otel_traces`, plus the `CREATE` grants the 0.96 exporter needs at startup |
 
-The collector's grants were found by running the real exporter and adding only what it asked for: it cannot read span content, alter or drop anything. The materialized view that feeds the trace index runs with the inserting user's rights in ClickHouse 23.8, which is why `SELECT(Timestamp, TraceId)` is needed. Passwords are development placeholders in `k8s/10-clickhouse-secret.yaml`, like the existing ones; a real secret manager remains the P1 item of ADR-076.
+The collector's grants were found by running the real exporter and adding only what it asked for: it cannot read span content, alter or drop anything. The materialized view that feeds the trace index runs with the inserting user's rights in ClickHouse 23.8, which is why `SELECT(Timestamp, TraceId)` is needed. Passwords are development placeholders in `k8s/10-clickhouse-secret.yaml`, like the existing ones; a real secret manager remains the P1 item of ADR-087.
 
 ### 4. Pod hardening (partial)
 

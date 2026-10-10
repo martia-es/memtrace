@@ -5,7 +5,7 @@ import type { NewPartnerGrant, PartnerClient, PartnerGrant, Partnership } from "
 /**
  * Un grant solo cuenta mientras la relación y el grant estén vigentes y la persona siga siendo miembro de la organización
  * partner desde antes de concederlo: dar de baja a alguien en la consultora le quita el acceso a todos los clientes y, si la
- * vuelven a dar de alta, el grant no resucita (ADR-080). El mismo predicado se usa en `PostgresIdentityRepository`.
+ * vuelven a dar de alta, el grant no resucita (ADR-091). El mismo predicado se usa en `PostgresIdentityRepository`.
  */
 const EFFECTIVE = `g.revoked_at IS NULL AND p.revoked_at IS NULL
   AND EXISTS (SELECT 1 FROM org_memberships pm WHERE pm.organization_id = p.partner_organization_id AND pm.user_id = g.user_id AND pm.created_at <= g.created_at)`;

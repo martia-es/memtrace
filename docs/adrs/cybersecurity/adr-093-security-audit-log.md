@@ -1,14 +1,14 @@
-# ADR-082: Security Audit Log
+# ADR-093: Security Audit Log
 
 * **Status**: Accepted — implemented (2026-10-10). Reads of trace data are not logged except consultancy access
 * **Date**: 2026-10-10
 * **Deciders**: MemTrace Core Team
-* **Parent**: [ADR-076](adr-076-multi-tenant-security-baseline.md)
-* **Related**: [ADR-080](adr-080-client-boundary-for-multi-client-organizations.md)
+* **Parent**: [ADR-087](adr-087-multi-tenant-security-baseline.md)
+* **Related**: [ADR-091](adr-091-client-boundary-for-multi-client-organizations.md)
 
 ## Context and Problem Statement
 
-ADR-080 promised that a consultancy entering a client's data leaves a trace the client can read, and ADR-076 listed the lack of an audit log as a P1 gap. Until now only dataset items, prompt tag moves and the deploy-gate bypass were audited, each in its own table. Nobody could answer "who gave this person access?", "who created this API key?" or "did the consultancy look at our data last week?".
+ADR-091 promised that a consultancy entering a client's data leaves a trace the client can read, and ADR-087 listed the lack of an audit log as a P1 gap. Until now only dataset items, prompt tag moves and the deploy-gate bypass were audited, each in its own table. Nobody could answer "who gave this person access?", "who created this API key?" or "did the consultancy look at our data last week?".
 
 ## Decision Outcome
 

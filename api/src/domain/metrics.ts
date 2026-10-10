@@ -3,7 +3,7 @@ import type { TenantScope } from "@/domain/tenant";
 export interface MetricsQuery {
   fromMs: number;
   toMs: number;
-  /** Frontera de aislamiento (ADR-077): obligatoria, nunca construida a partir de la petición. */
+  /** Frontera de aislamiento (ADR-088): obligatoria, nunca construida a partir de la petición. */
   scope: TenantScope;
   bucketSeconds: number;
 }
@@ -120,7 +120,7 @@ export interface CustomMetricDefinition {
 export interface CustomMetricQuery extends CustomMetricDefinition {
   fromMs: number;
   toMs: number;
-  /** Frontera de aislamiento (ADR-077): obligatoria, nunca construida a partir de la petición. */
+  /** Frontera de aislamiento (ADR-088): obligatoria, nunca construida a partir de la petición. */
   scope: TenantScope;
   /** solo para chartType "line": tamaño del bucket temporal */
   bucketSeconds?: number;

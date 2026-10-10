@@ -1,5 +1,5 @@
 /**
- * Frontera de aislamiento de los datos (ADR-077). Todo acceso al almacén analítico recibe un `TenantScope` obligatorio:
+ * Frontera de aislamiento de los datos (ADR-088). Todo acceso al almacén analítico recibe un `TenantScope` obligatorio:
  * el experimento es el tenant, y el `serviceName` solo ayuda a ClickHouse a podar por la clave primaria. Nunca se
  * construye a partir de lo que envía el cliente, sino de la sesión o de la API key (`requirePermission`, `resolveApiKey`).
  */

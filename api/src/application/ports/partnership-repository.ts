@@ -1,6 +1,6 @@
 import type { NewPartnerGrant, PartnerClient, PartnerGrant, Partnership } from "@/domain/partnership";
 
-/** Almacén de relaciones partner y grants (PostgreSQL, ADR-080). Nada se borra al revocar: se marca `revoked_at`. */
+/** Almacén de relaciones partner y grants (PostgreSQL, ADR-091). Nada se borra al revocar: se marca `revoked_at`. */
 export interface PartnershipRepository {
   organizationName(organizationId: string): Promise<string | null>;
   /** relaciones activas de un cliente, con sus grants activos */

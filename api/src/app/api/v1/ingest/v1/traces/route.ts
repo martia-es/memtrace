@@ -7,14 +7,14 @@ import { RateLimiter } from "@/application/rate-limiter";
 export const dynamic = "force-dynamic";
 
 const COLLECTOR_URL = process.env.OTEL_COLLECTOR_HTTP_URL ?? "http://otel-collector:4318";
-/** Secreto que solo esta pasarela y el Collector comparten (ADR-079): sin él, el Collector rechaza lo que le llegue por otra vía. */
+/** Secreto que solo esta pasarela y el Collector comparten (ADR-090): sin él, el Collector rechaza lo que le llegue por otra vía. */
 const COLLECTOR_TOKEN = process.env.INGEST_INTERNAL_TOKEN;
 /** Tope del cuerpo recibido (comprimido) y del descomprimido: sin él una petición pequeña podría expandirse sin límite. */
 const MAX_BODY_BYTES = Number(process.env.INGEST_MAX_BODY_BYTES ?? 10 * 1024 * 1024);
 const MAX_DECOMPRESSED_BYTES = Number(process.env.INGEST_MAX_DECOMPRESSED_BYTES ?? 32 * 1024 * 1024);
 
 /**
- * Límites (ADR-081). Por experimento: un agente en un bucle o una clave filtrada no puede saturar el Collector. Por origen,
+ * Límites (ADR-092). Por experimento: un agente en un bucle o una clave filtrada no puede saturar el Collector. Por origen,
  * solo las claves inválidas: frena el sondeo de claves sin gastar una consulta a Postgres por intento. En memoria de cada
  * réplica; ajustables con INGEST_RATE_LIMIT_PER_MINUTE y INGEST_INVALID_KEY_LIMIT_PER_MINUTE.
  */
@@ -61,7 +61,7 @@ async function readBounded(request: Request, limit: number): Promise<Uint8Array>
 }
 
 /**
- * Gateway de ingesta (ADR-013 pieza 9, ADR-078): exige una API key válida y **asigna la identidad del tenant**.
+ * Gateway de ingesta (ADR-013 pieza 9, ADR-089): exige una API key válida y **asigna la identidad del tenant**.
  * Abre el OTLP, sustituye `service.name` y `memtrace.experiment_id` de cada Resource por los del experimento de la
  * key y reenvía al Collector. Lo que el agente declare como suyo se descarta: el tenant de un span lo decide la
  * plataforma. Un `service.name` distinto al del experimento no falla la ingesta (suele ser un agente mal

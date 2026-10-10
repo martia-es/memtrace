@@ -8,7 +8,7 @@ import { getAudit } from "@/dependency-container";
 export const dynamic = "force-dynamic";
 
 /**
- * Registro de auditoría de la organización (ADR-082): quién concedió o quitó acceso, claves de agente y los accesos de
+ * Registro de auditoría de la organización (ADR-093): quién concedió o quitó acceso, claves de agente y los accesos de
  * consultoras a vuestros datos. Solo org_admin. Los más recientes primero; `before` (ISO) pagina hacia atrás.
  */
 export async function GET(request: Request, context: { params: Promise<{ organizationId: string }> }) {

@@ -270,7 +270,7 @@ export class TraceQueryService {
     return this.repository.listRevisions({ ...resolveTimeRange(input, this.now()), scope: input.scope });
   }
 
-  /** Solo los servicios de los experimentos que la persona puede leer (ADR-077). */
+  /** Solo los servicios de los experimentos que la persona puede leer (ADR-088). */
   listServices(input: { from?: Date; to?: Date }, scopes: TenantScope[]): Promise<string[]> {
     return this.repository.listServices(resolveTimeRange(input, this.now()), scopes);
   }

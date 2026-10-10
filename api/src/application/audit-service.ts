@@ -5,7 +5,7 @@ export const ACCESS_AUDIT_WINDOW_MS = 10 * 60 * 1000;
 const MAX_TRACKED = 5000;
 
 /**
- * Registro de acciones de seguridad (ADR-082). `record` falla en voz alta: una acción de seguridad sin rastro no debe pasar
+ * Registro de acciones de seguridad (ADR-093). `record` falla en voz alta: una acción de seguridad sin rastro no debe pasar
  * desapercibida. `recordPartnerAccess` es distinto: va en el camino de lectura de datos, así que se limita a un evento por
  * persona y experimento cada 10 minutos y, si el registro falla, no tumba la petición (se deja constancia en el log).
  */

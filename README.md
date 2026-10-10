@@ -21,7 +21,7 @@ El entorno corre íntegramente de forma local sobre **Kubernetes** (`kind` / `k3
 
 ```mermaid
 graph LR
-    Agent["🤖 Agente de IA<br/>(SDK OpenTelemetry)"] -->|OTLP/HTTP + API key| Gateway["🚪 Pasarela de ingesta<br/>(API :3001, ADR-078)"]
+    Agent["🤖 Agente de IA<br/>(SDK OpenTelemetry)"] -->|OTLP/HTTP + API key| Gateway["🚪 Pasarela de ingesta<br/>(API :3001, ADR-089)"]
     Gateway -->|OTLP/HTTP + token interno| Collector["📡 OpenTelemetry Collector<br/>(otelcol-contrib)"]
     Collector -->|Escritura por Lotes| ClickHouse["🗄️ ClickHouse DB<br/>(Almacén Columnar - Trazas)"]
     MigrateCH["⚙️ Job Migraciones<br/>(clickhouse-migrate)"] -->|Esquema SQL Versionado| ClickHouse
@@ -35,7 +35,7 @@ graph LR
 ```
 
 ### Componentes Principales:
-* **OpenTelemetry Collector:** Recibe trazas solo vía OTLP/HTTP (`4318`) y solo de la pasarela de ingesta de la API, que valida la API key y fija el experimento (ADR-078, ADR-079). Agrupa con cola persistente en disco.
+* **OpenTelemetry Collector:** Recibe trazas solo vía OTLP/HTTP (`4318`) y solo de la pasarela de ingesta de la API, que valida la API key y fija el experimento (ADR-089, ADR-090). Agrupa con cola persistente en disco.
 * **ClickHouse Server:** Base de datos columnar optimizada para analítica de trazas de alto rendimiento.
 * **ClickHouse Migrations Job:** Orquestador declarativo que aplica migraciones SQL versionadas (`migrations/clickhouse/*.sql`).
 * **PostgreSQL:** Almacén de identidad transaccional (usuarios, organizaciones, experimentos, memberships y sesiones), independiente de ClickHouse — ver [ADR-013](docs/adrs/identity/adr-013-identity-postgres-and-oauth-rbac.md).
@@ -232,7 +232,7 @@ Cada agente instrumentado envía trazas al Collector autenticándose con una API
 
    *(Pendiente: añadir un parámetro `api_key` de primera clase al SDK en vez de depender de este workaround.)*
 
-3. La API valida la key contra el almacén de identidad antes de reenviar la traza al Collector; una key inválida o revocada se rechaza con 401. La pasarela sustituye `service.name` y `memtrace.experiment_id` por los del experimento de la key (ADR-078).
+3. La API valida la key contra el almacén de identidad antes de reenviar la traza al Collector; una key inválida o revocada se rechaza con 401. La pasarela sustituye `service.name` y `memtrace.experiment_id` por los del experimento de la key (ADR-089).
 
 ---
 

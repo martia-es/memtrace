@@ -257,16 +257,16 @@ Un usuario puede agrupar varias gráficas custom ya guardadas en un **informe** 
 
 ## Fase 1.9: Seguridad multi-tenant — que una consultora pueda operar a varios clientes
 
-**Objetivo**: que cualquiera pueda usar la plataforma, incluida una consultora que gestiona los datos y los agentes de todos sus clientes, sin que los datos de un cliente puedan llegar a otro. Línea base y lista completa de lo que falta: [ADR-076](adrs/cybersecurity/adr-076-multi-tenant-security-baseline.md).
+**Objetivo**: que cualquiera pueda usar la plataforma, incluida una consultora que gestiona los datos y los agentes de todos sus clientes, sin que los datos de un cliente puedan llegar a otro. Línea base y lista completa de lo que falta: [ADR-087](adrs/cybersecurity/adr-087-multi-tenant-security-baseline.md).
 
-- [x] **Aislamiento por experimento en ClickHouse**: todo acceso a los datos lleva un `TenantScope` obligatorio y `ExperimentId` forma parte de las claves; lecturas por id acotadas, `/services` con sesión, migración 013 y backfill de las filas anteriores — [ADR-077](adrs/cybersecurity/adr-077-strict-tenant-isolation-in-clickhouse.md)
-- [x] **La pasarela de ingesta fija la identidad del tenant** (`service.name` y `memtrace.experiment_id` salen de la API key, no de lo que diga el agente) — [ADR-078](adrs/cybersecurity/adr-078-ingestion-identity-binding.md)
-- [x] **Collector solo detrás de la pasarela** (HTTP + token interno, sin gRPC), `NetworkPolicy` con denegación por defecto y usuarios de ClickHouse con mínimo privilegio — [ADR-079](adrs/cybersecurity/adr-079-network-segmentation-and-collector-access.md). *Pendiente*: comprobar las políticas en un clúster con un CNI que las aplique
-- [x] **Frontera de cliente**: una organización por cliente y relación partner con grants por persona y por cliente, revocables por el cliente — [ADR-080](adrs/cybersecurity/adr-080-client-boundary-for-multi-client-organizations.md). *Pendiente*: pantallas del dashboard
-- [x] **Cabeceras de seguridad y límites de la ingesta** (CSP verificada en Chromium, límite por experimento y por origen con claves inválidas) — [ADR-081](adrs/cybersecurity/adr-081-security-headers-and-ingest-rate-limits.md)
-- [x] **Registro de auditoría de acciones de seguridad**, append-only y legible por el cliente, incluido el acceso de las consultoras a sus datos — [ADR-082](adrs/cybersecurity/adr-082-security-audit-log.md)
-- [ ] P1 (ADR-076) pendiente: TLS (ingress) y HSTS, cifrado en reposo y gestor de secretos, límites de uso en el resto de la API y cuotas por tenant, borrado y retención por cliente, política de PII en el servidor, flujos hacia terceros (jueces LLM, playground)
-- [ ] P2 (ADR-076): políticas de fila en ClickHouse, políticas de sesión, escaneo de la cadena de suministro en CI, copias de seguridad cifradas, pentest y cumplimiento
+- [x] **Aislamiento por experimento en ClickHouse**: todo acceso a los datos lleva un `TenantScope` obligatorio y `ExperimentId` forma parte de las claves; lecturas por id acotadas, `/services` con sesión, migración 013 y backfill de las filas anteriores — [ADR-088](adrs/cybersecurity/adr-088-strict-tenant-isolation-in-clickhouse.md)
+- [x] **La pasarela de ingesta fija la identidad del tenant** (`service.name` y `memtrace.experiment_id` salen de la API key, no de lo que diga el agente) — [ADR-089](adrs/cybersecurity/adr-089-ingestion-identity-binding.md)
+- [x] **Collector solo detrás de la pasarela** (HTTP + token interno, sin gRPC), `NetworkPolicy` con denegación por defecto y usuarios de ClickHouse con mínimo privilegio — [ADR-090](adrs/cybersecurity/adr-090-network-segmentation-and-collector-access.md). *Pendiente*: comprobar las políticas en un clúster con un CNI que las aplique
+- [x] **Frontera de cliente**: una organización por cliente y relación partner con grants por persona y por cliente, revocables por el cliente — [ADR-091](adrs/cybersecurity/adr-091-client-boundary-for-multi-client-organizations.md). *Pendiente*: pantallas del dashboard
+- [x] **Cabeceras de seguridad y límites de la ingesta** (CSP verificada en Chromium, límite por experimento y por origen con claves inválidas) — [ADR-092](adrs/cybersecurity/adr-092-security-headers-and-ingest-rate-limits.md)
+- [x] **Registro de auditoría de acciones de seguridad**, append-only y legible por el cliente, incluido el acceso de las consultoras a sus datos — [ADR-093](adrs/cybersecurity/adr-093-security-audit-log.md)
+- [ ] P1 (ADR-087) pendiente: TLS (ingress) y HSTS, cifrado en reposo y gestor de secretos, límites de uso en el resto de la API y cuotas por tenant, borrado y retención por cliente, política de PII en el servidor, flujos hacia terceros (jueces LLM, playground)
+- [ ] P2 (ADR-087): políticas de fila en ClickHouse, políticas de sesión, escaneo de la cadena de suministro en CI, copias de seguridad cifradas, pentest y cumplimiento
 
 ---
 

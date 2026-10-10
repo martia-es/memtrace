@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { RateLimiter } from "@/application/rate-limiter";
 
-describe("RateLimiter (ADR-081)", () => {
+describe("RateLimiter (ADR-092)", () => {
   it("allows up to the limit in a window and then refuses with a Retry-After", () => {
     let clock = 0;
     const limiter = new RateLimiter(3, 60_000, () => clock);

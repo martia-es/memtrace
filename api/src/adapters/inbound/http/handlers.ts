@@ -68,7 +68,7 @@ async function jsonBody(request: Request): Promise<unknown> {
 }
 
 /**
- * Toda lectura de datos recibe el `TenantScope` del experimento (ADR-077): lo fija la route desde la sesión o la API key y
+ * Toda lectura de datos recibe el `TenantScope` del experimento (ADR-088): lo fija la route desde la sesión o la API key y
  * nada de lo que llegue en la query string puede cambiarlo.
  */
 export function createHandlers(service: TraceQueryService) {
@@ -129,7 +129,7 @@ export function createHandlers(service: TraceQueryService) {
     errorOverview: (request: Request, scope: TenantScope) =>
       guard(async () => json(toErrorOverviewResponse(await service.getErrorOverview({ ...parseOrThrow(errorOverviewQuery, query(request)), scope })))),
 
-    /** servicios con datos, solo de los experimentos que la persona puede leer (ADR-077) */
+    /** servicios con datos, solo de los experimentos que la persona puede leer (ADR-088) */
     services: (request: Request, scopes: TenantScope[]) =>
       guard(async () => {
         const items = await service.listServices(parseOrThrow(servicesQuery, query(request)), scopes);

@@ -115,13 +115,13 @@ export function getHandlers(): Handlers {
   return globalForContainer.__memtraceHandlers;
 }
 
-/** Registro de auditoría de acciones de seguridad (ADR-082). */
+/** Registro de auditoría de acciones de seguridad (ADR-093). */
 export function getAudit(): AuditService {
   if (!globalForContainer.__memtraceAudit) globalForContainer.__memtraceAudit = new AuditService(new PostgresAuditRepository(getPostgresPool()));
   return globalForContainer.__memtraceAudit;
 }
 
-/** Relación partner entre organizaciones (ADR-080): una consultora opera a sus clientes con acceso opt-in por cliente. */
+/** Relación partner entre organizaciones (ADR-091): una consultora opera a sus clientes con acceso opt-in por cliente. */
 export function getPartnerships(): PartnershipService {
   if (!globalForContainer.__memtracePartnerships) {
     globalForContainer.__memtracePartnerships = new PartnershipService(new PostgresPartnershipRepository(getPostgresPool()), getAudit());

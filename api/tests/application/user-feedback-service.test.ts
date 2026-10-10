@@ -52,7 +52,7 @@ describe("UserFeedbackService", () => {
     expect(feedback.rows).toEqual([]);
   });
 
-  it("keeps the votes of two experiments that share a service name apart (ADR-077)", async () => {
+  it("keeps the votes of two experiments that share a service name apart (ADR-088)", async () => {
     const sameName = { experimentId: "exp-b", serviceName: SERVICE };
     await service.submit(SCOPE_A, "t1", { rating: 1, endUserId: "u-1" });
     await service.submit(sameName, "t1", { rating: -1, endUserId: "u-1" });

@@ -21,7 +21,7 @@ class FakeRepo implements AuditRepository {
 const ana = { userId: "u-ana", email: "ana@consulting.com" };
 const exp = { id: "exp-1", organizationId: "client-1" };
 
-describe("AuditService (ADR-082)", () => {
+describe("AuditService (ADR-093)", () => {
   it("records security actions and fails loudly when it cannot", async () => {
     const repo = new FakeRepo();
     const audit = new AuditService(repo);

@@ -369,7 +369,7 @@ export class PostgresIdentityRepository implements IdentityRepository {
 
   /**
    * Permisos efectivos: la unión de los del rol de organización, el de experimento y los de los grants de partner vigentes
-   * (ADR-080). Un grant de partner solo cuenta si la relación y el grant siguen activos y la persona es miembro de la
+   * (ADR-091). Un grant de partner solo cuenta si la relación y el grant siguen activos y la persona es miembro de la
    * organización partner desde ANTES de concederlo: si la dieron de baja y la volvieron a dar de alta, el grant no resucita.
    */
   async resolveExperimentAccess(userId: string, experimentId: string): Promise<ExperimentAccess> {

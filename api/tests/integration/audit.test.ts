@@ -1,6 +1,6 @@
 /**
  * Contra un Postgres real con las migraciones aplicadas (hasta la 039). Opt-in: `POSTGRES_INTEGRATION_URL=postgres://… npm run test:integration`.
- * Cubre lo que los fakes no pueden: que el registro es append-only y que el cliente ve cuándo una consultora entró en sus datos (ADR-082).
+ * Cubre lo que los fakes no pueden: que el registro es append-only y que el cliente ve cuándo una consultora entró en sus datos (ADR-093).
  */
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";

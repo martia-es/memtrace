@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
   output: "standalone",
   // `next dev` escribe AGENTS.md/CLAUDE.md en el repo en cada arranque; aquí no se quiere
   agentRules: false,
-  // Cabeceras de seguridad de la API (ADR-081). Es JSON y no se muestra en un navegador, así que cierra el sniffing, el
+  // Cabeceras de seguridad de la API (ADR-092). Es JSON y no se muestra en un navegador, así que cierra el sniffing, el
   // enmarcado y la fuga de referer; HSTS lo pone quien termina TLS.
   async headers() {
     return [

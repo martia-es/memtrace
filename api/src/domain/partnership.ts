@@ -1,5 +1,5 @@
 /**
- * Relación partner entre organizaciones (ADR-080, opción A). La organización del cliente es la frontera dura de
+ * Relación partner entre organizaciones (ADR-091, opción A). La organización del cliente es la frontera dura de
  * aislamiento; la consultora (organización partner) no ve nada por serlo: el org_admin del cliente concede, persona a
  * persona, un rol de experimento sobre toda su organización o sobre un experimento concreto.
  */

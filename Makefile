@@ -113,7 +113,7 @@ migrate: ## Relanza las migraciones de ClickHouse
 	kubectl apply -k .
 	kubectl wait --for=condition=complete job/clickhouse-migrate -n $(NS) --timeout=300s
 
-backfill-experiment-id: ## Asigna el experimento a las filas de ClickHouse anteriores a la migración 013 (ADR-077)
+backfill-experiment-id: ## Asigna el experimento a las filas de ClickHouse anteriores a la migración 013 (ADR-088)
 	kubectl delete job backfill-experiment-id -n $(NS) --ignore-not-found
 	kubectl apply -k .
 	kubectl wait --for=condition=complete job/backfill-experiment-id -n $(NS) --timeout=600s
@@ -151,7 +151,7 @@ db-reset: ## BORRA las tablas de Postgres y ClickHouse (conserva el clúster) y 
 
 dev-data: ## Genera trazas de ejemplo (agente simulado) para probar el dashboard. Requiere MEMTRACE_API_KEY (ver README)
 	@$(PYTHON) -c "import opentelemetry.sdk, opentelemetry.exporter.otlp.proto.http" 2>/dev/null || { echo "Falta el SDK de Python con el extra http: pip install -e 'sdk/python[http]'"; exit 1; }
-	@test -n "$$MEMTRACE_API_KEY" || { echo "Falta MEMTRACE_API_KEY: crea una API key en Admin → experimento → API keys y expórtala (el Collector ya no es accesible sin la pasarela, ADR-079)"; exit 1; }
+	@test -n "$$MEMTRACE_API_KEY" || { echo "Falta MEMTRACE_API_KEY: crea una API key en Admin → experimento → API keys y expórtala (el Collector ya no es accesible sin la pasarela, ADR-090)"; exit 1; }
 	MEMTRACE_OTLP_PROTOCOL=http/protobuf MEMTRACE_OTLP_ENDPOINT=http://localhost:8080/api/v1/ingest \
 	MEMTRACE_OTLP_HEADERS="authorization=Bearer $$MEMTRACE_API_KEY" \
 	MEMTRACE_CAPTURE_CONTENT=true MEMTRACE_BATCH_SCHEDULE_DELAY_MS=500 $(PYTHON) examples/02_multi_step_agent.py
@@ -160,7 +160,7 @@ netpol-check: ## Comprueba si el CNI del clúster aplica las NetworkPolicy (un p
 	@kubectl run netpol-probe -n $(NS) --rm -i --restart=Never --labels=app=intruder --image=curlimages/curl:8.8.0 --command -- \
 		sh -c 'code=$$(curl -s -m 5 -o /dev/null -w "%{http_code}" http://otel-collector:4318/v1/traces -X POST -H "content-type: application/json" -d "{}"); echo "respuesta=$$code"' 2>/dev/null | tee /tmp/netpol-probe.out; \
 	if grep -q "respuesta=000" /tmp/netpol-probe.out; then echo "OK: el CNI aplica las NetworkPolicy (el pod ajeno no llegó al Collector)"; \
-	elif grep -q "respuesta=401" /tmp/netpol-probe.out; then echo "AVISO: el pod ajeno LLEGÓ al Collector. Tu CNI no aplica NetworkPolicy (kindnet): solo te protege el token del Collector. Usa Calico o Cilium (ver ADR-079)"; \
+	elif grep -q "respuesta=401" /tmp/netpol-probe.out; then echo "AVISO: el pod ajeno LLEGÓ al Collector. Tu CNI no aplica NetworkPolicy (kindnet): solo te protege el token del Collector. Usa Calico o Cilium (ver ADR-090)"; \
 	else echo "Resultado inesperado: revisa /tmp/netpol-probe.out"; fi
 
 weather: ## Arranca el asistente del tiempo (API + UI en http://localhost:8000). Ctrl+C para parar

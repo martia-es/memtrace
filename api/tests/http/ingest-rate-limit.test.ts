@@ -19,7 +19,7 @@ beforeEach(() => {
   vi.spyOn(console, "warn").mockImplementation(() => {});
 });
 
-describe("ingest rate limits (ADR-081)", () => {
+describe("ingest rate limits (ADR-092)", () => {
   it("refuses an experiment that exceeds its limit, with Retry-After, and keeps serving the others", async () => {
     resolveApiKey.mockImplementation(async (key: string) => ({ experimentId: key, serviceName: `svc-${key}`, createdByUserId: "u" }));
     const send = (key: string) => post({ authorization: `Bearer ${key}`, "x-forwarded-for": "10.0.0.1" });

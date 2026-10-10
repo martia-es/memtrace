@@ -6,7 +6,7 @@ import { getPartnerships } from "@/dependency-container";
 
 export const dynamic = "force-dynamic";
 
-/** Consultoras (organizaciones partner) con acceso a esta organización y las personas concretas con su rol (ADR-080). Solo org_admin del cliente. */
+/** Consultoras (organizaciones partner) con acceso a esta organización y las personas concretas con su rol (ADR-091). Solo org_admin del cliente. */
 export async function GET(_request: Request, context: { params: Promise<{ organizationId: string }> }) {
   return identityGuard(async () => {
     const { organizationId } = await context.params;

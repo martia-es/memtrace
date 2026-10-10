@@ -1,5 +1,5 @@
 /**
- * Aislamiento entre tenants contra el ClickHouse real (ADR-077). Opt-in: `npm run test:integration`.
+ * Aislamiento entre tenants contra el ClickHouse real (ADR-088). Opt-in: `npm run test:integration`.
  *
  * Dos experimentos de dos organizaciones distintas usan el MISMO `service.name` (y hasta el mismo TraceId y
  * ConversationId, que los elige el cliente). Ninguna lectura de un tenant puede devolver datos del otro, y las filas
@@ -43,7 +43,7 @@ const row = (scope: TenantScope | null, trace: string, name: string, attrs: Reco
 });
 const label = (traceId: string, value: string): Annotation => ({ traceId, spanId: null, configId: "cfg", configName: "tone", dataType: "numeric", annotatorId: "u1", value, comment: null, createdAt: "2026-10-03T10:00:00.000Z" });
 
-describe.skipIf(!enabled)("tenant isolation in ClickHouse (ADR-077)", () => {
+describe.skipIf(!enabled)("tenant isolation in ClickHouse (ADR-088)", () => {
   let admin: ClickHouseClient;
   let traces: ClickHouseTraceRepository;
   let scores: ClickHouseScoreRepository;

@@ -1,5 +1,5 @@
 /**
- * Guardia estática de ADR-077: toda consulta de los repositorios de ClickHouse sobre tablas de un tenant lleva el
+ * Guardia estática de ADR-088: toda consulta de los repositorios de ClickHouse sobre tablas de un tenant lleva el
  * predicado de tenant. Un método nuevo que lea o escriba sin acotar por experimento rompe este test, no un cliente.
  * (La prueba de verdad, con dos tenants reales, está en tests/integration/tenant-isolation.test.ts.)
  */
@@ -26,7 +26,7 @@ function methods(source: string): Array<{ name: string; body: string }> {
   return starts.map((m, i) => ({ name: m[1]!, body: source.slice(m.index!, starts[i + 1]?.index ?? source.length) }));
 }
 
-describe("tenant scope guard (ADR-077)", () => {
+describe("tenant scope guard (ADR-088)", () => {
   it.each(REPOSITORIES)("%s: every method that touches the store applies the tenant predicate", (file) => {
     const unscoped = methods(readFileSync(join(DIR, file), "utf8"))
       .filter((m) => !EXEMPT.has(m.name) && TOUCHES_STORE.test(m.body) && !SCOPED.test(m.body))

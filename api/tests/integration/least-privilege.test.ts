@@ -1,5 +1,5 @@
 /**
- * Mínimo privilegio de los usuarios de ClickHouse (ADR-079), contra un servidor cuyo Job de migraciones ya creó
+ * Mínimo privilegio de los usuarios de ClickHouse (ADR-090), contra un servidor cuyo Job de migraciones ya creó
  * `api_reader`, `api_writer` y `collector`. Opt-in: CLICKHOUSE_INTEGRATION=1 CLICKHOUSE_LEAST_PRIVILEGE=1 con las
  * contraseñas en CLICKHOUSE_READER_PASSWORD, CLICKHOUSE_WRITER_PASSWORD y CLICKHOUSE_COLLECTOR_PASSWORD.
  */

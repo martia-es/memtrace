@@ -1,4 +1,4 @@
-# Segmentación de red del namespace `memtrace` (ADR-079): todo cerrado salvo los flujos de la arquitectura.
+# Segmentación de red del namespace `memtrace` (ADR-090): todo cerrado salvo los flujos de la arquitectura.
 #
 #   dashboard ──► api ──► postgres
 #                  │ └──► clickhouse (lectura y escritura de evaluación)

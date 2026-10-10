@@ -199,7 +199,7 @@ export class PartnershipNotFoundError extends Error {
   }
 }
 
-/** La operación rompe una regla de la relación partner (ADR-080). HTTP 409. */
+/** La operación rompe una regla de la relación partner (ADR-091). HTTP 409. */
 export class PartnershipInvariantError extends Error {
   constructor(message: string) {
     super(message);

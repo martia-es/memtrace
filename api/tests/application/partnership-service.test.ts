@@ -64,7 +64,7 @@ class FakePartnerships implements PartnershipRepository {
   }
 }
 
-describe("PartnershipService (ADR-080)", () => {
+describe("PartnershipService (ADR-091)", () => {
   let repo: FakePartnerships;
   let service: PartnershipService;
   let audit: NewAuditEvent[];

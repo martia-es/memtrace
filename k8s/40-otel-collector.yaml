@@ -8,8 +8,8 @@ data:
     extensions:
       health_check:
         endpoint: 0.0.0.0:13133
-      # Solo la pasarela de ingesta de la API (ADR-078) conoce este token: aunque otro pod llegue al puerto 4318 (una
-      # NetworkPolicy no aplicada, o un CNI que no las aplica), el Collector rechaza lo que no lo presente (ADR-079).
+      # Solo la pasarela de ingesta de la API (ADR-089) conoce este token: aunque otro pod llegue al puerto 4318 (una
+      # NetworkPolicy no aplicada, o un CNI que no las aplica), el Collector rechaza lo que no lo presente (ADR-090).
       bearertokenauth:
         token: ${env:INGEST_INTERNAL_TOKEN}
       file_storage/queue:
@@ -17,7 +17,7 @@ data:
         timeout: 10s
 
     receivers:
-      # Solo OTLP/HTTP y solo detrás de la pasarela: no hay gRPC porque no pasaría por la validación de API key (ADR-079)
+      # Solo OTLP/HTTP y solo detrás de la pasarela: no hay gRPC porque no pasaría por la validación de API key (ADR-090)
       otlp:
         protocols:
           http:
@@ -41,7 +41,7 @@ data:
       clickhouse:
         endpoint: tcp://clickhouse.memtrace.svc.cluster.local:9000
         database: memtrace
-        # Usuario propio, solo INSERT en las tablas de trazas (ADR-079): no lee contenido ni toca el resto del esquema
+        # Usuario propio, solo INSERT en las tablas de trazas (ADR-090): no lee contenido ni toca el resto del esquema
         username: collector
         password: ${env:COLLECTOR_CLICKHOUSE_PASSWORD}
         # el exporter 0.96 ejecuta CREATE ... IF NOT EXISTS al arrancar: por eso el usuario tiene CREATE sobre las tablas de

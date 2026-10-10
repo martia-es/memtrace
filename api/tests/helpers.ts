@@ -32,7 +32,7 @@ import type { ScoreConfigRepository } from "@/application/ports/score-config-rep
 import { AnnotationQueueInvariantError, ScoreConfigInvariantError } from "@/domain/errors";
 import type { NewScoreConfig, ScoreConfig, ScoreConfigChanges } from "@/domain/score-config";
 
-/** Tenant de los tests: el mismo `serviceName` en dos experimentos distintos es justo el caso que ADR-077 tiene que aislar. */
+/** Tenant de los tests: el mismo `serviceName` en dos experimentos distintos es justo el caso que ADR-088 tiene que aislar. */
 export const SCOPE: TenantScope = { experimentId: "exp-1", serviceName: "svc" };
 export const OTHER_SCOPE: TenantScope = { experimentId: "exp-2", serviceName: "svc" };
 const tenantKey = (scope: TenantScope) => `${scope.experimentId}/${scope.serviceName}`;
