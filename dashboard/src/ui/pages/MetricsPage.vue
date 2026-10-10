@@ -6,6 +6,10 @@ import { chartColors } from "../chart-theme";
 import { formatCostUsd, formatCount, formatDuration, formatPercent, formatRelativeTime } from "@/domain/format";
 import { aggregateTone, aggregateValueLabel } from "@/domain/evaluation";
 import { formatSatisfaction } from "@/domain/feedback";
+import { budgetGoalOf, goalOf, missingStarterGoals, starterRuleBody, STARTER_GOALS, limitText } from "@/domain/goals";
+import { windowText } from "../alert-format";
+import { usePermissions } from "../composables/usePermissions";
+import Pill from "../components/Pill.vue";
 import { useQuasar } from "quasar";
 import ApprovalInbox from "../components/ApprovalInbox.vue";
 import AgentCompareView from "../components/AgentCompareView.vue";
@@ -37,6 +41,8 @@ const router = useRouter();
 const route = useRoute();
 const experimentId = computed(() => route.params.experimentId as string);
 
+const { can } = usePermissions();
+
 const experiments = useAsync((signal) => identityApi.listExperiments(signal));
 void experiments.run();
 
@@ -52,7 +58,10 @@ const lowRated = useAsync((signal) => api.getLowRated(f.resolve(), signal));
 const feedback = useAsync((signal) => api.getFeedbackOverview(f.resolve(), signal));
 // causas de los errores en lenguaje de negocio (ADR-066); si falla o no hay errores, la tarjeta no aparece
 const errorOverview = useAsync((signal) => api.getErrorOverview(f.resolve(), signal));
+// objetivos (M1): las reglas de error y latencia y el presupuesto de ADR-086, leídos como objetivos; si falla, las tarjetas quedan como siempre
+const goalsData = useAsync((signal) => identityApi.getAlerts(experimentId.value, signal));
 async function loadOverview() {
+  void goalsData.run();
   void errorOverview.run();
   void lowRated.run();
   void feedback.run();
@@ -140,6 +149,44 @@ const satisfactionKpi = computed(() => {
   const tone = s.satisfaction === null ? "" : s.satisfaction >= 80 ? "good" : s.satisfaction >= 60 ? "warn" : "error";
   return [{ key: "satisfaction", label: "USER SATISFACTION", value: formatSatisfaction(s.satisfaction), sub: `${formatCount(s.up)} positive · ${formatCount(s.down)} negative from ${formatCount(s.ratedTraces)} ${s.ratedTraces === 1 ? "answer" : "answers"}`, tone, link: false }];
 });
+/** El objetivo que acompaña a una tarjeta: pastilla, límite y a dónde ir a cambiarlo. Solo errores, latencia y coste tienen. */
+interface GoalChip { tone: "ok" | "warn" | "error" | "neutral"; label: string; line: string }
+const goalChips = computed<Record<string, GoalChip>>(() => {
+  const overview = goalsData.data.value;
+  if (!overview) return {};
+  const chips: Record<string, GoalChip> = {};
+  const measured = (g: NonNullable<ReturnType<typeof goalOf>>, fmt: (v: number) => string) => (g.current === null ? "" : ` · now ${fmt(g.current)} (${windowText(g.windowMinutes)})`);
+  const err = goalOf("error_rate", overview.rules);
+  if (err) chips.errors = { tone: err.tone, label: err.label, line: `Goal ${limitText("error_rate", overview.rules.find((r) => r.rule.metric === "error_rate" && r.rule.enabled)!.rule.threshold)}${measured(err, (v) => `${Number(v.toFixed(1))} %`)}` };
+  const lat = goalOf("latency_p95", overview.rules);
+  if (lat) chips.latency = { tone: lat.tone, label: lat.label, line: `Goal ${limitText("latency_p95", overview.rules.find((r) => r.rule.metric === "latency_p95" && r.rule.enabled)!.rule.threshold)}${measured(lat, (v) => formatDuration(v))}` };
+  const cost = budgetGoalOf(overview.budget);
+  if (cost) chips.cost = { tone: cost.tone, label: cost.label, line: `${formatCostUsd(cost.spentUsd) ?? "$0"} of ${formatCostUsd(cost.monthlyUsd) ?? "$0"} this month` };
+  else if (can("alert:manage")) chips.cost = { tone: "neutral", label: "No goal", line: "Set a monthly budget →" };
+  return chips;
+});
+const goToAlerts = () => router.push({ name: "alerts", params: { experimentId: experimentId.value } });
+
+// primera visita (M1): sin ningún objetivo, una explicación y un botón que activa los de partida
+const starters = computed(() => {
+  const overview = goalsData.data.value;
+  if (!overview || !can("alert:manage") || overview.budget) return [];
+  return missingStarterGoals(overview.rules).length === STARTER_GOALS.length ? STARTER_GOALS : [];
+});
+const startersBusy = ref(false);
+const startersError = ref<string | null>(null);
+async function turnOnStarterGoals() {
+  startersBusy.value = true;
+  startersError.value = null;
+  try {
+    for (const g of missingStarterGoals(goalsData.data.value?.rules ?? [])) await identityApi.createAlertRule(experimentId.value, starterRuleBody(g));
+    await goalsData.run();
+  } catch (e) {
+    startersError.value = (e as Error).message;
+  } finally {
+    startersBusy.value = false;
+  }
+}
 const kpis = computed(() => {
   const d = data.value;
   if (!d) return [];
@@ -290,7 +337,7 @@ const kpiCards = computed(() => {
     cost: series.map((p) => p.totalTokens),
     satisfaction: (feedback.data.value?.days ?? []).map((d) => (d.up + d.down ? d.up / (d.up + d.down) : 1)),
   };
-  return kpis.value.map((k) => ({ ...k, points: sparkPoints(sparks[k.key] ?? []), stroke: tonePalette(k.key === "errors" && k.tone === "error" ? "error" : "") }));
+  return kpis.value.map((k) => ({ ...k, goal: goalChips.value[k.key] ?? null, points: sparkPoints(sparks[k.key] ?? []), stroke: tonePalette(k.key === "errors" && k.tone === "error" ? "error" : "") }));
 });
 
 const attentionIcon = { error: "M12 8v5M12 16h.01M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z", warn: "M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z", info: "M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" } as const;
@@ -408,15 +455,35 @@ function swapAgents() {
             <Button v-if="attention.length" @click="goToFirstAttention">See what needs attention</Button>
           </section>
 
+          <section v-if="starters.length" class="goals-welcome" aria-label="Goals" data-testid="goals-welcome">
+            <div class="goals-welcome-text">
+              <h2>Set goals so this page can tell you if all is well</h2>
+              <p>A goal is a limit you choose. MemTrace checks the last 24 h against it and shows a green, amber or red light on the cards below.</p>
+            </div>
+            <ul class="goals-welcome-list">
+              <li v-for="g in starters" :key="g.metric"><strong>{{ g.metric === "error_rate" ? "Errors" : "Response time p95" }}</strong><span>{{ limitText(g.metric, g.threshold) }}</span></li>
+              <li><strong>Cost</strong><span>you choose the monthly budget</span></li>
+            </ul>
+            <div class="goals-welcome-actions">
+              <Button variant="primary" :loading="startersBusy" data-testid="starter-goals" @click="turnOnStarterGoals">Turn on starter goals</Button>
+              <a class="kpi-sub link-accent" @click="goToAlerts">Choose my own →</a>
+              <span v-if="startersError" class="kpi-sub error" role="alert">{{ startersError }}</span>
+            </div>
+          </section>
+
           <section class="kpi-grid" aria-label="Key figures">
             <div v-for="k in kpiCards" :key="k.key" class="kpi" :data-testid="`kpi-${k.key}`">
-              <span class="kpi-label">{{ k.label }}</span>
+              <div class="kpi-head">
+                <span class="kpi-label">{{ k.label }}</span>
+                <Pill v-if="k.goal" :tone="k.goal.tone" dot :data-testid="`goal-${k.key}`">{{ k.goal.label }}</Pill>
+              </div>
               <div class="kpi-main">
                 <span class="kpi-value" :class="k.tone">{{ k.value }}</span>
                 <svg v-if="k.points" class="kpi-spark" width="58" height="24" viewBox="0 0 58 24" aria-hidden="true"><polyline :points="k.points" fill="none" :stroke="k.stroke" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" /></svg>
               </div>
               <a v-if="k.link" class="kpi-sub link" @click="goToErrors">{{ k.sub }} · view →</a>
               <span v-else class="kpi-sub" :class="k.tone">{{ k.sub }}</span>
+              <a v-if="k.goal" class="kpi-sub link-accent" :data-testid="`goal-line-${k.key}`" @click="goToAlerts">{{ k.goal.line }}</a>
             </div>
           </section>
 
@@ -630,6 +697,17 @@ function swapAgents() {
   border: 1px solid var(--mt-line);
   border-radius: var(--mt-radius-lg);
 }
+.kpi-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.kpi-sub.link-accent, .link-accent { color: var(--mt-muted); cursor: pointer; }
+.kpi-sub.link-accent:hover, .link-accent:hover { color: var(--mt-accent); text-decoration: underline; }
+.goals-welcome { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding: 14px 16px; background: var(--mt-accent-soft, var(--mt-card)); border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); }
+.goals-welcome-text { flex: 1 1 280px; min-width: 0; }
+.goals-welcome-text h2 { margin: 0; font-size: 14px; font-weight: 800; }
+.goals-welcome-text p { margin: 3px 0 0; color: var(--mt-muted); }
+.goals-welcome-list { display: flex; gap: 8px; flex-wrap: wrap; list-style: none; margin: 0; padding: 0; }
+.goals-welcome-list li { display: flex; flex-direction: column; padding: 8px 12px; background: var(--mt-card); border: 1px solid var(--mt-line); border-radius: var(--mt-radius); font-size: 12px; color: var(--mt-muted); }
+.goals-welcome-list strong { color: var(--mt-ink); font-size: 13px; }
+.goals-welcome-actions { display: flex; flex-direction: column; align-items: stretch; gap: 6px; text-align: center; }
 .kpi-label { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: var(--mt-muted); }
 .kpi-main { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
 .kpi-value { font-size: 25px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }

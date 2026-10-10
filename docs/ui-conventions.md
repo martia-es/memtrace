@@ -44,6 +44,7 @@ Un `<button>` crudo solo se admite en las interioridades de estos componentes y 
 - El modelo guardado (`CustomMetricDefinition`) no cambia: guarda `step_type`, claves de atributo y métricas cerradas. Por eso renombrar nada rompe gráficas ni informes ya guardados.
 - La presentación pasa por un único módulo puro, `domain/custom-chart-vocabulary.ts`: nombre editado → diccionario integrado → identificador «humanizado».
 - «Empieza por una pregunta»: plantillas que son `CustomMetricDefinition` normales, ofrecidas solo si existen los pasos necesarios en el rango. Flujo en tres pasos (qué medir, cómo verlo, guardar) con vista previa en vivo. Los atributos técnicos (`memtrace.*`, `otel.*`, `gen_ai.usage.*`) quedan tras «Show technical details».
+- Objetivos del Overview (M1): errores, latencia y coste llevan una `Pill` con punto (verde `ok`, ámbar `warn` desde el 90 % del límite, roja `error`, gris `neutral` si no hay dato) y una línea «Goal …» que enlaza a Alerts. La lógica vive en `domain/goals.ts`; un objetivo no es un modelo nuevo, es una regla de alerta o el presupuesto (ADR-086).
 - El catálogo editable ([ADR-078](adrs/ui/adr-078-editable-chart-catalog.md)) es la misma tabla (`ChartCatalogTable`) en tres sitios: modal «Customize names», renombrado en el sitio sobre cada chip de paso y la página **Overview › Data catalog**. Editar exige `catalog:manage`; verlo, `experiment:read`.
 
 ## 5. Prompts: lista y detalle

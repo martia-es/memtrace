@@ -55,6 +55,14 @@ The sidebar groups its pages in submenus. **Overview** opens **Summary**, **Comp
 
 It starts with a plain statement of health ("Your assistant is healthy", "Some executions are failing" or "Your assistant needs attention") and one card per key figure, each with a small trend: conversations, success rate, response time p95, errors and cost.
 
+### Goals
+
+A goal is a limit you choose for **errors**, **response time p95** or **cost**. The matching card shows a light next to its name: green **On track**, amber **Close** (90 % of the limit or more) or red **Over goal**, and a line with the limit, for example "Goal under 3 % · now 7 % (24 hours)". The light always looks at the last 24 hours, whatever time range you picked, so the number on the card and the number in the goal line can differ. Click the line to open [Alerts](/platform/alerts).
+
+Goals are not a separate feature: the errors and response time goals are [alerts](/platform/alerts) on error rate and latency, and the cost goal is the monthly cost budget. Changing one changes the other.
+
+The first time you open an agent that has no goals, the page offers **Turn on starter goals**: errors under 3 % and response time p95 under 5 s over the last 24 hours. Cost needs a monthly budget, which only you can choose. You need the `alert:manage` permission to turn goals on; without it you see the lights only when someone has set them.
+
 Next to the **Activity** chart (conversations, errors and p95 latency over the range) sits **Needs attention**.
 
 It lists what is worth a look, each with a direct action: executions that ended with errors, tools that fail in at least 2% of their calls, traces that a reviewer rated low (a "No" on a yes/no label, or a score below the middle of its range), and items waiting for review. When nothing needs attention it says so.
