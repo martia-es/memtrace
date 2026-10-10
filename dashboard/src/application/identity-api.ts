@@ -6,6 +6,7 @@ import type {
   BudgetViewDto,
   ChartCatalogEntryDto,
   CustomMetricDefinitionDto,
+  NotificationsDto,
   OpenAlertsDto,
   RetentionPolicyDto,
   ScoreConfigDto,
@@ -228,6 +229,10 @@ export interface IdentityApi {
   deleteBudget(experimentId: string, signal?: AbortSignal): Promise<void>;
   /** Alertas disparadas ahora en los agentes que la persona puede leer, para la campana de la barra superior. */
   listOpenAlerts(signal?: AbortSignal): Promise<OpenAlertsDto>;
+  /** Avisos recientes de la campana (alertas disparadas o resueltas y presupuestos), con cuántos no ha leído esta persona (ADR-087). */
+  listNotifications(signal?: AbortSignal): Promise<NotificationsDto>;
+  /** «Marcar todo como leído»: lo que haya ahora deja de contar como nuevo. */
+  markNotificationsRead(signal?: AbortSignal): Promise<void>;
 
   /** Gráficos custom guardados del experimento (ADR-027), más recientes primero. */
   listCustomMetrics(experimentId: string, signal?: AbortSignal): Promise<SavedCustomMetricDto[]>;

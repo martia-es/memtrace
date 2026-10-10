@@ -41,6 +41,8 @@ const one = await import("@/app/api/v1/experiments/[experimentId]/alerts/[ruleId
 const events = await import("@/app/api/v1/experiments/[experimentId]/alerts/events/route");
 const budget = await import("@/app/api/v1/experiments/[experimentId]/budget/route");
 const open = await import("@/app/api/v1/alerts/open/route");
+const notifications = await import("@/app/api/v1/notifications/route");
+const markRead = await import("@/app/api/v1/notifications/read/route");
 
 const exp = { params: Promise.resolve({ experimentId: "exp1" }) };
 const rule = (id: string) => ({ params: Promise.resolve({ experimentId: "exp1", ruleId: id }) });
@@ -160,5 +162,52 @@ describe("open alerts for the bell", () => {
     expect(response.status).toBe(200);
     expect(spy).toHaveBeenCalledWith(["readable"]);
     expect(await response.json()).toEqual({ items: [] });
+  });
+});
+
+describe("notifications for the bell", () => {
+  const note = (id: string, experimentId: string, at: string) => ({
+    id, kind: "fired" as const, at, experimentId, experimentName: "Weather", ruleId: "r1", ruleName: "Too slow", metric: "latency_p95" as const, comparator: "above" as const,
+    value: 2807, threshold: 5, budgetUsd: null, warnPercent: null,
+  });
+  type Feed = { items: Array<{ id: string; read: boolean }>; unread: number };
+
+  it("needs a session, for reading and for marking as read", async () => {
+    state.user = null;
+    expect((await notifications.GET()).status).toBe(401);
+    expect((await markRead.POST()).status).toBe(401);
+  });
+
+  it("only looks at the agents the person can read, over the last 14 days", async () => {
+    state.experiments = [
+      { id: "readable", permissions: ["experiment:read"] },
+      { id: "manage-only", permissions: ["org:manage"] },
+    ];
+    await notifications.GET();
+    expect(state.repo.notificationCalls[0]!.experimentIds).toEqual(["readable"]);
+    expect(state.repo.notificationCalls[0]!.since.toISOString()).toBe("2026-09-26T12:00:00.000Z");
+  });
+
+  it("marks as unread whatever is newer than the person's mark, and counts them", async () => {
+    state.experiments = [{ id: "e1", permissions: ["experiment:read"] }];
+    state.repo.notificationItems = [note("new", "e1", "2026-10-10T11:00:00.000Z"), note("old", "e1", "2026-10-10T09:00:00.000Z")];
+    state.repo.readAt.set("u1", new Date("2026-10-10T10:00:00.000Z"));
+    const body = (await (await notifications.GET()).json()) as Feed;
+    expect(body.items.map((i) => [i.id, i.read])).toEqual([["new", false], ["old", true]]);
+    expect(body.unread).toBe(1);
+  });
+
+  it("counts everything as unread until the person marks something as read", async () => {
+    state.experiments = [{ id: "e1", permissions: ["experiment:read"] }];
+    state.repo.notificationItems = [note("a", "e1", "2026-10-10T11:00:00.000Z")];
+    expect(((await (await notifications.GET()).json()) as Feed).unread).toBe(1);
+  });
+
+  it("marking as read keeps the moment for that person only, and the unread count drops to zero", async () => {
+    state.experiments = [{ id: "e1", permissions: ["experiment:read"] }];
+    state.repo.notificationItems = [note("a", "e1", "2026-10-10T11:00:00.000Z")];
+    expect((await markRead.POST()).status).toBe(204);
+    expect([...state.repo.readAt.keys()]).toEqual(["u1"]);
+    expect(((await (await notifications.GET()).json()) as Feed).unread).toBe(0);
   });
 });

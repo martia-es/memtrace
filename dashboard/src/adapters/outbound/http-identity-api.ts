@@ -1,4 +1,4 @@
-import type { AlertEventsPageDto, AlertRuleDto, AlertsOverviewDto, AuditPageDto, BudgetViewDto, ChartCatalogEntryDto, CustomMetricDefinitionDto, OpenAlertsDto, RetentionPolicyDto, ScoreConfigDto } from "@contract";
+import type { AlertEventsPageDto, AlertRuleDto, AlertsOverviewDto, AuditPageDto, BudgetViewDto, ChartCatalogEntryDto, CustomMetricDefinitionDto, NotificationsDto, OpenAlertsDto, RetentionPolicyDto, ScoreConfigDto } from "@contract";
 import { ApiError } from "@/application/trace-api";
 import type {
   AlertRuleBody,
@@ -88,6 +88,14 @@ export class HttpIdentityApi implements IdentityApi {
 
   listOpenAlerts(signal?: AbortSignal): Promise<OpenAlertsDto> {
     return this.get("/alerts/open", signal);
+  }
+
+  listNotifications(signal?: AbortSignal): Promise<NotificationsDto> {
+    return this.get("/notifications", signal);
+  }
+
+  async markNotificationsRead(signal?: AbortSignal): Promise<void> {
+    await this.post("/notifications/read", {}, signal);
   }
 
   getRetention(organizationId: string, signal?: AbortSignal): Promise<RetentionPolicyDto> {

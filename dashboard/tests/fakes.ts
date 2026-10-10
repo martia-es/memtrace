@@ -1,5 +1,5 @@
 import { permissionsOf } from "./permissions";
-import type { AlertEventsPageDto, AlertRuleDto, AlertsOverviewDto, AuditPageDto, BudgetViewDto, ChartCatalogEntryDto, OpenAlertsDto, RetentionPolicyDto } from "@contract";
+import type { AlertEventsPageDto, AlertRuleDto, AlertsOverviewDto, AuditPageDto, BudgetViewDto, ChartCatalogEntryDto, NotificationsDto, OpenAlertsDto, RetentionPolicyDto } from "@contract";
 import type {
   AddQueueItemsResponse,
   InterAnnotatorAgreementResponse,
@@ -152,6 +152,15 @@ export class FakeIdentityApi implements IdentityApi {
   }
   async listOpenAlerts(): Promise<OpenAlertsDto> {
     return this.openAlerts;
+  }
+  notifications: NotificationsDto = { items: [], unread: 0 };
+  notificationCalls: string[] = [];
+  async listNotifications(): Promise<NotificationsDto> {
+    return this.notifications;
+  }
+  async markNotificationsRead(): Promise<void> {
+    this.notificationCalls.push("read");
+    this.notifications = { items: this.notifications.items.map((n) => ({ ...n, read: true })), unread: 0 };
   }
   retention: RetentionPolicyDto = { organizationId: "org-1", defaultDays: 30, minDays: 1, maxDays: 365, experiments: [] };
   retentionCalls: Array<{ scope: "organization" | "experiment"; id: string; days: number | null }> = [];

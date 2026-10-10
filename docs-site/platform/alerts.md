@@ -54,7 +54,19 @@ Each alert has its own list of addresses, up to **10**. They do not need a MemTr
 - the email has the alert name, the agent name, the rule, the value and a link. It never contains conversation content;
 - an organization sends at most **100 alert emails a day**. After that alerts are still recorded and shown in the app (and the history says "Not emailed"), but not mailed.
 
-The bell at the top right of the dashboard counts the alerts that are firing now, in every agent you can read. Its **Notifications** panel shows, for each one, the value now, the limit, the agent and how long it has been firing. **View alert** and **Manage alerts** take you to the Alerts screen.
+## The bell
+
+The bell at the top right of the dashboard works across every agent you can read. Its number is the alerts firing now plus the notifications you have not read yet; it turns red while something is firing.
+
+The **Notifications** panel has three tabs:
+
+- **All** shows what is firing now, and below it what happened recently.
+- **Firing** shows only the alerts that are over their limit: the value now, the limit, the agent and for how long.
+- **Budget** shows the budget notices (warning, exceeded, forecast).
+
+Recent means the last 14 days, up to 30 notifications: alerts that fired or came back to normal, and budget notices. Reminders are not repeated here. A dot marks what you have not read, and **Mark all as read** clears it. The mark is yours: it does not change what anyone else sees.
+
+**View alert** and **Manage alerts** take you to the Alerts screen of that agent.
 
 ## Monthly cost budget
 
