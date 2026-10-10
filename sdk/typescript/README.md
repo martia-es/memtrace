@@ -3,8 +3,8 @@
 MemTrace SDK for TypeScript / Node.js (>= 18). Same contract as the Python SDK ([ADR-095](../../docs/adrs/sdk/adr-095-multi-language-sdk-contract.md)):
 both run the scenarios in [`../conformance`](../conformance).
 
-**Status**: in progress. This version covers tracing (steps, sessions, LLM calls, content capture and masking, OTLP/HTTP export),
-end-user feedback, the prompt registry, offline evaluation and client-side PII masking. Framework integrations follow.
+**Status**: feature-complete with the Python SDK. This version covers tracing (steps, sessions, LLM calls, content capture and masking, OTLP/HTTP export),
+end-user feedback, the prompt registry, offline evaluation, client-side PII masking and the LangChain.js / OpenAI Agents integrations.
 
 ```ts
 import { initTracer, withStep, traceLlmCall, session, shutdown } from "@memtrace/sdk";
@@ -93,6 +93,28 @@ Run the service next to the agent: the text of your spans is sent to it. It fail
 answering later, the content of the span is replaced by `[UNSERIALIZABLE]` and never exported unmasked. Options: `entities`,
 `scoreThreshold`, `allowList` (same defaults as Python). `textHook(fn)` turns any `string -> string` function into a hook.
 Because the hook is asynchronous, `await flush()` before reading spans in tests.
+
+## Integrations
+
+Both are optional peer dependencies, imported from their own subpath so the core never loads them.
+
+```ts
+// LangChain.js and LangGraph.js (npm i @langchain/core)
+import { MemTraceCallbackHandler } from "@memtrace/sdk/langchain";
+await graph.invoke(input, { callbacks: [new MemTraceCallbackHandler()], configurable: { thread_id: "conversation-42" } });
+```
+
+`thread_id` becomes the conversation id and every span of a graph is marked `memtrace.framework=langgraph`. Inside a `withStep`, the
+spans hang from it. Unlike Python's auto-instrumentation, there is no global switch: pass the handler per run.
+
+```ts
+// OpenAI Agents SDK (npm i @openai/agents)
+import { enableOpenAIAgentsInstrumentation } from "@memtrace/sdk/openai-agents";
+enableOpenAIAgentsInstrumentation();             // after initTracer; { keepOpenAIExport: false } to stop sending traces to OpenAI
+```
+
+The trace's `groupId` is the conversation id. Tokens are counted on model calls only, never on turns or tasks. If your own tests run under
+`NODE_ENV=test`, call `setTracingDisabled(false)`: the Agents SDK turns its tracing off there.
 
 ## Development
 

@@ -89,6 +89,7 @@ Un usuario puede agrupar varias gráficas custom ya guardadas en un **informe** 
 ### Deliverables Fase 1
 
 - [x] Librería OpenTelemetry (SDK) para agentes — solo exporta OTLP, sin conocimiento del almacén
+- [x] SDK en varios lenguajes y frameworks — [ADR-095](adrs/sdk/adr-095-multi-language-sdk-contract.md): contrato único con Python como referencia y escenarios de conformidad compartidos (`sdk/conformance/`); SDK TypeScript (`@memtrace/sdk`) con paridad (trazas, feedback, prompts, evaluación, PII con un servicio Presidio), integraciones LangGraph, OpenAI Agents SDK (Python y JS) y LangChain.js. **Pendiente**: publicar el paquete en npm
 - [x] Instrumentación manual componible: árboles de spans custom (no-LLM) anidados bajo cualquier paso, sin cambios de esquema en el almacén — ver ADR-026
 - [x] Métricas custom en el dashboard sobre spans definidos por el usuario (query builder declarativo) — ver ADR-027/030
 - [x] Informes guardados: grid de varias custom charts por experimento, compartido y enviable por email (sin PDF) — ver ADR-035

@@ -12,6 +12,16 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./langchain": {
+      "types": "./dist/langchain.d.ts",
+      "import": "./dist/langchain.js",
+      "require": "./dist/langchain.cjs"
+    },
+    "./openai-agents": {
+      "types": "./dist/openai-agents.d.ts",
+      "import": "./dist/openai-agents.js",
+      "require": "./dist/openai-agents.cjs"
     }
   },
   "files": [
@@ -22,7 +32,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts --clean",
+    "build": "tsup src/index.ts src/langchain.ts src/openai-agents.ts --format esm,cjs --dts --clean --external @memtrace/sdk --external @langchain/core --external @openai/agents",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -34,9 +44,25 @@
     "@opentelemetry/sdk-trace-base": "^2.0.0"
   },
   "devDependencies": {
+    "@langchain/core": "^1.2.17",
+    "@langchain/langgraph": "^1.4.21",
+    "@openai/agents": "^0.20.0",
     "@types/node": "^24.0.0",
     "tsup": "^8.5.0",
     "typescript": "^5.9.0",
-    "vitest": "^5.0.2"
+    "vitest": "^5.0.2",
+    "zod": "^4.6.5"
+  },
+  "peerDependencies": {
+    "@langchain/core": ">=0.3.0",
+    "@openai/agents": ">=0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@langchain/core": {
+      "optional": true
+    },
+    "@openai/agents": {
+      "optional": true
+    }
   }
 }

@@ -15,7 +15,7 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 | F3 | [ ] | **Evaluación online** | Muestreo configurable de trazas de producción + evaluadores/juez ya existentes, scores en ClickHouse enlazados a la traza | A | L | F1 (alertar sobre caídas de score) | evaluation |
 | F4 | [x] | **Retención y PII en trazas** | Hecho ([ADR-084](adrs/storage/adr-084-data-protection-retention-masking-audit-and-export.md)): retención por organización y experimento, y PII enmascarada con `****` en el SDK y en el Collector antes de guardar (los nombres solo los cubre el SDK) | A | M | — | storage / identity |
 | F5 | [ ] | **Gate de regresión en PR** | Extender el gate de despliegue (ADR-064) para que un PR no pueda fusionarse si bajan las métricas de la evaluación offline | M | M | Fase 2c de ADR-064 | governance |
-| F6 | [ ] | **SDK por framework + TypeScript** | Paquetes para LangGraph y OpenAI Agents SDK; SDK TypeScript | M | L | — | sdk |
+| F6 | [x] | **SDK por framework + TypeScript** | Hecho ([ADR-095](adrs/sdk/adr-095-multi-language-sdk-contract.md)): LangGraph, OpenAI Agents SDK (Python) y SDK TypeScript con paridad (trazas, feedback, prompts, evaluación, PII con servicio Presidio, LangChain.js y OpenAI Agents JS), todos contra las mismas escenarios de conformidad. Pendiente de publicar en npm | M | L | — | sdk |
 | F7 | [x] | **Auditoría y exportación** | Hecho (ADR-084): registro de aperturas de contenido, exportaciones y cambios de acceso/configuración, y exportación JSON Lines | M | M | — | identity |
 | F9 | [x] | **Gateway de ingesta que valide `service.name`** | Hecho ([ADR-085](adrs/identity/adr-085-ingest-gateway-validates-service-name.md)): cada recurso debe llevar el `service.name` del experimento de la key o la petición se rechaza con 403. Leer la cabecera de una petición de 21 MiB cuesta 0,012 ms | A | M | — | identity |
 | F8 | [ ] | **Operación en producción** | Backups de ClickHouse/Postgres, despliegue fuera de kind (Helm), pruebas de carga en CI | M | L | — | infra |
@@ -79,3 +79,4 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 | 2026-10-10 | F1 y F2 hechos (ADR-086). Pendiente de este bloque: webhooks para las alertas |
 | 2026-10-10 | M8 hecho: el dashboard y la API consultan hasta 365 días |
 | 2026-10-10 | Limpieza de documentación: `pending-gaps.md` se fusiona aquí (R8-R10) y este documento pasa a llamarse `backlog.md` |
+| 2026-10-10 | F6 hecho: LangGraph, OpenAI Agents SDK y SDK TypeScript (ADR-095) |
