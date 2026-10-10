@@ -111,3 +111,26 @@ export function sanitize(attrs: Attributes): Record<string, ReturnType<typeof sa
     Object.entries(attrs).filter(([, v]) => v !== undefined && v !== null).map(([k, v]) => [k, sanitizeValue(v)]),
   );
 }
+
+export interface RetrievedChunkData { text: string; id?: string | number; source?: string; score?: number }
+
+/**
+ * Normalizes retrieved documents into `{text, id?, source?, score?}` (ADR-044). Accepts strings, objects (`text` / `content` /
+ * `pageContent` / `page_content`, `id`, `source`, `score`, with extra data under `metadata`) and LangChain.js `Document`s.
+ */
+export function retrievedChunks(documents: unknown): RetrievedChunkData[] {
+  const chunks: RetrievedChunkData[] = [];
+  for (const doc of Array.isArray(documents) ? documents : []) {
+    if (typeof doc === "string") { chunks.push({ text: doc }); continue; }
+    if (doc === null || typeof doc !== "object") continue;
+    const d = doc as Record<string, any>;
+    const meta: Record<string, any> = { ...(d.metadata ?? {}), ...d };
+    const text = d.text ?? d.content ?? d.pageContent ?? d.page_content;
+    const chunk: RetrievedChunkData = { text: typeof text === "string" ? text : text == null ? "" : String(text) };
+    for (const [key, value] of [["id", d.id ?? meta.id], ["source", meta.source], ["score", meta.score]] as const) {
+      if (value !== undefined && value !== null) (chunk as unknown as Record<string, unknown>)[key] = value;
+    }
+    chunks.push(chunk);
+  }
+  return chunks;
+}

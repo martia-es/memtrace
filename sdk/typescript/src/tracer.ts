@@ -6,13 +6,14 @@ import {
   BasicTracerProvider, BatchSpanProcessor, SimpleSpanProcessor, type SpanExporter, type SpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import {
-  llmAttributes, sanitize, stepInputAttributes, stepOutputAttributes, stepStartAttributes, type Attributes, type LlmCall,
+  llmAttributes, retrievedChunks, sanitize, stepInputAttributes, stepOutputAttributes, stepStartAttributes, type Attributes, type LlmCall,
 } from "./attributes.js";
 import { resolveRevision, settings } from "./config.js";
 import { DEFAULT_SENSITIVE_KEYS, Redactor, type RedactHook } from "./redaction.js";
 import { CapturePolicy } from "./serialization.js";
 import { SanitizingSpanExporter } from "./sanitizingExporter.js";
 import { sc, type StepType } from "./semconv.js";
+import { noteRetrieved } from "./eval/retrievalScope.js";
 
 const TRACER_NAME = "memtrace";
 const DEFAULT_ENDPOINT = "http://localhost:4318";
@@ -98,6 +99,11 @@ export function initTracer(options: InitOptions = {}): void {
   } catch (error) {
     console.warn("[MemTrace] Could not initialize tracing:", error);
   }
+}
+
+/** Whether `initTracer` has run and tracing is on. */
+export function isTracing(): boolean {
+  return active !== undefined;
 }
 
 /** Sends what is pending and keeps tracing. */
@@ -243,5 +249,20 @@ export function traceLlmCall(provider: string, model: string, options: LlmCallOp
       ...llmAttributes({ ...call, provider, model }, current.capture.apply(inputMessages), current.capture.apply(outputMessages)),
       ...attributes,
     });
+  } catch { /* never throws */ }
+}
+
+/**
+ * Annotates the current (retriever) step with the chunks it returned (ADR-044): the count always, the text only when content
+ * capture is on. Also hands them to the evaluation running this task, so retrieval metrics can score them (ADR-045).
+ */
+export function recordRetrievedChunks(documents: unknown): void {
+  try {
+    const chunks = retrievedChunks(documents);
+    noteRetrieved(chunks);
+    const span = storage.getStore()?.span;
+    if (active && span) {
+      setAttributes(span, { [sc.MEMTRACE_RETRIEVER_DOCUMENTS]: chunks.length, [sc.MEMTRACE_RETRIEVER_CHUNKS]: active.capture.apply(chunks) });
+    }
   } catch { /* never throws */ }
 }

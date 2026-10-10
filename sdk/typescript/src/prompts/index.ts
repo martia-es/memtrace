@@ -11,7 +11,9 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { settings } from "../config.js";
 import { HttpClient } from "../http/client.js";
 import { annotateCurrent, onShutdown } from "../tracer.js";
+import type { LLMClient } from "../eval/types.js";
 import { PROMPT_OVERRIDE_HEADER, isOverrideToken } from "./domain.js";
+import { suggestFix, type FixCase } from "./fix.js";
 import { FilePromptCache } from "./fileCache.js";
 import { HttpPromptClient } from "./httpSource.js";
 import { PromptRegistry, withPromptOverride, type PromptHandle } from "./registry.js";
@@ -20,6 +22,7 @@ export {
   MissingVariableError, PromptError, PromptNotFoundError, PromptUnavailableError, PROMPT_OVERRIDE_HEADER,
 } from "./domain.js";
 export { PromptHandle, PromptRegistry } from "./registry.js";
+export { FixProposalError, suggestFix, type FixCase, type FixProposal } from "./fix.js";
 export { HttpPromptClient } from "./httpSource.js";
 export { FilePromptCache } from "./fileCache.js";
 
@@ -94,4 +97,25 @@ export async function saveDraft(name: string, content: string, options: {
   const { baseUrl, apiKey, fetch: fetchImpl, ...extra } = options;
   new HttpClient({ baseUrl, apiKey, fetch: fetchImpl }); // fails early with a clear message if the URL is missing
   return new HttpPromptClient({ baseUrl: baseUrl ?? settings.apiUrl, apiKey: apiKey ?? settings.apiKey, fetch: fetchImpl }).saveDraft(name, content, extra);
+}
+
+/**
+ * Reads the current version of prompt `name`, asks **your** LLM (`llm`) how to fix `cases`, and saves the result as a draft.
+ * Nothing is published: a person reviews, tests and publishes it. Throws `FixProposalError` if the proposal would break the
+ * agent (it changes the `{{variables}}`, or changes nothing).
+ */
+export async function proposeFix(name: string, cases: FixCase[], llm: LLMClient, options: GetOptions & {
+  instructions?: string; model?: string; baseUrl?: string; apiKey?: string; fetch?: typeof fetch;
+} = {}): Promise<{ promptId: string; version: number }> {
+  const { tag, version, instructions, model, ...http } = options;
+  const handle = await get(name, { tag, version });
+  const proposal = await suggestFix(handle.content, cases, llm, { instructions, model });
+  return saveDraft(name, proposal.content, {
+    ...http,
+    rationale: proposal.rationale,
+    cause: cases.find((c) => c.error)?.error,
+    traceIds: cases.map((c) => c.traceId).filter((id): id is string => !!id),
+    message: "Proposed fix",
+    basedOn: handle.version > 0 ? handle.version : undefined,
+  });
 }

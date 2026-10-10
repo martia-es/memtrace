@@ -1,7 +1,7 @@
 # SDK conformance scenarios
 
 Language-neutral scenarios that every MemTrace SDK must pass ([ADR-095](../../docs/adrs/sdk/adr-095-multi-language-sdk-contract.md)).
-Python is the reference: `sdk/python/tests/test_conformance.py` runs them, and `sdk/typescript/tests/conformance.test.ts` runs the same files for the TypeScript SDK (tracing scenarios so far; the `http/` ones when its HTTP clients land).
+Python is the reference: `sdk/python/tests/test_conformance.py` runs them, and `sdk/typescript/tests/conformance.test.ts` runs the same files for the TypeScript SDK (all of them).
 A scenario fails when an attribute name, a status or an HTTP request differs, so a divergence is caught in CI and not as a
 missing column in the dashboard.
 
@@ -57,3 +57,13 @@ Change a scenario only when the contract changes (update the ADR in the same cha
 
 `json` is compared **exactly** (an unset optional field must be omitted, `null` must be sent as `null`); `query` and `headers`
 only check the listed keys; header names are case-insensitive.
+
+## `eval/*.json`
+
+Pure scoring behaviour, no network:
+
+- `judge-prompt-hash.json`: `hashes` maps a judge (`correctness`, `faithfulness`) to the fingerprint of its rubric.
+- `retrieval-metrics.json`: each case has the item's `metadata`, the `retrieved` chunks and the `expect`ed scores of
+  `RecallAtK(2)`, `RecallAtK(3)`, `MRR` and `HitRate`, in that order (an unlabelled item gets none).
+- `judge-score.json`: each case gives a stub `client` (`model`, the raw `reply` and an optional `replyModel` the provider served)
+  and the `expect`ed score of the judge for the shared `item`, or `expectError` when the reply is not a valid answer.

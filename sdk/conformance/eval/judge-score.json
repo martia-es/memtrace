@@ -1,0 +1,49 @@
+{
+  "description": "A judge turns the model's JSON answer into a boolean score from source llm_judge; the model the provider served wins over the client's default.",
+  "judge": "correctness",
+  "item": {
+    "input": "2+2?",
+    "output": "four",
+    "expectedOutput": "4"
+  },
+  "cases": [
+    {
+      "client": {
+        "model": "default-model",
+        "reply": "{\"score\": true, \"reasoning\": \"same meaning\"}",
+        "replyModel": "served-model-2025"
+      },
+      "expect": {
+        "name": "correctness",
+        "value": true,
+        "dataType": "boolean",
+        "source": "llm_judge",
+        "comment": "same meaning",
+        "judgeModel": "served-model-2025",
+        "judgePromptHash": "bb50375091f60dc4"
+      }
+    },
+    {
+      "client": {
+        "model": "default-model",
+        "reply": "{\"score\": false, \"reasoning\": \"wrong\"}"
+      },
+      "expect": {
+        "name": "correctness",
+        "value": false,
+        "dataType": "boolean",
+        "source": "llm_judge",
+        "comment": "wrong",
+        "judgeModel": "default-model",
+        "judgePromptHash": "bb50375091f60dc4"
+      }
+    },
+    {
+      "client": {
+        "model": "default-model",
+        "reply": "not json"
+      },
+      "expectError": true
+    }
+  ]
+}

@@ -4,6 +4,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { feedback, retractFeedback } from "../src/index.js";
+import { MemTraceResultsSink } from "../src/eval/sink.js";
+import { ExperimentResult } from "../src/eval/types.js";
 import { HttpPromptClient } from "../src/prompts/httpSource.js";
 
 const DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "conformance", "http");
@@ -24,8 +26,7 @@ interface Scenario {
   };
 }
 
-// `evalRun` needs the evaluation module, which lands in a later change
-const SUPPORTED = new Set(["feedback", "retractFeedback", "promptResolve"]);
+const SUPPORTED = new Set(["feedback", "retractFeedback", "promptResolve", "evalRun"]);
 const scenarios = readdirSync(DIR).filter((f) => f.endsWith(".json")).sort()
   .map((f) => [f.replace(/\.json$/, ""), JSON.parse(readFileSync(join(DIR, f), "utf8")) as Scenario] as const);
 
@@ -56,6 +57,12 @@ describe("http scenarios", () => {
         await feedback(call.traceId, call.rating, { ...http, comment: call.comment, endUserId: call.endUserId, externalMessageId: call.externalMessageId });
       } else if (call.op === "retractFeedback") {
         await retractFeedback(call.traceId, { ...http, endUserId: call.endUserId });
+      } else if (call.op === "evalRun") {
+        const items = call.items.map((i: any) => ({
+          item: { input: i.input, expectedOutput: i.expectedOutput }, output: i.output, traceId: i.traceId,
+          scores: i.scores.map((s: any) => ({ name: s.name, value: s.value, dataType: s.dataType })),
+        }));
+        await new MemTraceResultsSink(call.datasetId, http).save(new ExperimentResult(call.runName, items, call.datasetVersion));
       } else {
         const fetched = await new HttpPromptClient(http).fetch(call.name, call.tag, call.version, call.etag ?? null);
         result = fetched && { version: fetched.version.version, content: fetched.version.content, variables: fetched.version.variables, etag: fetched.etag };
