@@ -40,7 +40,7 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 
 | # | Estado | Área | Mejora | Prioridad | Esfuerzo |
 |---|---|---|---|---|---|
-| M1 | [ ] | Gráficas | Overview con **SLOs** (objetivos de error, latencia y coste con semáforo) como punto de partida para usuarios nuevos | M | M |
+| M1 | [x] | Gráficas | Hecho: el Overview muestra los objetivos de error, latencia y coste como semáforo dentro de sus tarjetas, y ofrece activar los de partida. Un objetivo es una regla de alerta o el presupuesto (ADR-086), sin modelo nuevo. Pendiente: valor por defecto de coste, y un selector de ventana distinto de 24 h | M | M |
 | M2 | [ ] | Trazas | Búsqueda por contenido (texto de entrada/salida) y comparación de dos trazas lado a lado | M | M |
 | M3 | [ ] | Datasets | Importar CSV ya está (soltar el fichero en Datasets); faltan JSONL, `.xlsx`, añadir a un dataset existente y detectar duplicados o casi duplicados. Otras ideas del rediseño: carpetas (`dataset_folders` + `datasets.folder_id`), renombrar y duplicar datasets, columnas extra desde `metadata` | M | S |
 | M4 | [ ] | Evaluaciones | Intervalos de confianza al comparar runs (con pocos items, un +3 % puede ser ruido) | M | S |
