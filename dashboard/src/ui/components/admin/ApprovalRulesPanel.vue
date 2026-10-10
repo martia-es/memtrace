@@ -100,6 +100,15 @@ const preview = computed(() => {
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "?";
 
 const floorProblem = computed(() => (editing.value && isExperiment.value ? belowFloor(candidate.value, floorOf(editing.value.action, editing.value.stage)) : null));
+/** Una regla sin perfiles ni personas no se guarda: se explica por qué y cómo quitar la que haya. */
+const emptyHint = computed(() => {
+  if (!editing.value || candidate.value.requirements.length > 0 || candidate.value.approvers.length > 0) return null;
+  const own = ruleFor(data.value?.rules ?? [], editing.value.action, editing.value.stage);
+  if (own) return "A rule needs at least one profile or person. To stop asking for approval in this step, use Remove rule.";
+  return isExperiment.value && isExempt(editing.value.action, editing.value.stage)
+    ? "Nothing to save: this step already needs no approval. Add a profile or a person only if you want a rule of your own."
+    : "A rule needs at least one profile or person. Without one there is nothing to save: press Cancel.";
+});
 const canSave = computed(() => !saving.value && !floorProblem.value && (candidate.value.requirements.length > 0 || candidate.value.approvers.length > 0));
 
 function setMin(role: string, value: string) {
@@ -228,6 +237,7 @@ async function remove(row: { action: "publish" | "promote"; stage: string }) {
               <span class="kicker">What this means</span>
               <p data-testid="rule-preview">{{ preview }}</p>
               <p class="small">The person who asks never counts as an approver. A rejection closes the request. It expires after 7 days.</p>
+              <p v-if="emptyHint" class="hint" role="note" data-testid="rule-empty-hint">{{ emptyHint }}</p>
               <p v-if="floorProblem" class="problem" role="alert" data-testid="rule-floor-problem">{{ floorProblem }}</p>
               <div class="actions">
                 <Button size="sm" @click="editing = null">Cancel</Button>
@@ -273,6 +283,7 @@ legend + * { clear: both; }
 .means p { margin: 0; font-size: 15px; line-height: 1.5; font-weight: 700; color: var(--mt-ink); }
 .means p.small { font-size: 12px; font-weight: 500; color: var(--mt-muted); }
 .kicker { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--mt-muted); }
+.means p.hint { padding: 8px 10px; font-size: 13px; font-weight: 500; color: var(--mt-muted); background: var(--mt-bg, transparent); border: 1px dashed var(--mt-line); border-radius: var(--mt-radius-sm); }
 .problem { padding: 8px 10px; font-size: 13px !important; color: var(--mt-err-ink) !important; background: var(--mt-err-bg); border-radius: var(--mt-radius-sm); }
 .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: auto; }
 </style>

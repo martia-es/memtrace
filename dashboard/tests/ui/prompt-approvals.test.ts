@@ -110,6 +110,17 @@ describe("approval rules panel (ADR-076)", () => {
     expect(wrapper.find("[data-testid='rule-promote-pre'] [data-testid='rule-summary']").text()).toBe("No approval needed");
   });
 
+  it("explains why an empty rule cannot be saved and points to Remove rule when there is one", async () => {
+    const api = new FakePromptApi();
+    const { wrapper } = await setup(ApprovalRulesPanel, "technical", api, { scope: { type: "organization", id: "org-1" } });
+    await wrapper.find("[data-testid='rule-promote-pro'] [data-testid='rule-edit']").trigger("click");
+    for (const input of wrapper.findAll("[data-testid^='role-']")) await input.setValue(false);
+    expect((wrapper.find("[data-testid='rule-save']").element as HTMLButtonElement).disabled).toBe(true);
+    expect(wrapper.find("[data-testid='rule-empty-hint']").text()).toMatch(/Remove rule|Cancel/);
+    await wrapper.find("[data-testid='role-technical']").setValue(true);
+    expect(wrapper.find("[data-testid='rule-empty-hint']").exists()).toBe(false);
+  });
+
   it("an org_admin can exempt the agent from the organization's rule in a step, and then it may ask for less", async () => {
     const api = new FakePromptApi();
     api.rules = { ...api.rules, organizationRules: [rule("pro", [["technical", 2]], [])] };
