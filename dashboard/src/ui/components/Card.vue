@@ -32,7 +32,7 @@ withDefaults(defineProps<{ as?: string; padding?: "none" | "sm" | "md" | "lg"; g
   border-radius: var(--mt-radius-lg);
   box-shadow: var(--mt-shadow);
 }
-:where(.mt-card.flow) { display: block; }
+:where(.mt-card.flow) { display: block; flex-direction: row; }
 :where(.mt-card.danger) { border-color: var(--mt-err); }
 :where(.mt-card.p-sm) { padding: 12px 14px; }
 :where(.mt-card.p-md) { padding: 14px 16px; }
