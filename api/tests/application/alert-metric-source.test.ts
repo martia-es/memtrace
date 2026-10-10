@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { TraceAlertMetricSource } from "@/application/alert-metric-source";
 import { validateAlertRule, type AlertRule } from "@/domain/alert";
 
+const SCOPE = { experimentId: "exp1", serviceName: "weather" };
 const NOW = new Date("2026-10-10T10:07:42.500Z");
 const CHART = "11111111-1111-4111-8111-111111111111";
 
@@ -28,50 +29,50 @@ function setup(opts: { totals?: Partial<{ traces: number; errorRate: number; cos
 describe("TraceAlertMetricSource (ADR-086)", () => {
   it("error rate is a percentage, with the number of traces as the sample size", async () => {
     const { source } = setup();
-    expect(await source.measure(rule(), "weather", NOW)).toEqual({ value: 6.25, samples: 200 });
+    expect(await source.measure(rule(), SCOPE, NOW)).toEqual({ value: 6.25, samples: 200 });
   });
 
   it("with no traces there is no error rate, not a zero", async () => {
     const { source } = setup({ totals: { traces: 0, errorRate: 0 } });
-    expect(await source.measure(rule(), "weather", NOW)).toEqual({ value: null, samples: 0 });
+    expect(await source.measure(rule(), SCOPE, NOW)).toEqual({ value: null, samples: 0 });
   });
 
   it("latency is the p95 in milliseconds", async () => {
     const { source } = setup({ p95: 2345 });
-    expect(await source.measure(rule({ metric: "latency_p95", threshold: 2000 }), "weather", NOW)).toEqual({ value: 2345, samples: 200 });
+    expect(await source.measure(rule({ metric: "latency_p95", threshold: 2000 }), SCOPE, NOW)).toEqual({ value: 2345, samples: 200 });
   });
 
   it("cost needs no minimum of samples and a zero is a real value", async () => {
     const { source } = setup({ totals: { costUsd: 0 } });
-    expect(await source.measure(rule({ metric: "cost", threshold: 10 }), "weather", NOW)).toEqual({ value: 0, samples: 0 });
+    expect(await source.measure(rule({ metric: "cost", threshold: 10 }), SCOPE, NOW)).toEqual({ value: 0, samples: 0 });
   });
 
   it("satisfaction is a percentage over the votes of the window, and null without votes", async () => {
-    expect(await setup().source.measure(rule({ metric: "satisfaction", comparator: "below", threshold: 70 }), "weather", NOW)).toEqual({ value: 75, samples: 40 });
+    expect(await setup().source.measure(rule({ metric: "satisfaction", comparator: "below", threshold: 70 }), SCOPE, NOW)).toEqual({ value: 75, samples: 40 });
     const none = setup({ satisfaction: { satisfaction: null, total: 0 } });
-    expect(await none.source.measure(rule({ metric: "satisfaction", comparator: "below", threshold: 70 }), "weather", NOW)).toEqual({ value: null, samples: 0 });
+    expect(await none.source.measure(rule({ metric: "satisfaction", comparator: "below", threshold: 70 }), SCOPE, NOW)).toEqual({ value: null, samples: 0 });
   });
 
   it("measures the window that ends at the start of the current minute", async () => {
     const { source, getOverview } = setup();
-    await source.measure(rule({ windowMinutes: 30 }), "weather", NOW);
-    const call = (getOverview.mock.calls as unknown as Array<[{ from: Date; to: Date; service: string }]>)[0]![0];
+    await source.measure(rule({ windowMinutes: 30 }), SCOPE, NOW);
+    const call = (getOverview.mock.calls as unknown as Array<[{ from: Date; to: Date; scope: unknown }]>)[0]![0];
     expect(call.to.toISOString()).toBe("2026-10-10T10:07:00.000Z");
     expect(call.from.toISOString()).toBe("2026-10-10T09:37:00.000Z");
-    expect(call.service).toBe("weather");
+    expect(call.scope).toEqual(SCOPE);
   });
 
   it("asks once per service and window, however many rules need it, and forgets on reset", async () => {
     const { source, getOverview } = setup();
-    await source.measure(rule(), "weather", NOW);
-    await source.measure(rule({ metric: "latency_p95", threshold: 1 }), "weather", NOW);
-    await source.measure(rule({ metric: "cost", threshold: 1 }), "weather", NOW);
+    await source.measure(rule(), SCOPE, NOW);
+    await source.measure(rule({ metric: "latency_p95", threshold: 1 }), SCOPE, NOW);
+    await source.measure(rule({ metric: "cost", threshold: 1 }), SCOPE, NOW);
     expect(getOverview).toHaveBeenCalledTimes(1);
-    await source.measure(rule({ windowMinutes: 60 }), "weather", NOW); // otra ventana
-    await source.measure(rule(), "other", NOW); // otro servicio
+    await source.measure(rule({ windowMinutes: 60 }), SCOPE, NOW); // otra ventana
+    await source.measure(rule(), { experimentId: "other", serviceName: "weather" }, NOW); // otro servicio
     expect(getOverview).toHaveBeenCalledTimes(3);
     source.reset();
-    await source.measure(rule(), "weather", NOW);
+    await source.measure(rule(), SCOPE, NOW);
     expect(getOverview).toHaveBeenCalledTimes(4);
   });
 
@@ -80,32 +81,32 @@ describe("TraceAlertMetricSource (ADR-086)", () => {
 
     it("reads the single number of the saved chart, as one bar and with no split", async () => {
       const { source, getCustomMetric } = setup({ points: [{ label: "guardrail", value: 7 }] });
-      expect(await source.measure(custom(), "weather", NOW)).toEqual({ value: 7, samples: 0 });
-      expect(getCustomMetric).toHaveBeenCalledWith(expect.objectContaining({ chartType: "bar", groupByAttribute: null, service: "weather" }));
+      expect(await source.measure(custom(), SCOPE, NOW)).toEqual({ value: 7, samples: 0 });
+      expect(getCustomMetric).toHaveBeenCalledWith(expect.objectContaining({ chartType: "bar", groupByAttribute: null, scope: SCOPE }));
     });
 
     it("a count with no spans is a real zero (nothing happened)", async () => {
-      expect(await setup({ points: [] }).source.measure(custom(), "weather", NOW)).toEqual({ value: 0, samples: 0 });
+      expect(await setup({ points: [] }).source.measure(custom(), SCOPE, NOW)).toEqual({ value: 0, samples: 0 });
     });
 
     it("any other metric with no spans has no value", async () => {
       const chart = { chartType: "number", stepTypes: ["guardrail"], metric: "avg_duration", metricAttribute: null, filters: [], groupByAttribute: null };
-      expect(await setup({ points: [], chart }).source.measure(custom(), "weather", NOW)).toEqual({ value: null, samples: 0 });
+      expect(await setup({ points: [], chart }).source.measure(custom(), SCOPE, NOW)).toEqual({ value: null, samples: 0 });
     });
 
     it("a rule whose chart was deleted has no value, instead of failing", async () => {
-      expect(await setup().source.measure(custom({ customMetricId: CHART }) as AlertRule, "weather", NOW)).toBeDefined();
+      expect(await setup().source.measure(custom({ customMetricId: CHART }) as AlertRule, SCOPE, NOW)).toBeDefined();
       const gone = setup({ chart: null });
-      expect(await gone.source.measure(custom(), "weather", NOW)).toEqual({ value: null, samples: 0 });
+      expect(await gone.source.measure(custom(), SCOPE, NOW)).toEqual({ value: null, samples: 0 });
       const detached = { ...custom(), customMetricId: null } as AlertRule;
-      expect(await setup().source.measure(detached, "weather", NOW)).toEqual({ value: null, samples: 0 });
+      expect(await setup().source.measure(detached, SCOPE, NOW)).toEqual({ value: null, samples: 0 });
     });
   });
 
   it("the cost of a period is the estimated cost of that period, and zero for an empty one", async () => {
     const { source, getOverview } = setup({ totals: { costUsd: 12.5 } });
-    expect(await source.cost("weather", new Date("2026-10-10T00:00:00Z"), new Date("2026-10-10T10:00:00Z"))).toBe(12.5);
-    expect(await source.cost("weather", NOW, NOW)).toBe(0);
+    expect(await source.cost(SCOPE, new Date("2026-10-10T00:00:00Z"), new Date("2026-10-10T10:00:00Z"))).toBe(12.5);
+    expect(await source.cost(SCOPE, NOW, NOW)).toBe(0);
     expect(getOverview).toHaveBeenCalledTimes(1);
   });
 });

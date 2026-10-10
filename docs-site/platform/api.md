@@ -4,11 +4,11 @@ The dashboard's only data source. HTTP/JSON, versioned under `/api/v1`; within a
 
 ## Experiment data
 
-All under `/api/v1/experiments/{experimentId}`:
+All under `/api/v1/experiments/{experimentId}`. Every read is limited to that experiment: ids that two experiments happen to share (a trace id, a conversation id, a service name) never mix, and an id from another experiment answers `404`. A `service` or `experimentId` query parameter is ignored.
 
 | Endpoint | Description |
 |---|---|
-| `GET /traces` | Paginated trace list; every item has `prompts: [{ name, version }]`, the registry prompt versions the trace used. Params: `from`, `to`, `service`, `status`, `hasErrors`, `minDurationMs`, `text`, `revision`, `promptName`, `promptVersion`, `limit`, `cursor`. Each trace carries `revision`, the commit of the code that produced it (`null` if the agent does not send it); `revision=` keeps the traces of that commit, full or a prefix such as the 7-character short SHA; `promptName=` (and optionally `promptVersion=`) keeps the traces where some step used that [prompt](/library/prompts) |
+| `GET /traces` | Paginated trace list; every item has `prompts: [{ name, version }]`, the registry prompt versions the trace used. Params: `from`, `to`, `status`, `hasErrors`, `minDurationMs`, `text`, `revision`, `promptName`, `promptVersion`, `limit`, `cursor`. Each trace carries `revision`, the commit of the code that produced it (`null` if the agent does not send it); `revision=` keeps the traces of that commit, full or a prefix such as the 7-character short SHA; `promptName=` (and optionally `promptVersion=`) keeps the traces where some step used that [prompt](/library/prompts) |
 | `GET /traces/{traceId}` | A trace with its span tree |
 | `GET /revisions` | Commits (code versions) seen in the experiment's traces in the range, newest first, with how many traces each produced: `{ items: [{ revision, traces, lastSeen }] }`. It feeds the version filter of the dashboard |
 | `POST /metrics/custom` | Computes a [custom chart](/platform/dashboard#custom-charts) without saving it. Body: `{ from, to, chartType, stepTypes, metric, metricAttribute?, groupByAttribute?, filters?, service? }`. `metric` is `count`, `avg_duration`, `p50_duration`, `p95_duration`, `error_rate` or, over a numeric detail, `sum_attribute`, `avg_attribute`, `min_attribute` or `max_attribute`. The four last ones **require** `metricAttribute` (the detail to measure) and the others **reject** it (`400`); only spans whose value is a finite number count. Saved charts (`/custom-metrics`) carry the same definition; those saved before `metricAttribute` existed read it as `null`. `experiment:read` |
@@ -259,7 +259,7 @@ Unlike the endpoints above, this one isn't scoped to a single `{experimentId}` â
 |---|---|
 | `GET, PUT /organizations/{organizationId}/retention` | Trace retention of the organization. `GET` returns `{ organizationId, defaultDays, minDays, maxDays, experiments: [{ experimentId, name, serviceName, overrideDays, effectiveDays }] }`. `PUT { days }` sets the organization period (a whole number from 1 to 365, `400` otherwise); an experiment's own period longer than the new one is removed. `retention:manage` (`org_admin`) |
 | `PUT /organizations/{organizationId}/experiments/{experimentId}/retention` | `{ days }` gives the experiment its own period, never longer than the organization's (`400`); `{ days: null }` goes back to the organization's. `404` if the experiment is not in that organization. `retention:manage` |
-| `GET /organizations/{organizationId}/audit` | Audit log, newest first: `{ items: [{ id, at, experimentId, actorUserId, actorLabel, action, targetType, targetId, metadata }], nextCursor }`. Params: `action` (`trace.view`, `conversation.view`, `data.export`, `retention.update`, `retention.purge`, `member.add`, `apikey.create`, `apikey.revoke`, `alert.create`, `alert.update`, `alert.delete`, `budget.update`, `budget.delete`), `experimentId`, `actorUserId`, `from`, `to`, `limit` (1 to 200, 50 by default) and `cursor`. Identifiers only, never content. `audit:read` (`org_admin`) |
+| `GET /organizations/{organizationId}/audit` | Audit log, newest first: `{ items: [{ id, at, experimentId, actorUserId, actorLabel, action, targetType, targetId, metadata }], nextCursor }`. Params: `action` (`trace.view`, `conversation.view`, `data.export`, `retention.update`, `retention.purge`, `member.add`, `apikey.create`, `apikey.revoke`, `alert.create`, `alert.update`, `alert.delete`, `budget.update`, `budget.delete`, `partnership.create`, `partnership.revoke`, `partner_grant.create`, `partner_grant.revoke`, `partner.access`), `experimentId`, `actorUserId`, `from`, `to`, `limit` (1 to 200, 50 by default) and `cursor`. Identifiers only, never content. `audit:read` (`org_admin`) |
 | `GET /experiments/{experimentId}/export` | Streams the data of the experiment as JSON Lines (`application/x-ndjson`, one record per line, no guaranteed order). Params: `kind` (`traces`, `annotations`, `feedback` or `scores`), `from` and `to` (ISO 8601, both required, at most 31 days; `to` is exclusive). `400` for a bad request, `413` above 2,000,000 records. The export is recorded in the audit log **before** the first byte; if it cannot be recorded, nothing is exported. With `dryRun=1` it only validates and returns `{ rows, maxRows }`, without recording anything. `data:export` (`technical`) |
 
 ## SCIM 2.0
@@ -274,9 +274,21 @@ For your identity provider, under `/api/scim/v2`, authenticated with `Authorizat
 | `GET, POST /Groups` | List (`?filter=displayName eq "x"`) / create with `members` |
 | `GET, PUT, PATCH, DELETE /Groups/{id}` | PATCH `add`, `remove` (also `members[value eq "id"]`) and `replace` members |
 
+## Partner access (consultancies)
+
+| Endpoint | Description |
+|---|---|
+| `GET /organizations/{id}/partnerships` | Consultancies with access to the organization and the people granted, with their role. `org_admin` only |
+| `POST /organizations/{id}/partnerships` | `{ partnerOrganizationId }`: starts the relationship. Grants nothing by itself |
+| `DELETE /organizations/{id}/partnerships/{partnershipId}` | Ends it; every grant stops working immediately |
+| `POST /organizations/{id}/partnerships/{partnershipId}/grants` | `{ email, role, experimentId }`: gives a member of the partner organization an experiment role on the whole organization (`experimentId: null`) or on one experiment. Repeating the person and scope changes the role |
+| `DELETE /organizations/{id}/partnerships/{partnershipId}/grants/{grantId}` | Takes one person's access away |
+| `GET /partner/clients` | For the consultancy's people: the clients that granted them access, with experiments and role. Metadata only |
+
+
 ## Ingest and health
 
 | Endpoint | Description |
 |---|---|
-| `POST /ingest/v1/traces` | OTLP/HTTP gateway (protobuf or JSON, plain or gzip); requires an agent API key (see [Authentication](/library/authentication)). Every resource must carry the `service.name` of the key's experiment, otherwise `403`; `400` for a body that is not OTLP, `413` above 16 MiB, `415` for an encoding other than gzip |
+| `POST /ingest/v1/traces` | OTLP/HTTP gateway (protobuf or JSON, plain or gzip); requires an agent API key (see [Authentication](/library/authentication)). Every resource must carry the `service.name` of the key's experiment, otherwise `403`; `400` for a body that is not OTLP, `413` above 16 MiB (64 MiB once decompressed), `415` for an encoding other than gzip, and `429` with `Retry-After` above 600 requests per minute per experiment or after 30 invalid keys per minute from one origin |
 | `GET /health`, `GET /health/ready` | Liveness / readiness |

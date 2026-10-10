@@ -15,6 +15,8 @@ const enabled = Boolean(process.env.CLICKHOUSE_INTEGRATION);
 const base = configFromEnv();
 const config = { ...base, password: process.env.CLICKHOUSE_PASSWORD ?? "memtrace-dev-only", writePassword: process.env.CLICKHOUSE_WRITE_USER ? base.writePassword : (process.env.CLICKHOUSE_PASSWORD ?? "memtrace-dev-only") };
 const SERVICE = `it-eval-${randomBytes(4).toString("hex")}`;
+const SCOPE = { experimentId: `exp-${SERVICE}`, serviceName: SERVICE };
+const OTHER_SCOPE = { experimentId: "exp-other", serviceName: SERVICE }; // mismo servicio, otro experimento (ADR-088)
 const RUN = "run-1";
 const TRACE = randomBytes(16).toString("hex");
 const hex8 = () => randomBytes(8).toString("hex");
@@ -38,7 +40,7 @@ describe.skipIf(!enabled)("eval storage (integration)", () => {
     const root = hex8();
     const span = (spanId: string, parent: string, name: string, durationMs: number, attrs: Record<string, string>) => ({
       Timestamp: ts(0), TraceId: TRACE, SpanId: spanId, ParentSpanId: parent, SpanName: name, SpanKind: "SPAN_KIND_INTERNAL", ServiceName: SERVICE,
-      SpanAttributes: attrs, Duration: durationMs * 1e6, StatusCode: "STATUS_CODE_OK", StatusMessage: "",
+      SpanAttributes: attrs, ResourceAttributes: { "memtrace.experiment_id": SCOPE.experimentId }, Duration: durationMs * 1e6, StatusCode: "STATUS_CODE_OK", StatusMessage: "",
       "Events.Timestamp": [], "Events.Name": [], "Events.Attributes": [],
     });
     await admin.insert({
@@ -61,13 +63,13 @@ describe.skipIf(!enabled)("eval storage (integration)", () => {
   });
 
   it("stores the item text once and joins it back with every evaluator's score; an item without scores survives", async () => {
-    await scores.insertScores(SERVICE, RUN, [
+    await scores.insertScores(SCOPE, RUN, [
       item("q0", [bool("exact_match", true), num("similarity", 0.5), judge], { traceId: TRACE }),
       item("q1", [bool("exact_match", false), num("similarity", 1), { ...judge, value: "false" }]),
       item("q2", [], { output: null, error: "boom" }),
     ]);
 
-    const items = await scores.listScoresByRun(SERVICE, RUN);
+    const items = await scores.listScoresByRun(SCOPE, RUN);
 
     expect(items.map((i) => i.itemIndex)).toEqual([0, 1, 2]);
     expect(items[0]).toMatchObject({ input: "q0", output: "a", traceId: TRACE });
@@ -79,14 +81,14 @@ describe.skipIf(!enabled)("eval storage (integration)", () => {
   });
 
   it("is idempotent when a batch is resent (ADR-034)", async () => {
-    await scores.insertScores(SERVICE, RUN, [item("q0", [bool("exact_match", true), num("similarity", 0.5), judge], { traceId: TRACE })], 0);
-    const items = await scores.listScoresByRun(SERVICE, RUN);
+    await scores.insertScores(SCOPE, RUN, [item("q0", [bool("exact_match", true), num("similarity", 0.5), judge], { traceId: TRACE })], 0);
+    const items = await scores.listScoresByRun(SCOPE, RUN);
     expect(items).toHaveLength(3);
     expect(items[0]!.scores).toHaveLength(3);
   });
 
   it("aggregates from the typed column: pass rate of booleans, average of numerics, judge identities", async () => {
-    const aggs = await scores.aggregateForRuns(SERVICE, [RUN]);
+    const aggs = await scores.aggregateForRuns(SCOPE, [RUN]);
     const by = (name: string) => aggs.find((a) => a.name === name)!;
     expect(by("exact_match")).toMatchObject({ dataType: "boolean", passRate: 0.5, average: null, count: 2 });
     expect(by("similarity")).toMatchObject({ dataType: "numeric", average: 0.75, passRate: null, count: 2 });
@@ -94,37 +96,37 @@ describe.skipIf(!enabled)("eval storage (integration)", () => {
   });
 
   it("lists judge scores for agreement and the automatic scores linked to a trace", async () => {
-    expect(await scores.listJudgeScoresForRuns(SERVICE, [RUN], "correctness")).toHaveLength(2);
-    const byTrace = await scores.listScoresByTrace(SERVICE, TRACE);
+    expect(await scores.listJudgeScoresForRuns(SCOPE, [RUN], "correctness")).toHaveLength(2);
+    const byTrace = await scores.listScoresByTrace(SCOPE, TRACE);
     expect(byTrace.map((s) => s.name).sort()).toEqual(["correctness", "exact_match", "similarity"]);
-    expect(await scores.listScoresByTrace(`${SERVICE}-other`, TRACE)).toEqual([]);
+    expect(await scores.listScoresByTrace(OTHER_SCOPE, TRACE)).toEqual([]);
   });
 
   it("reads latency (root span) and LLM tokens per model from the linked trace; unknown traces are absent", async () => {
-    const stats = await traces.getTraceStatsForTraces([TRACE, randomBytes(16).toString("hex")]);
+    const stats = await traces.getTraceStatsForTraces(SCOPE, [TRACE, randomBytes(16).toString("hex")]);
     expect(stats.size).toBe(1);
     expect(stats.get(TRACE)).toMatchObject({ traceId: TRACE, durationMs: 1500, byModel: [{ model: "gpt-x", inputTokens: 150, outputTokens: 50 }] });
   });
 
   it("materializes a completed run's aggregates once and reads them back instead of recomputing (ADR-045)", async () => {
     const run = "run-summary";
-    await scores.insertScores(SERVICE, run, [item("q0", [bool("exact_match", true), judge]), item("q1", [bool("exact_match", false), num("similarity", 0.5)])]);
-    const live = await scores.aggregateForRuns(SERVICE, [run]);
+    await scores.insertScores(SCOPE, run, [item("q0", [bool("exact_match", true), judge]), item("q1", [bool("exact_match", false), num("similarity", 0.5)])]);
+    const live = await scores.aggregateForRuns(SCOPE, [run]);
 
-    await scores.materializeRunSummary(SERVICE, run);
-    await scores.materializeRunSummary(SERVICE, run); // idempotente: ReplacingMergeTree por (run, evaluador)
+    await scores.materializeRunSummary(SCOPE, run);
+    await scores.materializeRunSummary(SCOPE, run); // idempotente: ReplacingMergeTree por (run, evaluador)
     const stored = await admin.query({ query: `SELECT count() AS n FROM ${config.database}.eval_run_summaries FINAL WHERE ServiceName = {s:String} AND DatasetRunId = {r:String}`, query_params: { s: SERVICE, r: run }, format: "JSONEachRow" });
     expect(Number(((await stored.json<{ n: string }>())[0])!.n)).toBe(3);
 
     const sorted = (a: typeof live) => [...a].sort((x, y) => x.name.localeCompare(y.name));
-    expect(sorted(await scores.aggregateForRuns(SERVICE, [run]))).toEqual(sorted(live));
+    expect(sorted(await scores.aggregateForRuns(SCOPE, [run]))).toEqual(sorted(live));
     expect(live.find((a) => a.name === "exact_match")).toMatchObject({ passRate: 0.5, count: 2 });
     expect(live.find((a) => a.name === "correctness")!.judges).toEqual([{ model: "judge-x", promptHash: "abc" }]);
   });
 
   it("falls back to the live computation for runs without a stored summary", async () => {
     const run = "run-open";
-    await scores.insertScores(SERVICE, run, [item("q0", [num("similarity", 0.25)])]);
-    expect(await scores.aggregateForRuns(SERVICE, [run])).toEqual([expect.objectContaining({ name: "similarity", average: 0.25, count: 1 })]);
+    await scores.insertScores(SCOPE, run, [item("q0", [num("similarity", 0.25)])]);
+    expect(await scores.aggregateForRuns(SCOPE, [run])).toEqual([expect.objectContaining({ name: "similarity", average: 0.25, count: 1 })]);
   });
 });

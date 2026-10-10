@@ -2,7 +2,9 @@ import type { ClickHouseClient } from "@clickhouse/client";
 import { RepositoryUnavailableError } from "@/application/errors";
 import type { DataExporter } from "@/application/ports/data-exporter";
 import type { ExportKind } from "@/domain/data-export";
+import type { TenantScope } from "@/domain/tenant";
 import { QueryLimiter } from "./query-limiter";
+import { TENANT_SQL, tenantParams } from "./tenant-sql";
 
 interface Source {
   table: string;
@@ -32,20 +34,20 @@ export class ClickHouseDataExporter implements DataExporter {
   }
 
   private where(source: Source): string {
-    return `ServiceName = {serviceName:String} AND ${source.timeColumn} >= fromUnixTimestamp64Milli({fromMs:Int64}) AND ${source.timeColumn} < fromUnixTimestamp64Milli({toMs:Int64})${source.tombstones ? " AND IsDeleted = 0" : ""}`;
+    return `${TENANT_SQL} AND ${source.timeColumn} >= fromUnixTimestamp64Milli({fromMs:Int64}) AND ${source.timeColumn} < fromUnixTimestamp64Milli({toMs:Int64})${source.tombstones ? " AND IsDeleted = 0" : ""}`;
   }
 
-  private params(serviceName: string, from: Date, to: Date) {
-    return { serviceName, fromMs: from.getTime(), toMs: to.getTime() };
+  private params(scope: TenantScope, from: Date, to: Date) {
+    return { ...tenantParams(scope), fromMs: from.getTime(), toMs: to.getTime() };
   }
 
-  async count(serviceName: string, kind: ExportKind, from: Date, to: Date): Promise<number> {
+  async count(scope: TenantScope, kind: ExportKind, from: Date, to: Date): Promise<number> {
     const source = SOURCES[kind];
     try {
       return await this.limiter.run(async () => {
         const result = await this.client.query({
           query: `SELECT count() AS n FROM ${this.database}.${source.table}${source.tombstones ? " FINAL" : ""} WHERE ${this.where(source)}`,
-          query_params: this.params(serviceName, from, to),
+          query_params: this.params(scope, from, to),
           format: "JSONEachRow",
         });
         return Number(((await result.json()) as { n: string | number }[])[0]?.n ?? 0);
@@ -55,11 +57,11 @@ export class ClickHouseDataExporter implements DataExporter {
     }
   }
 
-  async *stream(serviceName: string, kind: ExportKind, from: Date, to: Date): AsyncIterable<string> {
+  async *stream(scope: TenantScope, kind: ExportKind, from: Date, to: Date): AsyncIterable<string> {
     const source = SOURCES[kind];
     const result = await this.client.query({
       query: `SELECT * FROM ${this.database}.${source.table}${source.tombstones ? " FINAL" : ""} WHERE ${this.where(source)}`,
-      query_params: this.params(serviceName, from, to),
+      query_params: this.params(scope, from, to),
       format: "JSONEachRow",
     });
     for await (const rows of result.stream()) {

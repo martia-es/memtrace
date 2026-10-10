@@ -13,6 +13,8 @@ import type { Annotation } from "@/domain/annotation";
 const enabled = Boolean(process.env.CLICKHOUSE_INTEGRATION);
 const config = { ...configFromEnv(), password: process.env.CLICKHOUSE_PASSWORD ?? "memtrace-dev-only" };
 const SERVICE = `it-ann-${randomBytes(4).toString("hex")}`;
+const SCOPE = { experimentId: `exp-${SERVICE}`, serviceName: SERVICE };
+const OTHER_SCOPE = { experimentId: "exp-other", serviceName: SERVICE }; // mismo servicio, otro experimento (ADR-088)
 const TRACE = randomBytes(16).toString("hex");
 
 const annotation = (overrides: Partial<Annotation> = {}): Annotation => ({
@@ -47,13 +49,13 @@ describe.skipIf(!enabled)("ClickHouseAnnotationRepository (integration)", () => 
   });
 
   it("an edit by the same annotator replaces the label; other annotators and configs coexist", async () => {
-    await repo.upsert(SERVICE, annotation({ value: "3", createdAt: "2026-10-03T10:00:00.000Z" }));
-    await repo.upsert(SERVICE, annotation({ value: "5", createdAt: "2026-10-03T10:01:00.000Z" }));
-    await repo.upsert(SERVICE, annotation({ annotatorId: "u2", value: "2", comment: "meh" }));
-    await repo.upsert(SERVICE, annotation({ configId: "cfg-2", configName: "ok", dataType: "boolean", value: "true" }));
-    await repo.upsert(SERVICE, annotation({ spanId: "aaaaaaaaaaaaaaaa", value: "1" }));
+    await repo.upsert(SCOPE, annotation({ value: "3", createdAt: "2026-10-03T10:00:00.000Z" }));
+    await repo.upsert(SCOPE, annotation({ value: "5", createdAt: "2026-10-03T10:01:00.000Z" }));
+    await repo.upsert(SCOPE, annotation({ annotatorId: "u2", value: "2", comment: "meh" }));
+    await repo.upsert(SCOPE, annotation({ configId: "cfg-2", configName: "ok", dataType: "boolean", value: "true" }));
+    await repo.upsert(SCOPE, annotation({ spanId: "aaaaaaaaaaaaaaaa", value: "1" }));
 
-    const found = await repo.listForTrace(SERVICE, TRACE);
+    const found = await repo.listForTrace(SCOPE, TRACE);
     const view = found.map((a) => `${a.configId}/${a.spanId ?? "-"}/${a.annotatorId}=${a.value}`).sort();
     expect(view).toEqual(["cfg-1/-/u1=5", "cfg-1/-/u2=2", "cfg-1/aaaaaaaaaaaaaaaa/u1=1", "cfg-2/-/u1=true"]);
     expect(found.find((a) => a.annotatorId === "u2")?.comment).toBe("meh");
@@ -61,19 +63,19 @@ describe.skipIf(!enabled)("ClickHouseAnnotationRepository (integration)", () => 
   });
 
   it("a tombstone hides the label from reads", async () => {
-    await repo.retract(SERVICE, annotation({ configId: "cfg-2", configName: "ok", dataType: "boolean", value: "", createdAt: "2026-10-03T10:05:00.000Z" }));
-    const found = await repo.listForTrace(SERVICE, TRACE);
+    await repo.retract(SCOPE, annotation({ configId: "cfg-2", configName: "ok", dataType: "boolean", value: "", createdAt: "2026-10-03T10:05:00.000Z" }));
+    const found = await repo.listForTrace(SCOPE, TRACE);
     expect(found.some((a) => a.configId === "cfg-2")).toBe(false);
     expect(found.some((a) => a.configId === "cfg-1")).toBe(true);
   });
 
   it("never returns another tenant's annotations", async () => {
-    expect(await repo.listForTrace(`${SERVICE}-other`, TRACE)).toEqual([]);
+    expect(await repo.listForTrace(OTHER_SCOPE, TRACE)).toEqual([]);
   });
 
   it("lists the automatic scores linked to the trace, (an item with no scores contributes nothing)", async () => {
     await scores.insertScores(
-      SERVICE,
+      SCOPE,
       "run-1",
       [
         { input: "q", expectedOutput: "a", output: "a", traceId: TRACE, error: null, scores: [{ name: "correctness", value: "true", dataType: "boolean", source: "llm_judge", comment: "ok" }] },
@@ -81,9 +83,9 @@ describe.skipIf(!enabled)("ClickHouseAnnotationRepository (integration)", () => 
       ],
       0,
     );
-    expect(await scores.listScoresByTrace(SERVICE, TRACE)).toEqual([
+    expect(await scores.listScoresByTrace(SCOPE, TRACE)).toEqual([
       { datasetRunId: "run-1", itemIndex: 0, name: "correctness", value: "true", dataType: "boolean", source: "llm_judge", comment: "ok" },
     ]);
-    expect(await scores.listScoresByTrace(`${SERVICE}-other`, TRACE)).toEqual([]);
+    expect(await scores.listScoresByTrace(OTHER_SCOPE, TRACE)).toEqual([]);
   });
 });

@@ -24,7 +24,7 @@ export async function GET(_request: Request, context: { params: Promise<{ experi
     if (!experiment || !dataset || dataset.experimentId !== experimentId) return problem(404, "Not Found", "Dataset not found");
 
     const runs = await identityRepository.listDatasetRuns(datasetId);
-    const aggregatesByRun = groupAggregatesByRun(await getScores().aggregateForRuns(experiment.serviceName, runs.map((r) => r.id)));
+    const aggregatesByRun = groupAggregatesByRun(await getScores().aggregateForRuns({ experimentId: experiment.id, serviceName: experiment.serviceName }, runs.map((r) => r.id)));
     return json(toDatasetRunsListResponse(runs, aggregatesByRun));
   });
 }
@@ -46,7 +46,7 @@ export async function POST(request: Request, context: { params: Promise<{ experi
 
     const { name, items, datasetVersion, complete, revision } = await parseJsonOrThrow(submitDatasetRunBody, request);
     const run = await getEvaluation().submitDatasetRun(
-      access.serviceName,
+      access.scope,
       datasetId,
       name,
       items.map((i) => ({

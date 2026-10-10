@@ -103,7 +103,7 @@ describe("observed connections sync (ADR-053)", () => {
         recordObservedConnections: async (experimentId: string, observed: unknown[]) => void seen.push(`${experimentId}:${observed.length}`),
       } as unknown as AssistantRegistryRepository,
       {
-        toolUsage: async (serviceName) => {
+        toolUsage: async ({ serviceName }) => {
           if (serviceName === "svc-2") throw new Error("clickhouse down");
           return [{ tool: "get_weather", calls: 8, errors: 0 }, { tool: "idle", calls: 0, errors: 0 }];
         },

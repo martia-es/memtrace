@@ -21,15 +21,15 @@ This creates the cluster, builds and loads the API and dashboard images, deploys
 | Service | Address |
 |---|---|
 | Dashboard | `http://localhost:8080` |
-| OTLP gRPC (collector) | `localhost:4317` |
-| OTLP HTTP (collector) | `localhost:4318` |
+| OTLP/HTTP ingest (needs an API key) | `http://localhost:8080/api/v1/ingest` |
 | ClickHouse Play UI | `http://localhost:8123/play` |
 
 ## Send your first traces
 
 ```bash
 pip install -e sdk/python
-make dev-data      # simulated agent sending traces to localhost:4317
+export MEMTRACE_API_KEY=mtk_...   # Admin → experiment → API keys
+make dev-data      # simulated agent sending traces through the ingest gateway
 ```
 
 The dashboard refreshes on its own (every 5 seconds by default). To instrument your own agent, follow the [library quickstart](/library/quickstart).

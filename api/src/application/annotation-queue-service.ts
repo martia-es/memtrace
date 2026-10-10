@@ -1,3 +1,4 @@
+import { tenantOf } from "@/domain/tenant";
 import type { AnnotationQueueRepository, QueueWithProgress, TraceQueueMembership } from "@/application/ports/annotation-queue-repository";
 import type { AnnotationRepository } from "@/application/ports/annotation-repository";
 import type { IdentityRepository, PromotedTraceLocation } from "@/application/ports/identity-repository";
@@ -242,8 +243,8 @@ export class AnnotationQueueService {
     const traceIds = [...new Set(items.filter((i) => i.targetType === "trace" && i.traceId).map((i) => i.traceId!))];
     const runIds = [...new Set(items.filter((i) => i.targetType === "run_item" && i.datasetRunId).map((i) => i.datasetRunId!))];
     const [traceLabels, runLabels, resolutions] = await Promise.all([
-      traceIds.length ? this.annotations.listForTraces(actor.serviceName, traceIds) : [],
-      runIds.length ? this.annotations.listForRuns(actor.serviceName, runIds) : [],
+      traceIds.length ? this.annotations.listForTraces(tenantOf(actor), traceIds) : [],
+      runIds.length ? this.annotations.listForRuns(tenantOf(actor), runIds) : [],
       this.queues.listResolutions(queue.id, items.map((i) => i.id)),
     ]);
     const promoted = await this.identity.findPromotedTraces(actor.experimentId, traceIds);
@@ -355,7 +356,7 @@ export class AnnotationQueueService {
         createdAt,
         ...(item.targetType === "run_item" ? { datasetRunId: item.datasetRunId, itemIndex: item.itemIndex } : {}),
       };
-      await this.annotations.upsert(actor.serviceName, annotation);
+      await this.annotations.upsert(tenantOf(actor), annotation);
     }
     return this.queues.completeClaim(queue, item.id, actor.userId);
   }
@@ -438,7 +439,7 @@ export class AnnotationQueueService {
     if (unique.length === 0) throw new ValidationError("Nothing to add", { traceIds: "must include at least one trace id" });
     if (unique.length > MAX_ITEMS_PER_REQUEST) throw new ValidationError("Too many items", { traceIds: `at most ${MAX_ITEMS_PER_REQUEST} per request` });
     // una sola consulta para todas; una traza de otro tenant se trata igual que una inexistente
-    const found = await this.traces.getTraceSpansForTraces(unique, TENANT_CHECK_SPANS_PER_TRACE);
+    const found = await this.traces.getTraceSpansForTraces(tenantOf(actor), unique, TENANT_CHECK_SPANS_PER_TRACE);
     const unknown = unique.filter((id) => !found.get(id)?.spans.some((s) => s.serviceName === actor.serviceName));
     if (unknown.length > 0) throw new ValidationError("Unknown traces", { traceIds: `not found in this experiment: ${unknown.slice(0, 5).join(", ")}${unknown.length > 5 ? "…" : ""}` });
     return unique.map((traceId) => ({ targetType: "trace", traceId }));
@@ -452,7 +453,7 @@ export class AnnotationQueueService {
     while (ids.length < limit) {
       const page = await this.traces.listTraces({
         ...range,
-        service: actor.serviceName,
+        scope: tenantOf(actor),
         status: filter.status,
         hasErrors: filter.hasErrors,
         minDurationMs: filter.minDurationMs,

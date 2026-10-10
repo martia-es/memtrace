@@ -7,7 +7,7 @@ import { MAX_EXPORT_ROWS } from "@/domain/data-export";
 import type { AuditEntryInput } from "@/domain/audit";
 import { ExportTooLargeError, ValidationError } from "@/domain/errors";
 
-const input = { organizationId: "org1", experimentId: "exp1", serviceName: "weather", actor: { userId: "u1", email: "ana@example.com" }, kind: "traces", from: "2026-10-01T00:00:00Z", to: "2026-10-02T00:00:00Z" };
+const input = { organizationId: "org1", scope: { experimentId: "exp1", serviceName: "weather" }, actor: { userId: "u1", email: "ana@example.com" }, kind: "traces", from: "2026-10-01T00:00:00Z", to: "2026-10-02T00:00:00Z" };
 
 function setup(opts: { rows?: number; auditFails?: boolean } = {}) {
   const events: string[] = [];

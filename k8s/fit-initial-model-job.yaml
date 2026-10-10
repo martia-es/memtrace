@@ -8,6 +8,9 @@ metadata:
 spec:
   backoffLimit: 0
   template:
+    metadata:
+      labels:
+        app: topic-extraction-fit-initial
     spec:
       restartPolicy: Never
       containers:

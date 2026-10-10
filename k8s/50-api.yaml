@@ -22,13 +22,14 @@ spec:
         env:
         - name: CLICKHOUSE_URL
           value: http://clickhouse:8123
+        # Lectura con un usuario que solo puede SELECT sobre `memtrace` (ADR-090)
         - name: CLICKHOUSE_USER
-          value: default
+          value: api_reader
         - name: CLICKHOUSE_PASSWORD
           valueFrom:
             secretKeyRef:
               name: clickhouse-credentials
-              key: password
+              key: reader-password
         - name: CLICKHOUSE_DATABASE
           value: memtrace
         # Escrituras de evaluación con un usuario que solo puede INSERT en esas tablas (ADR-045)
@@ -42,6 +43,12 @@ spec:
         # Gateway de ingesta autenticado por API key (ADR-013, pieza 9)
         - name: OTEL_COLLECTOR_HTTP_URL
           value: http://otel-collector:4318
+        # El Collector solo acepta lo que lleve este token (ADR-090): la pasarela es su único cliente legítimo
+        - name: INGEST_INTERNAL_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: ingest-internal
+              key: token
         # Almacén de identidad + login federado (ADR-013)
         - name: POSTGRES_HOST
           value: postgres

@@ -23,6 +23,15 @@ export const mappingBody = z.object({
   role: z.string().trim().min(1).max(64),
 });
 
+export const createPartnershipBody = z.object({ partnerOrganizationId: z.string().uuid() });
+
+export const partnerGrantBody = z.object({
+  email: z.string().trim().email(),
+  role: z.string().trim().min(1).max(64),
+  /** null = todos los experimentos de la organización */
+  experimentId: z.string().uuid().nullable().default(null),
+});
+
 export const addOrgAdminBody = z.object({
   email: z.string().trim().email(),
 });

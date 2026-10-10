@@ -43,10 +43,10 @@ function fakes(initial: { defaultDays?: number; overrides?: Record<string, numbe
     },
     listPurgeTargets: async () => initial.targets ?? [],
   };
-  const purged: { service: string; cutoff: Date }[] = [];
+  const purged: { service: string; experimentId: string; cutoff: Date }[] = [];
   const purger: TracePurger = {
-    purge: async (service, cutoff) => {
-      purged.push({ service, cutoff });
+    purge: async ({ serviceName: service, experimentId }, cutoff) => {
+      purged.push({ service, experimentId, cutoff });
       if (service === "boom") throw new Error("clickhouse down");
       return { spans: service === "empty" ? 0 : 5 };
     },

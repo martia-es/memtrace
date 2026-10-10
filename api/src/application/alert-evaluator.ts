@@ -74,7 +74,7 @@ export class AlertEvaluator {
   }
 
   private async evaluateOne({ rule, status, experiment }: EvaluableRule, now: Date) {
-    const sample = await this.source.measure(rule, experiment.serviceName, now);
+    const sample = await this.source.measure(rule, { experimentId: rule.experimentId, serviceName: experiment.serviceName }, now);
     const result = evaluateRule(rule, sample, status, now);
     const next: AlertStatus = { ...result.status, lastCheckedAt: now.toISOString() };
 
@@ -122,7 +122,7 @@ export class AlertEvaluator {
     }
     for (const d of toRefresh) {
       const end = new Date(Math.min(d.getTime() + DAY_MS, now.getTime()));
-      await this.repo.upsertDailyCost(budget.experimentId, day(d), await this.source.cost(experiment.serviceName, d, end));
+      await this.repo.upsertDailyCost(budget.experimentId, day(d), await this.source.cost({ experimentId: budget.experimentId, serviceName: experiment.serviceName }, d, end));
     }
 
     const spent = await this.repo.spentBetween(budget.experimentId, day(first), day(today));

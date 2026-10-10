@@ -5,7 +5,7 @@ import { json, problem } from "@/adapters/inbound/http/problem";
 import { sendMetricReportEmailBody } from "@/adapters/inbound/http/schemas";
 import type { ReportChartSnapshot } from "@/application/ports/email-sender";
 import { getIdentity, getTraceQueryService } from "@/dependency-container";
-import { summarizeSeries, type CustomMetricType } from "@/domain/metrics";
+import { summarizeSeries, type CustomMetricDefinition } from "@/domain/metrics";
 
 export const dynamic = "force-dynamic";
 
@@ -31,9 +31,9 @@ export async function POST(request: Request, context: { params: Promise<{ experi
     const traceQueryService = getTraceQueryService();
     const charts: ReportChartSnapshot[] = await Promise.all(
       report.charts.map(async (c): Promise<ReportChartSnapshot> => {
-        const definition = c.definition as { chartType: string; stepTypes: string[]; metric: CustomMetricType; metricAttribute?: string | null; groupByAttribute: string | null; filters: unknown[] };
+        const definition = c.definition as unknown as CustomMetricDefinition; // validada al guardar el gráfico
         try {
-          const result = await traceQueryService.getCustomMetric({ ...definition, metricAttribute: definition.metricAttribute ?? null, service: experiment.serviceName } as never);
+          const result = await traceQueryService.getCustomMetric({ ...definition, metricAttribute: definition.metricAttribute ?? null, scope: { experimentId: experiment.id, serviceName: experiment.serviceName } });
           const rows = result.points.length
             ? result.points
             : summarizeSeries(result.timeseries, definition.metric);

@@ -29,7 +29,6 @@ const promptFilterShape = {
 
 export const listTracesQuery = z.object({
   ...timeRangeShape,
-  service: nonEmpty.optional(),
   status: z.enum(["ok", "error"]).optional(),
   hasErrors: boolean.optional(),
   minDurationMs: z.coerce.number().min(0).optional(),
@@ -43,7 +42,6 @@ export const listTracesQuery = z.object({
 
 export const listSpansQuery = z.object({
   ...timeRangeShape,
-  service: nonEmpty.optional(),
   kind: z.enum(["llm", "tool", "retriever", "agent", "chain", "embedding", "unknown"]).optional(),
   model: nonEmpty.optional(),
   status: z.enum(["ok", "error"]).optional(),
@@ -57,7 +55,6 @@ export const listSpansQuery = z.object({
 
 export const listConversationsQuery = z.object({
   ...timeRangeShape,
-  service: nonEmpty.optional(),
   hasErrors: boolean.optional(),
   text: z.string().min(1).max(200).optional(),
   revision: z.string().regex(/^[0-9a-fA-F]{7,64}$/).optional(),
@@ -75,12 +72,12 @@ export const turnsQuery = z.object({
 /** Los ids de conversación son texto libre (los pone la aplicación): solo se acota su longitud */
 export const conversationIdParam = z.string().min(1).max(200);
 
-export const errorOverviewQuery = z.object({ ...timeRangeShape, service: nonEmpty.optional() });
-export const overviewQuery = z.object({ ...timeRangeShape, service: nonEmpty.optional() });
+export const errorOverviewQuery = z.object({ ...timeRangeShape });
+export const overviewQuery = z.object({ ...timeRangeShape });
 
 // ----- Custom metrics sobre spans definidos por el usuario (ADR-027) -----
 
-export const stepKindsQuery = z.object({ ...timeRangeShape, service: nonEmpty.optional() });
+export const stepKindsQuery = z.object({ ...timeRangeShape });
 
 /** `stepTypes` llega como lista separada por comas en la query string (no hay array nativo en GET). */
 const stepTypesCsv = z
@@ -91,7 +88,6 @@ const stepTypesCsv = z
 
 export const attributeValuesQuery = z.object({
   ...timeRangeShape,
-  service: nonEmpty.optional(),
   stepTypes: stepTypesCsv,
   attribute: nonEmpty,
 });
@@ -99,7 +95,6 @@ export const attributeValuesQuery = z.object({
 /** Claves de atributo vistas en los step types dados (ADR-030): alimenta "group by"/"filter by". */
 export const attributeKeysQuery = z.object({
   ...timeRangeShape,
-  service: nonEmpty.optional(),
   stepTypes: stepTypesCsv,
 });
 
@@ -228,7 +223,7 @@ export const appendDatasetRunItemsBody = z.object({
   complete: z.boolean().default(false),
 });
 export const servicesQuery = z.object({ ...timeRangeShape });
-export const revisionsQuery = z.object({ ...timeRangeShape, service: nonEmpty.optional() });
+export const revisionsQuery = z.object({ ...timeRangeShape });
 export const usageQuery = z.object({ ...timeRangeShape });
 
 export const traceIdParam = z

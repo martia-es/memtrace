@@ -10,6 +10,7 @@ import { configFromEnv, createReadOnlyClient } from "@/adapters/outbound/clickho
 import { toAttributeKeysResponse } from "@/adapters/inbound/http/mappers";
 import { RepositoryUnavailableError } from "@/application/errors";
 import { chooseBucketSeconds } from "@/domain/metrics";
+import type { TenantScope } from "@/domain/tenant";
 import { buildTraceDetail } from "@/domain/tree";
 
 const enabled = Boolean(process.env.CLICKHOUSE_INTEGRATION);
@@ -57,6 +58,9 @@ interface Row {
   events?: { name: string; offsetMs: number; attrs: Record<string, string> }[];
 }
 
+/** Un experimento por servicio de prueba; el gateway de ingesta (ADR-089) lo estampa en el recurso y la columna ExperimentId lo copia. */
+const sc = (service: string): TenantScope => ({ experimentId: `exp-${service}`, serviceName: service });
+
 const toRow = (r: Row) => ({
   Timestamp: ts(r.offsetMs),
   TraceId: r.trace,
@@ -66,7 +70,7 @@ const toRow = (r: Row) => ({
   SpanKind: "SPAN_KIND_INTERNAL",
   ServiceName: r.service ?? SERVICE,
   SpanAttributes: r.attrs ?? {},
-  ResourceAttributes: r.resource ?? {},
+  ResourceAttributes: { "memtrace.experiment_id": sc(r.service ?? SERVICE).experimentId, ...(r.resource ?? {}) },
   Duration: r.durationMs * 1e6,
   StatusCode: `STATUS_CODE_${r.status ?? "OK"}`,
   StatusMessage: r.status === "ERROR" ? (r.message ?? "boom") : "",
@@ -154,11 +158,11 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
 
   it("lists the service and pings", async () => {
     await expect(repo.ping()).resolves.toBeUndefined();
-    expect(await repo.listServices(range)).toContain(SERVICE);
+    expect(await repo.listServices(range, [sc(SERVICE)])).toContain(SERVICE);
   });
 
   it("lists root spans newest first with aggregates", async () => {
-    const page = await repo.listTraces({ ...range, service: SERVICE, limit: 10 });
+    const page = await repo.listTraces({ ...range, scope: sc(SERVICE), limit: 10 });
     expect(page.items.map((t) => t.traceId)).toEqual([TRACE_B, TRACE_A]);
     expect(page.nextCursor).toBeNull();
     const a = page.items[1]!;
@@ -167,17 +171,17 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
   });
 
   it("paginates with a stable keyset cursor", async () => {
-    const first = await repo.listTraces({ ...range, service: SERVICE, limit: 1 });
+    const first = await repo.listTraces({ ...range, scope: sc(SERVICE), limit: 1 });
     expect(first.items.map((t) => t.traceId)).toEqual([TRACE_B]);
     expect(first.nextCursor).not.toBeNull();
-    const second = await repo.listTraces({ ...range, service: SERVICE, limit: 1, cursor: first.nextCursor! });
+    const second = await repo.listTraces({ ...range, scope: sc(SERVICE), limit: 1, cursor: first.nextCursor! });
     expect(second.items.map((t) => t.traceId)).toEqual([TRACE_A]);
     expect(second.nextCursor).toBeNull();
   });
 
   it("filters by root status, hasErrors and minimum duration", async () => {
     const ids = async (extra: object) =>
-      (await repo.listTraces({ ...range, service: SERVICE, limit: 10, ...extra })).items.map((t) => t.traceId);
+      (await repo.listTraces({ ...range, scope: sc(SERVICE), limit: 10, ...extra })).items.map((t) => t.traceId);
     expect(await ids({ status: "ok" })).toEqual([TRACE_A]);
     expect(await ids({ status: "error" })).toEqual([TRACE_B]);
     expect(await ids({ hasErrors: true })).toEqual([TRACE_B, TRACE_A]); // A por su tool fallida
@@ -185,7 +189,7 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
   });
 
   it("rebuilds a trace whose spans arrived in two batches", async () => {
-    const found = await repo.getTraceSpans(TRACE_A, 100);
+    const found = await repo.getTraceSpans(sc(SERVICE), TRACE_A, 100);
     expect(found?.truncated).toBe(false);
     const detail = buildTraceDetail(TRACE_A, found!.spans, false);
     expect(detail.spanCount).toBe(4);
@@ -199,14 +203,14 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
   });
 
   it("truncates beyond maxSpans and returns null for unknown traces", async () => {
-    expect((await repo.getTraceSpans(TRACE_A, 2))).toMatchObject({ truncated: true });
-    expect((await repo.getTraceSpans(TRACE_A, 2))!.spans).toHaveLength(2);
-    expect(await repo.getTraceSpans("0".repeat(32), 10)).toBeNull();
+    expect((await repo.getTraceSpans(sc(SERVICE), TRACE_A, 2))).toMatchObject({ truncated: true });
+    expect((await repo.getTraceSpans(sc(SERVICE), TRACE_A, 2))!.spans).toHaveLength(2);
+    expect(await repo.getTraceSpans(sc(SERVICE), "0".repeat(32), 10)).toBeNull();
   });
 
   it("computes the overview", async () => {
     const bucketSeconds = chooseBucketSeconds(range.fromMs, range.toMs);
-    const o = await repo.getOverview({ ...range, service: SERVICE, bucketSeconds });
+    const o = await repo.getOverview({ ...range, scope: sc(SERVICE), bucketSeconds });
     expect(o.totals).toMatchObject({ traces: 2, spans: 5, errorTraces: 1, errorRate: 0.5, inputTokens: 10, outputTokens: 5, totalTokens: 15 });
     expect(o.latencyMs.p50).toBeGreaterThan(0);
     expect(o.byModel).toEqual([expect.objectContaining({ model: "gpt-4o", calls: 1, inputTokens: 10, outputTokens: 5 })]);
@@ -218,11 +222,11 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
   it("reports an unreachable store as RepositoryUnavailableError", async () => {
     const dead = new ClickHouseTraceRepository(createReadOnlyClient({ ...config, url: "http://127.0.0.1:1" }), config.database);
     await expect(dead.ping()).rejects.toBeInstanceOf(RepositoryUnavailableError);
-    await expect(dead.listServices(range)).rejects.toBeInstanceOf(RepositoryUnavailableError);
+    await expect(dead.listServices(range, [sc(SERVICE)])).rejects.toBeInstanceOf(RepositoryUnavailableError);
   });
 
   describe("conversations (ADR-012)", () => {
-    const list = (extra: object = {}) => repo.listConversations({ ...range, service: CONV_SERVICE, limit: 10, ...extra });
+    const list = (extra: object = {}) => repo.listConversations({ ...range, scope: sc(CONV_SERVICE), limit: 10, ...extra });
 
     it("lists conversations by last activity with figures over their whole history", async () => {
       const page = await list();
@@ -253,17 +257,17 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
 
     it("filters by hasErrors and by service", async () => {
       expect((await list({ hasErrors: true })).items.map((c) => c.conversationId).sort()).toEqual([CONV1, CONV2].sort());
-      expect((await repo.listConversations({ ...range, service: "no-such-service", limit: 10 })).items).toEqual([]);
+      expect((await repo.listConversations({ ...range, scope: sc("no-such-service"), limit: 10 })).items).toEqual([]);
     });
 
     it("returns one conversation over the retention window, or null", async () => {
-      const found = await repo.getConversation(CONV3, { fromMs: Date.now() - 30 * DAY, toMs: Date.now() });
+      const found = await repo.getConversation(sc(CONV_SERVICE), CONV3, { fromMs: Date.now() - 30 * DAY, toMs: Date.now() });
       expect(found).toMatchObject({ conversationId: CONV3, turnCount: 2 });
-      expect(await repo.getConversation("no-such-conversation", { fromMs: Date.now() - 30 * DAY, toMs: Date.now() })).toBeNull();
+      expect(await repo.getConversation(sc(CONV_SERVICE), "no-such-conversation", { fromMs: Date.now() - 30 * DAY, toMs: Date.now() })).toBeNull();
     });
 
     it("lists a conversation's turns chronologically, paginated, with their conversation id", async () => {
-      const q = { fromMs: Date.now() - 30 * DAY, toMs: Date.now(), conversationId: CONV3, order: "asc" as const, limit: 1 };
+      const q = { fromMs: Date.now() - 30 * DAY, toMs: Date.now(), scope: sc(CONV_SERVICE), conversationId: CONV3, order: "asc" as const, limit: 1 };
       const first = await repo.listTraces(q);
       expect(first.items.map((t) => [t.traceId, t.conversationId])).toEqual([[T5_OLD, CONV3]]);
       const second = await repo.listTraces({ ...q, cursor: first.nextCursor! });
@@ -272,29 +276,29 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
     });
 
     it("exposes the conversation in the trace list, null when absent", async () => {
-      const page = await repo.listTraces({ ...range, service: CONV_SERVICE, limit: 20 });
+      const page = await repo.listTraces({ ...range, scope: sc(CONV_SERVICE), limit: 20 });
       const byTrace = Object.fromEntries(page.items.map((t) => [t.traceId, t.conversationId]));
       expect(byTrace[T4]).toBeNull();
       expect(byTrace[T1]).toBe(CONV1);
     });
 
     it("counts distinct conversations in the overview", async () => {
-      const o = await repo.getOverview({ ...range, service: CONV_SERVICE, bucketSeconds: chooseBucketSeconds(range.fromMs, range.toMs) });
+      const o = await repo.getOverview({ ...range, scope: sc(CONV_SERVICE), bucketSeconds: chooseBucketSeconds(range.fromMs, range.toMs) });
       expect(o.totals.conversations).toBe(3);
     });
     it("returns the captured messages of a conversation's LLM spans in order", async () => {
       const range30 = { fromMs: Date.now() - 30 * DAY, toMs: Date.now() };
-      const { records, truncated } = await repo.getConversationMessages(CONV1, range30, 10);
+      const { records, truncated } = await repo.getConversationMessages(sc(CONV_SERVICE), CONV1, range30, 10);
       expect(truncated).toBe(false);
       expect(records.map((r) => [r.traceId, r.model])).toEqual([[T1, "gpt-4o"], [T2, null]]);
       expect(JSON.parse(records[0]!.inputMessages!)[0].content).toBe("¿dónde está mi pedido?");
       expect(records[1]!.outputMessages).toContain("sí, mañana");
-      expect((await repo.getConversationMessages(CONV1, range30, 1)).truncated).toBe(true);
-      expect((await repo.getConversationMessages(CONV2, range30, 10)).records).toEqual([]); // sin spans de LLM
+      expect((await repo.getConversationMessages(sc(CONV_SERVICE), CONV1, range30, 1)).truncated).toBe(true);
+      expect((await repo.getConversationMessages(sc(CONV_SERVICE), CONV2, range30, 10)).records).toEqual([]); // sin spans de LLM
     });
 
     it("lists spans newest first, deducing the kind and reading captured content", async () => {
-      const q = { ...range, service: CONV_SERVICE, conversationId: CONV1, limit: 10 };
+      const q = { ...range, scope: sc(CONV_SERVICE), conversationId: CONV1, limit: 10 };
       const { items, nextCursor } = await repo.listSpans(q);
       expect(nextCursor).toBeNull();
       expect(items.map((s) => s.name)).toEqual(["llm", "turno-2", "tool", "llm", "turno-1"]);
@@ -306,7 +310,7 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
     });
 
     it("filters spans by kind, model, status and text, and paginates with a keyset cursor", async () => {
-      const q = { ...range, service: CONV_SERVICE, limit: 20 };
+      const q = { ...range, scope: sc(CONV_SERVICE), limit: 20 };
       const names = async (extra: object) => (await repo.listSpans({ ...q, ...extra })).items.map((s) => s.name);
       expect(await names({ kind: "llm", conversationId: CONV1 })).toEqual(["llm", "llm"]);
       expect(await names({ model: "gpt-4o" })).toEqual(["llm"]);
@@ -335,7 +339,7 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
       ]);
     });
 
-    const traces = async (revision?: string) => (await repo.listTraces({ ...range, service: REV_SERVICE, revision, limit: 20 })).items;
+    const traces = async (revision?: string) => (await repo.listTraces({ ...range, scope: sc(REV_SERVICE), revision, limit: 20 })).items;
 
     it("materializes the column from the resource attribute and returns it on each trace", async () => {
       const byId = new Map((await traces()).map((t) => [t.traceId, t.revision]));
@@ -352,16 +356,16 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
     });
 
     it("lists the versions seen, most recent first, with their trace counts", async () => {
-      const found = await repo.listRevisions({ ...range, service: REV_SERVICE });
+      const found = await repo.listRevisions({ ...range, scope: sc(REV_SERVICE) });
       expect(found.map((r) => [r.revision, r.traces])).toEqual([[REV_B, 1], [REV_A, 1]]); // TNONE no cuenta: sin versión
       expect(found[0]!.lastSeenMs).toBeGreaterThan(found[1]!.lastSeenMs);
     });
 
     it("filters conversations and spans, and puts the revision on the trace detail", async () => {
-      expect((await repo.listConversations({ ...range, service: REV_SERVICE, revision: "aaaaaaa", limit: 10 })).items.map((c) => c.conversationId)).toEqual([CONV]);
-      expect((await repo.listConversations({ ...range, service: REV_SERVICE, revision: "bbbbbbb", limit: 10 })).items).toEqual([]);
-      expect((await repo.listSpans({ ...range, service: REV_SERVICE, revision: REV_B, limit: 10 })).items.map((s) => s.traceId)).toEqual([TB]);
-      const found = await repo.getTraceSpans(TA, 100);
+      expect((await repo.listConversations({ ...range, scope: sc(REV_SERVICE), revision: "aaaaaaa", limit: 10 })).items.map((c) => c.conversationId)).toEqual([CONV]);
+      expect((await repo.listConversations({ ...range, scope: sc(REV_SERVICE), revision: "bbbbbbb", limit: 10 })).items).toEqual([]);
+      expect((await repo.listSpans({ ...range, scope: sc(REV_SERVICE), revision: REV_B, limit: 10 })).items.map((s) => s.traceId)).toEqual([TB]);
+      const found = await repo.getTraceSpans(sc(REV_SERVICE), TA, 100);
       expect(buildTraceDetail(TA, found!.spans, false).revision).toBe(REV_A);
     });
   });
@@ -385,8 +389,8 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
       ]);
     });
 
-    const traces = async (promptName?: string, promptVersion?: number) => (await repo.listTraces({ ...range, service: PROMPT_SERVICE, promptName, promptVersion, limit: 20 })).items.map((t) => t.traceId).sort();
-    const spans = async (promptName?: string, promptVersion?: number) => (await repo.listSpans({ ...range, service: PROMPT_SERVICE, promptName, promptVersion, limit: 20 })).items;
+    const traces = async (promptName?: string, promptVersion?: number) => (await repo.listTraces({ ...range, scope: sc(PROMPT_SERVICE), promptName, promptVersion, limit: 20 })).items.map((t) => t.traceId).sort();
+    const spans = async (promptName?: string, promptVersion?: number) => (await repo.listSpans({ ...range, scope: sc(PROMPT_SERVICE), promptName, promptVersion, limit: 20 })).items;
 
     it("keeps the traces that used the prompt, even when only a child span marks it", async () => {
       expect(await traces("weather-system")).toEqual([P1, P2].sort());
@@ -421,7 +425,7 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
       },
       { trace: okTrace, service: ERR_SERVICE, name: "agent", offsetMs: 2000, durationMs: 100, attrs: { "gen_ai.conversation.id": `${ERR_SERVICE}-ok` } },
     ]);
-    const result = await repo.listErrorGroups({ ...range, service: ERR_SERVICE });
+    const result = await repo.listErrorGroups({ ...range, scope: sc(ERR_SERVICE) });
     expect(result.groups).toHaveLength(1);
     expect(result.groups[0]).toMatchObject({ kind: "tool", name: "get_weather", message: "429 Too Many Requests", exceptionType: "httpx.HTTPStatusError", exceptionMessage: "upstream said slow down", occurrences: 1, traces: 1 });
     expect(result).toMatchObject({ tracesWithErrors: 1, totalTraces: 2 });
@@ -445,7 +449,7 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
     });
 
     const metric = (m: "sum_attribute" | "avg_attribute" | "min_attribute" | "max_attribute", groupByAttribute: string | null = null, chartType: "bar" | "number" = "number") =>
-      repo.getCustomMetric({ ...range, service: NUM_SERVICE, chartType, stepTypes: ["tool"], metric: m, metricAttribute: "order_total", groupByAttribute, filters: [] });
+      repo.getCustomMetric({ ...range, scope: sc(NUM_SERVICE), chartType, stepTypes: ["tool"], metric: m, metricAttribute: "order_total", groupByAttribute, filters: [] });
 
     it("adds up, averages and takes the lowest and highest of the numbers, ignoring text, nan, inf, empty and missing values", async () => {
       expect((await metric("sum_attribute")).points[0]!.value).toBe(190);
@@ -460,7 +464,7 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
     });
 
     it("does not change the count of spans, which still includes the ones without a number", async () => {
-      const result = await repo.getCustomMetric({ ...range, service: NUM_SERVICE, chartType: "number", stepTypes: ["tool"], metric: "count", metricAttribute: null, groupByAttribute: null, filters: [] });
+      const result = await repo.getCustomMetric({ ...range, scope: sc(NUM_SERVICE), chartType: "number", stepTypes: ["tool"], metric: "count", metricAttribute: null, groupByAttribute: null, filters: [] });
       expect(result.points[0]!.value).toBe(N + 5);
     });
   });
@@ -494,7 +498,7 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
     });
 
     it("measures each key of the chosen steps: spans, values, distinct values, numbers, length and id-like values", async () => {
-      const keys = await repo.getAttributeKeys({ ...range, service: ATTR_SERVICE, stepTypes: ["tool"] });
+      const keys = await repo.getAttributeKeys({ ...range, scope: sc(ATTR_SERVICE), stepTypes: ["tool"] });
       const by = new Map(keys.map((k) => [k.key, k]));
       expect(by.has("only_in_llm")).toBe(false);
       expect(by.get("city")).toMatchObject({ count: N, nonEmpty: N - 4, distinct: 8 });
@@ -505,7 +509,7 @@ describe.skipIf(!enabled)("ClickHouseTraceRepository (integration)", () => {
     });
 
     it("classifies them: categories and measures stay visible, ids, free text and plumbing are hidden", async () => {
-      const keys = await repo.getAttributeKeys({ ...range, service: ATTR_SERVICE, stepTypes: ["tool"] });
+      const keys = await repo.getAttributeKeys({ ...range, scope: sc(ATTR_SERVICE), stepTypes: ["tool"] });
       const kinds = Object.fromEntries(toAttributeKeysResponse(keys).items.map((k) => [k.key, `${k.kind}${k.hiddenByDefault ? "/hidden" : ""}`]));
       expect(kinds).toMatchObject({
         city: "category",
