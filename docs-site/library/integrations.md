@@ -65,6 +65,39 @@ For a hand-made chain (LCEL) there is no middleware: resolve the prompt inside t
 chain = RunnableLambda(lambda q: [SystemMessage(weather.compile(city="Sevilla")), HumanMessage(q)]) | model
 ```
 
+### LangGraph graphs
+
+A graph you build with `StateGraph` is traced like any other LangChain run, and each node shows up as a step with `memtrace.framework=langgraph`. Resolve the prompt **inside the node**, so every run uses the version in force at that moment:
+
+```python
+from langchain_core.messages import HumanMessage, SystemMessage
+from langgraph.graph import END, START, MessagesState, StateGraph
+from memtrace import init_tracer, prompts
+from memtrace.langchain import enable_langchain_instrumentation
+
+init_tracer(service_name="my-agent")
+enable_langchain_instrumentation()
+
+weather = prompts.get("weather-system")           # load once, outside the graph
+
+def call_model(state: MessagesState) -> dict:
+    system = SystemMessage(weather.compile(city="Sevilla"))   # at run time, in memory
+    return {"messages": [model.invoke([system, *state["messages"]])]}
+
+graph = StateGraph(MessagesState)
+graph.add_node("call_model", call_model)
+graph.add_edge(START, "call_model")
+graph.add_edge("call_model", END)
+app = graph.compile()                              # built once
+
+app.invoke({"messages": [HumanMessage("¿Lloverá mañana?")]})
+```
+
+- Do not call `weather.compile(...)` when building the graph or put its result in the state at startup: that freezes the version. Call it in the node.
+- Without `enable_langchain_instrumentation()`, pass the handler per run: `app.invoke(x, config={"callbacks": [MemTraceCallbackHandler()]})`.
+- To group the turns of a thread in one [conversation](./conversations), wrap them in `with session("thread-id"):`.
+- If the graph is a `create_agent` agent, use the [middleware](#prompts-from-the-registry) instead.
+
 ## Pydantic AI
 
 ### Tracing
