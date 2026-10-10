@@ -21,7 +21,7 @@ export async function GET(_request: Request, context: { params: Promise<{ experi
     if (!dataset || dataset.experimentId !== experimentId) return problem(404, "Not Found", "Dataset not found");
 
     const [runs, versions] = await Promise.all([identityRepository.listDatasetRuns(datasetId), identityRepository.listDatasetVersions(datasetId)]);
-    return json(toDatasetDto(dataset, runs.length, versions.length, versions[0]?.major ?? 1, versions[0]?.minor ?? 0, runs[0] ?? null));
+    return json(toDatasetDto(dataset, runs.length, versions.length, versions[0]?.major ?? 1, versions[0]?.minor ?? 0, runs[0] ?? null, [], versions[0] ? { itemCount: (await identityRepository.listDatasetItems(versions[0].id)).length, createdAt: versions[0].createdAt } : null));
   });
 }
 

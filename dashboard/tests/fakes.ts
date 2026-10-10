@@ -469,6 +469,8 @@ export function datasetDto(overrides: Partial<DatasetDto> = {}): DatasetDto {
     versionCount: 1,
     latestVersionMajor: 1,
     latestVersionMinor: 0,
+    itemCount: 3,
+    updatedAt: "2026-09-30T22:45:54Z",
     lastRun: { id: "run-1", name: "toy-agent-v1", createdAt: "2026-09-30T22:45:54Z", itemCount: 3, aggregates: [scoreAggregate()] },
     ...overrides,
   };

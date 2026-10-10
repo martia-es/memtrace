@@ -28,6 +28,8 @@ export async function GET(request: Request, context: { params: Promise<{ experim
       Promise.all(datasets.map((d) => identityRepository.listDatasetRuns(d.id))),
       Promise.all(datasets.map((d) => identityRepository.listDatasetVersions(d.id))),
     ]);
+    // nº de items de la última versión (la tarjeta del dataset); Postgres, pocas filas por dataset
+    const itemCounts = await Promise.all(versionsByDataset.map(async (versions) => (versions[0] ? (await identityRepository.listDatasetItems(versions[0].id)).length : 0)));
     const lastRunIds = runsByDataset.map((runs) => runs[0]?.id).filter((id): id is string => id !== undefined);
     const aggregatesByRun = groupAggregatesByRun(await getScores().aggregateForRuns(access.scope, lastRunIds));
 
@@ -43,6 +45,7 @@ export async function GET(request: Request, context: { params: Promise<{ experim
         latestVersionMinor: versions[0]?.minor ?? 0,
         lastRun,
         lastRunAggregates: lastRun ? (aggregatesByRun.get(lastRun.id) ?? []) : [],
+        latest: versions[0] ? { itemCount: itemCounts[i]!, createdAt: versions[0].createdAt } : null,
       };
     });
     return json(toDatasetsListResponse(entries));

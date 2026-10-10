@@ -42,7 +42,7 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 |---|---|---|---|---|---|
 | M1 | [ ] | Gráficas | Overview con **SLOs** (objetivos de error, latencia y coste con semáforo) como punto de partida para usuarios nuevos | M | M |
 | M2 | [ ] | Trazas | Búsqueda por contenido (texto de entrada/salida) y comparación de dos trazas lado a lado | M | M |
-| M3 | [ ] | Datasets | Importar CSV/JSONL desde el dashboard y detectar duplicados o casi duplicados | M | S |
+| M3 | [ ] | Datasets | Importar CSV ya está (soltar el fichero en Datasets); faltan JSONL, `.xlsx`, añadir a un dataset existente y detectar duplicados o casi duplicados. Otras ideas del rediseño: carpetas (`dataset_folders` + `datasets.folder_id`), renombrar y duplicar datasets, columnas extra desde `metadata` | M | S |
 | M4 | [ ] | Evaluaciones | Intervalos de confianza al comparar runs (con pocos items, un +3 % puede ser ruido) | M | S |
 | M5 | [ ] | Costes | Coste por usuario, por conversación y por versión de prompt; tendencia con proyección | M | M |
 | M6 | [ ] | Gobierno | Simplificar u ocultar por defecto «quién puede llamar a cada entorno» si no se usa (ver sección 5) | B | S |

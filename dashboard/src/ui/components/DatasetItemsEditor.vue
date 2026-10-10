@@ -29,6 +29,9 @@ const itemsById = computed(() => new Map(props.items.map((i) => [i.id, i])));
 const search = ref("");
 const selected = ref<Set<string>>(new Set());
 const detailKey = ref<string | null>(null);
+// celda con el foco (como la celda seleccionada de una hoja): alimenta la caja de nombre, la barra de fórmulas y el resaltado de cabeceras
+const active = ref<{ key: string; col: 0 | 1 } | null>(null);
+const COLUMN_LETTERS = ["A", "B", "C"] as const;
 const publishing = ref(false);
 
 const summary = computed(() => summarize(rows.value));
@@ -36,6 +39,15 @@ const dirty = computed(() => isDirty(rows.value));
 const changeCount = computed(() => summary.value.added + summary.value.edited + summary.value.removed);
 const nextLabel = computed(() => nextVersionLabel(props.version ?? { major: 1, minor: 0 }, summary.value));
 const detailRow = computed(() => rows.value.find((r) => r.key === detailKey.value) ?? null);
+const activeRow = computed(() => rows.value.find((r) => r.key === active.value?.key) ?? null);
+const activeLabel = computed(() => {
+  const row = activeRow.value;
+  if (!row || !active.value) return "";
+  const at = visibleRows.value.indexOf(row);
+  return at < 0 ? "" : `${COLUMN_LETTERS[active.value.col]}${at + 1}`;
+});
+const activeText = computed(() => (!activeRow.value || !active.value ? "" : active.value.col === 0 ? activeRow.value.input : activeRow.value.expected));
+const itemCount = computed(() => rows.value.filter((r) => rowState(r) !== "empty" && !r.removed).length);
 
 // el servidor solo "gana" sobre el borrador si no hay cambios sin publicar
 watch(
@@ -189,6 +201,12 @@ defineExpose({ dirty });
       <span class="muted hint">Enter ↓ next row · Shift+Enter new line · paste cells from Excel/Sheets · ⌘/Ctrl+Enter publish</span>
     </div>
 
+    <div class="formula-bar" data-testid="formula-bar">
+      <span class="name-box mono" aria-label="Selected cell">{{ activeLabel || "–" }}</span>
+      <span class="fx" aria-hidden="true">fx</span>
+      <output class="formula" aria-label="Content of the selected cell">{{ activeText }}</output>
+    </div>
+
     <Card padding="none" block class="table-card">
       <table class="items">
         <colgroup>
@@ -203,9 +221,9 @@ defineExpose({ dirty });
           <tr>
             <th class="check"><Checkbox aria-label="Select all" :checked="allSelected" @change="toggleAll" /></th>
             <th class="idx">#</th>
-            <th>Input</th>
-            <th>Expected output</th>
-            <th>Last edit</th>
+            <th :class="{ 'col-on': active?.col === 0 }"><span class="letter mono">A</span>Input</th>
+            <th :class="{ 'col-on': active?.col === 1 }"><span class="letter mono">B</span>Expected output</th>
+            <th><span class="letter mono">C</span>Last edit</th>
             <th></th>
           </tr>
         </thead>
@@ -214,7 +232,7 @@ defineExpose({ dirty });
             <td class="check">
               <Checkbox v-if="rowState(row) !== 'empty' && !row.removed" :checked="selected.has(row.key)" :aria-label="`Select row ${i + 1}`" @change="toggle(row)" />
             </td>
-            <td class="idx mono muted">{{ rowState(row) === "empty" ? "+" : i + 1 }}</td>
+            <td class="idx mono muted" :class="{ 'row-on': active?.key === row.key }">{{ rowState(row) === "empty" ? "+" : i + 1 }}</td>
             <td v-for="col in [0, 1] as const" :key="col" class="edit-cell">
               <textarea
                 :data-cell="`${row.key}:${col}`"
@@ -225,6 +243,7 @@ defineExpose({ dirty });
                 :placeholder="rowState(row) === 'empty' ? (col === 0 ? 'Type here to add an item…' : '') : col === 0 ? 'Required' : 'Optional'"
                 :aria-label="`${col === 0 ? 'Input' : 'Expected output'} of row ${i + 1}`"
                 @input="(e) => { const v = (e.target as HTMLTextAreaElement).value; if (col === 0) row.input = v; else row.expected = v; ensureTrailingBlank(); }"
+                @focus="active = { key: row.key, col }"
                 @keydown="onKeydown($event, row, col)"
                 @paste="onPaste($event, row, col)"
               ></textarea>
@@ -261,6 +280,14 @@ defineExpose({ dirty });
         </tbody>
       </table>
     </Card>
+
+    <div class="status-bar muted" data-testid="status-bar">
+      <span>{{ itemCount }} item{{ itemCount === 1 ? "" : "s" }}</span>
+      <span v-if="activeLabel">Selection: {{ activeLabel }}</span>
+      <span class="spacer" />
+      <span v-if="dirty" class="modified">{{ changeCount }} change{{ changeCount === 1 ? "" : "s" }} since v{{ version?.major ?? 1 }}.{{ version?.minor ?? 0 }}</span>
+      <span v-else>No changes since v{{ version?.major ?? 1 }}.{{ version?.minor ?? 0 }}</span>
+    </div>
 
     <!-- barra de publicación: aparece solo con cambios sin publicar -->
     <Card padding="none" block v-if="dirty" class="publish-bar" role="status">
@@ -364,7 +391,72 @@ th {
 td {
   padding: 3px 6px;
   border-bottom: 1px solid var(--mt-line-2);
+  border-right: 1px solid var(--mt-line-2);
   vertical-align: top;
+}
+th {
+  border-right: 1px solid var(--mt-line-2);
+}
+.letter {
+  margin-right: 8px;
+  color: var(--mt-faint, var(--mt-muted));
+  font-weight: 500;
+}
+th.col-on {
+  background: var(--mt-soft);
+  color: var(--mt-ink);
+  box-shadow: inset 0 -2px 0 var(--mt-accent);
+}
+.idx.row-on {
+  background: var(--mt-soft);
+  color: var(--mt-ink);
+}
+.formula-bar {
+  display: flex;
+  align-items: stretch;
+  min-height: 32px;
+  border: 1px solid var(--mt-line);
+  border-radius: var(--mt-radius-sm);
+  background: var(--mt-card);
+  overflow: hidden;
+  font-size: 13px;
+}
+.name-box {
+  width: 64px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid var(--mt-line);
+  background: var(--mt-soft-2);
+  font-size: 12px;
+}
+.fx {
+  width: 34px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid var(--mt-line);
+  color: var(--mt-muted);
+  font-family: serif;
+  font-style: italic;
+}
+.formula {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 96px;
+  overflow: auto;
+}
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+  font-size: 12px;
 }
 .check {
   width: 32px;

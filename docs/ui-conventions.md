@@ -69,6 +69,13 @@ Tres modos de visualización: `bubble` (ventana flotante), `dock` (panel lateral
 - Sin runs, **Evaluations › Runs** y la pestaña Runs del dataset muestran `OfflineRunSteps` (tres pasos) en vez de un estado vacío de una línea.
 - **Nunca lleva secretos**: la API key de MemTrace, la de Anthropic y el token del agente son marcadores `PASTE_…` y el modal avisa de cuáles faltan. Solo se ofrecen métricas que funcionan con el agente corriendo en otro proceso (`exact_match`, `contains`, `Correctness`); Faithfulness y las de retrieval necesitan el contexto en el mismo proceso.
 
+## 8. Datasets (ficheros y hoja)
+
+- **Evaluations › Datasets** es una cuadrícula de tarjetas-fichero (miniatura de hoja, nombre, `vX.Y`, items · runs, última edición; las más recientes primero) con un `SegmentedControl` Files / List. La preferencia vive en `localStorage` (`mt.datasets.view`), como el modo del chat. La tarjeta es un `<button>` propio (tarjeta pulsable, en la lista blanca de `Widgets.test.ts`); borrar es un `Button` de icono que aparece al pasar el ratón y siempre pide confirmación.
+- Soltar un `.csv` (o elegirlo con la tarjeta punteada) crea el dataset con `itemsFromCsv` (`dataset-draft.ts`): cabecera `input` / `expected_output` o, sin ella, columnas por posición; separador `,` `;` o tab. Un `.xlsx` no se lee: se pide exportar a CSV. Crea el dataset y publica los items con `POST .../changes`, así que queda como v2.0 como cualquier alta.
+- **Items** (`DatasetItemsEditor`) imita una hoja sin ser una: cabeceras con letra (A Input, B Expected output, C Last edit), caja de nombre con la celda activa (`B3`), barra de fórmulas de solo lectura con el texto completo y barra de estado (items, selección, cambios desde la versión). La celda activa es la que tiene el foco; no hay fórmulas ni selección de rangos. Las pestañas Items / Versions / Runs siguen arriba (son secciones de un mismo objeto, ver sección 1).
+- Sin carpetas: `datasets` no tiene dónde agruparse y no se añade esquema para ello por ahora.
+
 ## Cómo añadir cosas
 
 - Una sección nueva = un hijo en `NAV` + una ruta con su `meta.section`.
