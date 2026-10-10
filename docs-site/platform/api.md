@@ -239,6 +239,15 @@ Unlike the endpoints above, this one isn't scoped to a single `{experimentId}` â
 | `GET, POST /experiments/{experimentId}/api-keys` | List / create agent API keys. `technical` sees and creates their own; `org_admin` sees all |
 | `DELETE /experiments/{experimentId}/api-keys/{keyId}` | Revoke a key |
 
+## Data protection (ADR-084)
+
+| Endpoint | Description |
+|---|---|
+| `GET, PUT /organizations/{organizationId}/retention` | Trace retention of the organization. `GET` returns `{ organizationId, defaultDays, minDays, maxDays, experiments: [{ experimentId, name, serviceName, overrideDays, effectiveDays }] }`. `PUT { days }` sets the organization period (a whole number from 1 to 365, `400` otherwise); an experiment's own period longer than the new one is removed. `retention:manage` (`org_admin`) |
+| `PUT /organizations/{organizationId}/experiments/{experimentId}/retention` | `{ days }` gives the experiment its own period, never longer than the organization's (`400`); `{ days: null }` goes back to the organization's. `404` if the experiment is not in that organization. `retention:manage` |
+| `GET /organizations/{organizationId}/audit` | Audit log, newest first: `{ items: [{ id, at, experimentId, actorUserId, actorLabel, action, targetType, targetId, metadata }], nextCursor }`. Params: `action` (`trace.view`, `conversation.view`, `data.export`, `retention.update`, `retention.purge`, `member.add`, `apikey.create`, `apikey.revoke`), `experimentId`, `actorUserId`, `from`, `to`, `limit` (1 to 200, 50 by default) and `cursor`. Identifiers only, never content. `audit:read` (`org_admin`) |
+| `GET /experiments/{experimentId}/export` | Streams the data of the experiment as JSON Lines (`application/x-ndjson`, one record per line, no guaranteed order). Params: `kind` (`traces`, `annotations`, `feedback` or `scores`), `from` and `to` (ISO 8601, both required, at most 31 days; `to` is exclusive). `400` for a bad request, `413` above 2,000,000 records. The export is recorded in the audit log **before** the first byte; if it cannot be recorded, nothing is exported. With `dryRun=1` it only validates and returns `{ rows, maxRows }`, without recording anything. `data:export` (`technical`) |
+
 ## SCIM 2.0
 
 For your identity provider, under `/api/scim/v2`, authenticated with `Authorization: Bearer <scim token>` (one token belongs to one organization). Content type `application/scim+json`. See [Your identity provider](/platform/access-control#your-identity-provider-entra-id-okta-sailpoint).
@@ -255,5 +264,5 @@ For your identity provider, under `/api/scim/v2`, authenticated with `Authorizat
 
 | Endpoint | Description |
 |---|---|
-| `POST /ingest/v1/traces` | OTLP/HTTP gateway; requires an agent API key (see [Authentication](/library/authentication)) |
+| `POST /ingest/v1/traces` | OTLP/HTTP gateway (protobuf or JSON, plain or gzip); requires an agent API key (see [Authentication](/library/authentication)). Every resource must carry the `service.name` of the key's experiment, otherwise `403`; `400` for a body that is not OTLP, `413` above 16 MiB, `415` for an encoding other than gzip |
 | `GET /health`, `GET /health/ready` | Liveness / readiness |

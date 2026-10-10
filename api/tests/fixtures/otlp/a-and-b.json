@@ -1,0 +1,124 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "agent-a"
+            }
+          },
+          {
+            "key": "deployment.environment",
+            "value": {
+              "stringValue": "dev"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "fixture"
+          },
+          "spans": [
+            {
+              "traceId": "NVCp09hOtG3n6g9GPnemog==",
+              "spanId": "5DN9Wq3cBOc=",
+              "name": "step-0",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1791620957162831080",
+              "endTimeUnixNano": "1791620957162844845",
+              "attributes": [
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "10"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 256
+            },
+            {
+              "traceId": "xtcMl/d0uIsd7aY8zyCDgQ==",
+              "spanId": "QAPD2yYEnYM=",
+              "name": "step-1",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1791620957162878710",
+              "endTimeUnixNano": "1791620957162886762",
+              "attributes": [
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "10"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 256
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "agent-b"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "fixture"
+          },
+          "spans": [
+            {
+              "traceId": "xUZm+qokbh7jHTN2TKRxgQ==",
+              "spanId": "XQy4DXGdoXQ=",
+              "name": "step-0",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1791620957162963958",
+              "endTimeUnixNano": "1791620957162979738",
+              "attributes": [
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "10"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 256
+            },
+            {
+              "traceId": "xnBFOl7jWCLxDHM1L2kVDA==",
+              "spanId": "/FB033N/+js=",
+              "name": "step-1",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1791620957163004430",
+              "endTimeUnixNano": "1791620957163010835",
+              "attributes": [
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "10"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 256
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

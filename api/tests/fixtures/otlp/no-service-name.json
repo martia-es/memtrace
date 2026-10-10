@@ -1,0 +1,52 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {},
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "fixture"
+          },
+          "spans": [
+            {
+              "traceId": "OvEdBzfV+f5BLRzL/p2kvQ==",
+              "spanId": "xkbP9xG5ff0=",
+              "name": "step-0",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1791620957163616617",
+              "endTimeUnixNano": "1791620957163626853",
+              "attributes": [
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "10"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 256
+            },
+            {
+              "traceId": "LXaamHdFxA5Zo08zDggI5A==",
+              "spanId": "1wnRkWcReAk=",
+              "name": "step-1",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1791620957163648821",
+              "endTimeUnixNano": "1791620957163655389",
+              "attributes": [
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "10"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 256
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

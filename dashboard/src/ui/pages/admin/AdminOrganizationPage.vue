@@ -14,6 +14,9 @@ import InviteForm from "../../components/admin/InviteForm.vue";
 import OrganizationAppearance from "../../components/admin/OrganizationAppearance.vue";
 import OrganizationIdentity from "../../components/admin/OrganizationIdentity.vue";
 import ApprovalRulesPanel from "../../components/admin/ApprovalRulesPanel.vue";
+import OrganizationRetention from "../../components/admin/OrganizationRetention.vue";
+import AuditLogPanel from "../../components/admin/AuditLogPanel.vue";
+import { hasPermission } from "../../composables/usePermissions";
 import Button from "../../components/Button.vue";
 import Pill from "../../components/Pill.vue";
 
@@ -36,12 +39,16 @@ const organization = computed(() => dir.organizations.value.find((o) => o.id ===
 const isOrgAdmin = computed(() => (organization.value ? canManageOrg(organization.value) : false));
 const orgExperiments = computed(() => dir.experiments.value.filter((e) => e.organizationId === props.organizationId));
 const orgMembers = computed(() => dir.membersByOrg[props.organizationId]);
+// protección de datos (ADR-084): retención y registro de auditoría, cada uno con su permiso
+const canRetention = computed(() => hasPermission(organization.value, "retention:manage"));
+const canAudit = computed(() => hasPermission(organization.value, "audit:read"));
 
 const tabs = computed(() => {
   const list: { id: string; label: string; count?: number }[] = [{ id: "experiments", label: "Experiments", count: orgExperiments.value.length }];
   if (isOrgAdmin.value) {
     list.push({ id: "members", label: "Members", count: (orgMembers.value?.members.length ?? 0) + (orgMembers.value?.pendingInvitations.length ?? 0) });
     list.push({ id: "approvals", label: "Approvals" });
+    if (canRetention.value || canAudit.value) list.push({ id: "data", label: "Data protection" });
     list.push({ id: "identity", label: "Identity" });
     list.push({ id: "appearance", label: "Appearance" });
   }
@@ -163,6 +170,11 @@ async function inviteOrgAdmin({ email }: { email: string }) {
             </p>
             <ApprovalRulesPanel :scope="{ type: 'organization', id: organizationId }" />
           </div>
+        </section>
+
+        <section v-if="tab === 'data' && organization && isOrgAdmin" class="panel">
+          <OrganizationRetention v-if="canRetention" :organization="organization" />
+          <AuditLogPanel v-if="canAudit" :organization="organization" :experiments="orgExperiments" />
         </section>
 
         <section v-if="tab === 'identity' && organization && isOrgAdmin" class="panel">

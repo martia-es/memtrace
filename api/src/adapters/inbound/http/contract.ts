@@ -1445,3 +1445,37 @@ export interface PromptEvidenceResponse {
 export interface PromptListResponse {
   items: PromptSummaryDto[];
 }
+
+/** Retención de trazas (ADR-084): el plazo de la organización y el efectivo de cada experimento. */
+export interface RetentionPolicyDto {
+  organizationId: string;
+  defaultDays: number;
+  minDays: number;
+  maxDays: number;
+  experiments: {
+    experimentId: string;
+    name: string;
+    serviceName: string;
+    /** null = sin plazo propio: vale el de la organización */
+    overrideDays: number | null;
+    effectiveDays: number;
+  }[];
+}
+
+/** Una entrada del registro de auditoría (ADR-084). Solo identificadores, nunca contenido. */
+export interface AuditEntryDto {
+  id: string;
+  at: string;
+  experimentId: string | null;
+  actorUserId: string | null;
+  actorLabel: string;
+  action: string;
+  targetType: string | null;
+  targetId: string | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface AuditPageDto {
+  items: AuditEntryDto[];
+  nextCursor: string | null;
+}

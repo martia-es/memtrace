@@ -1,5 +1,5 @@
 import { permissionsOf } from "./permissions";
-import type { ChartCatalogEntryDto } from "@contract";
+import type { AuditPageDto, ChartCatalogEntryDto, RetentionPolicyDto } from "@contract";
 import type {
   AddQueueItemsResponse,
   InterAnnotatorAgreementResponse,
@@ -104,6 +104,42 @@ export class FakeIdentityApi implements IdentityApi {
   }
   async updateOrganizationTheme(organizationId: string, theme: OrganizationThemeDto): Promise<OrganizationDto> {
     return { id: organizationId, name: "org", myRole: "org_admin", permissions: permissionsOf("org_admin"), theme };
+  }
+  retention: RetentionPolicyDto = { organizationId: "org-1", defaultDays: 30, minDays: 1, maxDays: 365, experiments: [] };
+  retentionCalls: Array<{ scope: "organization" | "experiment"; id: string; days: number | null }> = [];
+  async getRetention(): Promise<RetentionPolicyDto> {
+    return this.retention;
+  }
+  async setOrganizationRetention(_organizationId: string, days: number): Promise<RetentionPolicyDto> {
+    this.retentionCalls.push({ scope: "organization", id: _organizationId, days });
+    this.retention = {
+      ...this.retention,
+      defaultDays: days,
+      experiments: this.retention.experiments.map((e) => ({ ...e, overrideDays: e.overrideDays !== null && e.overrideDays > days ? null : e.overrideDays, effectiveDays: Math.min(days, e.overrideDays ?? days) })),
+    };
+    return this.retention;
+  }
+  async setExperimentRetention(_organizationId: string, experimentId: string, days: number | null): Promise<RetentionPolicyDto> {
+    this.retentionCalls.push({ scope: "experiment", id: experimentId, days });
+    this.retention = {
+      ...this.retention,
+      experiments: this.retention.experiments.map((e) => (e.experimentId === experimentId ? { ...e, overrideDays: days, effectiveDays: days ?? this.retention.defaultDays } : e)),
+    };
+    return this.retention;
+  }
+  auditPage: AuditPageDto = { items: [], nextCursor: null };
+  auditRequests: Array<Record<string, unknown>> = [];
+  async listAuditLog(_organizationId: string, filter: Record<string, unknown>): Promise<AuditPageDto> {
+    this.auditRequests.push(filter);
+    return this.auditPage;
+  }
+  exportPreview: { rows: number; maxRows: number } | Error = { rows: 12, maxRows: 2_000_000 };
+  async previewExport(): Promise<{ rows: number; maxRows: number }> {
+    if (this.exportPreview instanceof Error) throw this.exportPreview;
+    return this.exportPreview;
+  }
+  exportUrl(experimentId: string, request: { kind: string; from: string; to: string }): string {
+    return `/api/v1/experiments/${experimentId}/export?kind=${request.kind}&from=${request.from}&to=${request.to}`;
   }
   identity: OrganizationIdentityDto = { groupsClaim: "groups", mappings: [], scimTokens: [], scimBaseUrl: "https://mt.test/api/scim/v2" };
   async getOrganizationIdentity(): Promise<OrganizationIdentityDto> {

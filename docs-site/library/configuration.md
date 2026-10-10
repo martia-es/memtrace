@@ -37,7 +37,7 @@ The automatic [Pydantic AI and LangChain integrations](./integrations) follow th
 
 Redaction runs on **every span before it leaves your process**, whatever created it: MemTrace decorators, the LangChain handler, Pydantic AI, or any auto-instrumented library. It applies to attributes, exception messages and error statuses, and it is on even when content capture is off.
 
-What is masked as `[REDACTED]`:
+What is masked as `****`:
 
 - **By name**: any value whose key contains `api_key`, `password`, `secret`, `authorization`, `access_token`, `refresh_token`, `private_key`, `credential` or `cookie` (case-insensitive, at any depth). Add your own with `MEMTRACE_REDACT_KEYS`. `token` alone is not on the list, so `max_tokens` and `input_tokens` stay readable.
 - **By shape**, anywhere in text, prompts included: OpenAI/Anthropic `sk-…` keys, AWS, GitHub, Google and Slack keys, JWTs, `Bearer …` tokens, MemTrace `mtk_…` keys, private key blocks, `user:password@` in URLs, and `password=…` style pairs.

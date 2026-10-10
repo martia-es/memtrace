@@ -27,6 +27,8 @@ export MEMTRACE_OTLP_HEADERS="authorization=Bearer mtk_Ab3xY9..."
 
 An invalid or revoked key is rejected with `401`.
 
+A key only writes traces for its own experiment. Every trace must carry the `service.name` of the experiment the key belongs to (the `service_name` you pass to `init_tracer`, or `MEMTRACE_SERVICE_NAME`); a different one, or none, is rejected with `403` and the message tells you which name to use. Traces must be sent uncompressed or with gzip.
+
 ::: tip No `api_key` option yet
 The SDK has no dedicated `api_key` argument. Pass the key with `headers`, as above.
 :::

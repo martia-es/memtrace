@@ -74,3 +74,9 @@ export async function parseJsonOrThrow<T>(schema: z.ZodType<T>, request: Request
   }
   return result.data;
 }
+
+/** Plazo de retención de la organización (ADR-084). El rango lo valida el dominio. */
+export const organizationRetentionBody = z.object({ days: z.number() });
+
+/** Plazo propio de un experimento; `null` quita el override y vuelve al de la organización (ADR-084). */
+export const experimentRetentionBody = z.object({ days: z.number().nullable() });

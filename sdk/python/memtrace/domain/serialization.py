@@ -5,7 +5,7 @@ from typing import Any, Iterable, Optional
 
 logger = logging.getLogger("memtrace")
 
-REDACTED = "[REDACTED]"
+REDACTED = "****"
 SERIALIZATION_FAILED = "[UNSERIALIZABLE]"
 
 # Matched as case-insensitive substrings of mapping keys. "token" is deliberately absent: it

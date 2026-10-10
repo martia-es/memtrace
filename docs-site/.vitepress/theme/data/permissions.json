@@ -209,6 +209,31 @@
         "Choosing which profiles and how many people must approve each publication and each environment",
         "Naming default approvers who always have to approve"
       ]
+    },
+    {
+      "id": "retention:manage",
+      "group": "Data protection",
+      "description": "Choose how many days traces are kept, for the organization and for each experiment.",
+      "unlocks": [
+        "Setting the default retention of the organization (1 to 365 days)",
+        "Giving one experiment a shorter retention than the organization"
+      ]
+    },
+    {
+      "id": "audit:read",
+      "group": "Data protection",
+      "description": "Read the audit log of the organization.",
+      "unlocks": [
+        "Seeing who opened trace content, exported data or changed access and settings"
+      ]
+    },
+    {
+      "id": "data:export",
+      "group": "Data protection",
+      "description": "Export the data of an experiment as files.",
+      "unlocks": [
+        "Downloading traces, annotations, feedback and scores as JSON Lines (every export is recorded in the audit log)"
+      ]
     }
   ],
   "roles": [
@@ -233,7 +258,9 @@
         "prompt:read",
         "prompt:write",
         "prompt:promote",
-        "approval:manage"
+        "approval:manage",
+        "retention:manage",
+        "audit:read"
       ]
     },
     {
@@ -263,7 +290,8 @@
         "prompt:write",
         "prompt:promote",
         "prompt:approve",
-        "catalog:manage"
+        "catalog:manage",
+        "data:export"
       ]
     },
     {

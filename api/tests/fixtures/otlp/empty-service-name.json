@@ -1,0 +1,61 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": ""
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "fixture"
+          },
+          "spans": [
+            {
+              "traceId": "OrrCtZMO6RzWZG6Jh4d8ZQ==",
+              "spanId": "VQw0pL/+J4w=",
+              "name": "step-0",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1791620957164058092",
+              "endTimeUnixNano": "1791620957164067179",
+              "attributes": [
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "10"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 256
+            },
+            {
+              "traceId": "/xGXtatYNsl2x1WLHqwWPw==",
+              "spanId": "+gB5oTxLqw8=",
+              "name": "step-1",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1791620957164101273",
+              "endTimeUnixNano": "1791620957164108745",
+              "attributes": [
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "10"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 256
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

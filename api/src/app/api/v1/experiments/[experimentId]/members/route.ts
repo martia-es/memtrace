@@ -1,3 +1,4 @@
+import { auditExperiment } from "@/adapters/inbound/http/audit-context";
 import { requireUser } from "@/adapters/inbound/http/auth-context";
 import { identityGuard } from "@/adapters/inbound/http/identity-guard";
 import { addMemberBody, parseJsonOrThrow } from "@/adapters/inbound/http/identity-schemas";
@@ -60,10 +61,12 @@ export async function POST(request: Request, context: { params: Promise<{ experi
         roleLabel: role,
         appUrl: new URL(request.url).origin,
       });
+      await auditExperiment(user, experimentId, "member.add", { type: "user", id: email }, "best-effort", { role, status: "pending" });
       return json({ experimentId, email, role, status: "pending" }, 202);
     }
 
     await identityRepository.addExperimentMember(experimentId, invitee.id, role);
+    await auditExperiment(user, experimentId, "member.add", { type: "user", id: invitee.id }, "best-effort", { role, status: "added" });
     return json({ experimentId, userId: invitee.id, role }, 201);
   });
 }

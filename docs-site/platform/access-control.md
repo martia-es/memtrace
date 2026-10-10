@@ -6,7 +6,7 @@ MemTrace is multi-tenant. An **organization** contains any number of **experimen
 
 | Role | Level | Can |
 |---|---|---|
-| `org_admin` | Organization | Creates experiments, invites people (as `org_admin` or into an experiment with a role) and sees and revokes every API key. **Does not read traces or the dashboard**: to work in an experiment they also need a `technical` or `business` role there. The person who creates an experiment is added to it as `technical` |
+| `org_admin` | Organization | Creates experiments, invites people (as `org_admin` or into an experiment with a role), sees and revokes every API key, sets how long traces are kept and reads the audit log (see [Data protection](/platform/data-protection)). **Does not read traces or the dashboard**: to work in an experiment they also need a `technical` or `business` role there. The person who creates an experiment is added to it as `technical` |
 | `technical` | Experiment | The whole dashboard, including the technical trace, plus everything that shapes the review: create [queues](/platform/annotations#review-queues), manage rubrics (score configs), see every reviewer's answers, settle disagreements, build datasets, and create their own API key |
 | `business` | Experiment | The whole dashboard read-only (metrics, costs, automatic evaluations) with conversations shown as a chat, never the span-level technical trace. Annotates traces and reviews the queues they are assigned to |
 
@@ -58,6 +58,6 @@ Agents authenticate with an API key tied to one experiment, not with a user acco
 - Keys look like `mtk_Ab3xY9...`. The plaintext is shown **once**; only its hash is stored.
 - A key works for OTLP ingestion and for the evaluation endpoints of its own experiment. It does not reach any other experiment.
 - An invalid or revoked key is rejected with `401`. Revoke a key with `DELETE /api/v1/experiments/{experimentId}/api-keys/{keyId}`.
-- The ingest gateway checks that the key is valid. It does not check that the `service.name` of the traces matches the key's experiment.
+- The ingest gateway checks that the key is valid **and** that every trace carries the `service.name` of the key's experiment. A key cannot write into another experiment; a request with another name, or with none, is refused with `403` and the message says which name to use.
 
 How the SDK sends the key is in [Authentication](/library/authentication).

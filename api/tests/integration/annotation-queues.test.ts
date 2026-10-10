@@ -113,7 +113,9 @@ describe.skipIf(!url)("annotation queues (postgres)", () => {
     await repo.skipClaim(queue, item.id, users[0]!);
     expect((await repo.claimNext(queue, users[0]!))?.id).not.toBe(item.id);
     expect((await repo.claimNext(queue, users[1]!))?.id).toBe(item.id);
-    // sin items nuevos, lo saltado se vuelve a ofrecer (un único revisor no pierde items)
+    // el otro revisor lo suelta: mientras lo tenga reservado (15 min) no se ofrece a nadie más, como es debido
+    await repo.skipClaim(queue, item.id, users[1]!);
+    // sin items nuevos, lo saltado se vuelve a ofrecer (un único revisor no pierde items), el salto más antiguo primero
     const [other] = await repo.listItems(queue.id, "pending", 10).then((all) => all.filter((i) => i.id !== item.id));
     await repo.skipClaim(queue, other!.id, users[0]!);
     expect((await repo.claimNext(queue, users[0]!))?.id).toBe(item.id);

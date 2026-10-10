@@ -12,6 +12,10 @@ Your options, from strongest to most flexible:
 2. **Capture content and anonymize it** with the steps below.
 3. **Capture content as is**, only if your data policy allows it. Secrets are still masked.
 
+## A second net on the platform
+
+The SDK is the strongest layer, but it only works if the agent turns it on. As a safety net, the platform's Collector also masks, **before anything is written to the database**, personal data with a fixed format: emails, card numbers, IBANs, Spanish DNI/NIE, US SSN, phone numbers and IPv4 addresses. It applies to every agent, whatever its SDK settings. Names and free text have no fixed format, so only the SDK can catch them. See [Data protection](/platform/data-protection).
+
 ## Install
 
 ```bash
@@ -50,8 +54,10 @@ Hola, soy María García, mi DNI es 12345678Z y mi correo maria@example.com
 is exported as
 
 ```text
-Hola, soy <PERSON>, mi DNI es <ES_NIF> y mi correo <EMAIL_ADDRESS>
+Hola, soy ****, mi DNI es **** y mi correo ****
 ```
+
+Every mask is the same fixed `****`, whatever the type or length of the data. It is the same mask MemTrace uses for secrets, and the platform applies it too (see below).
 
 It runs on every span before export, whatever created it: your `@trace_step` functions, LangChain, Pydantic AI, or any auto-instrumented library. Structure is preserved: in a list of chat messages only the text is rewritten; roles, token counts and IDs are left alone.
 

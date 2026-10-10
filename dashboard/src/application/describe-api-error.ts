@@ -13,10 +13,10 @@ export function describeApiError(e: Error): string {
       return "This experiment doesn't exist or no experiment is selected. You don't have any yet? Create one in Administration.";
     }
     if (/trace|span/i.test(detail)) {
-      return "This trace could not be found. It may be outside the retention period (30 days).";
+      return "This trace could not be found. It may be outside the retention period of this experiment.";
     }
-    if (/conversation/i.test(detail)) return "This conversation could not be found. It may be outside the retention period (30 days).";
-    return detail || "Not found. If it's a trace, it may be outside the retention period (30 days).";
+    if (/conversation/i.test(detail)) return "This conversation could not be found. It may be outside the retention period of this experiment.";
+    return detail || "Not found. If it's a trace, it may be outside the retention period of this experiment.";
   }
   return detail || e.title;
 }

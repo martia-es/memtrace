@@ -1,0 +1,63 @@
+# Purga de retención de trazas (ADR-084). Una vez al día (03:30 UTC) borra, por experimento, los spans anteriores a su plazo
+# (organización o override del experimento) y las entradas de auditoría de más de un año. El TTL de las tablas de trazas en
+# ClickHouse (365 días) es solo el techo.
+# Usa el usuario `retention_worker` de ClickHouse (creado por el Job clickhouse-migrate): solo puede leer y borrar en las
+# tablas de trazas. Misma imagen que la API; para lanzarla ya: `kubectl -n memtrace create job --from=cronjob/retention-purge purge-now`.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: retention-purge
+  namespace: memtrace
+spec:
+  schedule: "30 3 * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 3000
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: retention-purge
+              image: memtrace/api:dev
+              imagePullPolicy: IfNotPresent   # imagen local cargada en kind: no hay registro
+              command: ["node", "worker/purge-traces.cjs"]
+              env:
+                - name: POSTGRES_HOST
+                  value: postgres
+                - name: POSTGRES_PORT
+                  value: "5432"
+                - name: POSTGRES_USER
+                  value: memtrace
+                - name: POSTGRES_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-credentials
+                      key: password
+                - name: POSTGRES_DATABASE
+                  value: memtrace_identity
+                - name: CLICKHOUSE_URL
+                  value: http://clickhouse:8123
+                - name: CLICKHOUSE_USER
+                  value: default
+                - name: CLICKHOUSE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: clickhouse-credentials
+                      key: password
+                - name: CLICKHOUSE_DATABASE
+                  value: memtrace
+                - name: CLICKHOUSE_RETENTION_USER
+                  value: retention_worker
+                - name: CLICKHOUSE_RETENTION_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: clickhouse-credentials
+                      key: retention-password
+              resources:
+                requests: { cpu: 25m, memory: 64Mi }
+                limits: { memory: 256Mi }

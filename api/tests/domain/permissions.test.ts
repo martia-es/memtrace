@@ -44,6 +44,13 @@ describe("built-in roles (ADR-052)", () => {
     expect(role("governance").permissions).not.toContain("catalog:manage");
   });
 
+  it("data protection (ADR-084): org_admin sets retention and reads the audit log but cannot export data, technical can", () => {
+    expect(role("org_admin").permissions).toEqual(expect.arrayContaining(["retention:manage", "audit:read"]));
+    expect(role("org_admin").permissions).not.toContain("data:export");
+    expect(role("technical").permissions).toContain("data:export");
+    expect(role("business").permissions).not.toContain("data:export");
+  });
+
   it("governance permissions (ADR-053): org_admin and governance see and decide, technical only maintains its own assistant", () => {
     expect(role("org_admin").permissions).toEqual(expect.arrayContaining(["governance:read", "governance:manage"]));
     expect(role("governance").scope).toBe("organization");

@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:integration": "CLICKHOUSE_INTEGRATION=1 vitest run tests/integration",
-    "build:worker": "esbuild src/worker/probe-health.ts --bundle --platform=node --target=node24 --format=cjs --external:pg-native --outfile=dist-worker/probe-health.cjs"
+    "build:worker": "esbuild src/worker/probe-health.ts src/worker/purge-traces.ts --bundle --platform=node --target=node24 --format=cjs --external:pg-native --outdir=dist-worker --out-extension:.js=.cjs"
   },
   "dependencies": {
     "@auth/pg-adapter": "^1.11.3",
