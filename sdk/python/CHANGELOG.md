@@ -8,6 +8,7 @@
 - **Masks are now `****`** everywhere. Secrets were masked as `[REDACTED]` and `presidio_redactor` replaced personal data with `<ENTITY_TYPE>` (`<PERSON>`, `<ES_NIF>`...); both now use the same fixed `****`, which also hides the length of the data. Code or dashboards that matched the old strings must be updated; `memtrace.domain.serialization.REDACTED` keeps pointing at the mask.
 
 ### Fixed
+- The root run of a LangGraph graph is now marked `memtrace.framework=langgraph` (before, only its nodes were). A real `StateGraph` with a checkpointer is covered by tests.
 - `enable_pydantic_ai_instrumentation()` and `enable_langchain_instrumentation()` now send their spans
   through the tracer configured by `init_tracer()`. Before, they used the process-global OpenTelemetry
   provider, which MemTrace never sets, so **no spans were exported**.

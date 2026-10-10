@@ -114,3 +114,11 @@ def test_langchain_inside_trace_step_is_child(spans):
         h.on_chain_start({"name": "c"}, {}, run_id=rid, parent_run_id=None)
         h.on_chain_end({}, run_id=rid)
     assert by_name(spans, "c").parent.span_id == by_name(spans, "outer").context.span_id
+
+
+def test_detects_langgraph_from_the_graph_root_run(spans):
+    h = MemTraceCallbackHandler()
+    rid = uuid.uuid4()
+    h.on_chain_start(None, {}, run_id=rid, name="LangGraph", metadata={"thread_id": "t1", "ls_integration": "langgraph"})
+    h.on_chain_end({}, run_id=rid)
+    assert by_name(spans, "LangGraph").attributes["memtrace.framework"] == "langgraph"

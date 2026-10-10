@@ -67,7 +67,7 @@ chain = RunnableLambda(lambda q: [SystemMessage(weather.compile(city="Sevilla"))
 
 ### LangGraph graphs
 
-A graph you build with `StateGraph` is traced like any other LangChain run, and each node shows up as a step with `memtrace.framework=langgraph`. Resolve the prompt **inside the node**, so every run uses the version in force at that moment:
+A graph you build with `StateGraph` is traced like any other LangChain run, and each node shows up as a step with `memtrace.framework=langgraph`. The graph itself is the root run and every span of it carries `memtrace.framework=langgraph`. The `thread_id` you pass in `config["configurable"]` becomes the conversation (session) id, so a checkpointed thread is one conversation in MemTrace. Resolve the prompt **inside the node**, so every run uses the version in force at that moment:
 
 ```python
 from langchain_core.messages import HumanMessage, SystemMessage
