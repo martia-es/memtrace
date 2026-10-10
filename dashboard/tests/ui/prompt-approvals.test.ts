@@ -110,6 +110,18 @@ describe("approval rules panel (ADR-076)", () => {
     expect(wrapper.find("[data-testid='rule-promote-pre'] [data-testid='rule-summary']").text()).toBe("No approval needed");
   });
 
+  it("removing the rule of an exempt agent says no approval is needed, not that the organization's rule applies", async () => {
+    const api = new FakePromptApi();
+    api.rules = { ...api.rules, rules: [rule("dev", [["business", 1]], [])], organizationRules: [rule("dev", [["business", 1]], [])], exemptions: [{ action: "promote", stage: "dev" }] };
+    const { wrapper } = await setup(ApprovalRulesPanel, "technical", api, { scope: { type: "experiment", id: "exp-1" } });
+    await wrapper.find("[data-testid='rule-promote-dev'] [data-testid='rule-edit']").trigger("click");
+    await wrapper.find("[data-testid='rule-remove']").trigger("click");
+    await tick();
+    expect(api.calls.find((c) => c.method === "deleteApprovalRule")?.args).toEqual([{ type: "experiment", id: "exp-1" }, "promote", "dev"]);
+    expect(wrapper.find("[data-testid='rule-promote-dev'] [data-testid='rule-summary']").text()).toBe("No approval needed");
+    expect(wrapper.find("[data-testid='rule-promote-dev'] [data-testid='rule-exempt']").exists()).toBe(true);
+  });
+
   it("explains why an empty rule cannot be saved and points to Remove rule when there is one", async () => {
     const api = new FakePromptApi();
     const { wrapper } = await setup(ApprovalRulesPanel, "technical", api, { scope: { type: "organization", id: "org-1" } });

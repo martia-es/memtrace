@@ -159,7 +159,9 @@ async function remove(row: { action: "publish" | "promote"; stage: string }) {
     await api.deleteApprovalRule(props.scope, row.action, row.stage);
     if (editing.value?.action === row.action && editing.value.stage === row.stage) editing.value = null;
     await load();
-    $q.notify({ message: isExperiment.value ? "Rule removed; the organization's rule still applies" : "Rule removed: no approval needed here", color: "positive", timeout: 3000 });
+    // con un suelo que aplica, quitar la regla del agente deja la de la organización; exento o sin suelo, deja sin aprobación
+    const message = floorOf(row.action, row.stage) ? "Rule removed; the organization's rule still applies" : "Rule removed: no approval needed here";
+    $q.notify({ message, color: "positive", timeout: 3000 });
   } catch (error) {
     $q.notify({ message: `Could not remove the rule: ${describeApiError(error as Error)}`, color: "negative", timeout: 5000 });
   } finally {
