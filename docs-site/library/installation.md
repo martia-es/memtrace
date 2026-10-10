@@ -15,5 +15,6 @@ Traces are sent over **OTLP/HTTP** by default, and that exporter is part of the 
 | `grpc` | `pip install "memtrace-ai[grpc]"` | OTLP/gRPC exporter, only to send to a collector that listens on gRPC only (see [Bring your own backend](./bring-your-own-backend)). The MemTrace platform does not accept gRPC |
 | `langchain` | `pip install "memtrace-ai[langchain]"` | `MemTraceCallbackHandler`, [`prompt_middleware`](./prompts#frameworks-that-freeze-the-prompt) (LangChain 1.x `create_agent`, Python 3.10+) and automatic instrumentation for LangChain / LangGraph |
 | `pydantic-ai` | `pip install "memtrace-ai[pydantic-ai]"` | Automatic Pydantic AI instrumentation (or install `pydantic-ai` yourself) |
+| `openai-agents` | `pip install "memtrace-ai[openai-agents]"` | Automatic [OpenAI Agents SDK](./integrations#openai-agents-sdk) instrumentation |
 | `pii` | `pip install "memtrace-ai[pii]"` | [Anonymization of personal data](./pii) with Presidio (also needs a spaCy model) |
 | `eval` | `pip install "memtrace-ai[eval]"` | [Offline evaluation](./evaluation) against MemTrace datasets and uploading results; also the HTTP client of [user feedback](./feedback) and of the [prompt registry](./prompts); also the bundled `AnthropicJudgeClient` for [LLM-as-judge evaluators](./evaluation#llm-as-judge-evaluators) |

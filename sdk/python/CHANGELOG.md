@@ -17,6 +17,7 @@
 - Spans created by auto-instrumented libraries inside `with session(...)` now carry that session id.
 
 ### Added
+- **OpenAI Agents SDK** (`memtrace.openai_agents`, extra `openai-agents`): `enable_openai_agents_instrumentation()` registers a tracing processor that exports the SDK's agent, model, tool, handoff, guardrail and MCP spans with the usual attributes (`memtrace.framework=openai-agents`; the trace's `group_id` is the conversation id). Pass `keep_openai_export=False` to stop uploading traces to OpenAI.
 - `prompts.propose_fix(name, cases, llm)` and `prompts.save_draft(...)` (ADR-072): ask **your** LLM (any object with `complete(system=, prompt=)`, like the judges' client) for a fix of a prompt from `FixCase`s and save it in MemTrace as a **draft** for a person to review, test and publish. A proposal that changes the prompt's `{{variables}}` or leaves it unchanged is refused (`FixProposalError`) and nothing is saved. Asking for a draft by number (`prompts.get(name, version=N)`, to evaluate it) logs a warning.
 - Prompt playground in the real agent (ADR-071): `PromptOverrideMiddleware` (ASGI) and `prompts.override(token)` let MemTrace run another prompt version in this agent for a single request. Opt-in with `MEMTRACE_ALLOW_PROMPT_OVERRIDE=true`; a token MemTrace does not recognize, or MemTrace being down, serves the normal version. The span is marked `memtrace.playground=true`.
 - `memtrace.langchain.prompt_middleware(handle, **variables)`: a registry prompt as the system prompt of a LangChain 1.x `create_agent`
