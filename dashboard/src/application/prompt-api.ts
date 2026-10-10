@@ -77,6 +77,8 @@ export interface PromptApi {
   getApprovalRules(scope: ApprovalScope, signal?: AbortSignal): Promise<ApprovalRulesResponse>;
   setApprovalRule(scope: ApprovalScope, rule: Pick<ApprovalRuleDto, "action" | "stage" | "requirements" | "approvers">, signal?: AbortSignal): Promise<ApprovalRuleDto>;
   deleteApprovalRule(scope: ApprovalScope, action: "publish" | "promote", stage: string, signal?: AbortSignal): Promise<void>;
+  /** Exime al experimento de la regla de la organización en ese paso (solo `org_admin`) o lo revierte. */
+  setApprovalExemption(experimentId: string, action: "publish" | "promote", stage: string, exempt: boolean, signal?: AbortSignal): Promise<void>;
 }
 
 export type ApprovalScope = { type: "organization" | "experiment"; id: string };

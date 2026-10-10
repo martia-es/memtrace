@@ -123,6 +123,11 @@ export class FakePromptApi implements PromptApi {
     this.record("deleteApprovalRule", scope, action, stage);
     this.rules = { ...this.rules, rules: this.rules.rules.filter((r) => !(r.action === action && r.stage === stage)) };
   }
+  async setApprovalExemption(experimentId: string, action: "publish" | "promote", stage: string, exempt: boolean) {
+    this.record("setApprovalExemption", experimentId, action, stage, exempt);
+    const others = (this.rules.exemptions ?? []).filter((x) => !(x.action === action && x.stage === stage));
+    this.rules = { ...this.rules, exemptions: exempt ? [...others, { action, stage }] : others };
+  }
   async listForAgent(experimentId: string, includeArchived: boolean) {
     this.record("listForAgent", experimentId, includeArchived);
     return this.list;

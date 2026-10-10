@@ -16,6 +16,8 @@ export interface FlowStep {
   rule: ApprovalRuleDto | null;
   /** el suelo que pone la organización, si se muestra aparte */
   floor?: ApprovalRuleDto | null;
+  /** un `org_admin` ha eximido a este agente de la regla de la organización en este paso (ADR-076) */
+  exempt?: boolean;
   /** el paso que se está editando */
   open?: boolean;
 }
@@ -84,6 +86,7 @@ const cards = computed(() =>
         <!-- los datos de siempre, para quien los lea como texto -->
         <span class="sr" data-testid="rule-summary">{{ describeRule(c.step.rule, names) }}</span>
         <span v-if="c.step.floor" class="floor" data-testid="rule-floor">Organization: {{ describeRule(c.step.floor, names) }}</span>
+        <span v-if="c.step.exempt" class="floor" data-testid="rule-exempt">Exempt from the organization's rule</span>
         <div v-if="$slots.actions" class="actions"><slot name="actions" :step="c.step" /></div>
       </div>
     </li>

@@ -13,6 +13,7 @@ import {
   unreachableReason,
   validateNote,
   validateRule,
+  validateStep,
   type ApprovalAction,
   type ApprovalEvaluation,
   type ApprovalRequest,
@@ -39,7 +40,7 @@ const LIST_LIMIT = 100;
 const MAX_EXTRA_APPROVERS = 10;
 
 /**
- * Aprobaciones de prompts (ADR-076): reglas por organización y experimento (el experimento solo endurece), solicitudes de
+ * Aprobaciones de prompts (ADR-076): reglas por organización y experimento (el experimento solo endurece, salvo una excepción de un `org_admin`), solicitudes de
  * publicar una versión o promoverla a un entorno, y decisiones de quienes pueden aprobar. La autorización de la ruta decide
  * quién puede pedir, aprobar o configurar; aquí se aplican las reglas.
  */
@@ -73,14 +74,35 @@ export class ApprovalService {
     return { roles, environments, candidates };
   }
 
-  /** Las reglas del ámbito con lo que se puede elegir; en un experimento, también el suelo que pone la organización. */
+  /**
+   * Las reglas del ámbito con lo que se puede elegir; en un experimento, también el suelo que pone la organización y los pasos
+   * de los que un `org_admin` lo ha eximido.
+   */
   async rulesWithOptions(scope: ApprovalScope, organizationId: string) {
-    const [rules, organizationRules, options] = await Promise.all([
+    const [rules, organizationRules, exemptions, options] = await Promise.all([
       this.approvals.listRules(scope),
       scope.type === "experiment" ? this.approvals.listRules({ type: "organization", id: organizationId }) : Promise.resolve(undefined),
+      scope.type === "experiment" ? this.approvals.listExemptions(scope.id) : Promise.resolve(undefined),
       this.options(organizationId, scope.type === "experiment" ? scope.id : undefined),
     ]);
-    return { rules, organizationRules, options: { ...options, publishRoles: [...PUBLISH_APPROVER_ROLES] } };
+    return { rules, organizationRules, exemptions, options: { ...options, publishRoles: [...PUBLISH_APPROVER_ROLES] } };
+  }
+
+  /**
+   * Exime a un experimento de la regla de la organización en un paso: la regla sigue valiendo para los demás. Solo tiene sentido
+   * si la organización pide algo ahí. Quien llama ya tiene `approval:manage` (la ruta); queda en el registro de auditoría.
+   */
+  async setExemption(experimentId: string, organizationId: string, userId: string, input: { action: unknown; stage?: unknown }): Promise<{ action: ApprovalAction; stage: string }> {
+    const environmentKeys = await this.promptRepo.environmentKeys(organizationId);
+    const { action, stage } = validateStep(input, environmentKeys);
+    const floor = (await this.approvals.listRules({ type: "organization", id: organizationId })).find((r) => r.action === action && r.stage === stage);
+    if (!floor) throw new ValidationError("Nothing to be exempt from", { action: "The organization has no approval rule for this step" });
+    await this.approvals.setExemption(experimentId, action, stage, userId);
+    return { action, stage };
+  }
+
+  async deleteExemption(experimentId: string, action: ApprovalAction, stage: string): Promise<void> {
+    if (!(await this.approvals.deleteExemption(experimentId, action, stage))) throw new PromptNotFoundError("Approval exemption");
   }
 
   /**
@@ -96,7 +118,8 @@ export class ApprovalService {
       if (unknown.length > 0) throw new ValidationError("Invalid approval rule", { approvers: "Default approvers have to be members with permission to approve" });
     }
     if (scope.type === "experiment") {
-      const floor = (await this.approvals.listRules({ type: "organization", id: organizationId })).find((r) => r.action === rule.action && r.stage === rule.stage);
+      const exempt = (await this.approvals.listExemptions(scope.id)).some((e) => e.action === rule.action && e.stage === rule.stage);
+      const floor = exempt ? undefined : (await this.approvals.listRules({ type: "organization", id: organizationId })).find((r) => r.action === rule.action && r.stage === rule.stage);
       const looser = floor ? looserThan(rule, floor) : null;
       if (looser) throw new ValidationError("This rule is looser than the organization's", { requirements: looser });
     }

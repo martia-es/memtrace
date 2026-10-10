@@ -30,6 +30,7 @@ function fakeApprovals() {
   const rules = new Map<string, ApprovalRule>();
   const requests = new Map<string, ApprovalRequest>();
   const claimed = new Set<string>();
+  const exemptions = new Set<string>();
   let seq = 0;
   const key = (s: ApprovalScope, a: string, stage: string) => `${s.type}:${s.id}:${a}:${stage}`;
   const repo: ApprovalRepository = {
@@ -39,8 +40,17 @@ function fakeApprovals() {
       return rule;
     },
     deleteRule: async (scope, action, stage) => rules.delete(key(scope, action, stage)),
-    rulesFor: async (org, experiments, action, stage) =>
-      [key({ type: "organization", id: org }, action, stage), ...experiments.map((e) => key({ type: "experiment", id: e }, action, stage))].map((k) => rules.get(k)).filter((r): r is ApprovalRule => !!r),
+    rulesFor: async (org, experiments, action, stage) => ({
+      organization: rules.get(key({ type: "organization", id: org }, action, stage)) ?? null,
+      experiments: experiments.map((e) => rules.get(key({ type: "experiment", id: e }, action, stage))).filter((r): r is ApprovalRule => !!r),
+      exemptExperimentIds: experiments.filter((e) => exemptions.has(`${e}:${action}:${stage}`)),
+    }),
+    listExemptions: async (experimentId) =>
+      [...exemptions].filter((k) => k.startsWith(`${experimentId}:`)).map((k) => ({ action: k.split(":")[1] as ApprovalAction, stage: k.split(":")[2] ?? "" })),
+    setExemption: async (experimentId, action, stage) => {
+      exemptions.add(`${experimentId}:${action}:${stage}`);
+    },
+    deleteExemption: async (experimentId, action, stage) => exemptions.delete(`${experimentId}:${action}:${stage}`),
     approvers: async () => PEOPLE,
     approverCandidates: async () => PEOPLE.map((p) => ({ ...p, email: `${p.userId}@x.io`, name: p.userId })),
     experimentRoleNames: async () => ["business", "technical"],
@@ -82,7 +92,7 @@ function fakeApprovals() {
       if (patch.executionError !== undefined) r.executionError = patch.executionError;
     },
   };
-  return { repo, rules, requests };
+  return { repo, rules, requests, exemptions };
 }
 
 /** Repositorio de prompts mínimo: lo que usan PromptService y el servicio de aprobaciones. */
@@ -307,6 +317,66 @@ describe("default and extra approvers", () => {
     t.addVersion("published");
     t.rules.set(`organization:${ORG}:promote:pro`, rule({ requirements: [{ role: "business", min: 2 }] }));
     await expect(t.service.open(t.prompt, ZOE, { action: "promote", version: 1, tag: "pro" }, false)).rejects.toThrow(/Nobody could approve/);
+  });
+});
+
+describe("an org_admin can exempt an experiment from the organization's rule", () => {
+  const scopeExp: ApprovalScope = { type: "experiment", id: AGENT };
+  const orgPro = { action: "promote", stage: "pro", requirements: [{ role: "technical", min: 2 }] };
+
+  it("the experiment can then ask for less, and the organization's rule stops applying to a prompt that only belongs to exempt agents", async () => {
+    const t = setup();
+    await t.service.setRule({ type: "organization", id: ORG }, ORG, ANA, orgPro);
+    await t.service.setExemption(AGENT, ORG, ANA, { action: "promote", stage: "pro" });
+    await t.service.setExemption(OTHER_AGENT, ORG, ANA, { action: "promote", stage: "pro" });
+    await expect(t.service.setRule(scopeExp, ORG, ANA, { action: "promote", stage: "pro", requirements: [{ role: "technical", min: 1 }] })).resolves.toBeDefined();
+    expect((await t.service.effectiveRules(t.prompt)).find((r) => r.stage === "pro")!.requirements).toEqual([{ role: "technical", min: 1 }]);
+  });
+
+  it("with no rule of its own, an exempt agent needs no approval at all", async () => {
+    const t = setup();
+    await t.service.setRule({ type: "organization", id: ORG }, ORG, ANA, orgPro);
+    await t.service.setExemption(AGENT, ORG, ANA, { action: "promote", stage: "pro" });
+    await t.service.setExemption(OTHER_AGENT, ORG, ANA, { action: "promote", stage: "pro" });
+    expect((await t.promptService.detail("p1")).approvals.promote).toEqual([]);
+  });
+
+  it("a prompt shared with an agent that is NOT exempt still follows the organization's rule (the strictest wins)", async () => {
+    const t = setup();
+    await t.service.setRule({ type: "organization", id: ORG }, ORG, ANA, orgPro);
+    await t.service.setExemption(AGENT, ORG, ANA, { action: "promote", stage: "pro" });
+    expect((await t.service.effectiveRules(t.prompt)).find((r) => r.stage === "pro")!.requirements).toEqual([{ role: "technical", min: 2 }]);
+  });
+
+  it("is per step: the other steps keep the organization's floor", async () => {
+    const t = setup();
+    await t.service.setRule({ type: "organization", id: ORG }, ORG, ANA, orgPro);
+    await t.service.setRule({ type: "organization", id: ORG }, ORG, ANA, { action: "promote", stage: "pre", requirements: [{ role: "technical", min: 2 }] });
+    await t.service.setExemption(AGENT, ORG, ANA, { action: "promote", stage: "pro" });
+    await expect(t.service.setRule(scopeExp, ORG, ANA, { action: "promote", stage: "pre", requirements: [{ role: "technical", min: 1 }] })).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("revoking it brings the floor back", async () => {
+    const t = setup();
+    await t.service.setRule({ type: "organization", id: ORG }, ORG, ANA, orgPro);
+    await t.service.setExemption(AGENT, ORG, ANA, { action: "promote", stage: "pro" });
+    await t.service.deleteExemption(AGENT, "promote", "pro");
+    await expect(t.service.setRule(scopeExp, ORG, ANA, { action: "promote", stage: "pro", requirements: [{ role: "technical", min: 1 }] })).rejects.toBeInstanceOf(ValidationError);
+    await expect(t.service.deleteExemption(AGENT, "promote", "pro")).rejects.toThrow(/not found/i);
+  });
+
+  it("refuses an exemption where the organization has no rule, or for an unknown environment", async () => {
+    const t = setup();
+    await expect(t.service.setExemption(AGENT, ORG, ANA, { action: "promote", stage: "pro" })).rejects.toBeInstanceOf(ValidationError);
+    await expect(t.service.setExemption(AGENT, ORG, ANA, { action: "promote", stage: "qa" })).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("the rules response tells the dashboard which steps are exempt", async () => {
+    const t = setup();
+    await t.service.setRule({ type: "organization", id: ORG }, ORG, ANA, { action: "publish", requirements: [{ role: "technical", min: 1 }] });
+    await t.service.setExemption(AGENT, ORG, ANA, { action: "publish" });
+    expect((await t.service.rulesWithOptions(scopeExp, ORG)).exemptions).toEqual([{ action: "publish", stage: "" }]);
+    expect((await t.service.rulesWithOptions({ type: "organization", id: ORG }, ORG)).exemptions).toBeUndefined();
   });
 });
 

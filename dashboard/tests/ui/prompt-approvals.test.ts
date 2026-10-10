@@ -110,6 +110,34 @@ describe("approval rules panel (ADR-076)", () => {
     expect(wrapper.find("[data-testid='rule-promote-pre'] [data-testid='rule-summary']").text()).toBe("No approval needed");
   });
 
+  it("an org_admin can exempt the agent from the organization's rule in a step, and then it may ask for less", async () => {
+    const api = new FakePromptApi();
+    api.rules = { ...api.rules, organizationRules: [rule("pro", [["technical", 2]], [])] };
+    const { wrapper } = await setup(ApprovalRulesPanel, "technical", api, { scope: { type: "experiment", id: "exp-1" } });
+    await wrapper.find("[data-testid='rule-promote-pro'] [data-testid='rule-edit']").trigger("click");
+    await wrapper.find("[data-testid='min-technical']").setValue("1");
+    expect(wrapper.find("[data-testid='rule-floor-problem']").exists()).toBe(true);
+    await wrapper.find("[data-testid='rule-exempt-toggle']").setValue(true);
+    await tick();
+    expect(api.calls.find((c) => c.method === "setApprovalExemption")?.args).toEqual(["exp-1", "promote", "pro", true]);
+    expect(wrapper.find("[data-testid='rule-promote-pro'] [data-testid='rule-exempt']").exists()).toBe(true);
+    expect(wrapper.find("[data-testid='rule-promote-pro'] [data-testid='rule-floor']").exists()).toBe(false);
+    // ya sin suelo, bajar a 1 no se avisa
+    await wrapper.find("[data-testid='min-technical']").setValue("1");
+    expect(wrapper.find("[data-testid='rule-floor-problem']").exists()).toBe(false);
+  });
+
+  it("offers the exemption only in an experiment, and only where the organization has a rule", async () => {
+    const api = new FakePromptApi();
+    api.rules = { ...api.rules, organizationRules: [rule("pro", [["technical", 2]], [])] };
+    const exp = await setup(ApprovalRulesPanel, "technical", api, { scope: { type: "experiment", id: "exp-1" } });
+    await exp.wrapper.find("[data-testid='rule-promote-pre'] [data-testid='rule-edit']").trigger("click");
+    expect(exp.wrapper.find("[data-testid='rule-exempt-toggle']").exists()).toBe(false);
+    const org = await setup(ApprovalRulesPanel, "technical", new FakePromptApi(), { scope: { type: "organization", id: "org-1" } });
+    await org.wrapper.find("[data-testid='rule-promote-pro'] [data-testid='rule-edit']").trigger("click");
+    expect(org.wrapper.find("[data-testid='rule-exempt-toggle']").exists()).toBe(false);
+  });
+
   it("an experiment starts from the organization's floor and cannot go below it", async () => {
     const api = new FakePromptApi();
     api.rules = { ...api.rules, organizationRules: [rule("pro", [["technical", 2]], ["u-ana"])] };

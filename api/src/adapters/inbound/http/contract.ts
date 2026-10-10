@@ -1367,6 +1367,8 @@ export interface ApprovalOptionsDto {
 export interface ApprovalRulesResponse {
   rules: ApprovalRuleDto[];
   organizationRules?: ApprovalRuleDto[];
+  /** en un experimento: pasos en los que un `org_admin` lo ha eximido de la regla de la organización (ADR-076) */
+  exemptions?: { action: "publish" | "promote"; stage: string }[];
   options: ApprovalOptionsDto;
 }
 

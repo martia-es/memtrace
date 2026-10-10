@@ -72,6 +72,16 @@ export function ruleKey(rule: Pick<ApprovalRule, "action" | "stage">): string {
   return `${rule.action}:${rule.stage}`;
 }
 
+/** Valida el paso (acción y entorno) sobre el que se actúa sin escribir una regla, p. ej. una excepción. */
+export function validateStep(input: { action: unknown; stage?: unknown }, environmentKeys: readonly string[]): { action: ApprovalAction; stage: string } {
+  if (!APPROVAL_ACTIONS.includes(input.action as ApprovalAction)) throw new ValidationError("Invalid approval step", { action: `Use one of: ${APPROVAL_ACTIONS.join(", ")}` });
+  const action = input.action as ApprovalAction;
+  if (action === "publish") return { action, stage: "" };
+  const stage = typeof input.stage === "string" ? input.stage.trim() : "";
+  if (!environmentKeys.includes(stage)) throw new ValidationError("Invalid approval step", { stage: `Use one of the organization's environments: ${environmentKeys.join(", ")}` });
+  return { action, stage };
+}
+
 /** Valida y normaliza una regla escrita por una persona. `validRoles` son los roles de experimento que existen. */
 export function validateRule(
   input: { action: unknown; stage?: unknown; requirements?: unknown; approvers?: unknown },
@@ -130,6 +140,25 @@ export function mergeRules(rules: readonly ApprovalRule[]): ApprovalRule | null 
     for (const a of rule.approvers) approvers.add(a);
   }
   return { action: rules[0]!.action, stage: rules[0]!.stage, requirements: [...mins].map(([role, min]) => ({ role, min })), approvers: [...approvers] };
+}
+
+/** Las reglas que hay en juego para un paso de un prompt: la de su organización, las de sus agentes y qué agentes están exentos. */
+export interface RuleSet {
+  organization: ApprovalRule | null;
+  experiments: ApprovalRule[];
+  /** agentes (de los del prompt) a los que un `org_admin` ha eximido de la regla de la organización en este paso */
+  exemptExperimentIds: string[];
+}
+
+/**
+ * Las reglas que se apilan para un prompt. La regla de la organización deja de aplicar solo si TODOS los agentes del prompt
+ * están exentos: si alguno no lo está, ese agente la sigue exigiendo y gana la más estricta (igual que al apilar agentes).
+ * Un prompt sin agentes no tiene a quién eximir y sigue la regla de la organización.
+ */
+export function applicableRules(set: RuleSet, experimentIds: readonly string[]): ApprovalRule[] {
+  const exempt = new Set(set.exemptExperimentIds);
+  const organizationApplies = experimentIds.length === 0 || experimentIds.some((id) => !exempt.has(id));
+  return [...(organizationApplies && set.organization ? [set.organization] : []), ...set.experiments];
 }
 
 /** ¿`candidate` exige menos que `base` en algo? Un experimento que hiciera eso afloja la regla de la organización. */

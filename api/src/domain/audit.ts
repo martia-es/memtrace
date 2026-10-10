@@ -18,6 +18,9 @@ export const AUDIT_ACTIONS = [
   "alert.delete",
   "budget.update",
   "budget.delete",
+  /** un `org_admin` eximió a un agente de la regla de aprobación de la organización en un paso, o lo revirtió (ADR-076) */
+  "approval_exemption.grant",
+  "approval_exemption.revoke",
   "partnership.create",
   "partnership.revoke",
   "partner_grant.create",

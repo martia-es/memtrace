@@ -103,6 +103,11 @@ export class HttpPromptApi implements PromptApi {
   async deleteApprovalRule(scope: ApprovalScope, action: "publish" | "promote", stage: string, signal?: AbortSignal): Promise<void> {
     await this.request("DELETE", `${rulesPath(scope)}?action=${e(action)}&stage=${e(stage)}`, undefined, signal);
   }
+  async setApprovalExemption(experimentId: string, action: "publish" | "promote", stage: string, exempt: boolean, signal?: AbortSignal): Promise<void> {
+    const path = `/experiments/${e(experimentId)}/approval-exemptions`;
+    if (exempt) await this.request("PUT", path, { action, stage }, signal);
+    else await this.request("DELETE", `${path}?action=${e(action)}&stage=${e(stage)}`, undefined, signal);
+  }
 
   private async request<T>(method: string, path: string, body: unknown, signal?: AbortSignal): Promise<T> {
     let response: Response;

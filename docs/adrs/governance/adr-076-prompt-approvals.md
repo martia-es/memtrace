@@ -1,6 +1,6 @@
 # ADR-076: Prompt Approvals (Publish and Promote Behind Rules)
 
-* **Status**: Accepted — backend implemented (2026-10-09); dashboard in the same change set
+* **Status**: Accepted — backend implemented (2026-10-09); dashboard in the same change set. Amended 2026-10-10: exemptions per experiment
 * **Date**: 2026-10-09
 * **Deciders**: MemTrace Core Team
 * **Extends**: [ADR-067](../prompts/adr-067-prompt-registry-immutable-versions-and-tags.md), [ADR-070](../prompts/adr-070-prompt-promotion-gate.md), [ADR-072](../prompts/adr-072-drafts-and-fixes-from-failures.md)
@@ -39,6 +39,20 @@ Publishing is a review of the text, so only the `technical` profile may be asked
 ### Effective rule: stacking only tightens
 
 A prompt belongs to an organization and to N agents. Its effective rule for an action and stage is the **stack** of the organization's rule and the rules of every agent it belongs to (`mergeRules`): per profile the highest minimum wins and the named approvers are the union. Stacking can only add requirements, so an experiment cannot loosen the organization's floor by construction. On top of that, saving an experiment rule that asks for less than the organization's is refused (`looserThan`, 400), so the mistake is visible instead of silently ignored. If the organization tightens later, existing experiment rules are still stacked correctly.
+
+### Amendment (2026-10-10): exemption per experiment
+
+*Problem.* "The organization sets the floor" deadlocks an organization with agents of different sizes: a rule such as "1 technical approves a publication" can never be met in an agent whose only technical member is the requester (the requester never counts), and an experiment cannot loosen it. The only way out was to remove the organization's rule for everybody.
+
+*Decision.* An **`org_admin` may exempt one experiment from the organization's rule in one step** (publish, or one environment). It is a row in `approval_rule_exemptions (experiment_id, action, stage)` (migration 045), a per-step switch, not a copy of the rule:
+
+- The exempt agent stops following the organization's rule in that step and follows only **its own** rule there (or none). Its own rule is no longer checked against the floor (`setRule`), because the floor does not apply to it.
+- The prompt stacking is unchanged except for one pure function (`applicableRules`): the organization's rule is dropped only when **every** agent of the prompt is exempt. If one agent is not exempt, the organization's rule still applies and the strictest wins, as before. A prompt with no agents has nobody to exempt and follows the organization.
+- Only `approval:manage` (held by `org_admin`) can grant or revoke it (`PUT/DELETE /experiments/{id}/approval-exemptions`), so the people who are gated still cannot rewrite the gate. Both calls are written to the audit log (`approval_exemption.grant|revoke`, ADR-084).
+- It is refused if the organization has no rule in that step (nothing to be exempt from). `GET .../approval-rules` of an experiment also returns its `exemptions`.
+- Revoking brings the floor back immediately. A rule the exempt experiment saved while exempt is **not** rewritten, and from then on it is checked against the floor again only when it is saved.
+
+*Alternatives rejected.* Letting any experiment override the organization freely (the organization could guarantee nothing, and the experiment admin could remove their own gate); auto-approving when the requester is the only eligible person (defeats four eyes, already rejected below).
 
 ### Requests
 
@@ -82,11 +96,11 @@ With a rule active: `saveVersion` creates a draft instead of a published version
 
 ## Not done
 
-Email or push notification to approvers (the inbox is pull-based, like annotation queues); approval groups ("any `org_admin`") instead of named people or profiles — it fits the external identity mapping of ADR-052 later; rules for deployments (ADR-064 "approvals in PRO" will reuse the same tables with a new action); approvers' delegation and out-of-office; a separate permission to edit a rule per experiment (today `approval:manage`, held by `org_admin`).
+A reason or expiry date on an exemption; exemptions at organization level for many agents at once; Email or push notification to approvers (the inbox is pull-based, like annotation queues); approval groups ("any `org_admin`") instead of named people or profiles — it fits the external identity mapping of ADR-052 later; rules for deployments (ADR-064 "approvals in PRO" will reuse the same tables with a new action); approvers' delegation and out-of-office; a separate permission to edit a rule per experiment (today `approval:manage`, held by `org_admin`).
 
 ## Alternatives considered
 
 - **Required on or off per organization**: simpler but cannot express "one technical for `dev`, a technical and a business for `pro`".
-- **Experiments free to loosen the organization's rule**: more flexible, but then the organization cannot guarantee anything.
+- **Experiments free to loosen the organization's rule**: more flexible, but then the organization cannot guarantee anything. A per-experiment exemption granted by an `org_admin` (amendment above) keeps the guarantee for everyone else.
 - **Approval as a snapshot of the rule at request time**: avoids surprises but lets a request outlive a tightening of the policy; evaluating with today's rule is the safer reading.
 - **Auto-approving when the requester is the only eligible person**: avoids deadlocks but defeats four eyes; the up-front check surfaces the problem instead, and a governance bypass remains for the evaluation gate.
