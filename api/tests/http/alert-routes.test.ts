@@ -168,7 +168,7 @@ describe("open alerts for the bell", () => {
 describe("notifications for the bell", () => {
   const note = (id: string, experimentId: string, at: string) => ({
     id, kind: "fired" as const, at, experimentId, experimentName: "Weather", ruleId: "r1", ruleName: "Too slow", metric: "latency_p95" as const, comparator: "above" as const,
-    value: 2807, threshold: 5, budgetUsd: null, warnPercent: null,
+    value: 2807, threshold: 5, budgetUsd: null, warnPercent: null, windowMinutes: 5, spentUsd: null, recipients: 0,
   });
   type Feed = { items: Array<{ id: string; read: boolean }>; unread: number };
 

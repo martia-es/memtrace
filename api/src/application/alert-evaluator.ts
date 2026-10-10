@@ -149,7 +149,7 @@ export class AlertEvaluator {
         console.error(`[alerts] could not email budget of ${budget.experimentId}:`, error);
       }
     }
-    await this.repo.markBudgetNotified(budget.experimentId, month, result.markNotified, result.notify, emailed);
+    await this.repo.markBudgetNotified(budget.experimentId, month, result.markNotified, result.notify, emailed, spent);
     return true;
   }
 }

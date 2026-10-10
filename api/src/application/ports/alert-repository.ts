@@ -27,6 +27,9 @@ export interface OpenAlert {
   lastValue: number | null;
   threshold: number;
   comparator: AlertRule["comparator"];
+  windowMinutes: number;
+  /** cuántas direcciones recibirían el correo; las direcciones no salen de la API */
+  recipients: number;
 }
 
 export interface NewAlertEvent {
@@ -68,7 +71,7 @@ export interface AlertRepository {
   deleteBudget(experimentId: string): Promise<boolean>;
   listEvaluableBudgets(): Promise<EvaluableBudget[]>;
   notifiedLevels(experimentId: string, month: string): Promise<Set<BudgetLevel>>;
-  markBudgetNotified(experimentId: string, month: string, levels: BudgetLevel[], notified: BudgetLevel | null, emailed: number): Promise<void>;
+  markBudgetNotified(experimentId: string, month: string, levels: BudgetLevel[], notified: BudgetLevel | null, emailed: number, spentUsd?: number): Promise<void>;
   upsertDailyCost(experimentId: string, day: string, costUsd: number): Promise<void>;
   /** Días del rango `[from, to]` (YYYY-MM-DD) que ya tienen coste guardado. */
   daysWithCost(experimentId: string, from: string, to: string): Promise<Set<string>>;

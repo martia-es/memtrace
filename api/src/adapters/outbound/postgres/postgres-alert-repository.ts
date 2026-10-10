@@ -22,6 +22,9 @@ interface NotificationRow {
   threshold: number | null;
   budget_usd: number | null;
   warn_percent: number | null;
+  window_minutes: number | null;
+  spent_usd: number | null;
+  recipients: number;
 }
 
 interface RuleRow {
@@ -179,8 +182,8 @@ export class PostgresAlertRepository implements AlertRepository {
   async listOpen(experimentIds: string[]): Promise<OpenAlert[]> {
     const ids = experimentIds.filter((id) => UUID.test(id));
     if (ids.length === 0) return [];
-    const { rows } = await this.pool.query<{ rule_id: string; name: string; experiment_id: string; experiment_name: string; metric: AlertRule["metric"]; since: Ts; last_value: number | null; threshold: number; comparator: AlertRule["comparator"] }>(
-      `SELECT r.id AS rule_id, r.name, r.experiment_id, e.name AS experiment_name, r.metric, s.since, s.last_value, r.threshold, r.comparator
+    const { rows } = await this.pool.query<{ rule_id: string; name: string; experiment_id: string; experiment_name: string; metric: AlertRule["metric"]; since: Ts; last_value: number | null; threshold: number; comparator: AlertRule["comparator"]; window_minutes: number; recipients: number }>(
+      `SELECT r.id AS rule_id, r.name, r.experiment_id, e.name AS experiment_name, r.metric, s.since, s.last_value, r.threshold, r.comparator, r.window_minutes, cardinality(r.recipients)::int AS recipients
          FROM alert_states s JOIN alert_rules r ON r.id = s.rule_id JOIN experiments e ON e.id = r.experiment_id
         WHERE s.state = 'firing' AND r.enabled AND r.experiment_id = ANY($1::uuid[]) ORDER BY s.since, r.id`,
       [ids],
@@ -195,6 +198,8 @@ export class PostgresAlertRepository implements AlertRepository {
       lastValue: r.last_value,
       threshold: r.threshold,
       comparator: r.comparator,
+      windowMinutes: r.window_minutes,
+      recipients: r.recipients,
     }));
   }
 
@@ -205,12 +210,14 @@ export class PostgresAlertRepository implements AlertRepository {
     const { rows } = await this.pool.query<NotificationRow>(
       `SELECT * FROM (
          SELECT 'e:' || ev.id::text AS id, ev.kind, ev.at, ev.experiment_id, ex.name AS experiment_name, ev.rule_id, r.name AS rule_name,
-                r.metric, r.comparator, ev.value, ev.threshold, NULL::float8 AS budget_usd, NULL::int AS warn_percent
+                r.metric, r.comparator, ev.value, ev.threshold, NULL::float8 AS budget_usd, NULL::int AS warn_percent,
+                r.window_minutes, NULL::float8 AS spent_usd, cardinality(r.recipients)::int AS recipients
            FROM alert_events ev JOIN alert_rules r ON r.id = ev.rule_id JOIN experiments ex ON ex.id = ev.experiment_id
           WHERE ev.experiment_id = ANY($1::uuid[]) AND ev.kind IN ('fired', 'resolved') AND ev.at >= $2
          UNION ALL
          SELECT 'b:' || bn.experiment_id::text || ':' || bn.month::text || ':' || bn.level, 'budget_' || bn.level, bn.notified_at, bn.experiment_id, ex.name,
-                NULL::uuid, NULL::text, NULL::text, NULL::text, NULL::float8, NULL::float8, b.monthly_usd::float8, b.warn_percent
+                NULL::uuid, NULL::text, NULL::text, NULL::text, NULL::float8, NULL::float8, b.monthly_usd::float8, b.warn_percent,
+                NULL::int, bn.spent_usd, COALESCE(cardinality(b.recipients), 0)::int
            FROM budget_notifications bn JOIN experiments ex ON ex.id = bn.experiment_id LEFT JOIN cost_budgets b ON b.experiment_id = bn.experiment_id
           WHERE bn.experiment_id = ANY($1::uuid[]) AND bn.notified_at >= $2
             AND NOT (bn.level = 'warning' AND EXISTS (SELECT 1 FROM budget_notifications x WHERE x.experiment_id = bn.experiment_id AND x.month = bn.month AND x.level = 'exceeded'))
@@ -231,6 +238,9 @@ export class PostgresAlertRepository implements AlertRepository {
       threshold: r.threshold,
       budgetUsd: r.budget_usd,
       warnPercent: r.warn_percent,
+      windowMinutes: r.window_minutes,
+      spentUsd: r.spent_usd,
+      recipients: r.recipients,
     }));
   }
 
@@ -330,12 +340,12 @@ export class PostgresAlertRepository implements AlertRepository {
     return new Set(rows.map((r) => r.level));
   }
 
-  async markBudgetNotified(experimentId: string, month: string, levels: BudgetLevel[], notified: BudgetLevel | null, emailed: number): Promise<void> {
+  async markBudgetNotified(experimentId: string, month: string, levels: BudgetLevel[], notified: BudgetLevel | null, emailed: number, spentUsd?: number): Promise<void> {
     for (const level of levels) {
       // el nivel realmente enviado lleva cuántos emails salieron; los menores, que ya no aportan nada, van a 0
       await this.pool.query(
-        `INSERT INTO budget_notifications (experiment_id, month, level, emailed) VALUES ($1, $2, $3, $4) ON CONFLICT (experiment_id, month, level) DO NOTHING`,
-        [experimentId, month, level, level === notified ? emailed : 0],
+        `INSERT INTO budget_notifications (experiment_id, month, level, emailed, spent_usd) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (experiment_id, month, level) DO NOTHING`,
+        [experimentId, month, level, level === notified ? emailed : 0, level === notified ? (spentUsd ?? null) : null],
       );
     }
   }

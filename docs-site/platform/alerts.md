@@ -61,12 +61,12 @@ The bell at the top right of the dashboard works across every agent you can read
 The **Notifications** panel has three tabs:
 
 - **All** shows what is firing now, and below it what happened recently.
-- **Firing** shows only the alerts that are over their limit: the value now, the limit, the agent and for how long.
-- **Budget** shows the budget notices (warning, exceeded, forecast).
+- **Firing** shows only the alerts that are over their limit: the value now, your limit, the agent and for how long ("Latency (p95) is 2,807 ms. Your limit is 5 ms.").
+- **Budget** shows the budget notices (warning, exceeded, forecast), with what you have spent of your monthly budget. The amount is an estimate from the price catalog.
 
 Recent means the last 14 days, up to 30 notifications: alerts that fired or came back to normal, and budget notices. Reminders are not repeated here. A dot marks what you have not read, and **Mark all as read** clears it. The mark is yours: it does not change what anyone else sees.
 
-**View alert** and **Manage alerts** take you to the Alerts screen of that agent.
+**View alert**, **See costs** and **Manage alerts** take you to the Alerts screen of that agent. At the bottom the panel says how many addresses also get the alert by email. Budget notices sent before the amount was recorded say that the budget is filling up, without the figure.
 
 ## Monthly cost budget
 

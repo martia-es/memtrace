@@ -1595,6 +1595,8 @@ export interface OpenAlertDto {
   lastValue: number | null;
   threshold: number;
   comparator: "above" | "below";
+  windowMinutes: number;
+  recipients: number;
 }
 
 export interface OpenAlertsDto {
@@ -1615,6 +1617,9 @@ export interface NotificationDto {
   threshold: number | null;
   budgetUsd: number | null;
   warnPercent: number | null;
+  windowMinutes: number | null;
+  spentUsd: number | null;
+  recipients: number;
   read: boolean;
 }
 

@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { formatRelativeTime } from "@/domain/format";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { useAsync } from "../composables/useAsync";
-import { formatValue, notificationView, thresholdPhrase } from "../alert-format";
+import { bellTime, notificationView, openAlertView } from "../alert-format";
 import Button from "./Button.vue";
 import Menu from "./Menu.vue";
+import TabBar from "./TabBar.vue";
 import MenuItem from "./MenuItem.vue";
-import ToggleChip from "./ToggleChip.vue";
 
 /**
  * La campana de la barra superior (ADR-086, ADR-094): las alertas disparadas ahora en los agentes que la persona puede leer, y debajo los
@@ -64,7 +63,16 @@ async function markAllRead() {
     await feed.run();
   }
 }
-const describe = (a: (typeof items.value)[number]) => thresholdPhrase(a);
+/** Cuántas direcciones reciben también el correo de lo que se gestiona desde «Manage alerts». */
+const emailCount = computed(() => {
+  const mine = [...items.value, ...earlier.value].filter((n) => n.experimentId === manageExperimentId.value);
+  return Math.max(0, ...mine.map((n) => n.recipients));
+});
+const tabs = computed<Array<{ id: Tab; label: string; count: number }>>(() => [
+  { id: "all", label: "All", count: items.value.length + earlier.value.length },
+  { id: "firing", label: "Firing", count: items.value.length },
+  { id: "budget", label: "Budget", count: budgetItems.value.length },
+]);
 const label = computed(() => {
   if (items.value.length) return `${items.value.length} alerts firing`;
   return unreadEarlier.value ? `${unreadEarlier.value} new notifications` : "Alerts";
@@ -83,11 +91,7 @@ const label = computed(() => {
           <span class="head-title">Notifications</span>
           <Button v-if="unreadEarlier > 0" size="sm" variant="link" data-testid="bell-mark-read" @click="markAllRead">Mark all as read</Button>
         </div>
-        <div class="tabs" role="group" aria-label="Filter notifications">
-          <ToggleChip :pressed="tab === 'all'" :count="items.length + earlier.length" @click="tab = 'all'">All</ToggleChip>
-          <ToggleChip :pressed="tab === 'firing'" :count="items.length" @click="tab = 'firing'">Firing</ToggleChip>
-          <ToggleChip :pressed="tab === 'budget'" :count="budgetItems.length" @click="tab = 'budget'">Budget</ToggleChip>
-        </div>
+        <TabBar class="tabs" :class="{ alarmed: items.length > 0 }" :tabs="tabs" :model-value="tab" @update:model-value="tab = $event as Tab" />
 
         <p v-if="empty" class="none" data-testid="bell-empty">{{ tab === "budget" ? "No budget notices." : "No alerts firing." }}</p>
 
@@ -98,11 +102,12 @@ const label = computed(() => {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01" /></svg>
             </span>
             <span class="item">
-              <span class="row"><span class="name">{{ a.ruleName }}</span><span class="when">{{ formatRelativeTime(a.since, Date.now()) }}</span></span>
-              <span class="now">{{ formatValue(a.metric, a.lastValue) }} <span class="meta">· {{ describe(a) }}</span></span>
-              <span class="meta">{{ a.experimentName }}</span>
+              <span class="row"><span class="name">{{ a.ruleName }}</span><span class="when">{{ bellTime(a.since, Date.now()) }}</span></span>
+              <span class="now">{{ openAlertView(a).text }}</span>
+              <span class="meta">{{ a.experimentName }} · {{ openAlertView(a).detail }}</span>
               <span class="cta">View alert →</span>
             </span>
+            <span class="dot t-error" data-testid="bell-firing-dot" aria-label="Firing now" />
           </MenuItem>
         </template>
 
@@ -115,16 +120,19 @@ const label = computed(() => {
               <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01" /></svg>
             </span>
             <span class="item">
-              <span class="row"><span class="name">{{ notificationView(n).title }}</span><span class="when">{{ formatRelativeTime(n.at, Date.now()) }}</span></span>
+              <span class="row"><span class="name">{{ notificationView(n).title }}</span><span class="when">{{ bellTime(n.at, Date.now()) }}</span></span>
               <span class="now">{{ notificationView(n).text }}</span>
-              <span class="meta">{{ n.experimentName }}</span>
+              <span class="meta">{{ n.experimentName }}<template v-if="notificationView(n).detail"> · {{ notificationView(n).detail }}</template></span>
               <span class="cta">{{ notificationView(n).cta }} →</span>
             </span>
             <span v-if="!n.read" class="dot" :class="`t-${notificationView(n).tone}`" data-testid="bell-unread" aria-label="Unread" />
           </MenuItem>
         </template>
 
-        <MenuItem v-if="manageExperimentId" class="manage" data-testid="bell-manage" @click="go(manageExperimentId)">Manage alerts</MenuItem>
+        <div v-if="manageExperimentId" class="foot">
+          <MenuItem class="manage" data-testid="bell-manage" @click="go(manageExperimentId)">Manage alerts</MenuItem>
+          <span v-if="emailCount > 0" class="mail" data-testid="bell-email">Also sent by email to {{ emailCount }} {{ emailCount === 1 ? "address" : "addresses" }}</span>
+        </div>
       </Menu>
     </Button>
   </div>
@@ -134,11 +142,13 @@ const label = computed(() => {
 .bell { position: relative; display: inline-flex; }
 .badge { position: absolute; top: 2px; right: 2px; min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box; border-radius: 999px; background: var(--mt-err-ink, #b42318); color: #fff; font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; }
 .badge.calm { background: var(--mt-accent); }
-.bell-menu { min-width: 380px; padding: 0; }
-.head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px 6px; }
-.head-title { font-size: 15px; font-weight: 800; }
-.tabs { display: flex; gap: 6px; padding: 4px 14px 10px; }
-.none, .title { margin: 0; padding: 8px 14px; font-size: 12px; color: var(--mt-muted); }
+.bell-menu { width: 456px; max-width: calc(100vw - 16px); padding: 0; }
+.head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px 4px; }
+.head-title { font-size: 18px; font-weight: 800; }
+.tabs { padding: 0 10px; }
+.tabs.alarmed :deep([data-testid='tab-firing'] .tab-count) { background: var(--mt-err-ink, #b42318); color: #fff; font-weight: 700; }
+.tabs :deep(.tab-count) { min-width: 18px; padding: 0 5px; box-sizing: border-box; text-align: center; }
+.none, .title { margin: 0; padding: 8px 18px; font-size: 12px; color: var(--mt-muted); }
 .title { font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; font-size: 11px; background: var(--mt-soft); }
 .icon { width: 32px; height: 32px; flex: none; border-radius: 50%; background: var(--mt-soft); color: var(--mt-muted); display: flex; align-items: center; justify-content: center; align-self: flex-start; }
 .icon.t-error { background: var(--mt-err-bg, rgba(200, 40, 40, 0.1)); color: var(--mt-err-ink, #b42318); }
@@ -155,5 +165,7 @@ const label = computed(() => {
 .dot.t-error { background: var(--mt-err-ink); }
 .dot.t-warn { background: var(--mt-warn-ink); }
 .dot.t-ok { background: var(--mt-ok-ink); }
-.manage { border-top: 1px solid var(--mt-line); border-radius: 0; font-weight: 800; color: var(--mt-accent-text, var(--mt-accent)); padding: 12px 14px; }
+.foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--mt-line); padding-right: 18px; }
+.manage { flex: none; border-radius: 0; font-weight: 800; color: var(--mt-accent-text, var(--mt-accent)); padding: 12px 18px; }
+.mail { font-size: 12px; color: var(--mt-muted); text-align: right; }
 </style>

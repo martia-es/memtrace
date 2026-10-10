@@ -31,6 +31,12 @@ Storing notifications per user was rejected: it would copy every event for every
 * `GET /api/v1/notifications` returns `{ items, unread }`; each item carries `read`.
 * `POST /api/v1/notifications/read` returns `204`.
 
+Both the feed and the open alerts also carry what the bell needs to say in plain words, with no extra calls:
+
+* `windowMinutes` (from the rule) for "over the limit for 5 min";
+* `recipients`, the **number** of addresses the email goes to (never the addresses, which the bell has no need to read);
+* `spentUsd` on budget items, the month's spend when the notice was sent. It is the only new stored value: `budget_notifications.spent_usd`, nullable (migration 046). Notices sent before it existed have no figure and the bell words them without one.
+
 The firing section of the bell keeps using `GET /api/v1/alerts/open`: it is live state, while the feed is history.
 
 ## Consequences
