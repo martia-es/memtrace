@@ -20,7 +20,7 @@ function isPresent(value: unknown): boolean {
  * Misma regla que la vista previa del listado de trazas: la entrada es la del primer span que la tiene;
  * la salida, la del último en terminar. Devuelve null si ningún span capturó entrada (contenido desactivado,
  * ADR-004, o span de `eval.item`, que no registra contenido): nunca se promueve un fixture vacío.
- * Un valor con `[REDACTED]` dentro (ADR-021) sigue siendo contenido; la persona lo revisa en el preview.
+ * Un valor con `****` dentro (ADR-021) sigue siendo contenido; la persona lo revisa en el preview.
  */
 export function extractTraceContent(spans: Span[]): TraceContent | null {
   const withContent = spans.map((span) => ({ span, content: extractContent(span.attributes) })).filter((s) => s.content !== null);

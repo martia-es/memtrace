@@ -5,6 +5,7 @@ import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 import memtrace
+from memtrace.domain.serialization import REDACTED
 from memtrace.pii import DEFAULT_ENTITIES, presidio_redactor, text_hook
 from tests.conftest import by_name
 
@@ -84,24 +85,24 @@ def en():
 
 
 @needs_en
-def test_english_pii_is_replaced_by_entity_type(en):
+def test_english_pii_is_replaced_by_asterisks(en):
     out = en("Hi, I'm John Smith, mail john.smith@example.com, phone +1 415 555 0132, card 4111 1111 1111 1111")
     for leaked in ("John Smith", "john.smith@example.com", "415 555 0132", "4111 1111 1111 1111"):
         assert leaked not in out
-    assert "<PERSON>" in out and "<EMAIL_ADDRESS>" in out and "<CREDIT_CARD>" in out
+    assert out.count(REDACTED) >= 3 and "<" not in out
 
 
 @needs_en
 def test_structures_are_walked_and_harmless_text_is_untouched(en):
     out = en([{"role": "user", "content": "write to john.smith@example.com"}, {"role": "assistant", "content": "ok"}])
-    assert out[0]["role"] == "user" and "<EMAIL_ADDRESS>" in out[0]["content"] and out[1]["content"] == "ok"
+    assert out[0]["role"] == "user" and REDACTED in out[0]["content"] and out[1]["content"] == "ok"
     assert en({"n": 1, "t": "The weather is sunny"}) == {"n": 1, "t": "The weather is sunny"}
 
 
 @needs_en
 def test_noisy_entities_are_not_masked_by_default_but_can_be_requested(en):
     assert en("I live in San Francisco") == "I live in San Francisco"
-    assert "<LOCATION>" in presidio_redactor("en", entities=["LOCATION"])("I live in San Francisco")
+    assert presidio_redactor("en", entities=["LOCATION"])("I live in San Francisco") == f"I live in {REDACTED}"
 
 
 @needs_en
@@ -115,7 +116,7 @@ def test_allow_list_and_threshold():
 def test_spanish_national_ids_and_iban():
     out = presidio_redactor("es")("mi DNI es 12345678Z, correo maria@example.com, IBAN ES9121000418450200051332")
     assert "12345678Z" not in out and "maria@example.com" not in out and "ES9121000418450200051332" not in out
-    assert "<ES_NIF>" in out
+    assert REDACTED in out and "<" not in out
 
 
 def test_unknown_language_needs_an_explicit_model():

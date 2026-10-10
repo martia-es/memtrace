@@ -15,6 +15,8 @@ import logging
 import threading
 from typing import Any, Callable, Iterable, Mapping, Optional, Sequence, cast
 
+from memtrace.domain.serialization import REDACTED
+
 logger = logging.getLogger("memtrace")
 
 # Precise entity types. Noisy ones (LOCATION, ORGANIZATION, DATE_TIME, NRP, URL, AGE, ID) are left
@@ -77,7 +79,9 @@ def presidio_redactor(
     models: Optional[Mapping[str, str]] = None,
     allow_list: Sequence[str] = (),
 ) -> Callable[[Any], Any]:
-    """A `redact` hook that replaces personal data with `<ENTITY_TYPE>` using Microsoft Presidio.
+    """A `redact` hook that replaces personal data with `****` using Microsoft Presidio.
+
+    The mask is the same fixed `****` the SDK uses for secrets, whatever the type or length of the data.
 
     `language`: language of the text (`"en"` and `"es"` work out of the box; others need `models`).
     `entities`: Presidio entity types to mask; default `DEFAULT_ENTITIES` (those the language supports).
@@ -95,6 +99,7 @@ def presidio_redactor(
         from presidio_analyzer import AnalyzerEngine, RecognizerRegistry
         from presidio_analyzer.nlp_engine import NlpEngineProvider
         from presidio_anonymizer import AnonymizerEngine
+        from presidio_anonymizer.entities import OperatorConfig
     except ImportError as exc:
         raise ImportError("PII anonymization requires: pip install 'memtrace-ai[pii]'") from exc
 
@@ -114,6 +119,7 @@ def presidio_redactor(
     registry.load_predefined_recognizers(languages=[language], nlp_engine=nlp_engine)
     analyzer = AnalyzerEngine(nlp_engine=nlp_engine, registry=registry, supported_languages=[language])
     anonymizer = AnonymizerEngine()
+    operators = {"DEFAULT": OperatorConfig("replace", {"new_value": REDACTED})}
 
     supported = set(analyzer.get_supported_entities(language))
     wanted = list(entities) if entities is not None else list(DEFAULT_ENTITIES)
@@ -135,7 +141,9 @@ def presidio_redactor(
                 score_threshold=score_threshold,
                 allow_list=allowed,
             )
-            return anonymizer.anonymize(text=text, analyzer_results=cast(Any, findings)).text if findings else text
+            if not findings:
+                return text
+            return anonymizer.anonymize(text=text, analyzer_results=cast(Any, findings), operators=operators).text
 
     logger.info("[MemTrace] PII anonymization ready (%s, model %s, %d entity types)", language, model, len(selected))
     return text_hook(anonymize)

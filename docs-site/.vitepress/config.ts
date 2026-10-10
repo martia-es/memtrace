@@ -42,6 +42,7 @@ export default defineConfig({
             { text: "Annotations & review", link: "/platform/annotations" },
             { text: "Prompts", link: "/platform/prompts" },
             { text: "Organizations & roles", link: "/platform/access-control" },
+            { text: "Data protection", link: "/platform/data-protection" },
             { text: "Assistants catalog", link: "/platform/assistants" },
             { text: "Set up deploys", link: "/platform/deploy-setup" },
             { text: "Query API", link: "/platform/api" },

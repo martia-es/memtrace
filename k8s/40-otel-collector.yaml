@@ -32,6 +32,50 @@ data:
         timeout: 1s
         send_batch_max_size: 5000
 
+      # Capa 2 de PII (ADR-080): enmascara con **** los datos personales de formato fijo ANTES de escribir en
+      # ClickHouse, para todos los agentes, hayan activado o no la anonimización del SDK. Los nombres propios y el
+      # texto libre no tienen formato fijo y solo los cubre el SDK (Presidio). Los patrones son RE2; las pruebas
+      # están en scripts/check_collector_pii.py. Un patrón nuevo se añade en los TRES bloques.
+      transform/pii:
+        error_mode: ignore
+        trace_statements:
+          - context: span
+            statements:
+              - 'replace_all_patterns(attributes, "value", "[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,}", "****")'
+              - 'replace_all_patterns(attributes, "value", "\\b(?:\\d{4}[ -]){3}\\d{4}\\b", "****")'
+              - 'replace_all_patterns(attributes, "value", "\\b(?:4\\d{12}(?:\\d{3})?|5[1-5]\\d{14}|3[47]\\d{13}|6011\\d{12})\\b", "****")'
+              - 'replace_all_patterns(attributes, "value", "\\b[A-Z]{2}\\d{2}(?: ?[A-Z0-9]{4}){3,7}(?: ?[A-Z0-9]{1,4})?\\b", "****")'
+              - 'replace_all_patterns(attributes, "value", "\\b\\d{8}-?[A-HJ-NP-TV-Za-hj-np-tv-z]\\b", "****")'
+              - 'replace_all_patterns(attributes, "value", "\\b[XYZxyz]-?\\d{7}-?[A-Za-z]\\b", "****")'
+              - 'replace_all_patterns(attributes, "value", "\\b\\d{3}-\\d{2}-\\d{4}\\b", "****")'
+              - 'replace_all_patterns(attributes, "value", "\\+\\d{1,3}[ .-]?\\(?\\d{1,4}\\)?(?:[ .-]?\\d{2,4}){2,4}\\b", "****")'
+              - 'replace_all_patterns(attributes, "value", "\\b[6-9]\\d{2}(?:[ .-]\\d{3}[ .-]\\d{3}|[ .-]\\d{2}[ .-]\\d{2}[ .-]\\d{2})\\b", "****")'
+              - 'replace_all_patterns(attributes, "value", "\\b(?:(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)\\b", "****")'
+          - context: span
+            statements:
+              - 'replace_pattern(status.message, "[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,}", "****")'
+              - 'replace_pattern(status.message, "\\b(?:\\d{4}[ -]){3}\\d{4}\\b", "****")'
+              - 'replace_pattern(status.message, "\\b(?:4\\d{12}(?:\\d{3})?|5[1-5]\\d{14}|3[47]\\d{13}|6011\\d{12})\\b", "****")'
+              - 'replace_pattern(status.message, "\\b[A-Z]{2}\\d{2}(?: ?[A-Z0-9]{4}){3,7}(?: ?[A-Z0-9]{1,4})?\\b", "****")'
+              - 'replace_pattern(status.message, "\\b\\d{8}-?[A-HJ-NP-TV-Za-hj-np-tv-z]\\b", "****")'
+              - 'replace_pattern(status.message, "\\b[XYZxyz]-?\\d{7}-?[A-Za-z]\\b", "****")'
+              - 'replace_pattern(status.message, "\\b\\d{3}-\\d{2}-\\d{4}\\b", "****")'
+              - 'replace_pattern(status.message, "\\+\\d{1,3}[ .-]?\\(?\\d{1,4}\\)?(?:[ .-]?\\d{2,4}){2,4}\\b", "****")'
+              - 'replace_pattern(status.message, "\\b[6-9]\\d{2}(?:[ .-]\\d{3}[ .-]\\d{3}|[ .-]\\d{2}[ .-]\\d{2}[ .-]\\d{2})\\b", "****")'
+              - 'replace_pattern(status.message, "\\b(?:(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)\\b", "****")'
+          - context: spanevent
+            statements:
+              - 'replace_all_patterns(attributes, "value", "[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,}", "****")'
+              - 'replace_all_patterns(attributes, "value", "\\b(?:\\d{4}[ -]){3}\\d{4}\\b", "****")'
+              - 'replace_all_patterns(attributes, "value", "\\b(?:4\\d{12}(?:\\d{3})?|5[1-5]\\d{14}|3[47]\\d{13}|6011\\d{12})\\b", "****")'
+              - 'replace_all_patterns(attributes, "value", "\\b[A-Z]{2}\\d{2}(?: ?[A-Z0-9]{4}){3,7}(?: ?[A-Z0-9]{1,4})?\\b", "****")'
+              - 'replace_all_patterns(attributes, "value", "\\b\\d{8}-?[A-HJ-NP-TV-Za-hj-np-tv-z]\\b", "****")'
+              - 'replace_all_patterns(attributes, "value", "\\b[XYZxyz]-?\\d{7}-?[A-Za-z]\\b", "****")'
+              - 'replace_all_patterns(attributes, "value", "\\b\\d{3}-\\d{2}-\\d{4}\\b", "****")'
+              - 'replace_all_patterns(attributes, "value", "\\+\\d{1,3}[ .-]?\\(?\\d{1,4}\\)?(?:[ .-]?\\d{2,4}){2,4}\\b", "****")'
+              - 'replace_all_patterns(attributes, "value", "\\b[6-9]\\d{2}(?:[ .-]\\d{3}[ .-]\\d{3}|[ .-]\\d{2}[ .-]\\d{2}[ .-]\\d{2})\\b", "****")'
+              - 'replace_all_patterns(attributes, "value", "\\b(?:(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)\\b", "****")'
+
     exporters:
       clickhouse:
         endpoint: tcp://clickhouse.memtrace.svc.cluster.local:9000
@@ -56,7 +100,7 @@ data:
       pipelines:
         traces:
           receivers: [otlp]
-          processors: [memory_limiter, batch]
+          processors: [memory_limiter, transform/pii, batch]
           exporters: [clickhouse]
 ---
 apiVersion: v1
