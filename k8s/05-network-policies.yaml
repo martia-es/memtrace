@@ -3,7 +3,7 @@
 #   dashboard ──► api ──► postgres
 #                  │ └──► clickhouse (lectura y escritura de evaluación)
 #                  └────► otel-collector ──► clickhouse   (la API es el ÚNICO cliente del Collector)
-#   jobs (migraciones, backfill, topic-extraction, model-pricing, health-probe) ──► postgres / clickhouse
+#   jobs (migraciones, backfill, topic-extraction, model-pricing, health-probe, retention-purge, alerts-evaluate) ──► postgres / clickhouse
 #
 # IMPORTANTE: una NetworkPolicy solo vale si el CNI del clúster la aplica. El `kindnet` por defecto de kind puede no
 # hacerlo: `make netpol-check` lo comprueba. Aunque no se aplicara, el Collector rechaza lo que no lleve el token de la
@@ -84,7 +84,7 @@ spec:
             matchExpressions:
               - key: app
                 operator: In
-                values: [api, health-probe, topic-extraction, topic-extraction-fit-initial, model-pricing-sync, backfill-experiment-id, clickhouse-migrate]
+                values: [api, health-probe, topic-extraction, topic-extraction-fit-initial, model-pricing-sync, backfill-experiment-id, clickhouse-migrate, retention-purge, alerts-evaluate]
       ports:
         - { protocol: TCP, port: 8123 }
         - { protocol: TCP, port: 9000 }
@@ -105,7 +105,7 @@ spec:
             matchExpressions:
               - key: app
                 operator: In
-                values: [api, health-probe, backfill-experiment-id, postgres-migrate]
+                values: [api, health-probe, backfill-experiment-id, postgres-migrate, retention-purge, alerts-evaluate]
       ports:
         - { protocol: TCP, port: 5432 }
 ---
