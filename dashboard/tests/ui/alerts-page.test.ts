@@ -470,7 +470,7 @@ describe("the bell", () => {
   }
   const open = (over: Record<string, unknown> = {}) => ({
     ruleId: "r1", ruleName: "Too many errors", experimentId: "exp-9", experimentName: "Support bot", metric: "error_rate" as const, since: new Date(Date.now() - 5 * 60_000).toISOString(),
-    lastValue: 9, threshold: 5, comparator: "above" as const, ...over,
+    lastValue: 9, threshold: 5, comparator: "above" as const, windowMinutes: 5, recipients: 1, ...over,
   });
 
   it("shows nothing but the bell when no alert is firing", async () => {
@@ -502,8 +502,10 @@ describe("the bell", () => {
     const item = q("bell-item")!;
     expect(item.textContent).toContain("Too many errors");
     expect(item.textContent).toContain("Support bot");
-    expect(item.textContent).toContain("Error rate above 5 %"); // la condición
-    expect(item.textContent).toContain("9 %"); // y el valor de ahora
+    expect(item.textContent).toContain("Error rate is 9 %. Your limit is 5 %."); // el valor de ahora y el límite
+    expect(item.textContent).toContain("over the limit for 5 min"); // y cuánto lleva así
+    expect(q("bell-firing-dot")).not.toBeNull();
+    expect(q("bell-email")!.textContent).toBe("Also sent by email to 1 address"); // a cuántas direcciones llega también
     item.click();
     await flushPromises();
     expect(router.currentRoute.value.name).toBe("alerts");
@@ -524,7 +526,7 @@ describe("the bell", () => {
   describe("notifications", () => {
     const note = (id: string, over: Record<string, unknown> = {}) => ({
       id, kind: "resolved" as const, at: new Date(Date.now() - 3_600_000).toISOString(), experimentId: "exp-9", experimentName: "Support bot", ruleId: "r9", ruleName: "Too slow",
-      metric: "latency_p95" as const, comparator: "above" as const, value: 3, threshold: 5, budgetUsd: null, warnPercent: null, read: false, ...over,
+      metric: "latency_p95" as const, comparator: "above" as const, value: 3, threshold: 5, budgetUsd: null, warnPercent: null, windowMinutes: null, spentUsd: null, recipients: 0, read: false, ...over,
     });
     const budgetNote = (id: string, kind: "budget_warning" | "budget_exceeded" | "budget_forecast", over: Record<string, unknown> = {}) =>
       note(id, { kind, ruleId: null, ruleName: null, metric: null, comparator: null, value: null, threshold: null, budgetUsd: 50, warnPercent: 80, ...over });
@@ -533,7 +535,7 @@ describe("the bell", () => {
       document.body.querySelector<HTMLElement>("[aria-label]")!.click();
       await flushPromises();
     };
-    const chip = (label: string) => [...document.body.querySelectorAll<HTMLButtonElement>(".mt-chip")].find((c) => c.textContent!.trim().startsWith(label))!;
+    const chip = (label: string) => document.body.querySelector<HTMLButtonElement>(`[data-testid='tab-${label.toLowerCase()}']`)!;
 
     it("lists recent notices under Earlier, with an unread dot only on the ones not read", async () => {
       const api = new Api();
@@ -590,6 +592,27 @@ describe("the bell", () => {
       expect(rows).toHaveLength(1);
       expect(rows[0]!.textContent).toContain("Budget reached 80 %");
       expect(rows[0]!.textContent).toContain("$50.00");
+    });
+
+    it("tells the money of a budget notice, and sends you to see the costs", async () => {
+      const api = new Api();
+      api.notifications = { items: [budgetNote("b", "budget_warning", { spentUsd: 41 })], unread: 1 };
+      await openBell(api);
+      const row = q("bell-notification")!;
+      expect(row.textContent).toContain("Budget reached 80 %");
+      expect(row.textContent).toContain("You have spent $41.00 of your $50.00 monthly budget.");
+      expect(row.textContent).toContain("estimate from the price catalog");
+      expect(row.textContent).toContain("See costs →");
+    });
+
+    it("counts each tab", async () => {
+      const api = new Api();
+      api.openAlerts = { items: [open()] };
+      api.notifications = { items: [note("a"), budgetNote("b", "budget_warning")], unread: 2 };
+      await openBell(api);
+      expect(chip("All").textContent).toContain("3");
+      expect(chip("Firing").textContent).toContain("1");
+      expect(chip("Budget").textContent).toContain("1");
     });
 
     it("says so when a tab has nothing", async () => {

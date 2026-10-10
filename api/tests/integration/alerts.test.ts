@@ -1,5 +1,5 @@
 /**
- * Contra un Postgres real (15+) con las migraciones 001-044 aplicadas. Opt-in: `POSTGRES_INTEGRATION_URL=postgres://… npm run test:integration`.
+ * Contra un Postgres real (15+) con las migraciones 001-046 aplicadas. Opt-in: `POSTGRES_INTEGRATION_URL=postgres://… npm run test:integration`.
  * Cubre lo que los fakes no pueden: las restricciones de las migraciones 042 y 044, las cascadas, las consultas del evaluador y el tope diario
  * contado en la base de datos (ADR-086).
  */
@@ -158,7 +158,7 @@ describe.skipIf(!url)("alerts and budgets (postgres)", () => {
       await repo.recordEvaluation(rule.id, status("ok", { lastValue: 1 }), { ruleId: rule.id, experimentId: expA, kind: "resolved", value: 1, threshold: 5, emailed: 1 });
       await repo.recordEvaluation(hidden.id, status("firing"), { ruleId: hidden.id, experimentId: expOther, kind: "fired", value: 9, threshold: 5, emailed: 0 });
       await repo.upsertBudget(expA, userId, { monthlyUsd: 50, warnPercent: 80, recipients: [], enabled: true });
-      await repo.markBudgetNotified(expA, "2026-10-01", ["warning", "exceeded"], "exceeded", 0); // se saltó de nivel: solo se enseña el mayor
+      await repo.markBudgetNotified(expA, "2026-10-01", ["warning", "exceeded"], "exceeded", 0, 41); // se saltó de nivel: solo se enseña el mayor
       await repo.markBudgetNotified(expA, "2026-10-01", ["forecast"], "forecast", 0);
 
       const since = new Date(Date.now() - 60_000);
@@ -166,7 +166,7 @@ describe.skipIf(!url)("alerts and budgets (postgres)", () => {
       expect(feed.map((n) => n.kind).sort()).toEqual(["budget_exceeded", "budget_forecast", "fired", "resolved"]);
       expect(feed.some((n) => n.kind.includes("warning"))).toBe(false);
       expect(feed.find((n) => n.kind === "resolved")).toMatchObject({ ruleName: "Feed rule", experimentName: "a", metric: "error_rate", comparator: "above", value: 1, threshold: 5, budgetUsd: null });
-      expect(feed.find((n) => n.kind === "budget_exceeded")).toMatchObject({ ruleId: null, metric: null, budgetUsd: 50, warnPercent: 80 });
+      expect(feed.find((n) => n.kind === "budget_exceeded")).toMatchObject({ ruleId: null, metric: null, budgetUsd: 50, warnPercent: 80, spentUsd: 41, windowMinutes: null });
       expect((await repo.listNotifications([expA], since, 30)).map((n) => n.at)).toEqual([...(await repo.listNotifications([expA], since, 30)).map((n) => n.at)].sort().reverse());
       expect((await repo.listNotifications([expA], since, 30)).some((n) => n.ruleName === "Feed elsewhere")).toBe(false); // otro agente
       expect(await repo.listNotifications([expA], new Date(Date.now() + 60_000), 30)).toEqual([]); // nada es más nuevo que el futuro

@@ -104,7 +104,7 @@ export class FakeAlertRepository implements AlertRepository {
   async notifiedLevels(experimentId: string, month: string) {
     return new Set([...(this.notified.get(`${experimentId}|${month}`)?.keys() ?? [])] as BudgetLevel[]);
   }
-  async markBudgetNotified(experimentId: string, month: string, levels: BudgetLevel[], notified: BudgetLevel | null, emailed: number) {
+  async markBudgetNotified(experimentId: string, month: string, levels: BudgetLevel[], notified: BudgetLevel | null, emailed: number, _spentUsd?: number) {
     this.log.push(`budget-saved:${notified}`);
     const key = `${experimentId}|${month}`;
     const map = this.notified.get(key) ?? new Map();

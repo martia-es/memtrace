@@ -1,4 +1,5 @@
-import type { AlertEventDto, AlertRuleDto, AlertStatusDto, NotificationDto } from "@contract";
+import type { AlertEventDto, AlertRuleDto, AlertStatusDto, NotificationDto, OpenAlertDto } from "@contract";
+import { formatRelativeTime } from "@/domain/format";
 
 /** Textos y estados de las alertas (ADR-086): todo lo que la pantalla dice sobre una regla, sin tocar el DOM. */
 
@@ -94,16 +95,52 @@ export function parseRecipients(text: string): string[] {
     .filter(Boolean);
 }
 
-/** Cómo se cuenta un aviso de la campana (ADR-094): el titular, la frase con el valor y el tono. */
-export function notificationView(n: Pick<NotificationDto, "kind" | "ruleName" | "metric" | "comparator" | "value" | "threshold" | "budgetUsd" | "warnPercent">): { title: string; text: string; tone: StateTone; cta: string } {
-  if (n.kind === "budget_warning") return { title: `Budget reached ${n.warnPercent ?? "the warning"} %`, text: n.budgetUsd === null ? "The monthly budget was removed since." : `Your ${formatValue("cost", n.budgetUsd)} monthly budget is filling up.`, tone: "warn", cta: "View budget" };
-  if (n.kind === "budget_exceeded") return { title: "Budget exceeded", text: n.budgetUsd === null ? "The monthly budget was removed since." : `The month went over your ${formatValue("cost", n.budgetUsd)} budget.`, tone: "error", cta: "View budget" };
-  if (n.kind === "budget_forecast") return { title: "On track to exceed the budget", text: n.budgetUsd === null ? "The monthly budget was removed since." : `At this pace the month ends over your ${formatValue("cost", n.budgetUsd)} budget.`, tone: "warn", cta: "View budget" };
+/** «Your limit is» / «Your minimum is»: el límite según se vigile por arriba o por abajo. */
+const limitWord = (comparator: "above" | "below") => (comparator === "above" ? "limit" : "minimum");
+
+/** La alerta que sigue disparada, como la cuenta la campana (ADR-094): «Latency (p95) is 2,807 ms. Your limit is 5 ms.» y cuánto lleva así. */
+export function openAlertView(a: Pick<OpenAlertDto, "metric" | "comparator" | "lastValue" | "threshold" | "windowMinutes">): { text: string; detail: string } {
+  const subject = a.metric === "custom" ? "Custom chart" : metricLabel(a.metric);
+  return {
+    text: `${subject} is ${formatValue(a.metric, a.lastValue)}. Your ${limitWord(a.comparator)} is ${formatValue(a.metric, a.threshold)}.`,
+    detail: `${a.comparator === "above" ? "over the limit" : "under the minimum"} for ${windowText(a.windowMinutes)}`,
+  };
+}
+
+/** Cómo se cuenta un aviso de la campana (ADR-094): el titular, la frase con el valor, el detalle que va tras el agente y el tono. */
+export function notificationView(
+  n: Pick<NotificationDto, "kind" | "ruleName" | "metric" | "comparator" | "value" | "threshold" | "budgetUsd" | "warnPercent" | "windowMinutes" | "spentUsd">,
+): { title: string; text: string; detail: string; tone: StateTone; cta: string } {
+  const budget = n.budgetUsd === null ? null : formatValue("cost", n.budgetUsd);
+  const gone = "The monthly budget was removed since.";
+  // el gasto exacto solo está en los avisos que se guardaron con él; en los anteriores, una frase sin cifra
+  const spent = (fallback: string) => (budget === null ? gone : n.spentUsd === null ? fallback : `You have spent ${formatValue("cost", n.spentUsd)} of your ${budget} monthly budget.`);
+  const estimate = n.spentUsd === null ? "" : "estimate from the price catalog";
+  if (n.kind === "budget_warning") return { title: `Budget reached ${n.warnPercent ?? "the warning"} %`, text: spent(`Your ${budget} monthly budget is filling up.`), detail: estimate, tone: "warn", cta: "See costs" };
+  if (n.kind === "budget_exceeded") return { title: "Budget exceeded", text: spent(`The month went over your ${budget} budget.`), detail: estimate, tone: "error", cta: "See costs" };
+  if (n.kind === "budget_forecast") return { title: "On track to exceed the budget", text: budget === null ? gone : `At this pace the month ends over your ${budget} budget.`, detail: "", tone: "warn", cta: "See costs" };
   const name = n.ruleName ?? "An alert";
   const metric = n.metric ?? "custom";
-  const limit = n.threshold === null ? "" : thresholdPhrase({ metric, comparator: n.comparator ?? "above", threshold: n.threshold });
-  if (n.kind === "resolved") return { title: `${name} is back to normal`, text: `${formatValue(metric, n.value)} now. Limit: ${limit.toLowerCase()}.`, tone: "ok", cta: "View alert" };
-  return { title: name, text: `${formatValue(metric, n.value)}. Limit: ${limit.toLowerCase()}.`, tone: "error", cta: "View alert" };
+  const comparator = n.comparator ?? "above";
+  const subject = metric === "custom" ? "Custom chart" : metricLabel(metric);
+  const limit = n.threshold === null ? "" : formatValue(metric, n.threshold);
+  if (n.kind === "resolved") {
+    const verb = comparator === "above" ? "dropped" : "rose";
+    const side = comparator === "above" ? `under your ${limit} limit` : `over your ${limit} minimum`;
+    return { title: `${name} is back to normal`, text: limit ? `${subject} ${verb} to ${formatValue(metric, n.value)}, ${side}.` : `${subject} is ${formatValue(metric, n.value)} now.`, detail: "", tone: "ok", cta: "View alert" };
+  }
+  const detail = n.windowMinutes === null ? "" : `${comparator === "above" ? "over the limit" : "under the minimum"} for ${windowText(n.windowMinutes)}`;
+  return { title: name, text: limit ? `${subject} is ${formatValue(metric, n.value)}. Your ${limitWord(comparator)} is ${limit}.` : `${subject} is ${formatValue(metric, n.value)}.`, detail, tone: "error", cta: "View alert" };
+}
+
+/** «5 min ago» dentro de la última hora, «3 h ago» el mismo día, «Yesterday» el día anterior y «N d ago» más atrás. */
+export function bellTime(iso: string, nowMs: number): string {
+  const then = new Date(iso);
+  const now = new Date(nowMs);
+  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((startOf(now) - startOf(then)) / 86_400_000);
+  if (days === 1 && nowMs - then.getTime() >= 3_600_000) return "Yesterday";
+  return formatRelativeTime(iso, nowMs);
 }
 
 /** El límite de una alerta siempre cae al 66 % de su barra, así que pasarse se ve como una barra que lo rebasa. */

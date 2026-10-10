@@ -93,6 +93,12 @@ export interface AppNotification {
   /** del presupuesto actual; null si ya no hay */
   budgetUsd: number | null;
   warnPercent: number | null;
+  /** de la regla (alertas) */
+  windowMinutes: number | null;
+  /** gasto del mes cuando se avisó (presupuesto); null en avisos anteriores a guardarlo */
+  spentUsd: number | null;
+  /** cuántas direcciones recibían el correo */
+  recipients: number;
 }
 
 const EMAIL = /^[^\s@<>"',;()]{1,64}@[^\s@<>"',;()]{1,255}\.[A-Za-z]{2,}$/;
