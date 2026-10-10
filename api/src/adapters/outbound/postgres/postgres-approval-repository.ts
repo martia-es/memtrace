@@ -1,6 +1,6 @@
 import type { Pool, PoolClient } from "pg";
 import type { ApprovalRepository, NewApprovalRequest } from "@/application/ports/approval-repository";
-import type { ApprovalAction, ApprovalDecision, ApprovalRequest, ApprovalRule, ApprovalScope, ApprovalStatus, ApproverInfo } from "@/domain/approval";
+import type { ApprovalAction, ApprovalDecision, ApprovalRequest, ApprovalRule, ApprovalScope, ApprovalStatus, ApproverInfo, RuleSet } from "@/domain/approval";
 
 type Ts = Date | string;
 const iso = (v: Ts): string => (v instanceof Date ? v.toISOString() : new Date(v).toISOString());
@@ -119,13 +119,36 @@ export class PostgresApprovalRepository implements ApprovalRepository {
     return (result.rowCount ?? 0) > 0;
   }
 
-  async rulesFor(organizationId: string, experimentIds: readonly string[], action: ApprovalAction, stage: string): Promise<ApprovalRule[]> {
+  async rulesFor(organizationId: string, experimentIds: readonly string[], action: ApprovalAction, stage: string): Promise<RuleSet> {
     const experiments = experimentIds.filter((id) => UUID.test(id));
-    const { rows } = await this.pool.query<RuleRow>(
-      `${RULE_SELECT} WHERE (r.organization_id = $1 OR r.experiment_id = ANY($2::uuid[])) AND r.action = $3 AND r.stage = $4`,
-      [organizationId, experiments, action, stage],
+    const [organization, byExperiment, exempt] = await Promise.all([
+      this.pool.query<RuleRow>(`${RULE_SELECT} WHERE r.organization_id = $1 AND r.action = $2 AND r.stage = $3`, [organizationId, action, stage]),
+      this.pool.query<RuleRow>(`${RULE_SELECT} WHERE r.experiment_id = ANY($1::uuid[]) AND r.action = $2 AND r.stage = $3`, [experiments, action, stage]),
+      this.pool.query<{ experiment_id: string }>(
+        "SELECT experiment_id::text AS experiment_id FROM approval_rule_exemptions WHERE experiment_id = ANY($1::uuid[]) AND action = $2 AND stage = $3",
+        [experiments, action, stage],
+      ),
+    ]);
+    return { organization: organization.rows[0] ? toRule(organization.rows[0]) : null, experiments: byExperiment.rows.map(toRule), exemptExperimentIds: exempt.rows.map((r) => r.experiment_id) };
+  }
+
+  async listExemptions(experimentId: string): Promise<Array<{ action: ApprovalAction; stage: string }>> {
+    if (!UUID.test(experimentId)) return [];
+    const { rows } = await this.pool.query<{ action: ApprovalAction; stage: string }>("SELECT action, stage FROM approval_rule_exemptions WHERE experiment_id = $1 ORDER BY action, stage", [experimentId]);
+    return rows;
+  }
+
+  async setExemption(experimentId: string, action: ApprovalAction, stage: string, userId: string): Promise<void> {
+    await this.pool.query(
+      "INSERT INTO approval_rule_exemptions (experiment_id, action, stage, granted_by) VALUES ($1, $2, $3, $4) ON CONFLICT (experiment_id, action, stage) DO NOTHING",
+      [experimentId, action, stage, userId],
     );
-    return rows.map(toRule);
+  }
+
+  async deleteExemption(experimentId: string, action: ApprovalAction, stage: string): Promise<boolean> {
+    if (!UUID.test(experimentId)) return false;
+    const result = await this.pool.query("DELETE FROM approval_rule_exemptions WHERE experiment_id = $1 AND action = $2 AND stage = $3", [experimentId, action, stage]);
+    return (result.rowCount ?? 0) > 0;
   }
 
   async approvers(experimentIds: readonly string[]): Promise<ApproverInfo[]> {

@@ -134,6 +134,8 @@ An environment with no rule works as before. Removing a rule turns approvals off
 
 Each experiment has its own **Approvals** tab (**Admin → experiment**). It starts from the organization's rules and can only make them **stricter**: ask for more people, add a profile or add a default approver. It cannot ask for less than the organization; what comes from the organization is drawn with a dashed outline in the chart. When a prompt belongs to several agents, the strictest rule among the organization and all of them applies.
 
+**Exempting one agent.** A rule that one agent can never meet (for example *1 technical approves a publication* in an agent whose only technical member is the person asking, because your own approval never counts) would block it for good. An **org admin** can exempt that agent from the organization's rule in one step: open its **Approvals** tab, **Edit rule** on the step and tick **Exempt this agent from the organization's rule**. From then on, that agent follows only its own rule there (or none) and may ask for less. Other agents keep the organization's rule, and every other step is unchanged. If a prompt belongs to several agents and one of them is not exempt, the organization's rule still applies to that prompt. Untick it to bring the rule back. Both changes are recorded in the audit log.
+
 ### Asking and approving
 
 1. With a rule active, saving an edit creates a **draft**, and moving a protected tag shows **Request approval** instead of **Move**. Write a note for the reviewers. You can **add approvers** to that request on top of the rule's, and add more later.

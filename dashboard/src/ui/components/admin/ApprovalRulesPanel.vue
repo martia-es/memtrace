@@ -13,7 +13,9 @@ import Checkbox from "../Checkbox.vue";
 /**
  * Reglas de aprobación de prompts (ADR-076), de la organización o de un experimento: por cada paso (publicar una versión y
  * mover cada entorno) cuántas personas de qué perfil tienen que aprobar y quién tiene que aprobar sí o sí. Un experimento
- * parte del suelo de la organización y solo puede endurecerlo; la API lo exige, aquí además se avisa antes de guardar.
+ * parte del suelo de la organización y solo puede endurecerlo; la API lo exige, aquí además se avisa antes de guardar. La única
+ * salida es una excepción por paso que concede un `org_admin` (la pestaña solo la ve quien tiene `approval:manage`): ese agente
+ * deja de seguir la regla de la organización en ese paso y queda en la auditoría.
  */
 const props = defineProps<{ scope: ApprovalScope }>();
 
@@ -41,7 +43,10 @@ void load();
 const isExperiment = computed(() => props.scope.type === "experiment");
 const rows = computed(() => steps(data.value?.options.environments ?? []));
 const names = computed(() => Object.fromEntries((data.value?.options.candidates ?? []).map((c) => [c.userId, c.name?.trim() || c.email])));
-const floorOf = (action: "publish" | "promote", stage: string) => ruleFor(data.value?.organizationRules ?? [], action, stage);
+const orgRuleOf = (action: "publish" | "promote", stage: string) => ruleFor(data.value?.organizationRules ?? [], action, stage);
+const isExempt = (action: "publish" | "promote", stage: string) => (data.value?.exemptions ?? []).some((x) => x.action === action && x.stage === stage);
+/** El suelo que de verdad aplica a este agente: el de la organización, salvo que lo hayan eximido en ese paso. */
+const floorOf = (action: "publish" | "promote", stage: string) => (isExempt(action, stage) ? null : orgRuleOf(action, stage));
 const allowedRoles = (action: "publish" | "promote") => (action === "publish" ? data.value?.options.publishRoles : data.value?.options.roles) ?? [];
 
 // ---- organigrama: quién aprueba en cada paso ----
@@ -50,6 +55,7 @@ const flowSteps = computed<FlowStep[]>(() =>
     ...row,
     rule: ruleFor(data.value?.rules ?? [], row.action, row.stage),
     floor: isExperiment.value ? floorOf(row.action, row.stage) : null,
+    exempt: isExperiment.value && !!orgRuleOf(row.action, row.stage) && isExempt(row.action, row.stage),
     open: editing.value?.action === row.action && editing.value.stage === row.stage,
   })),
 );
@@ -122,6 +128,22 @@ async function save() {
   }
 }
 
+async function toggleExemption(exempt: boolean) {
+  if (!editing.value || props.scope.type !== "experiment") return;
+  const { action, stage } = editing.value;
+  saving.value = true;
+  try {
+    await api.setApprovalExemption(props.scope.id, action, stage, exempt);
+    await load();
+    $q.notify({ message: exempt ? "This agent no longer follows the organization's rule in this step" : "The organization's rule applies to this agent again", color: "positive", timeout: 3500 });
+    if (editing.value) edit(editing.value);
+  } catch (error) {
+    $q.notify({ message: `Could not change the exemption: ${describeApiError(error as Error)}`, color: "negative", timeout: 5000 });
+  } finally {
+    saving.value = false;
+  }
+}
+
 async function remove(row: { action: "publish" | "promote"; stage: string }) {
   saving.value = true;
   try {
@@ -143,7 +165,7 @@ async function remove(row: { action: "publish" | "promote"; stage: string }) {
     <p v-else-if="loadError" class="adm-empty" role="alert" data-testid="rules-error">{{ loadError }}</p>
     <template v-else-if="data">
       <p class="intro">
-        <template v-if="isExperiment">A change travels left to right. This agent starts from the organization's rules and can only make them <b>stricter</b>: ask for more people or add a default approver, never fewer.</template>
+        <template v-if="isExperiment">A change travels left to right. This agent starts from the organization's rules and can only make them <b>stricter</b>: ask for more people or add a default approver, never fewer. To follow a different rule in a step, exempt this agent from the organization's rule there.</template>
         <template v-else>A change travels left to right. Each step can ask for a second opinion before it happens. A step without a rule works as before. Experiments can ask for more, never for less.</template>
       </p>
       <p class="legend">
@@ -167,6 +189,13 @@ async function remove(row: { action: "publish" | "promote"; stage: string }) {
             <h4>Rule for {{ stepLabel(editing.action, editing.stage).toLowerCase() }}</h4>
             <Button variant="danger" size="sm" v-if="ruleFor(data.rules, editing.action, editing.stage)" class="remove" :disabled="saving" data-testid="rule-remove" @click="remove(editing)">Remove rule</Button>
           </header>
+          <label v-if="isExperiment && orgRuleOf(editing.action, editing.stage)" class="exempt" :class="{ on: isExempt(editing.action, editing.stage) }">
+            <Checkbox :checked="isExempt(editing.action, editing.stage)" :disabled="saving" data-testid="rule-exempt-toggle" @change="toggleExemption(($event.target as HTMLInputElement).checked)" />
+            <span class="grow">
+              <b>Exempt this agent from the organization's rule</b>
+              <span class="adm-hint">The organization asks for {{ describeRule(orgRuleOf(editing.action, editing.stage), names) }} here. Exempt, this agent follows only its own rule (or none). Other agents are not affected. It is recorded in the audit log.</span>
+            </span>
+          </label>
           <div class="cols">
             <fieldset>
               <legend>Profiles</legend>
@@ -227,6 +256,9 @@ header { display: flex; align-items: center; gap: 10px; padding: 12px 20px; bord
 header h4 { flex: 1; margin: 0; font-size: 15px; font-weight: 800; }
 .env { height: 22px; padding: 0 8px; display: inline-flex; align-items: center; border-radius: 4px; font: 800 11px/1 var(--mt-mono, monospace); background: var(--mt-accent, var(--mt-ink)); color: var(--mt-accent-ink, #fff); }
 
+.exempt { display: flex; align-items: flex-start; gap: 10px; padding: 12px 20px; border-bottom: 1px solid var(--mt-line); font-size: 13px; cursor: pointer; }
+.exempt.on { background: var(--mt-soft); }
+.exempt .grow { display: flex; flex-direction: column; gap: 2px; }
 .cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 @media (max-width: 900px) { .cols { grid-template-columns: minmax(0, 1fr); } }
 fieldset { border: none; margin: 0; padding: 16px 20px; display: flex; flex-direction: column; gap: 8px; border-right: 1px solid var(--mt-line); min-width: 0; }

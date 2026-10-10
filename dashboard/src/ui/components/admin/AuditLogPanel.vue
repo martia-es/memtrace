@@ -33,6 +33,8 @@ const ACTIONS: { value: string; label: string }[] = [
   { value: "alert.delete", label: "Deleted an alert" },
   { value: "budget.update", label: "Set the cost budget" },
   { value: "budget.delete", label: "Removed the cost budget" },
+  { value: "approval_exemption.grant", label: "Exempted an agent from an approval rule" },
+  { value: "approval_exemption.revoke", label: "Brought back an approval rule for an agent" },
   { value: "partnership.create", label: "Added a partner" },
   { value: "partnership.revoke", label: "Ended a partnership" },
   { value: "partner_grant.create", label: "Granted a partner access" },

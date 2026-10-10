@@ -1,4 +1,4 @@
-import type { ApprovalAction, ApprovalDecision, ApprovalRequest, ApprovalRule, ApprovalScope, ApprovalStatus, ApproverInfo } from "@/domain/approval";
+import type { ApprovalAction, ApprovalDecision, ApprovalRequest, ApprovalRule, ApprovalScope, ApprovalStatus, ApproverInfo, RuleSet } from "@/domain/approval";
 
 export interface NewApprovalRequest {
   promptId: string;
@@ -19,8 +19,14 @@ export interface ApprovalRepository {
   /** Crea o sustituye la regla de esa acción y paso en el ámbito. */
   setRule(scope: ApprovalScope, rule: ApprovalRule, userId: string): Promise<ApprovalRule>;
   deleteRule(scope: ApprovalScope, action: ApprovalAction, stage: string): Promise<boolean>;
-  /** Las reglas de esa acción y paso que aplican a un prompt: la de su organización y las de sus agentes. */
-  rulesFor(organizationId: string, experimentIds: readonly string[], action: ApprovalAction, stage: string): Promise<ApprovalRule[]>;
+  /** Lo que hay en juego en ese paso para un prompt: la regla de su organización, las de sus agentes y cuáles están exentos. */
+  rulesFor(organizationId: string, experimentIds: readonly string[], action: ApprovalAction, stage: string): Promise<RuleSet>;
+
+  /** Pasos de los que un `org_admin` ha eximido a ese experimento (ADR-076, excepciones). */
+  listExemptions(experimentId: string): Promise<Array<{ action: ApprovalAction; stage: string }>>;
+  /** Idempotente: eximir dos veces deja una sola excepción. */
+  setExemption(experimentId: string, action: ApprovalAction, stage: string, userId: string): Promise<void>;
+  deleteExemption(experimentId: string, action: ApprovalAction, stage: string): Promise<boolean>;
 
   /**
    * Quién puede aprobar sobre un prompt: miembros de alguno de sus agentes cuyo rol tiene `prompt:approve`, con los perfiles

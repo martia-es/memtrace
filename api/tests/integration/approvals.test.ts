@@ -1,5 +1,5 @@
 /**
- * Contra un Postgres real (15+) con las migraciones 001-038 aplicadas. Opt-in: `POSTGRES_INTEGRATION_URL=postgres://… npm run test:integration`.
+ * Contra un Postgres real (15+) con las migraciones 001-045 aplicadas. Opt-in: `POSTGRES_INTEGRATION_URL=postgres://… npm run test:integration`.
  * Cubre lo que los fakes no pueden: las restricciones de la migración 038 (una regla por ámbito, acción y paso; una sola solicitud
  * viva por destino), las consultas de perfiles y el flujo de punta a punta (ADR-076): regla → solicitud → decisiones → ejecución.
  */
@@ -92,9 +92,23 @@ describe.skipIf(!url)("prompt approvals (postgres)", () => {
     expect(people.find((p) => p.userId === users.tech1)?.roles).toEqual(["technical"]);
     await approvals.setRule({ type: "organization", id: orgId }, { action: "publish", stage: "", requirements: [{ role: "technical", min: 1 }], approvers: [] }, users.owner!);
     await approvals.setRule({ type: "experiment", id: agentB }, { action: "publish", stage: "", requirements: [{ role: "technical", min: 2 }], approvers: [] }, users.owner!);
-    expect(await approvals.rulesFor(orgId, [agentA, agentB], "publish", "")).toHaveLength(2);
-    expect(await approvals.rulesFor(orgId, [agentA], "publish", "")).toHaveLength(1);
+    const both = await approvals.rulesFor(orgId, [agentA, agentB], "publish", "");
+    expect([both.organization !== null, both.experiments.length, both.exemptExperimentIds]).toEqual([true, 1, []]);
+    const onlyA = await approvals.rulesFor(orgId, [agentA], "publish", "");
+    expect([onlyA.organization !== null, onlyA.experiments.length]).toEqual([true, 0]);
     await approvals.deleteRule({ type: "experiment", id: agentB }, "publish", "");
+  });
+
+  it("exemptions: stored once per experiment and step, reported by rulesFor, revocable, and the step must be valid", async () => {
+    await approvals.setExemption(agentA, "publish", "", users.owner!);
+    await approvals.setExemption(agentA, "publish", "", users.owner!); // idempotente
+    expect(await approvals.listExemptions(agentA)).toEqual([{ action: "publish", stage: "" }]);
+    expect((await approvals.rulesFor(orgId, [agentA, agentB], "publish", "")).exemptExperimentIds).toEqual([agentA]);
+    expect((await approvals.rulesFor(orgId, [agentA, agentB], "promote", "dev")).exemptExperimentIds).toEqual([]);
+    await expect(pool.query(`INSERT INTO approval_rule_exemptions (experiment_id, action, stage) VALUES ($1, 'promote', '')`, [agentA])).rejects.toBeDefined();
+    expect(await approvals.deleteExemption(agentA, "publish", "")).toBe(true);
+    expect(await approvals.deleteExemption(agentA, "publish", "")).toBe(false);
+    expect(await approvals.listExemptions(agentA)).toEqual([]);
   });
 
   it("publish flow: the draft waits for approval and is published when it arrives", async () => {

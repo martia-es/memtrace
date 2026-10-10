@@ -162,9 +162,11 @@ export const toApprovalRequestDto = (v: ApprovalView): ApprovalRequestDto => ({
 export const toApprovalRulesResponse = (r: {
   rules: ApprovalRule[];
   organizationRules?: ApprovalRule[];
+  exemptions?: Array<{ action: "publish" | "promote"; stage: string }>;
   options: ApprovalRulesResponse["options"];
 }): ApprovalRulesResponse => ({
   rules: r.rules.map(toApprovalRuleDto),
   ...(r.organizationRules ? { organizationRules: r.organizationRules.map(toApprovalRuleDto) } : {}),
+  ...(r.exemptions ? { exemptions: r.exemptions } : {}),
   options: r.options,
 });

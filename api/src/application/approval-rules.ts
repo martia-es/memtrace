@@ -1,5 +1,5 @@
 import type { ApprovalRepository } from "@/application/ports/approval-repository";
-import { mergeRules, type ApprovalAction, type ApprovalRule } from "@/domain/approval";
+import { applicableRules, mergeRules, type ApprovalAction, type ApprovalRule } from "@/domain/approval";
 
 /** Lo que `PromptService` necesita saber de las reglas: qué exige una acción en un prompt, o null si nada (ADR-076). */
 export interface ApprovalRulesPort {
@@ -8,12 +8,13 @@ export interface ApprovalRulesPort {
 
 /**
  * La regla efectiva de una acción sobre un prompt: la de su organización apilada con las de todos sus agentes. Apilar solo
- * endurece (el mayor mínimo por perfil, la unión de aprobadores), así que un experimento nunca afloja a la organización.
+ * endurece (el mayor mínimo por perfil, la unión de aprobadores), así que un experimento nunca afloja a la organización por
+ * sí mismo. La única forma de aflojar es una excepción que concede un `org_admin` a un agente (`applicableRules`).
  */
 export class ApprovalRuleResolver implements ApprovalRulesPort {
   constructor(private readonly repo: Pick<ApprovalRepository, "rulesFor">) {}
 
   async effectiveRule(prompt: { organizationId: string; experimentIds: string[] }, action: ApprovalAction, stage: string): Promise<ApprovalRule | null> {
-    return mergeRules(await this.repo.rulesFor(prompt.organizationId, prompt.experimentIds, action, stage));
+    return mergeRules(applicableRules(await this.repo.rulesFor(prompt.organizationId, prompt.experimentIds, action, stage), prompt.experimentIds));
   }
 }

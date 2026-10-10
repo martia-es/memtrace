@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluateApproval, isExpired, looserThan, mergeRules, unreachableReason, validateRule, type ApprovalRule } from "@/domain/approval";
+import { applicableRules, evaluateApproval, isExpired, looserThan, mergeRules, unreachableReason, validateRule, validateStep, type ApprovalRule } from "@/domain/approval";
 import { ValidationError } from "@/domain/errors";
 
 const ctx = { validRoles: ["technical", "business"], environmentKeys: ["dev", "pre", "pro"] };
@@ -133,5 +133,40 @@ describe("isExpired", () => {
     expect(isExpired({ status: "pending", expiresAt: "2026-10-09T00:00:00Z" }, now)).toBe(true);
     expect(isExpired({ status: "pending", expiresAt: "2026-10-11T00:00:00Z" }, now)).toBe(false);
     expect(isExpired({ status: "executed", expiresAt: "2026-10-09T00:00:00Z" }, now)).toBe(false);
+  });
+});
+
+describe("applicableRules (exemptions)", () => {
+  const org: ApprovalRule = { action: "promote", stage: "pro", requirements: [{ role: "technical", min: 2 }], approvers: [] };
+  const own: ApprovalRule = { action: "promote", stage: "pro", requirements: [{ role: "business", min: 1 }], approvers: [] };
+
+  it("keeps the organization's rule while any agent of the prompt is not exempt", () => {
+    expect(applicableRules({ organization: org, experiments: [], exemptExperimentIds: [] }, ["a", "b"])).toEqual([org]);
+    expect(applicableRules({ organization: org, experiments: [], exemptExperimentIds: ["a"] }, ["a", "b"])).toEqual([org]);
+  });
+
+  it("drops it only when every agent is exempt, and keeps the agents' own rules", () => {
+    expect(applicableRules({ organization: org, experiments: [own], exemptExperimentIds: ["a", "b"] }, ["a", "b"])).toEqual([own]);
+  });
+
+  it("a prompt with no agents has nobody to exempt and follows the organization", () => {
+    expect(applicableRules({ organization: org, experiments: [], exemptExperimentIds: [] }, [])).toEqual([org]);
+  });
+
+  it("an exemption of an agent the prompt does not belong to changes nothing", () => {
+    expect(applicableRules({ organization: org, experiments: [], exemptExperimentIds: ["z"] }, ["a"])).toEqual([org]);
+  });
+
+  it("no organization rule means nothing to apply", () => {
+    expect(applicableRules({ organization: null, experiments: [], exemptExperimentIds: [] }, ["a"])).toEqual([]);
+  });
+});
+
+describe("validateStep", () => {
+  it("accepts publish and the organization's environments only", () => {
+    expect(validateStep({ action: "publish" }, ["dev"])).toEqual({ action: "publish", stage: "" });
+    expect(validateStep({ action: "promote", stage: " dev " }, ["dev"])).toEqual({ action: "promote", stage: "dev" });
+    expect(() => validateStep({ action: "promote", stage: "qa" }, ["dev"])).toThrow();
+    expect(() => validateStep({ action: "other" }, ["dev"])).toThrow();
   });
 });
