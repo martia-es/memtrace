@@ -263,7 +263,9 @@ Un usuario puede agrupar varias gráficas custom ya guardadas en un **informe** 
 - [x] **La pasarela de ingesta fija la identidad del tenant** (`service.name` y `memtrace.experiment_id` salen de la API key, no de lo que diga el agente) — [ADR-078](adrs/cybersecurity/adr-078-ingestion-identity-binding.md)
 - [x] **Collector solo detrás de la pasarela** (HTTP + token interno, sin gRPC), `NetworkPolicy` con denegación por defecto y usuarios de ClickHouse con mínimo privilegio — [ADR-079](adrs/cybersecurity/adr-079-network-segmentation-and-collector-access.md). *Pendiente*: comprobar las políticas en un clúster con un CNI que las aplique
 - [x] **Frontera de cliente**: una organización por cliente y relación partner con grants por persona y por cliente, revocables por el cliente — [ADR-080](adrs/cybersecurity/adr-080-client-boundary-for-multi-client-organizations.md). *Pendiente*: pantallas del dashboard
-- [ ] P1 (ADR-076): TLS y cabeceras de seguridad, cifrado en reposo y gestor de secretos, registro de auditoría general, límites de uso por tenant, borrado y retención por cliente, política de PII en el servidor, flujos hacia terceros (jueces LLM, playground)
+- [x] **Cabeceras de seguridad y límites de la ingesta** (CSP verificada en Chromium, límite por experimento y por origen con claves inválidas) — [ADR-081](adrs/cybersecurity/adr-081-security-headers-and-ingest-rate-limits.md)
+- [x] **Registro de auditoría de acciones de seguridad**, append-only y legible por el cliente, incluido el acceso de las consultoras a sus datos — [ADR-082](adrs/cybersecurity/adr-082-security-audit-log.md)
+- [ ] P1 (ADR-076) pendiente: TLS (ingress) y HSTS, cifrado en reposo y gestor de secretos, límites de uso en el resto de la API y cuotas por tenant, borrado y retención por cliente, política de PII en el servidor, flujos hacia terceros (jueces LLM, playground)
 - [ ] P2 (ADR-076): políticas de fila en ClickHouse, políticas de sesión, escaneo de la cadena de suministro en CI, copias de seguridad cifradas, pentest y cumplimiento
 
 ---

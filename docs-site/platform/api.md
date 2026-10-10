@@ -239,9 +239,15 @@ For your identity provider, under `/api/scim/v2`, authenticated with `Authorizat
 | `DELETE /organizations/{id}/partnerships/{partnershipId}/grants/{grantId}` | Takes one person's access away |
 | `GET /partner/clients` | For the consultancy's people: the clients that granted them access, with experiments and role. Metadata only |
 
+## Audit log
+
+| Endpoint | Description |
+|---|---|
+| `GET /organizations/{id}/audit` | Security events of the organization, newest first: `{ items: [{ at, action, actorEmail, experimentId, targetType, targetId, detail }], nextBefore }`. Params: `action`, `limit` (1–500), `before`. `org_admin` only |
+
 ## Ingest and health
 
 | Endpoint | Description |
 |---|---|
-| `POST /ingest/v1/traces` | OTLP/HTTP gateway; requires an agent API key (see [Authentication](/library/authentication)). Accepts `application/x-protobuf` and `application/json`, optionally `gzip`; answers `400` for a malformed payload, `413` above 10 MiB (32 MiB once decompressed) and `415` for other formats or encodings. `service.name` is set from the key's experiment |
+| `POST /ingest/v1/traces` | OTLP/HTTP gateway; requires an agent API key (see [Authentication](/library/authentication)). Accepts `application/x-protobuf` and `application/json`, optionally `gzip`; answers `400` for a malformed payload, `413` above 10 MiB (32 MiB once decompressed) and `415` for other formats or encodings, and `429` with `Retry-After` above 600 requests per minute per experiment or after 30 invalid keys per minute from one origin. `service.name` is set from the key's experiment |
 | `GET /health`, `GET /health/ready` | Liveness / readiness |

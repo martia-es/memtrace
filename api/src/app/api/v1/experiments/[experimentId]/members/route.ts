@@ -3,7 +3,7 @@ import { identityGuard } from "@/adapters/inbound/http/identity-guard";
 import { addMemberBody, parseJsonOrThrow } from "@/adapters/inbound/http/identity-schemas";
 import { json, problem } from "@/adapters/inbound/http/problem";
 import { ValidationError } from "@/domain/errors";
-import { getIdentity } from "@/dependency-container";
+import { getAudit, getIdentity } from "@/dependency-container";
 
 export const dynamic = "force-dynamic";
 
@@ -60,10 +60,12 @@ export async function POST(request: Request, context: { params: Promise<{ experi
         roleLabel: role,
         appUrl: new URL(request.url).origin,
       });
+      await getAudit().record({ action: "member.invited", actorUserId: user.id, actorEmail: user.email, organizationId: experiment.organizationId, experimentId, targetType: "experiment", targetId: experimentId, detail: { email, role } });
       return json({ experimentId, email, role, status: "pending" }, 202);
     }
 
     await identityRepository.addExperimentMember(experimentId, invitee.id, role);
+    await getAudit().record({ action: "member.added", actorUserId: user.id, actorEmail: user.email, organizationId: experiment.organizationId, experimentId, targetType: "user", targetId: invitee.id, detail: { email: invitee.email, role } });
     return json({ experimentId, userId: invitee.id, role }, 201);
   });
 }

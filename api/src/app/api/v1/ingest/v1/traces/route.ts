@@ -2,6 +2,7 @@ import { gunzipSync } from "node:zlib";
 import { getIdentity } from "@/dependency-container";
 import { problem } from "@/adapters/inbound/http/problem";
 import { MalformedOtlpError, rewriterFor } from "@/adapters/inbound/http/otlp-identity";
+import { RateLimiter } from "@/application/rate-limiter";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,26 @@ const COLLECTOR_TOKEN = process.env.INGEST_INTERNAL_TOKEN;
 /** Tope del cuerpo recibido (comprimido) y del descomprimido: sin él una petición pequeña podría expandirse sin límite. */
 const MAX_BODY_BYTES = Number(process.env.INGEST_MAX_BODY_BYTES ?? 10 * 1024 * 1024);
 const MAX_DECOMPRESSED_BYTES = Number(process.env.INGEST_MAX_DECOMPRESSED_BYTES ?? 32 * 1024 * 1024);
+
+/**
+ * Límites (ADR-081). Por experimento: un agente en un bucle o una clave filtrada no puede saturar el Collector. Por origen,
+ * solo las claves inválidas: frena el sondeo de claves sin gastar una consulta a Postgres por intento. En memoria de cada
+ * réplica; ajustables con INGEST_RATE_LIMIT_PER_MINUTE y INGEST_INVALID_KEY_LIMIT_PER_MINUTE.
+ */
+const perExperiment = new RateLimiter(Number(process.env.INGEST_RATE_LIMIT_PER_MINUTE ?? 600), 60_000);
+const invalidKeys = new RateLimiter(Number(process.env.INGEST_INVALID_KEY_LIMIT_PER_MINUTE ?? 30), 60_000);
+
+/** El origen es el último salto de X-Forwarded-For: lo añade nuestro nginx; lo anterior lo puede escribir el cliente. */
+function clientOf(request: Request): string {
+  const forwarded = request.headers.get("x-forwarded-for");
+  return forwarded ? (forwarded.split(",").pop() ?? "").trim() || "unknown" : "unknown";
+}
+
+function tooMany(retryAfterSeconds: number): Response {
+  const response = problem(429, "Too Many Requests", "Rate limit exceeded");
+  response.headers.set("Retry-After", String(retryAfterSeconds));
+  return response;
+}
 
 class PayloadTooLarge extends Error {}
 
@@ -49,11 +70,22 @@ async function readBounded(request: Request, limit: number): Promise<Uint8Array>
 export async function POST(request: Request) {
   const auth = request.headers.get("authorization");
   const bearer = auth?.match(/^Bearer\s+(.+)$/i)?.[1];
-  if (!bearer) return problem(401, "Unauthorized", "Missing API key");
+  const origin = clientOf(request);
+  const blocked = invalidKeys.peek(origin);
+  if (blocked.remaining === 0) return tooMany(blocked.retryAfterSeconds); // ya agotó sus intentos fallidos de este minuto
+  if (!bearer) {
+    invalidKeys.hit(origin);
+    return problem(401, "Unauthorized", "Missing API key");
+  }
 
   const { identityRepository } = getIdentity();
   const access = await identityRepository.resolveApiKey(bearer);
-  if (!access) return problem(401, "Unauthorized", "Invalid or revoked API key");
+  if (!access) {
+    invalidKeys.hit(origin);
+    return problem(401, "Unauthorized", "Invalid or revoked API key");
+  }
+  const decision = perExperiment.hit(access.experimentId);
+  if (!decision.allowed) return tooMany(decision.retryAfterSeconds);
 
   const contentType = request.headers.get("content-type");
   const rewrite = rewriterFor(contentType);

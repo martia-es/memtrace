@@ -16,6 +16,6 @@ export async function POST(request: Request, context: { params: Promise<{ organi
     const user = await requireOrgAdmin(organizationId);
     if (user instanceof Response) return user;
     const body = await parseJsonOrThrow(partnerGrantBody, request);
-    return json(await getPartnerships().grant(organizationId, partnershipId, body, user.id), 201);
+    return json(await getPartnerships().grant(organizationId, partnershipId, body, user), 201);
   });
 }

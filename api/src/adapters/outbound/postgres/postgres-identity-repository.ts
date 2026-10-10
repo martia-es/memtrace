@@ -396,7 +396,11 @@ export class PostgresIdentityRepository implements IdentityRepository {
     );
     const row = rows[0];
     if (!row || (!row.org_role && !row.experiment_role && !row.partner_role)) return null;
-    return { role: row.experiment_role ?? row.partner_role ?? (row.org_role as string), permissions: (row.permissions ?? []).filter(isPermission) };
+    return {
+      role: row.experiment_role ?? row.partner_role ?? (row.org_role as string),
+      permissions: (row.permissions ?? []).filter(isPermission),
+      ...(!row.org_role && !row.experiment_role && row.partner_role ? { viaPartner: true } : {}),
+    };
   }
 
   async listRoleNames(scope: "organization" | "experiment"): Promise<string[]> {

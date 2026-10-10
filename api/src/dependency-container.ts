@@ -21,9 +21,11 @@ import { ClickHouseUserFeedbackRepository } from "@/adapters/outbound/clickhouse
 import { DatasetPromotionService } from "@/application/dataset-promotion-service";
 import { EvaluationService } from "@/application/evaluation-service";
 import { ExternalAccessService } from "@/application/external-access-service";
+import { AuditService } from "@/application/audit-service";
 import { PartnershipService } from "@/application/partnership-service";
 import type { ExternalIdentityRepository } from "@/application/ports/external-identity-repository";
 import { PostgresExternalIdentityRepository } from "@/adapters/outbound/postgres/postgres-external-identity-repository";
+import { PostgresAuditRepository } from "@/adapters/outbound/postgres/postgres-audit-repository";
 import { PostgresPartnershipRepository } from "@/adapters/outbound/postgres/postgres-partnership-repository";
 import type { IdentityRepository } from "@/application/ports/identity-repository";
 import { DeployGateService } from "@/application/deploy-gate-service";
@@ -50,6 +52,7 @@ const globalForContainer = globalThis as unknown as {
   __memtraceTraceQueryService?: TraceQueryService;
   __memtraceTraceRepository?: ClickHouseTraceRepository;
   __memtraceIdentity?: { identityRepository: IdentityRepository; authorizationService: AuthorizationService; emailSender: EmailSender };
+  __memtraceAudit?: AuditService;
   __memtracePartnerships?: PartnershipService;
   __memtraceExternalAccess?: { externalRepository: ExternalIdentityRepository; externalAccessService: ExternalAccessService };
   __memtraceEvaluation?: EvaluationService;
@@ -112,10 +115,16 @@ export function getHandlers(): Handlers {
   return globalForContainer.__memtraceHandlers;
 }
 
+/** Registro de auditoría de acciones de seguridad (ADR-082). */
+export function getAudit(): AuditService {
+  if (!globalForContainer.__memtraceAudit) globalForContainer.__memtraceAudit = new AuditService(new PostgresAuditRepository(getPostgresPool()));
+  return globalForContainer.__memtraceAudit;
+}
+
 /** Relación partner entre organizaciones (ADR-080): una consultora opera a sus clientes con acceso opt-in por cliente. */
 export function getPartnerships(): PartnershipService {
   if (!globalForContainer.__memtracePartnerships) {
-    globalForContainer.__memtracePartnerships = new PartnershipService(new PostgresPartnershipRepository(getPostgresPool()));
+    globalForContainer.__memtracePartnerships = new PartnershipService(new PostgresPartnershipRepository(getPostgresPool()), getAudit());
   }
   return globalForContainer.__memtracePartnerships;
 }

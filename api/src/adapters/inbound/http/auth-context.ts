@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { getIdentity, getPrompts } from "@/dependency-container";
+import { getAudit, getIdentity, getPrompts } from "@/dependency-container";
 import type { User } from "@/domain/identity";
 import type { Permission } from "@/domain/permissions";
 import type { Prompt } from "@/domain/prompt";
@@ -44,6 +44,8 @@ export async function requirePermission(experimentId: string, permission: Permis
   const access = await authorizationService.resolveExperimentAccess(user.id, experimentId);
   if (access === null) return problem(403, "Forbidden", "No access to this experiment");
   if (!access.permissions.includes(permission)) return problem(403, "Forbidden", `Missing permission: ${permission}`);
+  // una consultora entrando en los datos de un cliente deja rastro que el cliente puede leer (ADR-080, ADR-082)
+  if (access.viaPartner) await getAudit().recordPartnerAccess({ userId: user.id, email: user.email }, { id: experiment.id, organizationId: experiment.organizationId });
   return { user, scope: { experimentId: experiment.id, serviceName: experiment.serviceName }, serviceName: experiment.serviceName, role: access.role, permissions: access.permissions };
 }
 
@@ -104,6 +106,7 @@ export async function requireAnyPermission(experimentId: string, permissions: Pe
   const access = await authorizationService.resolveExperimentAccess(user.id, experimentId);
   if (access === null) return problem(403, "Forbidden", "No access to this experiment");
   if (!permissions.some((p) => access.permissions.includes(p))) return problem(403, "Forbidden", `Missing permission: ${permissions.join(" or ")}`);
+  if (access.viaPartner) await getAudit().recordPartnerAccess({ userId: user.id, email: user.email }, { id: experiment.id, organizationId: experiment.organizationId });
   return { user, scope: { experimentId: experiment.id, serviceName: experiment.serviceName }, serviceName: experiment.serviceName, role: access.role, permissions: access.permissions };
 }
 

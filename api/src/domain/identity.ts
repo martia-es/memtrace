@@ -75,7 +75,12 @@ export interface ExperimentSummary extends Experiment {
  * Acceso resuelto de un usuario a un experimento concreto: unión de los permisos de su rol de organización y de
  * su rol de experimento (ADR-052). `role` es solo una etiqueta; `null` si no tiene ningún rol que lo alcance.
  */
-export type ExperimentAccess = { role: string; permissions: Permission[] } | null;
+export type ExperimentAccess = {
+  role: string;
+  permissions: Permission[];
+  /** el acceso viene solo de un grant de consultora (ADR-080): se deja constancia en la auditoría */
+  viaPartner?: boolean;
+} | null;
 
 /**
  * API key de agente (ADR-013, pieza 9): autentica la escritura de trazas de un experimento

@@ -61,6 +61,10 @@ If a consultancy manages your agents, give it its **own organization** and keep 
 
 If the consultancy removes someone from its organization, that person loses access to all its clients at once, and adding them back does not restore it: you grant it again. People at the consultancy see the clients that granted them access with `GET /api/v1/partner/clients` (names and roles only, never trace data).
 
+## Audit log
+
+Security-relevant actions are recorded in an append-only log that survives the deletion of what it describes: partner relationships and grants, agent API key creation and revocation, membership changes, and every time someone who only has access through a consultancy grant opens one of your experiments (at most once per person and experiment every 10 minutes). As an `org_admin`, read it with `GET /api/v1/organizations/{id}/audit` (optional `action`, `limit` up to 500, and `before` to page back). Reads by your own staff are not logged.
+
 ## Data isolation between experiments
 
 Each experiment is its own tenant. Its traces, conversations, scores, annotations, votes and prompt evidence are stored under the experiment's id and every read is limited to it, so two organizations that use the same `service.name` (or the same trace or conversation ids) cannot see each other's data. `GET /api/v1/services` now requires a session and lists only the services of experiments you can read.

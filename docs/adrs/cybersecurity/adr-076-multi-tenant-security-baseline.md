@@ -42,10 +42,10 @@ This ADR is the umbrella: it lists **what has to be addressed**, in what order, 
 
 | Item | Gap |
 |---|---|
-| Encryption in transit | No Ingress/TLS and no encryption between services; no HSTS, CSP or X-Frame-Options headers in nginx |
+| Encryption in transit | No Ingress/TLS and no encryption between services. Security headers are done ([ADR-081](adr-081-security-headers-and-ingest-rate-limits.md)); HSTS belongs to the TLS terminator |
 | Encryption at rest and secrets | Kubernetes secrets are base64; no volume encryption; no secret manager (ADR-013 left it open); no per-client keys |
-| General audit log | Only partial audit (dataset items, prompt tag history, gate bypass). Missing: who read which trace, exports, role changes, logins, API key use |
-| Rate limiting and quotas | `QueryLimiter` only bounds ClickHouse concurrency; nothing against abuse or brute force on API or ingestion, no per-tenant quota |
+| General audit log | Done for security actions and consultancy access ([ADR-082](adr-082-security-audit-log.md)). Missing: reads by the client's own staff, logins, retention |
+| Rate limiting and quotas | Ingest gateway done, per experiment and per origin for invalid keys ([ADR-081](adr-081-security-headers-and-ingest-rate-limits.md)). Missing: the rest of the API, per-tenant quotas |
 | Erasure and per-client retention | TTL is fixed for everyone; no delete-by-experiment/user/session; no data export |
 | Server-side PII policy | Redaction happens only if the client configures the SDK; add an organization policy enforced at the gateway |
 | Third-party data flows | LLM judges and the playground send content to external providers; inventory them and let an organization disable them |

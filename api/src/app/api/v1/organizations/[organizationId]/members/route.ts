@@ -2,7 +2,7 @@ import { requireUser } from "@/adapters/inbound/http/auth-context";
 import { identityGuard } from "@/adapters/inbound/http/identity-guard";
 import { addOrgAdminBody, parseJsonOrThrow } from "@/adapters/inbound/http/identity-schemas";
 import { json, problem } from "@/adapters/inbound/http/problem";
-import { getIdentity } from "@/dependency-container";
+import { getAudit, getIdentity } from "@/dependency-container";
 
 export const dynamic = "force-dynamic";
 
@@ -56,10 +56,12 @@ export async function POST(request: Request, context: { params: Promise<{ organi
         roleLabel: "org_admin",
         appUrl: new URL(request.url).origin,
       });
+      await getAudit().record({ action: "member.invited", actorUserId: user.id, actorEmail: user.email, organizationId, targetType: "organization", targetId: organizationId, detail: { email, role: "org_admin" } });
       return json({ organizationId, email, role: "org_admin", status: "pending" }, 202);
     }
 
     await identityRepository.addOrgAdmin(organizationId, invitee.id);
+    await getAudit().record({ action: "org_admin.added", actorUserId: user.id, actorEmail: user.email, organizationId, targetType: "user", targetId: invitee.id, detail: { email: invitee.email } });
     return json({ organizationId, userId: invitee.id, role: "org_admin" }, 201);
   });
 }

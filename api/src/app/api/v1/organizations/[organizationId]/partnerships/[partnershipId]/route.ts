@@ -10,7 +10,7 @@ export async function DELETE(_request: Request, context: { params: Promise<{ org
     const { organizationId, partnershipId } = await context.params;
     const user = await requireOrgAdmin(organizationId);
     if (user instanceof Response) return user;
-    await getPartnerships().revoke(organizationId, partnershipId, user.id);
+    await getPartnerships().revoke(organizationId, partnershipId, user);
     return new Response(null, { status: 204 });
   });
 }
