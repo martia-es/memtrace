@@ -50,11 +50,12 @@ export const router = createRouter({
         { path: "overview/reports/:reportId", name: "overview-report", component: metricsPage, meta: { title: "Report", section: "reports", view: "report" } },
         // antes "Metrics": se mantiene el path para enlaces guardados (ADR-048)
         { path: "metrics", redirect: (to) => ({ name: "overview", params: to.params, query: to.query }) },
-        // Review: bandeja personal, todas las colas y archivadas (ADR-059)
-        { path: "annotation-queues", name: "annotation-queues", component: queuesPage, meta: { title: "My inbox", section: "review-inbox", view: "assigned" } },
-        { path: "annotation-queues/all", name: "annotation-queues-all", component: queuesPage, meta: { title: "All queues", section: "review-queues", view: "active" } },
-        { path: "annotation-queues/archived", name: "annotation-queues-archived", component: queuesPage, meta: { title: "Archived queues", section: "review-archived", view: "archived" } },
-        { path: "annotation-queues/:queueId/review", name: "annotation-queue-review", component: () => import("./pages/AnnotationQueueReviewPage.vue"), props: true, meta: { title: "Review", section: "review-inbox", framed: true } },
+        // Review: una sola pantalla de colas; el alcance y el estado son filtros en la URL (?scope=all, ?status=archived)
+        { path: "annotation-queues", name: "annotation-queues", component: queuesPage, meta: { title: "Review", section: "review" } },
+        // rutas anteriores (favoritos): redirigen a la pantalla única con el filtro equivalente
+        { path: "annotation-queues/all", redirect: (to) => ({ name: "annotation-queues", params: to.params, query: { scope: "all" } }) },
+        { path: "annotation-queues/archived", redirect: (to) => ({ name: "annotation-queues", params: to.params, query: { scope: "all", status: "archived" } }) },
+        { path: "annotation-queues/:queueId/review", name: "annotation-queue-review", component: () => import("./pages/AnnotationQueueReviewPage.vue"), props: true, meta: { title: "Review", section: "review", framed: true } },
         // registro de prompts (ADR-067): versiones inmutables y tags por entorno
         { path: "prompts", name: "prompts", component: () => import("./pages/PromptsPage.vue"), meta: { title: "Prompts", section: "prompts", timeRange: false } },
         { path: "prompts/:promptId", name: "prompt", component: () => import("./pages/PromptDetailPage.vue"), props: true, meta: { title: "Prompt", section: "prompts", framed: true, timeRange: false } },

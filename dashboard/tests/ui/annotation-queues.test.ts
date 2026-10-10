@@ -17,9 +17,6 @@ async function setup(component: object, api: FakeTraceApi, path: string, props: 
     history: createMemoryHistory(),
     routes: [
       { path: "/e/:experimentId/annotation-queues", name: "annotation-queues", component: { template: "<div />" } },
-      { path: "/e/:experimentId/annotation-queues/all", name: "annotation-queues-all", component: { template: "<div />" }, meta: { view: "active" } },
-      { path: "/e/:experimentId/annotation-queues/archived", name: "annotation-queues-archived", component: { template: "<div />" }, meta: { view: "archived" } },
-      { path: "/e/:experimentId/inbox", name: "inbox", component: { template: "<div />" }, meta: { view: "assigned" } },
       { path: "/e/:experimentId/annotation-queues/:queueId/review", name: "annotation-queue-review", component: { template: "<div />" } },
       { path: "/e/:experimentId/traces/:traceId", name: "trace", component: { template: "<div />" } },
       { path: "/datasets/:datasetId", name: "dataset", component: { template: "<div />" } },
@@ -79,24 +76,30 @@ describe("AnnotationQueuesPage", () => {
     expect(router.currentRoute.value.params.queueId).toBe("q-1");
   });
 
-  it("shows the queues of the page the route points to (inbox, all queues, archived), with no tab bar", async () => {
+  it("filters one screen by scope and status, kept in the URL", async () => {
     const api = new FakeTraceApi();
     api.queues = [queueSummary({ id: "q-mine", name: "Mine", isReviewer: true }), queueSummary({ id: "q-other", name: "Other", isReviewer: false }), queueSummary({ id: "q-old", name: "Old", archivedAt: "2026-01-01T00:00:00Z" })];
     const names = (w: { findAll: (s: string) => { text: () => string }[] }) => w.findAll('[data-testid="queue-row"]').map((r) => r.text());
 
-    const inbox = await setup(AnnotationQueuesPage, api, "/e/e1/inbox");
+    const inbox = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues");
     expect(names(inbox.wrapper)).toHaveLength(1);
     expect(names(inbox.wrapper)[0]).toContain("Mine");
     expect(inbox.wrapper.find('[role="tablist"]').exists()).toBe(false);
     inbox.wrapper.unmount();
 
-    const all = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues/all");
+    const all = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues?scope=all");
     expect(names(all.wrapper)).toHaveLength(2);
     all.wrapper.unmount();
 
-    const archived = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues/archived");
+    const archived = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues?scope=all&status=archived");
     expect(names(archived.wrapper)).toHaveLength(1);
     expect(names(archived.wrapper)[0]).toContain("Old");
+    await archived.wrapper.get('[data-testid="status-active"]').trigger("click");
+    await new Promise((r) => setTimeout(r, 0));
+    await archived.wrapper.get('[data-testid="scope-assigned"]').trigger("click");
+    await archived.router.isReady();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(archived.router.currentRoute.value.query).toEqual({});
   });
 
   it("shows each reviewer's photo, or their initials, labelled with their name (shown as a tooltip on hover)", async () => {
@@ -113,7 +116,7 @@ describe("AnnotationQueuesPage", () => {
   it("does not offer Review (nor count its pending items) for a queue where I am not a reviewer", async () => {
     const api = new FakeTraceApi();
     api.queues = [queueSummary({ isReviewer: false })];
-    const { wrapper } = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues");
+    const { wrapper } = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues?scope=all");
     expect(wrapper.findAll("button").some((b) => b.text() === "Review")).toBe(false);
     expect(wrapper.findAll("button").some((b) => b.text() === "View results")).toBe(true);
   });

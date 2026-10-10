@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import TextInput from "@/ui/components/TextInput.vue";
 import Select from "../components/Select.vue";
+import SegmentedControl from "../components/SegmentedControl.vue";
 import { computed, inject, reactive, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useQuasar } from "quasar";
@@ -47,10 +48,17 @@ void scoreConfigs.run();
 const rubricNames = (q: AnnotationQueueSummaryDto) =>
   q.rubric.map((r) => scoreConfigs.data.value?.find((c) => c.id === r.configId)?.name).filter((n): n is string => !!n);
 
-type QueueTab = "active" | "assigned" | "archived";
-// la vista la fija la ruta (ADR-059): bandeja personal, todas las colas o archivadas
-const tab = computed<QueueTab>(() => (route.meta.view as QueueTab | undefined) ?? "active");
-const VIEW_TITLES: Record<QueueTab, string> = { assigned: "My inbox", active: "All queues", archived: "Archived" };
+// una sola pantalla (ADR-059): el alcance y el estado son filtros guardados en la URL, así se pueden compartir y recargar
+type Scope = "assigned" | "all";
+type Status = "active" | "archived";
+const scope = computed<Scope>({
+  get: () => (route.query.scope === "all" ? "all" : "assigned"),
+  set: (v) => void router.replace({ query: { ...route.query, scope: v === "all" ? "all" : undefined } }),
+});
+const status = computed<Status>({
+  get: () => (route.query.status === "archived" ? "archived" : "active"),
+  set: (v) => void router.replace({ query: { ...route.query, status: v === "archived" ? "archived" : undefined } }),
+});
 
 function notifyError(action: string, error: unknown) {
   $q.notify({ message: `${action}: ${error instanceof Error ? error.message : String(error)}`, color: "negative", timeout: 4000 });
@@ -72,8 +80,10 @@ const sortedQueues = computed(() =>
     .sort((a, b) => Number(b.progress.pending > 0) - Number(a.progress.pending > 0)),
 );
 const archivedQueues = computed(() => (queues.data.value?.items ?? []).filter((q) => q.archivedAt));
-const assignedQueues = computed(() => sortedQueues.value.filter((q) => q.isReviewer));
-const visibleQueues = computed(() => (tab.value === "archived" ? archivedQueues.value : tab.value === "assigned" ? assignedQueues.value : sortedQueues.value));
+const visibleQueues = computed(() => {
+  const base = status.value === "archived" ? archivedQueues.value : sortedQueues.value;
+  return scope.value === "assigned" ? base.filter((q) => q.isReviewer) : base;
+});
 
 // solo cuenta lo que YO puedo revisar (ADR-051): una cola donde no estoy en la lista no es trabajo mío
 const pendingTotal = computed(() => sortedQueues.value.filter((q) => q.isReviewer).reduce((n, q) => n + q.progress.pending, 0));
@@ -184,9 +194,14 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
 
 <template>
   <div class="page">
-    <PageHeader :crumbs="[{ label: 'Review' }, { label: VIEW_TITLES[tab] }]" :icon="ICON" :title="VIEW_TITLES[tab]">
+    <PageHeader :crumbs="[{ label: 'Review' }]" :icon="ICON" title="Review">
       <Button variant="primary" v-if="canManage" data-testid="new-queue" @click="openCreate" class="mt-new">+ New queue</Button>
     </PageHeader>
+
+    <div class="filters">
+      <SegmentedControl v-model="scope" aria-label="Queues to show" :options="[{ value: 'assigned', label: 'Assigned to me', testid: 'scope-assigned' }, { value: 'all', label: 'All queues', testid: 'scope-all' }]" />
+      <SegmentedControl v-model="status" aria-label="Queue status" :options="[{ value: 'active', label: 'Active', testid: 'status-active' }, { value: 'archived', label: 'Archived', testid: 'status-archived' }]" />
+    </div>
 
     <section v-if="pendingTotal > 0" class="inbox" data-testid="inbox">
       <div class="inbox-text">
@@ -213,7 +228,7 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
       {{ canManage ? 'Create one with "New queue" (you need at least one score config first).' : "Ask an experiment admin to create one." }}
     </EmptyState>
     <p v-else-if="visibleQueues.length === 0" class="hint muted" data-testid="queues-empty-tab">
-      {{ tab === "archived" ? "No archived queues." : tab === "assigned" ? "You are not assigned to any queue." : "You are all caught up." }}
+      {{ status === "archived" ? "No archived queues." : scope === "assigned" ? "You are not assigned to any queue." : "You are all caught up." }}
     </p>
 
     <Card padding="none" block v-if="visibleQueues.length" class="table-card">
@@ -316,6 +331,7 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
 </template>
 
 <style scoped>
+.filters { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
 .page {
   flex: 1;
   min-height: 0;

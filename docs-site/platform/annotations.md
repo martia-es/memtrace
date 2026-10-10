@@ -10,7 +10,7 @@ From a slow or failing trace to a regression test, who does what:
 |---|---|---|---|
 | 1 | Technical | Conversations / Traces | Spot traces that are slow, fail or look wrong. |
 | 2 | Technical | **Review → New queue** | Create a queue: rubric (score configs), who can annotate, reviews needed per trace. Add the traces (**Add to queue**, or a filter in **Add traces**). |
-| 3 | Business (and technical, if listed) | **Review → My inbox** | Label each trace **independently** against the rubric. Nobody sees the others' answers. |
+| 3 | Business (and technical, if listed) | **Review** (Assigned to me) | Label each trace **independently** against the rubric. Nobody sees the others' answers. |
 | 4 | Technical | **Review → queue → Results** | See all answers side by side. Rows where reviewers disagree are highlighted. |
 | 5 | Technical | **Resolve** (a row) | Give a **Verdict** per criterion (and optionally a **Correct answer**). Reviewers' labels are never changed. |
 | 6 | Technical | Bottom bar of **Results** | Tick the rows, choose a dataset and the source of the **expected output**, press **Add to dataset**. |

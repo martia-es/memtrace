@@ -60,11 +60,7 @@ const NAV: readonly NavGroup[] = [
     id: "review",
     label: "Review",
     icon: "M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11",
-    children: [
-      { name: "annotation-queues", label: "My inbox", sections: ["review-inbox"] },
-      { name: "annotation-queues-all", label: "All queues", sections: ["review-queues"] },
-      { name: "annotation-queues-archived", label: "Archived", sections: ["review-archived"] },
-    ],
+    children: [{ name: "annotation-queues", label: "Review", sections: ["review"] }],
   },
   { id: "prompts", label: "Prompts", icon: "M4 6h16M4 12h16M4 18h10", children: [{ name: "prompts", label: "Prompts", sections: ["prompts"] }] },
   {
@@ -214,7 +210,7 @@ function switchExperiment(experimentId: string | null) {
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="g.icon" /></svg>
               <span v-if="!isCollapsed" class="nav-label">{{ g.label }}</span>
-              <span v-if="!isCollapsed && g.id === 'review' && pendingReviews > 0 && !groupActive(g)" class="nav-badge" data-testid="pending-reviews">{{ pendingReviews }}</span>
+              <span v-if="!isCollapsed && g.id === 'review' && pendingReviews > 0" class="nav-badge" data-testid="pending-reviews">{{ pendingReviews }}</span>
               <span v-if="!isCollapsed && g.id === 'prompts' && pendingApprovals > 0" class="nav-badge" data-testid="pending-approvals" :title="`${pendingApprovals} waiting for your approval`">{{ pendingApprovals }}</span>
               <svg v-if="!isCollapsed && !isLeaf(g)" class="nav-chevron" :class="{ expanded: groupActive(g) }" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="CHEVRON" /></svg>
             </router-link>
@@ -228,7 +224,6 @@ function switchExperiment(experimentId: string | null) {
                 :aria-current="isActive(c.sections) ? 'page' : undefined"
               >
                 <span class="nav-label">{{ c.label }}</span>
-                <span v-if="g.id === 'review' && c.name === 'annotation-queues' && pendingReviews > 0" class="nav-badge" data-testid="pending-reviews">{{ pendingReviews }}</span>
               </router-link>
             </div>
           </template>
