@@ -94,6 +94,14 @@ export function parseRecipients(text: string): string[] {
     .filter(Boolean);
 }
 
+/** El límite de una alerta siempre cae al 66 % de su barra, así que pasarse se ve como una barra que lo rebasa. */
+export const GAUGE_LIMIT_AT = 66;
+export function gaugeFill(value: number | null, threshold: number): number | null {
+  if (value === null) return null;
+  if (threshold <= 0) return value > 0 ? 100 : 0;
+  return Math.max(0, Math.min(100, Math.round((value / threshold) * GAUGE_LIMIT_AT)));
+}
+
 /** Barra de gasto: el porcentaje que se pinta (sin pasar de 100) y su tono. */
 export function budgetTone(percent: number, warnPercent: number): StateTone {
   if (percent >= 100) return "error";

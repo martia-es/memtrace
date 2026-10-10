@@ -121,7 +121,7 @@ describe("raw <button> elements", () => {
     });
   const ALLOWED = new Set([
     // internos de los componentes de interacción
-    "Button.vue", "ToggleChip.vue", "MenuItem.vue", "Disclosure.vue", "TabBar.vue", "SegmentedControl.vue", "Select.vue", "TextInput.vue",
+    "Button.vue", "ToggleChip.vue", "MenuItem.vue", "Disclosure.vue", "TabBar.vue", "SegmentedControl.vue", "Select.vue", "TextInput.vue", "Switch.vue",
     // disparadores de menú o de popover con aspecto propio
     "ExperimentSelect.vue", "FilterBar.vue", "FilterPill.vue", "LiveControl.vue", "UserMenu.vue",
     // filas y tarjetas pulsables (la fila entera es el botón)

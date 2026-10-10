@@ -4,6 +4,14 @@ MemTrace tells you when something goes wrong instead of waiting for you to open 
 
 Everyone who can read the agent can see its alerts. Creating, changing and deleting them needs the `alert:manage` permission, which the `technical` profile has.
 
+## The Alerts screen
+
+- A red banner at the top says how many alerts are firing right now and which ones.
+- **Your alerts** lists each alert as a card, with the ones that are firing first and the paused ones last. Use **All, Firing, Healthy and Paused** to narrow the list.
+- Each card shows the rule in one sentence, the value now, the limit, and a bar with a vertical mark at the limit. A bar that goes past the mark is over its limit.
+- The switch on a card pauses or resumes the alert. **Edit** and **Delete** are next to it.
+- The **history** is grouped by day and also records when an alert is back to normal.
+
 ## What you can watch
 
 | Alert on | The value is | You write the threshold in |
@@ -46,7 +54,7 @@ Each alert has its own list of addresses, up to **10**. They do not need a MemTr
 - the email has the alert name, the agent name, the rule, the value and a link. It never contains conversation content;
 - an organization sends at most **100 alert emails a day**. After that alerts are still recorded and shown in the app (and the history says "Not emailed"), but not mailed.
 
-The bell at the top right of the dashboard counts the alerts that are firing now, in every agent you can read, and takes you to them.
+The bell at the top right of the dashboard counts the alerts that are firing now, in every agent you can read. Its **Notifications** panel shows, for each one, the value now, the limit, the agent and how long it has been firing. **View alert** and **Manage alerts** take you to the Alerts screen.
 
 ## Monthly cost budget
 

@@ -102,7 +102,8 @@ describe("the alerts page", () => {
     const api = new Api();
     api.alerts = { rules: [{ rule: rule(), status: status("firing") }, { rule: rule({ id: "r4", enabled: false }), status: status("firing") }, { rule: rule({ id: "r6" }), status: status("ok") }], events: [], budget: null };
     await openPage(api);
-    expect(q("firing-count")!.textContent).toContain("1 firing");
+    expect(q("firing-count")!.textContent).toContain("1 alert is firing right now");
+    expect(q("firing-count")!.textContent).toContain("Too many errors");
   });
 
   it("invites the first alert, and hides the controls from someone who cannot manage alerts", async () => {
@@ -367,11 +368,11 @@ describe("the alerts page", () => {
         budget: null,
       };
       await openPage(api);
-      const rows = [...q("alert-history")!.querySelectorAll("tbody tr")].map((r) => r.textContent!.replace(/\s+/g, " ").trim());
+      const rows = [...q("alert-history")!.querySelectorAll("[data-testid='history-row']")].map((r) => r.textContent!.replace(/\s+/g, " ").trim());
       expect(rows[0]).toContain("Too many errors");
-      expect(rows[0]).toContain("Resolved");
+      expect(rows[0]).toContain("is back to normal");
       expect(rows[0]).toContain("2 % vs 5 %");
-      expect(rows[1]).toContain("Still firing");
+      expect(rows[1]).toContain("is still over its limit");
       expect(rows[1]).toContain("Not emailed");
       expect(rows[2]).toContain("(deleted alert)");
     });
@@ -391,9 +392,60 @@ describe("the alerts page", () => {
       q("older")!.click();
       await flushPromises();
       expect(api.alertCalls).toEqual([{ op: "events", id: "81" }]);
-      expect(q("alert-history")!.querySelectorAll("tbody tr")).toHaveLength(21);
+      expect(q("alert-history")!.querySelectorAll("[data-testid='history-row']")).toHaveLength(21);
       expect(q("older")).toBeNull();
     });
+  });
+
+  it("shows firing alerts first, and the filters narrow the list", async () => {
+    const api = new Api();
+    api.alerts = {
+      rules: [
+        { rule: rule({ id: "ok", name: "Fine" }), status: status("ok", 1) },
+        { rule: rule({ id: "off", name: "Off", enabled: false }), status: null },
+        { rule: rule({ id: "bad", name: "Broken" }), status: status("firing", 40) },
+      ],
+      events: [],
+      budget: null,
+    };
+    await openPage(api);
+    const order = () => [...document.body.querySelectorAll("[data-testid^='rule-']")].map((r) => r.getAttribute("data-testid"));
+    expect(order()).toEqual(["rule-bad", "rule-ok", "rule-off"]);
+    const chip = (label: string) => [...document.body.querySelectorAll<HTMLButtonElement>(".mt-chip")].find((c) => c.textContent!.trim().startsWith(label))!;
+    chip("Firing").click();
+    await flushPromises();
+    expect(order()).toEqual(["rule-bad"]);
+    chip("Healthy").click();
+    await flushPromises();
+    expect(order()).toEqual(["rule-ok"]);
+    chip("Paused").click();
+    await flushPromises();
+    expect(order()).toEqual(["rule-off"]);
+  });
+
+  it("the switch pauses and resumes an alert without touching the rest of the rule", async () => {
+    const api = new Api();
+    api.alerts = { rules: [{ rule: rule(), status: status("ok") }], events: [], budget: null };
+    await openPage(api);
+    q("alert-switch")!.click();
+    await flushPromises();
+    expect(api.alertCalls[0]).toMatchObject({ op: "update", id: "r1", body: { enabled: false, name: "Too many errors", threshold: 5, recipients: ["ops@example.com"] } });
+    expect(api.alertCalls[0]!.body).not.toHaveProperty("id");
+  });
+
+  it("hides the switch from someone who cannot manage alerts", async () => {
+    const api = new Api();
+    api.alerts = { rules: [{ rule: rule(), status: status("ok") }], events: [], budget: null };
+    await openPage(api, "business");
+    expect(q("alert-switch")).toBeNull();
+  });
+
+  it("groups the history by day", async () => {
+    const api = new Api();
+    api.alerts = { rules: [{ rule: rule(), status: status("ok") }], events: [event("2"), event("1", { at: new Date(Date.now() - 86_400_000).toISOString() })], budget: null };
+    await openPage(api);
+    const days = [...q("alert-history")!.querySelectorAll(".day-title")].map((d) => d.textContent);
+    expect(days).toEqual(["Today", "Yesterday"]);
   });
 
   it("shows why it could not load instead of a blank page", async () => {
@@ -450,10 +502,22 @@ describe("the bell", () => {
     const item = q("bell-item")!;
     expect(item.textContent).toContain("Too many errors");
     expect(item.textContent).toContain("Support bot");
-    expect(item.textContent).toContain("Error rate above 5 %"); // la condición, no el valor actual
+    expect(item.textContent).toContain("Error rate above 5 %"); // la condición
+    expect(item.textContent).toContain("9 %"); // y el valor de ahora
     item.click();
     await flushPromises();
     expect(router.currentRoute.value.name).toBe("alerts");
+    expect(router.currentRoute.value.params.experimentId).toBe("exp-9");
+  });
+
+  it("has a Manage alerts shortcut to the first firing agent when no agent is open", async () => {
+    const api = new Api();
+    api.openAlerts = { items: [open()] };
+    const { router } = await bell(api);
+    document.body.querySelector<HTMLElement>("[aria-label='1 alerts firing']")!.click();
+    await flushPromises();
+    q("bell-manage")!.click();
+    await flushPromises();
     expect(router.currentRoute.value.params.experimentId).toBe("exp-9");
   });
 
