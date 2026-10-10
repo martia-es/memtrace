@@ -40,7 +40,7 @@ function onChange(event: Event) {
 </script>
 
 <template>
-  <label v-if="$slots.default" class="mt-check" :class="[`v-${variant}`, { disabled }]" v-bind="wrapperAttrs">
+  <label v-if="$slots.default" class="mt-check" :class="[`v-${variant}`, { 'is-disabled': disabled }]" v-bind="wrapperAttrs">
     <input type="checkbox" class="box" :class="{ sr: variant === 'switch' }" :checked="controlled ? checked : undefined" :disabled="disabled" @change="onChange" v-bind="inputAttrs" />
     <span v-if="variant === 'switch'" class="track" aria-hidden="true"><i /></span>
     <slot />
@@ -50,7 +50,7 @@ function onChange(event: Event) {
 
 <style scoped>
 .mt-check { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--mt-ink); cursor: pointer; }
-.mt-check.disabled { opacity: 0.5; cursor: not-allowed; }
+.mt-check.is-disabled { opacity: 0.5; cursor: not-allowed; }
 .box { margin: 0; width: 16px; height: 16px; flex: none; accent-color: var(--mt-accent); cursor: inherit; }
 input.box:not(.sr) { cursor: pointer; }
 .box:disabled { cursor: not-allowed; }

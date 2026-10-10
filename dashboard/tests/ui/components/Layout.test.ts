@@ -16,6 +16,14 @@ describe("Card", () => {
   });
 });
 
+describe("Card block mode", () => {
+  it("uses a class that Quasar utilities do not own (.block is display:block !important there)", () => {
+    const w = mount(Card, { props: { block: true } });
+    expect(w.classes()).toContain("flow");
+    expect(w.classes()).not.toContain("block");
+  });
+});
+
 describe("DataTable", () => {
   it("wraps the table in a bordered box by default and forwards attributes to the table", () => {
     const w = mount(DataTable, { attrs: { "data-testid": "t", class: "x" }, slots: { default: "<tbody><tr><td>1</td></tr></tbody>" } });

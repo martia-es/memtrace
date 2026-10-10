@@ -54,6 +54,7 @@ function pick(v: SegmentOption["value"]) {
 .mt-segmented { display: inline-flex; gap: 2px; padding: 4px; border-radius: var(--mt-radius-sm); background: var(--mt-soft); }
 .mt-segmented.small { padding: 3px; }
 button {
+  white-space: nowrap;
   display: flex;
   align-items: center;
   gap: 7px;
