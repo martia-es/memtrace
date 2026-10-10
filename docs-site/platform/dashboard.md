@@ -16,6 +16,8 @@ The sidebar has five entries, plus **Settings** at the bottom:
 
 The **experiment** selector at the top of the sidebar switches between the agents you have access to. The badge next to **Review** is the number of items waiting for review.
 
+**Settings** replaces the sidebar with the sections of your organization instead of opening tabs: **Experiments** and **Members** (Workspace), **Approvals** and **Data protection** (Governance), and **Partners**, **Identity** and **Appearance** (Organization). Only an `org_admin` sees all of them; everyone else sees **Experiments**. **Back to app** at the top returns you to the normal menu.
+
 ## Conversations
 
 By default the list shows one row per conversation: traces that share the same conversation id (see [Conversations](/library/conversations)) are grouped together. Switch to **Traces** to see every run of your agent as its own row. Use the search box to find conversations (or traces) by text in the captured input or output; it needs message content capture enabled.

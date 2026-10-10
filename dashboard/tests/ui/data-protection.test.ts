@@ -8,6 +8,7 @@ import { IDENTITY_API, TRACE_API } from "@/dependency-container";
 import { EMPTY_THEME, type ExperimentDto, type OrganizationDto } from "@/application/identity-api";
 import { ApiError } from "@/application/trace-api";
 import AdminOrganizationPage from "@/ui/pages/admin/AdminOrganizationPage.vue";
+import { useSettingsNav } from "@/ui/composables/useSettingsNav";
 import AdminExperimentPage from "@/ui/pages/admin/AdminExperimentPage.vue";
 import { FakeIdentityApi, FakeTraceApi } from "../fakes";
 
@@ -54,6 +55,8 @@ async function setup(component: object, path: string, identity: FakeIdentityApi)
   return { wrapper, router };
 }
 
+// las secciones de la organización viven en el menú lateral (useSettingsNav), no en pestañas de la página
+const sectionLabels = () => (useSettingsNav().settingsNav.value?.sections ?? []).map((s) => s.label);
 const tabLabels = (wrapper: ReturnType<typeof mount>) => wrapper.findAll('[role="tab"]').map((t) => t.text().replace(/\d+$/, "").trim());
 const type = (el: Element | null | undefined, value: string) => {
   (el as HTMLInputElement).value = value;
@@ -75,11 +78,12 @@ function withRetention(identity: Fake) {
 describe("Data protection tab (organization)", () => {
   it("is offered to people who can manage retention or read the audit log, and to nobody else", async () => {
     const { wrapper } = await setup(AdminOrganizationPage, "/admin/organizations/org-1", new Fake([org], [exp()]));
-    expect(tabLabels(wrapper)).toContain("Data protection");
+    expect(sectionLabels()).toContain("Data protection");
+    expect(wrapper.exists()).toBe(true);
 
     const member = { ...org, myRole: null, permissions: [] };
-    const { wrapper: other } = await setup(AdminOrganizationPage, "/admin/organizations/org-1", new Fake([member], [exp()]));
-    expect(tabLabels(other)).not.toContain("Data protection");
+    await setup(AdminOrganizationPage, "/admin/organizations/org-1", new Fake([member], [exp()]));
+    expect(sectionLabels()).not.toContain("Data protection");
   });
 
   it("shows the audit log without the retention panel when only audit:read is granted", async () => {

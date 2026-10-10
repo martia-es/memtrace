@@ -9,6 +9,7 @@ import { EMPTY_THEME, type ExperimentDto, type OrganizationDto } from "@/applica
 import AdminHomePage from "@/ui/pages/admin/AdminHomePage.vue";
 import AdminOrganizationPage from "@/ui/pages/admin/AdminOrganizationPage.vue";
 import AdminExperimentPage from "@/ui/pages/admin/AdminExperimentPage.vue";
+import { useSettingsNav, withGroupHeaders, type SettingsSection } from "@/ui/composables/useSettingsNav";
 import { chooseOption, optionLabels } from "./select";
 import { FakeIdentityApi, FakeTraceApi } from "../fakes";
 
@@ -112,9 +113,18 @@ describe("admin pages", () => {
     const memberOrg = { ...org, myRole: null, permissions: [] };
     const identity = new AdminFakeIdentityApi([memberOrg], [exp]);
     const { wrapper } = await setup(AdminOrganizationPage, "/admin/organizations/org-1", identity);
-    const tabs = wrapper.findAll('[role="tab"]');
-    expect(tabs).toHaveLength(1);
-    expect(tabs[0]!.text()).toContain("Experiments");
+    expect(wrapper.findAll('[role="tab"]')).toHaveLength(0); // las secciones van en el menú lateral
+    expect(useSettingsNav().settingsNav.value?.sections.map((s) => s.label)).toEqual(["Experiments"]);
+  });
+
+  it("organization page offers every section in the sidebar to an org_admin and clears it on leave", async () => {
+    const { wrapper } = await setup(AdminOrganizationPage, "/admin/organizations/org-1", new AdminFakeIdentityApi([org], [exp]));
+    const nav = useSettingsNav().settingsNav.value!;
+    expect(nav.title).toBe(org.name);
+    expect(nav.sections.map((s) => s.label)).toEqual(["Experiments", "Members", "Approvals", "Data protection", "Partners", "Identity", "Appearance"]);
+    expect(nav.sections.find((s) => s.id === "experiments")?.count).toBe(1);
+    wrapper.unmount();
+    expect(useSettingsNav().settingsNav.value).toBeNull();
   });
 
   describe("Identity tab (ADR-052)", () => {
@@ -194,5 +204,13 @@ describe("admin pages", () => {
       await flushPromises();
       expect(identity.identity.scimTokens).toEqual([]);
     });
+  });
+});
+
+describe("withGroupHeaders", () => {
+  const s = (id: string, group: SettingsSection["group"]): SettingsSection => ({ id, label: id, icon: "", group });
+  it("puts the group header on the first section of each group only", () => {
+    const rows = withGroupHeaders([s("a", "Workspace"), s("b", "Workspace"), s("c", "Governance")]);
+    expect(rows.map((r) => r.header)).toEqual(["Workspace", null, "Governance"]);
   });
 });
