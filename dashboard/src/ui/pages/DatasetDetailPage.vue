@@ -10,6 +10,7 @@ import DatasetVersionDiffModal from "../components/DatasetVersionDiffModal.vue";
 import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import DatasetItemsEditor from "../components/DatasetItemsEditor.vue";
+import RunOfflineModal from "../components/RunOfflineModal.vue";
 import PageHeader from "../components/PageHeader.vue";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
@@ -29,6 +30,10 @@ const route = useRoute();
 const router = useRouter();
 const $q = useQuasar();
 const datasetId = computed(() => route.params.datasetId as string);
+const experimentId = computed(() => route.params.experimentId as string);
+
+// genera el script y el .env para correr este dataset en local o en CI (ver docs-site/library/evaluation.md)
+const runOfflineOpen = ref(false);
 
 const dataset = useAsync((signal) => api.getDataset(datasetId.value, signal));
 void dataset.run();
@@ -94,7 +99,17 @@ function openRun(runId: string) {
 
 <template>
   <div class="page">
-    <PageHeader :crumbs="[{ label: 'Datasets', to: { name: 'datasets' } }, { label: dataset.data.value?.name ?? datasetId }]" icon="science" :title="dataset.data.value?.name ?? datasetId" />
+    <PageHeader :crumbs="[{ label: 'Datasets', to: { name: 'datasets' } }, { label: dataset.data.value?.name ?? datasetId }]" icon="science" :title="dataset.data.value?.name ?? datasetId">
+      <Button variant="primary" data-testid="run-offline" @click="runOfflineOpen = true">Run offline</Button>
+    </PageHeader>
+    <RunOfflineModal
+      v-if="runOfflineOpen"
+      :experiment-id="experimentId"
+      :dataset-id="datasetId"
+      :dataset-name="dataset.data.value?.name ?? datasetId"
+      :versions="versions.data.value?.items ?? []"
+      @close="runOfflineOpen = false"
+    />
 
     <ErrorBanner v-if="dataset.error.value" :error="dataset.error.value" @retry="dataset.run()" />
     <template v-else>
