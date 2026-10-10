@@ -6,7 +6,7 @@ Instruments AI agents and exports traces over OTLP (OpenTelemetry GenAI conventi
 
 ```bash
 pip install memtrace-ai
-# extras: http (OTLP/HTTP), langchain, otel-langchain, pydantic-ai, pii, dev
+# extras: http (OTLP/HTTP), langchain, eval, pydantic-ai, pii, dev
 ```
 
 ```python
@@ -21,7 +21,7 @@ def search(q: str) -> str: ...
 from memtrace.langchain import MemTraceCallbackHandler
 chain.invoke(x, config={"callbacks": [MemTraceCallbackHandler()]})
 
-# LangChain / LangGraph - Option 2: automatic (pip install 'memtrace-ai[otel-langchain]')
+# LangChain / LangGraph - Option 2: automatic (pip install 'memtrace-ai[langchain]')
 # from memtrace.langchain import enable_langchain_instrumentation
 # enable_langchain_instrumentation()   # once, after init_tracer(); do not combine with option 1
 

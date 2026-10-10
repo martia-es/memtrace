@@ -1,6 +1,6 @@
 """Default `LLMClient` adapter for `memtrace.eval_judges`, backed by the Anthropic API.
 
-Optional: requires `pip install 'memtrace-ai[eval-judges]'` (the `anthropic` SDK). Only
+Optional: requires `pip install 'memtrace-ai[eval]'` (the `anthropic` SDK). Only
 imported when a caller actually instantiates `AnthropicJudgeClient` — nothing else in
 `memtrace.eval_judges` depends on a specific LLM vendor (see ADR-029).
 """
@@ -22,7 +22,7 @@ class AnthropicJudgeClient:
         try:
             import anthropic
         except ImportError as exc:
-            raise ImportError("AnthropicJudgeClient requires: pip install 'memtrace-ai[eval-judges]'") from exc
+            raise ImportError("AnthropicJudgeClient requires: pip install 'memtrace-ai[eval]'") from exc
         self._client = anthropic.Anthropic(api_key=api_key or os.environ.get("ANTHROPIC_API_KEY"))
         self._model = model
 

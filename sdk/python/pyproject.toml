@@ -35,15 +35,10 @@ dependencies = [
 http = [
     "opentelemetry-exporter-otlp-proto-http>=1.20.0",
 ]
+# Callback handler, prompt_middleware (langchain>=1.0, Python 3.10+) and automatic instrumentation.
 langchain = [
-    "langchain-core>=0.1.0"
-]
-# memtrace.langchain.prompt_middleware (registry prompts as the system prompt of a create_agent agent). Python 3.10+.
-langchain-agents = [
-    "langchain>=1.0.0; python_version >= '3.10'",
-]
-otel-langchain = [
     "langchain-core>=0.1.0",
+    "langchain>=1.0.0; python_version >= '3.10'",
     "opentelemetry-instrumentation-langchain>=0.45.0,<1",
     "wrapt<2; python_version < '3.10'",  # older instrumentor releases break with wrapt 2 (no kwargs)
 ]
@@ -57,14 +52,11 @@ pii = [
     "presidio-anonymizer>=2.2.35",
     "spacy>=3.7",
 ]
-# Default HTTP adapters for memtrace.eval (MemTraceDatasetSource/MemTraceResultsSink).
-# Not needed to use memtrace.eval.run_experiment with local data and sink=None.
+# HTTP adapters for memtrace.eval, user feedback and the prompt registry (httpx), plus the default
+# LLM-as-judge client (AnthropicJudgeClient). Not needed to use run_experiment with local data and
+# sink=None, nor if you pass your own LLMClient to Correctness/Faithfulness.
 eval = [
     "httpx>=0.27",
-]
-# Default LLM-as-judge client (memtrace.eval_judges + AnthropicJudgeClient). Not needed if
-# you pass your own LLMClient to Correctness/Faithfulness.
-eval-judges = [
     "anthropic>=0.30",
 ]
 dev = [

@@ -8,14 +8,14 @@ from memtrace.application.tracing_service import TracingService
 
 logger = logging.getLogger("memtrace")
 
-_INSTALL_HINT = "pip install 'memtrace-ai[otel-langchain]'"
+_INSTALL_HINT = "pip install 'memtrace-ai[langchain]'"
 _CONTENT_ENV = "TRACELOOP_TRACE_CONTENT"  # honored by opentelemetry-instrumentation-langchain
 
 
 def enable_langchain_instrumentation(service: Optional[TracingService] = None) -> None:
     """Enables automatic LangChain / LangGraph instrumentation (no callbacks needed).
 
-    Requires: pip install 'memtrace-ai[otel-langchain]'. Raises ImportError if it is missing.
+    Requires: pip install 'memtrace-ai[langchain]'. Raises ImportError if it is missing.
 
     Spans go to the tracer configured by `init_tracer`, and prompts/completions are only
     recorded when MEMTRACE_CAPTURE_CONTENT=true. Safe to call more than once. It is an alternative to
