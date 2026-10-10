@@ -8,6 +8,7 @@ import {
   validateAlertRule,
   validateCostBudget,
   type AlertEvent,
+  type AppNotification,
   type BudgetEvaluation,
   type CostBudget,
 } from "@/domain/alert";
@@ -32,6 +33,16 @@ export interface BudgetView {
   percent: number;
   projectedUsd: number | null;
 }
+
+/** Lo que enseña la campana: los avisos recientes y cuántos no ha leído esta persona (ADR-087). */
+export interface NotificationFeed {
+  items: Array<AppNotification & { read: boolean }>;
+  unread: number;
+}
+
+/** Los avisos de la campana llegan hasta 14 días atrás y como mucho 30: es una bandeja de aviso, no un historial (ese es el de Alerts). */
+const NOTIFICATION_DAYS = 14;
+const NOTIFICATION_LIMIT = 30;
 
 export interface AlertsOverview {
   rules: AlertRuleWithStatus[];
@@ -67,6 +78,20 @@ export class AlertService {
   /** Alertas disparadas en esos experimentos (los que la persona puede leer), para la campana. */
   listOpen(experimentIds: string[]): Promise<OpenAlert[]> {
     return this.repo.listOpen(experimentIds);
+  }
+
+  /** Los avisos recientes de los experimentos que la persona puede leer, cada uno marcado como leído o no según su marca. */
+  async notifications(userId: string, experimentIds: string[]): Promise<NotificationFeed> {
+    const since = new Date(this.now().getTime() - NOTIFICATION_DAYS * 86_400_000);
+    const [items, readAt] = await Promise.all([this.repo.listNotifications(experimentIds, since, NOTIFICATION_LIMIT), this.repo.getNotificationsReadAt(userId)]);
+    const mark = readAt === null ? null : new Date(readAt).getTime();
+    const withRead = items.map((n) => ({ ...n, read: mark !== null && new Date(n.at).getTime() <= mark }));
+    return { items: withRead, unread: withRead.filter((n) => !n.read).length };
+  }
+
+  /** «Marcar todo como leído»: todo lo que había hasta ahora. Lo que llegue después vuelve a contar como nuevo. */
+  markNotificationsRead(userId: string): Promise<void> {
+    return this.repo.markNotificationsRead(userId, this.now());
   }
 
   async createRule(ref: ExperimentRef, actor: Actor, body: Record<string, unknown>) {

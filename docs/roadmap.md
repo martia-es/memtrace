@@ -275,6 +275,7 @@ Un usuario puede agrupar varias gráficas custom ya guardadas en un **informe** 
 - [x] **Avisos por email a una lista de direcciones por regla** (hasta 10, sin cuenta de MemTrace): un correo por destinatario, escapado, sin contenido de trazas, con un tope de 100 correos diarios por organización; el resto se registra y se ve en la app
 - [x] **Presupuesto mensual de coste por agente** con avisos de umbral, de superado y de previsión (una vez por mes y nivel), calculado sobre un coste diario guardado para que no dependa de la retención de trazas
 - [x] **Pantalla Overview › Alerts** (reglas, presupuesto, historial) y **campana** con las alertas disparadas en los agentes que se pueden leer. Permiso `alert:manage` (`technical`); cada cambio queda en la auditoría
+- [x] **Notificaciones de la campana** (rediseño): además de las alertas disparadas, avisos recientes (alertas resueltas y avisos de presupuesto, últimos 14 días) con lo no leído marcado por persona y «Mark all as read». El feed sale de `alert_events` y `budget_notifications`, sin tabla propia; solo se guarda hasta cuándo ha leído cada persona (migración 043) — [ADR-087](adrs/observability/adr-087-in-app-notification-feed.md)
 - [ ] **Pendiente**: webhooks (Slack, Teams, PagerDuty; necesitan protección SSRF como las sondas de salud), alertas sobre una caída de satisfacción por versión de despliegue, y coste por usuario o conversación
 
 ---

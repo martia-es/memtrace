@@ -1569,3 +1569,25 @@ export interface OpenAlertDto {
 export interface OpenAlertsDto {
   items: OpenAlertDto[];
 }
+
+export interface NotificationDto {
+  id: string;
+  kind: "fired" | "resolved" | "budget_warning" | "budget_exceeded" | "budget_forecast";
+  at: string;
+  experimentId: string;
+  experimentName: string;
+  ruleId: string | null;
+  ruleName: string | null;
+  metric: AlertRuleDto["metric"] | null;
+  comparator: "above" | "below" | null;
+  value: number | null;
+  threshold: number | null;
+  budgetUsd: number | null;
+  warnPercent: number | null;
+  read: boolean;
+}
+
+export interface NotificationsDto {
+  items: NotificationDto[];
+  unread: number;
+}

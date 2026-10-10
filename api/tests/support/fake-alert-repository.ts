@@ -1,5 +1,5 @@
 import type { AlertRepository, AlertRuleWithStatus, EvaluableBudget, EvaluableRule, NewAlertEvent, OpenAlert } from "@/application/ports/alert-repository";
-import type { AlertEvent, AlertRule, AlertRuleInput, AlertStatus, BudgetLevel, CostBudget, CostBudgetInput } from "@/domain/alert";
+import type { AlertEvent, AppNotification, AlertRule, AlertRuleInput, AlertStatus, BudgetLevel, CostBudget, CostBudgetInput } from "@/domain/alert";
 
 export interface Ctx {
   name: string;
@@ -53,6 +53,20 @@ export class FakeAlertRepository implements AlertRepository {
   }
   async listOpen(): Promise<OpenAlert[]> {
     return [];
+  }
+  /** lo que devolverá `listNotifications`, y las llamadas que recibió */
+  notificationItems: AppNotification[] = [];
+  notificationCalls: Array<{ experimentIds: string[]; since: Date; limit: number }> = [];
+  readAt = new Map<string, Date>();
+  async listNotifications(experimentIds: string[], since: Date, limit: number): Promise<AppNotification[]> {
+    this.notificationCalls.push({ experimentIds, since, limit });
+    return this.notificationItems.filter((n) => experimentIds.includes(n.experimentId));
+  }
+  async getNotificationsReadAt(userId: string): Promise<string | null> {
+    return this.readAt.get(userId)?.toISOString() ?? null;
+  }
+  async markNotificationsRead(userId: string, at: Date): Promise<void> {
+    this.readAt.set(userId, at);
   }
 
   async listEvaluableRules(): Promise<EvaluableRule[]> {

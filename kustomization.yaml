@@ -80,6 +80,7 @@ configMapGenerator:
       - migrations/postgres/040_trace_retention.sql
       - migrations/postgres/041_audit_log.sql
       - migrations/postgres/042_alerts.sql
+      - migrations/postgres/043_notification_reads.sql
     options:
       disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
   - name: clickhouse-config
