@@ -68,11 +68,15 @@ describe("fragments in the list (ADR-073)", () => {
       { ...promptSummary("tone"), kind: "fragment", latestVersion: 4, tags: { pro: 4 } },
     ];
     const { wrapper } = await mountPage(PromptsPage, "/e/exp-1/prompts", {}, api);
-    expect(wrapper.find("[data-testid='fragment-row-tone']").text()).toContain("pro → v4");
     expect(wrapper.find("[data-testid='prompt-row-tone']").exists()).toBe(false);
     expect(wrapper.find("[data-testid='prompt-row-weather-system']").exists()).toBe(true);
-    // the board counts prompts, not fragments: one prompt in PRO
-    expect(wrapper.find("[data-testid='coverage-count-pro']").text()).toBe("1");
+    // the switch counts prompts and fragments apart
+    expect(wrapper.find("[data-testid='kind-prompts']").text()).toContain("1");
+    expect(wrapper.find("[data-testid='kind-fragments']").text()).toContain("1");
+    await wrapper.find("[data-testid='kind-fragments']").trigger("click");
+    await flushPromises();
+    expect(wrapper.find("[data-testid='fragment-row-tone']").text()).toContain("pro → v4");
+    expect(wrapper.find("[data-testid='prompt-row-weather-system']").exists()).toBe(false);
   });
 
   it("creates a fragment with its own button, and explains the include syntax", async () => {
@@ -97,7 +101,9 @@ describe("fragments in the list (ADR-073)", () => {
     const api = new FakePromptApi();
     api.list = [promptSummary("weather-system"), { ...promptSummary("tone"), kind: "fragment", latestVersion: 1, tags: {} }];
     const { wrapper } = await mountPage(PromptsPage, "/e/exp-1/prompts", {}, api);
-    expect(wrapper.find("[data-testid='fragments']").text()).toContain("FRAGMENTS · 1");
+    await wrapper.find("[data-testid='kind-fragments']").trigger("click");
+    await flushPromises();
+    expect(wrapper.find("[data-testid='fragments']").exists()).toBe(true);
     await wrapper.find("[data-testid='new-fragment']").trigger("click");
     await flushPromises();
     const area = document.body.querySelector("[data-testid='prompt-content']") as HTMLTextAreaElement;

@@ -6,10 +6,11 @@ import type { PromptSummaryDto } from "@contract";
 import { describeApiError } from "@/application/describe-api-error";
 import { formatDateTime } from "@/domain/format";
 import { extractVariables, includeSyntax } from "@/domain/prompt-fragment";
-import { ENV_ORDER, environmentCoverage, releaseStatus, releaseSummary, sortEnvironments, timelineCells, type ReleaseState } from "@/domain/prompt-release";
+import { ENV_ORDER, releaseStatus, releaseSummary, sortEnvironments, type ReleaseState } from "@/domain/prompt-release";
 import { CURRENT_EXPERIMENT } from "@/dependency-container";
 import ApprovalInbox from "../components/ApprovalInbox.vue";
-import EnvFlag from "../components/EnvFlag.vue";
+import DataTable from "../components/DataTable.vue";
+import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import Modal from "../components/Modal.vue";
 import PromptEditor from "../components/PromptEditor.vue";
@@ -20,10 +21,12 @@ import { useAsync } from "../composables/useAsync";
 import { usePermissions } from "../composables/usePermissions";
 import { usePromptApi } from "../composables/usePromptApi";
 import Button from "../components/Button.vue";
-import Checkbox from "../components/Checkbox.vue";
+import Menu from "../components/Menu.vue";
+import MenuItem from "../components/MenuItem.vue";
 import Pill from "../components/Pill.vue";
 import LoadingState from "../components/LoadingState.vue";
-import ToggleChip from "../components/ToggleChip.vue";
+import Select from "../components/Select.vue";
+import SegmentedControl from "../components/SegmentedControl.vue";
 
 const api = usePromptApi();
 const route = useRoute();
@@ -49,27 +52,33 @@ void prompts.run().then(() => {
   void router.replace({ name: "prompt", params: { experimentId: experimentId.value, promptId: found.id }, query: { tab: "traces", ...(version ? { version } : {}) } });
 });
 
-// ---- tablero: qué corre en cada entorno ----
+// ---- qué corre en cada entorno ----
 const live = computed(() => (prompts.data.value ?? []).filter((p) => !p.archivedAt && p.kind !== "fragment"));
-// los fragmentos (ADR-073) no se despliegan por entorno: no entran en el tablero ni en los estados de release
+// los fragmentos (ADR-073) no se despliegan por entorno: no entran en el aviso ni en los estados de release
 const fragments = computed(() => (prompts.data.value ?? []).filter((p) => p.kind === "fragment"));
-const coverage = computed(() => environmentCoverage(live.value));
 const summary = computed(() => releaseSummary(live.value));
-const ENV_NOTE: Record<string, (missing: number) => string> = {
-  dev: () => "Where new versions are tried first",
-  pre: (missing) => (missing === 0 ? "Every prompt is staged" : `${missing} ${missing === 1 ? "prompt never reached" : "prompts never reached"} PRE`),
-  pro: (missing) => (missing === 0 ? "Every prompt is live" : `${missing} ${missing === 1 ? "prompt never reached" : "prompts never reached"} PRO`),
-};
-const envNote = (env: string, pinned: number, total: number) => (ENV_NOTE[env] ?? (() => ""))(total - pinned);
 
-// ---- filtros ----
+// ---- filtros: viajan en la URL (`?kind=fragments`, `?status=behind`); el valor por defecto no se escribe ----
+type Kind = "prompts" | "fragments";
 type StatusFilter = "all" | ReleaseState;
-const status = ref<StatusFilter>("all");
-const STATUS_CHIPS = computed<{ id: StatusFilter; label: string; count: number }[]>(() => [
-  { id: "all", label: "All", count: live.value.length },
-  { id: "behind", label: "Behind in PRO", count: summary.value.behind },
-  { id: "in_sync", label: "In sync", count: summary.value.inSync },
-  { id: "not_released", label: "Not released", count: summary.value.notReleased },
+const STATUS_VALUES: StatusFilter[] = ["all", "behind", "in_sync", "not_released"];
+const kind = computed<Kind>({
+  get: () => (route.query.kind === "fragments" ? "fragments" : "prompts"),
+  set: (v) => void router.replace({ query: { ...route.query, kind: v === "fragments" ? "fragments" : undefined } }),
+});
+const status = computed<StatusFilter>({
+  get: () => STATUS_VALUES.find((v) => v === route.query.status) ?? "all",
+  set: (v) => void router.replace({ query: { ...route.query, status: v === "all" ? undefined : v } }),
+});
+const KIND_OPTIONS = computed(() => [
+  { value: "prompts", label: "Prompts", count: live.value.length, testid: "kind-prompts" },
+  { value: "fragments", label: "Fragments", count: fragments.value.length, testid: "kind-fragments" },
+]);
+const STATUS_OPTIONS = computed(() => [
+  { value: "all", label: "All" },
+  { value: "behind", label: `Behind in PRO · ${summary.value.behind}` },
+  { value: "in_sync", label: `In sync · ${summary.value.inSync}` },
+  { value: "not_released", label: `Not released · ${summary.value.notReleased}` },
 ]);
 
 const search = ref("");
@@ -81,24 +90,34 @@ const filtered = computed(() => {
     return status.value === "all" || releaseStatus(p).state === status.value;
   });
 });
+const shownFragments = computed(() => {
+  const q = search.value.trim().toLowerCase();
+  return fragments.value.filter((f) => !q || f.name.toLowerCase().includes(q) || f.description.toLowerCase().includes(q));
+});
 
+/** Una celda por entorno: la versión que apunta el tag y, en producción, cuánto va por detrás de la última. */
+interface EnvCell {
+  env: string;
+  version: number | null;
+  behind: number;
+}
 interface Row {
   prompt: PromptSummaryDto;
   release: ReturnType<typeof releaseStatus>;
-  tags: [string, number][];
-  timeline: ReturnType<typeof timelineCells>;
+  cells: EnvCell[];
 }
 const rows = computed<Row[]>(() =>
-  filtered.value.map((prompt) => ({
-    prompt,
-    release: releaseStatus(prompt),
-    tags: sortEnvironments(Object.keys(prompt.tags)).map((t): [string, number] => [t, prompt.tags[t]!]),
-    timeline: timelineCells(prompt),
-  })),
+  filtered.value.map((prompt) => {
+    const release = releaseStatus(prompt);
+    return {
+      prompt,
+      release,
+      cells: ENV_ORDER.map((env) => ({ env, version: prompt.tags[env] ?? null, behind: env === "pro" ? release.behindBy : 0 })),
+    };
+  }),
 );
-
-const RELEASE_LABEL = (r: ReturnType<typeof releaseStatus>) =>
-  r.state === "behind" ? `${r.behindBy} ${r.behindBy === 1 ? "version" : "versions"} behind in PRO` : r.state === "in_sync" ? "In sync" : "Not released";
+/** Etiquetas que no son de entorno (`stable`, `canary`…): no caben en una columna, se listan junto al nombre. */
+const freeTags = (p: PromptSummaryDto) => sortEnvironments(Object.keys(p.tags).filter((t) => !(ENV_ORDER as readonly string[]).includes(t)));
 
 function open(promptId: string) {
   router.push({ name: "prompt", params: { experimentId: experimentId.value, promptId } });
@@ -179,115 +198,80 @@ async function create() {
     </section>
 
     <template v-else>
-      <section class="board" data-testid="release-board" aria-label="What is live">
-        <div class="board-intro">
-          <span class="eyebrow">WHAT IS LIVE</span>
-          <strong>{{ live.length }} {{ live.length === 1 ? "prompt" : "prompts" }}, {{ ENV_ORDER.length }} environments</strong>
-        </div>
-        <div v-for="c in coverage" :key="c.env" class="board-env" :data-testid="`coverage-${c.env}`">
-          <div class="board-env-head">
-            <span class="env-name" :class="c.env">{{ c.env.toUpperCase() }}</span>
-            <strong class="big" :data-testid="`coverage-count-${c.env}`">{{ c.pinned }}</strong>
-            <span class="soft">of {{ c.total }} pinned</span>
-          </div>
-          <div class="meter" aria-hidden="true"><span v-for="i in c.total" :key="i" :class="{ on: i <= c.pinned }" /></div>
-          <span class="soft">{{ envNote(c.env, c.pinned, c.total) }}</span>
-        </div>
-        <div class="board-drift" :class="{ calm: summary.behind === 0 }" data-testid="drift">
-          <template v-if="summary.behind > 0">
-            <strong class="big">{{ summary.behind }} {{ summary.behind === 1 ? "prompt" : "prompts" }}</strong>
-            <span class="drift-title">{{ summary.behind === 1 ? "runs" : "run" }} behind latest in PRO</span>
-            <span class="drift-sub">{{ summary.waitingVersions }} {{ summary.waitingVersions === 1 ? "version" : "versions" }} waiting to be released</span>
-          </template>
-          <template v-else>
-            <strong class="big">All released</strong>
-            <span class="drift-sub">PRO runs the latest version of every prompt that has it</span>
-          </template>
-        </div>
+      <section v-if="summary.behind > 0" class="alert" data-testid="drift" role="status">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /></svg>
+        <strong>{{ summary.behind }} {{ summary.behind === 1 ? "prompt runs" : "prompts run" }} behind the latest version in PRO</strong>
+        <span class="alert-sub">{{ summary.waitingVersions }} {{ summary.waitingVersions === 1 ? "version is" : "versions are" }} waiting to be released</span>
+        <span class="grow" />
+        <Button v-if="status !== 'behind'" variant="danger" size="sm" data-testid="show-behind" @click="kind = 'prompts'; status = 'behind'">Show {{ summary.behind === 1 ? "it" : "them" }}</Button>
       </section>
 
       <div class="toolbar">
-        <ToggleChip v-for="chip in STATUS_CHIPS" :key="chip.id" :pressed="status === chip.id" :count="chip.count" :data-testid="`status-${chip.id}`" @click="status = chip.id">{{ chip.label }}</ToggleChip>
+        <SegmentedControl v-model="kind" aria-label="What to list" :options="KIND_OPTIONS" />
+        <label v-if="kind === 'prompts'" class="status-filter">Status
+          <Select v-model="status" :options="STATUS_OPTIONS" aria-label="Release status" data-testid="status-filter" />
+        </label>
         <span class="grow" />
-        <span class="legend"><i class="bar released" /> released</span>
-        <span class="legend"><i class="bar ahead" /> ahead of PRO</span>
-        <span class="toolbar-sep" aria-hidden="true" />
-        <Checkbox variant="switch" class="archived-switch" v-model="showArchived" data-testid="show-archived" @change="prompts.run()">Show archived</Checkbox>
+        <Button v-if="kind === 'fragments' && can('prompt:write')" data-testid="new-fragment" @click="openCreate('fragment')">+ New fragment</Button>
+        <Button variant="icon" aria-label="More options" data-testid="more-options">
+          ⋯
+          <Menu anchor="bottom right" self="top right" auto-close>
+            <MenuItem :active="showArchived" data-testid="show-archived" @click="showArchived = !showArchived; prompts.run()">Show archived</MenuItem>
+          </Menu>
+        </Button>
       </div>
 
-      <EmptyState v-if="rows.length === 0" icon="search_off" title="No matches">Try a different search or filter.</EmptyState>
+      <template v-if="kind === 'prompts'">
+        <EmptyState v-if="rows.length === 0" icon="search_off" title="No matches">Try a different search or filter.</EmptyState>
+        <DataTable v-else class="prompt-table" data-testid="prompt-table">
+          <thead>
+            <tr><th>Prompt</th><th>Latest</th><th>DEV</th><th>PRE</th><th>PRO</th><th class="num">Updated</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="r in rows" :key="r.prompt.id" class="row" :data-testid="`prompt-row-${r.prompt.name}`" tabindex="0" @click="open(r.prompt.id)" @keydown.enter="open(r.prompt.id)">
+              <td class="who">
+                <div class="who-name">
+                  <span class="name">{{ r.prompt.name }}</span>
+                  <Pill v-if="r.prompt.archivedAt" class="archived">archived</Pill>
+                  <Pill v-if="awaitingMe.has(r.prompt.id)" :data-testid="`awaiting-${r.prompt.name}`" class="awaiting">needs your approval</Pill>
+                  <span v-for="t in freeTags(r.prompt)" :key="t" class="free-tag mono" :data-testid="`tag-${r.prompt.name}-${t}`">{{ t }} → v{{ r.prompt.tags[t] }}</span>
+                </div>
+                <div v-if="r.prompt.description" class="desc">{{ r.prompt.description }}</div>
+              </td>
+              <td class="mono strong" :data-testid="`latest-${r.prompt.name}`">v{{ r.prompt.latestVersion }}</td>
+              <td v-for="c in r.cells" :key="c.env">
+                <span v-if="c.version === null" class="none" :data-testid="`tag-${r.prompt.name}-${c.env}`">—</span>
+                <span v-else-if="c.behind > 0" class="chip late mono" :data-testid="`tag-${r.prompt.name}-${c.env}`">v{{ c.version }}<b>{{ c.behind }} behind</b></span>
+                <span v-else class="chip mono" :class="c.env" :data-testid="`tag-${r.prompt.name}-${c.env}`">v{{ c.version }}</span>
+              </td>
+              <td class="num mono when">{{ formatDateTime(r.prompt.updatedAt) }}</td>
+              <td class="sr-only" :data-testid="`release-${r.prompt.name}`">{{ r.release.state === "behind" ? `${r.release.behindBy} ${r.release.behindBy === 1 ? "version" : "versions"} behind in PRO` : r.release.state === "in_sync" ? "In sync" : "Not released" }}</td>
+            </tr>
+          </tbody>
+        </DataTable>
+      </template>
 
-      <div v-else class="rows">
+      <section v-else class="fragments" data-testid="fragments">
+        <p class="soft small">Shared text that prompts include with <code>{{ sampleInclude }}</code>. Changing one proposes a new version of every prompt that uses it.</p>
+        <p v-if="fragments.length === 0" class="soft small fragments-empty" data-testid="fragments-empty">No fragments yet.</p>
         <article
-          v-for="r in rows"
-          :key="r.prompt.id"
-          class="row"
-          :data-testid="`prompt-row-${r.prompt.name}`"
+          v-for="f in shownFragments"
+          :key="f.id"
+          class="fragment-row"
+          :data-testid="`fragment-row-${f.name}`"
           tabindex="0"
-          @click="open(r.prompt.id)"
-          @keydown.enter="open(r.prompt.id)"
+          @click="open(f.id)"
+          @keydown.enter="open(f.id)"
         >
-          <div class="who">
-            <div class="who-name">
-              <span class="name">{{ r.prompt.name }}</span>
-              <Pill v-if="r.prompt.archivedAt" class="archived">archived</Pill>
-              <Pill v-if="awaitingMe.has(r.prompt.id)" :data-testid="`awaiting-${r.prompt.name}`" class="awaiting">needs your approval</Pill>
-            </div>
-            <div v-if="r.prompt.description" class="desc">{{ r.prompt.description }}</div>
-            <div class="who-foot">
-              <span class="state" :class="r.release.state" :data-testid="`release-${r.prompt.name}`"><i />{{ RELEASE_LABEL(r.release) }}</span>
-              <span class="when mono">{{ formatDateTime(r.prompt.updatedAt) }}</span>
-            </div>
-          </div>
-
-          <div class="tags-col">
-            <span class="latest mono">v{{ r.prompt.latestVersion }}</span>
-            <Pill v-for="[tag, version] in r.tags" :key="tag" :class="tag" :data-testid="`tag-${r.prompt.name}-${tag}`" class="tag">{{ tag }} → v{{ version }}</Pill>
-            <span v-if="r.tags.length === 0" class="soft">no tags</span>
-          </div>
-
-          <div class="track" :aria-label="`Last ${r.timeline.cells.length} versions`">
-            <span v-if="r.timeline.older > 0" class="older mono">+{{ r.timeline.older }}</span>
-            <div v-for="(cell, i) in r.timeline.cells" :key="cell.version" class="cell">
-              <div class="flags"><EnvFlag v-for="t in cell.tags" :key="t" :env="t" /></div>
-              <div class="line">
-                <span class="seg" :class="{ hidden: i === 0 && r.timeline.older === 0, ahead: cell.ahead }" />
-                <span class="dot" :class="{ tagged: cell.tags.length > 0, latest: cell.latest, ahead: cell.ahead }" />
-                <span class="seg" :class="{ hidden: i === r.timeline.cells.length - 1, ahead: i < r.timeline.cells.length - 1 && r.timeline.cells[i + 1]!.ahead }" />
-              </div>
-              <span class="num mono" :class="{ strong: cell.tags.length > 0 || cell.latest }">v{{ cell.version }}</span>
-            </div>
-          </div>
+          <span class="name">{{ f.name }}</span>
+          <Pill v-if="f.archivedAt" class="archived">archived</Pill>
+          <span v-if="f.description" class="soft frag-desc">{{ f.description }}</span>
+          <span class="grow" />
+          <span class="mono">v{{ f.latestVersion }}</span>
+          <Pill v-for="[tag, version] in sortEnvironments(Object.keys(f.tags)).map((t): [string, number] => [t, f.tags[t]!])" :key="tag" :class="tag" class="tag">{{ tag }} → v{{ version }}</Pill>
         </article>
-      </div>
+      </section>
     </template>
-
-    <section v-if="prompts.data.value && prompts.data.value.length > 0" class="fragments" data-testid="fragments">
-      <div class="fragments-head">
-        <div class="fragments-intro">
-          <span class="eyebrow">FRAGMENTS · {{ fragments.length }}</span>
-          <p class="soft small">Shared text that prompts include with <code>{{ sampleInclude }}</code>. Changing one proposes a new version of every prompt that uses it.</p>
-        </div>
-        <Button v-if="can('prompt:write')" data-testid="new-fragment" @click="openCreate('fragment')">+ New fragment</Button>
-      </div>
-      <p v-if="fragments.length === 0" class="soft small fragments-empty" data-testid="fragments-empty">No fragments yet.</p>
-      <article
-        v-for="f in fragments"
-        :key="f.id"
-        class="fragment-row"
-        :data-testid="`fragment-row-${f.name}`"
-        tabindex="0"
-        @click="open(f.id)"
-        @keydown.enter="open(f.id)"
-      >
-        <span class="name">{{ f.name }}</span>
-        <Pill v-if="f.archivedAt" class="archived">archived</Pill>
-        <span v-if="f.description" class="soft frag-desc">{{ f.description }}</span>
-        <span class="grow" />
-        <span class="mono">v{{ f.latestVersion }}</span>
-        <Pill v-for="[tag, version] in sortEnvironments(Object.keys(f.tags)).map((t): [string, number] => [t, f.tags[t]!])" :key="tag" :class="tag" class="tag">{{ tag }} → v{{ version }}</Pill>
-      </article>
-    </section>
 
     <Modal v-if="showCreate" :title="form.kind === 'fragment' ? 'New fragment' : 'New prompt'" :wide="true" @close="showCreate = false">
       <form class="modal-form" :class="{ split: form.kind === 'fragment' }" @submit.prevent="create">
@@ -404,25 +388,6 @@ code {
   color: var(--mt-muted);
   font-size: 12px;
 }
-.toolbar-sep {
-  width: 1px;
-  height: 20px;
-  background: var(--mt-line);
-}
-.archived-switch {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--mt-line);
-  border-radius: 14px;
-  background: var(--mt-card);
-  color: var(--mt-muted);
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-}
 
 /* ---- estado vacío ---- */
 .welcome {
@@ -493,267 +458,11 @@ code {
   white-space: pre-wrap;
 }
 
-/* ---- tablero ---- */
-.board {
-  flex: none;
-  display: flex;
-  align-items: stretch;
-  min-height: 108px;
-  border-radius: 10px;
-  overflow: hidden;
-  background: var(--mt-card);
-  border: 1px solid var(--mt-line);
-  color: var(--mt-ink);
-}
-.board > * {
-  border-right: 1px solid var(--mt-line);
-}
-.board-intro {
-  flex: none;
-  width: 220px;
-  padding: 16px 20px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 4px;
-}
-.board-intro strong {
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  line-height: 1.2;
-}
 .eyebrow {
   font-family: var(--mt-mono);
   font-size: 11px;
   letter-spacing: 0.08em;
   color: var(--mt-accent);
-}
-.board-env {
-  flex: 1;
-  min-width: 0;
-  padding: 16px 20px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 8px;
-}
-.board-env .soft,
-.board-drift .drift-sub {
-  color: var(--mt-muted);
-}
-.board-env-head {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.env-name {
-  font-family: var(--mt-mono);
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  color: var(--mt-muted);
-}
-.env-name.pre {
-  color: var(--mt-warn-ink);
-}
-.env-name.pro {
-  color: var(--mt-accent-text);
-}
-.big {
-  font-size: 26px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-}
-.meter {
-  display: flex;
-  gap: 4px;
-}
-.meter span {
-  flex: 1;
-  max-width: 48px;
-  height: 6px;
-  border-radius: 3px;
-  background: var(--mt-line);
-}
-.meter span.on {
-  background: var(--mt-faint);
-}
-.board-env:nth-of-type(3) .meter span.on {
-  background: var(--mt-warn);
-}
-.board-env:nth-of-type(4) .meter span.on {
-  background: var(--mt-brand);
-}
-.board-drift {
-  flex: none;
-  width: 250px;
-  padding: 16px 20px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 2px;
-  background: var(--mt-highlight-soft);
-  color: var(--mt-highlight-ink);
-  border-right: none;
-}
-.board-drift .big {
-  font-size: 28px;
-  line-height: 1.05;
-}
-.board-drift .drift-title {
-  font-size: 13px;
-  font-weight: 700;
-}
-.board-drift .drift-sub {
-  color: var(--mt-highlight-ink);
-  font-size: 12px;
-  font-weight: 600;
-  opacity: 0.8;
-}
-.board-drift.calm {
-  background: var(--mt-accent-tint);
-  color: var(--mt-accent-text);
-}
-.board-drift.calm .drift-sub {
-  color: var(--mt-accent-text);
-}
-
-/* ---- filtros ---- */
-.toolbar {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.grow {
-  flex: 1;
-}
-.legend {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--mt-muted);
-}
-.bar {
-  display: inline-block;
-  width: 18px;
-  height: 3px;
-  border-radius: 2px;
-}
-.bar.released {
-  background: var(--mt-brand);
-}
-.bar.ahead {
-  background: var(--mt-highlight);
-}
-
-/* ---- filas ---- */
-.rows {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.row {
-  flex: none;
-  display: grid;
-  grid-template-columns: minmax(220px, 300px) minmax(160px, 220px) minmax(0, 1fr);
-  align-items: stretch;
-  gap: 18px;
-  padding: 14px 18px;
-  background: var(--mt-card);
-  border: 1px solid var(--mt-line);
-  border-radius: 10px;
-  cursor: pointer;
-}
-.row:hover,
-.row:focus-visible {
-  border-color: var(--mt-accent);
-  outline: none;
-}
-.who {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-.who-name {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.name {
-  font-size: 15px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.desc {
-  font-size: 12px;
-  line-height: 1.4;
-  color: var(--mt-muted);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.who-foot {
-  margin-top: auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.when {
-  font-size: 11px;
-  color: var(--mt-faint);
-}
-.state {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 22px;
-  padding: 0 8px;
-  border-radius: var(--mt-radius-xs);
-  font-size: 11.5px;
-  font-weight: 800;
-  background: var(--mt-soft);
-  color: var(--mt-muted);
-}
-.state i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--mt-faint);
-}
-.state.in_sync {
-  background: var(--mt-ok-bg);
-  color: var(--mt-ok-ink);
-}
-.state.in_sync i {
-  background: var(--mt-ok);
-}
-.state.behind {
-  background: var(--mt-highlight-soft);
-  color: var(--mt-highlight-ink);
-}
-.state.behind i {
-  background: var(--mt-highlight);
-}
-.tags-col {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 5px;
-}
-.latest {
-  font-size: 12px;
-  font-weight: 800;
-  color: var(--mt-ink);
 }
 .tag {
   background: var(--mt-soft);
@@ -770,96 +479,135 @@ code {
   background: var(--mt-accent);
   color: var(--mt-accent-ink);
 }
+
+/* ---- aviso de producción ---- */
+.alert {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  box-sizing: border-box;
+  padding: 0 9px 0 18px;
+  border-radius: 10px;
+  background: var(--mt-highlight-soft);
+  color: var(--mt-highlight-ink);
+}
+.alert strong {
+  font-size: 14px;
+  font-weight: 800;
+}
+.alert-sub {
+  font-weight: 600;
+  opacity: 0.85;
+}
+.grow {
+  flex: 1;
+}
+
+/* ---- filtros ---- */
+.toolbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.status-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--mt-muted);
+  font-weight: 600;
+}
+
+/* ---- tabla de prompts ---- */
+.prompt-table .row {
+  cursor: pointer;
+}
+.prompt-table .row:focus-visible {
+  outline: 2px solid var(--mt-accent);
+  outline-offset: -2px;
+}
+.prompt-table :deep(td) {
+  height: 56px;
+}
+.who {
+  min-width: 0;
+}
+.who-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.name {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.desc {
+  margin-top: 2px;
+  max-width: 460px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--mt-muted);
+}
+.when {
+  font-size: 11px;
+  color: var(--mt-faint);
+}
+.free-tag {
+  font-size: 11px;
+  color: var(--mt-faint);
+}
+.none {
+  color: var(--mt-faint);
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 9px;
+  box-sizing: border-box;
+  border: 1px solid var(--mt-soft);
+  border-radius: var(--mt-radius-xs);
+  background: var(--mt-soft);
+  color: var(--mt-muted);
+  font-size: 12px;
+}
+.chip.pre {
+  border-color: var(--mt-warn-bg);
+  background: var(--mt-warn-bg);
+  color: var(--mt-warn-ink);
+}
+.chip.pro {
+  border-color: var(--mt-accent);
+  background: var(--mt-accent);
+  color: var(--mt-accent-ink);
+}
+.chip.late {
+  border-color: var(--mt-highlight);
+  background: var(--mt-highlight-soft);
+  color: var(--mt-highlight-ink);
+}
+.chip b {
+  font-family: var(--mt-font, inherit);
+  font-size: 11px;
+  font-weight: 800;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
 .archived {
   background: var(--mt-soft);
   color: var(--mt-muted);
-}
-
-/* ---- línea de versiones ---- */
-.track {
-  min-width: 0;
-  display: flex;
-  align-items: flex-end;
-  justify-content: flex-end;
-  overflow: hidden;
-}
-.older {
-  align-self: flex-end;
-  margin: 0 6px 0 0;
-  font-size: 11px;
-  color: var(--mt-faint);
-}
-.cell {
-  flex: none;
-  width: 48px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-}
-.flags {
-  min-height: 42px;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 3px;
-}
-.line {
-  width: 100%;
-  height: 20px;
-  display: flex;
-  align-items: center;
-}
-.seg {
-  flex: 1;
-  height: 3px;
-  background: var(--mt-brand);
-}
-.seg.ahead {
-  background: var(--mt-highlight);
-}
-.seg.hidden {
-  background: transparent;
-}
-.dot {
-  flex: none;
-  width: 10px;
-  height: 10px;
-  box-sizing: border-box;
-  border-radius: 50%;
-  border: 2px solid var(--mt-brand);
-  background: var(--mt-card);
-}
-.dot.ahead {
-  border-color: var(--mt-highlight);
-}
-.dot.tagged {
-  width: 14px;
-  height: 14px;
-}
-.dot.latest {
-  width: 16px;
-  height: 16px;
-  border-color: var(--mt-accent);
-  background: var(--mt-accent);
-}
-.num {
-  font-size: 11px;
-  color: var(--mt-faint);
-}
-.num.strong {
-  font-weight: 800;
-  color: var(--mt-ink);
-}
-@media (max-width: 1100px) {
-  .row {
-    grid-template-columns: 1fr;
-  }
-  .track {
-    justify-content: flex-start;
-    overflow-x: auto;
-  }
 }
 
 .modal-form {

@@ -28,6 +28,7 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 | R2 | [ ] | Aprobaciones (ADR-076) | Aviso por email a aprobadores, aprobadores por grupo/rol del IdP, reasignar, delegación | M |
 | R3 | [ ] | Registro de agentes | Agentes remotos observados (`memtrace.peer_agent`) | B |
 | R4 | [ ] | Prompts — evidencia (ADR-069) | Anotaciones humanas, serie temporal por versión, cohortes de tráfico | M |
+| R11 | [ ] | Prompts — lista | Columna «Errors 7d» por prompt (tasa de error de la versión en `pro`): requiere devolverla en la lista, hoy solo está en la evidencia de cada prompt | B |
 | R5 | [ ] | Prompts — otros | Límites de coste/latencia en la promoción, permiso propio para la política, edición in situ de borradores, fragmentos anidados, límite de ejecuciones del playground | B |
 | R6 | [ ] | Apariencia (ADR-063) | Preferencia de modo en el perfil, avatar y bienvenida, presets de tema, paleta de gráficas | B |
 | R8 | [ ] | Identidad (ADR-052) | Mapeo de IdP externo (SCIM/grupos) | B |
