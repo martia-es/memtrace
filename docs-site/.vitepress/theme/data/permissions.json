@@ -202,6 +202,16 @@
       ]
     },
     {
+      "id": "alert:manage",
+      "group": "Metrics",
+      "description": "Create, change and delete the alerts and the monthly cost budget of an agent.",
+      "unlocks": [
+        "Alerts on error rate, latency, cost, user satisfaction or a saved custom chart",
+        "Choosing who gets the email, with up to 10 addresses per alert",
+        "A monthly cost budget with a warning percentage and a month-end forecast"
+      ]
+    },
+    {
       "id": "approval:manage",
       "group": "Prompts",
       "description": "Define the approval rules of the organization and of its experiments.",
@@ -233,16 +243,6 @@
       "description": "Export the data of an experiment as files.",
       "unlocks": [
         "Downloading traces, annotations, feedback and scores as JSON Lines (every export is recorded in the audit log)"
-      ]
-    },
-    {
-      "id": "alert:manage",
-      "group": "Metrics",
-      "description": "Create, change and delete the alerts and the monthly cost budget of an agent.",
-      "unlocks": [
-        "Alerts on error rate, latency, cost, user satisfaction or a saved custom chart",
-        "Choosing who gets the email, with up to 10 addresses per alert",
-        "A monthly cost budget with a warning percentage and a month-end forecast"
       ]
     }
   ],
@@ -433,6 +433,22 @@
     {
       "label": "Rename and hide steps and attributes in the Custom charts",
       "permission": "catalog:manage"
+    },
+    {
+      "label": "Create, change and delete the alerts and the monthly cost budget of an agent",
+      "permission": "alert:manage"
+    },
+    {
+      "label": "Change how long traces are kept, for the organization and for each experiment",
+      "permission": "retention:manage"
+    },
+    {
+      "label": "Read the audit log: who opened content, exported data or changed access",
+      "permission": "audit:read"
+    },
+    {
+      "label": "Export the traces, annotations, feedback and scores of an agent as files",
+      "permission": "data:export"
     }
   ],
   "presets": [
