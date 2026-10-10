@@ -41,11 +41,11 @@ export class PromptGateService implements PromptGatePort {
     if (!dataset || !experiment) return evaluatePromptGate({ ...base, policy: { ...policy, datasetId: null } });
 
     const datasetRuns = (await this.identity.listRunsForExperiment(experiment.id)).filter((r) => r.datasetId === dataset.id);
-    const onVersion = new Set(await this.evidence.runsUsingVersion({ service: experiment.serviceName, promptName: prompt.name, version, runIds: datasetRuns.map((r) => r.id) }));
+    const onVersion = new Set(await this.evidence.runsUsingVersion({ scope: { experimentId: experiment.id, serviceName: experiment.serviceName }, promptName: prompt.name, version, runIds: datasetRuns.map((r) => r.id) }));
     const runs = datasetRuns.filter((r) => onVersion.has(r.id));
 
     const [aggregates, configs] = await Promise.all([
-      runs.length ? this.scores.aggregateForRuns(experiment.serviceName, runs.map((r) => r.id)) : Promise.resolve([]),
+      runs.length ? this.scores.aggregateForRuns({ experimentId: experiment.id, serviceName: experiment.serviceName }, runs.map((r) => r.id)) : Promise.resolve([]),
       this.scoreConfigs.list(experiment.id, false),
     ]);
     const targets = new Map(configs.filter((c) => c.targetPassRate !== null).map((c) => [c.name, c.targetPassRate as number]));

@@ -50,7 +50,7 @@ export interface AlertRepository {
   /** Alertas disparadas ahora en esos experimentos, las más antiguas primero. */
   listOpen(experimentIds: string[]): Promise<OpenAlert[]>;
 
-  /** Alertas disparadas o resueltas y avisos de presupuesto desde `since` en esos experimentos, los más recientes primero (ADR-087). */
+  /** Alertas disparadas o resueltas y avisos de presupuesto desde `since` en esos experimentos, los más recientes primero (ADR-094). */
   listNotifications(experimentIds: string[], since: Date, limit: number): Promise<AppNotification[]>;
   /** Hasta cuándo ha leído esa persona sus notificaciones; null si nunca ha marcado nada. */
   getNotificationsReadAt(userId: string): Promise<string | null>;

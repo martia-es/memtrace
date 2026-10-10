@@ -60,6 +60,7 @@ async function createOrganization() {
           </p>
         </div>
         <div class="adm-form-row">
+          <Button :to="{ name: 'partner-clients' }">Clients</Button>
           <Button :to="{ name: 'admin-members' }">All members</Button>
           <Button variant="primary" @click="showCreate = true" class="mt-new">+ New organization</Button>
         </div>

@@ -11,7 +11,7 @@ import MenuItem from "./MenuItem.vue";
 import ToggleChip from "./ToggleChip.vue";
 
 /**
- * La campana de la barra superior (ADR-086, ADR-087): las alertas disparadas ahora en los agentes que la persona puede leer, y debajo los
+ * La campana de la barra superior (ADR-086, ADR-094): las alertas disparadas ahora en los agentes que la persona puede leer, y debajo los
  * avisos recientes (alertas resueltas, avisos de presupuesto) con los que aún no ha leído marcados. Se renueva cada minuto; un fallo de la
  * consulta no molesta, la campana se queda como estaba.
  */

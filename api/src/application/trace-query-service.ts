@@ -20,6 +20,7 @@ import type { Page, PageCursor, TraceDetail, TraceSummary } from "@/domain/trace
 import { buildTraceDetail } from "@/domain/tree";
 import { costOf, toPricingCatalog, type ModelPricing, type PricingCatalog } from "@/domain/pricing";
 import { telemetryOf, type ItemTelemetry } from "@/domain/evaluation";
+import type { TenantScope } from "@/domain/tenant";
 import type { RevisionSummary, TraceRepository } from "./ports/trace-repository";
 
 export const DEFAULT_PAGE_SIZE = 50;
@@ -36,7 +37,7 @@ export const MAX_CHAT_SPANS_PER_TRANSCRIPT = 500;
 export interface ListTracesInput {
   from?: Date;
   to?: Date;
-  service?: string;
+  scope: TenantScope;
   status?: "ok" | "error";
   hasErrors?: boolean;
   minDurationMs?: number;
@@ -52,7 +53,7 @@ export interface ListTracesInput {
 export interface ListConversationsInput {
   from?: Date;
   to?: Date;
-  service?: string;
+  scope: TenantScope;
   hasErrors?: boolean;
   text?: string;
   revision?: string;
@@ -65,7 +66,7 @@ export interface ListConversationsInput {
 export interface ListSpansInput {
   from?: Date;
   to?: Date;
-  service?: string;
+  scope: TenantScope;
   kind?: string;
   model?: string;
   status?: "ok" | "error";
@@ -122,14 +123,14 @@ export class TraceQueryService {
 
   listConversations(input: ListConversationsInput): Promise<Page<ConversationListItem, ConversationCursor>> {
     // las entradas inválidas fallan ya, no dentro de la promesa
-    const query = { ...resolveTimeRange(input, this.now()), service: input.service, hasErrors: input.hasErrors, text: input.text, revision: input.revision, promptName: input.promptName, promptVersion: input.promptVersion, limit: this.pageSize(input.limit), cursor: input.cursor };
-    return this.repository.listConversations(query).then(async (page) => ({ items: await this.withHighlights(page.items), nextCursor: page.nextCursor }));
+    const query = { ...resolveTimeRange(input, this.now()), scope: input.scope, hasErrors: input.hasErrors, text: input.text, revision: input.revision, promptName: input.promptName, promptVersion: input.promptVersion, limit: this.pageSize(input.limit), cursor: input.cursor };
+    return this.repository.listConversations(query).then(async (page) => ({ items: await this.withHighlights(input.scope, page.items), nextCursor: page.nextCursor }));
   }
 
   /** Título (primer mensaje del usuario) y coste de cada conversación; el repositorio no conoce precios (ADR-025). */
-  private async withHighlights(items: ConversationSummary[]): Promise<ConversationListItem[]> {
+  private async withHighlights(scope: TenantScope, items: ConversationSummary[]): Promise<ConversationListItem[]> {
     if (items.length === 0) return [];
-    const [usage, pricing] = await Promise.all([this.repository.getConversationUsage(items.map((c) => c.conversationId), this.now()), this.pricingCatalog()]);
+    const [usage, pricing] = await Promise.all([this.repository.getConversationUsage(scope, items.map((c) => c.conversationId), this.now()), this.pricingCatalog()]);
     return items.map((c) => {
       const u = usage.get(c.conversationId);
       const costs = (u?.models ?? []).map((m) => costOf(m.model, m.inputTokens, m.outputTokens, pricing)).filter((v): v is number => v !== null);
@@ -143,26 +144,26 @@ export class TraceQueryService {
   }
 
   /** Resumen de la conversación + sus turnos en orden cronológico (paginados). */
-  async getConversation(conversationId: string, input: { limit?: number; cursor?: PageCursor } = {}): Promise<ConversationDetail> {
+  async getConversation(scope: TenantScope, conversationId: string, input: { limit?: number; cursor?: PageCursor } = {}): Promise<ConversationDetail> {
     const limit = this.pageSize(input.limit);
     const toMs = this.now();
     const range = { fromMs: toMs - MAX_RANGE_MS, toMs };
     const [conversation, turns] = await Promise.all([
-      this.repository.getConversation(conversationId, range),
-      this.repository.listTraces({ ...range, conversationId, order: "asc", limit, cursor: input.cursor }),
+      this.repository.getConversation(scope, conversationId, range),
+      this.repository.listTraces({ ...range, scope, conversationId, order: "asc", limit, cursor: input.cursor }),
     ]);
     if (!conversation) throw new ConversationNotFoundError(conversationId);
-    const [withHighlights] = await this.withHighlights([conversation]);
+    const [withHighlights] = await this.withHighlights(scope, [conversation]);
     return { conversation: withHighlights!, turns };
   }
 
   /** Mensajes usuario/asistente de cada turno; solo hay contenido si el agente lo capturó (ADR-004). */
-  async getTranscript(conversationId: string): Promise<Transcript> {
+  async getTranscript(scope: TenantScope, conversationId: string): Promise<Transcript> {
     const toMs = this.now();
     const range = { fromMs: toMs - MAX_RANGE_MS, toMs };
     const [conversation, messages] = await Promise.all([
-      this.repository.getConversation(conversationId, range),
-      this.repository.getConversationMessages(conversationId, range, MAX_CHAT_SPANS_PER_TRANSCRIPT),
+      this.repository.getConversation(scope, conversationId, range),
+      this.repository.getConversationMessages(scope, conversationId, range, MAX_CHAT_SPANS_PER_TRANSCRIPT),
     ]);
     if (!conversation) throw new ConversationNotFoundError(conversationId);
     return buildTranscript(conversationId, messages.records, messages.truncated);
@@ -182,7 +183,7 @@ export class TraceQueryService {
     const range = resolveTimeRange(input, this.now());
     return this.repository.listTraces({
       ...range,
-      service: input.service,
+      scope: input.scope,
       status: input.status,
       hasErrors: input.hasErrors,
       minDurationMs: input.minDurationMs,
@@ -196,26 +197,26 @@ export class TraceQueryService {
     });
   }
 
-  async getTrace(traceId: string): Promise<TraceDetail> {
-    const [found, pricing] = await Promise.all([this.repository.getTraceSpans(traceId, MAX_SPANS_PER_TRACE), this.pricingCatalog()]);
+  async getTrace(scope: TenantScope, traceId: string): Promise<TraceDetail> {
+    const [found, pricing] = await Promise.all([this.repository.getTraceSpans(scope, traceId, MAX_SPANS_PER_TRACE), this.pricingCatalog()]);
     if (!found || found.spans.length === 0) throw new TraceNotFoundError(traceId);
     return buildTraceDetail(traceId, found.spans, found.truncated, pricing);
   }
 
   /** Árbol de spans de cada turno de la conversación, en el mismo orden y página que `getConversation`. */
-  async getConversationTraceTrees(conversationId: string, input: { limit?: number; cursor?: PageCursor } = {}): Promise<Page<TraceDetail>> {
+  async getConversationTraceTrees(scope: TenantScope, conversationId: string, input: { limit?: number; cursor?: PageCursor } = {}): Promise<Page<TraceDetail>> {
     const limit = this.pageSize(input.limit);
     const toMs = this.now();
     const range = { fromMs: toMs - MAX_RANGE_MS, toMs };
     const [conversation, turns] = await Promise.all([
-      this.repository.getConversation(conversationId, range),
-      this.repository.listTraces({ ...range, conversationId, order: "asc", limit, cursor: input.cursor }),
+      this.repository.getConversation(scope, conversationId, range),
+      this.repository.listTraces({ ...range, scope, conversationId, order: "asc", limit, cursor: input.cursor }),
     ]);
     if (!conversation) throw new ConversationNotFoundError(conversationId);
 
     const traceIds = turns.items.map((t) => t.traceId);
     const [byTraceId, pricing] = await Promise.all([
-      this.repository.getTraceSpansForTraces(traceIds, MAX_SPANS_PER_TRACE_IN_TREE),
+      this.repository.getTraceSpansForTraces(scope, traceIds, MAX_SPANS_PER_TRACE_IN_TREE),
       this.pricingCatalog(),
     ]);
     const items = traceIds
@@ -226,18 +227,18 @@ export class TraceQueryService {
   }
 
   /** Latencia, tokens y coste de las trazas dadas (items de una run de evaluación, ADR-044). Las que no existen (aún o ya expiradas) no aparecen. */
-  async getItemTelemetry(traceIds: string[]): Promise<Map<string, ItemTelemetry>> {
+  async getItemTelemetry(scope: TenantScope, traceIds: string[]): Promise<Map<string, ItemTelemetry>> {
     const unique = [...new Set(traceIds)];
     if (unique.length === 0) return new Map();
-    const [stats, pricing] = await Promise.all([this.repository.getTraceStatsForTraces(unique), this.pricingCatalog()]);
+    const [stats, pricing] = await Promise.all([this.repository.getTraceStatsForTraces(scope, unique), this.pricingCatalog()]);
     return new Map([...stats].map(([traceId, s]) => [traceId, telemetryOf(s, pricing)]));
   }
 
-  async getOverview(input: { from?: Date; to?: Date; service?: string }): Promise<MetricsOverview & { fromMs: number; toMs: number }> {
+  async getOverview(input: { from?: Date; to?: Date; scope: TenantScope }): Promise<MetricsOverview & { fromMs: number; toMs: number }> {
     const { fromMs, toMs } = resolveTimeRange(input, this.now());
     const bucketSeconds = chooseBucketSeconds(fromMs, toMs);
     const [overview, pricing] = await Promise.all([
-      this.repository.getOverview({ fromMs, toMs, service: input.service, bucketSeconds }),
+      this.repository.getOverview({ fromMs, toMs, scope: input.scope, bucketSeconds }),
       this.pricingCatalog(),
     ]);
     // el repositorio no conoce precios (ADR-025): el coste por modelo se calcula aquí, y el total es su suma
@@ -255,31 +256,32 @@ export class TraceQueryService {
   }
 
   /** Errores del rango en lenguaje de negocio (ADR-066), comparados con el periodo anterior de igual duración. */
-  async getErrorOverview(input: { from?: Date; to?: Date; service?: string }): Promise<ErrorOverview> {
+  async getErrorOverview(input: { from?: Date; to?: Date; scope: TenantScope }): Promise<ErrorOverview> {
     const range = resolveTimeRange(input, this.now());
     const candidate = { fromMs: range.fromMs - (range.toMs - range.fromMs), toMs: range.fromMs };
     // más allá de la retención no hay datos y "0 antes" haría parecer nuevo cualquier error
-    const retentionMs = (await this.retentionDays(input.service)) * 86_400_000;
+    const retentionMs = (await this.retentionDays(input.scope.serviceName)) * 86_400_000;
     const previousRange = candidate.fromMs >= this.now() - retentionMs ? candidate : null;
     const [current, previous] = await Promise.all([
-      this.repository.listErrorGroups({ ...range, service: input.service }),
-      previousRange ? this.repository.listErrorGroups({ ...previousRange, service: input.service }) : null,
+      this.repository.listErrorGroups({ ...range, scope: input.scope }),
+      previousRange ? this.repository.listErrorGroups({ ...previousRange, scope: input.scope }) : null,
     ]);
     return summarizeErrors(current, previous, range, previousRange);
   }
 
   /** Commits vistos en el rango (para elegirlos en el filtro de versión). */
-  listRevisions(input: { from?: Date; to?: Date; service?: string }): Promise<RevisionSummary[]> {
-    return this.repository.listRevisions({ ...resolveTimeRange(input, this.now()), service: input.service });
+  listRevisions(input: { from?: Date; to?: Date; scope: TenantScope }): Promise<RevisionSummary[]> {
+    return this.repository.listRevisions({ ...resolveTimeRange(input, this.now()), scope: input.scope });
   }
 
-  listServices(input: { from?: Date; to?: Date }): Promise<string[]> {
-    return this.repository.listServices(resolveTimeRange(input, this.now()));
+  /** Solo los servicios de los experimentos que la persona puede leer (ADR-088). */
+  listServices(input: { from?: Date; to?: Date }, scopes: TenantScope[]): Promise<string[]> {
+    return this.repository.listServices(resolveTimeRange(input, this.now()), scopes);
   }
 
-  async getUsageByServices(serviceNames: string[], input: { from?: Date; to?: Date }): Promise<{ fromMs: number; toMs: number; items: ServiceUsage[] }> {
+  async getUsageByServices(scopes: TenantScope[], input: { from?: Date; to?: Date }): Promise<{ fromMs: number; toMs: number; items: ServiceUsage[] }> {
     const { fromMs, toMs } = resolveTimeRange(input, this.now());
-    const items = await this.repository.getUsageByServices(serviceNames, { fromMs, toMs });
+    const items = await this.repository.getUsageByServices(scopes, { fromMs, toMs });
     return { fromMs, toMs, items };
   }
 
@@ -288,32 +290,32 @@ export class TraceQueryService {
   }
 
   /** `memtrace.step_type` distintos vistos en el rango, para el selector del builder de gráficos (ADR-027). */
-  async getStepKinds(input: { from?: Date; to?: Date; service?: string }): Promise<{ fromMs: number; toMs: number; items: StepKindCount[] }> {
+  async getStepKinds(input: { from?: Date; to?: Date; scope: TenantScope }): Promise<{ fromMs: number; toMs: number; items: StepKindCount[] }> {
     const { fromMs, toMs } = resolveTimeRange(input, this.now());
-    const items = await this.repository.getStepKinds({ fromMs, toMs, service: input.service });
+    const items = await this.repository.getStepKinds({ fromMs, toMs, scope: input.scope });
     return { fromMs, toMs, items };
   }
 
   /** Valores distintos de un atributo, acotados a los step types dados (ADR-027): filtro/agrupación dinámicos. */
   async getAttributeValues(
-    input: { from?: Date; to?: Date; service?: string; stepTypes: string[]; attribute: string },
+    input: { from?: Date; to?: Date; scope: TenantScope; stepTypes: string[]; attribute: string },
   ): Promise<{ fromMs: number; toMs: number; items: AttributeValueCount[] }> {
     const { fromMs, toMs } = resolveTimeRange(input, this.now());
-    const items = await this.repository.getAttributeValues({ fromMs, toMs, service: input.service, stepTypes: input.stepTypes, attribute: input.attribute });
+    const items = await this.repository.getAttributeValues({ fromMs, toMs, scope: input.scope, stepTypes: input.stepTypes, attribute: input.attribute });
     return { fromMs, toMs, items };
   }
 
   /** Claves de atributo vistas en los step types dados (ADR-030): alimenta los selectores de "group by"/"filter by". */
   async getAttributeKeys(
-    input: { from?: Date; to?: Date; service?: string; stepTypes: string[] },
+    input: { from?: Date; to?: Date; scope: TenantScope; stepTypes: string[] },
   ): Promise<{ fromMs: number; toMs: number; items: AttributeKeyCount[] }> {
     const { fromMs, toMs } = resolveTimeRange(input, this.now());
-    const items = await this.repository.getAttributeKeys({ fromMs, toMs, service: input.service, stepTypes: input.stepTypes });
+    const items = await this.repository.getAttributeKeys({ fromMs, toMs, scope: input.scope, stepTypes: input.stepTypes });
     return { fromMs, toMs, items };
   }
 
   /** Calcula un gráfico custom (ADR-027) sin persistirlo — guardarlo es responsabilidad de la identidad (Postgres). */
-  async getCustomMetric(input: CustomMetricDefinition & { from?: Date; to?: Date; service?: string }): Promise<CustomMetricResult & { fromMs: number; toMs: number }> {
+  async getCustomMetric(input: CustomMetricDefinition & { from?: Date; to?: Date; scope: TenantScope }): Promise<CustomMetricResult & { fromMs: number; toMs: number }> {
     const { fromMs, toMs } = resolveTimeRange(input, this.now());
     const bucketSeconds = input.chartType === "line" || input.chartType === "area" ? chooseBucketSeconds(fromMs, toMs) : undefined;
     const result = await this.repository.getCustomMetric({ ...input, fromMs, toMs, bucketSeconds });

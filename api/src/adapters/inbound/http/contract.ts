@@ -1480,6 +1480,35 @@ export interface AuditPageDto {
   nextCursor: string | null;
 }
 
+/** Consultoras con acceso a una organización cliente y las personas concretas con su rol (ADR-091). */
+export interface PartnerGrantDto {
+  id: string;
+  partnershipId: string;
+  userId: string;
+  userEmail: string;
+  userName: string | null;
+  role: string;
+  /** null = todos los experimentos de la organización */
+  experimentId: string | null;
+  createdAt: string;
+}
+
+export interface PartnershipDto {
+  id: string;
+  partnerOrganizationId: string;
+  partnerOrganizationName: string;
+  createdAt: string;
+  grants: PartnerGrantDto[];
+}
+
+/** Lo que ve una persona de la consultora de cada cliente: solo metadatos (ADR-091). */
+export interface PartnerClientDto {
+  organizationId: string;
+  organizationName: string;
+  partnershipId: string;
+  experiments: Array<{ id: string; name: string; role: string }>;
+}
+
 /** Alertas y presupuestos de coste (ADR-086). */
 export interface AlertStatusDto {
   state: "ok" | "firing" | "no_data";

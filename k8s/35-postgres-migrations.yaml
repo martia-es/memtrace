@@ -8,6 +8,9 @@ metadata:
 spec:
   backoffLimit: 6
   template:
+    metadata:
+      labels:
+        app: postgres-migrate
     spec:
       restartPolicy: OnFailure
       containers:

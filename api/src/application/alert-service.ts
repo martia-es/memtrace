@@ -34,7 +34,7 @@ export interface BudgetView {
   projectedUsd: number | null;
 }
 
-/** Lo que enseña la campana: los avisos recientes y cuántos no ha leído esta persona (ADR-087). */
+/** Lo que enseña la campana: los avisos recientes y cuántos no ha leído esta persona (ADR-094). */
 export interface NotificationFeed {
   items: Array<AppNotification & { read: boolean }>;
   unread: number;

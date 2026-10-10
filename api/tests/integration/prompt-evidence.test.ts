@@ -16,6 +16,8 @@ const config = { ...configFromEnv(), password: process.env.CLICKHOUSE_PASSWORD ?
 
 const SERVICE = `pe-${randomBytes(4).toString("hex")}`;
 const OTHER_SERVICE = `${SERVICE}-other`;
+const scopeOf = (service: string) => ({ experimentId: `exp-${service}`, serviceName: service });
+const SCOPE = scopeOf(SERVICE);
 const PROMPT = "weather-system";
 const hex = (n: number) => randomBytes(n).toString("hex");
 const T = { t1: hex(16), t2: hex(16), t3: hex(16), t4: hex(16), t5: hex(16), t6: hex(16), t7: hex(16), t8: hex(16), t9: hex(16) };
@@ -48,7 +50,7 @@ const toRow = (s: Span) => ({
   SpanKind: "SPAN_KIND_INTERNAL",
   ServiceName: s.service ?? SERVICE,
   SpanAttributes: s.attrs ?? {},
-  ResourceAttributes: {},
+  ResourceAttributes: { "memtrace.experiment_id": scopeOf(s.service ?? SERVICE).experimentId },
   Duration: s.durationMs * 1e6,
   StatusCode: `STATUS_CODE_${s.status ?? "OK"}`,
   StatusMessage: s.status === "ERROR" ? (s.message ?? "boom") : "",
@@ -104,20 +106,20 @@ describe.skipIf(!enabled)("ClickHousePromptEvidenceRepository (integration, ADR-
     await insert("otel_traces", spans.map(toRow));
 
     await insert("user_feedback", [
-      { ServiceName: SERVICE, TraceId: T.t1, SpanId: "", EndUserId: "a", Rating: 1, ExternalMessageId: "", CreatedAt: CREATED, IsDeleted: 0 },
-      { ServiceName: SERVICE, TraceId: T.t2, SpanId: "", EndUserId: "a", Rating: -1, ExternalMessageId: "", CreatedAt: CREATED, IsDeleted: 0 },
-      { ServiceName: SERVICE, TraceId: T.t3, SpanId: "", EndUserId: "a", Rating: 1, ExternalMessageId: "", CreatedAt: CREATED, IsDeleted: 0 },
-      { ServiceName: SERVICE, TraceId: T.t4, SpanId: "", EndUserId: "a", Rating: 1, ExternalMessageId: "", CreatedAt: CREATED, IsDeleted: 0 },
+      { ServiceName: SERVICE, ExperimentId: SCOPE.experimentId, TraceId: T.t1, SpanId: "", EndUserId: "a", Rating: 1, ExternalMessageId: "", CreatedAt: CREATED, IsDeleted: 0 },
+      { ServiceName: SERVICE, ExperimentId: SCOPE.experimentId, TraceId: T.t2, SpanId: "", EndUserId: "a", Rating: -1, ExternalMessageId: "", CreatedAt: CREATED, IsDeleted: 0 },
+      { ServiceName: SERVICE, ExperimentId: SCOPE.experimentId, TraceId: T.t3, SpanId: "", EndUserId: "a", Rating: 1, ExternalMessageId: "", CreatedAt: CREATED, IsDeleted: 0 },
+      { ServiceName: SERVICE, ExperimentId: SCOPE.experimentId, TraceId: T.t4, SpanId: "", EndUserId: "a", Rating: 1, ExternalMessageId: "", CreatedAt: CREATED, IsDeleted: 0 },
       // un voto retirado (lápida posterior) no cuenta
-      { ServiceName: SERVICE, TraceId: T.t3, SpanId: "", EndUserId: "b", Rating: -1, ExternalMessageId: "", CreatedAt: CREATED, IsDeleted: 0 },
-      { ServiceName: SERVICE, TraceId: T.t3, SpanId: "", EndUserId: "b", Rating: -1, ExternalMessageId: "", CreatedAt: LATER, IsDeleted: 1 },
+      { ServiceName: SERVICE, ExperimentId: SCOPE.experimentId, TraceId: T.t3, SpanId: "", EndUserId: "b", Rating: -1, ExternalMessageId: "", CreatedAt: CREATED, IsDeleted: 0 },
+      { ServiceName: SERVICE, ExperimentId: SCOPE.experimentId, TraceId: T.t3, SpanId: "", EndUserId: "b", Rating: -1, ExternalMessageId: "", CreatedAt: LATER, IsDeleted: 1 },
       // voto sobre una traza de otro prompt: no cuenta
-      { ServiceName: SERVICE, TraceId: T.t6, SpanId: "", EndUserId: "a", Rating: -1, ExternalMessageId: "", CreatedAt: CREATED, IsDeleted: 0 },
+      { ServiceName: SERVICE, ExperimentId: SCOPE.experimentId, TraceId: T.t6, SpanId: "", EndUserId: "a", Rating: -1, ExternalMessageId: "", CreatedAt: CREATED, IsDeleted: 0 },
     ]);
 
-    const item = (index: number, traceId: string | null) => ({ ServiceName: SERVICE, DatasetRunId: RUN, ItemIndex: index, TraceId: traceId, Input: '"q"', Output: '"a"', ExpectedOutput: null, Error: null, CreatedAt: CREATED });
+    const item = (index: number, traceId: string | null) => ({ ServiceName: SERVICE, ExperimentId: SCOPE.experimentId, DatasetRunId: RUN, ItemIndex: index, TraceId: traceId, Input: '"q"', Output: '"a"', ExpectedOutput: null, Error: null, CreatedAt: CREATED });
     const score = (index: number, name: string, dataType: string, value: string, valueNum: number | null) => ({
-      ServiceName: SERVICE, DatasetRunId: RUN, ItemIndex: index, Name: name, Value: value, ValueNum: valueNum, DataType: dataType, Source: "code", Comment: null, JudgeModel: null, JudgePromptHash: null, CreatedAt: CREATED,
+      ServiceName: SERVICE, ExperimentId: SCOPE.experimentId, DatasetRunId: RUN, ItemIndex: index, Name: name, Value: value, ValueNum: valueNum, DataType: dataType, Source: "code", Comment: null, JudgeModel: null, JudgePromptHash: null, CreatedAt: CREATED,
     });
     await insert("eval_items", [item(0, T.t1), item(1, T.t3), item(2, T.t6), item(3, null)]);
     await insert("eval_scores", [
@@ -136,7 +138,7 @@ describe.skipIf(!enabled)("ClickHousePromptEvidenceRepository (integration, ADR-
     await writer.close();
   });
 
-  const evidence = async () => (await service.forPrompt(PROMPT, SERVICE, range)).versions;
+  const evidence = async () => (await service.forPrompt(PROMPT, SCOPE, range)).versions;
   const version = async (n: number) => (await evidence()).find((v) => v.version === n)!;
 
   it("returns one entry per version used, newest first, and ignores other prompts, services and untagged traces", async () => {
@@ -204,12 +206,12 @@ describe.skipIf(!enabled)("ClickHousePromptEvidenceRepository (integration, ADR-
   });
 
   it("returns nothing for a prompt nobody used, or for another service", async () => {
-    expect((await service.forPrompt("nobody-used-me", SERVICE, range)).versions).toEqual([]);
-    expect((await service.forPrompt(PROMPT, `${SERVICE}-missing`, range)).versions).toEqual([]);
+    expect((await service.forPrompt("nobody-used-me", SCOPE, range)).versions).toEqual([]);
+    expect((await service.forPrompt(PROMPT, scopeOf(`${SERVICE}-missing`), range)).versions).toEqual([]);
   });
 
   it("only sees the traffic of the requested range", async () => {
-    const before = await service.forPrompt(PROMPT, SERVICE, { from: new Date(T0 - 3 * 3600_000), to: new Date(T0 - 2 * 3600_000) });
+    const before = await service.forPrompt(PROMPT, SCOPE, { from: new Date(T0 - 3 * 3600_000), to: new Date(T0 - 2 * 3600_000) });
     expect(before.versions).toEqual([]);
   });
 });

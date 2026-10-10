@@ -51,6 +51,34 @@ Rules that keep this safe:
 - The last `org_admin` of an organization is never removed by the provider.
 - Using your own sign-in tenant per customer (own issuer and client secret) is not available yet; sign in with Google or Microsoft and map groups from the token.
 
+## Working with a consultancy (partner access)
+
+If a consultancy manages your agents, give it its **own organization** and keep yours separate: nothing is shared by default, and being staff of the consultancy gives access to nothing.
+
+In the dashboard, an `org_admin` does all of this in **Admin › your organization › Partners**, and the consultancy's people find their clients (and the organization id to hand over) on the **Clients** page of the Admin area. The same steps through the API:
+
+1. The consultancy gives you the id of its organization. As `org_admin` of your organization, `POST /api/v1/organizations/{yourOrg}/partnerships` with `{ "partnerOrganizationId": "…" }`. This alone grants nothing.
+2. Name each person: `POST …/partnerships/{partnershipId}/grants` with `{ "email": "ana@consulting.com", "role": "business", "experimentId": null }`. The person must belong to the consultancy's organization. `experimentId: null` means every experiment of your organization, including future ones; an id limits it to that experiment. The role is an experiment role (`technical`, `business`…), never an administrator role. A partner can work with your traces, prompts and datasets, but **can never export your data**: `data:export` is removed from every role granted through a partnership, even `technical`.
+3. Remove one person with `DELETE …/grants/{grantId}` or end the whole relationship with `DELETE …/partnerships/{partnershipId}`. It takes effect on the next request.
+
+If the consultancy removes someone from its organization, that person loses access to all its clients at once, and adding them back does not restore it: you grant it again. People at the consultancy see the clients that granted them access with `GET /api/v1/partner/clients` (names and roles only, never trace data).
+
+## Audit log
+
+Security-relevant actions go to the [audit log](/platform/data-protection#the-audit-log): partner relationships and grants being created or revoked, and every time someone who only has access through a consultancy grant opens one of your experiments (`partner.access`, at most once per person and experiment every five minutes). As an `org_admin`, read it in **Admin › Data protection › Audit log** or with `GET /api/v1/organizations/{id}/audit`.
+
+## Data isolation between experiments
+
+Each experiment is its own tenant. Its traces, conversations, scores, annotations, votes and prompt evidence are stored under the experiment's id and every read is limited to it, so two organizations that use the same `service.name` (or the same trace or conversation ids) cannot see each other's data. `GET /api/v1/services` now requires a session and lists only the services of experiments you can read.
+
+If you upgrade an installation that already holds data, run `make backfill-experiment-id` once: it assigns the earlier rows to their experiment. When two organizations shared a service name, those earlier rows cannot be attributed, so they stay hidden until you decide who owns them (the job's log lists them).
+
+## Network and database access
+
+Traces reach ClickHouse only through the ingest gateway: the OpenTelemetry Collector accepts OTLP over HTTP only, and only from the gateway (a shared token, plus a default-deny `NetworkPolicy` set in `k8s/05-network-policies.yaml`). Sending traces straight to the collector, or over gRPC, is no longer possible, so point your agents at `/api/v1/ingest` with an API key.
+
+The platform connects to ClickHouse with separate users: the API reads with a read-only user, evaluation data is written by an insert-only user, and the collector can only write traces. `make netpol-check` tells you whether your cluster's network plugin actually enforces the policies (kind's default one may not).
+
 ## Agent API keys
 
 Agents authenticate with an API key tied to one experiment, not with a user account. A `technical` profile creates their own keys, and an `org_admin` sees and revokes all of them, in **Admin → organization → experiment → API keys** (the **Connect** tab walks through the setup), or with `POST /api/v1/experiments/{experimentId}/api-keys`.
@@ -58,6 +86,6 @@ Agents authenticate with an API key tied to one experiment, not with a user acco
 - Keys look like `mtk_Ab3xY9...`. The plaintext is shown **once**; only its hash is stored.
 - A key works for OTLP ingestion and for the evaluation endpoints of its own experiment. It does not reach any other experiment.
 - An invalid or revoked key is rejected with `401`. Revoke a key with `DELETE /api/v1/experiments/{experimentId}/api-keys/{keyId}`.
-- The ingest gateway checks that the key is valid **and** that every trace carries the `service.name` of the key's experiment. A key cannot write into another experiment; a request with another name, or with none, is refused with `403` and the message says which name to use.
+- The ingest gateway checks that the key is valid **and** that every trace carries the `service.name` of the key's experiment: a request with another name, or with none, is refused with `403` and the message says which name to use. Once accepted, the gateway **assigns the tenant of every trace**: it sets `service.name` and `memtrace.experiment_id` from the key's experiment, discarding anything the agent declared, so a trace can never be written into another experiment.
 
 How the SDK sends the key is in [Authentication](/library/authentication).

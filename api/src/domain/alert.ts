@@ -75,7 +75,7 @@ export interface AlertEvent {
 export type NotificationKind = "fired" | "resolved" | "budget_warning" | "budget_exceeded" | "budget_forecast";
 
 /**
- * Un aviso de la campana (ADR-087): una alerta que se disparó o se resolvió, o un aviso de presupuesto. Los campos de la alerta son
+ * Un aviso de la campana (ADR-094): una alerta que se disparó o se resolvió, o un aviso de presupuesto. Los campos de la alerta son
  * null en los de presupuesto y al revés; los recordatorios no entran, repetirían el mismo problema.
  */
 export interface AppNotification {

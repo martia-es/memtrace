@@ -18,6 +18,7 @@ function fakeClient(rows: unknown[] = []) {
 const q = (over: Partial<CustomMetricQuery> = {}): CustomMetricQuery => ({
   fromMs: 1_700_000_000_000,
   toMs: 1_700_086_400_000,
+  scope: { experimentId: "exp-1", serviceName: "weather" },
   chartType: "bar",
   stepTypes: ["tool"],
   metric: "sum_attribute",

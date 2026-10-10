@@ -1,11 +1,16 @@
 # Quickstart
 
-With a MemTrace stack running (see [Run it locally](/platform/getting-started)), the collector listens on `localhost:4317`, which is the SDK default.
+With a MemTrace stack running (see [Run it locally](/platform/getting-started)), send traces through its ingest gateway with the API key of your experiment (see [Authentication](/library/authentication)). Traces that arrive any other way carry no experiment and nobody can see them.
 
 ```python
 from memtrace import init_tracer, trace_step, trace_llm_call, shutdown
 
-init_tracer(service_name="my-agent")
+init_tracer(
+    service_name="my-agent",
+    protocol="http/protobuf",                          # needs memtrace-ai[http]
+    endpoint="http://localhost:8080/api/v1/ingest",
+    headers={"authorization": "Bearer mtk_..."},
+)
 
 @trace_step(name="search", step_type="tool")
 def search(query: str) -> str:

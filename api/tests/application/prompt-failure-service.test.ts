@@ -28,8 +28,8 @@ describe("PromptFailureService", () => {
       [summary("a", { errorCount: 1, error: "429" }), summary("b"), summary("c"), summary("d"), summary("e")],
       { scores: [{ traceId: "b", dataType: "boolean", value: "false" }, { traceId: "a", dataType: "numeric", value: "0.2" }], down: ["c", "a"], low: ["d"] },
     );
-    const result = await service.list("exp", "svc", "p", {});
-    expect(calls[0]).toMatchObject({ service: "svc", promptName: "p" });
+    const result = await service.list({ experimentId: "exp", serviceName: "svc" }, "p", {});
+    expect(calls[0]).toMatchObject({ scope: { experimentId: "exp", serviceName: "svc" }, promptName: "p" });
     expect(result.scanned).toBe(5);
     expect(result.items.map((i) => [i.traceId, i.reasons])).toEqual([
       ["a", ["error", "low_score", "user_dislike"]],
@@ -42,7 +42,7 @@ describe("PromptFailureService", () => {
 
   it("returns nothing for healthy traces", async () => {
     const { service } = build([summary("a")], { scores: [{ traceId: "a", dataType: "boolean", value: "true" }] });
-    expect(await service.list("exp", "svc", "p", {})).toEqual({ items: [], scanned: 1, counts: { error: 0, low_score: 0, human_low: 0, user_dislike: 0 } });
+    expect(await service.list({ experimentId: "exp", serviceName: "svc" }, "p", {})).toEqual({ items: [], scanned: 1, counts: { error: 0, low_score: 0, human_low: 0, user_dislike: 0 } });
   });
 });
 

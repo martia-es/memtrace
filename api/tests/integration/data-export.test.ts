@@ -12,6 +12,9 @@ const enabled = Boolean(process.env.CLICKHOUSE_INTEGRATION);
 const config = { ...configFromEnv(), password: process.env.CLICKHOUSE_PASSWORD ?? "memtrace-dev-only" };
 const SERVICE = `it-export-${randomBytes(4).toString("hex")}`;
 const OTHER = `${SERVICE}-other`;
+const EXP = `exp-${SERVICE}`;
+const OTHER_EXP = `exp-${OTHER}`;
+const sc = (serviceName: string) => ({ serviceName, experimentId: serviceName === OTHER ? OTHER_EXP : EXP });
 const DAY = 86_400_000;
 const id = (n = 16) => randomBytes(n).toString("hex");
 const ts = (ms: number) => new Date(ms).toISOString().replace("T", " ").replace("Z", "000");
@@ -25,17 +28,17 @@ describe.skipIf(!enabled)("ClickHouseDataExporter", () => {
 
   const collect = async (kind: "traces" | "annotations" | "feedback" | "scores", service = SERVICE) => {
     const lines: string[] = [];
-    for await (const line of exporter.stream(service, kind, from, to)) lines.push(line);
+    for await (const line of exporter.stream(sc(service), kind, from, to)) lines.push(line);
     return lines.map((l) => JSON.parse(l) as Record<string, unknown>);
   };
 
   beforeAll(async () => {
     writer = createClient({ url: config.url, username: config.username, password: config.password, database: config.database });
     exporter = new ClickHouseDataExporter(createReadOnlyClient(config), config.database);
-    const span = (service: string, ageDays: number) => ({ Timestamp: ts(now - ageDays * DAY), TraceId: id(), SpanId: id(8), ServiceName: service, SpanName: "step", StatusCode: "OK" });
+    const span = (service: string, ageDays: number) => ({ Timestamp: ts(now - ageDays * DAY), TraceId: id(), SpanId: id(8), ServiceName: service, ExperimentId: sc(service).experimentId, SpanName: "step", StatusCode: "OK" });
     await writer.insert({ table: `${config.database}.otel_traces`, format: "JSONEachRow", values: [span(SERVICE, 1), span(SERVICE, 2), span(SERVICE, 20), span(OTHER, 1)] });
     const feedback = (service: string, endUser: string, deleted: number, createdMs: number) => ({
-      ServiceName: service, TraceId: id(), SpanId: "", EndUserId: endUser, Rating: 1, Comment: null, ExternalMessageId: "", CreatedAt: ts(createdMs), IsDeleted: deleted,
+      ServiceName: service, ExperimentId: sc(service).experimentId, TraceId: id(), SpanId: "", EndUserId: endUser, Rating: 1, Comment: null, ExternalMessageId: "", CreatedAt: ts(createdMs), IsDeleted: deleted,
     });
     await writer.insert({ table: `${config.database}.user_feedback`, format: "JSONEachRow", values: [feedback(SERVICE, "kept", 0, now - DAY), feedback(SERVICE, "retracted", 1, now - DAY), feedback(OTHER, "kept", 0, now - DAY)] });
   });
@@ -49,8 +52,8 @@ describe.skipIf(!enabled)("ClickHouseDataExporter", () => {
     const rows = await collect("traces");
     expect(rows).toHaveLength(2);
     expect(rows.every((r) => r.ServiceName === SERVICE)).toBe(true);
-    expect(await exporter.count(SERVICE, "traces", from, to)).toBe(2);
-    expect(await exporter.count(OTHER, "traces", from, to)).toBe(1);
+    expect(await exporter.count(sc(SERVICE), "traces", from, to)).toBe(2);
+    expect(await exporter.count(sc(OTHER), "traces", from, to)).toBe(1);
   });
 
   it("exports every column, so nothing is lost when the schema grows", async () => {
@@ -61,12 +64,12 @@ describe.skipIf(!enabled)("ClickHouseDataExporter", () => {
   it("leaves out retracted feedback and other services", async () => {
     const rows = await collect("feedback");
     expect(rows.map((r) => r.EndUserId)).toEqual(["kept"]);
-    expect(await exporter.count(SERVICE, "feedback", from, to)).toBe(1);
+    expect(await exporter.count(sc(SERVICE), "feedback", from, to)).toBe(1);
   });
 
   it("an empty range is an empty file, not an error", async () => {
     const lines: string[] = [];
-    for await (const l of exporter.stream(SERVICE, "scores", from, to)) lines.push(l);
+    for await (const l of exporter.stream(sc(SERVICE), "scores", from, to)) lines.push(l);
     expect(lines).toEqual([]);
   });
 });

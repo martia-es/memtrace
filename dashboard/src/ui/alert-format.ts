@@ -94,7 +94,7 @@ export function parseRecipients(text: string): string[] {
     .filter(Boolean);
 }
 
-/** Cómo se cuenta un aviso de la campana (ADR-087): el titular, la frase con el valor y el tono. */
+/** Cómo se cuenta un aviso de la campana (ADR-094): el titular, la frase con el valor y el tono. */
 export function notificationView(n: Pick<NotificationDto, "kind" | "ruleName" | "metric" | "comparator" | "value" | "threshold" | "budgetUsd" | "warnPercent">): { title: string; text: string; tone: StateTone; cta: string } {
   if (n.kind === "budget_warning") return { title: `Budget reached ${n.warnPercent ?? "the warning"} %`, text: n.budgetUsd === null ? "The monthly budget was removed since." : `Your ${formatValue("cost", n.budgetUsd)} monthly budget is filling up.`, tone: "warn", cta: "View budget" };
   if (n.kind === "budget_exceeded") return { title: "Budget exceeded", text: n.budgetUsd === null ? "The monthly budget was removed since." : `The month went over your ${formatValue("cost", n.budgetUsd)} budget.`, tone: "error", cta: "View budget" };

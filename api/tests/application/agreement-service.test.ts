@@ -88,7 +88,7 @@ describe("AgreementService (ADR-040)", () => {
   });
 
   const addLabels = async (...rows: Annotation[]) => {
-    for (const row of rows) await annotations.upsert(SERVICE, row);
+    for (const row of rows) await annotations.upsert(actor, row);
   };
 
   describe("judgeHuman — run scope", () => {

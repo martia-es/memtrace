@@ -1,3 +1,4 @@
+import { PARTNER_DENIED_PERMISSIONS } from "@/domain/partnership";
 import type { Pool } from "pg";
 import { randomBytes, randomUUID, createHash } from "node:crypto";
 import { bumpForChanges, describeChanges } from "@/domain/dataset-version";
@@ -252,22 +253,34 @@ export class PostgresIdentityRepository implements IdentityRepository {
       org_theme: unknown;
       my_role: string | null;
       org_role: string | null;
+      partner_roles: string[] | null;
       permissions: string[] | null;
     }>(
       `SELECT e.id, e.organization_id, e.name, e.service_name, o.theme AS org_theme,
-              em.role AS my_role, om.role AS org_role,
-              (SELECT array_agg(DISTINCT rp.permission) FROM role_permissions rp WHERE rp.role_name IN (em.role, om.role)) AS permissions
+              em.role AS my_role, om.role AS org_role, pg.roles AS partner_roles,
+              (SELECT array_agg(DISTINCT rp.permission) FROM role_permissions rp
+                WHERE rp.role_name IN (em.role, om.role)
+                   OR (rp.role_name = ANY(COALESCE(pg.roles, ARRAY[]::text[])) AND rp.permission <> ALL($2::text[]))) AS permissions
          FROM experiments e
          JOIN organizations o ON o.id = e.organization_id
          LEFT JOIN experiment_memberships em ON em.experiment_id = e.id AND em.user_id = $1
          LEFT JOIN org_memberships om ON om.organization_id = e.organization_id AND om.user_id = $1
-        WHERE em.user_id IS NOT NULL OR om.user_id IS NOT NULL
+         LEFT JOIN LATERAL (
+           SELECT array_agg(DISTINCT g.role ORDER BY g.role) AS roles
+             FROM partner_grants g
+             JOIN organization_partnerships p ON p.id = g.partnership_id
+            WHERE g.user_id = $1 AND p.client_organization_id = e.organization_id
+              AND g.revoked_at IS NULL AND p.revoked_at IS NULL
+              AND (g.experiment_id = e.id OR g.experiment_id IS NULL)
+              AND EXISTS (SELECT 1 FROM org_memberships pm WHERE pm.organization_id = p.partner_organization_id AND pm.user_id = g.user_id AND pm.created_at <= g.created_at)
+         ) pg ON true
+        WHERE em.user_id IS NOT NULL OR om.user_id IS NOT NULL OR pg.roles IS NOT NULL
         ORDER BY e.name`,
-      [userId],
+      [userId, [...PARTNER_DENIED_PERMISSIONS]],
     );
     return rows.map((row) => ({
       ...toExperiment(row),
-      myRole: row.my_role ?? (row.org_role as string),
+      myRole: row.my_role ?? row.partner_roles?.[0] ?? (row.org_role as string),
       permissions: (row.permissions ?? []).filter(isPermission),
     }));
   }
@@ -356,23 +369,43 @@ export class PostgresIdentityRepository implements IdentityRepository {
     return rows.map(toPendingInvitation);
   }
 
+  /**
+   * Permisos efectivos: la unión de los del rol de organización, el de experimento y los de los grants de partner vigentes
+   * (ADR-091). Un grant de partner solo cuenta si la relación y el grant siguen activos y la persona es miembro de la
+   * organización partner desde ANTES de concederlo: si la dieron de baja y la volvieron a dar de alta, el grant no resucita.
+   * De un grant de partner nunca salen los permisos de PARTNER_DENIED_PERMISSIONS (sacar los datos del cliente), sea cual sea el rol.
+   */
   async resolveExperimentAccess(userId: string, experimentId: string): Promise<ExperimentAccess> {
-    const { rows } = await this.pool.query<{ org_role: string | null; experiment_role: string | null; permissions: string[] | null }>(
-      `SELECT
-         (SELECT om.role FROM org_memberships om JOIN experiments e ON e.organization_id = om.organization_id
-           WHERE om.user_id = $1 AND e.id = $2) AS org_role,
-         (SELECT role FROM experiment_memberships WHERE user_id = $1 AND experiment_id = $2) AS experiment_role,
-         (SELECT array_agg(DISTINCT rp.permission)
-            FROM role_permissions rp
-           WHERE rp.role_name IN (
-                   (SELECT om.role FROM org_memberships om JOIN experiments e ON e.organization_id = om.organization_id
-                     WHERE om.user_id = $1 AND e.id = $2),
-                   (SELECT role FROM experiment_memberships WHERE user_id = $1 AND experiment_id = $2))) AS permissions`,
-      [userId, experimentId],
+    const { rows } = await this.pool.query<{ org_role: string | null; experiment_role: string | null; partner_role: string | null; permissions: string[] | null }>(
+      `WITH exp AS (SELECT id, organization_id FROM experiments WHERE id = $2),
+            held AS (
+              SELECT 'org' AS source, om.role FROM org_memberships om JOIN exp ON exp.organization_id = om.organization_id WHERE om.user_id = $1
+              UNION ALL
+              SELECT 'experiment', em.role FROM experiment_memberships em WHERE em.user_id = $1 AND em.experiment_id = $2
+              UNION ALL
+              SELECT 'partner', g.role
+                FROM partner_grants g
+                JOIN organization_partnerships p ON p.id = g.partnership_id
+                JOIN exp ON exp.organization_id = p.client_organization_id
+               WHERE g.user_id = $1 AND g.revoked_at IS NULL AND p.revoked_at IS NULL
+                 AND (g.experiment_id = exp.id OR g.experiment_id IS NULL)
+                 AND EXISTS (SELECT 1 FROM org_memberships pm WHERE pm.organization_id = p.partner_organization_id AND pm.user_id = g.user_id AND pm.created_at <= g.created_at)
+            )
+       SELECT (SELECT role FROM held WHERE source = 'org' LIMIT 1) AS org_role,
+              (SELECT role FROM held WHERE source = 'experiment' LIMIT 1) AS experiment_role,
+              (SELECT role FROM held WHERE source = 'partner' ORDER BY role LIMIT 1) AS partner_role,
+              (SELECT array_agg(DISTINCT rp.permission) FROM role_permissions rp
+                WHERE rp.role_name IN (SELECT role FROM held WHERE source <> 'partner')
+                   OR (rp.role_name IN (SELECT role FROM held WHERE source = 'partner') AND rp.permission <> ALL($3::text[]))) AS permissions`,
+      [userId, experimentId, [...PARTNER_DENIED_PERMISSIONS]],
     );
     const row = rows[0];
-    if (!row || (!row.org_role && !row.experiment_role)) return null;
-    return { role: row.experiment_role ?? (row.org_role as string), permissions: (row.permissions ?? []).filter(isPermission) };
+    if (!row || (!row.org_role && !row.experiment_role && !row.partner_role)) return null;
+    return {
+      role: row.experiment_role ?? row.partner_role ?? (row.org_role as string),
+      permissions: (row.permissions ?? []).filter(isPermission),
+      ...(!row.org_role && !row.experiment_role && row.partner_role ? { viaPartner: true } : {}),
+    };
   }
 
   async listRoleNames(scope: "organization" | "experiment"): Promise<string[]> {

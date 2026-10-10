@@ -1,4 +1,4 @@
-# ADR-087: In-app Notification Feed Derived from Alert History
+# ADR-094: In-app Notification Feed Derived from Alert History
 
 * **Status**: Accepted
 * **Date**: 2026-10-10

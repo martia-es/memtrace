@@ -15,6 +15,6 @@ export async function GET(request: Request, context: { params: Promise<{ experim
     const ctx = await requirePermission(experimentId, "experiment:read");
     if (ctx instanceof Response) return ctx;
     const range = resolveTimeRange(parseOrThrow(lowRatedQuery, queryToObject(new URL(request.url).searchParams)), Date.now());
-    return json(toLowRatedResponse(await getAnnotation().listLowRated(experimentId, ctx.serviceName, range)));
+    return json(toLowRatedResponse(await getAnnotation().listLowRated(ctx.scope, range)));
   });
 }

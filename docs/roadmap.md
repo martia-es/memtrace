@@ -275,8 +275,23 @@ Un usuario puede agrupar varias gráficas custom ya guardadas en un **informe** 
 - [x] **Avisos por email a una lista de direcciones por regla** (hasta 10, sin cuenta de MemTrace): un correo por destinatario, escapado, sin contenido de trazas, con un tope de 100 correos diarios por organización; el resto se registra y se ve en la app
 - [x] **Presupuesto mensual de coste por agente** con avisos de umbral, de superado y de previsión (una vez por mes y nivel), calculado sobre un coste diario guardado para que no dependa de la retención de trazas
 - [x] **Pantalla Overview › Alerts** (reglas, presupuesto, historial) y **campana** con las alertas disparadas en los agentes que se pueden leer. Permiso `alert:manage` (`technical`); cada cambio queda en la auditoría
-- [x] **Notificaciones de la campana** (rediseño): además de las alertas disparadas, avisos recientes (alertas resueltas y avisos de presupuesto, últimos 14 días) con lo no leído marcado por persona y «Mark all as read». El feed sale de `alert_events` y `budget_notifications`, sin tabla propia; solo se guarda hasta cuándo ha leído cada persona (migración 043) — [ADR-087](adrs/observability/adr-087-in-app-notification-feed.md)
+- [x] **Notificaciones de la campana** (rediseño): además de las alertas disparadas, avisos recientes (alertas resueltas y avisos de presupuesto, últimos 14 días) con lo no leído marcado por persona y «Mark all as read». El feed sale de `alert_events` y `budget_notifications`, sin tabla propia; solo se guarda hasta cuándo ha leído cada persona (migración 044) — [ADR-094](adrs/observability/adr-094-in-app-notification-feed.md)
 - [ ] **Pendiente**: webhooks (Slack, Teams, PagerDuty; necesitan protección SSRF como las sondas de salud), alertas sobre una caída de satisfacción por versión de despliegue, y coste por usuario o conversación
+
+---
+
+## Fase 1.96: Seguridad multi-tenant — que una consultora pueda operar a varios clientes
+
+**Objetivo**: que cualquiera pueda usar la plataforma, incluida una consultora que gestiona los datos y los agentes de todos sus clientes, sin que los datos de un cliente puedan llegar a otro. Línea base y lista completa de lo que falta: [ADR-087](adrs/cybersecurity/adr-087-multi-tenant-security-baseline.md).
+
+- [x] **Aislamiento por experimento en ClickHouse**: todo acceso a los datos lleva un `TenantScope` obligatorio y `ExperimentId` forma parte de las claves; lecturas por id acotadas, `/services` con sesión, migración 014 y backfill de las filas anteriores — [ADR-088](adrs/cybersecurity/adr-088-strict-tenant-isolation-in-clickhouse.md)
+- [x] **La pasarela de ingesta fija la identidad del tenant** (`service.name` y `memtrace.experiment_id` salen de la API key, no de lo que diga el agente) — [ADR-089](adrs/cybersecurity/adr-089-ingestion-identity-binding.md)
+- [x] **Collector solo detrás de la pasarela** (HTTP + token interno, sin gRPC), `NetworkPolicy` con denegación por defecto y usuarios de ClickHouse con mínimo privilegio — [ADR-090](adrs/cybersecurity/adr-090-network-segmentation-and-collector-access.md). *Pendiente*: comprobar las políticas en un clúster con un CNI que las aplique
+- [x] **Frontera de cliente**: una organización por cliente y relación partner con grants por persona y por cliente, revocables por el cliente — [ADR-091](adrs/cybersecurity/adr-091-client-boundary-for-multi-client-organizations.md). pantallas del dashboard (Admin › Partners y Clients); un grant de partner nunca incluye exportar datos
+- [x] **Cabeceras de seguridad y límites de la ingesta** (CSP verificada en Chromium, límite por experimento y por origen con claves inválidas) — [ADR-092](adrs/cybersecurity/adr-092-security-headers-and-ingest-rate-limits.md)
+- [x] **Auditoría de la frontera de cliente** sobre el registro de la Fase 1.9 (`audit_log`): altas y bajas de relaciones partner y de grants, y cada acceso de una consultora a los datos de un cliente (`partner.access`), legibles por el cliente con `audit:read` — [ADR-093](adrs/cybersecurity/adr-093-audit-of-consultancy-access.md)
+- [ ] P1 (ADR-087) pendiente: TLS (ingress) y HSTS, cifrado en reposo y gestor de secretos, límites de uso en el resto de la API y cuotas por tenant, borrado y retención por cliente, política de PII en el servidor, flujos hacia terceros (jueces LLM, playground). Detalle completo en [security-pending.md](security-pending.md)
+- [ ] P2 (ADR-087): políticas de fila en ClickHouse, políticas de sesión, escaneo de la cadena de suministro en CI, copias de seguridad cifradas, pentest y cumplimiento
 
 ---
 

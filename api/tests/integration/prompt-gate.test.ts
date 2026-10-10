@@ -62,12 +62,12 @@ describe.skipIf(!pgUrl || !chEnabled)("prompt promotion gate (postgres + clickho
       clickhouse_settings: { date_time_input_format: "best_effort" },
       values: spans.map(({ trace, v, i }) => ({
         Timestamp: ts(i * 10), TraceId: trace, SpanId: hex(8), ParentSpanId: "", SpanName: "llm", SpanKind: "SPAN_KIND_INTERNAL", ServiceName: SERVICE,
-        SpanAttributes: { "memtrace.prompt.name": PROMPT, "memtrace.prompt.version": String(v) }, ResourceAttributes: {}, Duration: 1e8,
+        SpanAttributes: { "memtrace.prompt.name": PROMPT, "memtrace.prompt.version": String(v) }, ResourceAttributes: { "memtrace.experiment_id": experimentId }, Duration: 1e8,
         StatusCode: "STATUS_CODE_OK", StatusMessage: "", "Events.Timestamp": [], "Events.Name": [], "Events.Attributes": [],
       })),
     });
     await scores.insertScores(
-      SERVICE,
+      { experimentId, serviceName: SERVICE },
       run.id,
       spans.map(({ trace, i }) => ({
         itemIndex: i, input: `q${i}`, expectedOutput: null, output: "a", traceId: trace, error: null,

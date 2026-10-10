@@ -1,5 +1,5 @@
 import { permissionsOf } from "./permissions";
-import type { AlertEventsPageDto, AlertRuleDto, AlertsOverviewDto, AuditPageDto, BudgetViewDto, ChartCatalogEntryDto, NotificationsDto, OpenAlertsDto, RetentionPolicyDto } from "@contract";
+import type { AlertEventsPageDto, AlertRuleDto, AlertsOverviewDto, AuditPageDto, BudgetViewDto, ChartCatalogEntryDto, NotificationsDto, OpenAlertsDto, PartnerClientDto, PartnerGrantDto, PartnershipDto, RetentionPolicyDto } from "@contract";
 import type {
   AddQueueItemsResponse,
   InterAnnotatorAgreementResponse,
@@ -189,6 +189,35 @@ export class FakeIdentityApi implements IdentityApi {
   async listAuditLog(_organizationId: string, filter: Record<string, unknown>): Promise<AuditPageDto> {
     this.auditRequests.push(filter);
     return this.auditPage;
+  }
+  partnerships: PartnershipDto[] = [];
+  partnerClients: PartnerClientDto[] = [];
+  partnerCalls: Array<{ call: string; args: unknown[] }> = [];
+  async listPartnerships(): Promise<PartnershipDto[]> {
+    return this.partnerships;
+  }
+  async createPartnership(_org: string, partnerOrganizationId: string): Promise<PartnershipDto> {
+    this.partnerCalls.push({ call: "createPartnership", args: [partnerOrganizationId] });
+    const created = { id: "p-new", partnerOrganizationId, partnerOrganizationName: "New partner", createdAt: "2026-10-10T00:00:00Z", grants: [] };
+    this.partnerships = [...this.partnerships, created];
+    return created;
+  }
+  async revokePartnership(_org: string, partnershipId: string): Promise<void> {
+    this.partnerCalls.push({ call: "revokePartnership", args: [partnershipId] });
+    this.partnerships = this.partnerships.filter((p) => p.id !== partnershipId);
+  }
+  async grantPartnerAccess(_org: string, partnershipId: string, input: { email: string; role: string; experimentId: string | null }): Promise<PartnerGrantDto> {
+    this.partnerCalls.push({ call: "grantPartnerAccess", args: [partnershipId, input] });
+    const grant = { id: "g-new", partnershipId, userId: "u-x", userEmail: input.email, userName: null, role: input.role, experimentId: input.experimentId, createdAt: "2026-10-10T00:00:00Z" };
+    this.partnerships = this.partnerships.map((p) => (p.id === partnershipId ? { ...p, grants: [...p.grants, grant] } : p));
+    return grant;
+  }
+  async revokePartnerGrant(_org: string, partnershipId: string, grantId: string): Promise<void> {
+    this.partnerCalls.push({ call: "revokePartnerGrant", args: [partnershipId, grantId] });
+    this.partnerships = this.partnerships.map((p) => (p.id === partnershipId ? { ...p, grants: p.grants.filter((g) => g.id !== grantId) } : p));
+  }
+  async listPartnerClients(): Promise<PartnerClientDto[]> {
+    return this.partnerClients;
   }
   exportPreview: { rows: number; maxRows: number } | Error = { rows: 12, maxRows: 2_000_000 };
   async previewExport(): Promise<{ rows: number; maxRows: number }> {

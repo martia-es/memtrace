@@ -1,6 +1,6 @@
 /**
- * Contra un Postgres real (15+) con las migraciones 001-043 aplicadas. Opt-in: `POSTGRES_INTEGRATION_URL=postgres://… npm run test:integration`.
- * Cubre lo que los fakes no pueden: las restricciones de las migraciones 042 y 043, las cascadas, las consultas del evaluador y el tope diario
+ * Contra un Postgres real (15+) con las migraciones 001-044 aplicadas. Opt-in: `POSTGRES_INTEGRATION_URL=postgres://… npm run test:integration`.
+ * Cubre lo que los fakes no pueden: las restricciones de las migraciones 042 y 044, las cascadas, las consultas del evaluador y el tope diario
  * contado en la base de datos (ADR-086).
  */
 import { Pool } from "pg";

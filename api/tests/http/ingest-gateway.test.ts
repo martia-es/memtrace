@@ -16,6 +16,7 @@ vi.mock("@/dependency-container", () => ({
 }));
 
 const { POST } = await import("@/app/api/v1/ingest/v1/traces/route");
+const { rewriteProtobuf } = await import("@/adapters/inbound/http/otlp-identity");
 
 const fixture = (name: string, ext: "pb" | "json" = "pb") => new Uint8Array(readFileSync(resolve(__dirname, `../fixtures/otlp/${name}.${ext}`)));
 const PB = "application/x-protobuf";
@@ -63,13 +64,14 @@ describe("authentication", () => {
 });
 
 describe("a key writes only its own experiment's service.name", () => {
-  it("forwards a matching request byte for byte", async () => {
+  it("forwards a matching request with only the identity of the tenant added", async () => {
     const body = fixture("agent-a");
     const response = await post(body);
     expect(response.status).toBe(200);
     expect(sent).toHaveLength(1);
     expect(sent[0]!.url).toMatch(/\/v1\/traces$/);
-    expect(Buffer.from(sent[0]!.body).equals(Buffer.from(body))).toBe(true);
+    expect(Buffer.from(sent[0]!.body).includes("exp-a")).toBe(true); // memtrace.experiment_id (ADR-089)
+    expect(Buffer.from(sent[0]!.body).equals(Buffer.from(rewriteProtobuf(body, { experimentId: "exp-a", serviceName: "agent-a" }).body))).toBe(true);
     expect(sent[0]!.headers["content-type"]).toBe(PB);
     expect(sent[0]!.headers["content-encoding"]).toBeUndefined();
   });
@@ -104,12 +106,12 @@ describe("a key writes only its own experiment's service.name", () => {
 });
 
 describe("compression", () => {
-  it("reads inside a gzip body but forwards the original bytes with their Content-Encoding", async () => {
+  it("reads inside a gzip body and forwards it decompressed, rewritten, without Content-Encoding", async () => {
     const zipped = gzipSync(fixture("agent-a"));
     const ok = await post(zipped, { "content-encoding": "gzip" });
     expect(ok.status).toBe(200);
-    expect(Buffer.from(sent[0]!.body).equals(zipped)).toBe(true);
-    expect(sent[0]!.headers["content-encoding"]).toBe("gzip");
+    expect(Buffer.from(sent[0]!.body).equals(Buffer.from(rewriteProtobuf(fixture("agent-a"), { experimentId: "exp-a", serviceName: "agent-a" }).body))).toBe(true);
+    expect(sent[0]!.headers["content-encoding"]).toBeUndefined();
   });
 
   it("applies the rule inside gzip too: a foreign service.name does not hide in a compressed body", async () => {
