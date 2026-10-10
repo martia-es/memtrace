@@ -1,0 +1,63 @@
+# Evaluador de alertas y presupuestos de coste (ADR-086). Cada cinco minutos mide las reglas habilitadas con lo que ya calcula el
+# dashboard, avisa por email cuando una cambia de estado y renueva el coste diario de los presupuestos. Misma imagen que la API.
+# Sin RESEND_API_KEY las alertas se evalúan y se ven en la app, pero no se envía ningún email.
+# Para lanzarlo ya: `kubectl -n memtrace create job --from=cronjob/alerts-evaluate alerts-now`.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: alerts-evaluate
+  namespace: memtrace
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid          # una pasada lenta no se solapa con la siguiente
+  startingDeadlineSeconds: 120
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0                # un fallo se reintenta en la pasada de cinco minutos después
+      activeDeadlineSeconds: 280
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: alerts-evaluate
+              image: memtrace/api:dev
+              imagePullPolicy: IfNotPresent   # imagen local cargada en kind: no hay registro
+              command: ["node", "worker/evaluate-alerts.cjs"]
+              env:
+                - name: POSTGRES_HOST
+                  value: postgres
+                - name: POSTGRES_PORT
+                  value: "5432"
+                - name: POSTGRES_USER
+                  value: memtrace
+                - name: POSTGRES_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-credentials
+                      key: password
+                - name: POSTGRES_DATABASE
+                  value: memtrace_identity
+                # ClickHouse solo en lectura: mide trazas y votos, no escribe nada
+                - name: CLICKHOUSE_URL
+                  value: http://clickhouse:8123
+                - name: CLICKHOUSE_USER
+                  value: default
+                - name: CLICKHOUSE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: clickhouse-credentials
+                      key: password
+                - name: CLICKHOUSE_DATABASE
+                  value: memtrace
+                - name: RESEND_API_KEY
+                  valueFrom: { secretKeyRef: { name: resend-credentials, key: RESEND_API_KEY } }
+                - name: EMAIL_FROM
+                  valueFrom: { secretKeyRef: { name: resend-credentials, key: EMAIL_FROM } }
+                # a dónde apuntan los enlaces de los emails: la misma dirección pública que usa la API (AUTH_URL)
+                - name: APP_URL
+                  value: http://localhost:8080
+              resources:
+                requests: { cpu: 25m, memory: 96Mi }
+                limits: { memory: 256Mi }

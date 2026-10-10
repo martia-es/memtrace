@@ -231,3 +231,11 @@ export class ExportTooLargeError extends Error {
     this.name = "ExportTooLargeError";
   }
 }
+
+/** La regla de alerta o el presupuesto que se busca no existe en ese experimento (ADR-086). */
+export class AlertNotFoundError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AlertNotFoundError";
+  }
+}

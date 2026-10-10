@@ -51,6 +51,13 @@ describe("built-in roles (ADR-052)", () => {
     expect(role("business").permissions).not.toContain("data:export");
   });
 
+  it("alerts (ADR-086): technical manages them, nobody else does, and org_admin cannot because it reads no data", () => {
+    expect(role("technical").permissions).toContain("alert:manage");
+    expect(role("business").permissions).not.toContain("alert:manage");
+    expect(role("org_admin").permissions).not.toContain("alert:manage");
+    expect(role("governance").permissions).not.toContain("alert:manage");
+  });
+
   it("governance permissions (ADR-053): org_admin and governance see and decide, technical only maintains its own assistant", () => {
     expect(role("org_admin").permissions).toEqual(expect.arrayContaining(["governance:read", "governance:manage"]));
     expect(role("governance").scope).toBe("organization");

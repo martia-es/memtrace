@@ -39,6 +39,8 @@ import { ChartCatalogService } from "@/application/chart-catalog-service";
 import { AuditService } from "@/application/audit-service";
 import { RetentionService } from "@/application/retention-service";
 import { ExportService } from "@/application/export-service";
+import { AlertService } from "@/application/alert-service";
+import { PostgresAlertRepository } from "@/adapters/outbound/postgres/postgres-alert-repository";
 import { ClickHouseDataExporter } from "@/adapters/outbound/clickhouse/clickhouse-data-exporter";
 import { PostgresAuditRepository } from "@/adapters/outbound/postgres/postgres-audit-repository";
 import { PostgresRetentionRepository } from "@/adapters/outbound/postgres/postgres-retention-repository";
@@ -78,6 +80,7 @@ const globalForContainer = globalThis as unknown as {
   __memtraceAudit?: AuditService;
   __memtraceRetention?: RetentionService;
   __memtraceExport?: ExportService;
+  __memtraceAlerts?: AlertService;
   __memtraceApprovals?: ApprovalService;
   __memtraceApprovalRepository?: PostgresApprovalRepository;
   __memtracePromptEvidence?: PromptEvidenceService;
@@ -311,6 +314,19 @@ export function getAudit(): AuditService {
 export function getRetention(): RetentionService {
   if (!globalForContainer.__memtraceRetention) globalForContainer.__memtraceRetention = new RetentionService(new PostgresRetentionRepository(getPostgresPool()), getAudit());
   return globalForContainer.__memtraceRetention;
+}
+
+/** Alertas y presupuestos de coste (ADR-086). La evaluación periódica la hace el CronJob `alerts-evaluate`, con su propia raíz de composición. */
+export function getAlerts(): AlertService {
+  if (!globalForContainer.__memtraceAlerts) {
+    const { identityRepository } = getIdentity();
+    globalForContainer.__memtraceAlerts = new AlertService(
+      new PostgresAlertRepository(getPostgresPool()),
+      getAudit(),
+      async (experimentId) => (await identityRepository.listCustomMetrics(experimentId)).map((m) => ({ id: m.id, definition: m.definition })),
+    );
+  }
+  return globalForContainer.__memtraceAlerts;
 }
 
 /** Exportación de datos de un experimento (ADR-084). Lee con el cliente de solo lectura; la autorización (`data:export`) la decide la ruta. */

@@ -234,6 +234,16 @@
       "unlocks": [
         "Downloading traces, annotations, feedback and scores as JSON Lines (every export is recorded in the audit log)"
       ]
+    },
+    {
+      "id": "alert:manage",
+      "group": "Metrics",
+      "description": "Create, change and delete the alerts and the monthly cost budget of an agent.",
+      "unlocks": [
+        "Alerts on error rate, latency, cost, user satisfaction or a saved custom chart",
+        "Choosing who gets the email, with up to 10 addresses per alert",
+        "A monthly cost budget with a warning percentage and a month-end forecast"
+      ]
     }
   ],
   "roles": [
@@ -291,7 +301,8 @@
         "prompt:promote",
         "prompt:approve",
         "catalog:manage",
-        "data:export"
+        "data:export",
+        "alert:manage"
       ]
     },
     {
