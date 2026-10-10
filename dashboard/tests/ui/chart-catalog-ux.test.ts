@@ -94,16 +94,39 @@ describe("rename right where the step is picked (ADR-079)", () => {
 });
 
 describe("Data catalog page (ADR-079)", () => {
-  it("lists steps and attributes and edits them like the builder does", async () => {
+  it("lists steps and attributes, keeps edits pending and saves them all with the Save changes button", async () => {
     const identity = new FakeIdentityApi();
     const w = await openPage(identity);
     expect(w.find("[data-testid='catalog-row-step-chain']").exists()).toBe(true);
     expect(w.find("[data-testid='catalog-row-attribute-city']").exists()).toBe(true);
+    expect(w.find("[data-testid='catalog-savebar']").exists()).toBe(false);
+
     const input = w.find<HTMLInputElement>("[data-testid='catalog-input-step-chain']");
     await input.setValue("Personal data filter");
     await input.trigger("change");
+    await w.find<HTMLSelectElement>("[data-testid='catalog-visibility-attribute-city']").setValue("hidden");
     await flushPromises();
-    expect(identity.catalogCalls.at(-1)).toEqual({ method: "save", args: ["e1", { kind: "step", key: "chain", displayName: "Personal data filter", visibility: undefined }] });
+    expect(identity.catalogCalls).toEqual([]);
+    expect(w.find("[data-testid='catalog-savebar']").text()).toContain("2 unsaved changes");
+
+    await w.find("[data-testid='catalog-save']").trigger("click");
+    await flushPromises();
+    expect(identity.catalogCalls).toEqual([
+      { method: "save", args: ["e1", { kind: "step", key: "chain", displayName: "Personal data filter", visibility: "auto" }] },
+      { method: "save", args: ["e1", { kind: "attribute", key: "city", displayName: null, visibility: "hidden" }] },
+    ]);
+    expect(w.find("[data-testid='catalog-savebar']").exists()).toBe(false);
+  });
+
+  it("discards pending edits without saving", async () => {
+    const identity = new FakeIdentityApi();
+    const w = await openPage(identity);
+    await w.find("[data-testid='catalog-input-step-chain']").setValue("Something");
+    expect(w.find("[data-testid='catalog-savebar']").exists()).toBe(true);
+    await w.find("[data-testid='catalog-discard']").trigger("click");
+    expect(w.find("[data-testid='catalog-savebar']").exists()).toBe(false);
+    expect(w.find<HTMLInputElement>("[data-testid='catalog-input-step-chain']").element.value).toBe("");
+    expect(identity.catalogCalls).toEqual([]);
   });
 
   it("filters by technical key or by the visible name", async () => {

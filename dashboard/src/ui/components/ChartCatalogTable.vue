@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import type { ChartCatalogEntryDto } from "@contract";
 import { describeApiError } from "@/application/describe-api-error";
 import type { RangeParams } from "@/application/trace-api";
@@ -13,8 +13,8 @@ import { useTraceApi } from "../composables/useTraceApi";
  * y se aplica en todas las gráficas, incluidas las ya guardadas, porque la clave técnica no cambia. Vaciar el nombre vuelve al
  * automático. Lo que se ve es lo detectado en el rango más lo que ya se renombró, aunque hoy no tenga actividad.
  */
-const props = defineProps<{ experimentId: string; range: RangeParams; entries: ChartCatalogEntryDto[]; readonly?: boolean; search?: string }>();
-const emit = defineEmits<{ changed: [entries: ChartCatalogEntryDto[]] }>();
+const props = defineProps<{ experimentId: string; range: RangeParams; entries: ChartCatalogEntryDto[]; readonly?: boolean; search?: string; manual?: boolean }>();
+const emit = defineEmits<{ changed: [entries: ChartCatalogEntryDto[]]; dirty: [count: number] }>();
 
 const traces = useTraceApi();
 const identity = useIdentityApi();
@@ -77,6 +77,47 @@ const attributeRows = computed(() => rowsOf("attribute").filter(matches));
 const drafts = reactive<Record<string, string>>({});
 const errors = reactive<Record<string, string>>({});
 const busy = ref<string | null>(null);
+/** Modo `manual` (página): nada se guarda al salir del campo; los cambios quedan pendientes hasta «Save changes». */
+const visDrafts = reactive<Record<string, Visibility>>({});
+const pendingName = (r: Row) => (drafts[id(r.kind, r.key)] ?? entryOf(r.kind, r.key)?.displayName ?? "").trim();
+const isDirty = (r: Row) => pendingName(r) !== (entryOf(r.kind, r.key)?.displayName ?? "") || (visDrafts[id(r.kind, r.key)] ?? visibilityOf(r.key)) !== visibilityOf(r.key);
+const dirtyRows = computed(() => [...stepRows.value, ...attributeRows.value].filter(isDirty));
+watch(() => dirtyRows.value.length, (n) => emit("dirty", n), { immediate: true });
+const shownVisibility = (r: Row): Visibility => visDrafts[id(r.kind, r.key)] ?? visibilityOf(r.key);
+const onName = (r: Row) => { if (!props.manual) void save(r); };
+function onVisibility(r: Row, v: Visibility) {
+  if (!props.manual) return void setVisibility(r, v);
+  if (v === visibilityOf(r.key)) delete visDrafts[id(r.kind, r.key)];
+  else visDrafts[id(r.kind, r.key)] = v;
+}
+
+/** Guarda todos los pendientes, uno a uno; los que fallan se quedan pendientes con su error. */
+async function saveAll() {
+  for (const r of dirtyRows.value) {
+    const key = id(r.kind, r.key);
+    const name = pendingName(r);
+    busy.value = key;
+    delete errors[key];
+    try {
+      const saved = await identity.saveChartCatalogEntry(props.experimentId, { kind: r.kind, key: r.key, displayName: name === "" ? null : name, visibility: shownVisibility(r) });
+      entries.value = [...entries.value.filter((e) => !(e.kind === r.kind && e.key === r.key)), ...(saved ? [saved] : [])];
+      delete drafts[key];
+      delete visDrafts[key];
+    } catch (error) {
+      errors[key] = (error as { fields?: Record<string, string> }).fields?.displayName ?? describeApiError(error as Error);
+    } finally {
+      busy.value = null;
+    }
+  }
+  emit("changed", entries.value);
+}
+function discard() {
+  for (const k of Object.keys(drafts)) delete drafts[k];
+  for (const k of Object.keys(visDrafts)) delete visDrafts[k];
+  for (const k of Object.keys(errors)) delete errors[k];
+}
+defineExpose({ saveAll, discard });
+
 const value = (r: Row) => drafts[id(r.kind, r.key)] ?? entryOf(r.kind, r.key)?.displayName ?? "";
 
 async function save(r: Row) {
@@ -152,7 +193,7 @@ async function reset(r: Row) {
           </header>
           <p v-if="section.rows.length === 0" class="muted" :data-testid="`catalog-empty-${section.kind}`">{{ search ? "Nothing matches your search." : "Nothing detected in this period." }}</p>
           <ul v-else>
-            <li v-for="r in section.rows" :key="id(r.kind, r.key)" :data-testid="`catalog-row-${r.kind}-${r.key}`">
+            <li v-for="r in section.rows" :key="id(r.kind, r.key)" :class="{ dirty: manual && isDirty(r) }" :data-testid="`catalog-row-${r.kind}-${r.key}`">
               <div class="what">
                 <span class="key mono">{{ r.key }}</span>
                 <span class="n muted">{{ r.count === null ? "no activity in this period" : `${r.count.toLocaleString()} seen` }}<template v-if="r.info && distinctLabel(r.info)"> · {{ distinctLabel(r.info) }}</template></span>
@@ -171,17 +212,17 @@ async function reset(r: Row) {
                 :disabled="readonly || busy === id(r.kind, r.key)"
                 :data-testid="`catalog-input-${r.kind}-${r.key}`"
                 @input="drafts[id(r.kind, r.key)] = ($event.target as HTMLInputElement).value"
-                @change="save(r)"
-                @keydown.enter.prevent="save(r)"
+                @change="onName(r)"
+                @keydown.enter.prevent="onName(r)"
               />
               <select
                 v-if="r.kind === 'attribute'"
                 class="vis"
-                :value="visibilityOf(r.key)"
+                :value="shownVisibility(r)"
                 :aria-label="`Visibility of ${r.key}`"
                 :disabled="readonly || busy === id(r.kind, r.key)"
                 :data-testid="`catalog-visibility-${r.kind}-${r.key}`"
-                @change="setVisibility(r, ($event.target as HTMLSelectElement).value as Visibility)"
+                @change="onVisibility(r, ($event.target as HTMLSelectElement).value as Visibility)"
               >
                 <option value="auto">{{ r.info ? automaticLabel(r.info) : "Automatic" }}</option>
                 <option value="shown">Always show</option>
@@ -203,6 +244,7 @@ h3 { margin: 0; font-size: 14px; }
 header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--mt-muted); }
 ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+li.dirty { box-shadow: inset 3px 0 0 var(--mt-accent); padding-left: 8px; }
 li { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1.1fr) 150px 60px; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--mt-line); }
 .what { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .key { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; }
