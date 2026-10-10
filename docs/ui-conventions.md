@@ -19,7 +19,8 @@ Reglas vigentes del dashboard (`dashboard/`). Sustituye a los ADR de UI 017–01
 - **No hay pestañas dentro de las páginas** para navegar por la app. Solo las usan las páginas de detalle de un objeto (dataset: Items / Versions / Runs, asistente, admin), porque son secciones de una misma cosa.
 - Toda vista es enlazable y sobrevive a un reload; el rango y los filtros viajan en la query del enlace.
 - Barra superior global (52 px) con dos huecos, izquierdo (migas / título) y derecho (filtros y acciones). Las páginas no pintan cabecera: usan `PageHeader` / `TopbarSlot`, que teletransporta al hueco (`useTopbar`). Sin topbar (tests), el contenido se pinta en su sitio. `FilterBar` es el control de rango (presets + «Custom»).
-- Admin es jerárquico, un nivel por URL: `/admin` (organizaciones) → `/admin/organizations/:id` (Experiments, Members, Appearance) → `/admin/experiments/:id` (Connect, API keys, Score configs, Members). Las acciones se muestran o se ocultan según `myRole`; el backend es quien impone el permiso.
+- Admin es jerárquico, un nivel por URL: `/admin` (organizaciones) → `/admin/organizations/:id` (Experiments, Members, Approvals, Data protection, Partners, Identity, Appearance) → `/admin/experiments/:id` (Connect, API keys, Score configs, Members). Las acciones se muestran o se ocultan según `myRole`; el backend es quien impone el permiso.
+- **Menú contextual de Settings**: en `/admin/organizations/:id` las secciones de la organización no son pestañas, sustituyen al menú principal en el mismo sidebar (grupos Workspace / Governance / Organization, enlace «Back to app» arriba). La página las registra con `useSettingsNav` y `MainLayout` las pinta mientras estén registradas; la sección activa viaja en `?tab=`. Un menú nuevo de este tipo = registrar secciones desde la página, no añadir un segundo sidebar.
 
 ## 3. Componentes propios
 

@@ -7,6 +7,7 @@ import { createMemoryHistory, createRouter } from "vue-router";
 import { IDENTITY_API, TRACE_API } from "@/dependency-container";
 import { EMPTY_THEME, type ExperimentDto, type OrganizationDto } from "@/application/identity-api";
 import AdminOrganizationPage from "@/ui/pages/admin/AdminOrganizationPage.vue";
+import { useSettingsNav } from "@/ui/composables/useSettingsNav";
 import PartnerClientsPage from "@/ui/pages/PartnerClientsPage.vue";
 import { FakeIdentityApi, FakeTraceApi } from "../fakes";
 
@@ -56,7 +57,8 @@ const type = (el: Element | null | undefined, value: string) => {
   (el as HTMLInputElement).value = value;
   el!.dispatchEvent(new Event("input"));
 };
-const tabLabels = (wrapper: ReturnType<typeof mount>) => wrapper.findAll('[role="tab"]').map((t) => t.text().replace(/\d+$/, "").trim());
+// las secciones de la organización viven en el menú lateral (useSettingsNav), no en pestañas de la página
+const tabLabels = (_wrapper?: unknown) => (useSettingsNav().settingsNav.value?.sections ?? []).map((s) => s.label);
 const button = (wrapper: ReturnType<typeof mount>, text: string) => wrapper.findAll("button").filter((b) => b.text() === text);
 
 const PARTNER = "11111111-1111-4111-8111-111111111111";

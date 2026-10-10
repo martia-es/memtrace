@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import TextInput from "@/ui/components/TextInput.vue";
-import { computed, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from "vue";
 import { useQuasar } from "quasar";
 import { useRoute, useRouter } from "vue-router";
 import "@/styles/admin.css";
 import { useIdentityApi } from "../../composables/useIdentityApi";
 import { canManageOrg, notifyErrorWith, ROLE_LABEL, useAdminDirectory, roleTone } from "../../composables/useAdminDirectory";
 import PageHeader from "../../components/PageHeader.vue";
-import TabBar from "../../components/TabBar.vue";
 import Modal from "../../components/Modal.vue";
 import MemberList from "../../components/admin/MemberList.vue";
 import InviteForm from "../../components/admin/InviteForm.vue";
@@ -18,10 +17,11 @@ import OrganizationRetention from "../../components/admin/OrganizationRetention.
 import AuditLogPanel from "../../components/admin/AuditLogPanel.vue";
 import OrganizationPartners from "../../components/admin/OrganizationPartners.vue";
 import { hasPermission } from "../../composables/usePermissions";
+import { useSettingsNav, type SettingsSection } from "../../composables/useSettingsNav";
 import Button from "../../components/Button.vue";
 import Pill from "../../components/Pill.vue";
 
-/** Nivel 2: una organización. Pestañas: experimentos (siempre), y miembros + identidad + apariencia solo para org_admin. */
+/** Nivel 2: una organización. Secciones en el menú lateral (`?tab=` en la URL): experimentos siempre; el resto solo para org_admin. */
 const props = defineProps<{ organizationId: string }>();
 
 const api = useIdentityApi();
@@ -44,22 +44,35 @@ const orgMembers = computed(() => dir.membersByOrg[props.organizationId]);
 const canRetention = computed(() => hasPermission(organization.value, "retention:manage"));
 const canAudit = computed(() => hasPermission(organization.value, "audit:read"));
 
-const tabs = computed(() => {
-  const list: { id: string; label: string; count?: number }[] = [{ id: "experiments", label: "Experiments", count: orgExperiments.value.length }];
+const ICONS = {
+  experiments: "M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3",
+  members: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8",
+  approvals: "M9 12l2 2 4-4M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z",
+  data: "M6 11h12v10H6zM8 11V7a4 4 0 0 1 8 0v4",
+  partners: "M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1",
+  identity: "M3 5h18v14H3zM8 11a2 2 0 1 0 0-4 2 2 0 0 0 0 4M5 17c0-2 1.5-3 3-3s3 1 3 3M14 9h4M14 13h4",
+  appearance: "M4 20c3 0 5-1 5-4a3 3 0 0 1 6 0c0 3-4 4-11 4zM15 10l5-6",
+};
+const sections = computed<SettingsSection[]>(() => {
+  const list: SettingsSection[] = [{ id: "experiments", label: "Experiments", icon: ICONS.experiments, group: "Workspace", count: orgExperiments.value.length }];
   if (isOrgAdmin.value) {
-    list.push({ id: "members", label: "Members", count: (orgMembers.value?.members.length ?? 0) + (orgMembers.value?.pendingInvitations.length ?? 0) });
-    list.push({ id: "approvals", label: "Approvals" });
-    if (canRetention.value || canAudit.value) list.push({ id: "data", label: "Data protection" });
-    list.push({ id: "partners", label: "Partners" });
-    list.push({ id: "identity", label: "Identity" });
-    list.push({ id: "appearance", label: "Appearance" });
+    list.push({ id: "members", label: "Members", icon: ICONS.members, group: "Workspace", count: (orgMembers.value?.members.length ?? 0) + (orgMembers.value?.pendingInvitations.length ?? 0) });
+    list.push({ id: "approvals", label: "Approvals", icon: ICONS.approvals, group: "Governance" });
+    if (canRetention.value || canAudit.value) list.push({ id: "data", label: "Data protection", icon: ICONS.data, group: "Governance" });
+    list.push({ id: "partners", label: "Partners", icon: ICONS.partners, group: "Organization" });
+    list.push({ id: "identity", label: "Identity", icon: ICONS.identity, group: "Organization" });
+    list.push({ id: "appearance", label: "Appearance", icon: ICONS.appearance, group: "Organization" });
   }
   return list;
 });
-const tab = computed({
-  get: () => tabs.value.find((t) => t.id === route.query.tab)?.id ?? "experiments",
-  set: (id: string) => void router.replace({ query: { ...route.query, tab: id } }),
+const tab = computed(() => sections.value.find((t) => t.id === route.query.tab)?.id ?? "experiments");
+
+// MainLayout sustituye el menú principal por estas secciones mientras la página esté montada
+const { settingsNav } = useSettingsNav();
+watchEffect(() => {
+  settingsNav.value = organization.value ? { title: organization.value.name, sections: sections.value } : null;
 });
+onBeforeUnmount(() => (settingsNav.value = null));
 
 // ---- nueva experimento (creación puntual: modal) ----
 const showCreate = ref(false);
@@ -120,8 +133,6 @@ async function inviteOrgAdmin({ email }: { email: string }) {
           <template v-if="isOrgAdmin">As org_admin you manage every experiment here and who can invite others.</template>
           <template v-else>You have access to the experiments below through your own membership. Only an org_admin can change the organization.</template>
         </p>
-
-        <TabBar v-model="tab" :tabs="tabs" />
 
         <section v-if="tab === 'experiments'" class="adm-card panel">
           <div class="adm-toolbar">

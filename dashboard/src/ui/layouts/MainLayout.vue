@@ -19,6 +19,7 @@ import LiveControl from "../components/LiveControl.vue";
 import { liveSeconds, liveUpdatedAt, requestRefresh, setRefreshSeconds } from "../composables/useLiveRefresh";
 import { useTopbar } from "../composables/useTopbar";
 import Button from "../components/Button.vue";
+import { useSettingsNav, withGroupHeaders } from "../composables/useSettingsNav";
 
 const route = useRoute();
 const router = useRouter();
@@ -131,6 +132,16 @@ const approvalInbox = provideApprovalInbox(
 );
 const pendingApprovals = computed(() => approvalInbox.items.value.length);
 
+// Settings: mientras una página registra sus secciones, el menú lateral las muestra en lugar del principal
+const { settingsNav } = useSettingsNav();
+const settingsItems = computed(() => withGroupHeaders(settingsNav.value?.sections ?? []));
+const settingsActive = computed(() => (typeof route.query.tab === "string" ? route.query.tab : "experiments"));
+const backToApp = computed(() =>
+  navExperimentId.value && navCanRead.value
+    ? { label: "Back to app", to: { name: "overview", params: { experimentId: navExperimentId.value }, query: shared.value } }
+    : { label: "All organizations", to: { name: "admin" } },
+);
+
 // topbar global (ADR-058): las páginas teletransportan aquí su breadcrumb y sus filtros
 const { leftEl, rightEl, leftCount } = useTopbar();
 const topbarLeft = ref<HTMLElement | null>(null);
@@ -161,13 +172,35 @@ function switchExperiment(experimentId: string | null) {
         </Button>
       </div>
       <ExperimentSelect
-        v-if="!isCollapsed"
+        v-if="!isCollapsed && !settingsNav"
         :model-value="currentExperimentId"
         :options="experimentOptions"
         :loading="experiments.loading.value"
         @update:model-value="switchExperiment"
       />
-      <nav aria-label="Main" class="nav">
+      <nav v-if="settingsNav" aria-label="Settings" class="nav" data-testid="settings-nav">
+        <router-link :to="backToApp.to" class="nav-item nav-back" :title="isCollapsed ? backToApp.label : undefined" data-testid="settings-back">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6" /></svg>
+          <span v-if="!isCollapsed" class="nav-label">{{ backToApp.label }}</span>
+        </router-link>
+        <p v-if="!isCollapsed" class="nav-title">{{ settingsNav.title }}</p>
+        <template v-for="{ section: s, header } in settingsItems" :key="s.id">
+          <p v-if="header && !isCollapsed" class="nav-group">{{ header }}</p>
+          <router-link
+            :to="{ query: { tab: s.id } }"
+            class="nav-item"
+            :class="{ active: settingsActive === s.id }"
+            :aria-current="settingsActive === s.id ? 'page' : undefined"
+            :title="isCollapsed ? s.label : undefined"
+            :data-testid="`settings-${s.id}`"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="s.icon" /></svg>
+            <span v-if="!isCollapsed" class="nav-label">{{ s.label }}</span>
+            <span v-if="!isCollapsed && s.count !== undefined" class="nav-count">{{ s.count }}</span>
+          </router-link>
+        </template>
+      </nav>
+      <nav v-else aria-label="Main" class="nav">
         <template v-if="navExperimentId && navCanRead">
           <template v-for="g in NAV" :key="g.id">
             <router-link
@@ -373,6 +406,37 @@ function switchExperiment(experimentId: string | null) {
 }
 .nav-chevron.expanded {
   transform: none;
+}
+.nav-back {
+  margin-bottom: 4px;
+}
+.nav-title {
+  margin: 8px 10px 0;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--mt-ink);
+  overflow-wrap: anywhere;
+}
+.nav-group {
+  margin: 14px 10px 4px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mt-muted);
+}
+.nav-count {
+  min-width: 20px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border-radius: var(--mt-radius-sm);
+  background: var(--mt-soft);
+  color: var(--mt-muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
 }
 .nav-sub {
   display: flex;
