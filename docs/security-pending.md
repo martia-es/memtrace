@@ -4,15 +4,11 @@ Lista viva de lo que falta tras la [Fase 1.96](roadmap.md) (ADR-087 a ADR-093). 
 
 ## Antes de desplegar en un entorno con datos
 
+Migraciones, backfill de `ExperimentId`, NetworkPolicy y CSP verificados en local (2026-10-10). En un entorno nuevo repite `make migrate-postgres migrate backfill-experiment-id netpol-check`.
+
 | # | Paso | Por qué | Comando |
 |---|---|---|---|
-| 1 | Migraciones de PostgreSQL (`043_partnerships`) | Tablas de partners | `make migrate-postgres` |
-| 2 | Migraciones de ClickHouse (`014_experiment_id`) y usuarios | `ExperimentId`, `api_reader`, `collector`, `retention_worker` | `make migrate` |
-| 3 | Backfill de `ExperimentId` | Sin él las filas antiguas son invisibles y la purga no las borra | `make backfill-experiment-id` |
-| 4 | Revisar los servicios ambiguos que informa el backfill | Un `service.name` compartido queda oculto hasta decidir a quién pertenece | Salida del Job |
-| 5 | Secretos reales: `INGEST_INTERNAL_TOKEN`, contraseñas de lector y collector | Los de desarrollo son públicos | `k8s/12-ingest-secret.yaml`, `k8s/10-clickhouse-secret.yaml` |
-| 6 | Probar las NetworkPolicy en un clúster que las aplique (Calico/Cilium; kindnet no) | Sin CNI que las aplique no filtran | `make netpol-check` |
-| 7 | Revisar la CSP en pantallas con sesión | Solo se verificó el login | Chromium contra el build |
+| 1 | Secretos reales: `INGEST_INTERNAL_TOKEN`, contraseñas de lector y collector | Los de desarrollo son públicos | `k8s/12-ingest-secret.yaml`, `k8s/10-clickhouse-secret.yaml` |
 
 El agente debe enviar OTLP por HTTP a la pasarela: el Collector ya no acepta gRPC.
 
