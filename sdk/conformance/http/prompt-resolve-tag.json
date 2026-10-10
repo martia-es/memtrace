@@ -1,0 +1,53 @@
+{
+  "description": "A prompt is resolved by tag; the ETag is returned with it (ADR-068).",
+  "baseUrl": "http://memtrace.test/api/v1/experiments/e1",
+  "apiKey": "mtk_x",
+  "call": {
+    "op": "promptResolve",
+    "name": "weather-system",
+    "tag": "pro"
+  },
+  "respond": {
+    "status": 200,
+    "headers": {
+      "ETag": "\"v3-abc\""
+    },
+    "json": {
+      "name": "weather-system",
+      "version": 3,
+      "tag": "pro",
+      "content": "Hola {{ciudad}}",
+      "variables": [
+        "ciudad"
+      ],
+      "contentHash": "abc",
+      "archived": false
+    }
+  },
+  "expect": {
+    "requests": [
+      {
+        "method": "GET",
+        "path": "/api/v1/experiments/e1/prompts/resolve",
+        "query": {
+          "name": "weather-system",
+          "tag": "pro"
+        },
+        "headers": {
+          "authorization": "Bearer mtk_x"
+        },
+        "absentHeaders": [
+          "if-none-match"
+        ]
+      }
+    ],
+    "result": {
+      "version": 3,
+      "content": "Hola {{ciudad}}",
+      "variables": [
+        "ciudad"
+      ],
+      "etag": "\"v3-abc\""
+    }
+  }
+}

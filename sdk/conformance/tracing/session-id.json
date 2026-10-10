@@ -1,0 +1,53 @@
+{
+  "description": "The active session id is gen_ai.conversation.id on every span opened inside it.",
+  "init": {
+    "serviceName": "conf-agent"
+  },
+  "actions": [
+    {
+      "op": "session",
+      "id": "conv-42",
+      "actions": [
+        {
+          "op": "step",
+          "name": "turn",
+          "type": "chain",
+          "actions": [
+            {
+              "op": "step",
+              "name": "inner",
+              "type": "tool"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "op": "step",
+      "name": "outside",
+      "type": "chain"
+    }
+  ],
+  "expect": {
+    "spans": [
+      {
+        "name": "turn",
+        "attributes": {
+          "gen_ai.conversation.id": "conv-42"
+        }
+      },
+      {
+        "name": "inner",
+        "attributes": {
+          "gen_ai.conversation.id": "conv-42"
+        }
+      },
+      {
+        "name": "outside",
+        "absent": [
+          "gen_ai.conversation.id"
+        ]
+      }
+    ]
+  }
+}

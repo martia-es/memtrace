@@ -1,0 +1,34 @@
+{
+  "description": "An exception inside a step ends its span with ERROR status and propagates.",
+  "init": {
+    "serviceName": "conf-agent"
+  },
+  "actions": [
+    {
+      "op": "step",
+      "name": "turn",
+      "type": "chain",
+      "actions": [
+        {
+          "op": "step",
+          "name": "boom",
+          "type": "tool",
+          "fail": "tool exploded"
+        }
+      ]
+    }
+  ],
+  "expect": {
+    "spans": [
+      {
+        "name": "boom",
+        "parent": "turn",
+        "status": "error"
+      },
+      {
+        "name": "turn",
+        "status": "error"
+      }
+    ]
+  }
+}

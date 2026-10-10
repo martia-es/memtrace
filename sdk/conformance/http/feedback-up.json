@@ -1,0 +1,34 @@
+{
+  "description": "A vote is a POST to the trace with the agent API key; unset fields are omitted (ADR-062).",
+  "baseUrl": "http://memtrace.test/api/v1/experiments/e1",
+  "apiKey": "mtk_x",
+  "call": {
+    "op": "feedback",
+    "traceId": "tttttttttttttttttttttttttttttttt",
+    "rating": "up",
+    "endUserId": "u-9",
+    "comment": "great",
+    "externalMessageId": "msg-1"
+  },
+  "respond": {
+    "status": 201,
+    "json": {}
+  },
+  "expect": {
+    "requests": [
+      {
+        "method": "POST",
+        "path": "/api/v1/experiments/e1/traces/tttttttttttttttttttttttttttttttt/feedback",
+        "headers": {
+          "authorization": "Bearer mtk_x"
+        },
+        "json": {
+          "rating": 1,
+          "comment": "great",
+          "endUserId": "u-9",
+          "externalMessageId": "msg-1"
+        }
+      }
+    ]
+  }
+}
