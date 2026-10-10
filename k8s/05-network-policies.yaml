@@ -1,0 +1,239 @@
+# Segmentación de red del namespace `memtrace` (ADR-079): todo cerrado salvo los flujos de la arquitectura.
+#
+#   dashboard ──► api ──► postgres
+#                  │ └──► clickhouse (lectura y escritura de evaluación)
+#                  └────► otel-collector ──► clickhouse   (la API es el ÚNICO cliente del Collector)
+#   jobs (migraciones, backfill, topic-extraction, model-pricing, health-probe) ──► postgres / clickhouse
+#
+# IMPORTANTE: una NetworkPolicy solo vale si el CNI del clúster la aplica. El `kindnet` por defecto de kind puede no
+# hacerlo: `make netpol-check` lo comprueba. Aunque no se aplicara, el Collector rechaza lo que no lleve el token de la
+# pasarela (k8s/40-otel-collector.yaml), así que esta capa es defensa en profundidad y no la única.
+#
+# `kubectl port-forward` no pasa por estas políticas (lo usa `make up` para el acceso local desde tu máquina).
+---
+# 1) Todo denegado, de entrada y de salida
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: memtrace
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+# 2) DNS para todos los pods
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: memtrace
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+          podSelector:
+            matchLabels: { k8s-app: kube-dns }
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+---
+# 3) Collector: solo la API le habla (4318), y él solo habla con ClickHouse (9000, protocolo nativo)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: otel-collector
+  namespace: memtrace
+spec:
+  podSelector:
+    matchLabels: { app: otel-collector }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: api }
+      ports:
+        - { protocol: TCP, port: 4318 }
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app: clickhouse }
+      ports:
+        - { protocol: TCP, port: 9000 }
+---
+# 4) ClickHouse: el Collector (nativo 9000) y quienes consultan o migran (HTTP 8123 / nativo 9000 el Job de migración)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: clickhouse
+  namespace: memtrace
+spec:
+  podSelector:
+    matchLabels: { app: clickhouse }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: otel-collector }
+      ports:
+        - { protocol: TCP, port: 9000 }
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [api, health-probe, topic-extraction, topic-extraction-fit-initial, model-pricing-sync, backfill-experiment-id, clickhouse-migrate]
+      ports:
+        - { protocol: TCP, port: 8123 }
+        - { protocol: TCP, port: 9000 }
+---
+# 5) PostgreSQL: la API y los jobs que leen el almacén de identidad
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres
+  namespace: memtrace
+spec:
+  podSelector:
+    matchLabels: { app: postgres }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [api, health-probe, backfill-experiment-id, postgres-migrate]
+      ports:
+        - { protocol: TCP, port: 5432 }
+---
+# 6) API: la alcanza el dashboard (que hace de proxy de /api) y, si lo hay, el controlador de ingress
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api
+  namespace: memtrace
+spec:
+  podSelector:
+    matchLabels: { app: api }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: dashboard }
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: ingress-nginx }
+      ports:
+        - { protocol: TCP, port: 3001 }
+  egress:
+    # lo propio de la arquitectura: identidad, almacén analítico y Collector
+    - to:
+        - podSelector:
+            matchLabels: { app: postgres }
+      ports:
+        - { protocol: TCP, port: 5432 }
+    - to:
+        - podSelector:
+            matchLabels: { app: clickhouse }
+      ports:
+        - { protocol: TCP, port: 8123 }
+    - to:
+        - podSelector:
+            matchLabels: { app: otel-collector }
+      ports:
+        - { protocol: TCP, port: 4318 }
+    # el resto es Internet: proveedor de identidad, Resend, GitHub, jueces LLM y el chat de los agentes (ADR-055, con su
+    # propia protección SSRF). Nunca las redes del clúster, para que un fallo de la API no sea un salto lateral.
+    # Ajusta `except` a los CIDR de pods y servicios de tu clúster (aquí, los de kind).
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.244.0.0/16, 10.96.0.0/12]
+---
+# 7) Dashboard (nginx): solo habla con la API; lo alcanza el controlador de ingress
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dashboard
+  namespace: memtrace
+spec:
+  podSelector:
+    matchLabels: { app: dashboard }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: ingress-nginx }
+      ports:
+        - { protocol: TCP, port: 8080 }
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app: api }
+      ports:
+        - { protocol: TCP, port: 3001 }
+---
+# 8) Documentación: solo estáticos, sin salida
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: docs
+  namespace: memtrace
+spec:
+  podSelector:
+    matchLabels: { app: docs }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: ingress-nginx }
+      ports:
+        - { protocol: TCP, port: 8080 }
+---
+# 9) Jobs que leen o migran los almacenes: salen solo hacia ellos
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: jobs-to-stores
+  namespace: memtrace
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [clickhouse-migrate, postgres-migrate, backfill-experiment-id, topic-extraction, topic-extraction-fit-initial, model-pricing-sync, health-probe]
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app: clickhouse }
+      ports:
+        - { protocol: TCP, port: 8123 }
+        - { protocol: TCP, port: 9000 }
+    - to:
+        - podSelector:
+            matchLabels: { app: postgres }
+      ports:
+        - { protocol: TCP, port: 5432 }
+---
+# 10) Salida a Internet de los jobs que la necesitan: descarga de modelos y precios (topic-extraction, model-pricing-sync)
+#     y sondeo de /health de los agentes (health-probe, con su protección SSRF)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: jobs-internet
+  namespace: memtrace
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [topic-extraction, topic-extraction-fit-initial, model-pricing-sync, health-probe]
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.244.0.0/16, 10.96.0.0/12]

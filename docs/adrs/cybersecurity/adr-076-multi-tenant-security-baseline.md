@@ -33,9 +33,9 @@ This ADR is the umbrella: it lists **what has to be addressed**, in what order, 
 
 | Item | Gap | Owner |
 |---|---|---|
-| Tenant isolation in ClickHouse | Data is scoped by `ServiceName`, which is unique only per organization | [ADR-077](adr-077-strict-tenant-isolation-in-clickhouse.md) |
-| Ingestion identity binding | The gateway accepts any valid key for any `service.name` | [ADR-078](adr-078-ingestion-identity-binding.md) |
-| Network segmentation | No `NetworkPolicy`; the Collector accepts OTLP from any pod without auth | [ADR-079](adr-079-network-segmentation-and-collector-access.md) |
+| Tenant isolation in ClickHouse | Data is scoped by `ServiceName`, which is unique only per organization | [ADR-077](adr-077-strict-tenant-isolation-in-clickhouse.md) — implemented |
+| Ingestion identity binding | The gateway accepts any valid key for any `service.name` | [ADR-078](adr-078-ingestion-identity-binding.md) — implemented |
+| Network segmentation | No `NetworkPolicy`; the Collector accepts OTLP from any pod without auth | [ADR-079](adr-079-network-segmentation-and-collector-access.md) — implemented, to verify on a cluster |
 | Client boundary | `org_admin` sees every experiment of the organization | [ADR-080](adr-080-client-boundary-for-multi-client-organizations.md) |
 
 ### P1 — before a public or enterprise launch (ADRs to write when scheduled)

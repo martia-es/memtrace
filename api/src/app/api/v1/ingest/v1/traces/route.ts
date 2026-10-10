@@ -6,6 +6,8 @@ import { MalformedOtlpError, rewriterFor } from "@/adapters/inbound/http/otlp-id
 export const dynamic = "force-dynamic";
 
 const COLLECTOR_URL = process.env.OTEL_COLLECTOR_HTTP_URL ?? "http://otel-collector:4318";
+/** Secreto que solo esta pasarela y el Collector comparten (ADR-079): sin él, el Collector rechaza lo que le llegue por otra vía. */
+const COLLECTOR_TOKEN = process.env.INGEST_INTERNAL_TOKEN;
 /** Tope del cuerpo recibido (comprimido) y del descomprimido: sin él una petición pequeña podría expandirse sin límite. */
 const MAX_BODY_BYTES = Number(process.env.INGEST_MAX_BODY_BYTES ?? 10 * 1024 * 1024);
 const MAX_DECOMPRESSED_BYTES = Number(process.env.INGEST_MAX_DECOMPRESSED_BYTES ?? 32 * 1024 * 1024);
@@ -70,7 +72,7 @@ export async function POST(request: Request) {
 
     const upstream = await fetch(`${COLLECTOR_URL}/v1/traces`, {
       method: "POST",
-      headers: { "content-type": contentType ?? "application/x-protobuf" },
+      headers: { "content-type": contentType ?? "application/x-protobuf", ...(COLLECTOR_TOKEN ? { authorization: `Bearer ${COLLECTOR_TOKEN}` } : {}) },
       body: rewritten as BodyInit,
     });
     return new Response(upstream.body, { status: upstream.status, headers: upstream.headers });

@@ -54,7 +54,7 @@ Reading every query showed the problem was wider than the ADR first described:
 
 ## Verification
 
-Run against ClickHouse 24.3 (the cluster version) and PostgreSQL 16:
+Run against ClickHouse 23.8 (the version `k8s/20-clickhouse.yaml` deploys; also 24.3, the migration Job image) and PostgreSQL 16:
 
 - `tests/integration/tenant-isolation.test.ts`: two experiments with the same service name, trace id, conversation id and dataset run id; 13 checks across traces, spans, conversations, aggregates, usage, scores, annotations, votes and prompt evidence. It failed before `ExperimentId` joined the sorting key.
 - `tests/integration/experiment-id-backfill.test.ts`: legacy rows are invisible, are assigned when unambiguous, stay hidden when shared, and a second run changes nothing.

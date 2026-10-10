@@ -57,6 +57,12 @@ Each experiment is its own tenant. Its traces, conversations, scores, annotation
 
 If you upgrade an installation that already holds data, run `make backfill-experiment-id` once: it assigns the earlier rows to their experiment. When two organizations shared a service name, those earlier rows cannot be attributed, so they stay hidden until you decide who owns them (the job's log lists them).
 
+## Network and database access
+
+Traces reach ClickHouse only through the ingest gateway: the OpenTelemetry Collector accepts OTLP over HTTP only, and only from the gateway (a shared token, plus a default-deny `NetworkPolicy` set in `k8s/05-network-policies.yaml`). Sending traces straight to the collector, or over gRPC, is no longer possible, so point your agents at `/api/v1/ingest` with an API key.
+
+The platform connects to ClickHouse with separate users: the API reads with a read-only user, evaluation data is written by an insert-only user, and the collector can only write traces. `make netpol-check` tells you whether your cluster's network plugin actually enforces the policies (kind's default one may not).
+
 ## Agent API keys
 
 Agents authenticate with an API key tied to one experiment, not with a user account. A `technical` profile creates their own keys, and an `org_admin` sees and revokes all of them, in **Admin → organization → experiment → API keys** (the **Connect** tab walks through the setup), or with `POST /api/v1/experiments/{experimentId}/api-keys`.

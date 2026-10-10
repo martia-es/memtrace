@@ -1,6 +1,6 @@
 # ADR-078: Ingestion Identity Binding
 
-* **Status**: Accepted — gateway implemented (2026-10-10); ClickHouse `ExperimentId` column pending in [ADR-077](adr-077-strict-tenant-isolation-in-clickhouse.md), Collector lock-down pending in [ADR-079](adr-079-network-segmentation-and-collector-access.md)
+* **Status**: Accepted — implemented (2026-10-10), together with [ADR-077](adr-077-strict-tenant-isolation-in-clickhouse.md) (the `ExperimentId` column) and [ADR-079](adr-079-network-segmentation-and-collector-access.md) (the Collector only accepts the gateway)
 * **Date**: 2026-10-09
 * **Deciders**: MemTrace Core Team
 * **Parent**: [ADR-076](adr-076-multi-tenant-security-baseline.md)

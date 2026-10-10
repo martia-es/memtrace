@@ -3,7 +3,9 @@ kind: Kustomization
 namespace: memtrace
 resources:
   - k8s/00-namespace.yaml
+  - k8s/05-network-policies.yaml
   - k8s/10-clickhouse-secret.yaml
+  - k8s/12-ingest-secret.yaml
   - k8s/15-postgres-secret.yaml
   - k8s/20-clickhouse.yaml
   - k8s/25-postgres.yaml
