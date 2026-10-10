@@ -35,6 +35,7 @@ import {
   type ChartTemplate,
 } from "@/domain/custom-chart-vocabulary";
 import Button from "./Button.vue";
+import ToggleChip from "./ToggleChip.vue";
 
 const props = defineProps<{ experimentId: string; range: RangeParams }>();
 
@@ -442,9 +443,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
           <div class="chip-select">
             <span v-if="stepKindsLoading" class="hint">Loading…</span>
             <span v-else-if="!stepKinds.length" class="hint">No activity in this range yet.</span>
-            <button v-for="k in stepKinds" :key="k.stepType" type="button" class="chip" :class="{ on: selectedSteps.includes(k.stepType) }" :aria-pressed="selectedSteps.includes(k.stepType)" @click="toggleStep(k.stepType)">
-              {{ stepLabel(k.stepType, names) }}<span class="n">{{ k.count.toLocaleString() }}</span>
-            </button>
+            <ToggleChip v-for="k in stepKinds" :key="k.stepType" :pressed="selectedSteps.includes(k.stepType)" :count="k.count.toLocaleString()" @click="toggleStep(k.stepType)">{{ stepLabel(k.stepType, names) }}</ToggleChip>
           </div>
         </div>
         <ChartCatalogEditor v-if="showCatalog" :experiment-id="experimentId" :range="range" :entries="catalogEntries" @close="showCatalog = false" @changed="catalogEntries = $event" />
@@ -481,9 +480,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
               <template v-else>
                 <span class="hint">Only include these:</span>
                 <div class="chip-select">
-                  <button v-for="v in row.values" :key="v.value" type="button" class="chip" :class="{ on: row.selected.has(v.value) }" @click="toggleFilterRowValue(row, v.value)">
-                    {{ v.value }}<span class="n">{{ v.count }}</span>
-                  </button>
+                  <ToggleChip v-for="v in row.values" :key="v.value" :pressed="row.selected.has(v.value)" :count="v.count" @click="toggleFilterRowValue(row, v.value)">{{ v.value }}</ToggleChip>
                 </div>
               </template>
             </div>
@@ -499,9 +496,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
             {{ questionsOpen ? "Hide questions" : `Try another question (${templates.length})` }}
           </Button>
           <div v-if="questionsOpen" class="pill-row">
-            <button v-for="t in templates" :key="t.id" type="button" class="pill" :class="{ on: activeTemplate === t.id }" @click="applyTemplate(t)">
-              {{ t.question }}
-            </button>
+            <ToggleChip v-for="t in templates" :key="t.id" :pressed="activeTemplate === t.id" @click="applyTemplate(t)">{{ t.question }}</ToggleChip>
           </div>
         </template>
       </div>
@@ -640,15 +635,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
   font-size: 11.5px;
   color: var(--mt-muted);
 }
-.chip {
-  font-family: inherit;
-  cursor: pointer;
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  color: var(--mt-ink);
-  border-radius: var(--mt-radius-sm, 8px);
-  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
-}
+
 .chip-select {
   display: flex;
   flex-wrap: wrap;
@@ -659,32 +646,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
   min-height: 40px;
   background: var(--mt-card);
 }
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 12.5px;
-  font-weight: 500;
-  padding: 4px 9px 4px 6px;
-  background: var(--mt-soft);
-}
-.chip:hover {
-  border-color: var(--mt-muted);
-}
-.chip .n {
-  color: var(--mt-muted);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
-.chip.on {
-  background: var(--mt-accent);
-  border-color: var(--mt-accent);
-  color: var(--mt-accent-ink, #fff);
-}
-.chip.on .n {
-  color: inherit;
-  opacity: 0.8;
-}
+
 .filter-row {
   display: flex;
   gap: 8px;
@@ -881,16 +843,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
   flex-wrap: wrap;
   gap: 6px;
 }
-.pill {
-  padding: 5px 10px;
-  font-size: 12px;
-  font-weight: 700;
-  border-radius: 999px;
-}
-.pill.on {
-  border-color: var(--mt-accent);
-  background: color-mix(in srgb, var(--mt-accent) 10%, transparent);
-}
+
 .add-condition {
   font-family: inherit;
   cursor: pointer;

@@ -166,7 +166,7 @@ const progress = computed(() => queue.value?.progress);
 <template>
   <div class="page">
     <Card as="header" padding="none" block class="head">
-      <button type="button" class="crumb" @click="back">← Review</button>
+      <Button variant="link" class="crumb" @click="back">← Review</Button>
       <span class="muted">/</span>
       <h1>{{ queue?.name ?? "Queue" }}</h1>
       <div v-if="progress" class="progress-wrap">
@@ -248,7 +248,7 @@ const progress = computed(() => queue.value?.progress);
             :min="r.config.minValue ?? undefined"
             :max="r.config.maxValue ?? undefined"
             :aria-label="`${r.config.name} value`" />
-          <button v-if="!openNotes[r.configId]" type="button" class="note-toggle" @click="openNotes[r.configId] = true">+ Add note</button>
+          <Button variant="link" v-if="!openNotes[r.configId]" @click="openNotes[r.configId] = true">+ Add note</Button>
           <TextInput
             v-if="openNotes[r.configId] && drafts[r.configId]"
             v-model="drafts[r.configId]!.comment"
@@ -312,15 +312,7 @@ const progress = computed(() => queue.value?.progress);
   background: var(--mt-accent);
   transition: width 0.3s ease;
 }
-.crumb {
-  border: 0;
-  background: none;
-  padding: 0;
-  color: var(--mt-accent-text);
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
+
 .muted {
   color: var(--mt-muted);
   font-size: 12.5px;
@@ -465,17 +457,7 @@ const progress = computed(() => queue.value?.progress);
   font-weight: 500;
   opacity: 0.6;
 }
-.note-toggle {
-  align-self: flex-start;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--mt-accent-text);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
+
 .hint {
   margin: 0;
   text-align: center;

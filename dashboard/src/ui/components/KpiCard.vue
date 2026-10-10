@@ -5,11 +5,11 @@ defineProps<{ label: string; value: string; hint?: string; tone?: "default" | "p
 
 <template>
   <Card as="div" padding="none" block class="kpi">
-    <q-card-section class="kpi-body">
+    <div class="kpi-body">
       <div class="label">{{ label }}</div>
       <div class="value" :class="tone">{{ value }}</div>
       <div v-if="hint" class="hint">{{ hint }}</div>
-    </q-card-section>
+    </div>
   </Card>
 </template>
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import JsonBlock from "./JsonBlock.vue";
+import Pill from "./Pill.vue";
 
 const props = defineProps<{ messages: unknown }>();
 
@@ -16,13 +17,13 @@ const parsed = computed<Message[] | null>(() => {
   return ok ? (value as Message[]) : null;
 });
 
-const roleColor = (role: string) => (role === "human" || role === "user" ? "primary" : role === "system" ? "grey-7" : "teal");
+const roleTone = (role: string) => (role === "human" || role === "user" ? "info" : role === "system" ? "neutral" : "ok");
 </script>
 
 <template>
   <div v-if="parsed" class="column q-gutter-y-sm">
     <div v-for="(m, i) in parsed" :key="i">
-      <q-badge :color="roleColor(m.role)" :label="m.role" class="q-mb-xs" />
+      <Pill :tone="roleTone(m.role)" class="role-pill">{{ m.role }}</Pill>
       <div v-if="typeof m.content === 'string'" class="message">{{ m.content }}</div>
       <JsonBlock v-else :value="m.content" />
     </div>
@@ -38,5 +39,8 @@ const roleColor = (role: string) => (role === "human" || role === "user" ? "prim
   border-radius: var(--mt-radius-sm);
   padding: 8px 10px;
   font-size: 13px;
+}
+.role-pill {
+  margin-bottom: 4px;
 }
 </style>

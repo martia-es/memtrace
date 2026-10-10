@@ -79,7 +79,7 @@ const settle = async () => {
   await new Promise((r) => setTimeout(r, 400));
   await flushPromises();
 };
-const chip = (w: VueWrapper, label: string) => w.findAll("button.chip").find((b) => b.text().startsWith(label))!;
+const chip = (w: VueWrapper, label: string) => w.findAll("button.mt-chip").find((b) => b.text().startsWith(label))!;
 const pickTool = async (w: VueWrapper) => {
   await chip(w, "Tool calls").trigger("click");
   await settle();

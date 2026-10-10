@@ -31,6 +31,7 @@ import DataTable from "../components/DataTable.vue";
 import LoadingState from "../components/LoadingState.vue";
 import Card from "../components/Card.vue";
 import SegmentedControl from "../components/SegmentedControl.vue";
+import Button from "../components/Button.vue";
 
 const PAGE_SIZE = 50;
 const api = useTraceApi();
@@ -328,9 +329,9 @@ const footer = computed(() => {
         <ErrorBanner v-if="active.moreError.value" :error="active.moreError.value" @retry="active.loadMore" />
         <div class="footer">
           <span class="count">{{ footer }}</span>
-          <button v-if="active.nextCursor.value" type="button" class="more" :disabled="active.moreLoading.value" @click="active.loadMore">
+          <Button size="sm" v-if="active.nextCursor.value" :disabled="active.moreLoading.value" @click="active.loadMore">
             {{ active.moreLoading.value ? "Loading…" : "Load more" }}
-          </button>
+          </Button>
         </div>
       </Card>
 
@@ -553,21 +554,7 @@ const footer = computed(() => {
   font-size: 12px;
   color: var(--mt-muted);
 }
-.more {
-  height: 28px;
-  padding: 0 12px;
-  border: 1px solid var(--mt-line);
-  border-radius: var(--mt-radius-sm);
-  background: var(--mt-card);
-  color: var(--mt-accent-text);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.more:disabled {
-  opacity: 0.6;
-}
+
 @keyframes fade-new {
   from { background: var(--mt-accent-soft); }
 }

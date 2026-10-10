@@ -13,6 +13,7 @@ import TextInput from "./TextInput.vue";
 import Button from "./Button.vue";
 import Pill from "./Pill.vue";
 import LoadingState from "./LoadingState.vue";
+import ToggleChip from "./ToggleChip.vue";
 
 /**
  * Arreglar un prompt desde un fallo real (ADR-072): se ve qué falló en la traza, se parte de la versión que la produjo, se
@@ -141,9 +142,7 @@ async function save() {
       </p>
       <template v-else>
         <div class="filters" role="group" aria-label="Reason">
-          <button v-for="f in filters" :key="f.key" type="button" class="chip" :class="{ on: reason === f.key }" :data-testid="`fix-filter-${f.key}`" @click="reason = f.key">
-            {{ f.label }} <b>{{ f.n }}</b>
-          </button>
+          <ToggleChip v-for="f in filters" :key="f.key" :pressed="reason === f.key" :count="f.n" :data-testid="`fix-filter-${f.key}`" @click="reason = f.key">{{ f.label }}</ToggleChip>
         </div>
         <ul class="cases">
           <li v-for="t in visible" :key="t.traceId">
@@ -348,21 +347,7 @@ async function save() {
   padding: 10px 16px;
   border-bottom: 1px solid var(--mt-line-2);
 }
-.chip {
-  padding: 3px 10px;
-  border: 1px solid var(--mt-line);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--mt-muted);
-  font: inherit;
-  font-size: 12.5px;
-  cursor: pointer;
-}
-.chip.on {
-  border-color: var(--mt-brand);
-  background: var(--mt-accent-tint);
-  color: var(--mt-accent-text);
-}
+
 .reason {
   padding: 1px 8px;
   border-radius: 4px;

@@ -19,6 +19,7 @@ import Button from "../components/Button.vue";
 import Checkbox from "../components/Checkbox.vue";
 import LoadingState from "../components/LoadingState.vue";
 import Card from "../components/Card.vue";
+import Menu from "../components/Menu.vue";
 
 /**
  * Colas de revisión (ADR-039): qué trazas hay que revisar, con qué rúbrica y cuánto va hecho. Cualquier
@@ -192,7 +193,7 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
         <h2>{{ pendingTotal }} {{ pendingTotal === 1 ? "conversation is" : "conversations are" }} waiting for you</h2>
         <p>Across {{ pendingQueues.length }} {{ pendingQueues.length === 1 ? "queue" : "queues" }} · nobody gets the same item twice, and you can skip anything you are unsure about</p>
       </div>
-      <button type="button" class="inbox-cta" data-testid="continue-reviewing" @click="continueReviewing">Continue reviewing →</button>
+      <Button data-testid="continue-reviewing" @click="continueReviewing">Continue reviewing →</Button>
     </section>
     <section v-if="curateTotal > 0" class="inbox curate" data-testid="curate-inbox">
       <div class="inbox-text">
@@ -200,7 +201,7 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
         <h2>{{ curateTotal }} reviewed {{ curateTotal === 1 ? "item is" : "items are" }} waiting for your decision</h2>
         <p>Reviewers have finished {{ curateTotal === 1 ? "it" : "them" }} in {{ curateQueues.length }} {{ curateQueues.length === 1 ? "queue" : "queues" }}. Check their answers, settle any disagreement and add the good ones to a dataset.</p>
       </div>
-      <button type="button" class="inbox-cta" data-testid="open-results" @click="openDetail(curateQueues[0]!.id, 'results')">Open results →</button>
+      <Button data-testid="open-results" @click="openDetail(curateQueues[0]!.id, 'results')">Open results →</Button>
     </section>
 
     <p v-if="pendingTotal === 0 && curateTotal === 0 && queues.data.value?.items.length" class="hint muted">You are all caught up.</p>
@@ -239,19 +240,18 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
           <span v-if="canCurate && q.toCurate > 0" class="curate-note" data-testid="queue-to-curate">{{ q.toCurate }} to review &amp; add to a dataset</span>
         </div>
         <div class="avatars" data-testid="queue-reviewers">
-          <q-avatar v-for="r in q.assignedReviewers" :key="r.userId" size="26px" class="avatar" color="primary" text-color="white" :aria-label="r.name ?? 'Former member'" data-testid="queue-reviewer">
+          <span v-for="r in q.assignedReviewers" :key="r.userId" class="avatar" :title="r.name ?? 'Former member'" :aria-label="r.name ?? 'Former member'" data-testid="queue-reviewer">
             <img v-if="r.image" :src="r.image" :alt="r.name ?? 'Former member'" referrerpolicy="no-referrer" />
             <span v-else>{{ initials(r.name) }}</span>
-            <q-tooltip>{{ r.name ?? "Former member" }}</q-tooltip>
-          </q-avatar>
+          </span>
         </div>
         <div class="actions">
-          <button v-if="q.isReviewer && q.progress.pending > 0 && !q.archivedAt" type="button" class="cta accent" @click="review(q.id)">Review</button>
-          <button v-else-if="canCurate && !q.archivedAt" type="button" class="cta" data-testid="queue-results-btn" @click="openDetail(q.id, 'results')">View results</button>
-          <button v-else type="button" class="cta" @click="openDetail(q.id)">Details</button>
+          <Button variant="primary" size="sm" v-if="q.isReviewer && q.progress.pending > 0 && !q.archivedAt" @click="review(q.id)">Review</Button>
+          <Button size="sm" v-else-if="canCurate && !q.archivedAt" data-testid="queue-results-btn" @click="openDetail(q.id, 'results')">View results</Button>
+          <Button size="sm" v-else @click="openDetail(q.id)">Details</Button>
           <button type="button" class="more" aria-label="More actions" data-testid="queue-more">
             ⋯
-            <q-menu auto-close anchor="bottom right" self="top right" :offset="[0, 6]" class="queue-menu">
+            <Menu auto-close anchor="bottom right" self="top right" :offset="[0, 6]" class="queue-menu">
               <div class="menu-list">
                 <button v-if="!q.archivedAt" type="button" @click="addTo = q">Add traces</button>
                 <button v-if="canCurate && q.toCurate > 0" type="button" @click="openDetail(q.id, 'results')">Review results</button>
@@ -259,7 +259,7 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
                 <button v-if="canManage && !q.archivedAt" type="button" @click="setArchived(q, true)">Archive</button>
                 <button v-if="canManage && q.archivedAt" type="button" @click="setArchived(q, false)">Restore</button>
               </div>
-            </q-menu>
+            </Menu>
           </button>
         </div>
       </div>
@@ -361,18 +361,6 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
 .inbox p {
   margin: 0;
   opacity: 0.9;
-}
-.inbox-cta {
-  height: 40px;
-  padding: 0 22px;
-  border: 0;
-  border-radius: var(--mt-radius-sm);
-  background: var(--mt-card);
-  color: var(--mt-accent-text);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 800;
-  cursor: pointer;
 }
 .curate-note {
   display: inline-flex;
@@ -487,11 +475,24 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
   display: flex;
 }
 .avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--mt-accent);
+  color: var(--mt-accent-ink);
   border: 2px solid var(--mt-card);
   margin-left: -6px;
   font-size: 10px;
   font-weight: 800;
   box-sizing: border-box;
+}
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .avatar:first-child {
   margin-left: 0;
@@ -505,7 +506,6 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
   justify-content: flex-end;
   gap: 8px;
 }
-.cta,
 .more {
   height: 32px;
   border-radius: var(--mt-radius-sm);
@@ -515,14 +515,6 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
   font: inherit;
   font-weight: 800;
   cursor: pointer;
-}
-.cta {
-  padding: 0 14px;
-}
-.cta.accent {
-  background: var(--mt-accent);
-  border-color: var(--mt-accent);
-  color: var(--mt-accent-ink);
 }
 .more {
   width: 32px;

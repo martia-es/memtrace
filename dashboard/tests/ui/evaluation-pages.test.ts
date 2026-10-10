@@ -37,6 +37,9 @@ async function setup(component: object, api: FakeTraceApi, path: string) {
   return { wrapper, router };
 }
 
+/** Panel de pestaña visible: los demás siguen montados pero ocultos (TabPanel conserva su estado). */
+const activePanel = (wrapper: ReturnType<typeof mount>) => wrapper.find(".tab-panel:not([style*=\"display: none\"])");
+
 async function clickTab(wrapper: ReturnType<typeof mount>, label: string) {
   const tabs = wrapper.findAll('[role="tab"]');
   const tab = tabs.find((t) => t.text() === label);
@@ -103,10 +106,10 @@ describe("DatasetDetailPage", () => {
     const { wrapper, router } = await setup(DatasetDetailPage, api, "/datasets/ds-1");
     await clickTab(wrapper, "Runs");
 
-    expect(wrapper.find("tbody tr").text()).toContain("toy-agent-v1");
-    expect(wrapper.find("tbody tr .mt-pill").text()).toContain("66%");
+    expect(activePanel(wrapper).find("tbody tr").text()).toContain("toy-agent-v1");
+    expect(activePanel(wrapper).find("tbody tr .mt-pill").text()).toContain("66%");
 
-    await wrapper.find("tbody tr").trigger("click");
+    await activePanel(wrapper).find("tbody tr").trigger("click");
     await flushPromises();
     expect(router.currentRoute.value.name).toBe("dataset-run");
     expect(router.currentRoute.value.params).toMatchObject({ datasetId: "ds-1", runId: "run-1" });
@@ -143,7 +146,7 @@ describe("DatasetDetailPage", () => {
     const { wrapper } = await setup(DatasetDetailPage, api, "/datasets/ds-1");
     await clickTab(wrapper, "Versions");
 
-    const rows = wrapper.findAll("tbody tr");
+    const rows = activePanel(wrapper).findAll("tbody tr");
     expect(rows).toHaveLength(3);
     expect(rows[0]!.text()).toContain("~1");
     expect(rows[1]!.text()).toContain("+1");

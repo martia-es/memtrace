@@ -19,6 +19,8 @@ import Pagination from "../components/Pagination.vue";
 import DataTable from "../components/DataTable.vue";
 import LoadingState from "../components/LoadingState.vue";
 import Card from "../components/Card.vue";
+import TabBar from "../components/TabBar.vue";
+import TabPanel from "../components/TabPanel.vue";
 
 const PAGE_SIZE = 20;
 
@@ -36,6 +38,7 @@ function notifyError(action: string, error: unknown) {
   $q.notify({ message: `${action}: ${detail}`, color: "negative", timeout: 4000 });
 }
 
+const DETAIL_TABS = [{ id: "items", label: "Items" }, { id: "versions", label: "Versions" }, { id: "runs", label: "Runs" }];
 const activeTab = ref<"items" | "versions" | "runs">("items");
 
 // ---- versions (ADR-032): historial puramente informativo, nunca se crean a mano ----
@@ -95,23 +98,19 @@ function openRun(runId: string) {
 
     <ErrorBanner v-if="dataset.error.value" :error="dataset.error.value" @retry="dataset.run()" />
     <template v-else>
-      <q-tabs v-model="activeTab" class="tabs" active-color="primary" indicator-color="primary" align="left" no-caps dense>
-        <q-tab name="items" label="Items" />
-        <q-tab name="versions" label="Versions" />
-        <q-tab name="runs" label="Runs" />
-      </q-tabs>
+      <TabBar :tabs="DETAIL_TABS" :model-value="activeTab" @update:model-value="activeTab = $event as typeof activeTab" />
 
-      <q-tab-panels v-model="activeTab" keep-alive class="tab-panels">
+      <div class="tab-panels">
         <!-- Items -->
-        <q-tab-panel name="items" class="tab-panel">
+        <TabPanel :active="activeTab === 'items'" class="tab-panel">
           <p class="hint muted">Current version: v{{ latestVersion?.major ?? 1 }}.{{ latestVersion?.minor ?? 0 }} — edit directly in the table; when you press Publish, all your changes are saved as <b>a single version</b>.</p>
           <ErrorBanner v-if="items.error.value" :error="items.error.value" @retry="items.run()" />
           <LoadingState v-else-if="items.loading.value && !items.data.value" size="lg" />
           <DatasetItemsEditor v-else :dataset-id="datasetId" :items="items.data.value?.items ?? []" :version="latestVersion" @published="afterItemMutation" />
-        </q-tab-panel>
+        </TabPanel>
 
         <!-- Versions: historial de solo lectura, generado automáticamente (ADR-032) -->
-        <q-tab-panel name="versions" class="tab-panel">
+        <TabPanel :active="activeTab === 'versions'" class="tab-panel">
           <p class="hint muted">Every time you publish changes in Items a version is created on its own — adding or removing items bumps the major, editing content only bumps the minor. Press ⓘ to see what changed and compare it with any earlier version.</p>
           <ErrorBanner v-if="versions.error.value" :error="versions.error.value" @retry="versions.run()" />
           <LoadingState v-else-if="versions.loading.value && !versions.data.value" size="lg" />
@@ -159,10 +158,10 @@ function openRun(runId: string) {
             :versions="versions.data.value?.items ?? []"
             @close="inspectedVersion = null"
           />
-        </q-tab-panel>
+        </TabPanel>
 
         <!-- Runs -->
-        <q-tab-panel name="runs" class="tab-panel">
+        <TabPanel :active="activeTab === 'runs'" class="tab-panel">
           <TextInput type="search" v-model="runSearch" placeholder="Filter by run name…" class="search" />
           <ErrorBanner v-if="runs.error.value" :error="runs.error.value" @retry="runs.run()" />
           <LoadingState v-else-if="runs.loading.value && !runs.data.value" size="lg" />
@@ -198,8 +197,8 @@ function openRun(runId: string) {
             </DataTable>
           </Card>
           <Pagination v-if="pagedRuns.length > 0" v-model:page="runPage" :page-count="runPageCount">{{ filteredRuns.length }} run{{ filteredRuns.length === 1 ? "" : "s" }}</Pagination>
-        </q-tab-panel>
-      </q-tab-panels>
+        </TabPanel>
+      </div>
     </template>
 
   </div>

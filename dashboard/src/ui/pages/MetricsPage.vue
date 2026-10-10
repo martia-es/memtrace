@@ -405,7 +405,7 @@ function swapAgents() {
               <h2>{{ health.title }}</h2>
               <p>{{ health.text }}<template v-if="attention.length"> {{ attention.length }} {{ attention.length === 1 ? "thing" : "things" }} could use a look.</template></p>
             </div>
-            <button v-if="attention.length" type="button" class="health-cta" @click="goToFirstAttention">See what needs attention</button>
+            <Button v-if="attention.length" @click="goToFirstAttention">See what needs attention</Button>
           </section>
 
           <section class="kpi-grid" aria-label="Key figures">
@@ -628,19 +628,6 @@ function swapAgents() {
 .health-body { flex: 1; min-width: 0; }
 .health-body h2 { margin: 0; font-size: 16px; font-weight: 800; letter-spacing: -0.01em; }
 .health-body p { margin: 2px 0 0; font-weight: 500; }
-.health-cta {
-  height: 32px;
-  padding: 0 14px;
-  border-radius: var(--mt-radius-sm);
-  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
-  background: var(--mt-card);
-  color: inherit;
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.health-cta:hover { background: var(--mt-soft-2); }
 
 .kpi-grid {
   display: grid;

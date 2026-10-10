@@ -4,6 +4,7 @@ import { fetchCsrfToken, postSignOut } from "@/adapters/outbound/browser-auth";
 import { useAsync } from "../composables/useAsync";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTheme } from "../composables/useTheme";
+import Menu from "./Menu.vue";
 // signOut import removed (next-auth/react is React‑only and not usable in Vue)
 
 const DOCS_URL = "https://docs.memtrace.com";
@@ -42,7 +43,7 @@ const initials = computed(() => {
         <span class="user-name">{{ me.data.value.name ?? me.data.value.email }}</span>
         <span class="user-email">{{ me.data.value.email }}</span>
       </span>
-      <q-menu auto-close anchor="top left" self="bottom left" :offset="[0, 8]" class="user-menu-popover">
+      <Menu auto-close anchor="top left" self="bottom left" :offset="[0, 8]" class="user-menu-popover">
         <div class="menu-header">
           <span class="avatar avatar-fallback">{{ initials }}</span>
           <span class="menu-header-info">
@@ -73,7 +74,7 @@ const initials = computed(() => {
           </svg>
           Sign out
         </button>
-      </q-menu>
+      </Menu>
     </button>
   </div>
 </template>

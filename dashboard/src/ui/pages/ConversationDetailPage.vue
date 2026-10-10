@@ -20,6 +20,7 @@ import { useExperimentRepo } from "../composables/useExperimentRepo";
 import Pill from "../components/Pill.vue";
 import LoadingState from "../components/LoadingState.vue";
 import Card from "../components/Card.vue";
+import Button from "../components/Button.vue";
 
 const props = defineProps<{ conversationId: string }>();
 const api = useTraceApi();
@@ -122,7 +123,7 @@ const backToList = () => void router.push({ name: "conversations", params: { exp
   <div class="page">
     <TopbarSlot side="left">
       <nav class="crumbs" aria-label="Breadcrumbs">
-        <button type="button" class="crumb" @click="backToList">← Conversations</button>
+        <Button variant="link" class="crumb" @click="backToList">← Conversations</Button>
         <span class="sep">/</span>
         <span class="mono current">{{ conversationId }}</span>
       </nav>
@@ -154,7 +155,7 @@ const backToList = () => void router.push({ name: "conversations", params: { exp
       <Card as="section" padding="none" block v-if="view === 'table'" class="list" aria-label="Conversation traces">
         <TraceTable v-if="traces.length" :items="traces" :labels="labels" :repo="repo" annotatable @open="openTrace" @annotate="annotatingTrace = $event" />
         <p v-else class="muted empty">This conversation has no traces to show.</p>
-        <button v-if="cursor" type="button" class="more" :disabled="more.loading.value" @click="loadMore">{{ more.loading.value ? "Loading…" : "Load more traces" }}</button>
+        <Button size="sm" v-if="cursor" :disabled="more.loading.value" @click="loadMore">{{ more.loading.value ? "Loading…" : "Load more traces" }}</Button>
         <ErrorBanner v-if="more.error.value" :error="more.error.value" @retry="loadMore" />
       </Card>
 
@@ -198,15 +199,7 @@ const backToList = () => void router.push({ name: "conversations", params: { exp
 .sep {
   color: var(--mt-faint);
 }
-.crumb {
-  border: 0;
-  background: none;
-  padding: 0;
-  color: var(--mt-accent-text);
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
+
 .current {
   color: var(--mt-ink);
 }
@@ -329,20 +322,7 @@ h1 {
   margin: 0;
   padding: 20px;
 }
-.more {
-  display: block;
-  margin: 12px auto;
-  height: 30px;
-  padding: 0 14px;
-  border: 1px solid var(--mt-line);
-  border-radius: var(--mt-radius-sm);
-  background: var(--mt-card);
-  color: var(--mt-accent-text);
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 700;
-  cursor: pointer;
-}
+
 @media (max-width: 1100px) {
   .stats {
     display: none;

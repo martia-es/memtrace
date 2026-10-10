@@ -2,6 +2,7 @@
 import TextInput from "@/ui/components/TextInput.vue";
 import { computed, ref } from "vue";
 import type { ExperimentDto } from "@/application/identity-api";
+import Menu from "./Menu.vue";
 
 interface Props {
   modelValue: string | null;
@@ -20,7 +21,9 @@ const filtered = computed(() => {
 });
 const initials = (name: string) => name.trim().slice(0, 2).toUpperCase();
 
+const menu = ref<{ hide: () => void } | null>(null);
 const pick = (id: string) => {
+  menu.value?.hide();
   if (id !== props.modelValue) emit("update:modelValue", id);
 };
 </script>
@@ -35,13 +38,13 @@ const pick = (id: string) => {
     <svg class="exp-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <path d="M7 15l5 5 5-5M7 9l5-5 5 5" />
     </svg>
-    <q-menu fit :offset="[0, 6]" class="exp-popover" @before-show="query = ''">
+    <Menu ref="menu" fit :offset="[0, 6]" class="exp-popover" @before-show="query = ''">
       <div v-if="options.length > 6" class="exp-search">
         <TextInput v-model="query" type="search" size="sm" placeholder="Search experiments…" aria-label="Search experiments" />
       </div>
       <ul class="exp-list" role="listbox" aria-label="Experiments">
         <li v-for="e in filtered" :key="e.id" role="option" :aria-selected="e.id === modelValue">
-          <button v-close-popup type="button" class="exp-option" :class="{ selected: e.id === modelValue }" @click="pick(e.id)">
+          <button type="button" class="exp-option" :class="{ selected: e.id === modelValue }" @click="pick(e.id)">
             <span class="exp-avatar" aria-hidden="true">{{ initials(e.name) }}</span>
             <span class="exp-text">
               <span class="exp-name">{{ e.name }}</span>
@@ -54,7 +57,7 @@ const pick = (id: string) => {
         </li>
         <li v-if="!filtered.length" class="exp-empty">No experiments found</li>
       </ul>
-    </q-menu>
+    </Menu>
   </button>
 </template>
 

@@ -222,7 +222,7 @@ async function sendEmail() {
       <div v-if="!availableCharts.length" class="hint">You don't have any saved charts yet — save one from the "Custom charts" tab first.</div>
       <div v-else-if="!chartsNotInLayout.length" class="hint">All your saved charts are already in this report.</div>
       <div v-else class="add-chart-chips">
-        <button v-for="m in chartsNotInLayout" :key="m.id" type="button" class="chip" @click="addChart(m)">+ {{ m.name }}</button>
+        <Button v-for="m in chartsNotInLayout" :key="m.id" size="sm" @click="addChart(m)">+ {{ m.name }}</Button>
       </div>
     </div>
 
@@ -363,21 +363,7 @@ async function sendEmail() {
   flex-wrap: wrap;
   gap: 8px;
 }
-.chip {
-  font-family: inherit;
-  cursor: pointer;
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  color: var(--mt-ink);
-  border-radius: var(--mt-radius-sm, 8px);
-  font-size: 12.5px;
-  font-weight: 500;
-  padding: 6px 12px;
-}
-.chip:hover {
-  border-color: var(--mt-accent);
-  color: var(--mt-accent);
-}
+
 .hint {
   font-size: 11.5px;
   color: var(--mt-muted);

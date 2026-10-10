@@ -121,10 +121,10 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
   <div class="page">
     <TopbarSlot side="left">
       <nav class="crumbs" aria-label="Breadcrumbs">
-        <button type="button" class="crumb" @click="goList">← Conversations</button>
+        <Button variant="link" class="crumb" @click="goList">← Conversations</Button>
         <template v-if="conversationId">
           <span class="sep">/</span>
-          <button type="button" class="crumb mono" @click="goConversation">{{ conversationId }}</button>
+          <Button variant="link" class="crumb mono" @click="goConversation">{{ conversationId }}</Button>
         </template>
         <span class="sep">/</span>
         <span class="mono current">{{ shortId(traceId) }}</span>
@@ -253,15 +253,7 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
 .sep {
   color: var(--mt-faint);
 }
-.crumb {
-  border: 0;
-  background: none;
-  padding: 0;
-  color: var(--mt-accent-text);
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
+
 .current {
   color: var(--mt-ink);
 }

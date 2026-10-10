@@ -2,6 +2,7 @@
 import { onBeforeUnmount, ref } from "vue";
 import { formatRelativeTime } from "@/domain/format";
 import { REFRESH_OPTIONS, type RefreshSeconds } from "@/domain/refresh";
+import Menu from "./Menu.vue";
 
 defineProps<{ seconds: RefreshSeconds; updatedAt: number | null; loading?: boolean }>();
 defineEmits<{ "update:seconds": [RefreshSeconds]; refresh: [] }>();
@@ -16,13 +17,13 @@ onBeforeUnmount(() => clearInterval(ticker));
   <button type="button" class="live" aria-haspopup="menu" aria-label="Auto-refresh">
     <span class="dot" :class="{ on: seconds > 0 }" aria-hidden="true" />
     {{ seconds > 0 ? "Live" : "Paused" }}
-    <q-menu anchor="bottom right" self="top right" :offset="[0, 6]">
+    <Menu auto-close anchor="bottom right" self="top right" :offset="[0, 6]">
       <div class="menu" role="group" aria-label="Refresh interval">
         <span class="status" aria-live="off">{{ updatedAt ? `Updated ${formatRelativeTime(new Date(updatedAt).toISOString(), now)}` : "Loading…" }}</span>
         <button
           v-for="s in REFRESH_OPTIONS"
           :key="s"
-          v-close-popup
+         
           type="button"
           class="opt"
           :aria-pressed="s === seconds"
@@ -30,9 +31,9 @@ onBeforeUnmount(() => clearInterval(ticker));
         >
           {{ s === 0 ? "Off" : `Every ${s} s` }}
         </button>
-        <button v-close-popup type="button" class="opt refresh" :disabled="loading" @click="$emit('refresh')">Refresh now</button>
+        <button type="button" class="opt refresh" :disabled="loading" @click="$emit('refresh')">Refresh now</button>
       </div>
-    </q-menu>
+    </Menu>
   </button>
 </template>
 
