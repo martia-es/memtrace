@@ -1,6 +1,6 @@
 # Library
 
-`memtrace-ai` is the Python SDK that instruments your agent and exports traces over OTLP, following the OpenTelemetry [GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/) (`gen_ai.*`).
+`memtrace-ai` is the Python SDK that instruments your agent (the [TypeScript SDK](./typescript) does the same for Node.js) and exports traces over OTLP, following the OpenTelemetry [GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/) (`gen_ai.*`).
 
 Traces go out as standard OTLP, over HTTP by default. The SDK knows nothing about where they are stored, so your agent code doesn't change if the backend does: you can send them to the MemTrace platform, to your own OpenTelemetry Collector or to any other OTLP backend ([Bring your own backend](./bring-your-own-backend)).
 

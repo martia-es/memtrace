@@ -68,6 +68,8 @@ export const settings = {
   get redactKeys() {
     return (process.env.MEMTRACE_REDACT_KEYS ?? "").split(",").map((k) => k.trim().toLowerCase()).filter(Boolean);
   },
+  get maxActiveRuns() { return envInt("MEMTRACE_MAX_ACTIVE_RUNS", 10_000); },
+  get spanTtlSeconds() { return envInt("MEMTRACE_SPAN_TTL_SECONDS", 3600); },
   get exportTimeoutMs() { return envInt("MEMTRACE_EXPORT_TIMEOUT_MS", 5000); },
   get batchMaxQueueSize() { return envInt("MEMTRACE_BATCH_MAX_QUEUE_SIZE", 2048); },
   get batchScheduleDelayMs() { return envInt("MEMTRACE_BATCH_SCHEDULE_DELAY_MS", 5000); },

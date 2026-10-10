@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { randomUUID } from "node:crypto";
 import { ROOT_CONTEXT, SpanStatusCode, trace, type Span, type Tracer } from "@opentelemetry/api";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { resourceFromAttributes } from "@opentelemetry/resources";
@@ -35,6 +36,7 @@ export interface InitOptions {
 }
 
 interface Active {
+  sweeper?: NodeJS.Timeout;
   provider: BasicTracerProvider;
   tracer: Tracer;
   capture: CapturePolicy;
@@ -91,7 +93,10 @@ export function initTracer(options: InitOptions = {}): void {
       resource: resourceFromAttributes(resourceAttributes(options.serviceName ?? settings.serviceName)),
       spanProcessors: [new SessionSpanProcessor(), processor],
     });
+    const sweeper = setInterval(expireStaleRuns, 60_000);
+    sweeper.unref();
     active = {
+      sweeper,
       provider,
       tracer: provider.getTracer(TRACER_NAME),
       capture: new CapturePolicy(settings.captureContent, settings.maxContentLength, keys),
@@ -115,6 +120,8 @@ export async function flush(): Promise<void> {
 export async function shutdown(): Promise<void> {
   const current = active;
   active = undefined;
+  if (current?.sweeper) clearInterval(current.sweeper);
+  runs.clear();
   for (const hook of shutdownHooks.splice(0)) {
     try { await hook(); } catch { /* never throws */ }
   }
@@ -265,4 +272,79 @@ export function recordRetrievedChunks(documents: unknown): void {
       setAttributes(span, { [sc.MEMTRACE_RETRIEVER_DOCUMENTS]: chunks.length, [sc.MEMTRACE_RETRIEVER_CHUNKS]: active.capture.apply(chunks) });
     }
   } catch { /* never throws */ }
+}
+
+// ----- runs: spans opened and closed by callbacks, identified by an id (LangChain.js, OpenAI Agents...) -----
+
+interface Run { span: Span; startedAt: number }
+const runs = new Map<string, Run>();
+
+export interface StartRunOptions {
+  /** Your own id for the run; one is generated when omitted. */
+  runId?: string;
+  /** Parent run still in flight; otherwise the current step, otherwise a root. */
+  parentRunId?: string;
+  attributes?: Attributes;
+}
+
+/**
+ * Opens a span that is closed later with `endRun(runId)`, for frameworks that report start and end through callbacks. Returns the
+ * run id. Never throws: if the span cannot be opened, `endRun` does nothing. At most `MEMTRACE_MAX_ACTIVE_RUNS` are open at once.
+ */
+export function startRun(name: string, stepType: StepType = "chain", options: StartRunOptions = {}): string {
+  const runId = options.runId ?? randomUUID();
+  try {
+    const current = active;
+    if (!current || runs.size >= settings.maxActiveRuns) return runId;
+    const store = storage.getStore();
+    const parent = (options.parentRunId ? runs.get(options.parentRunId)?.span : undefined) ?? store?.span;
+    const span = current.tracer.startSpan(name, {}, parent ? trace.setSpan(ROOT_CONTEXT, parent) : ROOT_CONTEXT);
+    setAttributes(span, { ...stepStartAttributes(stepType, store?.sessionId), ...options.attributes });
+    runs.set(runId, { span, startedAt: Date.now() });
+  } catch { /* never throws */ }
+  return runId;
+}
+
+/** Adds attributes to a run in flight. */
+export function annotateRun(runId: string, attributes: Attributes): void {
+  const run = runs.get(runId);
+  if (run) setAttributes(run.span, attributes);
+}
+
+/** Closes a run: OK, or ERROR if `error` is given. Unknown ids are ignored. */
+export function endRun(runId: string, options: { error?: unknown; attributes?: Attributes } = {}): void {
+  const run = runs.get(runId);
+  if (!run) return;
+  runs.delete(runId);
+  try {
+    if (options.attributes) setAttributes(run.span, options.attributes);
+  } finally {
+    endSpan(run.span, options.error);
+  }
+}
+
+/** Ends the runs that exceeded the TTL (end callbacks that never arrived), marking them `memtrace.span.expired`. */
+export function expireStaleRuns(now = Date.now()): void {
+  const limit = settings.spanTtlSeconds * 1000;
+  for (const [runId, run] of runs) {
+    if (now - run.startedAt > limit) {
+      runs.delete(runId);
+      try { run.span.setAttribute(sc.MEMTRACE_SPAN_EXPIRED, true); } finally { endSpan(run.span); }
+    }
+  }
+}
+
+/** Number of runs in flight (tests, diagnostics). */
+export function activeRuns(): number {
+  return runs.size;
+}
+
+/** Content filtered by the capture policy (`MEMTRACE_CAPTURE_CONTENT`): bounded, masked JSON text, or `undefined` when capture is off. For integrations. */
+export function capture(payload: unknown): string | undefined {
+  return active?.capture.apply(payload);
+}
+
+/** Whether content capture is on. For integrations that skip building a payload nobody will record. */
+export function capturesContent(): boolean {
+  return active?.capture.enabled ?? false;
 }

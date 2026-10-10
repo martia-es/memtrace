@@ -1,5 +1,5 @@
-export { initTracer, flush, annotateCurrent, onShutdown, shutdown, session, currentSessionId, currentTraceId, withStep, traceStep, traceLlmCall, recordRetrievedChunks, isTracing } from "./tracer.js";
-export type { InitOptions, Step, LlmCallOptions } from "./tracer.js";
+export { initTracer, flush, annotateCurrent, onShutdown, shutdown, session, currentSessionId, currentTraceId, withStep, traceStep, traceLlmCall, recordRetrievedChunks, isTracing, startRun, endRun, annotateRun, expireStaleRuns, activeRuns, capture, capturesContent } from "./tracer.js";
+export type { InitOptions, Step, LlmCallOptions, StartRunOptions } from "./tracer.js";
 export { sc } from "./semconv.js";
 export type { StepType } from "./semconv.js";
 export { REDACTED } from "./redaction.js";
@@ -22,3 +22,7 @@ export type {
 } from "./eval/types.js";
 export { presidioRedactor, textHook, maskRanges, DEFAULT_ENTITIES } from "./pii.js";
 export type { PresidioOptions } from "./pii.js";
+// building blocks for integrations (`@memtrace/sdk/langchain`, `@memtrace/sdk/openai-agents`, or your own)
+export { llmAttributes, retrievedChunks, sanitize as sanitizeAttributes } from "./attributes.js";
+export type { Attributes, LlmCall } from "./attributes.js";
+export { noteRetrieved } from "./eval/retrievalScope.js";
