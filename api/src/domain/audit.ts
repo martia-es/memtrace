@@ -13,6 +13,11 @@ export const AUDIT_ACTIONS = [
   "member.add",
   "apikey.create",
   "apikey.revoke",
+  "alert.create",
+  "alert.update",
+  "alert.delete",
+  "budget.update",
+  "budget.delete",
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 

@@ -1479,3 +1479,93 @@ export interface AuditPageDto {
   items: AuditEntryDto[];
   nextCursor: string | null;
 }
+
+/** Alertas y presupuestos de coste (ADR-086). */
+export interface AlertStatusDto {
+  state: "ok" | "firing" | "no_data";
+  since: string;
+  lastValue: number | null;
+  lastCheckedAt: string | null;
+  lastNotifiedAt: string | null;
+}
+
+export interface AlertRuleDto {
+  id: string;
+  experimentId: string;
+  name: string;
+  metric: "error_rate" | "latency_p95" | "cost" | "satisfaction" | "custom";
+  /** la gráfica guardada de una regla `custom`; null si se borró */
+  customMetricId: string | null;
+  comparator: "above" | "below";
+  /** en la unidad de la métrica: % (error y satisfacción), ms, USD o la de la gráfica */
+  threshold: number;
+  windowMinutes: number;
+  minSamples: number;
+  reminderMinutes: number | null;
+  recipients: string[];
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AlertRuleWithStatusDto {
+  rule: AlertRuleDto;
+  /** null si aún no se ha evaluado */
+  status: AlertStatusDto | null;
+}
+
+export interface AlertEventDto {
+  id: string;
+  ruleId: string;
+  experimentId: string;
+  at: string;
+  kind: "fired" | "resolved" | "reminder";
+  value: number;
+  threshold: number;
+  emailed: number;
+}
+
+export interface CostBudgetDto {
+  experimentId: string;
+  monthlyUsd: number;
+  warnPercent: number;
+  recipients: string[];
+  enabled: boolean;
+  updatedAt: string;
+}
+
+export interface BudgetViewDto {
+  budget: CostBudgetDto;
+  /** primer día del mes (UTC) al que se refiere el gasto */
+  month: string;
+  spentUsd: number;
+  percent: number;
+  projectedUsd: number | null;
+}
+
+export interface AlertsOverviewDto {
+  rules: AlertRuleWithStatusDto[];
+  events: AlertEventDto[];
+  budget: BudgetViewDto | null;
+}
+
+export interface AlertEventsPageDto {
+  items: AlertEventDto[];
+  nextCursor: string | null;
+}
+
+export interface OpenAlertDto {
+  ruleId: string;
+  ruleName: string;
+  experimentId: string;
+  experimentName: string;
+  metric: AlertRuleDto["metric"];
+  since: string;
+  lastValue: number | null;
+  threshold: number;
+  comparator: "above" | "below";
+}
+
+export interface OpenAlertsDto {
+  items: OpenAlertDto[];
+}

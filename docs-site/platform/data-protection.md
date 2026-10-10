@@ -68,6 +68,7 @@ Operators: the job is the `retention-purge` CronJob. To run it now, `kubectl -n 
 | Exported data | Every export, with the kind of data, the range and the number of records |
 | Changed retention / Deleted expired traces | A person changed a period, or the nightly job deleted something |
 | Added a member, created or revoked an API key | Changes of who has access |
+| Created, changed or deleted an alert; set or removed the cost budget | Changes to what is monitored and who is emailed (the log keeps how many addresses, not the addresses) |
 
 Lists, metrics and dashboards are **not** recorded: they carry no content and would bury the entries that matter. The log stores identifiers (which trace, which person), never the content itself. Entries cannot be edited or deleted from MemTrace and are removed after one year. Reading the log needs the `audit:read` permission, which `org_admin` has.
 

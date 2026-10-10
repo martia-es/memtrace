@@ -21,6 +21,8 @@ COPY --from=build --chown=node:node /app/.next/static ./.next/static
 COPY --from=build --chown=node:node /app/dist-worker/probe-health.cjs ./worker/probe-health.cjs
 # worker de retención (ADR-084): lo ejecuta el CronJob `retention-purge`
 COPY --from=build --chown=node:node /app/dist-worker/purge-traces.cjs ./worker/purge-traces.cjs
+# worker de alertas y presupuestos (ADR-086): lo ejecuta el CronJob `alerts-evaluate`
+COPY --from=build --chown=node:node /app/dist-worker/evaluate-alerts.cjs ./worker/evaluate-alerts.cjs
 # uid de `node`; numérico para que Kubernetes pueda verificar runAsNonRoot
 USER 1000:1000
 EXPOSE 3001

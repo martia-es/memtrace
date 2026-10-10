@@ -1,7 +1,9 @@
-import type { AuditPageDto, ChartCatalogEntryDto, CustomMetricDefinitionDto, RetentionPolicyDto, ScoreConfigDto } from "@contract";
+import type { AlertEventsPageDto, AlertRuleDto, AlertsOverviewDto, AuditPageDto, BudgetViewDto, ChartCatalogEntryDto, CustomMetricDefinitionDto, OpenAlertsDto, RetentionPolicyDto, ScoreConfigDto } from "@contract";
 import { ApiError } from "@/application/trace-api";
 import type {
+  AlertRuleBody,
   ApiKeyDto,
+  BudgetBody,
   CurrentUser,
   ExperimentDto,
   ExternalMappingDto,
@@ -53,6 +55,39 @@ export class HttpIdentityApi implements IdentityApi {
 
   updateOrganizationTheme(organizationId: string, theme: OrganizationThemeDto, signal?: AbortSignal): Promise<OrganizationDto> {
     return this.patch(`/organizations/${encodeURIComponent(organizationId)}/theme`, theme, signal);
+  }
+
+  getAlerts(experimentId: string, signal?: AbortSignal): Promise<AlertsOverviewDto> {
+    return this.get(`/experiments/${encodeURIComponent(experimentId)}/alerts`, signal);
+  }
+
+  createAlertRule(experimentId: string, rule: AlertRuleBody, signal?: AbortSignal): Promise<AlertRuleDto> {
+    return this.post(`/experiments/${encodeURIComponent(experimentId)}/alerts`, rule, signal);
+  }
+
+  updateAlertRule(experimentId: string, ruleId: string, rule: AlertRuleBody, signal?: AbortSignal): Promise<AlertRuleDto> {
+    return this.put(`/experiments/${encodeURIComponent(experimentId)}/alerts/${encodeURIComponent(ruleId)}`, rule, signal);
+  }
+
+  async deleteAlertRule(experimentId: string, ruleId: string, signal?: AbortSignal): Promise<void> {
+    await this.remove(`/experiments/${encodeURIComponent(experimentId)}/alerts/${encodeURIComponent(ruleId)}`, signal);
+  }
+
+  listAlertEvents(experimentId: string, cursor?: string, signal?: AbortSignal): Promise<AlertEventsPageDto> {
+    const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+    return this.get(`/experiments/${encodeURIComponent(experimentId)}/alerts/events${query}`, signal);
+  }
+
+  setBudget(experimentId: string, budget: BudgetBody, signal?: AbortSignal): Promise<BudgetViewDto> {
+    return this.put(`/experiments/${encodeURIComponent(experimentId)}/budget`, budget, signal);
+  }
+
+  async deleteBudget(experimentId: string, signal?: AbortSignal): Promise<void> {
+    await this.remove(`/experiments/${encodeURIComponent(experimentId)}/budget`, signal);
+  }
+
+  listOpenAlerts(signal?: AbortSignal): Promise<OpenAlertsDto> {
+    return this.get("/alerts/open", signal);
   }
 
   getRetention(organizationId: string, signal?: AbortSignal): Promise<RetentionPolicyDto> {

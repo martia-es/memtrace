@@ -44,6 +44,7 @@ export const router = createRouter({
         { path: "overview/compare", name: "overview-compare", component: metricsPage, meta: { title: "Compare", section: "compare", view: "compare" } },
         { path: "overview/charts", name: "overview-charts", component: metricsPage, meta: { title: "Custom charts", section: "charts", view: "charts" } },
         { path: "overview/catalog", name: "overview-catalog", component: () => import("./pages/ChartCatalogPage.vue"), meta: { title: "Data catalog", section: "catalog" } },
+        { path: "alerts", name: "alerts", component: () => import("./pages/AlertsPage.vue"), meta: { title: "Alerts", section: "alerts", timeRange: false } },
         { path: "overview/reports", name: "overview-reports", component: metricsPage, meta: { title: "Reports", section: "reports", view: "reports" } },
         { path: "overview/reports/:reportId", name: "overview-report", component: metricsPage, meta: { title: "Report", section: "reports", view: "report" } },
         // antes "Metrics": se mantiene el path para enlaces guardados (ADR-048)

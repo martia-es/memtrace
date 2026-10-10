@@ -28,6 +28,11 @@ const ACTIONS: { value: string; label: string }[] = [
   { value: "member.add", label: "Added a member" },
   { value: "apikey.create", label: "Created an API key" },
   { value: "apikey.revoke", label: "Revoked an API key" },
+  { value: "alert.create", label: "Created an alert" },
+  { value: "alert.update", label: "Changed an alert" },
+  { value: "alert.delete", label: "Deleted an alert" },
+  { value: "budget.update", label: "Set the cost budget" },
+  { value: "budget.delete", label: "Removed the cost budget" },
 ];
 const LABEL = Object.fromEntries(ACTIONS.filter((a) => a.value).map((a) => [a.value, a.label]));
 
@@ -75,6 +80,12 @@ function detail(e: AuditEntryDto): string {
       return `${m.role}${m.status === "pending" ? " (invited)" : ""}`;
     case "apikey.create":
       return String(m.keyPrefix ?? "");
+    case "alert.create":
+    case "alert.update":
+    case "alert.delete":
+      return String(m.name ?? "");
+    case "budget.update":
+      return `$${m.monthlyUsd}/month, warn at ${m.warnPercent} %`;
     default:
       return e.targetId ? `${e.targetType ?? ""} ${e.targetId}`.trim() : "";
   }

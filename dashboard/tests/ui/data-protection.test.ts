@@ -183,6 +183,26 @@ describe("Data protection tab (organization)", () => {
       expect(text).toContain("Support bot");
     });
 
+    it("understands the alert and budget actions", async () => {
+      const identity = withRetention(new Fake([org], [exp()]));
+      identity.auditPage = {
+        items: [
+          entry("3", { action: "budget.update", targetType: "budget", metadata: { monthlyUsd: 250, warnPercent: 80, recipients: 1 } }),
+          entry("2", { action: "alert.update", targetType: "alert", metadata: { name: "Too many errors", metric: "error_rate" } }),
+          entry("1", { action: "alert.delete", targetType: "alert", metadata: { name: "Old one" } }),
+        ],
+        nextCursor: null,
+      };
+      const { wrapper } = await setup(AdminOrganizationPage, "/admin/organizations/org-1?tab=data", identity);
+      const text = wrapper.text();
+      expect(text).toContain("Set the cost budget");
+      expect(text).toContain("$250/month, warn at 80 %");
+      expect(text).toContain("Changed an alert");
+      expect(text).toContain("Too many errors");
+      expect(text).toContain("Deleted an alert");
+      expect(text).toContain("Old one");
+    });
+
     it("filters by action and asks the API for the older page with the cursor", async () => {
       const identity = withRetention(new Fake([org], [exp()]));
       identity.auditPage = { items: [entry("2"), entry("1")], nextCursor: "1" };

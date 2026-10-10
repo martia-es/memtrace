@@ -28,7 +28,8 @@ export type Permission =
   | "catalog:manage"
   | "retention:manage"
   | "audit:read"
-  | "data:export";
+  | "data:export"
+  | "alert:manage";
 
 export function hasPermission(target: Pick<ExperimentDto | OrganizationDto, "permissions"> | null | undefined, permission: Permission): boolean {
   return !!target && target.permissions.includes(permission);

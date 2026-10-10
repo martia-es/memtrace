@@ -267,6 +267,18 @@ Un usuario puede agrupar varias gráficas custom ya guardadas en un **informe** 
 
 ---
 
+## Fase 1.95: Monitorización activa — alertas y presupuestos de coste
+
+**Objetivo**: que MemTrace avise cuando algo va mal en lugar de esperar a que alguien abra el dashboard. Decisión: [ADR-086](adrs/observability/adr-086-alerts-and-cost-budgets.md). Guía de usuario: `docs-site/platform/alerts.md`.
+
+- [x] **Alertas por umbral** sobre tasa de error, latencia p95, coste, satisfacción del usuario final y gráficas personalizadas guardadas (un solo número). CronJob `alerts-evaluate` cada 5 minutos; máquina de estados `ok / firing / no_data` con mínimo de observaciones (poca muestra no dispara) y sin que la falta de datos resuelva una alerta; avisos al disparar, al resolverse y recordatorios opcionales
+- [x] **Avisos por email a una lista de direcciones por regla** (hasta 10, sin cuenta de MemTrace): un correo por destinatario, escapado, sin contenido de trazas, con un tope de 100 correos diarios por organización; el resto se registra y se ve en la app
+- [x] **Presupuesto mensual de coste por agente** con avisos de umbral, de superado y de previsión (una vez por mes y nivel), calculado sobre un coste diario guardado para que no dependa de la retención de trazas
+- [x] **Pantalla Overview › Alerts** (reglas, presupuesto, historial) y **campana** con las alertas disparadas en los agentes que se pueden leer. Permiso `alert:manage` (`technical`); cada cambio queda en la auditoría
+- [ ] **Pendiente**: webhooks (Slack, Teams, PagerDuty; necesitan protección SSRF como las sondas de salud), alertas sobre una caída de satisfacción por versión de despliegue, y coste por usuario o conversación
+
+---
+
 ## Fase 2: Mem - Aprendizaje Iterativo del Agente
 
 **Objetivo**: Extraer conocimiento de las trazas para mejorar el comportamiento del agente y evitar errores recurrentes.
