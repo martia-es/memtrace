@@ -14,6 +14,12 @@ DEFAULT_INDEX = Path(__file__).resolve().parents[1] / ".index" / "faqs.sqlite"
 # Carga el .env de la raíz del repo (si existe) sin sobrescribir variables ya definidas.
 load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
 
+# `MEMTRACE_API_URL`/`MEMTRACE_API_KEY` son de un solo experimento (el del asistente del tiempo en el .env). El prompt
+# `faq-system` vive en el experimento de este asistente: sus variables propias tienen prioridad para que el SDK lo encuentre.
+for _own, _sdk in (("RAG_ASSISTANT_MEMTRACE_API_URL", "MEMTRACE_API_URL"), ("RAG_ASSISTANT_MEMTRACE_API_KEY", "MEMTRACE_API_KEY")):
+    if os.getenv(_own):
+        os.environ[_sdk] = os.environ[_own]
+
 
 @dataclass(frozen=True)
 class Settings:

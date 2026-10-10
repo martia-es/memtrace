@@ -9,7 +9,7 @@ DOCS_IMAGE ?= docker.io/memtrace/docs:dev
 PRICING_IMAGE ?= localhost/memtrace/model-pricing:dev
 
 .DEFAULT_GOAL := help
-.PHONY: help check up images dashboard api status forward logs query migrate backfill-experiment-id netpol-check migrate-postgres pricing-sync down reset db-reset dev-data docs weather weather-bg weather-stop weather-restart rag
+.PHONY: help check up images dashboard api status forward logs query migrate backfill-experiment-id netpol-check migrate-postgres pricing-sync down reset db-reset dev-data docs weather weather-bg weather-stop weather-restart rag rag-bg rag-stop rag-restart
 
 help: ## Muestra esta ayuda
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-10s %s\n", $$1, $$2}'
@@ -46,6 +46,7 @@ up: check ## Levanta todo en 1 solo comando (clúster, despliegue, migraciones y
 	@nohup kubectl port-forward svc/docs 8081:8080 -n $(NS) >/dev/null 2>&1 &
 	@nohup kubectl port-forward svc/api 3001:3001 -n $(NS) >/dev/null 2>&1 &
 	@$(MAKE) --no-print-directory weather-bg
+	@$(MAKE) --no-print-directory rag-bg
 	@echo ""
 	@echo "✨ ¡Todo listo en 1 solo comando!"
 	@echo "  • Dashboard:         http://localhost:8080"
@@ -53,6 +54,7 @@ up: check ## Levanta todo en 1 solo comando (clúster, despliegue, migraciones y
 	@echo "  • API (SDK/ejemplos): http://localhost:3001"
 	@echo "  • UI de ClickHouse:  http://localhost:8123/play (Usuario: default | Pass: memtrace-dev-only)"
 	@echo "  • Asistente del tiempo: http://localhost:8000 (logs: weather_assistant/uvicorn.log)"
+	@echo "  • Asistente RAG de FAQs: http://localhost:8001 (logs: rag_assistant/uvicorn.log)"
 	@echo "  • OTel Collector:    solo accesible desde la API (ingesta: http://localhost:3001/api/v1/ingest)"
 	@echo "  • Postgres:          localhost:5432 (Usuario: memtrace | DB: memtrace_identity | Pass: memtrace-dev-only)"
 	@echo ""
@@ -195,6 +197,24 @@ weather-restart: weather-bg ## Reinicia el asistente del tiempo (relee el .env: 
 rag: ## Arranca el asistente RAG de FAQs (API + UI en http://localhost:8001). Ctrl+C para parar
 	@command -v uv >/dev/null 2>&1 || { echo "Falta 'uv': instálalo antes de continuar"; exit 1; }
 	cd rag_assistant && uv sync --all-groups && uv run uvicorn app.main:app --reload --port 8001
+
+rag-stop: ## Para el asistente RAG lanzado en segundo plano
+	@pkill -f "uvicorn app.main:app --reload --port 8001" 2>/dev/null || true
+
+# Lee el .env de la raíz solo al arrancar. Para que cada traza lleve su prompt hacen falta, de ese experimento (el del RAG):
+# RAG_ASSISTANT_MEMTRACE_HEADERS, RAG_ASSISTANT_MEMTRACE_API_URL (con su id) y RAG_ASSISTANT_MEMTRACE_API_KEY
+rag-bg: rag-stop ## Arranca el asistente RAG en segundo plano enlazado a MemTrace: trazas + prompt del registro (lo usa make up)
+	@command -v uv >/dev/null 2>&1 || { echo "Falta 'uv': omito el asistente RAG"; exit 0; }
+	@for var in RAG_ASSISTANT_MEMTRACE_HEADERS RAG_ASSISTANT_MEMTRACE_API_URL RAG_ASSISTANT_MEMTRACE_API_KEY; do \
+		grep -qs "^$$var=." .env || echo "Aviso: falta $$var en .env: el RAG no enlazará $$( [ $$var = RAG_ASSISTANT_MEMTRACE_HEADERS ] && echo las trazas || echo el prompt )"; \
+	done
+	@cd rag_assistant && uv sync --all-groups >/dev/null && \
+		(MEMTRACE_ENVIRONMENT=$${MEMTRACE_ENVIRONMENT:-dev} nohup uv run uvicorn app.main:app --reload --port 8001 >uvicorn.log 2>&1 &)
+
+rag-restart: rag-bg ## Reinicia el asistente RAG (relee el .env) y muestra qué prompt usa
+	@sleep 6
+	@echo "Asistente RAG reiniciado: http://localhost:8001 (logs: rag_assistant/uvicorn.log)"
+	@curl -s -m 5 http://localhost:8001/api/prompt && echo || echo "Aún arrancando: revisa rag_assistant/uvicorn.log"
 
 diagrams:
 	cd docs/architecture && env -u GEMINI_API_KEY npx likec4@1.59.2 serve
