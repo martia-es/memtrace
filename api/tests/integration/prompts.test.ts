@@ -116,12 +116,13 @@ describe.skipIf(!url)("prompt registry (postgres)", () => {
     expect((await service.get(prompt.id)).experimentIds).toEqual([agentA]);
   });
 
-  it("role permissions: technical writes and promotes, business only reads, governance only reads", async () => {
+  it("role permissions: technical writes, promotes and approves, business reads and approves, governance only reads", async () => {
     const { rows } = await pool.query<{ role_name: string; permission: string }>(`SELECT role_name, permission FROM role_permissions WHERE permission LIKE 'prompt:%' ORDER BY 1, 2`);
     const by = (role: string) => rows.filter((r) => r.role_name === role).map((r) => r.permission);
-    expect(by("technical")).toEqual(["prompt:promote", "prompt:read", "prompt:write"]);
+    // `prompt:approve` llegó con las aprobaciones (migración 038, ADR-076): lo tienen los dos perfiles de trabajo, no org_admin
+    expect(by("technical")).toEqual(["prompt:approve", "prompt:promote", "prompt:read", "prompt:write"]);
     expect(by("org_admin")).toEqual(["prompt:promote", "prompt:read", "prompt:write"]);
-    expect(by("business")).toEqual(["prompt:read"]);
+    expect(by("business")).toEqual(["prompt:approve", "prompt:read"]);
     expect(by("governance")).toEqual(["prompt:read"]);
   });
 

@@ -1,0 +1,67 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "agent-a"
+            }
+          },
+          {
+            "key": "deployment.environment",
+            "value": {
+              "stringValue": "dev"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "fixture"
+          },
+          "spans": [
+            {
+              "traceId": "6ke/Fm/+T7N9AlhXlAIGXA==",
+              "spanId": "FWLX0KVuW6U=",
+              "name": "step-0",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1791620957161829615",
+              "endTimeUnixNano": "1791620957161855988",
+              "attributes": [
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "10"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 256
+            },
+            {
+              "traceId": "G0y9PkAJa65ktKOwLM+q9g==",
+              "spanId": "rnIAuNFTH1M=",
+              "name": "step-1",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1791620957161917634",
+              "endTimeUnixNano": "1791620957161931286",
+              "attributes": [
+                {
+                  "key": "gen_ai.usage.input_tokens",
+                  "value": {
+                    "intValue": "10"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 256
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

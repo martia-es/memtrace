@@ -264,5 +264,5 @@ For your identity provider, under `/api/scim/v2`, authenticated with `Authorizat
 
 | Endpoint | Description |
 |---|---|
-| `POST /ingest/v1/traces` | OTLP/HTTP gateway; requires an agent API key (see [Authentication](/library/authentication)) |
+| `POST /ingest/v1/traces` | OTLP/HTTP gateway (protobuf or JSON, plain or gzip); requires an agent API key (see [Authentication](/library/authentication)). Every resource must carry the `service.name` of the key's experiment, otherwise `403`; `400` for a body that is not OTLP, `413` above 16 MiB, `415` for an encoding other than gzip |
 | `GET /health`, `GET /health/ready` | Liveness / readiness |

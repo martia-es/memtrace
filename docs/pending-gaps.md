@@ -20,7 +20,7 @@ Lo que aún no cubre MemTrace, ordenado por prioridad sugerida. Complementa a [r
 
 ## Prioridad baja / transversal
 
-- ~~**Seguridad y compliance**~~ — hecho en parte ([ADR-080](adrs/storage/adr-080-data-protection-retention-masking-audit-and-export.md)): enmascarado de PII con `****` en el SDK y en el Collector (los nombres solo los cubre el SDK), registro de auditoría y exportación. Pendiente: guardrails sobre trazas y que el gateway de ingesta compruebe que el `service.name` pertenece a la API key.
+- ~~**Seguridad y compliance**~~ — hecho en parte ([ADR-080](adrs/storage/adr-080-data-protection-retention-masking-audit-and-export.md)): enmascarado de PII con `****` en el SDK y en el Collector (los nombres solo los cubre el SDK), registro de auditoría y exportación. El gateway de ingesta ya comprueba que el `service.name` pertenezca a la API key ([ADR-081](adrs/identity/adr-081-ingest-gateway-validates-service-name.md)). Pendiente: guardrails sobre trazas.
 - ~~**Retención configurable por organización** para trazas~~ — hecho (ADR-080): por organización y por experimento, de 1 a 365 días. Pendiente: que el dashboard consulte más de 30 días.
 - **Mapeo de IdP externo** (SCIM/grupos): planificado, no cerrado ([ADR-052](adrs/identity/adr-052-permission-based-roles-and-external-identity-mapping.md)).
 - **Operación en producción**: alta disponibilidad, backups de ClickHouse/Postgres, despliegue fuera de kind (Helm/cloud) y pruebas de carga automatizadas en CI (existe `load-testing/`).

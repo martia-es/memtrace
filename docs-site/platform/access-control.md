@@ -58,6 +58,6 @@ Agents authenticate with an API key tied to one experiment, not with a user acco
 - Keys look like `mtk_Ab3xY9...`. The plaintext is shown **once**; only its hash is stored.
 - A key works for OTLP ingestion and for the evaluation endpoints of its own experiment. It does not reach any other experiment.
 - An invalid or revoked key is rejected with `401`. Revoke a key with `DELETE /api/v1/experiments/{experimentId}/api-keys/{keyId}`.
-- The ingest gateway checks that the key is valid. It does not check that the `service.name` of the traces matches the key's experiment.
+- The ingest gateway checks that the key is valid **and** that every trace carries the `service.name` of the key's experiment. A key cannot write into another experiment; a request with another name, or with none, is refused with `403` and the message says which name to use.
 
 How the SDK sends the key is in [Authentication](/library/authentication).

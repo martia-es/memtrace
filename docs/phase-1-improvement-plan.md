@@ -17,7 +17,7 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 | F5 | [ ] | **Gate de regresión en PR** | Extender el gate de despliegue (ADR-064) para que un PR no pueda fusionarse si bajan las métricas de la evaluación offline | M | M | Fase 2c de ADR-064 | governance |
 | F6 | [ ] | **SDK por framework + TypeScript** | Paquetes para LangGraph y OpenAI Agents SDK; SDK TypeScript | M | L | — | sdk |
 | F7 | [x] | **Auditoría y exportación** | Hecho (ADR-080): registro de aperturas de contenido, exportaciones y cambios de acceso/configuración, y exportación JSON Lines | M | M | — | identity |
-| F9 | [ ] | **Gateway de ingesta que valide `service.name`** | Hoy una API key válida puede escribir trazas con el `service.name` de otro experimento; la retención y la auditoría por experimento dependen de ese nombre. Requiere parsear el OTLP en el gateway | A | M | — | identity |
+| F9 | [x] | **Gateway de ingesta que valide `service.name`** | Hecho ([ADR-081](adrs/identity/adr-081-ingest-gateway-validates-service-name.md)): cada recurso debe llevar el `service.name` del experimento de la key o la petición se rechaza con 403. Leer la cabecera de una petición de 21 MiB cuesta 0,012 ms | A | M | — | identity |
 | F8 | [ ] | **Operación en producción** | Backups de ClickHouse/Postgres, despliegue fuera de kind (Helm), pruebas de carga en CI | M | L | — | infra |
 
 ## 2. Pendientes ya anotados en el roadmap
@@ -71,3 +71,4 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 |---|---|
 | 2026-10-10 | Creación del documento a partir de la revisión de la Fase 1 |
 | 2026-10-10 | F4 y F7 hechos (ADR-080). Nuevos pendientes: F9 (validar `service.name` en el gateway) y M8 (consultar más de 30 días) |
+| 2026-10-10 | F9 hecho (ADR-081) |

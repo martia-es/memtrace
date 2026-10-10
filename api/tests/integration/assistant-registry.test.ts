@@ -188,6 +188,8 @@ describe.skipIf(!url)("assistant registry (postgres)", () => {
 
   it("returns who a user grant is for and finds people of the organization by name or email", async () => {
     const pro = (await repo.getCard(experimentId))!.deployments.find((d) => d.environment.key === "pro")!;
+    // no depende de lo que dejó el test anterior: el mismo usuario no puede tener dos accesos al mismo entorno
+    for (const left of (await repo.listGrants(experimentId, pro.id))!) await repo.removeGrant(experimentId, pro.id, left.id);
     const grant = (await repo.addGrant(experimentId, pro.id, { subjectType: "user", userId }, userId))!;
     expect(grant.user).toEqual({ userId, name: "Owner", email: `owner-${stamp}@example.com`, image: null });
     await repo.removeGrant(experimentId, pro.id, grant.id);
