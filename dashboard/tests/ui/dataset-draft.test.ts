@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blankRow, buildCommit, nextVersionLabel, parseClipboardGrid, pasteGrid, rowProblem, rowState, rowsFromItems, summarize } from "@/ui/dataset-draft";
+import { blankRow, buildCommit, detectCsvDelimiter, itemsFromCsv, nextVersionLabel, parseClipboardGrid, pasteGrid, rowProblem, rowState, rowsFromItems, summarize } from "@/ui/dataset-draft";
 import { datasetItemDto } from "../fakes";
 
 const base = () => rowsFromItems([datasetItemDto({ id: "a", input: "2+2?", expectedOutput: "4" }), datasetItemDto({ id: "b", input: { q: 1 }, expectedOutput: null })]);
@@ -61,3 +61,27 @@ describe("dataset draft (ADR-041)", () => {
     expect(rowState(out[1]!)).toBe("modified");
   });
 });
+
+describe("csv import", () => {
+  it("reads input / expected_output by header name, in any column order", () => {
+    const { add, skipped } = itemsFromCsv("expected_output,input\n4,2+2?\n,solo input\n");
+    expect(add).toEqual([
+      { input: "2+2?", expectedOutput: "4", metadata: null },
+      { input: "solo input", expectedOutput: null, metadata: null },
+    ]);
+    expect(skipped).toBe(0);
+  });
+
+  it("falls back to column order without a header and understands ; from Excel", () => {
+    expect(detectCsvDelimiter("a;b")).toBe(";");
+    const { add } = itemsFromCsv("¿Tiempo en Almería?;Soleado, 24 grados\n");
+    expect(add).toEqual([{ input: "¿Tiempo en Almería?", expectedOutput: "Soleado, 24 grados", metadata: null }]);
+  });
+
+  it("keeps quoted commas and newlines, and counts rows without input as skipped", () => {
+    const { add, skipped } = itemsFromCsv('input,expected\n"a, b","line1\nline2"\n,orphan\n');
+    expect(add).toEqual([{ input: "a, b", expectedOutput: "line1\nline2", metadata: null }]);
+    expect(skipped).toBe(1);
+  });
+});
+

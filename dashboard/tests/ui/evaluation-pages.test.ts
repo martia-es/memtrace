@@ -49,23 +49,51 @@ async function clickTab(wrapper: ReturnType<typeof mount>, label: string) {
 }
 
 describe("DatasetsPage", () => {
-  it("renders a table row per dataset and opens it on click", async () => {
+  const useList = () => localStorage.setItem("mt.datasets.view", "list");
+  const useFiles = () => localStorage.removeItem("mt.datasets.view");
+
+  it("shows one file card per dataset (newest edit first) and opens it on click", async () => {
+    useFiles();
     const api = new FakeTraceApi();
-    api.datasets = { items: [datasetDto()] };
+    api.datasets = {
+      items: [
+        datasetDto({ id: "ds-old", name: "old-set", updatedAt: "2026-09-01T10:00:00Z" }),
+        datasetDto({ id: "ds-1", name: "toy-agent-smoke-test", itemCount: 1, runCount: 2, updatedAt: "2026-10-01T10:00:00Z" }),
+      ],
+    };
 
     const { wrapper, router } = await setup(DatasetsPage, api, "/datasets");
-    const headers = wrapper.findAll("th").map((th) => th.text());
-    expect(headers).toEqual(["Dataset", "Version", "Runs", "Created"]);
-    expect(wrapper.find("tbody tr").text()).toContain("toy-agent-smoke-test");
-    expect(wrapper.find("tbody tr").text()).toContain("v1");
+    const names = wrapper.findAll(".file-name").map((n) => n.text());
+    expect(names).toEqual(["toy-agent-smoke-test", "old-set"]);
+    const card = wrapper.get('[data-testid="dataset-file-toy-agent-smoke-test"]');
+    expect(card.text()).toContain("v1.0");
+    expect(card.text()).toContain("1 item · 2 runs");
 
-    await wrapper.find("tbody tr").trigger("click");
+    await card.get(".file-open").trigger("click");
     await flushPromises();
     expect(router.currentRoute.value.name).toBe("dataset");
     expect(router.currentRoute.value.params.datasetId).toBe("ds-1");
   });
 
+  it("switches to the list view and remembers it", async () => {
+    useFiles();
+    const api = new FakeTraceApi();
+    api.datasets = { items: [datasetDto()] };
+    const { wrapper, router } = await setup(DatasetsPage, api, "/datasets");
+    expect(wrapper.find("table").exists()).toBe(false);
+
+    await wrapper.findAll(".mt-segmented button").find((b) => b.text() === "List")!.trigger("click");
+    await flushPromises();
+    expect(wrapper.findAll("th").map((th) => th.text())).toEqual(["Dataset", "Version", "Items", "Runs", "Edited", ""]);
+    expect(localStorage.getItem("mt.datasets.view")).toBe("list");
+
+    await wrapper.find("tbody tr").trigger("click");
+    await flushPromises();
+    expect(router.currentRoute.value.params.datasetId).toBe("ds-1");
+  });
+
   it("filters by name", async () => {
+    useList();
     const api = new FakeTraceApi();
     api.datasets = { items: [datasetDto({ id: "ds-1", name: "good-agent" }), datasetDto({ id: "ds-2", name: "bad-agent" })] };
     const { wrapper } = await setup(DatasetsPage, api, "/datasets");
@@ -75,9 +103,59 @@ describe("DatasetsPage", () => {
     await flushPromises();
     expect(wrapper.findAll("tbody tr")).toHaveLength(1);
     expect(wrapper.find("tbody tr").text()).toContain("good-agent");
+    useFiles();
+  });
+
+  it("asks before deleting a dataset", async () => {
+    useFiles();
+    const api = new FakeTraceApi();
+    api.datasets = { items: [datasetDto()] };
+    const { wrapper } = await setup(DatasetsPage, api, "/datasets");
+    await wrapper.get(".file-delete").trigger("click");
+    await flushPromises();
+    expect(api.deleteDatasetCalls).toEqual([]);
+    expect(document.body.textContent).toContain("Delete toy-agent-smoke-test?");
+
+    const confirm = [...document.body.querySelectorAll("button")].find((b) => b.textContent?.includes("Delete dataset"))!;
+    confirm.click();
+    await flushPromises();
+    expect(api.deleteDatasetCalls).toEqual(["ds-1"]);
+    wrapper.unmount();
+  });
+
+  it("creates a dataset from a .csv and opens it", async () => {
+    useFiles();
+    const api = new FakeTraceApi();
+    api.datasets = { items: [datasetDto()] };
+    api.createdDataset = datasetDto({ id: "ds-new", name: "weather" });
+    const { wrapper, router } = await setup(DatasetsPage, api, "/datasets");
+
+    const file = new File(["input,expected_output\n¿Tiempo en Almería?,Soleado\n,sin input\n"], "weather.csv", { type: "text/csv" });
+    file.text = async () => "input,expected_output\n¿Tiempo en Almería?,Soleado\n,sin input\n";
+    const input = wrapper.get('input[type="file"]');
+    Object.defineProperty(input.element, "files", { value: [file], configurable: true });
+    await input.trigger("change");
+    await flushPromises();
+
+    expect(api.createDatasetCalls).toEqual(["weather"]);
+    expect(api.commitDatasetChangesCalls).toEqual([{ datasetId: "ds-new", changes: { add: [{ input: "¿Tiempo en Almería?", expectedOutput: "Soleado", metadata: null }] } }]);
+    expect(router.currentRoute.value.params.datasetId).toBe("ds-new");
+  });
+
+  it("rejects a file that is not a .csv without creating anything", async () => {
+    useFiles();
+    const api = new FakeTraceApi();
+    api.datasets = { items: [datasetDto()] };
+    const { wrapper } = await setup(DatasetsPage, api, "/datasets");
+    const input = wrapper.get('input[type="file"]');
+    Object.defineProperty(input.element, "files", { value: [new File(["x"], "sheet.xlsx")], configurable: true });
+    await input.trigger("change");
+    await flushPromises();
+    expect(api.createDatasetCalls).toEqual([]);
   });
 
   it("shows an empty state when there are no datasets", async () => {
+    useFiles();
     const api = new FakeTraceApi();
     api.datasets = { items: [] };
     const { wrapper } = await setup(DatasetsPage, api, "/datasets");
@@ -378,6 +456,23 @@ describe("DatasetDetailPage — spreadsheet editing (ADR-041)", () => {
       update: [{ id: "i1", expectedOutput: "four" }],
       remove: [],
     });
+  });
+
+  it("works like a sheet: column letters, the selected cell in the name box and its full text in the formula bar", async () => {
+    const { wrapper } = await openEditor();
+    expect(wrapper.findAll("th .letter").map((l) => l.text())).toEqual(["A", "B", "C"]);
+    expect(wrapper.get('[data-testid="formula-bar"]').text()).toContain("–");
+
+    await wrapper.get('textarea[aria-label="Expected output of row 1"]').trigger("focus");
+    const bar = wrapper.get('[data-testid="formula-bar"]');
+    expect(bar.text()).toContain("B1");
+    expect(bar.text()).toContain("4");
+    expect(wrapper.get('[data-testid="status-bar"]').text()).toContain("1 item");
+    expect(wrapper.get('[data-testid="status-bar"]').text()).toContain("No changes since v2.1");
+
+    await wrapper.get('textarea[aria-label="Expected output of row 1"]').setValue("four");
+    expect(wrapper.get('[data-testid="formula-bar"]').text()).toContain("four");
+    expect(wrapper.get('[data-testid="status-bar"]').text()).toContain("1 change since v2.1");
   });
 
   it("deleting only marks the row until published, and Discard restores it", async () => {

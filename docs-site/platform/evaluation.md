@@ -4,7 +4,11 @@ The platform stores the datasets you evaluate against, the runs your experiments
 
 ## Datasets
 
-Create a dataset and edit its items in **Datasets → New dataset → Items**. The Items tab works like a spreadsheet: Enter moves down, Shift+Enter adds a line break, and you can paste rows copied from Excel or Sheets. The blank last row adds an item.
+**Datasets** shows each dataset as a file card: name, version, number of items and runs, and when it was last edited, newest first. Switch to **List** for a table; the dashboard remembers your choice. Hover a card to delete it.
+
+To create a dataset, use **+ New dataset**, or drop a `.csv` file on the page (or click the dashed card to choose one). With a header row, the columns named `input` and `expected_output` are used; without one, the first column is the input and the second the expected output. Files saved from Excel with `;` as separator work too. Rows without an input are skipped, and the dataset is named after the file. Excel files (`.xlsx`) are not read directly: use **Save as → CSV** first.
+
+Open a dataset to edit its items in the **Items** tab. It works like a spreadsheet: columns have letters (A Input, B Expected output, C Last edit) and rows have numbers, the selected cell is shown in the name box (for example `B3`) and its full text in the formula bar above the grid, and the status bar below counts items and changes since the current version. Enter moves down, Shift+Enter adds a line break, and you can paste rows copied from Excel or Sheets. The blank last row adds an item.
 
 Nothing is saved until you press **Publish**. Everything changed in that session becomes **one** new version, with an automatic summary such as "Added 3 · Edited 2 · Removed 1". There is no manual "create version" step.
 

@@ -423,6 +423,9 @@ export interface DatasetDto {
   versionCount: number;
   latestVersionMajor: number;
   latestVersionMinor: number;
+  /** Items de la última versión y cuándo se publicó (la tarjeta del dataset en la lista). */
+  itemCount: number;
+  updatedAt: string;
   lastRun: DatasetLastRunDto | null;
 }
 

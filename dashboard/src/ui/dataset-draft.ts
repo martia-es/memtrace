@@ -143,7 +143,7 @@ export function buildCommit(rows: DraftRow[]): CommitDatasetChangesBody {
 }
 
 /** Interpreta texto pegado desde Excel/Sheets/CSV-TSV: filas por salto de línea, columnas por tabulador (respeta celdas entrecomilladas con saltos). */
-export function parseClipboardGrid(text: string): string[][] {
+export function parseClipboardGrid(text: string, delimiter = "\t"): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = "";
@@ -158,7 +158,7 @@ export function parseClipboardGrid(text: string): string[][] {
       } else if (ch === '"') quoted = false;
       else cell += ch;
     } else if (ch === '"' && cell === "") quoted = true;
-    else if (ch === "\t") {
+    else if (ch === delimiter) {
       row.push(cell);
       cell = "";
     } else if (ch === "\n") {
@@ -196,4 +196,38 @@ export function pasteGrid(rows: DraftRow[], rowIndex: number, col: 0 | 1, grid: 
   const last = out[out.length - 1];
   if (!last || rowState(last) !== "empty") out.push(blankRow());
   return out;
+}
+
+/** Separador de un .csv: coma o punto y coma (Excel en español guarda con `;`), según cuál aparece más en la primera línea (con empate, `;`). */
+export function detectCsvDelimiter(text: string): string {
+  const header = text.split(/\r?\n/, 1)[0] ?? "";
+  const count = (d: string) => header.split(d).length - 1;
+  return count(";") > 0 && count(";") >= count(",") ? ";" : count("\t") > Math.max(count(","), count(";")) ? "\t" : ",";
+}
+
+const EXPECTED_HEADERS = new Set(["expected_output", "expected output", "expectedoutput", "expected", "output"]);
+
+/**
+ * Un .csv/.tsv → items para crear un dataset: con cabecera (`input`, `expected_output`) se usan esas
+ * columnas; sin cabecera, la primera columna es el input y la segunda el esperado. Las filas sin input se saltan.
+ */
+export function itemsFromCsv(text: string): { add: NonNullable<CommitDatasetChangesBody["add"]>; skipped: number } {
+  const grid = parseClipboardGrid(text.replace(/^\uFEFF/, "").replace(/\r?\n$/, ""), detectCsvDelimiter(text));
+  const head = (grid[0] ?? []).map((c) => c.trim().toLowerCase());
+  const inputAt = head.indexOf("input");
+  const hasHeader = inputAt >= 0;
+  const input = hasHeader ? inputAt : 0;
+  const expectedAt = hasHeader ? head.findIndex((c) => EXPECTED_HEADERS.has(c)) : 1;
+  const add: NonNullable<CommitDatasetChangesBody["add"]> = [];
+  let skipped = 0;
+  for (const cells of grid.slice(hasHeader ? 1 : 0)) {
+    const inputText = cells[input] ?? "";
+    if (!inputText.trim()) {
+      if (cells.some((c) => c.trim())) skipped++;
+      continue;
+    }
+    const expected = expectedAt >= 0 ? (cells[expectedAt] ?? "") : "";
+    add.push({ input: parseCell(inputText), expectedOutput: expected.trim() ? parseCell(expected) : null, metadata: null });
+  }
+  return { add, skipped };
 }

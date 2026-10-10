@@ -416,6 +416,7 @@ export function toDatasetDto(
   latestVersionMinor: number,
   lastRun: DatasetRun | null,
   lastRunAggregates: ScoreAggregateDto[] = [],
+  latest: { itemCount: number; createdAt: string } | null = null,
 ): DatasetDto {
   return {
     id: dataset.id,
@@ -425,6 +426,8 @@ export function toDatasetDto(
     versionCount,
     latestVersionMajor,
     latestVersionMinor,
+    itemCount: latest?.itemCount ?? 0,
+    updatedAt: latest?.createdAt ?? dataset.createdAt,
     lastRun: lastRun ? { id: lastRun.id, name: lastRun.name, createdAt: lastRun.createdAt, itemCount: lastRun.itemCount, aggregates: lastRunAggregates } : null,
   };
 }
@@ -437,10 +440,11 @@ export interface DatasetListEntry {
   latestVersionMinor: number;
   lastRun: DatasetRun | null;
   lastRunAggregates: ScoreAggregateDto[];
+  latest: { itemCount: number; createdAt: string } | null;
 }
 
 export function toDatasetsListResponse(entries: DatasetListEntry[]): DatasetsListResponse {
-  return { items: entries.map((e) => toDatasetDto(e.dataset, e.runCount, e.versionCount, e.latestVersionMajor, e.latestVersionMinor, e.lastRun, e.lastRunAggregates)) };
+  return { items: entries.map((e) => toDatasetDto(e.dataset, e.runCount, e.versionCount, e.latestVersionMajor, e.latestVersionMinor, e.lastRun, e.lastRunAggregates, e.latest)) };
 }
 
 function toDatasetRunItemResultDto(item: DatasetRunItemResult): DatasetRunItemResultDto {

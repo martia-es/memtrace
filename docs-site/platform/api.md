@@ -110,7 +110,7 @@ Also under `/api/v1/experiments/{experimentId}`. Unlike every other endpoint on 
 
 | Endpoint | Auth | Description |
 |---|---|---|
-| `GET, POST /datasets` | session | List / create datasets |
+| `GET, POST /datasets` | session | List / create datasets. Each dataset carries `itemCount` and `updatedAt` (items and publish time of its latest version) next to its run and version counts |
 | `GET /datasets/{datasetId}` | session | Dataset detail: name, run count, version count |
 | `DELETE /datasets/{datasetId}` | session | Delete a dataset and, in cascade, its versions/items/runs |
 | `GET, POST /datasets/{datasetId}/items` | session or API key | Items of the dataset's **latest version** (resolved server-side), or of an exact one with `?version=major.minor` (e.g. `?version=2.1`; 404 if it doesn't exist) — the only items endpoint the SDK calls. `POST` adds items and bumps the **major** version automatically (ADR-032) |
