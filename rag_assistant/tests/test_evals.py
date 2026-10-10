@@ -11,7 +11,6 @@ sys.path.insert(0, str(EVALS))
 
 from evaluators import check_response, mentions_number  # noqa: E402
 
-from app.capabilities.faq import is_relevant  # noqa: E402
 from app.knowledge.retriever import Bm25Retriever, load_entries  # noqa: E402
 
 ROWS = [json.loads(line) for line in (EVALS / "dataset.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
@@ -34,7 +33,7 @@ def test_ideal_answer_passes_its_own_checks(row):
 def test_relevant_docs_exist_and_the_retriever_finds_them(row):
     relevant = row["metadata"].get("relevant_docs", [])
     assert set(relevant) <= {entry.id for entry in ENTRIES}
-    found = [hit.entry.id for hit in RETRIEVER.search(row["input"], top_k=3) if is_relevant(hit)]
+    found = [hit.entry.id for hit in RETRIEVER.search(row["input"], top_k=3) if hit.relevant]
     if relevant:
         assert set(relevant) <= set(found), found
     else:

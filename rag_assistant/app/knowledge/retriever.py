@@ -2,8 +2,8 @@
 
 `Retriever` es el puerto: el agente solo sabe que le dan fragmentos ordenados por relevancia. La implementación
 por defecto, `Bm25Retriever`, es léxica y no necesita red ni claves, así que las pruebas y las evaluaciones son
-deterministas. Para pasar a embeddings (Gemini, un almacén vectorial...) se escribe otra clase con `search()` y
-se cambia en `main.py`; ni el agente ni la capability cambian.
+deterministas. `VectorRetriever` (embeddings + base vectorial local) es la alternativa semántica; se elige en
+`build_retriever`. Ni el agente ni la capability cambian.
 """
 
 import json
@@ -35,12 +35,18 @@ class FaqEntry:
     keywords: str = ""
 
 
+# BM25 no está normalizado: una palabra suelta que casualmente aparece en una FAQ («tiempo», «vuelo») puntúa lo bastante
+# para colarse. Por eso, además de una puntuación mínima, se exige que coincidan al menos dos términos de la pregunta
+# (o el único que tenga). A cambio, cada FAQ debe recoger las palabras con que la gente pregunta (su campo `keywords`).
+BM25_MIN_SCORE = 1.5
+BM25_MIN_MATCHED_TERMS = 2
+
+
 @dataclass(frozen=True)
 class Hit:
     entry: FaqEntry
     score: float
-    matched: int  # cuántos términos distintos de la pregunta aparecen en el fragmento
-    query_terms: int  # cuántos términos distintos tiene la pregunta (sin palabras vacías)
+    relevant: bool = True  # lo decide cada retriever con su propio umbral: es mejor decir «no lo sé» que citar algo que no viene al caso
 
 
 class Retriever(Protocol):
@@ -97,5 +103,30 @@ class Bm25Retriever:
                     norm = frequency + self._k1 * (1 - self._b + self._b * length / self._avg_length)
                     score += self._idf[term] * frequency * (self._k1 + 1) / norm
             if score > 0:
-                hits.append(Hit(entry, round(score, 4), sum(1 for t in distinct if t in doc), len(distinct)))
+                matched = sum(1 for t in distinct if t in doc)
+                relevant = score >= BM25_MIN_SCORE and matched >= min(BM25_MIN_MATCHED_TERMS, len(distinct))
+                hits.append(Hit(entry, round(score, 4), relevant))
         return sorted(hits, key=lambda hit: hit.score, reverse=True)[:top_k]
+
+
+def build_retriever(settings, entries: list[FaqEntry]) -> Retriever:
+    """BM25 si se pide o si no hay clave para embeddings; si no, búsqueda semántica con índice vectorial local."""
+    import logging
+    import os
+
+    logger = logging.getLogger(__name__)
+    if settings.retriever == "bm25":
+        return Bm25Retriever(entries)
+    if not (os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")):
+        logger.warning("Sin GOOGLE_API_KEY no hay embeddings: se usa BM25")
+        return Bm25Retriever(entries)
+    from app.knowledge.embeddings import GeminiEmbedder
+    from app.knowledge.vector_retriever import DEFAULT_MIN_SCORE, VectorRetriever
+    from app.knowledge.vector_store import SqliteVectorStore
+
+    return VectorRetriever(
+        entries,
+        GeminiEmbedder(model=settings.embedding_model),
+        SqliteVectorStore(settings.index_path),
+        min_score=settings.min_score if settings.min_score is not None else DEFAULT_MIN_SCORE,
+    )

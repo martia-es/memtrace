@@ -12,7 +12,7 @@ app/
   config.py               # Variables de entorno
   agents/                 # Construcción del agente y dependencias (AssistantDeps)
   guardrails/             # Guardarraíl de entrada (input.py): longitud, datos personales, inyección de prompt
-  knowledge/              # Retriever (puerto + BM25) y datos (data/iberia_faqs.jsonl)
+  knowledge/              # Retriever (puerto), embeddings + base vectorial local (SQLite), BM25 y datos (data/iberia_faqs.jsonl)
   capabilities/           # faq.py: la tool `search_faqs`; registry.py las lista
   api/                    # Rutas y schemas HTTP
   sessions.py             # Historial de conversación por sesión
@@ -23,7 +23,7 @@ tests/                    # Sin red ni LLM
 
 ## Ejecutar
 
-Requiere `GOOGLE_API_KEY` en el `.env` de la raíz del repo (o en el entorno).
+Requiere `GOOGLE_API_KEY` (LLM y embeddings) en el `.env` de la raíz del repo (o en el entorno).
 
 ```bash
 make rag                  # desde la raíz: http://localhost:8001
@@ -42,11 +42,25 @@ cd rag_assistant && uv sync --all-groups && uv run uvicorn app.main:app --reload
 | `GET` | `/api/prompt` | Qué prompt usa: el del registro de MemTrace (`faq-system`) o el texto por defecto |
 | `GET` | `/health` | Abierto: `200` cuando el agente está construido, `503` mientras arranca |
 
-Variables opcionales: `RAG_ASSISTANT_MODEL`, `RAG_ASSISTANT_COMPANY` (nombre que usa en el prompt) y `RAG_ASSISTANT_KNOWLEDGE` (ruta a otro `.jsonl` de FAQs).
+Variables opcionales: `RAG_ASSISTANT_MODEL`, `RAG_ASSISTANT_COMPANY` (nombre que usa en el prompt), `RAG_ASSISTANT_KNOWLEDGE` (ruta a otro `.jsonl` de FAQs) y las de recuperación de abajo.
 
 ## Cómo recupera
 
-`Retriever` es un puerto (`search(query, top_k)`); la implementación por defecto es BM25 léxico, sin red ni claves, así que las pruebas y evaluaciones son deterministas. `search_faqs` solo devuelve fragmentos con al menos dos términos de la pregunta en común (o el único que tenga): si no hay nada relevante, el agente dice que no lo sabe y remite a atención al cliente. Cada FAQ lleva un campo `keywords` con las palabras con que la gente pregunta (incluido inglés): BM25 no entiende sinónimos. Para pasar a embeddings, escribe otra clase con `search()` y cámbiala en `main.py`.
+`Retriever` es un puerto (`search(query, top_k)`) con dos implementaciones:
+
+- **Embeddings (por defecto)**: al arrancar, cada FAQ (título + texto + `keywords`) se convierte en un vector con `gemini-embedding-001` y se guarda en una base vectorial local, un fichero SQLite (`rag_assistant/.index/faqs.sqlite`, ignorado por git). La pregunta se embebe igual y se ordenan las FAQs por similitud coseno (producto matricial con numpy: exacto y sin servidor). El índice se sincroniza solo: únicamente se calculan los embeddings de las FAQs nuevas o modificadas y se retiran las borradas, así que el primer arranque llama a la API y los siguientes no. Entiende sinónimos y otros idiomas sin depender de `keywords`.
+- **BM25 (`RAG_ASSISTANT_RETRIEVER=bm25`)**: léxico, sin red ni claves; es lo que se usa automáticamente si no hay `GOOGLE_API_KEY`. No entiende sinónimos, por eso cada FAQ lleva un campo `keywords`.
+
+Cada retriever decide qué es relevante con su propio umbral (`Hit.relevant`): `search_faqs` solo devuelve fragmentos relevantes y, si no hay ninguno, el agente dice que no lo sabe y remite a atención al cliente. Con embeddings el umbral es la similitud coseno mínima (`RAG_ASSISTANT_MIN_SCORE`, por defecto `0.6`: con las FAQs de ejemplo lo relevante queda sobre 0.67 y lo ajeno bajo 0.55; reajústalo si cambias de datos o de modelo, con las métricas de la evaluación).
+
+| Variable | Por defecto | Descripción |
+|---|---|---|
+| `RAG_ASSISTANT_RETRIEVER` | `embeddings` | `embeddings` o `bm25` |
+| `RAG_ASSISTANT_EMBEDDING_MODEL` | `gemini-embedding-001` | Cambiarlo reindexa todo (la huella incluye el modelo) |
+| `RAG_ASSISTANT_INDEX` | `rag_assistant/.index/faqs.sqlite` | Ruta del índice vectorial |
+| `RAG_ASSISTANT_MIN_SCORE` | `0.6` | Similitud coseno mínima |
+
+Si la base de conocimiento crece más allá de unos miles de fragmentos, sustituye `SqliteVectorStore` por pgvector, Qdrant, etc. con los mismos métodos (`upsert`, `delete`, `search`).
 
 Para atender a otra empresa: un `.jsonl` nuevo (`id`, `title`, `category`, `text`, `keywords`) y `RAG_ASSISTANT_COMPANY`.
 

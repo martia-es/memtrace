@@ -1,23 +1,12 @@
 """Capability de FAQs: busca en la base de conocimiento y devuelve fragmentos con su fuente."""
 
+import asyncio
+
 from memtrace import record_retrieved_chunks, trace_step_context
 from pydantic_ai import RunContext
 
 from app.agents.deps import AssistantDeps
 from app.capabilities.base import Capability
-from app.knowledge.retriever import Hit
-
-# BM25 no está normalizado: una palabra suelta que casualmente aparece en una FAQ («tiempo», «vuelo») puntúa lo bastante
-# para colarse. Por eso, además de una puntuación mínima, se exige que coincidan al menos dos términos de la pregunta
-# (o el único que tenga): es mejor decir «no lo sé» que responder con un fragmento que no viene al caso. A cambio, cada FAQ
-# debe recoger las palabras con que la gente pregunta (su campo `keywords`); con embeddings esto dejaría de hacer falta.
-MIN_SCORE = 1.5
-MIN_MATCHED_TERMS = 2
-
-
-def is_relevant(hit: Hit) -> bool:
-    return hit.score >= MIN_SCORE and hit.matched >= min(MIN_MATCHED_TERMS, hit.query_terms)
-
 
 async def search_faqs(ctx: RunContext[AssistantDeps], query: str, top_k: int = 3) -> dict:
     """Busca en las preguntas frecuentes de la empresa y devuelve los fragmentos más relevantes.
@@ -29,7 +18,9 @@ async def search_faqs(ctx: RunContext[AssistantDeps], query: str, top_k: int = 3
     top_k = max(1, min(top_k, 5))
     # el span `retriever` es el que lee MemTrace para sus métricas de recuperación (ADR-044)
     with trace_step_context("retrieve_faqs", step_type="retriever"):
-        hits = [hit for hit in ctx.deps.retriever.search(query, top_k) if is_relevant(hit)]
+        # la búsqueda puede llamar a la API de embeddings: fuera del bucle de eventos
+        found = await asyncio.to_thread(ctx.deps.retriever.search, query, top_k)
+        hits = [hit for hit in found if hit.relevant]
         record_retrieved_chunks(
             [{"id": hit.entry.id, "source": hit.entry.title, "score": hit.score, "text": hit.entry.text} for hit in hits]
         )
