@@ -25,7 +25,7 @@ const inputAttrs = computed(() => {
 </script>
 
 <template>
-  <label v-if="$slots.default" class="mt-radio" :class="{ disabled }" v-bind="wrapperAttrs">
+  <label v-if="$slots.default" class="mt-radio" :class="{ 'is-disabled': disabled }" v-bind="wrapperAttrs">
     <input type="radio" class="dot" :checked="modelValue === value" :value="value as string" :disabled="disabled" @change="emit('update:modelValue', value)" v-bind="inputAttrs" />
     <slot />
   </label>
@@ -34,7 +34,7 @@ const inputAttrs = computed(() => {
 
 <style scoped>
 .mt-radio { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--mt-ink); cursor: pointer; }
-.mt-radio.disabled { opacity: 0.5; cursor: not-allowed; }
+.mt-radio.is-disabled { opacity: 0.5; cursor: not-allowed; }
 .dot { margin: 0; width: 16px; height: 16px; flex: none; accent-color: var(--mt-accent); cursor: pointer; }
 .dot:disabled { cursor: not-allowed; }
 .dot:focus-visible { outline: 2px solid var(--mt-accent); outline-offset: 2px; }
