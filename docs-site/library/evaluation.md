@@ -38,13 +38,13 @@ For each item in `data`, `run_experiment` calls `task`, then runs every evaluato
 
 ## Generate the script from the platform
 
-You do not have to write the script by hand. In the dashboard, open a dataset and press **Run offline**:
+You do not have to write the script by hand. In the dashboard, open a dataset and press the code button (`</>`) in the top bar. It only generates the script, it does not run anything. The **Evaluations › Runs** page shows the same steps while you have no runs yet:
 
 1. **Dataset**: the dataset and the version to read (the latest, or a pinned one so the run stays reproducible).
 2. **Metrics**: `exact_match`, `contains` and the `Correctness` LLM judge.
 3. **Agent to call**: the environment (DEV, PRE, PRO) of the agent. The script calls its chat endpoint with the JSON contract declared on the agent card. If the agent declares no chat endpoint, it leaves an `agent()` function for you to fill in.
 
-You get `run_eval.py`, a `.env` and the install commands, with **Copy** and **Download**. Everything is filled in (API URL with the experiment id, dataset id, service name, ingest endpoint, agent URL) except the secrets, which are never shown in the platform: replace `PASTE_YOUR_MEMTRACE_API_KEY` with an agent key (Experiment > API keys) and, if you tick the judge, `PASTE_YOUR_ANTHROPIC_API_KEY`. For agents that require authentication the `.env` also asks for `AGENT_AUTHORIZATION`.
+You get `run_eval.py`, a `.env` and the install commands, with syntax colours (light and dark) and **Copy** / **Download**. Everything is filled in (API URL with the experiment id, dataset id, service name, ingest endpoint, agent URL) except the secrets, which are never shown in the platform: replace `PASTE_YOUR_MEMTRACE_API_KEY` with an agent key (Experiment > API keys) and, if you tick the judge, `PASTE_YOUR_ANTHROPIC_API_KEY`. For agents that require authentication the `.env` also asks for `AGENT_AUTHORIZATION`.
 
 ```bash
 pip install "memtrace-ai[eval]" httpx python-dotenv

@@ -9,6 +9,7 @@ import { aggregateTone, aggregatePillTone, aggregateValueLabel } from "@/domain/
 import { buildOfflineSeries, offlineEvalChartOption, summarizeEvaluators, type EvaluatorSummary } from "../offline-eval-chart-option";
 import EChart from "../components/EChart.vue";
 import EmptyState from "../components/EmptyState.vue";
+import OfflineRunSteps from "../components/OfflineRunSteps.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import FilterPill from "../components/FilterPill.vue";
 import PageHeader from "../components/PageHeader.vue";
@@ -127,9 +128,7 @@ function openRun(run: RunListItemDto) {
 
     <ErrorBanner v-if="runs.error.value" :error="runs.error.value" @retry="runs.run()" />
     <LoadingState v-else-if="runs.loading.value && !runs.data.value" size="lg" />
-    <EmptyState v-else-if="(runs.data.value?.items.length ?? 0) === 0" icon="playlist_add_check" title="No runs yet">
-      Run <code>run_experiment(data="…", …)</code> from your script, or open a dataset and run it manually.
-    </EmptyState>
+    <OfflineRunSteps v-else-if="(runs.data.value?.items.length ?? 0) === 0" :to="{ name: 'datasets' }" />
     <EmptyState v-else-if="items.length === 0" icon="search_off" title="No matches">Try a different search or dataset.</EmptyState>
 
     <Card padding="none" block v-else class="table-card">

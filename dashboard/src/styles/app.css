@@ -54,6 +54,14 @@
   --wf-hover: rgba(10, 35, 33, 0.04);
   --wf-selected: rgba(0, 133, 127, 0.1);
   --code-bg: rgba(10, 35, 33, 0.05);
+  --mt-code-plain: #0a2321;
+  --mt-code-keyword: #8a3ffc;
+  --mt-code-builtin: #00605c;
+  --mt-code-string: #b4410f;
+  --mt-code-comment: #6f8a87;
+  --mt-code-number: #0f62b8;
+  --mt-code-name: #1d4ed8;
+  --mt-code-key: #00605c;
 }
 
 /* Tema oscuro (ADR-017): mismos tokens, activados por la clase que pone Quasar ($q.dark.set). */
@@ -99,6 +107,14 @@ body.body--dark {
   --wf-hover: rgba(255, 255, 255, 0.06);
   --wf-selected: rgba(43, 196, 189, 0.16);
   --code-bg: rgba(255, 255, 255, 0.08);
+  --mt-code-plain: #e6f4f2;
+  --mt-code-keyword: #c4a1ff;
+  --mt-code-builtin: #5fd9d3;
+  --mt-code-string: #ffb38a;
+  --mt-code-comment: #7fa09c;
+  --mt-code-number: #82b8ff;
+  --mt-code-name: #8ab4ff;
+  --mt-code-key: #5fd9d3;
 }
 
 body.body--dark {

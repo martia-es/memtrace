@@ -3,6 +3,7 @@ import { Dark, Notify, Quasar } from "quasar";
 import { afterEach, describe, expect, it } from "vitest";
 import { ASSISTANT_API } from "@/dependency-container";
 import RunOfflineModal from "@/ui/components/RunOfflineModal.vue";
+import OfflineRunSteps from "@/ui/components/OfflineRunSteps.vue";
 import { FakeAssistantApi, assistantCard, datasetVersionDto, deploymentDto } from "../fakes";
 
 const versions = [datasetVersionDto({ id: "v2", major: 1, minor: 2, itemCount: 120 }), datasetVersionDto({ id: "v1", major: 1, minor: 1, itemCount: 100 })];
@@ -70,5 +71,25 @@ describe("Run offline modal", () => {
     await click('[data-testid="metric-exact_match"]');
     expect((document.body.querySelector('[data-testid="download-both"]') as HTMLButtonElement).disabled).toBe(true);
     wrapper.unmount();
+  });
+
+  it("colours the code and switches the language with the tab", async () => {
+    const api = new FakeAssistantApi();
+    api.card = assistantCard({ chat });
+    const wrapper = await open(api);
+
+    expect(document.body.querySelector('[data-testid="code"] .tok-keyword')).not.toBeNull();
+    await click('[data-testid="tab-env"]');
+    expect(document.body.querySelector('[data-testid="code"][data-lang="env"] .tok-key')).not.toBeNull();
+    wrapper.unmount();
+  });
+});
+
+describe("Offline run steps", () => {
+  it("offers the generator from a dataset and a link to datasets elsewhere", async () => {
+    const fromDataset = mount(OfflineRunSteps, { props: { datasetId: "ds-1" }, global: { plugins: [[Quasar, { plugins: { Dark, Notify } }]] } });
+    await fromDataset.get('[data-testid="steps-open"]').trigger("click");
+    expect(fromDataset.emitted("open")).toHaveLength(1);
+    expect(fromDataset.text()).toContain("python run_eval.py");
   });
 });

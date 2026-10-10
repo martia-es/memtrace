@@ -10,6 +10,7 @@ import DatasetVersionDiffModal from "../components/DatasetVersionDiffModal.vue";
 import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import DatasetItemsEditor from "../components/DatasetItemsEditor.vue";
+import OfflineRunSteps from "../components/OfflineRunSteps.vue";
 import RunOfflineModal from "../components/RunOfflineModal.vue";
 import PageHeader from "../components/PageHeader.vue";
 import { useAsync } from "../composables/useAsync";
@@ -100,7 +101,9 @@ function openRun(runId: string) {
 <template>
   <div class="page">
     <PageHeader :crumbs="[{ label: 'Datasets', to: { name: 'datasets' } }, { label: dataset.data.value?.name ?? datasetId }]" icon="science" :title="dataset.data.value?.name ?? datasetId">
-      <Button variant="primary" data-testid="run-offline" @click="runOfflineOpen = true">Run offline</Button>
+      <Button variant="icon" data-testid="run-offline" aria-label="Get the script to run this dataset offline" title="Get the script to run this dataset offline" @click="runOfflineOpen = true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16" /></svg>
+      </Button>
     </PageHeader>
     <RunOfflineModal
       v-if="runOfflineOpen"
@@ -180,9 +183,7 @@ function openRun(runId: string) {
           <TextInput type="search" v-model="runSearch" placeholder="Filter by run name…" class="search" />
           <ErrorBanner v-if="runs.error.value" :error="runs.error.value" @retry="runs.run()" />
           <LoadingState v-else-if="runs.loading.value && !runs.data.value" size="lg" />
-          <EmptyState v-else-if="(runs.data.value?.items.length ?? 0) === 0" icon="playlist_add_check" title="No runs yet">
-            Run <code>run_experiment(data="{{ datasetId }}", …)</code> from your script.
-          </EmptyState>
+          <OfflineRunSteps v-else-if="(runs.data.value?.items.length ?? 0) === 0" :dataset-id="datasetId" @open="runOfflineOpen = true" />
           <EmptyState v-else-if="pagedRuns.length === 0" icon="search_off" title="No matches">Try a different search.</EmptyState>
           <Card padding="none" block v-else class="table-card">
             <DataTable class="items" sticky nowrap>

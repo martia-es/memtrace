@@ -16,6 +16,7 @@ import {
 } from "@/domain/eval-script";
 import Button from "./Button.vue";
 import Checkbox from "./Checkbox.vue";
+import CodeBlock from "./CodeBlock.vue";
 import Modal from "./Modal.vue";
 import SegmentedControl from "./SegmentedControl.vue";
 import Select from "./Select.vue";
@@ -84,9 +85,9 @@ const input = computed(() => ({
 
 // ---- salida ----
 const FILES = [
-  { id: "script", label: "run_eval.py", filename: "run_eval.py", text: () => buildEvalScript(input.value) },
-  { id: "env", label: ".env", filename: ".env", text: () => buildEvalEnv(input.value) },
-  { id: "install", label: "install", filename: "install.sh", text: () => buildEvalInstall(input.value) },
+  { id: "script", label: "run_eval.py", filename: "run_eval.py", lang: "python" as const, text: () => buildEvalScript(input.value) },
+  { id: "env", label: ".env", filename: ".env", lang: "env" as const, text: () => buildEvalEnv(input.value) },
+  { id: "install", label: "install", filename: "install.sh", lang: "shell" as const, text: () => buildEvalInstall(input.value) },
 ];
 const activeFile = ref("script");
 const current = computed(() => FILES.find((f) => f.id === activeFile.value) ?? FILES[0]!);
@@ -173,7 +174,7 @@ function downloadBoth() {
           <Button size="sm" variant="secondary" data-testid="copy" @click="copy">Copy</Button>
           <Button size="sm" variant="secondary" data-testid="download-current" @click="downloadCurrent">Download</Button>
         </div>
-        <pre class="code" data-testid="code">{{ shown }}</pre>
+        <CodeBlock class="code" :code="shown" :lang="current.lang" data-testid="code" />
         <p class="secrets" role="note" data-testid="secrets">
           Secrets are never shown here. Fill in <code v-for="s in secrets" :key="s">{{ s }}</code> in the <code>.env</code>; the MemTrace key is created in Experiment › API keys.
         </p>
@@ -206,7 +207,7 @@ function downloadBoth() {
 .url { display: block; margin-top: 8px; padding: 6px 8px; background: var(--mt-soft); border-radius: var(--mt-radius-xs); font-size: 12px; word-break: break-all; }
 .output { min-width: 0; display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); overflow: hidden; background: var(--mt-bg); position: relative; }
 .output-actions { position: absolute; top: 6px; right: 10px; display: flex; gap: 8px; }
-.code { margin: 0; flex: 1; min-height: 0; overflow: auto; padding: 14px 18px; font-family: var(--mt-mono); font-size: 12px; line-height: 1.6; white-space: pre; }
+.code { flex: 1; min-height: 0; padding: 14px 18px; }
 .secrets { margin: 0; padding: 9px 14px; border-top: 1px solid var(--mt-line); background: var(--mt-warn-bg); color: var(--mt-warn-ink); font-size: 12px; font-weight: 600; }
 .secrets code { margin-right: 6px; }
 .summary { margin-right: auto; font-size: 12px; }
