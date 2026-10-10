@@ -105,6 +105,18 @@ describe.skipIf(!url)("partnerships (postgres)", () => {
       expect((await access(ana, c1Exp1))?.permissions).not.toContain("trace:read_technical"); // y solo business en el resto
     });
 
+    it("never lets a partner grant export the client's data, whatever the role", async () => {
+      await service.grant(c1, partnershipId, { email: email("luis"), role: "technical", experimentId: c1Exp2 }, as(c1Admin, "c1admin"));
+      const permissions = (await access(luis, c1Exp2))?.permissions ?? [];
+      expect(permissions).toContain("trace:read_technical");
+      expect(permissions).toContain("prompt:promote"); // sigue pudiendo trabajar
+      expect(permissions).not.toContain("data:export");
+      // el listado que alimenta los botones del dashboard aplica la misma regla
+      const listed = (await identity.listExperimentsForUser(luis)).find((e) => e.id === c1Exp2);
+      expect(listed?.permissions).toContain("prompt:promote");
+      expect(listed?.permissions).not.toContain("data:export");
+    });
+
     it("changes the role when the same person and scope are granted again", async () => {
       await service.grant(c1, partnershipId, { email: email("luis"), role: "business", experimentId: c1Exp2 }, as(c1Admin, "c1admin"));
       expect((await access(luis, c1Exp2))?.permissions).not.toContain("trace:read_technical");

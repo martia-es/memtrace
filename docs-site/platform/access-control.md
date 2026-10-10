@@ -55,8 +55,10 @@ Rules that keep this safe:
 
 If a consultancy manages your agents, give it its **own organization** and keep yours separate: nothing is shared by default, and being staff of the consultancy gives access to nothing.
 
+In the dashboard, an `org_admin` does all of this in **Admin › your organization › Partners**, and the consultancy's people find their clients (and the organization id to hand over) on the **Clients** page of the Admin area. The same steps through the API:
+
 1. The consultancy gives you the id of its organization. As `org_admin` of your organization, `POST /api/v1/organizations/{yourOrg}/partnerships` with `{ "partnerOrganizationId": "…" }`. This alone grants nothing.
-2. Name each person: `POST …/partnerships/{partnershipId}/grants` with `{ "email": "ana@consulting.com", "role": "business", "experimentId": null }`. The person must belong to the consultancy's organization. `experimentId: null` means every experiment of your organization, including future ones; an id limits it to that experiment. The role is an experiment role (`technical`, `business`…), never an administrator role.
+2. Name each person: `POST …/partnerships/{partnershipId}/grants` with `{ "email": "ana@consulting.com", "role": "business", "experimentId": null }`. The person must belong to the consultancy's organization. `experimentId: null` means every experiment of your organization, including future ones; an id limits it to that experiment. The role is an experiment role (`technical`, `business`…), never an administrator role. A partner can work with your traces, prompts and datasets, but **can never export your data**: `data:export` is removed from every role granted through a partnership, even `technical`.
 3. Remove one person with `DELETE …/grants/{grantId}` or end the whole relationship with `DELETE …/partnerships/{partnershipId}`. It takes effect on the next request.
 
 If the consultancy removes someone from its organization, that person loses access to all its clients at once, and adding them back does not restore it: you grant it again. People at the consultancy see the clients that granted them access with `GET /api/v1/partner/clients` (names and roles only, never trace data).

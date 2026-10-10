@@ -3,6 +3,15 @@
  * aislamiento; la consultora (organización partner) no ve nada por serlo: el org_admin del cliente concede, persona a
  * persona, un rol de experimento sobre toda su organización o sobre un experimento concreto.
  */
+import type { Permission } from "./permissions";
+
+/**
+ * Permisos que un grant de partner nunca concede, tenga el rol que tenga: sacar los datos del cliente fuera de la plataforma
+ * es decisión del cliente, no de quien lo opera para él. Se filtran al resolver el acceso, así que `technical` sigue
+ * sirviendo para trabajar (prompts, colas, datasets) sin poder exportar.
+ */
+export const PARTNER_DENIED_PERMISSIONS: readonly Permission[] = ["data:export"];
+
 export interface PartnerGrant {
   id: string;
   partnershipId: string;

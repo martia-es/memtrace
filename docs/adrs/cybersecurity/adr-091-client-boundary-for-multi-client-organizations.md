@@ -47,8 +47,8 @@ For the client's `org_admin`: `GET|POST /organizations/{id}/partnerships`, `DELE
 ## Answers to the open questions
 
 - **Who owns the data when the contract ends?** The client organization owns it; the partner never holds a copy, only access. Ending the relationship removes the access immediately. Export and deletion on request remain P1 (ADR-087).
-- **Unified list of clients for the consultancy?** `GET /partner/clients` provides the data; the dashboard home is pending.
-- **Roles for partners?** The existing experiment roles, because roles are data: a client that wants read-only support creates an experiment role with just `experiment:read` and grants that.
+- **Unified list of clients for the consultancy?** `GET /partner/clients` feeds the **Clients** page of the dashboard, which also shows the organization id to hand to a client.
+- **Roles for partners?** The existing experiment roles, because roles are data. A partner grant never carries `data:export`, whatever its role (`PARTNER_DENIED_PERMISSIONS` in `domain/partnership.ts`): the permission is filtered when access is resolved and in the experiment list the dashboard reads, so `technical` stays usable for day-to-day work without letting a consultancy take the client's data out. A client that wants read-only support can still create a narrower experiment role.
 - **One login, several organizations?** The experiment list already spans organizations, each item carries its organization; there is no "active organization" to select.
 
 ## Verification
@@ -59,7 +59,7 @@ For the client's `org_admin`: `GET|POST /organizations/{id}/partnerships`, `DELE
 
 ## Not done
 
-- Dashboard: a partners tab in the organization admin and the consultancy home with its clients.
+- Dashboard: a visible "access as partner" marker in the experiment header.
 - Granting people by email who are not yet members of the partner organization (invitations); today they must already belong to it.
 - Annotation queues can only name experiment members as reviewers, so a partner person cannot be selected as a reviewer yet.
 - The deployment access list of the assistant registry (ADR-053) shows members, not partner grants.
