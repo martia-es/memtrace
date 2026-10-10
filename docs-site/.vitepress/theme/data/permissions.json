@@ -193,6 +193,15 @@
       ]
     },
     {
+      "id": "approval:manage",
+      "group": "Prompts",
+      "description": "Define the approval rules of the organization and of its experiments.",
+      "unlocks": [
+        "Choosing which profiles and how many people must approve each publication and each environment",
+        "Naming default approvers who always have to approve"
+      ]
+    },
+    {
       "id": "catalog:manage",
       "group": "Metrics",
       "description": "Name and hide the steps and attributes that the Custom charts offer.",
@@ -209,15 +218,6 @@
         "Alerts on error rate, latency, cost, user satisfaction or a saved custom chart",
         "Choosing who gets the email, with up to 10 addresses per alert",
         "A monthly cost budget with a warning percentage and a month-end forecast"
-      ]
-    },
-    {
-      "id": "approval:manage",
-      "group": "Prompts",
-      "description": "Define the approval rules of the organization and of its experiments.",
-      "unlocks": [
-        "Choosing which profiles and how many people must approve each publication and each environment",
-        "Naming default approvers who always have to approve"
       ]
     },
     {
