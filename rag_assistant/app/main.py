@@ -14,7 +14,7 @@ from app.api.routes import router
 from app.capabilities.registry import build_capabilities
 from app.config import Settings
 from app.prompt_registry import load_prompt
-from app.knowledge.retriever import Bm25Retriever, load_entries
+from app.knowledge.retriever import build_retriever, load_entries
 from app.sessions import SessionStore
 from app.tracing import setup_tracing
 
@@ -30,7 +30,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     default_instructions = compose_instructions(settings.company, capabilities)
     # lee una vez, en el lifespan; el handle sigue solo el tag que se mueva en MemTrace
     app.state.prompt = await asyncio.to_thread(load_prompt, default_instructions)
-    app.state.retriever = Bm25Retriever(load_entries(settings.knowledge_path))
+    # calcula los embeddings que falten (solo la primera vez o al cambiar las FAQs): fuera del bucle de eventos
+    app.state.retriever = await asyncio.to_thread(build_retriever, settings, load_entries(settings.knowledge_path))
     app.state.sessions = SessionStore()
     # el último: /health responde 200 en cuanto existe el agente, y para entonces todo lo demás ya está listo
     app.state.agent = build_assistant(

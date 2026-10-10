@@ -1,6 +1,6 @@
 """Evalúa el asistente de FAQs contra `evals/dataset.jsonl`.
 
-El LLM es el real (`RAG_ASSISTANT_MODEL`, necesita `GOOGLE_API_KEY`); la recuperación es la del asistente (BM25 sobre
+El LLM es el real (`RAG_ASSISTANT_MODEL`, necesita `GOOGLE_API_KEY`); la recuperación es la del asistente (embeddings, o BM25 con `RAG_ASSISTANT_RETRIEVER=bm25`, sobre
 las FAQs de ejemplo), determinista, así que una caída de la métrica significa que cambió el agente o el prompt, no los datos.
 
     cd rag_assistant
@@ -43,7 +43,7 @@ from app.agents.deps import AssistantDeps
 from app.capabilities.faq import search_faqs
 from app.capabilities.registry import ALL_CAPABILITIES
 from app.config import Settings
-from app.knowledge.retriever import Bm25Retriever, load_entries
+from app.knowledge.retriever import build_retriever, load_entries
 from app.tracing import setup_tracing
 from evaluators import response_checks
 
@@ -95,7 +95,7 @@ def main() -> int:
 
     settings = Settings.from_env()
     traced = setup_tracing()
-    deps = AssistantDeps(retriever=Bm25Retriever(load_entries(settings.knowledge_path)))
+    deps = AssistantDeps(retriever=build_retriever(settings, load_entries(settings.knowledge_path)))
     agent = None if args.mock else build_assistant(settings.model, settings.company, ALL_CAPABILITIES)
 
     def task(*, item: EvalItem) -> str:

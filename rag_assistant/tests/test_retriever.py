@@ -45,10 +45,8 @@ def test_the_right_faq_comes_first(question, expected):
 
 
 def test_off_topic_questions_find_nothing_relevant():
-    from app.capabilities.faq import is_relevant
-
     for question in ("¿Qué tiempo hace en Madrid?", "Dame una receta de paella", "¿Quién ganó el Mundial de 2010?"):
-        assert not [hit for hit in RETRIEVER.search(question) if is_relevant(hit)], question
+        assert not [hit for hit in RETRIEVER.search(question) if hit.relevant], question
 
 
 def test_results_are_ranked_and_limited():
