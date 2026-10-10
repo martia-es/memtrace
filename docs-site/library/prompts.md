@@ -12,7 +12,7 @@ def answer(city: str) -> str:
     return run_agent(system, ...)
 ```
 
-Needs `pip install "memtrace-ai[eval]"`, `MEMTRACE_API_URL` (with the experiment id, like [offline evaluation](./evaluation#sending-results-to-memtrace)) and `MEMTRACE_API_KEY`. The prompt has to belong to that agent in MemTrace (creating it from the agent's **Prompts** page does it).
+Needs `pip install "memtrace-ai[eval]"`, `MEMTRACE_API_URL` (with the experiment id, like [offline evaluation](./evaluation#send-them-to-memtrace-dataset-id)) and `MEMTRACE_API_KEY`. The prompt has to belong to that agent in MemTrace (creating it from the agent's **Prompts** page does it).
 
 ## `get()` returns a handle, not text
 
