@@ -201,12 +201,12 @@ rag: ## Arranca el asistente RAG de FAQs (API + UI en http://localhost:8001). Ct
 rag-stop: ## Para el asistente RAG lanzado en segundo plano
 	@pkill -f "uvicorn app.main:app --reload --port 8001" 2>/dev/null || true
 
-# Lee el .env de la raíz solo al arrancar. Para que cada traza lleve su prompt hacen falta, de ese experimento (el del RAG):
+# Lee rag_assistant/.env (y el .env de la raíz como respaldo) solo al arrancar. Para que cada traza lleve su prompt hacen falta, de ese experimento (el del RAG):
 # RAG_ASSISTANT_MEMTRACE_HEADERS, RAG_ASSISTANT_MEMTRACE_API_URL (con su id) y RAG_ASSISTANT_MEMTRACE_API_KEY
 rag-bg: rag-stop ## Arranca el asistente RAG en segundo plano enlazado a MemTrace: trazas + prompt del registro (lo usa make up)
 	@command -v uv >/dev/null 2>&1 || { echo "Falta 'uv': omito el asistente RAG"; exit 0; }
 	@for var in RAG_ASSISTANT_MEMTRACE_HEADERS RAG_ASSISTANT_MEMTRACE_API_URL RAG_ASSISTANT_MEMTRACE_API_KEY; do \
-		grep -qs "^$$var=." .env || echo "Aviso: falta $$var en .env: el RAG no enlazará $$( [ $$var = RAG_ASSISTANT_MEMTRACE_HEADERS ] && echo las trazas || echo el prompt )"; \
+		grep -qs "^$$var=." rag_assistant/.env .env || echo "Aviso: falta $$var en .env: el RAG no enlazará $$( [ $$var = RAG_ASSISTANT_MEMTRACE_HEADERS ] && echo las trazas || echo el prompt )"; \
 	done
 	@cd rag_assistant && uv sync --all-groups >/dev/null && \
 		(MEMTRACE_ENVIRONMENT=$${MEMTRACE_ENVIRONMENT:-dev} nohup uv run uvicorn app.main:app --reload --port 8001 >uvicorn.log 2>&1 &)

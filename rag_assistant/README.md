@@ -23,7 +23,7 @@ tests/                    # Sin red ni LLM
 
 ## Ejecutar
 
-Requiere `GOOGLE_API_KEY` (LLM y embeddings) en el `.env` de la raíz del repo (o en el entorno).
+Requiere `GOOGLE_API_KEY` (LLM y embeddings) en `rag_assistant/.env` (plantilla: `.env.example`), en el `.env` de la raíz del repo o en el entorno; manda el entorno, luego el `.env` del asistente y por último el de la raíz.
 
 ```bash
 make rag                  # desde la raíz: http://localhost:8001

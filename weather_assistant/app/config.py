@@ -6,7 +6,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-# Carga el .env de la raíz del repo (si existe) sin sobrescribir variables ya definidas.
+# Prioridad: entorno del proceso > `.env` del propio asistente > `.env` de la raíz del repo (claves compartidas, p. ej. GOOGLE_API_KEY).
+load_dotenv(Path(__file__).resolve().parents[1] / ".env", override=False)
 load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
 
 

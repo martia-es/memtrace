@@ -11,7 +11,8 @@ from app.knowledge.retriever import DEFAULT_KNOWLEDGE
 
 DEFAULT_INDEX = Path(__file__).resolve().parents[1] / ".index" / "faqs.sqlite"
 
-# Carga el .env de la raíz del repo (si existe) sin sobrescribir variables ya definidas.
+# Prioridad: entorno del proceso > `.env` del propio asistente > `.env` de la raíz del repo (claves compartidas, p. ej. GOOGLE_API_KEY).
+load_dotenv(Path(__file__).resolve().parents[1] / ".env", override=False)
 load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
 
 # `MEMTRACE_API_URL`/`MEMTRACE_API_KEY` son de un solo experimento (el del asistente del tiempo en el .env). El prompt
