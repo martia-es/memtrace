@@ -22,12 +22,11 @@ export async function GET(request: Request, context: { params: Promise<{ experim
     const q = new URL(request.url).searchParams;
     // `dryRun=1`: valida y cuenta sin exportar ni registrar nada (la pantalla lo usa antes de ofrecer la descarga)
     if (q.get("dryRun") === "1") {
-      return json(await getExport().preview({ serviceName: access.serviceName, kind: q.get("kind"), from: q.get("from"), to: q.get("to") }));
+      return json(await getExport().preview({ scope: access.scope, kind: q.get("kind"), from: q.get("from"), to: q.get("to") }));
     }
     const started = await getExport().start({
       organizationId: experiment.organizationId,
-      experimentId,
-      serviceName: access.serviceName,
+      scope: access.scope,
       actor: { userId: access.user.id, email: access.user.email },
       kind: q.get("kind"),
       from: q.get("from"),

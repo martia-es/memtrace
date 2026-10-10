@@ -14,7 +14,7 @@ Do **not** write one for a new screen, an endpoint that follows an existing patt
 
 ## Rules
 
-- File: `docs/adrs/<topic>/adr-NNN-short-title.md`, title in English, at most 500 lines. Topics: `infra`, `storage`, `sdk`, `api`, `identity`, `governance`, `observability`, `evaluation`, `datasets`, `prompts`, `pricing`, `ui`.
+- File: `docs/adrs/<topic>/adr-NNN-short-title.md`, title in English, at most 500 lines. Topics: `infra`, `storage`, `sdk`, `api`, `identity`, `governance`, `cybersecurity`, `observability`, `evaluation`, `datasets`, `prompts`, `pricing`, `ui`.
 - Numbers are **stable identifiers** (code comments cite them as `ADR-0xx`). Never renumber and never reuse a number; take the next free one (the highest number below, plus one).
 - Status is one of `Accepted`, `Superseded by ADR-NNN` or `Deprecated`. When an ADR stops being true, mark it or move it to the retired table below; do not leave it silently outdated.
 - Relative links only, and they must resolve (`scripts/check-md-links.py` checks them in CI).
@@ -60,6 +60,14 @@ Do **not** write one for a new screen, an endpoint that follows an existing patt
 | 084 | Data Protection — Retention, PII Masking, Audit Log and Export | [storage/adr-084-data-protection-retention-masking-audit-and-export.md](storage/adr-084-data-protection-retention-masking-audit-and-export.md) |
 | 085 | The Ingest Gateway Validates the `service.name` Against the API Key | [identity/adr-085-ingest-gateway-validates-service-name.md](identity/adr-085-ingest-gateway-validates-service-name.md) |
 | 086 | Alerts and Cost Budgets | [observability/adr-086-alerts-and-cost-budgets.md](observability/adr-086-alerts-and-cost-budgets.md) |
+| 087 | Multi-Tenant Security Baseline | [cybersecurity/adr-087-multi-tenant-security-baseline.md](cybersecurity/adr-087-multi-tenant-security-baseline.md) |
+| 088 | Strict Tenant Isolation in ClickHouse | [cybersecurity/adr-088-strict-tenant-isolation-in-clickhouse.md](cybersecurity/adr-088-strict-tenant-isolation-in-clickhouse.md) |
+| 089 | Ingestion Identity Binding | [cybersecurity/adr-089-ingestion-identity-binding.md](cybersecurity/adr-089-ingestion-identity-binding.md) |
+| 090 | Network Segmentation and Collector Access | [cybersecurity/adr-090-network-segmentation-and-collector-access.md](cybersecurity/adr-090-network-segmentation-and-collector-access.md) |
+| 091 | Client Boundary for Multi-Client Organizations | [cybersecurity/adr-091-client-boundary-for-multi-client-organizations.md](cybersecurity/adr-091-client-boundary-for-multi-client-organizations.md) |
+| 092 | Security Headers and Ingest Rate Limits | [cybersecurity/adr-092-security-headers-and-ingest-rate-limits.md](cybersecurity/adr-092-security-headers-and-ingest-rate-limits.md) |
+| 093 | Audit of Consultancy Access Reuses the Audit Log | [cybersecurity/adr-093-audit-of-consultancy-access.md](cybersecurity/adr-093-audit-of-consultancy-access.md) |
+| 094 | In-app Notification Feed Derived from Alert History | [observability/adr-094-in-app-notification-feed.md](observability/adr-094-in-app-notification-feed.md) |
 
 ## Retired ADRs
 

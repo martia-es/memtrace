@@ -16,7 +16,7 @@ export async function GET(_request: Request, context: Params) {
     const { experimentId, traceId } = await context.params;
     const ctx = await requirePermission(experimentId, "experiment:read");
     if (ctx instanceof Response) return ctx;
-    return json(toTraceAnnotationsResponse(await getAnnotation().listForTrace(ctx.serviceName, traceId)));
+    return json(toTraceAnnotationsResponse(await getAnnotation().listForTrace(ctx.scope, traceId)));
   });
 }
 
@@ -28,9 +28,9 @@ export async function POST(request: Request, context: Params) {
     if (ctx instanceof Response) return ctx;
 
     const body = await parseJsonOrThrow(saveAnnotationBody, request);
-    const actor = { userId: ctx.user.id, experimentId, serviceName: ctx.serviceName };
+    const actor = { userId: ctx.user.id, ...ctx.scope };
     await getAnnotation().saveAnnotation(actor, traceId, body);
     // devuelve la vista completa para que el cliente se refresque con una sola respuesta
-    return json(toTraceAnnotationsResponse(await getAnnotation().listForTrace(ctx.serviceName, traceId)), 201);
+    return json(toTraceAnnotationsResponse(await getAnnotation().listForTrace(ctx.scope, traceId)), 201);
   });
 }

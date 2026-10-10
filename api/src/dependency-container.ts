@@ -21,8 +21,12 @@ import { ClickHouseUserFeedbackRepository } from "@/adapters/outbound/clickhouse
 import { DatasetPromotionService } from "@/application/dataset-promotion-service";
 import { EvaluationService } from "@/application/evaluation-service";
 import { ExternalAccessService } from "@/application/external-access-service";
+import { AuditService } from "@/application/audit-service";
+import { PartnershipService } from "@/application/partnership-service";
 import type { ExternalIdentityRepository } from "@/application/ports/external-identity-repository";
 import { PostgresExternalIdentityRepository } from "@/adapters/outbound/postgres/postgres-external-identity-repository";
+import { PostgresAuditRepository } from "@/adapters/outbound/postgres/postgres-audit-repository";
+import { PostgresPartnershipRepository } from "@/adapters/outbound/postgres/postgres-partnership-repository";
 import type { IdentityRepository } from "@/application/ports/identity-repository";
 import { DeployGateService } from "@/application/deploy-gate-service";
 import { DeployService } from "@/application/deploy-service";
@@ -36,14 +40,12 @@ import { PromptEvidenceService } from "@/application/prompt-evidence-service";
 import { PromptFailureService } from "@/application/prompt-failure-service";
 import { PromptMapService } from "@/application/prompt-map-service";
 import { ChartCatalogService } from "@/application/chart-catalog-service";
-import { AuditService } from "@/application/audit-service";
 import { MAX_RETENTION_DAYS } from "@/domain/retention";
 import { RetentionService } from "@/application/retention-service";
 import { ExportService } from "@/application/export-service";
 import { AlertService } from "@/application/alert-service";
 import { PostgresAlertRepository } from "@/adapters/outbound/postgres/postgres-alert-repository";
 import { ClickHouseDataExporter } from "@/adapters/outbound/clickhouse/clickhouse-data-exporter";
-import { PostgresAuditRepository } from "@/adapters/outbound/postgres/postgres-audit-repository";
 import { PostgresRetentionRepository } from "@/adapters/outbound/postgres/postgres-retention-repository";
 import { ApprovalRuleResolver } from "@/application/approval-rules";
 import { ApprovalService } from "@/application/approval-service";
@@ -63,6 +65,7 @@ const globalForContainer = globalThis as unknown as {
   __memtraceTraceQueryService?: TraceQueryService;
   __memtraceTraceRepository?: ClickHouseTraceRepository;
   __memtraceIdentity?: { identityRepository: IdentityRepository; authorizationService: AuthorizationService; emailSender: EmailSender };
+  __memtracePartnerships?: PartnershipService;
   __memtraceExternalAccess?: { externalRepository: ExternalIdentityRepository; externalAccessService: ExternalAccessService };
   __memtraceEvaluation?: EvaluationService;
   __memtraceScoreRepository?: ClickHouseScoreRepository;
@@ -130,6 +133,14 @@ export function getHandlers(): Handlers {
     globalForContainer.__memtraceHandlers = createHandlers(getTraceQueryService());
   }
   return globalForContainer.__memtraceHandlers;
+}
+
+/** Relación partner entre organizaciones (ADR-091): una consultora opera a sus clientes con acceso opt-in por cliente. */
+export function getPartnerships(): PartnershipService {
+  if (!globalForContainer.__memtracePartnerships) {
+    globalForContainer.__memtracePartnerships = new PartnershipService(new PostgresPartnershipRepository(getPostgresPool()), getAudit());
+  }
+  return globalForContainer.__memtracePartnerships;
 }
 
 /** Identidad externa (ADR-052, fases B y C): mapeos de grupos, conciliación de membresías y SCIM. */
@@ -242,7 +253,7 @@ export function getAssistantRegistry(): AssistantRegistryService {
   if (!globalForContainer.__memtraceAssistantRegistry) {
     const traces = getTraceQueryService();
     globalForContainer.__memtraceAssistantRegistry = new AssistantRegistryService(new PostgresAssistantRegistryRepository(getPostgresPool()), {
-      toolUsage: async (serviceName, from, to) => (await traces.getOverview({ service: serviceName, from, to })).byTool,
+      toolUsage: async (scope, from, to) => (await traces.getOverview({ scope, from, to })).byTool,
     });
   }
   return globalForContainer.__memtraceAssistantRegistry;

@@ -22,7 +22,7 @@ export async function POST(request: Request, context: { params: Promise<{ experi
     if (!dataset || dataset.experimentId !== experimentId) return problem(404, "Not Found", "Dataset not found");
 
     const { items } = await parseJsonOrThrow(promoteTracesBody, request);
-    const result = await getDatasetPromotion().promoteTraces({ userId: ctx.user.id, serviceName: ctx.serviceName }, datasetId, items);
+    const result = await getDatasetPromotion().promoteTraces({ userId: ctx.user.id, ...ctx.scope }, datasetId, items);
     return json(toPromoteTracesResponse(result), result.added.length > 0 ? 201 : 200);
   });
 }

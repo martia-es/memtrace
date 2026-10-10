@@ -1,4 +1,4 @@
-import type { AlertEventDto, AlertRuleDto, AlertStatusDto } from "@contract";
+import type { AlertEventDto, AlertRuleDto, AlertStatusDto, NotificationDto } from "@contract";
 
 /** Textos y estados de las alertas (ADR-086): todo lo que la pantalla dice sobre una regla, sin tocar el DOM. */
 
@@ -92,6 +92,26 @@ export function parseRecipients(text: string): string[] {
     .split(/[\s,;]+/)
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+/** Cómo se cuenta un aviso de la campana (ADR-094): el titular, la frase con el valor y el tono. */
+export function notificationView(n: Pick<NotificationDto, "kind" | "ruleName" | "metric" | "comparator" | "value" | "threshold" | "budgetUsd" | "warnPercent">): { title: string; text: string; tone: StateTone; cta: string } {
+  if (n.kind === "budget_warning") return { title: `Budget reached ${n.warnPercent ?? "the warning"} %`, text: n.budgetUsd === null ? "The monthly budget was removed since." : `Your ${formatValue("cost", n.budgetUsd)} monthly budget is filling up.`, tone: "warn", cta: "View budget" };
+  if (n.kind === "budget_exceeded") return { title: "Budget exceeded", text: n.budgetUsd === null ? "The monthly budget was removed since." : `The month went over your ${formatValue("cost", n.budgetUsd)} budget.`, tone: "error", cta: "View budget" };
+  if (n.kind === "budget_forecast") return { title: "On track to exceed the budget", text: n.budgetUsd === null ? "The monthly budget was removed since." : `At this pace the month ends over your ${formatValue("cost", n.budgetUsd)} budget.`, tone: "warn", cta: "View budget" };
+  const name = n.ruleName ?? "An alert";
+  const metric = n.metric ?? "custom";
+  const limit = n.threshold === null ? "" : thresholdPhrase({ metric, comparator: n.comparator ?? "above", threshold: n.threshold });
+  if (n.kind === "resolved") return { title: `${name} is back to normal`, text: `${formatValue(metric, n.value)} now. Limit: ${limit.toLowerCase()}.`, tone: "ok", cta: "View alert" };
+  return { title: name, text: `${formatValue(metric, n.value)}. Limit: ${limit.toLowerCase()}.`, tone: "error", cta: "View alert" };
+}
+
+/** El límite de una alerta siempre cae al 66 % de su barra, así que pasarse se ve como una barra que lo rebasa. */
+export const GAUGE_LIMIT_AT = 66;
+export function gaugeFill(value: number | null, threshold: number): number | null {
+  if (value === null) return null;
+  if (threshold <= 0) return value > 0 ? 100 : 0;
+  return Math.max(0, Math.min(100, Math.round((value / threshold) * GAUGE_LIMIT_AT)));
 }
 
 /** Barra de gasto: el porcentaje que se pinta (sin pasar de 100) y su tono. */

@@ -3,7 +3,9 @@ kind: Kustomization
 namespace: memtrace
 resources:
   - k8s/00-namespace.yaml
+  - k8s/05-network-policies.yaml
   - k8s/10-clickhouse-secret.yaml
+  - k8s/12-ingest-secret.yaml
   - k8s/15-postgres-secret.yaml
   - k8s/20-clickhouse.yaml
   - k8s/25-postgres.yaml
@@ -18,6 +20,7 @@ resources:
   - k8s/82-health-probe.yaml
   - k8s/83-retention-purge.yaml
   - k8s/84-alerts-evaluate.yaml
+  - k8s/85-backfill-experiment-id.yaml
 configMapGenerator:
   - name: clickhouse-migrations
     files:
@@ -34,6 +37,7 @@ configMapGenerator:
       - migrations/clickhouse/011_revision.sql
       - migrations/clickhouse/012_prompt_version.sql
       - migrations/clickhouse/013_trace_ttl_ceiling.sql
+      - migrations/clickhouse/014_experiment_id.sql
     options:
       disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
   - name: postgres-migrations
@@ -80,6 +84,8 @@ configMapGenerator:
       - migrations/postgres/040_trace_retention.sql
       - migrations/postgres/041_audit_log.sql
       - migrations/postgres/042_alerts.sql
+      - migrations/postgres/043_partnerships.sql
+      - migrations/postgres/044_notification_reads.sql
     options:
       disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
   - name: clickhouse-config

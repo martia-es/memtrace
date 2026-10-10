@@ -7,6 +7,7 @@ Un documento por propósito. Antes de crear uno nuevo, comprueba si el contenido
 | Entender la visión, las fases y qué está hecho | [roadmap.md](roadmap.md) | Sí |
 | Saber **qué falta** por hacer (única lista de pendientes) | [backlog.md](backlog.md) | Sí |
 | Saber **por qué** se tomó una decisión de arquitectura | [adrs/README.md](adrs/README.md) | Sí, solo decisiones de arquitectura |
+| Saber qué falta en seguridad multi-tenant | [security-pending.md](security-pending.md) | Sí |
 | Seguir las reglas del dashboard (tokens, temas, navegación, componentes) | [ui-conventions.md](ui-conventions.md) | Sí |
 | Entender cómo se construyen las Custom charts | [custom-charts-architecture.md](custom-charts-architecture.md) | Sí |
 | Ver el flujo de las colas de revisión | [annotation-queues-e2e-flow.md](annotation-queues-e2e-flow.md) | Propuesta de rediseño |

@@ -7,6 +7,7 @@ import type { Span } from "@/domain/span";
 import type { SpanCursor, SpanRecord } from "@/domain/span-row";
 import type { Page, PageCursor, TraceStats, TraceSummary } from "@/domain/trace";
 import type { TimeRange } from "@/domain/time-range";
+import type { TenantScope } from "@/domain/tenant";
 
 export interface RevisionSummary {
   revision: string;
@@ -16,7 +17,7 @@ export interface RevisionSummary {
 }
 
 export interface TraceListQuery extends TimeRange {
-  service?: string;
+  scope: TenantScope;
   /** estado del span raíz */
   status?: "ok" | "error";
   /** true: la traza contiene algún span fallido */
@@ -38,7 +39,7 @@ export interface TraceListQuery extends TimeRange {
 }
 
 export interface ConversationListQuery extends TimeRange {
-  service?: string;
+  scope: TenantScope;
   /** true: la conversación contiene algún span fallido */
   hasErrors?: boolean;
   /** texto contenido en la entrada o salida capturadas de algún turno (sin distinguir mayúsculas) */
@@ -53,7 +54,7 @@ export interface ConversationListQuery extends TimeRange {
 }
 
 export interface SpanListQuery extends TimeRange {
-  service?: string;
+  scope: TenantScope;
   /** tipo de paso (`memtrace.step_type`; los spans de GenAI sin él se clasifican por su operación) */
   kind?: string;
   model?: string;
@@ -82,44 +83,44 @@ export interface TraceSpans {
 export interface TraceRepository {
   listTraces(query: TraceListQuery): Promise<Page<TraceSummary>>;
   /** null si la traza no existe; con más de `maxSpans` spans devuelve los primeros y `truncated: true` */
-  getTraceSpans(traceId: string, maxSpans: number): Promise<TraceSpans | null>;
+  getTraceSpans(scope: TenantScope, traceId: string, maxSpans: number): Promise<TraceSpans | null>;
   /** spans de varias trazas en una sola consulta, agrupados por traceId; cada grupo se trunca a `maxSpansPerTrace` */
-  getTraceSpansForTraces(traceIds: string[], maxSpansPerTrace: number): Promise<Map<string, TraceSpans>>;
+  getTraceSpansForTraces(scope: TenantScope, traceIds: string[], maxSpansPerTrace: number): Promise<Map<string, TraceSpans>>;
   /** latencia y tokens por modelo de varias trazas en una sola consulta; las trazas que no existen (aún, o ya expiradas) no aparecen */
-  getTraceStatsForTraces(traceIds: string[]): Promise<Map<string, TraceStats>>;
+  getTraceStatsForTraces(scope: TenantScope, traceIds: string[]): Promise<Map<string, TraceStats>>;
   /** serie temporal *dispersa* (solo buckets con datos); el servicio la rellena */
   getOverview(query: MetricsQuery): Promise<MetricsOverview>;
-  listServices(range: TimeRange): Promise<string[]>;
+  listServices(range: TimeRange, scopes: TenantScope[]): Promise<string[]>;
   /** Versiones del código (commits) vistas en el rango, la más reciente primero, con cuántas trazas generó cada una (ADR-065). */
-  listRevisions(range: TimeRange & { service?: string }): Promise<RevisionSummary[]>;
+  listRevisions(range: TimeRange & { scope: TenantScope }): Promise<RevisionSummary[]>;
   /** tokens totales por servicio (= experimento) en el rango, para la comparativa de coste entre agentes */
-  getUsageByServices(serviceNames: string[], range: TimeRange): Promise<ServiceUsage[]>;
+  getUsageByServices(scopes: TenantScope[], range: TimeRange): Promise<ServiceUsage[]>;
   /** conversaciones con algún turno iniciado en el rango; sus cifras cubren toda su historia retenida */
   listConversations(query: ConversationListQuery): Promise<Page<ConversationSummary, ConversationCursor>>;
   /** Primer mensaje y tokens por modelo de esas conversaciones, para el título y el coste (ADR-049). Las que no existen no aparecen. */
-  getConversationUsage(ids: string[], toMs: number): Promise<Map<string, ConversationUsage>>;
+  getConversationUsage(scope: TenantScope, ids: string[], toMs: number): Promise<Map<string, ConversationUsage>>;
   /** Ids de las trazas (turnos) de esas conversaciones, para cruzarlas con las valoraciones humanas. Las que no existen no aparecen. */
-  getConversationTraceIds(ids: string[], toMs: number): Promise<Map<string, string[]>>;
+  getConversationTraceIds(scope: TenantScope, ids: string[], toMs: number): Promise<Map<string, string[]>>;
   /** null si no existe; `range` acota la búsqueda (la retención) */
-  getConversation(conversationId: string, range: TimeRange): Promise<ConversationSummary | null>;
+  getConversation(scope: TenantScope, conversationId: string, range: TimeRange): Promise<ConversationSummary | null>;
   /** spans de LLM de la conversación con su contenido capturado, cronológicos; hasta `maxSpans` (+ `truncated`) */
-  getConversationMessages(conversationId: string, range: TimeRange, maxSpans: number): Promise<{ records: ChatSpanRecord[]; truncated: boolean }>;
+  getConversationMessages(scope: TenantScope, conversationId: string, range: TimeRange, maxSpans: number): Promise<{ records: ChatSpanRecord[]; truncated: boolean }>;
   /** spans sueltos, los más recientes primero; el contenido llega crudo y el servicio lo resume */
   listSpans(query: SpanListQuery): Promise<Page<SpanRecord, SpanCursor>>;
   /** catálogo de precios vigente (ADR-025), un modelo por fila */
   getModelPricing(): Promise<ModelPricing[]>;
 
   /** `memtrace.step_type` distintos vistos en el rango, con conteo — alimenta el selector de tipo de paso (ADR-027) */
-  getStepKinds(range: TimeRange & { service?: string }): Promise<StepKindCount[]>;
+  getStepKinds(range: TimeRange & { scope: TenantScope }): Promise<StepKindCount[]>;
   /** valores distintos de un atributo, acotados a los step types dados — alimenta filtro/agrupación dinámicos (ADR-027) */
-  getAttributeValues(query: TimeRange & { service?: string; stepTypes: string[]; attribute: string }): Promise<AttributeValueCount[]>;
+  getAttributeValues(query: TimeRange & { scope: TenantScope; stepTypes: string[]; attribute: string }): Promise<AttributeValueCount[]>;
   /** claves de atributo vistas en los step types dados — alimenta los selectores de "group by"/"filter by" (ADR-030) */
-  getAttributeKeys(query: TimeRange & { service?: string; stepTypes: string[] }): Promise<AttributeKeyCount[]>;
+  getAttributeKeys(query: TimeRange & { scope: TenantScope; stepTypes: string[] }): Promise<AttributeKeyCount[]>;
   /** calcula un gráfico custom (ADR-027); la forma de la consulta es un enum cerrado, nunca SQL del usuario */
   getCustomMetric(query: CustomMetricQuery): Promise<CustomMetricResult>;
 
   /** spans fallidos más profundos (los que no tienen un hijo fallido) agrupados por señal técnica, más los totales del rango (ADR-066) */
-  listErrorGroups(query: TimeRange & { service?: string }): Promise<ErrorGroupsResult>;
+  listErrorGroups(query: TimeRange & { scope: TenantScope }): Promise<ErrorGroupsResult>;
 
   ping(): Promise<void>;
 }

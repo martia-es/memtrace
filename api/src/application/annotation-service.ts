@@ -1,3 +1,4 @@
+import { tenantOf, type TenantScope } from "@/domain/tenant";
 import type { AnnotationRepository } from "@/application/ports/annotation-repository";
 import type { IdentityRepository } from "@/application/ports/identity-repository";
 import type { ScoreConfigRepository } from "@/application/ports/score-config-repository";
@@ -74,7 +75,7 @@ export class AnnotationService {
     const config = await this.requireConfig(actor.experimentId, input.configId);
     if (config.archivedAt) throw new ScoreConfigInvariantError("Archived score configs cannot receive new annotations");
     const value = validateAnnotationValue(config, input.value);
-    await this.requireTraceInTenant(actor.serviceName, traceId, input.spanId ?? null);
+    await this.requireTraceInTenant(tenantOf(actor), traceId, input.spanId ?? null);
 
     const annotation: Annotation = {
       traceId,
@@ -87,23 +88,23 @@ export class AnnotationService {
       comment: input.comment?.trim() || null,
       createdAt: this.now().toISOString(),
     };
-    await this.annotations.upsert(actor.serviceName, annotation);
+    await this.annotations.upsert(tenantOf(actor), annotation);
     return annotation;
   }
 
   /** Anotaciones humanas vigentes de la traza + scores automáticos de la misma traza. No exige que la traza siga existiendo. */
-  async listForTrace(serviceName: string, traceId: string): Promise<TraceJudgments> {
-    const [annotations, scores] = await Promise.all([this.annotations.listForTrace(serviceName, traceId), this.scores.listScoresByTrace(serviceName, traceId)]);
+  async listForTrace(scope: TenantScope, traceId: string): Promise<TraceJudgments> {
+    const [annotations, scores] = await Promise.all([this.annotations.listForTrace(scope, traceId), this.scores.listScoresByTrace(scope, traceId)]);
     const users = await this.identity.getUsersByIds([...new Set(annotations.map((a) => a.annotatorId))]);
     const names = new Map(users.map((u) => [u.id, u.name]));
     return { annotations: annotations.map((a) => ({ ...a, annotatorName: names.get(a.annotatorId) ?? null })), scores };
   }
 
   /** Trazas con alguna valoración humana baja en el rango (ADR-049). Cuenta trazas distintas, no etiquetas. */
-  async listLowRated(experimentId: string, serviceName: string, range: TimeRange): Promise<LowRatedSummary> {
+  async listLowRated(scope: TenantScope, range: TimeRange): Promise<LowRatedSummary> {
     const [labels, configs] = await Promise.all([
-      this.annotations.listRecentForTraces(serviceName, range.fromMs, range.toMs, LOW_RATED_SCAN_LIMIT),
-      this.scoreConfigs.list(experimentId, true),
+      this.annotations.listRecentForTraces(scope, range.fromMs, range.toMs, LOW_RATED_SCAN_LIMIT),
+      this.scoreConfigs.list(scope.experimentId, true),
     ]);
     const byId = new Map(configs.map((c) => [c.id, c]));
     const low = labels.filter((a) => isLowRating(a, byId.get(a.configId)));
@@ -119,12 +120,12 @@ export class AnnotationService {
    * Etiquetas humanas de las trazas (o de las conversaciones, vía sus turnos) dadas, para la columna Annotation de las
    * listas. Solo aparecen los ids con alguna etiqueta; `low` usa el mismo criterio que `listLowRated`.
    */
-  async listRatings(experimentId: string, serviceName: string, target: { traceIds: string[] } | { conversationIds: string[] }): Promise<AnnotationRating[]> {
-    const byConversation = "conversationIds" in target ? await this.traces.getConversationTraceIds(target.conversationIds, this.now().getTime()) : null;
+  async listRatings(scope: TenantScope, target: { traceIds: string[] } | { conversationIds: string[] }): Promise<AnnotationRating[]> {
+    const byConversation = "conversationIds" in target ? await this.traces.getConversationTraceIds(scope, target.conversationIds, this.now().getTime()) : null;
     const groups = byConversation ? [...byConversation].map(([id, traceIds]) => ({ id, traceIds })) : (target as { traceIds: string[] }).traceIds.map((id) => ({ id, traceIds: [id] }));
     const traceIds = [...new Set(groups.flatMap((g) => g.traceIds))];
     if (traceIds.length === 0) return [];
-    const [labels, configs] = await Promise.all([this.annotations.listForTraces(serviceName, traceIds), this.scoreConfigs.list(experimentId, true)]);
+    const [labels, configs] = await Promise.all([this.annotations.listForTraces(scope, traceIds), this.scoreConfigs.list(scope.experimentId, true)]);
     const byId = new Map(configs.map((c) => [c.id, c]));
     const labelsByTrace = new Map<string, Annotation[]>();
     for (const a of labels) labelsByTrace.set(a.traceId, [...(labelsByTrace.get(a.traceId) ?? []), a]);
@@ -141,11 +142,11 @@ export class AnnotationService {
     await this.requireConfig(actor.experimentId, input.configId);
 
     const spanId = input.spanId || null;
-    const existing = (await this.annotations.listForTrace(actor.serviceName, traceId)).find(
+    const existing = (await this.annotations.listForTrace(tenantOf(actor), traceId)).find(
       (a) => a.configId === input.configId && a.spanId === spanId && a.annotatorId === target,
     );
     if (!existing) return;
-    await this.annotations.retract(actor.serviceName, {
+    await this.annotations.retract(tenantOf(actor), {
       ...existing,
       value: "",
       // la lápida es el único rastro de una retirada por moderación (el valor anterior desaparece al fusionar)
@@ -158,9 +159,9 @@ export class AnnotationService {
    * La traza debe existir *bajo el servicio del experimento*: sin esto alguien podría escribir
    * anotaciones apuntando al `TraceId` de otro tenant. Una traza ajena responde igual que una inexistente.
    */
-  private async requireTraceInTenant(serviceName: string, traceId: string, spanId: string | null): Promise<void> {
-    const found = await this.traces.getTraceSpans(traceId, TRACE_LOOKUP_MAX_SPANS);
-    if (!found || !found.spans.some((s) => s.serviceName === serviceName)) throw new TraceNotFoundError(traceId);
+  private async requireTraceInTenant(scope: TenantScope, traceId: string, spanId: string | null): Promise<void> {
+    const found = await this.traces.getTraceSpans(scope, traceId, TRACE_LOOKUP_MAX_SPANS);
+    if (!found || !found.spans.some((s) => s.serviceName === scope.serviceName)) throw new TraceNotFoundError(traceId);
     // con la traza truncada puede que el span exista pero no se haya cargado: no se rechaza
     if (spanId && !found.truncated && !found.spans.some((s) => s.spanId === spanId)) throw new SpanNotFoundError(spanId);
   }

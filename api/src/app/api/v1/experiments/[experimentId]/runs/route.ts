@@ -24,7 +24,7 @@ export async function GET(_request: Request, context: { params: Promise<{ experi
     if (!experiment) return problem(404, "Not Found", "Experiment not found");
 
     const runs = await identityRepository.listRunsForExperiment(experimentId);
-    const aggregatesByRun = groupAggregatesByRun(await getScores().aggregateForRuns(experiment.serviceName, runs.map((r) => r.id)));
+    const aggregatesByRun = groupAggregatesByRun(await getScores().aggregateForRuns({ experimentId: experiment.id, serviceName: experiment.serviceName }, runs.map((r) => r.id)));
     return json(toRunsListResponse(runs, aggregatesByRun));
   });
 }

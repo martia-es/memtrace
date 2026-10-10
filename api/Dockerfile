@@ -23,6 +23,8 @@ COPY --from=build --chown=node:node /app/dist-worker/probe-health.cjs ./worker/p
 COPY --from=build --chown=node:node /app/dist-worker/purge-traces.cjs ./worker/purge-traces.cjs
 # worker de alertas y presupuestos (ADR-086): lo ejecuta el CronJob `alerts-evaluate`
 COPY --from=build --chown=node:node /app/dist-worker/evaluate-alerts.cjs ./worker/evaluate-alerts.cjs
+# backfill de ExperimentId (ADR-088): Job de una pasada con la misma imagen
+COPY --from=build --chown=node:node /app/dist-worker/backfill-experiment-id.cjs ./worker/backfill-experiment-id.cjs
 # uid de `node`; numérico para que Kubernetes pueda verificar runAsNonRoot
 USER 1000:1000
 EXPOSE 3001

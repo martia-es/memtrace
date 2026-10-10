@@ -18,7 +18,7 @@ class Source implements AlertMetricSource {
     if (v instanceof Error) throw v;
     return v ?? { value: null, samples: 0 };
   }
-  async cost(_service: string, from: Date): Promise<number> {
+  async cost(_scope: unknown, from: Date): Promise<number> {
     const day = from.toISOString().slice(0, 10);
     this.costCalls.push(day);
     return this.costs[day] ?? 0;

@@ -3,7 +3,7 @@ import { TraceQueryService } from "@/application/trace-query-service";
 import type { ConversationSummary } from "@/domain/conversation";
 import { ConversationNotFoundError, ValidationError } from "@/domain/errors";
 import { MAX_RANGE_MS } from "@/domain/time-range";
-import { FakeTraceRepository } from "../helpers";
+import { FakeTraceRepository, SCOPE } from "../helpers";
 
 const NOW = Date.parse("2026-09-26T12:00:00Z");
 const conversation = (id: string): ConversationSummary => ({
@@ -19,20 +19,20 @@ function setup() {
 describe("conversations", () => {
   it("lists with the default range and page size", async () => {
     const { repo, service } = setup();
-    await service.listConversations({ service: "svc", hasErrors: true });
-    expect(repo.lastConversationQuery).toMatchObject({ limit: 50, toMs: NOW, service: "svc", hasErrors: true });
+    await service.listConversations({ scope: SCOPE, hasErrors: true });
+    expect(repo.lastConversationQuery).toMatchObject({ limit: 50, toMs: NOW, scope: SCOPE, hasErrors: true });
     expect(repo.lastConversationQuery!.toMs - repo.lastConversationQuery!.fromMs).toBe(24 * 3600_000);
   });
 
   it.each([0, 201])("rejects limit %s", (limit) => {
     const { service } = setup();
-    expect(() => service.listConversations({ limit })).toThrow(ValidationError);
+    expect(() => service.listConversations({ scope: SCOPE, limit })).toThrow(ValidationError);
   });
 
   it("returns the summary with its turns in chronological order, over the whole retention", async () => {
     const { repo, service } = setup();
     repo.conversations.set("c1", conversation("c1"));
-    const detail = await service.getConversation("c1", { limit: 20 });
+    const detail = await service.getConversation(SCOPE, "c1", { limit: 20 });
     expect(detail.conversation.conversationId).toBe("c1");
     expect(repo.lastConversationRange).toEqual({ fromMs: NOW - MAX_RANGE_MS, toMs: NOW });
     expect(repo.lastListQuery).toMatchObject({ conversationId: "c1", order: "asc", limit: 20, fromMs: NOW - MAX_RANGE_MS });
@@ -49,7 +49,7 @@ describe("conversations", () => {
     repo.conversationUsage.set("c2", { firstInput: null, models: [{ model: "unpriced-model", inputTokens: 10, outputTokens: 10 }] });
     // c3 has no spans of chat at all
 
-    const { items } = await service.listConversations({});
+    const { items } = await service.listConversations({ scope: SCOPE });
     const [c1, c2, c3] = items;
     expect(c1).toMatchObject({ conversationId: "c1", title: "Do I need an umbrella in Bilbao?" });
     expect(c1!.costUsd).toBeCloseTo(0.002, 6); // only the models with a known price add up
@@ -61,7 +61,7 @@ describe("conversations", () => {
     const { repo, service } = setup();
     repo.conversationPage = { items: [conversation("c1")], nextCursor: null };
     repo.conversationUsage.set("c1", { firstInput: JSON.stringify([{ role: "user", content: "x".repeat(300) }]), models: [] });
-    const { items } = await service.listConversations({});
+    const { items } = await service.listConversations({ scope: SCOPE });
     expect(items[0]!.title).toHaveLength(120);
   });
 
@@ -69,12 +69,12 @@ describe("conversations", () => {
     const { repo, service } = setup();
     repo.conversations.set("c1", conversation("c1"));
     repo.conversationUsage.set("c1", { firstInput: JSON.stringify([{ role: "user", content: "Hola" }]), models: [] });
-    const detail = await service.getConversation("c1");
+    const detail = await service.getConversation(SCOPE, "c1");
     expect(detail.conversation).toMatchObject({ title: "Hola", costUsd: null });
   });
 
   it("throws ConversationNotFoundError for an unknown conversation", async () => {
     const { service } = setup();
-    await expect(service.getConversation("nope")).rejects.toBeInstanceOf(ConversationNotFoundError);
+    await expect(service.getConversation(SCOPE, "nope")).rejects.toBeInstanceOf(ConversationNotFoundError);
   });
 });

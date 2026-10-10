@@ -19,7 +19,7 @@ async function main() {
     const clickhouse = clickhouseConfigFromEnv();
     const traces = new TraceQueryService(new ClickHouseTraceRepository(createReadOnlyClient(clickhouse), clickhouse.database, clickhouse.maxConcurrentQueries));
     const registry = new AssistantRegistryService(new PostgresAssistantRegistryRepository(pool), {
-      toolUsage: async (serviceName, from, to) => (await traces.getOverview({ service: serviceName, from, to })).byTool,
+      toolUsage: async (scope, from, to) => (await traces.getOverview({ scope, from, to })).byTool,
     });
     const prober = new HttpHealthProber({
       timeoutMs: Number(process.env.HEALTH_PROBE_TIMEOUT_MS ?? 5000),

@@ -14,6 +14,6 @@ export async function GET(request: Request, context: { params: Promise<{ experim
     if (ctx instanceof Response) return ctx;
     const query = parseOrThrow(ratingsQuery, queryToObject(new URL(request.url).searchParams));
     const target = query.traceIds ? { traceIds: query.traceIds } : { conversationIds: query.conversationIds! };
-    return json({ items: await getAnnotation().listRatings(experimentId, ctx.serviceName, target) });
+    return json({ items: await getAnnotation().listRatings(ctx.scope, target) });
   });
 }

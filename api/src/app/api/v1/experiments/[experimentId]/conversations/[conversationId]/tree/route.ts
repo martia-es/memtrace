@@ -10,5 +10,5 @@ export async function GET(request: Request, context: { params: Promise<{ experim
   if (access instanceof Response) return access;
   // quién abrió el contenido de una conversación (ADR-084): detalle, transcripción y árbol cuentan como una apertura
   await auditExperiment(access.user, experimentId, "conversation.view", { type: "conversation", id: conversationId }, "view");
-  return getHandlers().getConversationTree(request, conversationId);
+  return getHandlers().getConversationTree(request, access.scope, conversationId);
 }

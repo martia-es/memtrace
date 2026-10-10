@@ -18,7 +18,7 @@ vi.mock("@/adapters/inbound/http/auth-context", () => ({
   requirePermission: async (_experimentId: string, permission: string) => {
     if (!state.user) return new Response(JSON.stringify({ status: 401 }), { status: 401 });
     if (!state.experimentPermissions.includes(permission)) return new Response(JSON.stringify({ status: 403, detail: `Missing permission: ${permission}` }), { status: 403 });
-    return { user: state.user, serviceName: "weather", role: "technical", permissions: state.experimentPermissions };
+    return { user: state.user, serviceName: "weather", scope: { experimentId: "exp1", serviceName: "weather" }, organizationId: "org1", role: "technical", permissions: state.experimentPermissions };
   },
 }));
 
@@ -133,6 +133,6 @@ describe("export route", () => {
     expect(response.headers.get("content-disposition")).toContain('attachment; filename="weather-traces.jsonl"');
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(await response.text()).toBe('{"a":1}\n{"a":2}\n');
-    expect(state.exportStarted[0]).toMatchObject({ organizationId: "org1", experimentId: "exp1", serviceName: "weather", actor: { userId: "u1", email: "ana@example.com" }, kind: "traces" });
+    expect(state.exportStarted[0]).toMatchObject({ organizationId: "org1", scope: { experimentId: "exp1", serviceName: "weather" }, actor: { userId: "u1", email: "ana@example.com" }, kind: "traces" });
   });
 });

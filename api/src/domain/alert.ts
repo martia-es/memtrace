@@ -72,6 +72,29 @@ export interface AlertEvent {
   emailed: number;
 }
 
+export type NotificationKind = "fired" | "resolved" | "budget_warning" | "budget_exceeded" | "budget_forecast";
+
+/**
+ * Un aviso de la campana (ADR-094): una alerta que se disparó o se resolvió, o un aviso de presupuesto. Los campos de la alerta son
+ * null en los de presupuesto y al revés; los recordatorios no entran, repetirían el mismo problema.
+ */
+export interface AppNotification {
+  id: string;
+  kind: NotificationKind;
+  at: string;
+  experimentId: string;
+  experimentName: string;
+  ruleId: string | null;
+  ruleName: string | null;
+  metric: AlertRule["metric"] | null;
+  comparator: AlertRule["comparator"] | null;
+  value: number | null;
+  threshold: number | null;
+  /** del presupuesto actual; null si ya no hay */
+  budgetUsd: number | null;
+  warnPercent: number | null;
+}
+
 const EMAIL = /^[^\s@<>"',;()]{1,64}@[^\s@<>"',;()]{1,255}\.[A-Za-z]{2,}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

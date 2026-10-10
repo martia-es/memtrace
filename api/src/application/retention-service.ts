@@ -82,7 +82,7 @@ export class RetentionService {
     for (const target of targets) {
       const cutoff = retentionCutoff(now, target.days);
       try {
-        const { spans } = await this.purger.purge(target.serviceName, cutoff);
+        const { spans } = await this.purger.purge({ experimentId: target.experimentId, serviceName: target.serviceName }, cutoff);
         summary.spans += spans;
         if (spans > 0) {
           await this.audit.record({

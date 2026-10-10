@@ -1,0 +1,59 @@
+# Backfill de ExperimentId (ADR-088). Asigna el experimento a las filas de ClickHouse anteriores a la migración 013:
+# solo cuando el `service_name` es de UN experimento (si lo comparten dos organizaciones no se adivina y esas filas
+# quedan sin asignar, invisibles, y el log lo avisa). Idempotente: repetirlo no duplica ni cambia nada.
+# Misma imagen que la API (`make api` la reconstruye). Si corre antes de que la migración 013 haya terminado, falla y
+# Kubernetes lo reintenta. Para relanzarlo a mano: `make backfill-experiment-id`.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: backfill-experiment-id
+  namespace: memtrace
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        app: backfill-experiment-id
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: backfill
+          image: memtrace/api:dev
+          imagePullPolicy: IfNotPresent   # imagen local cargada en kind: no hay registro
+          command: ["node", "worker/backfill-experiment-id.cjs"]
+          env:
+            - name: POSTGRES_HOST
+              value: postgres
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: POSTGRES_USER
+              value: memtrace
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: password
+            - name: POSTGRES_DATABASE
+              value: memtrace_identity
+            # necesita ALTER/INSERT sobre las tablas: el usuario `default` (el mismo que usa el Job de migraciones)
+            - name: CLICKHOUSE_URL
+              value: http://clickhouse:8123
+            - name: CLICKHOUSE_USER
+              value: default
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: clickhouse-credentials
+                  key: password
+            - name: CLICKHOUSE_DATABASE
+              value: memtrace
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: 25m, memory: 64Mi }
+            limits: { memory: 256Mi }
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000

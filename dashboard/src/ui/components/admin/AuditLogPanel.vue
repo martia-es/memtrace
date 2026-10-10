@@ -33,6 +33,11 @@ const ACTIONS: { value: string; label: string }[] = [
   { value: "alert.delete", label: "Deleted an alert" },
   { value: "budget.update", label: "Set the cost budget" },
   { value: "budget.delete", label: "Removed the cost budget" },
+  { value: "partnership.create", label: "Added a partner" },
+  { value: "partnership.revoke", label: "Ended a partnership" },
+  { value: "partner_grant.create", label: "Granted a partner access" },
+  { value: "partner_grant.revoke", label: "Removed a partner access" },
+  { value: "partner.access", label: "A partner entered an experiment" },
 ];
 const LABEL = Object.fromEntries(ACTIONS.filter((a) => a.value).map((a) => [a.value, a.label]));
 

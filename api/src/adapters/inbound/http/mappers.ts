@@ -227,12 +227,12 @@ export function toErrorOverviewResponse(o: ErrorOverview): ErrorOverviewResponse
   };
 }
 
-/** Cruza los experimentos visibles con su uso por ServiceName; sin datos en el rango = ceros, no se omite. */
+/** Cruza los experimentos visibles con su uso por experimento (ADR-088); sin datos en el rango = ceros, no se omite. */
 export function toExperimentUsageResponse(experiments: { id: string; name: string; serviceName: string }[], items: ServiceUsage[]): ExperimentUsageResponse {
-  const byService = new Map(items.map((i) => [i.serviceName, i]));
+  const byExperiment = new Map(items.map((i) => [i.experimentId, i]));
   return {
     items: experiments.map((e) => {
-      const usage = byService.get(e.serviceName);
+      const usage = byExperiment.get(e.id);
       return {
         experimentId: e.id,
         experimentName: e.name,

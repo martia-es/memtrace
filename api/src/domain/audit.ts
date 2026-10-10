@@ -18,6 +18,12 @@ export const AUDIT_ACTIONS = [
   "alert.delete",
   "budget.update",
   "budget.delete",
+  "partnership.create",
+  "partnership.revoke",
+  "partner_grant.create",
+  "partner_grant.revoke",
+  /** una persona de una consultora entró en los datos de un cliente por su relación partner (ADR-091) */
+  "partner.access",
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 

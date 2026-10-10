@@ -1,5 +1,5 @@
 import { getHandlers } from "@/dependency-container";
-import { requireExperimentRead, withServiceFilter } from "@/adapters/inbound/http/auth-context";
+import { requireExperimentRead } from "@/adapters/inbound/http/auth-context";
 
 export const dynamic = "force-dynamic";
 
@@ -8,5 +8,5 @@ export async function GET(request: Request, context: { params: Promise<{ experim
   const { experimentId } = await context.params;
   const access = await requireExperimentRead(experimentId);
   if (access instanceof Response) return access;
-  return getHandlers().revisions(withServiceFilter(request, access.serviceName));
+  return getHandlers().revisions(request, access.scope);
 }

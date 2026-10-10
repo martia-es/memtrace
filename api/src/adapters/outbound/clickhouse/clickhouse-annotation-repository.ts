@@ -3,13 +3,16 @@ import { RepositoryUnavailableError } from "@/application/errors";
 import type { AnnotationRepository } from "@/application/ports/annotation-repository";
 import type { Annotation } from "@/domain/annotation";
 import type { ScoreDataType } from "@/domain/evaluation";
+import { assertTenantScope, type TenantScope } from "@/domain/tenant";
 import { QueryLimiter } from "./query-limiter";
+import { TENANT_SQL, tenantParams } from "./tenant-sql";
 
 /** Máximo de filas por lectura de acuerdo (ADR-040): unas decenas de miles de etiquetas, muy por encima del uso esperado. */
 const AGREEMENT_ROW_LIMIT = 50000;
 
 interface AnnotationRow {
   ServiceName: string;
+  ExperimentId: string;
   TargetType: string;
   TraceId: string;
   SpanId: string;
@@ -41,23 +44,23 @@ export class ClickHouseAnnotationRepository implements AnnotationRepository {
     this.limiter = new QueryLimiter(maxConcurrentQueries);
   }
 
-  upsert(serviceName: string, annotation: Annotation): Promise<void> {
-    return this.insert(serviceName, annotation, 0);
+  upsert(scope: TenantScope, annotation: Annotation): Promise<void> {
+    return this.insert(scope, annotation, 0);
   }
 
-  retract(serviceName: string, annotation: Annotation): Promise<void> {
-    return this.insert(serviceName, annotation, 1);
+  retract(scope: TenantScope, annotation: Annotation): Promise<void> {
+    return this.insert(scope, annotation, 1);
   }
 
-  async listForTrace(serviceName: string, traceId: string): Promise<Annotation[]> {
+  async listForTrace(scope: TenantScope, traceId: string): Promise<Annotation[]> {
     try {
       return await this.limiter.run(async () => {
         const result = await this.readClient.query({
           query: `SELECT * FROM ${this.database}.annotations FINAL
-                   WHERE ServiceName = {serviceName:String} AND TargetType = 'trace' AND TraceId = {traceId:String} AND IsDeleted = 0
+                   WHERE ${TENANT_SQL} AND TargetType = 'trace' AND TraceId = {traceId:String} AND IsDeleted = 0
                    ORDER BY CreatedAt ASC
                    LIMIT 1000`,
-          query_params: { serviceName, traceId },
+          query_params: { ...tenantParams(scope), traceId },
           format: "JSONEachRow",
         });
         return (await result.json<AnnotationRow>()).map(toAnnotation);
@@ -68,31 +71,31 @@ export class ClickHouseAnnotationRepository implements AnnotationRepository {
     }
   }
 
-  listForRuns(serviceName: string, datasetRunIds: string[], configName?: string): Promise<Annotation[]> {
+  listForRuns(scope: TenantScope, datasetRunIds: string[], configName?: string): Promise<Annotation[]> {
     if (datasetRunIds.length === 0) return Promise.resolve([]);
     return this.listWhere(
-      serviceName,
+      scope,
       "TargetType = 'run_item' AND DatasetRunId IN {datasetRunIds:Array(String)}",
       { datasetRunIds },
       configName,
     );
   }
 
-  listForTraces(serviceName: string, traceIds: string[], configName?: string): Promise<Annotation[]> {
+  listForTraces(scope: TenantScope, traceIds: string[], configName?: string): Promise<Annotation[]> {
     if (traceIds.length === 0) return Promise.resolve([]);
-    return this.listWhere(serviceName, "TargetType = 'trace' AND SpanId = '' AND TraceId IN {traceIds:Array(String)}", { traceIds }, configName);
+    return this.listWhere(scope, "TargetType = 'trace' AND SpanId = '' AND TraceId IN {traceIds:Array(String)}", { traceIds }, configName);
   }
 
-  async listRecentForTraces(serviceName: string, fromMs: number, toMs: number, limit: number): Promise<Annotation[]> {
+  async listRecentForTraces(scope: TenantScope, fromMs: number, toMs: number, limit: number): Promise<Annotation[]> {
     try {
       return await this.limiter.run(async () => {
         const result = await this.readClient.query({
           query: `SELECT * FROM ${this.database}.annotations FINAL
-                   WHERE ServiceName = {serviceName:String} AND TargetType = 'trace' AND SpanId = '' AND IsDeleted = 0
+                   WHERE ${TENANT_SQL} AND TargetType = 'trace' AND SpanId = '' AND IsDeleted = 0
                      AND CreatedAt >= fromUnixTimestamp64Milli({fromMs:Int64}) AND CreatedAt < fromUnixTimestamp64Milli({toMs:Int64})
                    ORDER BY CreatedAt DESC
                    LIMIT {limit:UInt32}`,
-          query_params: { serviceName, fromMs, toMs, limit },
+          query_params: { ...tenantParams(scope), fromMs, toMs, limit },
           format: "JSONEachRow",
         });
         return (await result.json<AnnotationRow>()).map(toAnnotation);
@@ -104,16 +107,16 @@ export class ClickHouseAnnotationRepository implements AnnotationRepository {
   }
 
   /** Lectura acotada para el cálculo de acuerdo: el tope evita traer una tabla entera si el alcance es enorme. */
-  private async listWhere(serviceName: string, condition: string, params: Record<string, unknown>, configName?: string): Promise<Annotation[]> {
+  private async listWhere(scope: TenantScope, condition: string, params: Record<string, unknown>, configName?: string): Promise<Annotation[]> {
     try {
       return await this.limiter.run(async () => {
         const result = await this.readClient.query({
           query: `SELECT * FROM ${this.database}.annotations FINAL
-                   WHERE ServiceName = {serviceName:String} AND ${condition} AND IsDeleted = 0
+                   WHERE ${TENANT_SQL} AND ${condition} AND IsDeleted = 0
                      ${configName === undefined ? "" : "AND ConfigName = {configName:String}"}
                    ORDER BY CreatedAt ASC
                    LIMIT ${AGREEMENT_ROW_LIMIT}`,
-          query_params: { serviceName, ...params, ...(configName === undefined ? {} : { configName }) },
+          query_params: { ...tenantParams(scope), ...params, ...(configName === undefined ? {} : { configName }) },
           format: "JSONEachRow",
         });
         return (await result.json<AnnotationRow>()).map(toAnnotation);
@@ -124,9 +127,10 @@ export class ClickHouseAnnotationRepository implements AnnotationRepository {
     }
   }
 
-  private async insert(serviceName: string, annotation: Annotation, isDeleted: 0 | 1): Promise<void> {
+  private async insert(scope: TenantScope, annotation: Annotation, isDeleted: 0 | 1): Promise<void> {
     const row: AnnotationRow = {
-      ServiceName: serviceName,
+      ServiceName: assertTenantScope(scope).serviceName,
+      ExperimentId: scope.experimentId,
       TargetType: annotation.datasetRunId ? "run_item" : "trace",
       TraceId: annotation.traceId,
       SpanId: annotation.spanId ?? "",

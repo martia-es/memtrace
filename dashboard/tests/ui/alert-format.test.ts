@@ -4,6 +4,7 @@ import {
   conditionText,
   emailedText,
   formatValue,
+  gaugeFill,
   needsSamples,
   parseRecipients,
   samplesLabel,
@@ -92,5 +93,19 @@ describe("what the alerts screen says (ADR-086)", () => {
     expect(budgetTone(99.9, 80)).toBe("warn");
     expect(budgetTone(100, 80)).toBe("error");
     expect(budgetTone(250, 80)).toBe("error");
+  });
+});
+
+describe("gaugeFill", () => {
+  it("puts the limit at 66 % of the bar and never draws outside it", () => {
+    expect(gaugeFill(5, 5)).toBe(66);
+    expect(gaugeFill(2.5, 5)).toBe(33);
+    expect(gaugeFill(40, 1)).toBe(100);
+    expect(gaugeFill(0, 5)).toBe(0);
+  });
+  it("draws nothing without a value, and copes with a zero limit", () => {
+    expect(gaugeFill(null, 5)).toBeNull();
+    expect(gaugeFill(3, 0)).toBe(100);
+    expect(gaugeFill(0, 0)).toBe(0);
   });
 });

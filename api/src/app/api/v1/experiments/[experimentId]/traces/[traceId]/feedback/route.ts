@@ -16,7 +16,7 @@ export async function GET(_request: Request, context: Params) {
     const { experimentId, traceId } = await context.params;
     const ctx = await requirePermission(experimentId, "experiment:read");
     if (ctx instanceof Response) return ctx;
-    return json(toTraceFeedbackResponse(await getUserFeedback().listForTrace(experimentId, ctx.serviceName, traceId)));
+    return json(toTraceFeedbackResponse(await getUserFeedback().listForTrace(ctx.scope, traceId)));
   });
 }
 
@@ -33,8 +33,8 @@ export async function POST(request: Request, context: Params) {
     const body = await parseJsonOrThrow(submitFeedbackBody, request);
     const bySession = !request.headers.get("authorization");
     const endUserId = bySession ? `memtrace-user:${access.createdByUserId}` : body.endUserId;
-    await getUserFeedback().submit(access.serviceName, traceId, { ...body, endUserId });
-    return json(toTraceFeedbackResponse(await getUserFeedback().listForTrace(experimentId, access.serviceName, traceId)), 201);
+    await getUserFeedback().submit(access.scope, traceId, { ...body, endUserId });
+    return json(toTraceFeedbackResponse(await getUserFeedback().listForTrace(access.scope, traceId)), 201);
   });
 }
 
@@ -46,7 +46,7 @@ export async function DELETE(request: Request, context: Params) {
     if (access instanceof Response) return access;
     const query = parseOrThrow(retractFeedbackQuery, queryToObject(new URL(request.url).searchParams));
     const bySession = !request.headers.get("authorization");
-    await getUserFeedback().retract(access.serviceName, traceId, bySession ? { ...query, endUserId: `memtrace-user:${access.createdByUserId}` } : query);
+    await getUserFeedback().retract(access.scope, traceId, bySession ? { ...query, endUserId: `memtrace-user:${access.createdByUserId}` } : query);
     return new Response(null, { status: 204 });
   });
 }

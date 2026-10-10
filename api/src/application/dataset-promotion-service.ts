@@ -1,3 +1,4 @@
+import { tenantOf } from "@/domain/tenant";
 import type { AnnotationRepository } from "@/application/ports/annotation-repository";
 import type { IdentityRepository } from "@/application/ports/identity-repository";
 import type { TraceRepository } from "@/application/ports/trace-repository";
@@ -10,6 +11,7 @@ const MAX_SPANS = 5000;
 
 export interface PromotionActor {
   userId: string;
+  experimentId: string;
   /** Clave de tenant de ClickHouse: una traza de otro servicio se trata como inexistente. */
   serviceName: string;
 }
@@ -57,8 +59,8 @@ export class DatasetPromotionService {
 
     const traceIds = unique.map((r) => r.traceId);
     const [spansByTrace, annotations] = await Promise.all([
-      this.traces.getTraceSpansForTraces(traceIds, MAX_SPANS),
-      this.annotations.listForTraces(actor.serviceName, traceIds),
+      this.traces.getTraceSpansForTraces(tenantOf(actor), traceIds, MAX_SPANS),
+      this.annotations.listForTraces(tenantOf(actor), traceIds),
     ]);
     const annotationsByTrace = new Map<string, Annotation[]>();
     for (const a of annotations) annotationsByTrace.set(a.traceId, [...(annotationsByTrace.get(a.traceId) ?? []), a]);

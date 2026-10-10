@@ -53,7 +53,7 @@ What it covers and what it does not:
 | **Not deleted** | Evaluation scores, human annotations and end-user feedback. They are not traces; feedback must outlive the trace it refers to. The text of evaluation run items has its own limit of 180 days |
 
 ::: tip The dashboard looks as far back as you keep
-You can keep traces for up to 365 days and the dashboard (lists, metrics, search) can show up to a year: use the **90 d** and **1 y** presets of the time range, or pick a custom range. Anything older than the period you set no longer exists, so a range that reaches past it simply shows less. Long periods are also what lets you [export](#export-your-data) older traces, for example for an audit. Wide ranges read more data, so charts over a year are slower than over a day. If two organizations send traces with the same `service.name`, they cannot be told apart in storage, and the **longer** of the two periods applies, because a wrong deletion cannot be undone.
+You can keep traces for up to 365 days and the dashboard (lists, metrics, search) can show up to a year: use the **90 d** and **1 y** presets of the time range, or pick a custom range. Anything older than the period you set no longer exists, so a range that reaches past it simply shows less. Long periods are also what lets you [export](#export-your-data) older traces, for example for an audit. Wide ranges read more data, so charts over a year are slower than over a day. Every span is stored with the id of its experiment, so two organizations that use the same `service.name` keep their own period. Spans stored before that id existed are only deleted after they have been assigned an experiment (see `make backfill-experiment-id`).
 :::
 
 Operators: the job is the `retention-purge` CronJob. To run it now, `kubectl -n memtrace create job --from=cronjob/retention-purge purge-now`.
@@ -68,6 +68,7 @@ Operators: the job is the `retention-purge` CronJob. To run it now, `kubectl -n 
 | Exported data | Every export, with the kind of data, the range and the number of records |
 | Changed retention / Deleted expired traces | A person changed a period, or the nightly job deleted something |
 | Added a member, created or revoked an API key | Changes of who has access |
+| Created or revoked a partner relationship or a partner grant; a consultancy person entering your data | See [Access control](/platform/access-control). Entering is recorded at most once per person and experiment every five minutes, and your own staff's reads are not marked as partner access |
 | Created, changed or deleted an alert; set or removed the cost budget | Changes to what is monitored and who is emailed (the log keeps how many addresses, not the addresses) |
 
 Lists, metrics and dashboards are **not** recorded: they carry no content and would bury the entries that matter. The log stores identifiers (which trace, which person), never the content itself. Entries cannot be edited or deleted from MemTrace and are removed after one year. Reading the log needs the `audit:read` permission, which `org_admin` has.

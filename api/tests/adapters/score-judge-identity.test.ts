@@ -4,6 +4,8 @@ import { submitDatasetRunBody } from "@/adapters/inbound/http/schemas";
 import { ClickHouseScoreRepository } from "@/adapters/outbound/clickhouse/clickhouse-score-repository";
 import type { DatasetRunItemSubmission } from "@/domain/evaluation";
 
+const SCOPE = { experimentId: "exp-1", serviceName: "svc" };
+
 const JUDGE_SCORE = { name: "correctness", value: "true", dataType: "boolean", source: "llm_judge", comment: "ok", judgeModel: "judge-x", judgePromptHash: "abc123" } as const;
 
 describe("judge identity on scores (ADR-043)", () => {
@@ -38,7 +40,7 @@ describe("judge identity on scores (ADR-043)", () => {
       scores: [JUDGE_SCORE, { name: "exact_match", value: "true", dataType: "boolean", source: "code", comment: null }, { name: "similarity", value: "0.75", dataType: "numeric", source: "code", comment: null }, { name: "tone", value: "polite", dataType: "categorical", source: "code", comment: null }],
     };
 
-    await repo.insertScores("svc", "run-1", [item]);
+    await repo.insertScores(SCOPE, "run-1", [item]);
 
     expect(inserted["memtrace.eval_items"]).toHaveLength(1);
     expect(inserted["memtrace.eval_items"]![0]).toMatchObject({ DatasetRunId: "run-1", ItemIndex: 0, TraceId: "t1", Input: '"q"', Output: '"a"' });
@@ -56,7 +58,7 @@ describe("judge identity on scores (ADR-043)", () => {
     const writeClient = { insert: async (args: { table: string; values: unknown[] }) => void (inserted[args.table] = args.values) } as unknown as ClickHouseClient;
     const repo = new ClickHouseScoreRepository(writeClient, {} as ClickHouseClient, "memtrace");
 
-    await repo.insertScores("svc", "run-1", [{ input: "q", expectedOutput: null, output: undefined, traceId: null, error: "boom", scores: [] }]);
+    await repo.insertScores(SCOPE, "run-1", [{ input: "q", expectedOutput: null, output: undefined, traceId: null, error: "boom", scores: [] }]);
 
     expect(inserted["memtrace.eval_items"]).toHaveLength(1);
     expect(inserted["memtrace.eval_scores"]).toBeUndefined();
@@ -69,7 +71,7 @@ describe("judge identity on scores (ADR-043)", () => {
     const readClient = { query: async ({ query }: { query: string }) => ({ json: async () => (query.includes("eval_items") ? [item, failedItem] : [score]) }) } as unknown as ClickHouseClient;
     const repo = new ClickHouseScoreRepository({} as ClickHouseClient, readClient, "memtrace");
 
-    const items = await repo.listScoresByRun("svc", "run-1");
+    const items = await repo.listScoresByRun(SCOPE, "run-1");
 
     expect(items[0]!.scores[0]).toMatchObject({ judgeModel: "judge-x", judgePromptHash: "abc123" });
     expect(items[1]).toMatchObject({ itemIndex: 1, error: "boom", scores: [] });
@@ -80,7 +82,7 @@ describe("judge identity on scores (ADR-043)", () => {
     const readClient = { query: async () => ({ json: async () => [row] }) } as unknown as ClickHouseClient;
     const repo = new ClickHouseScoreRepository({} as ClickHouseClient, readClient, "memtrace");
 
-    const [agg] = await repo.aggregateForRuns("svc", ["run-1"]);
+    const [agg] = await repo.aggregateForRuns(SCOPE, ["run-1"]);
 
     expect(agg).toMatchObject({ passRate: 0.75, average: null, count: 4 });
     expect(agg!.judges).toEqual([{ model: "judge-x", promptHash: "abc123" }, { model: null, promptHash: null }]);

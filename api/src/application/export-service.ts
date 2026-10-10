@@ -2,6 +2,7 @@ import type { AuditService } from "@/application/audit-service";
 import type { DataExporter } from "@/application/ports/data-exporter";
 import { MAX_EXPORT_ROWS, exportFilename, parseExportRequest } from "@/domain/data-export";
 import { ExportTooLargeError } from "@/domain/errors";
+import type { TenantScope } from "@/domain/tenant";
 
 export interface StartedExport {
   filename: string;
@@ -23,17 +24,16 @@ export class ExportService {
    * Valida la petición y dice cuántas filas tendría, sin leer ni registrar nada: lo usa la pantalla antes de ofrecer la descarga
    * para poder explicar un error (rango, tamaño) sin que el navegador acabe en una página de error.
    */
-  async preview(input: { serviceName: string; kind: unknown; from: unknown; to: unknown }): Promise<{ rows: number; maxRows: number }> {
+  async preview(input: { scope: TenantScope; kind: unknown; from: unknown; to: unknown }): Promise<{ rows: number; maxRows: number }> {
     const request = parseExportRequest(input);
-    const rows = await this.exporter.count(input.serviceName, request.kind, request.from, request.to);
+    const rows = await this.exporter.count(input.scope, request.kind, request.from, request.to);
     if (rows > MAX_EXPORT_ROWS) throw new ExportTooLargeError(rows, MAX_EXPORT_ROWS);
     return { rows, maxRows: MAX_EXPORT_ROWS };
   }
 
   async start(input: {
     organizationId: string;
-    experimentId: string;
-    serviceName: string;
+    scope: TenantScope;
     actor: { userId: string; email: string };
     kind: unknown;
     from: unknown;
@@ -44,7 +44,7 @@ export class ExportService {
 
     await this.audit.record({
       organizationId: input.organizationId,
-      experimentId: input.experimentId,
+      experimentId: input.scope.experimentId,
       actorUserId: input.actor.userId,
       actorLabel: input.actor.email,
       action: "data.export",
@@ -52,6 +52,6 @@ export class ExportService {
       targetId: request.kind,
       metadata: { kind: request.kind, from: request.from.toISOString(), to: request.to.toISOString(), rows },
     });
-    return { filename: exportFilename(input.serviceName, request), rows, lines: this.exporter.stream(input.serviceName, request.kind, request.from, request.to) };
+    return { filename: exportFilename(input.scope.serviceName, request), rows, lines: this.exporter.stream(input.scope, request.kind, request.from, request.to) };
   }
 }

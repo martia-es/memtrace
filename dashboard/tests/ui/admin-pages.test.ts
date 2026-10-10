@@ -36,6 +36,7 @@ async function setup(component: object, path: string, identity: FakeIdentityApi)
   const routes = [
     { path: "/admin", name: "admin", component: { template: "<div />" } },
     { path: "/admin/members", name: "admin-members", component: { template: "<div />" } },
+    { path: "/clients", name: "partner-clients", component: { template: "<div />" } },
     { path: "/assistants", name: "assistants", component: { template: "<div />" } },
     { path: "/admin/organizations/:organizationId", name: "admin-organization", component: { template: "<div />" }, props: true },
     { path: "/admin/experiments/:expId", name: "admin-experiment", component: { template: "<div />" }, props: (r: { params: Record<string, unknown> }) => ({ experimentId: r.params.expId }) },

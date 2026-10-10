@@ -1,4 +1,4 @@
-import type { AlertEvent, AlertEventKind, AlertRule, AlertRuleInput, AlertStatus, BudgetLevel, CostBudget, CostBudgetInput } from "@/domain/alert";
+import type { AlertEvent, AlertEventKind, AppNotification, AlertRule, AlertRuleInput, AlertStatus, BudgetLevel, CostBudget, CostBudgetInput } from "@/domain/alert";
 
 /** Una regla con su estado actual (null si aún no se ha evaluado). */
 export interface AlertRuleWithStatus {
@@ -49,6 +49,12 @@ export interface AlertRepository {
   listEvents(experimentId: string, limit: number, cursor?: string): Promise<{ items: AlertEvent[]; nextCursor: string | null }>;
   /** Alertas disparadas ahora en esos experimentos, las más antiguas primero. */
   listOpen(experimentIds: string[]): Promise<OpenAlert[]>;
+
+  /** Alertas disparadas o resueltas y avisos de presupuesto desde `since` en esos experimentos, los más recientes primero (ADR-094). */
+  listNotifications(experimentIds: string[], since: Date, limit: number): Promise<AppNotification[]>;
+  /** Hasta cuándo ha leído esa persona sus notificaciones; null si nunca ha marcado nada. */
+  getNotificationsReadAt(userId: string): Promise<string | null>;
+  markNotificationsRead(userId: string, at: Date): Promise<void>;
 
   listEvaluableRules(): Promise<EvaluableRule[]>;
   /** Guarda el estado y, si hubo transición, su evento, en una sola transacción. */

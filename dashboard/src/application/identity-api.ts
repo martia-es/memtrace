@@ -6,7 +6,11 @@ import type {
   BudgetViewDto,
   ChartCatalogEntryDto,
   CustomMetricDefinitionDto,
+  NotificationsDto,
   OpenAlertsDto,
+  PartnerClientDto,
+  PartnerGrantDto,
+  PartnershipDto,
   RetentionPolicyDto,
   ScoreConfigDto,
 } from "@contract";
@@ -195,6 +199,16 @@ export interface IdentityApi {
   setExperimentRetention(organizationId: string, experimentId: string, days: number | null, signal?: AbortSignal): Promise<RetentionPolicyDto>;
   /** Registro de auditoría de la organización, de más reciente a más antiguo (ADR-084). Exige `audit:read`. */
   listAuditLog(organizationId: string, filter: { action?: string; experimentId?: string; from?: string; to?: string; cursor?: string; limit?: number }, signal?: AbortSignal): Promise<AuditPageDto>;
+  /** Consultoras con acceso a la organización y las personas concretas con su rol (ADR-091). Solo org_admin. */
+  listPartnerships(organizationId: string, signal?: AbortSignal): Promise<PartnershipDto[]>;
+  /** La consultora se identifica por el id de SU organización, que ella facilita. Por sí sola no da acceso a nada. */
+  createPartnership(organizationId: string, partnerOrganizationId: string, signal?: AbortSignal): Promise<PartnershipDto>;
+  revokePartnership(organizationId: string, partnershipId: string, signal?: AbortSignal): Promise<void>;
+  /** `experimentId: null` = todos los experimentos de la organización. Repetir persona y alcance cambia el rol. */
+  grantPartnerAccess(organizationId: string, partnershipId: string, input: { email: string; role: string; experimentId: string | null }, signal?: AbortSignal): Promise<PartnerGrantDto>;
+  revokePartnerGrant(organizationId: string, partnershipId: string, grantId: string, signal?: AbortSignal): Promise<void>;
+  /** Para las personas de una consultora: los clientes que les dieron acceso. */
+  listPartnerClients(signal?: AbortSignal): Promise<PartnerClientDto[]>;
   /** Valida una exportación y dice cuántas filas tendría, sin descargar ni registrar nada. Lanza si el rango o el tamaño no valen. */
   previewExport(experimentId: string, request: { kind: string; from: string; to: string }, signal?: AbortSignal): Promise<{ rows: number; maxRows: number }>;
   /** Dirección de descarga de una exportación en JSON Lines (ADR-084). Exige `data:export`; el navegador la descarga con su sesión. */
@@ -228,6 +242,10 @@ export interface IdentityApi {
   deleteBudget(experimentId: string, signal?: AbortSignal): Promise<void>;
   /** Alertas disparadas ahora en los agentes que la persona puede leer, para la campana de la barra superior. */
   listOpenAlerts(signal?: AbortSignal): Promise<OpenAlertsDto>;
+  /** Avisos recientes de la campana (alertas disparadas o resueltas y presupuestos), con cuántos no ha leído esta persona (ADR-094). */
+  listNotifications(signal?: AbortSignal): Promise<NotificationsDto>;
+  /** «Marcar todo como leído»: lo que haya ahora deja de contar como nuevo. */
+  markNotificationsRead(signal?: AbortSignal): Promise<void>;
 
   /** Gráficos custom guardados del experimento (ADR-027), más recientes primero. */
   listCustomMetrics(experimentId: string, signal?: AbortSignal): Promise<SavedCustomMetricDto[]>;

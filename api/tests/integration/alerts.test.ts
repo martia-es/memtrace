@@ -1,6 +1,6 @@
 /**
- * Contra un Postgres real (15+) con las migraciones 001-042 aplicadas. Opt-in: `POSTGRES_INTEGRATION_URL=postgres://… npm run test:integration`.
- * Cubre lo que los fakes no pueden: las restricciones de la migración 042, las cascadas, las consultas del evaluador y el tope diario
+ * Contra un Postgres real (15+) con las migraciones 001-044 aplicadas. Opt-in: `POSTGRES_INTEGRATION_URL=postgres://… npm run test:integration`.
+ * Cubre lo que los fakes no pueden: las restricciones de las migraciones 042 y 044, las cascadas, las consultas del evaluador y el tope diario
  * contado en la base de datos (ADR-086).
  */
 import { Pool } from "pg";
@@ -148,6 +148,43 @@ describe.skipIf(!url)("alerts and budgets (postgres)", () => {
       expect(await repo.listOpen([])).toEqual([]);
       expect(await repo.listOpen(["not-a-uuid"])).toEqual([]);
       expect((await repo.listOpen([expB])).find((a) => a.ruleName === "Open one")).toMatchObject({ experimentName: "b", metric: "error_rate", threshold: 5, comparator: "above" });
+    });
+
+    it("builds the bell feed from fired and resolved events and budget notices, newest first, without reminders", async () => {
+      const rule = await repo.createRule(expA, userId, input({ name: "Feed rule" }));
+      const hidden = await repo.createRule(expOther, userId, input({ name: "Feed elsewhere" }));
+      await repo.recordEvaluation(rule.id, status("firing"), { ruleId: rule.id, experimentId: expA, kind: "fired", value: 9, threshold: 5, emailed: 1 });
+      await repo.recordEvaluation(rule.id, status("firing"), { ruleId: rule.id, experimentId: expA, kind: "reminder", value: 9, threshold: 5, emailed: 1 });
+      await repo.recordEvaluation(rule.id, status("ok", { lastValue: 1 }), { ruleId: rule.id, experimentId: expA, kind: "resolved", value: 1, threshold: 5, emailed: 1 });
+      await repo.recordEvaluation(hidden.id, status("firing"), { ruleId: hidden.id, experimentId: expOther, kind: "fired", value: 9, threshold: 5, emailed: 0 });
+      await repo.upsertBudget(expA, userId, { monthlyUsd: 50, warnPercent: 80, recipients: [], enabled: true });
+      await repo.markBudgetNotified(expA, "2026-10-01", ["warning", "exceeded"], "exceeded", 0); // se saltó de nivel: solo se enseña el mayor
+      await repo.markBudgetNotified(expA, "2026-10-01", ["forecast"], "forecast", 0);
+
+      const since = new Date(Date.now() - 60_000);
+      const feed = (await repo.listNotifications([expA], since, 30)).filter((n) => n.ruleName === "Feed rule" || n.kind.startsWith("budget_"));
+      expect(feed.map((n) => n.kind).sort()).toEqual(["budget_exceeded", "budget_forecast", "fired", "resolved"]);
+      expect(feed.some((n) => n.kind.includes("warning"))).toBe(false);
+      expect(feed.find((n) => n.kind === "resolved")).toMatchObject({ ruleName: "Feed rule", experimentName: "a", metric: "error_rate", comparator: "above", value: 1, threshold: 5, budgetUsd: null });
+      expect(feed.find((n) => n.kind === "budget_exceeded")).toMatchObject({ ruleId: null, metric: null, budgetUsd: 50, warnPercent: 80 });
+      expect((await repo.listNotifications([expA], since, 30)).map((n) => n.at)).toEqual([...(await repo.listNotifications([expA], since, 30)).map((n) => n.at)].sort().reverse());
+      expect((await repo.listNotifications([expA], since, 30)).some((n) => n.ruleName === "Feed elsewhere")).toBe(false); // otro agente
+      expect(await repo.listNotifications([expA], new Date(Date.now() + 60_000), 30)).toEqual([]); // nada es más nuevo que el futuro
+      expect(await repo.listNotifications([expA], since, 1)).toHaveLength(1);
+      expect(await repo.listNotifications([], since, 30)).toEqual([]);
+      expect(await repo.listNotifications(["not-a-uuid"], since, 30)).toEqual([]);
+      // el presupuesto y sus avisos son de este test: los de «budgets» parten de cero
+      await repo.deleteBudget(expA);
+      await pool.query(`DELETE FROM budget_notifications WHERE experiment_id = $1`, [expA]);
+    });
+
+    it("keeps one read mark per person that only moves forward", async () => {
+      expect(await repo.getNotificationsReadAt(userId)).toBeNull();
+      await repo.markNotificationsRead(userId, new Date("2026-10-10T10:00:00.000Z"));
+      expect(await repo.getNotificationsReadAt(userId)).toBe("2026-10-10T10:00:00.000Z");
+      await repo.markNotificationsRead(userId, new Date("2026-10-09T10:00:00.000Z")); // un reloj atrasado no deshace lo leído
+      expect(await repo.getNotificationsReadAt(userId)).toBe("2026-10-10T10:00:00.000Z");
+      expect(await repo.getNotificationsReadAt("not-a-uuid")).toBeNull();
     });
 
     it("gives the evaluator every enabled rule with its experiment's service name and organization", async () => {

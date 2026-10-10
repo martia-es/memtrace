@@ -16,26 +16,27 @@ function fakeClient(rows: unknown[]) {
   return { client, seen };
 }
 
+const SCOPE = { experimentId: "exp-1", serviceName: "weather" };
 const RANGE = { fromMs: 1_700_000_000_000, toMs: 1_700_086_400_000 };
 
 describe("ClickHouseTraceRepository.getAttributeKeys (ADR-078, phase 2)", () => {
   it("measures the values of each key, bounded by range and steps, with every user value bound as a parameter", async () => {
     const { client, seen } = fakeClient([]);
-    await new ClickHouseTraceRepository(client).getAttributeKeys({ ...RANGE, stepTypes: ["tool", "weird'; DROP TABLE x; --"], service: "weather" });
+    await new ClickHouseTraceRepository(client).getAttributeKeys({ ...RANGE, stepTypes: ["tool", "weird'; DROP TABLE x; --"], scope: SCOPE });
     const { query, query_params } = seen[0]!;
     for (const part of ["countIf(value != '')", "uniqIf(value, value != '')", "isFinite(toFloat64OrNull(value))", "avgIf(length(value), value != '')", "ARRAY JOIN mapKeys(SpanAttributes) AS key, mapValues(SpanAttributes) AS value", "GROUP BY key", "LIMIT 200"]) {
       expect(query, part).toContain(part);
     }
     expect(query).toContain(`match(value, '${ID_LIKE_VALUE_PATTERN}')`);
     expect(query).toContain("{stepTypes:Array(String)}");
-    expect(query).toContain("ServiceName = {service:String}");
+    expect(query).toContain("ServiceName = {tenantService:String} AND ExperimentId = {tenantExperiment:String}");
     expect(query).not.toContain("DROP TABLE");
     expect(query_params.stepTypes).toEqual(["tool", "weird'; DROP TABLE x; --"]);
   });
 
   it("turns the numbers ClickHouse sends as text into statistics", async () => {
     const { client } = fakeClient([{ key: "city", count: "120", nonEmpty: "118", distinct: "7", numericCount: "0", avgLength: 6.5, idLikeCount: "0" }]);
-    const keys = await new ClickHouseTraceRepository(client).getAttributeKeys({ ...RANGE, stepTypes: ["tool"] });
+    const keys = await new ClickHouseTraceRepository(client).getAttributeKeys({ ...RANGE, stepTypes: ["tool"], scope: SCOPE });
     expect(keys).toEqual([{ key: "city", count: 120, nonEmpty: 118, distinct: 7, numericCount: 0, avgLength: 6.5, idLikeCount: 0 }]);
   });
 
@@ -45,7 +46,7 @@ describe("ClickHouseTraceRepository.getAttributeKeys (ADR-078, phase 2)", () => 
       { key: "customer_id", count: "120", nonEmpty: "120", distinct: "110", numericCount: "120", avgLength: 7, idLikeCount: "0" },
       { key: "order_total", count: "120", nonEmpty: "120", distinct: "95", numericCount: "120", avgLength: 5, idLikeCount: "0" },
     ]);
-    const keys = await new ClickHouseTraceRepository(client).getAttributeKeys({ ...RANGE, stepTypes: ["tool"] });
+    const keys = await new ClickHouseTraceRepository(client).getAttributeKeys({ ...RANGE, stepTypes: ["tool"], scope: SCOPE });
     expect(toAttributeKeysResponse(keys).items).toEqual([
       { key: "city", count: 120, kind: "category", distinct: 7, numeric: false, hiddenByDefault: false },
       { key: "customer_id", count: 120, kind: "id", distinct: 110, numeric: true, hiddenByDefault: true },
