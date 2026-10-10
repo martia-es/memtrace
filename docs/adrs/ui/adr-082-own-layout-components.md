@@ -1,7 +1,7 @@
-# ADR-081: Own `DataTable`, `Card`, `Pagination` and `FormField` components
+# ADR-082: Own `DataTable`, `Card`, `Pagination` and `FormField` components
 
 ## Status
-Accepted (extends ADR-079 and ADR-080)
+Accepted (extends ADR-080 and ADR-081)
 
 ## Context
 Listings repeated the same table CSS (header, row border, hover, sticky header) in 17 files

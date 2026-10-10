@@ -18,9 +18,11 @@ Every save creates a new, **immutable version** (`v1`, `v2`, `v3`…): the text,
 
 Variables are written `{{city}}`; MemTrace detects them when you save and lists them on the version.
 
-Inside a prompt, the versions are listed on the left. **Pinned by tags** stays on top, so the versions that `dev`, `pre` and `pro` point to are always one click away; below, **all versions** grouped by month. Each version shows who created it. Type a number (`12`) or a word of the message in the search box to find one. Above the content, a strip says what runs in each environment and, when production is behind, by how many versions.
+Inside a prompt, the page has two columns and no tabs. The **version picker** at the top (`v12 · dev · Shorter alerts…`) opens a list: **Pinned by tags** stays on top, so the versions that `dev`, `pre` and `pro` point to are always one click away; below, **all versions** grouped by month, each with who created it. Type a number (`12`) or a word of the message in the search box to find one. Next to the picker, a strip says what runs in each environment and, when production is behind, by how many versions.
 
-The prompt is a **single page**, with no tabs. The text of the selected version is always in view. Under it, the **Compare**, **Try it** and **Fix a failure** buttons open a side panel over the page (close it with **Close** or by clicking outside), and three folded sections — **Release** (tags, promotion policy, history and approvals), **Evidence** and **Used by** (traces and dependencies) — open with a click and show a one-line summary while folded. Old links with `?tab=` still open the right panel or section.
+On the left is the text of the selected version, with the **Compare**, **Try it**, **Fix a failure** and **Edit as new version** buttons on its header, and a short **Evidence** table underneath (last 7 days). Compare, Try it and Fix a failure replace the text in the same place and **← Back to text** returns to it.
+
+On the right, an **inspector** is always at hand: the **environments** with a **Promote vN** button (or **Request approval** when the step needs one) next to each environment that does not run the version you are viewing, the **variables**, the fragments it includes, any request **waiting for approval** and links to **Used by**, **Release history** and **Approvals**. Those, and **Open full evidence**, open as full pages (without the inspector) with the same **← Back to text**. Old links with `?tab=` still open the right view.
 
 On **Content** the text has numbered lines, the `{{variables}}` are highlighted, and the lines changed since the version it came from are marked.
 
@@ -59,7 +61,7 @@ The [Python SDK](/library/prompts) reads the prompt of an environment with `memt
 
 ## What really runs
 
-The **Release** section starts with **In use right now**: for each environment, the version each agent reports to be using. *Up to date* means it runs the version its tag points to; *Catching up* means the tag moved and the agent has not picked it up yet (it takes up to 30 seconds, or longer if some replica is stale); *Fixed version* is an agent that asked for a version number instead of a tag; *Not reporting* means it has not reported for 15 minutes. In the version list, a version running somewhere says **Running in pro**. Agents report only when they read their prompt with the SDK.
+The **Release** page starts with **In use right now**: for each environment, the version each agent reports to be using. *Up to date* means it runs the version its tag points to; *Catching up* means the tag moved and the agent has not picked it up yet (it takes up to 30 seconds, or longer if some replica is stale); *Fixed version* is an agent that asked for a version number instead of a tag; *Not reporting* means it has not reported for 15 minutes. In the version list, a version running somewhere says **Running in pro**. Agents report only when they read their prompt with the SDK.
 
 ## Traces of a version
 
@@ -71,7 +73,7 @@ An agent only shows up when it reads the prompt with [`memtrace.prompts`](/libra
 
 ## Evidence: what each version did
 
-The **Evidence** section shows, for every version that had traffic in the last 24 hours, 7 or 30 days, what happened in the traces that used it:
+The **Evidence** page (**Open full evidence**) shows, for every version that had traffic in the last 24 hours, 7 or 30 days, what happened in the traces that used it:
 
 | Column | Meaning |
 |---|---|
@@ -135,7 +137,7 @@ Each experiment has its own **Approvals** tab (**Admin → experiment**). It sta
 ### Asking and approving
 
 1. With a rule active, saving an edit creates a **draft**, and moving a protected tag shows **Request approval** instead of **Move**. Write a note for the reviewers. You can **add approvers** to that request on top of the rule's, and add more later.
-2. The people who can decide see it, for the agent they have open, in **Waiting for your approval** at the top of **Overview** and of the Prompts list, as a counter next to **Prompts** in the menu, and as a **needs your approval** mark on the prompt's row. They decide in the prompt's **Release** section, under **Approvals**. Each one can **Approve** or **Reject** and comment.
+2. The people who can decide see it, for the agent they have open, in **Waiting for your approval** at the top of **Overview** and of the Prompts list, as a counter next to **Prompts** in the menu, and as a **needs your approval** mark on the prompt's row. They decide in the prompt's **Approvals** page. Each one can **Approve** or **Reject** and comment.
 3. When everything the rule asks for is in, the change **happens by itself**: the draft is published, or the tag moves. The history shows *Approved by …* and who asked.
 
 What to know:

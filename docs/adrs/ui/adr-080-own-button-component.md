@@ -1,4 +1,4 @@
-# ADR-079: One own `Button` component, no Quasar buttons
+# ADR-080: One own `Button` component, no Quasar buttons
 
 ## Status
 Accepted

@@ -120,29 +120,50 @@ describe("prompt detail (ADR-067)", () => {
     expect(wrapper.find("[data-testid='prompt-diff-card']").text()).toContain("Prompt changes");
   });
 
-  it("is one page: content always visible, no tab bar, sections folded and the drawer closed", async () => {
+  it("is one page: the text with its actions, an inspector on the right and no tab bar", async () => {
     const { wrapper } = await setup(PromptDetailPage, "technical", new FakePromptApi(), { promptId: "p1" });
     expect(wrapper.find("[role='tablist']").exists()).toBe(false);
     expect(wrapper.find("[data-testid='pane-content']").exists()).toBe(true);
-    expect(wrapper.find("[data-testid='drawer']").exists()).toBe(false);
-    expect(wrapper.find("[data-testid='pane-tags']").exists()).toBe(false);
-    await wrapper.get("[data-testid='toggle-release']").trigger("click");
-    expect(wrapper.find("[data-testid='pane-tags']").exists()).toBe(true);
-    expect(wrapper.find("[data-testid='pane-content']").exists()).toBe(true);
-    await wrapper.get("[data-testid='toggle-release']").trigger("click");
+    expect(wrapper.find("[data-testid='inspector']").exists()).toBe(true);
+    expect(wrapper.find("[data-testid='envs-card']").exists()).toBe(true);
+    expect(wrapper.find("[data-testid='evidence-strip']").exists()).toBe(true);
+    for (const id of ["open-compare", "open-try", "open-fix", "edit-version"]) expect(wrapper.find(`[data-testid='${id}']`).exists()).toBe(true);
     expect(wrapper.find("[data-testid='pane-tags']").exists()).toBe(false);
   });
 
-  it("opens Compare in a drawer over the content, and closes it", async () => {
+  it("opens Release as a full page with a way back to the text", async () => {
+    const { wrapper } = await setup(PromptDetailPage, "technical", new FakePromptApi(), { promptId: "p1" });
+    await wrapper.get("[data-testid='link-release']").trigger("click");
+    expect(wrapper.find("[data-testid='pane-tags']").exists()).toBe(true);
+    expect(wrapper.find("[data-testid='pane-content']").exists()).toBe(false);
+    expect(wrapper.find("[data-testid='inspector']").exists()).toBe(false);
+    await wrapper.get("[data-testid='back-to-text']").trigger("click");
+    expect(wrapper.find("[data-testid='pane-content']").exists()).toBe(true);
+    expect(wrapper.find("[data-testid='pane-tags']").exists()).toBe(false);
+  });
+
+  it("opens Compare in place of the text and keeps the inspector", async () => {
     const { wrapper } = await setup(PromptDetailPage, "technical", new FakePromptApi(), { promptId: "p1" });
     await wrapper.get("[data-testid='open-compare']").trigger("click");
-    expect(wrapper.find("[data-testid='drawer'] [data-testid='pane-compare']").exists()).toBe(true);
+    expect(wrapper.find("[data-testid='pane-compare']").exists()).toBe(true);
+    expect(wrapper.find("[data-testid='pane-content']").exists()).toBe(false);
+    expect(wrapper.find("[data-testid='inspector']").exists()).toBe(true);
+    await wrapper.get("[data-testid='back-to-text']").trigger("click");
     expect(wrapper.find("[data-testid='pane-content']").exists()).toBe(true);
-    await wrapper.get("[data-testid='close-drawer']").trigger("click");
-    expect(wrapper.find("[data-testid='drawer']").exists()).toBe(false);
   });
 
-  it("still opens the right panel or section from an old ?tab= link, and hides write actions from readers", async () => {
+  it("picks a version from the dropdown in the top bar and closes it", async () => {
+    const api = new FakePromptApi();
+    api.detail = promptDetail({ versions: [promptVersion(2, "Nuevo"), promptVersion(1, "Antiguo")] });
+    const { wrapper } = await setup(PromptDetailPage, "technical", api, { promptId: "p1" });
+    expect(wrapper.get("[data-testid='version-picker']").text()).toContain("v2");
+    await wrapper.get("[data-testid='version-picker']").trigger("click");
+    await wrapper.get("[data-testid='version-1']").trigger("click");
+    expect(wrapper.get("[data-testid='version-picker']").text()).toContain("v1");
+    expect(wrapper.find("[data-testid='version-content']").text()).toBe("Antiguo");
+  });
+
+  it("still opens the right view from an old ?tab= link, and hides write actions from readers", async () => {
     const { wrapper } = await setup(PromptDetailPage, "technical", new FakePromptApi(), { promptId: "p1" }, "?tab=evidence");
     expect(wrapper.find("[data-testid='pane-evidence']").exists()).toBe(true);
     const reader = await setup(PromptDetailPage, "business", new FakePromptApi(), { promptId: "p1" });
@@ -192,6 +213,18 @@ describe("prompt detail (ADR-067)", () => {
     expect(wrapper.find("[data-testid='tag-events']").text()).toContain("ready to test");
   });
 
+  it("promotes the version you are looking at from the inspector, only where it is not already tagged", async () => {
+    const api = new FakePromptApi();
+    const { wrapper } = await setup(PromptDetailPage, "technical", api, { promptId: "p1" });
+    const buttons = wrapper.findAll("[data-testid^='promote-']");
+    expect(buttons.length).toBeGreaterThan(0);
+    await buttons[0]!.trigger("click");
+    await flushPromises();
+    expect(api.calls.some((c) => c.method === "moveTag")).toBe(true);
+    const reader = await setup(PromptDetailPage, "business", new FakePromptApi(), { promptId: "p1" });
+    expect(reader.wrapper.find("[data-testid^='promote-']").exists()).toBe(false);
+  });
+
   it("shows the evidence of every version with traffic: traces, errors, latency, cost, thumbs-up, evaluators and the main failure", async () => {
     const api = new FakePromptApi();
     api.evidence = {
@@ -202,7 +235,7 @@ describe("prompt detail (ADR-067)", () => {
       ],
     };
     const { wrapper } = await setup(PromptDetailPage, "technical", api, { promptId: "p1" });
-    await wrapper.get("[data-testid='toggle-evidence']").trigger("click");
+    await wrapper.get("[data-testid='link-evidence']").trigger("click");
     await flushPromises();
     const call = api.calls.find((c) => c.method === "getEvidence")!;
     expect(call.args.slice(0, 2)).toEqual(["exp-1", "p1"]);
@@ -220,7 +253,7 @@ describe("prompt detail (ADR-067)", () => {
   it("asks for another period when the range changes", async () => {
     const api = new FakePromptApi();
     const { wrapper } = await setup(PromptDetailPage, "technical", api, { promptId: "p1" });
-    await wrapper.get("[data-testid='toggle-evidence']").trigger("click");
+    await wrapper.get("[data-testid='link-evidence']").trigger("click");
     await flushPromises();
     // acotado a este componente: los de otras pruebas siguen montados en el body
     await chooseOption(wrapper.element, "[data-testid='evidence-range']", "24 hours");
@@ -232,7 +265,7 @@ describe("prompt detail (ADR-067)", () => {
 
   it("explains an empty period", async () => {
     const { wrapper } = await setup(PromptDetailPage, "technical", new FakePromptApi(), { promptId: "p1" });
-    await wrapper.get("[data-testid='toggle-evidence']").trigger("click");
+    await wrapper.get("[data-testid='link-evidence']").trigger("click");
     await flushPromises();
     expect(wrapper.find("[data-testid='evidence-empty']").text()).toContain("No trace used this prompt");
   });
@@ -284,7 +317,7 @@ describe("prompt detail (ADR-067)", () => {
     // la lista de versiones marca dónde corre cada una
     expect(wrapper.find("[data-testid='running-2']").text()).toBe("Running in dev");
     expect(wrapper.find("[data-testid='running-1']").text()).toBe("Running in pro"); // "pre" no informa: no cuenta
-    await wrapper.get("[data-testid='toggle-release']").trigger("click");
+    await wrapper.get("[data-testid='link-release']").trigger("click");
     const table = wrapper.find("[data-testid='usage-table']");
     expect(table.find("[data-testid='usage-dev-v2']").text()).toContain("Up to date");
     expect(table.find("[data-testid='usage-pre-v1']").text()).toContain("Not reporting");
@@ -296,7 +329,7 @@ describe("prompt detail (ADR-067)", () => {
     const api = new FakePromptApi();
     api.detail = promptDetail({ usage: [{ experimentId: "exp-1", environment: "dev", tag: "dev", version: 1, lastSeenAt: new Date().toISOString(), active: true }] });
     const { wrapper } = await setup(PromptDetailPage, "technical", api, { promptId: "p1" });
-    await wrapper.get("[data-testid='toggle-release']").trigger("click");
+    await wrapper.get("[data-testid='link-release']").trigger("click");
     const row = wrapper.find("[data-testid='usage-dev-v1']");
     expect(row.text()).toContain("Catching up");
     expect(row.text()).toContain("now points to v2");
@@ -304,13 +337,13 @@ describe("prompt detail (ADR-067)", () => {
 
   it("explains how an agent shows up when none has reported yet", async () => {
     const { wrapper } = await setup(PromptDetailPage, "technical", new FakePromptApi(), { promptId: "p1" });
-    await wrapper.get("[data-testid='toggle-release']").trigger("click");
+    await wrapper.get("[data-testid='link-release']").trigger("click");
     expect(wrapper.find("[data-testid='usage-empty']").text()).toContain("prompts.get()");
   });
 
   it("hides the environment controls from people without the promote permission", async () => {
     const { wrapper } = await setup(PromptDetailPage, "business", new FakePromptApi(), { promptId: "p1" });
-    await wrapper.get("[data-testid='toggle-release']").trigger("click");
+    await wrapper.get("[data-testid='link-release']").trigger("click");
     expect(wrapper.find("[data-testid='move-pre']").exists()).toBe(false);
     expect(wrapper.find("[data-testid='env-dev']").text()).toContain("v2");
   });
@@ -329,7 +362,7 @@ describe("promotion gate in the prompt page (ADR-070)", () => {
   };
   async function openTags(api: FakePromptApi, role = "technical", options: Parameters<typeof setup>[5] = {}) {
     const ctx = await setup(PromptDetailPage, role, api, { promptId: "p1" }, "", options);
-    await ctx.wrapper.get("[data-testid='toggle-release']").trigger("click");
+    await ctx.wrapper.get("[data-testid='link-release']").trigger("click");
     await flushPromises();
     return ctx;
   }

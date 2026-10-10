@@ -1,7 +1,7 @@
-# ADR-080: Own `Checkbox`, `Radio` and `Pill` components
+# ADR-081: Own `Checkbox`, `Radio` and `Pill` components
 
 ## Status
-Accepted (extends ADR-079)
+Accepted (extends ADR-080)
 
 ## Context
 After `Button`, the next duplicated controls were 19 raw checkboxes and 3 radios (each with

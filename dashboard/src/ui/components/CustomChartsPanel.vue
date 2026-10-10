@@ -3,8 +3,9 @@ import TextInput from "@/ui/components/TextInput.vue";
 import Select from "./Select.vue";
 import type { ChartCatalogEntryDto, CustomMetricDefinitionDto, CustomMetricPointDto } from "@contract";
 import type { EChartsCoreOption } from "echarts/core";
-import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
+import { computed, inject, onBeforeUnmount, reactive, ref, watch } from "vue";
 import { useQuasar } from "quasar";
+import { routerKey } from "vue-router";
 import { customMetricChartOption, presentResult } from "../custom-metric-chart-option";
 import EChart from "./EChart.vue";
 import ChartCatalogEditor from "./ChartCatalogEditor.vue";
@@ -43,6 +44,8 @@ const props = defineProps<{ experimentId: string; range: RangeParams }>();
 const api = useTraceApi();
 const identityApi = useIdentityApi();
 const $q = useQuasar();
+// sin router (el panel suelto en los tests) el enlace al catálogo simplemente no navega
+const router = inject(routerKey, null);
 const { can } = usePermissions();
 
 // ---- nombres de negocio editados en el catálogo (ADR-078): tienen prioridad sobre el diccionario y lo humanizado ----
@@ -57,6 +60,34 @@ async function loadCatalog() {
     catalogEntries.value = [];
   }
 }
+
+// ---- renombrar un paso sin salir del selector (ADR-079): lápiz junto al chip, Enter guarda, Esc cancela, vacío = automático ----
+const editingStep = ref<string | null>(null);
+const stepDraft = ref("");
+const stepRenameError = ref("");
+function startRename(stepType: string) {
+  editingStep.value = stepType;
+  stepDraft.value = catalogEntries.value.find((e) => e.kind === "step" && e.key === stepType)?.displayName ?? "";
+  stepRenameError.value = "";
+}
+async function commitRename() {
+  const stepType = editingStep.value;
+  if (!stepType) return;
+  const name = stepDraft.value.trim();
+  const current = catalogEntries.value.find((e) => e.kind === "step" && e.key === stepType) ?? null;
+  if (name === (current?.displayName ?? "")) {
+    editingStep.value = null;
+    return;
+  }
+  try {
+    const saved = await identityApi.saveChartCatalogEntry(props.experimentId, { kind: "step", key: stepType, displayName: name === "" ? null : name, visibility: current?.visibility });
+    catalogEntries.value = [...catalogEntries.value.filter((e) => !(e.kind === "step" && e.key === stepType)), ...(saved ? [saved] : [])];
+    editingStep.value = null;
+  } catch (error) {
+    stepRenameError.value = (error as { fields?: Record<string, string> }).fields?.displayName ?? (error as Error).message;
+  }
+}
+const isRenamed = (stepType: string) => !!catalogEntries.value.find((e) => e.kind === "step" && e.key === stepType)?.displayName;
 
 type Result = { points: CustomMetricPointDto[]; timeseries: { bucketStart: string; points: CustomMetricPointDto[] }[] };
 
@@ -439,13 +470,28 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
 
         <div class="field">
           <label>I want to see… <span class="label-note">(pick one or several to compare)</span>
-            <Button variant="link" v-if="can('catalog:manage')" data-testid="open-catalog" @click="showCatalog = true" class="rename">Rename things</Button>
+            <Button v-if="can('catalog:manage')" size="sm" class="rename-btn" data-testid="open-catalog" @click="showCatalog = true">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
+              Customize names
+            </Button>
           </label>
           <div class="chip-select">
             <span v-if="stepKindsLoading" class="hint">Loading…</span>
             <span v-else-if="!stepKinds.length" class="hint">No activity in this range yet.</span>
-            <ToggleChip v-for="k in stepKinds" :key="k.stepType" :pressed="selectedSteps.includes(k.stepType)" :count="k.count.toLocaleString()" @click="toggleStep(k.stepType)">{{ stepLabel(k.stepType, names) }}</ToggleChip>
+            <template v-for="k in stepKinds" :key="k.stepType">
+              <span v-if="editingStep === k.stepType" class="chip-edit">
+                <input v-model="stepDraft" type="text" maxlength="80" :placeholder="stepLabel(k.stepType)" :aria-label="`Name for ${k.stepType}`" data-testid="step-rename-input" autofocus @keydown.enter.prevent="commitRename" @keydown.esc.prevent="editingStep = null" @blur="commitRename" />
+              </span>
+              <span v-else class="chip-wrap" :class="{ renamed: isRenamed(k.stepType) }">
+                <ToggleChip :pressed="selectedSteps.includes(k.stepType)" :count="k.count.toLocaleString()" @click="toggleStep(k.stepType)">{{ stepLabel(k.stepType, names) }}</ToggleChip>
+                <Button v-if="can('catalog:manage')" variant="icon" size="sm" class="chip-pencil" :aria-label="`Rename ${stepLabel(k.stepType, names)}`" :data-testid="`rename-step-${k.stepType}`" @click="startRename(k.stepType)">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
+                </Button>
+              </span>
+            </template>
           </div>
+          <span v-if="stepRenameError" class="hint error-text" role="alert" data-testid="step-rename-error">{{ stepRenameError }}</span>
+          <Button v-if="can('catalog:manage') && stepKinds.length" variant="link" class="self-start" data-testid="open-catalog-page" @click="router?.push({ name: 'overview-catalog', params: { experimentId } })">Manage all names and details</Button>
         </div>
         <ChartCatalogEditor v-if="showCatalog" :experiment-id="experimentId" :range="range" :entries="catalogEntries" @close="showCatalog = false" @changed="catalogEntries = $event" />
         <div class="field">
@@ -753,6 +799,12 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
   color: var(--mt-ink);
 }
 
+.rename-btn { margin-left: 10px; }
+.chip-wrap { display: inline-flex; align-items: center; gap: 2px; }
+.chip-pencil { opacity: 0.45; }
+.chip-wrap:hover .chip-pencil, .chip-pencil:focus-visible { opacity: 1; }
+.chip-wrap.renamed :deep(.mt-chip) { border-style: dashed; }
+.chip-edit input { height: 30px; padding: 0 10px; border: 1px solid var(--mt-accent); border-radius: 999px; background: transparent; color: var(--mt-ink); font: inherit; font-size: 13px; }
 .cc-grid {
   display: grid;
   grid-template-columns: 380px minmax(0, 1fr);

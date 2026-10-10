@@ -6,7 +6,6 @@
   flex-direction: column;
   gap: 20px;
   width: 100%;
-  max-width: 980px;
   padding: 24px 20px 40px;
   font-family: var(--mt-sans);
 }

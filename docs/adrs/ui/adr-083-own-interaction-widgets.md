@@ -1,7 +1,7 @@
-# ADR-082: Own interaction widgets and no Quasar visual components
+# ADR-083: Own interaction widgets and no Quasar visual components
 
 ## Status
-Accepted (extends ADR-079, ADR-080 and ADR-081)
+Accepted (extends ADR-080, ADR-081 and ADR-082)
 
 ## Context
 After the first three phases the dashboard still mixed Quasar widgets (`q-menu`, `q-tabs`,

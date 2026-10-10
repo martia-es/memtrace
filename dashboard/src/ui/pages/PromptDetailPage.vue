@@ -6,6 +6,7 @@ import type { PromptDetailDto, PromptVersionDto } from "@contract";
 import { describeApiError } from "@/application/describe-api-error";
 import { formatCostUsd, formatCount, formatDateTime, formatDuration, formatPercent, formatRelativeTime } from "@/domain/format";
 import { MIN_TRACES, compareVersions, evaluatorCell, evaluatorNames, sampleQuality } from "@/domain/prompt-evidence";
+import { requestTitle } from "@/domain/approvals";
 import { describeUsage, environmentsRunning, type UsageState } from "@/domain/prompt-usage";
 import { PRODUCTION_ENV, filterVersions, groupByMonth, sortEnvironments, splitVariables } from "@/domain/prompt-release";
 import { includeSyntax } from "@/domain/prompt-fragment";
@@ -94,29 +95,28 @@ const behindProduction = computed(() => {
   return live === null ? 0 : Math.max(0, latestVersion.value - live);
 });
 
-// ---- una sola página: el contenido siempre visible, acciones en un panel lateral y secciones plegables ----
-type PanelId = "compare" | "try" | "fix";
-type SectionId = "release" | "evidence" | "usage";
-const PANEL_TITLE: Record<PanelId, string> = { compare: "Compare versions", try: "Try it on the real agent", fix: "Fix a failure" };
-// enlaces antiguos (?tab=...) siguen funcionando: abren el panel o la sección que corresponde
-const LEGACY_TAB: Record<string, { panel?: PanelId; section?: SectionId }> = {
-  compare: { panel: "compare" }, try: { panel: "try" }, fix: { panel: "fix" },
-  tags: { section: "release" }, approvals: { section: "release" }, evidence: { section: "evidence" },
-  traces: { section: "usage" }, map: { section: "usage" },
+// ---- una sola página: el texto, y a un clic el resto de vistas ----
+type Mode = "text" | "compare" | "try" | "fix" | "evidence" | "release" | "approvals" | "usedby";
+const VIEW_TITLE: Record<Exclude<Mode, "text">, { title: string; sub: string }> = {
+  compare: { title: "Compare versions", sub: "Line by line, and how each one behaved" },
+  try: { title: "Try it on the real agent", sub: "Nothing is promoted and no tag moves" },
+  fix: { title: "Fix a failure", sub: "Start from a real failure and save the change as a draft" },
+  evidence: { title: "Evidence", sub: "Measured on real traces" },
+  release: { title: "Release", sub: "Tags, what runs now, promotion policy and history" },
+  approvals: { title: "Approvals", sub: "Rules, open requests and history for this prompt" },
+  usedby: { title: "Used by", sub: "Traces, agents, fragments and prompts that depend on this one" },
 };
-const fromTab = LEGACY_TAB[String(route.query.tab)] ?? {};
+// enlaces antiguos (?tab=...) siguen funcionando: abren la vista que corresponde
+const LEGACY_TAB: Record<string, Mode> = { compare: "compare", try: "try", fix: "fix", tags: "release", approvals: "approvals", evidence: "evidence", traces: "usedby", map: "usedby" };
 const fixTrace = typeof route.query.trace === "string" && route.query.tab === "fix" ? route.query.trace : null;
 const replayTrace = ref<string | null>(typeof route.query.trace === "string" ? route.query.trace : null);
-const panel = ref<PanelId | null>(fromTab.panel ?? null);
-const openSections = ref<Set<SectionId>>(new Set(fromTab.section ? [fromTab.section] : []));
-const isOpen = (id: SectionId) => openSections.value.has(id);
-function toggleSection(id: SectionId) {
-  const next = new Set(openSections.value);
-  if (!next.delete(id)) next.add(id);
-  openSections.value = next;
-}
-function openSection(id: SectionId) {
-  openSections.value = new Set([...openSections.value, id]);
+const mode = ref<Mode>(LEGACY_TAB[String(route.query.tab)] ?? "text");
+/** el panel de la derecha (entornos, variables, aprobaciones) acompaña al texto y a las acciones sobre él; las vistas de tabla ocupan todo el ancho */
+const showInspector = computed(() => ["text", "compare", "try", "fix"].includes(mode.value));
+const pickerOpen = ref(false);
+function pick(version: number) {
+  selected.value = version;
+  pickerOpen.value = false;
 }
 
 // ---- evidencia (ADR-069) ----
@@ -139,8 +139,8 @@ function ensureEvidence() {
   evidenceLoadedFor = rangeKey.value;
   void evidence.run();
 }
-watch([panel, openSections, rangeKey], () => {
-  if (isOpen("evidence") || panel.value === "compare") ensureEvidence();
+watch([mode, rangeKey], () => {
+  if (mode.value === "text" || mode.value === "evidence" || mode.value === "compare") ensureEvidence();
 }, { immediate: true });
 const evidenceVersions = computed(() => evidence.data.value?.versions ?? []);
 const evaluatorColumns = computed(() => evaluatorNames(evidenceVersions.value));
@@ -189,7 +189,7 @@ async function saveVersion(asDraft = false) {
     editing.value = false;
     await detail.run();
     selected.value = saved.version;
-    panel.value = null;
+    mode.value = "text";
     const needsApproval = !asDraft && saved.status === "draft";
     $q.notify({
       message: asDraft ? `Saved as draft v${saved.version}` : needsApproval ? `Saved as draft v${saved.version}: publishing it needs approval` : `Saved as v${saved.version}`,
@@ -242,6 +242,9 @@ async function rebuildDependents() {
 }
 
 // ---- aprobaciones (ADR-076) ----
+const approvalInfo = useAsync((signal) => api.getApprovals(props.promptId, signal));
+void approvalInfo.run();
+const openRequests = computed(() => (approvalInfo.data.value?.requests ?? []).filter((r) => r.status === "pending"));
 const approvalRules = computed(() => data.value?.approvals ?? { publish: false, promote: [] });
 /** Lo que se está pidiendo aprobar: publicar un borrador o apuntar un entorno a una versión. */
 const requesting = ref<{ action: "publish" | "promote"; version: number; tag?: string } | null>(null);
@@ -250,7 +253,8 @@ const servedBefore = (tag: string, version: number) => (data.value?.events ?? []
 const needsApproval = (tag: string, version: number) => approvalRules.value.promote.includes(tag) && !servedBefore(tag, version);
 async function onRequested() {
   await detail.run();
-  openSection("release");
+  mode.value = "approvals";
+  void approvalInfo.run();
 }
 
 // ---- borradores (ADR-072) ----
@@ -292,7 +296,7 @@ function testDraft(draftVersion: number, base: number | null, traceId: string | 
   tryFirst.value = draftVersion;
   trySecond.value = base;
   if (traceId) replayTrace.value = traceId;
-  panel.value = "try";
+  mode.value = "try";
 }
 async function onDraftSaved(version: number) {
   await detail.run();
@@ -359,8 +363,8 @@ async function onPromoted() {
 
 const datasets = useAsync((signal) => traceApi.listDatasets(signal));
 let datasetsRequested = false;
-watch(openSections, (open) => {
-  if (open.has("release") && !datasetsRequested) {
+watch(mode, (m) => {
+  if (m === "release" && !datasetsRequested) {
     datasetsRequested = true;
     void datasets.run();
   }
@@ -453,6 +457,14 @@ const failures = computed(() => {
   }
   return [...byTitle.values()].sort((a, b) => b.traces - a.traces).slice(0, 5);
 });
+const stripRows = computed(() => [...evidenceVersions.value].sort((x, y) => y.version - x.version).slice(0, 4));
+/** Promote la versión que se está viendo al entorno: pasa por la solicitud de aprobación o el gate igual que desde Release. */
+const canPromoteSelected = computed(() => canPromote.value && selectedVersion.value?.status === "published");
+function promoteSelected(tag: string) {
+  if (selected.value === null) return;
+  pending.value[tag] = selected.value;
+  moveEnvironment(tag);
+}
 const maxTraces = computed(() => Math.max(1, ...evidenceVersions.value.map((e) => e.traces)));
 const maxFailure = computed(() => Math.max(1, ...failures.value.map((f) => f.traces)));
 const messageOf = (version: number | null) => versions.value.find((v) => v.version === version)?.message ?? "";
@@ -477,7 +489,18 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
 
     <template v-else>
       <div class="body">
-        <aside class="rail" aria-label="Versions">
+        <div class="main">
+          <section class="toolbar">
+          <div class="picker" data-testid="picker">
+            <button type="button" class="picker-btn" :aria-expanded="pickerOpen" data-testid="version-picker" @click="pickerOpen = !pickerOpen">
+              <strong class="mono">v{{ selected }}</strong>
+              <EnvFlag v-for="tag in tagsByVersion.get(selected ?? -1) ?? []" :key="tag" :env="tag" />
+              <span class="picker-msg">{{ selectedVersion?.message || "No message" }}</span>
+              <span class="soft mono">{{ versions.length }} versions</span>
+              <i aria-hidden="true">▾</i>
+            </button>
+            <div v-show="pickerOpen" class="picker-backdrop" @click="pickerOpen = false" />
+            <div v-show="pickerOpen" class="picker-pop" role="dialog" aria-label="Versions">
           <div class="rail-head">
             <div class="rail-title"><strong>Versions</strong><span class="mono soft">{{ versions.length }} in total</span></div>
             <TextInput v-model="versionQuery" type="search" placeholder="v number or message…" data-testid="version-search" />
@@ -492,7 +515,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
               class="version compact"
               :class="{ active: p.version === selected }"
               :data-testid="`pinned-${p.tag}`"
-              @click="selected = p.version"
+              @click="pick(p.version)"
             >
               <EnvFlag :env="p.tag" />
               <strong class="mono">v{{ p.version }}</strong>
@@ -511,7 +534,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                 class="version"
                 :class="{ active: v.version === selected }"
                 :data-testid="`version-${v.version}`"
-                @click="selected = v.version"
+                @click="pick(v.version)"
               >
                 <span class="version-head">
                   <strong class="mono">v{{ v.version }}</strong>
@@ -526,10 +549,9 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
               </button>
             </template>
           </div>
-        </aside>
-
-        <div class="main">
-          <section class="strip">
+            </div>
+          </div>
+          <div class="strip">
             <p v-if="data.prompt.description" class="description">{{ data.prompt.description }}</p>
             <div v-if="runningStrip.length > 0" class="running-strip" data-testid="running-strip">
               <span class="eyebrow">RUNNING</span>
@@ -539,9 +561,9 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
               </template>
               <span v-if="behindProduction > 0" class="behind" data-testid="behind-pill">PRO is {{ behindProduction }} {{ behindProduction === 1 ? "version" : "versions" }} behind</span>
             </div>
+          </div>
           </section>
-
-          <Card as="section" padding="none" block class="detail">
+          <template v-if="mode === 'text'">
             <div v-if="selectedVersion" class="pane" data-testid="pane-content">
               <section v-if="isDraft && !editing && selectedVersion" class="draft-banner" data-testid="draft-banner">
                 <div>
@@ -582,55 +604,15 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                     <span class="soft">{{ formatDateTime(selectedVersion.createdAt) }}</span>
                     <Pill v-if="parentOfSelected" class="from">from v{{ parentOfSelected.version }}</Pill>
                     <SegmentedControl v-if="hasIncludes" size="sm" class="view-toggle" aria-label="Text shown" :options="TEXT_VIEW_OPTIONS" :model-value="view" @update:model-value="view = $event as typeof view" />
+                    <Button size="sm" data-testid="open-compare" @click="mode = 'compare'">Compare</Button>
+                    <Button size="sm" v-if="canWrite" data-testid="open-try" @click="mode = 'try'">Try it</Button>
+                    <Button size="sm" v-if="canWrite" data-testid="open-fix" @click="mode = 'fix'">Fix a failure</Button>
+                    <Button variant="primary" size="sm" v-if="canWrite" data-testid="edit-version" @click="startEdit">Edit as new version</Button>
                   </div>
                   <pre class="code" data-testid="version-content"><span v-for="line in codeLines" :key="line.n" class="ln" :class="{ changed: line.changed, heading: line.heading }"><span v-for="(part, i) in line.parts" :key="i" :class="{ variable: part.variable }">{{ part.text }}</span></span></pre>
                   <div v-if="!showingSource && changedLines.size > 0" class="code-foot"><i /> Lines changed since v{{ parentOfSelected?.version }}</div>
                 </div>
 
-                <div class="side">
-                  <div class="side-card">
-                    <span class="eyebrow">VARIABLES</span>
-                    <p class="soft">Parts of the text that change on every call.</p>
-                    <div class="vars">
-                      <code v-for="name in selectedVersion.variables" :key="name" class="var">{{ asVariable(name) }}</code>
-                      <span v-if="selectedVersion.variables.length === 0" class="soft">none</span>
-                    </div>
-                  </div>
-                  <div v-if="hasIncludes" class="side-card" data-testid="includes-card">
-                    <span class="eyebrow">INCLUDES</span>
-                    <p class="soft">Fragments pinned to the exact version they had when this was saved.</p>
-                    <ul class="plain">
-                      <li v-for="i in selectedVersion.includes" :key="`${i.name}@${i.ref}`" :data-testid="`include-${i.name}`">
-                        <router-link :to="{ name: 'prompts', params: { experimentId: String(route.params.experimentId) } }" class="link mono">{{ i.name }}@{{ i.ref }}</router-link>
-                        → <b class="mono">v{{ i.version }}</b>
-                        <Pill v-if="includeOutdated(i.name, i.ref)" :data-testid="`outdated-${i.name}`" class="draft-pill">now v{{ includeOutdated(i.name, i.ref) }}</Pill>
-                      </li>
-                    </ul>
-                    <Button variant="primary" size="sm" v-if="canWrite && isLatestPublished && anyOutdated" :disabled="draftBusy" data-testid="rebuild" @click="rebuildPrompt">Rebuild with the current fragments</Button>
-                    <p v-if="canWrite && isLatestPublished && anyOutdated" class="soft">Saves a draft to review; nothing changes until you publish it.</p>
-                  </div>
-                  <div v-if="data.prompt.kind === 'fragment'" class="side-card" data-testid="used-by-card">
-                    <span class="eyebrow">USED BY</span>
-                    <p v-if="data.usedBy.length === 0" class="soft" data-testid="used-by-empty">No prompt includes this fragment yet. Write <code>{{ includeExample(data.prompt.name) }}</code> in a prompt to use it.</p>
-                    <ul v-else class="plain">
-                      <li v-for="u in data.usedBy" :key="u.promptId" :data-testid="`used-by-${u.name}`">
-                        <router-link :to="{ name: 'prompt', params: { experimentId: String(route.params.experimentId), promptId: u.promptId } }" class="link mono">{{ u.name }}</router-link> <span class="soft">v{{ u.version }}</span>
-                        <Pill v-if="u.outdated" class="draft-pill">behind</Pill>
-                        <Pill v-else class="ok-pill">up to date</Pill>
-                      </li>
-                    </ul>
-                  </div>
-                  <div class="side-card">
-                    <span class="eyebrow">RUNNING IN</span>
-                    <div v-if="runningHere.length > 0" class="vars"><EnvFlag v-for="env in runningHere" :key="env" :env="env" /></div>
-                    <p v-else class="soft" data-testid="not-running">No environment reports this version yet.</p>
-                  </div>
-                  <div v-if="canWrite" class="side-card next">
-                    <span class="eyebrow">NEXT VERSION</span>
-                    <p>Saving creates the next version. Earlier versions never change, and the tags stay where they are until someone moves them. Not sure yet? Save it as a draft and test it first.</p>
-                    <Button variant="primary" data-testid="edit-version" @click="startEdit">Edit as new version</Button>
-                  </div>
-                </div>
               </div>
               <div v-else class="editor-layout">
                 <form class="editor" @submit.prevent="saveVersion(false)">
@@ -645,16 +627,161 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                 </form>
               </div>
             </div>
-
-            <div class="actions-bar" data-testid="action-bar">
-              <Button data-testid="open-compare" @click="panel = 'compare'">Compare</Button>
-              <Button v-if="canWrite" data-testid="open-try" @click="panel = 'try'">Try it</Button>
-              <Button v-if="canWrite" data-testid="open-fix" @click="panel = 'fix'">Fix a failure</Button>
+            <Card as="section" padding="none" block v-if="!editing" class="strip-card" data-testid="evidence-strip">
+              <header class="strip-head">
+                <span class="eyebrow">EVIDENCE</span>
+                <span class="soft">Real traces, last {{ rangeLabel }}</span>
+                <span class="grow" />
+                <Button variant="link" data-testid="link-evidence" @click="mode = 'evidence'">Open full evidence →</Button>
+              </header>
+              <p v-if="evidence.loading.value && !evidence.data.value" class="soft strip-note">Loading…</p>
+              <p v-else-if="stripRows.length === 0" class="soft strip-note" data-testid="strip-empty">No trace used this prompt in the last {{ rangeLabel }}.</p>
+              <table v-else class="strip-table">
+                <thead><tr><th>Version</th><th>Traces</th><th>Errors</th><th>Latency p95</th><th>Cost / trace</th><th>User approval</th><th>Main failure</th></tr></thead>
+                <tbody>
+                  <tr v-for="e in stripRows" :key="e.version" :data-testid="`strip-v${e.version}`">
+                    <td class="mono"><strong>v{{ e.version }}</strong><span class="env-stack"><EnvFlag v-for="tag in tagsByVersion.get(e.version) ?? []" :key="tag" :env="tag" /></span></td>
+                    <td class="mono">{{ formatCount(e.traces) }}</td>
+                    <td class="mono" :class="{ bad: e.errorRate >= 0.1 }">{{ formatPercent(e.errorRate) }}</td>
+                    <td class="mono">{{ formatDuration(e.latencyMs.p95) }}</td>
+                    <td class="mono">{{ formatCostUsd(e.costPerTraceUsd) ?? "–" }}</td>
+                    <td class="mono">{{ e.feedback.satisfaction === null ? "–" : `${e.feedback.satisfaction.toFixed(0)}%` }}</td>
+                    <td>{{ e.errorCauses[0]?.title ?? "–" }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </Card>
+          </template>
+          <Card as="section" padding="none" block v-else class="view-card" :data-testid="`view-${mode}`">
+            <div class="view-bar">
+              <Button variant="link" data-testid="back-to-text" @click="mode = 'text'" class="back">← Back to text</Button>
+              <strong>{{ VIEW_TITLE[mode].title }}</strong>
+              <span class="soft">{{ VIEW_TITLE[mode].sub }}</span>
             </div>
-
-            <Disclosure :open="isOpen('release')" toggle-testid="toggle-release" data-testid="fold-release" @toggle="toggleSection('release')">
-              <template #head><strong>Release</strong><span class="soft">{{ pinned.length > 0 ? pinned.map((p) => `${p.tag} v${p.version}`).join(" · ") : "no environment tagged" }}</span></template>
-            <div class="pane tags-pane" data-testid="pane-tags">
+            <div v-if="mode === 'compare' && selectedVersion" class="pane" data-testid="pane-compare">
+              <div class="compare-bar compare-toolbar">
+                <span class="muted">Compare v{{ selectedVersion.version }} with</span>
+                <Select v-if="compareOptions.length > 0" v-model="compareWith" :options="compareOptions" data-testid="compare-with" />
+                <span v-else class="muted">nothing: this is the first version</span>
+                <span class="grow" />
+                <template v-if="compareVersion">
+                  <span class="muted">behaviour over the last</span>
+                  <Select v-model="rangeKey" :options="rangeOptions" data-testid="behaviour-range" />
+                </template>
+              </div>
+              <section v-if="compareVersion" class="behaviour" data-testid="behaviour">
+                <LoadingState v-if="evidence.loading.value && !evidence.data.value" size="md" />
+                <p v-else-if="evidence.error.value" class="muted small" data-testid="behaviour-error">Could not load the evidence: {{ evidence.error.value.message }}</p>
+                <p v-else-if="!comparison" class="muted small" data-testid="behaviour-empty">
+                  No traces used {{ missingEvidence.map((v) => `v${v}`).join(" or ") }} in the last {{ rangeLabel }}, so there is nothing to compare yet.
+                </p>
+                <template v-else>
+                  <p v-if="!comparison.reliable" class="warn-banner small" data-testid="behaviour-unreliable">
+                    <svg class="warn-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 3 2 20h20L12 3Zm0 6v5m0 3v.01" /></svg>
+                    At least one of the two versions has fewer than {{ MIN_TRACES }} traces: treat these differences as indicative, they may be chance.
+                  </p>
+                  <div class="tiles" data-testid="behaviour-table">
+                    <div v-for="d in comparison.deltas" :key="d.key" class="tile" :data-testid="`delta-${d.key}`">
+                      <span class="eyebrow">{{ d.label.toUpperCase() }}</span>
+                      <div class="tile-value"><strong>{{ d.target }}</strong><span class="soft">was {{ d.base }}</span></div>
+                      <Pill :class="d.direction" class="direction">{{ d.change }} · {{ DIRECTION_LABEL[d.direction] }}</Pill>
+                      <div v-if="d.bars" class="bars" aria-hidden="true">
+                        <span class="bar base"><i :style="{ width: `${Math.max(2, d.bars.base * 100)}%` }" /></span>
+                        <span class="bar target" :class="d.direction"><i :style="{ width: `${Math.max(2, d.bars.target * 100)}%` }" /></span>
+                      </div>
+                      <span class="sr-only">v{{ compareVersion.version }} {{ d.base }}, v{{ selectedVersion.version }} {{ d.target }}</span>
+                    </div>
+                  </div>
+                </template>
+              </section>
+              <PromptDiff v-if="compareVersion" :old-text="compareVersion.content" :new-text="selectedVersion.content" :old-label="`v${compareVersion.version}`" :new-label="`v${selectedVersion.version}`" />
+            </div>
+            <div v-if="mode === 'fix'" class="pane" data-testid="pane-fix">
+              <PromptFixFromFailure
+                :experiment-id="String(route.params.experimentId)"
+                :prompt-id="promptId"
+                :prompt-name="data.prompt.name"
+                :versions="versions"
+                :selected="selected"
+                :usage="data.usage"
+                :initial-trace="fixTrace"
+                @saved="onDraftSaved"
+                @test="(draftVersion, base, traceId) => testDraft(draftVersion, base, traceId)"
+              />
+            </div>
+            <div v-if="mode === 'try'" class="pane" data-testid="pane-try">
+              <PromptPlayground
+                :experiment-id="String(route.params.experimentId)"
+                :prompt-id="promptId"
+                :versions="versions"
+                :selected="selected"
+                :usage="data.usage"
+                :initial-trace="replayTrace"
+                :initial-first="tryFirst"
+                :initial-second="trySecond"
+              />
+            </div>
+            <div v-if="mode === 'evidence'" class="pane" data-testid="pane-evidence">
+              <div class="compare-bar">
+                <span class="muted">Traces of the last</span>
+                <Select v-model="rangeKey" :options="rangeOptions" data-testid="evidence-range" />
+                <span class="grow" />
+                <span class="soft">A trace counts for every version it used.</span>
+              </div>
+              <ErrorBanner v-if="evidence.error.value" :error="evidence.error.value" @retry="evidence.run()" />
+              <LoadingState v-else-if="evidence.loading.value && !evidence.data.value" size="md" />
+              <p v-else-if="evidenceVersions.length === 0" class="muted small" data-testid="evidence-empty">
+                No trace used this prompt in the last {{ rangeLabel }}. Traces show up here when an agent calls <code>compile()</code> inside a traced step.
+              </p>
+              <template v-else>
+                <div class="table-scroll evidence-card">
+                  <table class="evidence" data-testid="evidence-table">
+                    <thead>
+                      <tr>
+                        <th>Version</th><th>Traces</th><th>Errors</th><th class="num">Latency p95</th><th class="num">Cost / trace</th><th class="num">User approval</th>
+                        <th v-for="name in evaluatorColumns" :key="name" class="num">{{ name }}</th>
+                        <th>Main failure</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="e in evidenceVersions" :key="e.version" :data-testid="`evidence-v${e.version}`">
+                        <td class="mono">
+                          <strong>v{{ e.version }}</strong>
+                          <span class="env-stack"><EnvFlag v-for="tag in tagsByVersion.get(e.version) ?? []" :key="tag" :env="tag" /></span>
+                        </td>
+                        <td class="mono">
+                          <span class="cell-top">{{ formatCount(e.traces) }}<Pill v-if="sampleQuality(e.traces) === 'low'" :title="`Fewer than ${MIN_TRACES} traces: the figures are only indicative`" class="low-sample">few traces</Pill></span>
+                          <span class="meter"><span :style="{ width: `${Math.max(3, (e.traces / maxTraces) * 100)}%` }" /></span>
+                        </td>
+                        <td class="mono" :class="{ bad: e.errorRate >= 0.1 }">
+                          <span class="cell-top">{{ formatPercent(e.errorRate) }}</span>
+                          <span class="meter" :class="{ bad: e.errorRate >= 0.1 }"><span :style="{ width: `${Math.min(100, e.errorRate * 800)}%` }" /></span>
+                        </td>
+                        <td class="num mono">{{ formatDuration(e.latencyMs.p95) }}</td>
+                        <td class="num mono">{{ formatCostUsd(e.costPerTraceUsd) ?? "–" }}<span v-if="e.costPerTraceUsd !== null && !e.costComplete" class="muted" title="Some model has no known price: the real cost is higher"> +</span></td>
+                        <td class="num mono">{{ e.feedback.satisfaction === null ? "–" : `${e.feedback.satisfaction.toFixed(0)}%` }}<span v-if="e.feedback.ratedTraces > 0" class="muted"> ({{ e.feedback.ratedTraces }})</span></td>
+                        <td v-for="name in evaluatorColumns" :key="name" class="num mono"><span class="score">{{ evaluatorCell(e, name) }}</span></td>
+                        <td>
+                          <span v-if="e.errorCauses.length === 0" class="muted">–</span>
+                          <span v-else :data-testid="`cause-v${e.version}`">{{ e.errorCauses[0]!.title }} <span class="muted">({{ e.errorCauses[0]!.traces }})</span></span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div v-if="failures.length > 0" class="failures" data-testid="failures">
+                  <span class="eyebrow">WHAT FAILED MOST</span>
+                  <p class="soft">Main failure causes across these versions, by number of traces.</p>
+                  <div v-for="f in failures" :key="f.title" class="failure">
+                    <span class="failure-title">{{ f.title }}</span>
+                    <span class="failure-bar"><span :style="{ width: `${(f.traces / maxFailure) * 100}%` }" /></span>
+                    <strong class="mono">{{ f.traces }}</strong>
+                    <span class="soft">{{ f.versions.map((v) => `v${v}`).join(", ") }}</span>
+                  </div>
+                </div>
+              </template>
+            </div>
+            <div v-if="mode === 'release'" class="pane tags-pane" data-testid="pane-tags">
               <TextInput v-if="canPromote || canWrite" v-model="reason" placeholder="Reason for the change (optional, saved in the history)" data-testid="tag-reason" />
 
               <section class="card tags-card">
@@ -772,76 +899,10 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                 </div>
               </section>
             </div>
-              <h3 class="sub-title">Approvals</h3>
-            <div class="pane" data-testid="pane-approvals">
-              <PromptApprovals :prompt-id="promptId" :environments="environmentKeys" @changed="detail.run()" />
+            <div v-if="mode === 'approvals'" class="pane" data-testid="pane-approvals">
+              <PromptApprovals :prompt-id="promptId" :environments="environmentKeys" @changed="detail.run(); approvalInfo.run()" />
             </div>
-              </Disclosure>
-            <Disclosure :open="isOpen('evidence')" toggle-testid="toggle-evidence" data-testid="fold-evidence" @toggle="toggleSection('evidence')">
-              <template #head><strong>Evidence</strong><span class="soft">How each version behaved on real traces</span></template>
-            <div class="pane" data-testid="pane-evidence">
-              <div class="compare-bar">
-                <span class="muted">Traces of the last</span>
-                <Select v-model="rangeKey" :options="rangeOptions" data-testid="evidence-range" />
-                <span class="grow" />
-                <span class="soft">A trace counts for every version it used.</span>
-              </div>
-              <ErrorBanner v-if="evidence.error.value" :error="evidence.error.value" @retry="evidence.run()" />
-              <LoadingState v-else-if="evidence.loading.value && !evidence.data.value" size="md" />
-              <p v-else-if="evidenceVersions.length === 0" class="muted small" data-testid="evidence-empty">
-                No trace used this prompt in the last {{ rangeLabel }}. Traces show up here when an agent calls <code>compile()</code> inside a traced step.
-              </p>
-              <template v-else>
-                <div class="table-scroll evidence-card">
-                  <table class="evidence" data-testid="evidence-table">
-                    <thead>
-                      <tr>
-                        <th>Version</th><th>Traces</th><th>Errors</th><th class="num">Latency p95</th><th class="num">Cost / trace</th><th class="num">User approval</th>
-                        <th v-for="name in evaluatorColumns" :key="name" class="num">{{ name }}</th>
-                        <th>Main failure</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr v-for="e in evidenceVersions" :key="e.version" :data-testid="`evidence-v${e.version}`">
-                        <td class="mono">
-                          <strong>v{{ e.version }}</strong>
-                          <span class="env-stack"><EnvFlag v-for="tag in tagsByVersion.get(e.version) ?? []" :key="tag" :env="tag" /></span>
-                        </td>
-                        <td class="mono">
-                          <span class="cell-top">{{ formatCount(e.traces) }}<Pill v-if="sampleQuality(e.traces) === 'low'" :title="`Fewer than ${MIN_TRACES} traces: the figures are only indicative`" class="low-sample">few traces</Pill></span>
-                          <span class="meter"><span :style="{ width: `${Math.max(3, (e.traces / maxTraces) * 100)}%` }" /></span>
-                        </td>
-                        <td class="mono" :class="{ bad: e.errorRate >= 0.1 }">
-                          <span class="cell-top">{{ formatPercent(e.errorRate) }}</span>
-                          <span class="meter" :class="{ bad: e.errorRate >= 0.1 }"><span :style="{ width: `${Math.min(100, e.errorRate * 800)}%` }" /></span>
-                        </td>
-                        <td class="num mono">{{ formatDuration(e.latencyMs.p95) }}</td>
-                        <td class="num mono">{{ formatCostUsd(e.costPerTraceUsd) ?? "–" }}<span v-if="e.costPerTraceUsd !== null && !e.costComplete" class="muted" title="Some model has no known price: the real cost is higher"> +</span></td>
-                        <td class="num mono">{{ e.feedback.satisfaction === null ? "–" : `${e.feedback.satisfaction.toFixed(0)}%` }}<span v-if="e.feedback.ratedTraces > 0" class="muted"> ({{ e.feedback.ratedTraces }})</span></td>
-                        <td v-for="name in evaluatorColumns" :key="name" class="num mono"><span class="score">{{ evaluatorCell(e, name) }}</span></td>
-                        <td>
-                          <span v-if="e.errorCauses.length === 0" class="muted">–</span>
-                          <span v-else :data-testid="`cause-v${e.version}`">{{ e.errorCauses[0]!.title }} <span class="muted">({{ e.errorCauses[0]!.traces }})</span></span>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div v-if="failures.length > 0" class="failures" data-testid="failures">
-                  <span class="eyebrow">WHAT FAILED MOST</span>
-                  <p class="soft">Main failure causes across these versions, by number of traces.</p>
-                  <div v-for="f in failures" :key="f.title" class="failure">
-                    <span class="failure-title">{{ f.title }}</span>
-                    <span class="failure-bar"><span :style="{ width: `${(f.traces / maxFailure) * 100}%` }" /></span>
-                    <strong class="mono">{{ f.traces }}</strong>
-                    <span class="soft">{{ f.versions.map((v) => `v${v}`).join(", ") }}</span>
-                  </div>
-                </div>
-              </template>
-            </div>
-              </Disclosure>
-            <Disclosure :open="isOpen('usage')" toggle-testid="toggle-usage" data-testid="fold-usage" @toggle="toggleSection('usage')">
-              <template #head><strong>Used by</strong><span class="soft">Traces and dependencies</span></template>
+            <div v-if="mode === 'usedby'" class="pane used-pane">
               <h3 class="sub-title">Traces</h3>
             <div class="pane" data-testid="pane-traces">
               <PromptTraces :prompt-name="data.prompt.name" :versions="versionOptions.map((o) => Number(o.value))" :selected="selected" />
@@ -850,82 +911,78 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
             <div class="pane" data-testid="pane-map">
               <PromptDependencyMap :prompt-id="promptId" :kind="data.prompt.kind" :name="data.prompt.name" :tag-versions="tagVersionMap" :latest="latestVersion" />
             </div>
-              </Disclosure>
+            </div>
           </Card>
-
-          <div v-if="panel" class="drawer-backdrop" data-testid="drawer-backdrop" @click.self="panel = null">
-            <aside class="drawer" role="dialog" :aria-label="PANEL_TITLE[panel]" data-testid="drawer">
-              <header class="drawer-head">
-                <strong>{{ PANEL_TITLE[panel] }}</strong>
-                <span class="grow" />
-                <Button size="sm" data-testid="close-drawer" @click="panel = null">Close</Button>
-              </header>
-            <div v-if="panel === 'compare' && selectedVersion" class="pane" data-testid="pane-compare">
-              <div class="compare-bar compare-toolbar">
-                <span class="muted">Compare v{{ selectedVersion.version }} with</span>
-                <Select v-if="compareOptions.length > 0" v-model="compareWith" :options="compareOptions" data-testid="compare-with" />
-                <span v-else class="muted">nothing: this is the first version</span>
-                <span class="grow" />
-                <template v-if="compareVersion">
-                  <span class="muted">behaviour over the last</span>
-                  <Select v-model="rangeKey" :options="rangeOptions" data-testid="behaviour-range" />
-                </template>
+        </div>
+        <aside v-if="showInspector" class="inspector" aria-label="About this version" data-testid="inspector">
+          <section class="side-card" data-testid="envs-card">
+            <span class="eyebrow">ENVIRONMENTS</span>
+            <div v-for="key in environmentKeys" :key="key" class="env-line" :data-testid="`inspect-env-${key}`">
+              <EnvFlag :env="key" />
+              <div class="env-line-body">
+                <strong class="mono">{{ tagVersion(key) === null ? "—" : `v${tagVersion(key)}` }}</strong>
+                <span class="soft env-line-msg">{{ messageOf(tagVersion(key)) || "No message" }}</span>
               </div>
-              <section v-if="compareVersion" class="behaviour" data-testid="behaviour">
-                <LoadingState v-if="evidence.loading.value && !evidence.data.value" size="md" />
-                <p v-else-if="evidence.error.value" class="muted small" data-testid="behaviour-error">Could not load the evidence: {{ evidence.error.value.message }}</p>
-                <p v-else-if="!comparison" class="muted small" data-testid="behaviour-empty">
-                  No traces used {{ missingEvidence.map((v) => `v${v}`).join(" or ") }} in the last {{ rangeLabel }}, so there is nothing to compare yet.
-                </p>
-                <template v-else>
-                  <p v-if="!comparison.reliable" class="warn-banner small" data-testid="behaviour-unreliable">
-                    <svg class="warn-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 3 2 20h20L12 3Zm0 6v5m0 3v.01" /></svg>
-                    At least one of the two versions has fewer than {{ MIN_TRACES }} traces: treat these differences as indicative, they may be chance.
-                  </p>
-                  <div class="tiles" data-testid="behaviour-table">
-                    <div v-for="d in comparison.deltas" :key="d.key" class="tile" :data-testid="`delta-${d.key}`">
-                      <span class="eyebrow">{{ d.label.toUpperCase() }}</span>
-                      <div class="tile-value"><strong>{{ d.target }}</strong><span class="soft">was {{ d.base }}</span></div>
-                      <Pill :tone="DIRECTION_TONE[d.direction]" class="direction">{{ d.change }} · {{ DIRECTION_LABEL[d.direction] }}</Pill>
-                      <div v-if="d.bars" class="bars" aria-hidden="true">
-                        <span class="bar base"><i :style="{ width: `${Math.max(2, d.bars.base * 100)}%` }" /></span>
-                        <span class="bar target" :tone="DIRECTION_TONE[d.direction]"><i :style="{ width: `${Math.max(2, d.bars.target * 100)}%` }" /></span>
-                      </div>
-                      <span class="sr-only">v{{ compareVersion.version }} {{ d.base }}, v{{ selectedVersion.version }} {{ d.target }}</span>
+              <Pill v-if="usageOf(key)" :class="usageOf(key)!.state" class="usage">{{ USAGE_LABEL[usageOf(key)!.state] }}</Pill>
+              <Button size="sm"
+                v-if="canPromoteSelected && selected !== null && tagVersion(key) !== selected"
+               
+               
+                :disabled="moving"
+                :data-testid="`promote-${key}`"
+                @click="promoteSelected(key)"
+              >{{ needsApproval(key, selected) ? "Request approval" : `Promote v${selected}` }}</Button>
+            </div>
+          </section>
+                  <div class="side-card">
+                    <span class="eyebrow">VARIABLES</span>
+                    <p class="soft">Parts of the text that change on every call.</p>
+                    <div class="vars">
+                      <code v-for="name in selectedVersion?.variables ?? []" :key="name" class="var">{{ asVariable(name) }}</code>
+                      <span v-if="(selectedVersion?.variables.length ?? 0) === 0" class="soft">none</span>
                     </div>
                   </div>
-                </template>
-              </section>
-              <PromptDiff v-if="compareVersion" :old-text="compareVersion.content" :new-text="selectedVersion.content" :old-label="`v${compareVersion.version}`" :new-label="`v${selectedVersion.version}`" />
-            </div>
-            <div v-if="panel === 'fix'" class="pane" data-testid="pane-fix">
-              <PromptFixFromFailure
-                :experiment-id="String(route.params.experimentId)"
-                :prompt-id="promptId"
-                :prompt-name="data.prompt.name"
-                :versions="versions"
-                :selected="selected"
-                :usage="data.usage"
-                :initial-trace="fixTrace"
-                @saved="onDraftSaved"
-                @test="(draftVersion, base, traceId) => testDraft(draftVersion, base, traceId)"
-              />
-            </div>
-            <div v-if="panel === 'try'" class="pane" data-testid="pane-try">
-              <PromptPlayground
-                :experiment-id="String(route.params.experimentId)"
-                :prompt-id="promptId"
-                :versions="versions"
-                :selected="selected"
-                :usage="data.usage"
-                :initial-trace="replayTrace"
-                :initial-first="tryFirst"
-                :initial-second="trySecond"
-              />
-            </div>
-            </aside>
-          </div>
-        </div>
+                  <div v-if="hasIncludes" class="side-card" data-testid="includes-card">
+                    <span class="eyebrow">INCLUDES</span>
+                    <p class="soft">Fragments pinned to the exact version they had when this was saved.</p>
+                    <ul class="plain">
+                      <li v-for="i in selectedVersion?.includes ?? []" :key="`${i.name}@${i.ref}`" :data-testid="`include-${i.name}`">
+                        <router-link :to="{ name: 'prompts', params: { experimentId: String(route.params.experimentId) } }" class="link mono">{{ i.name }}@{{ i.ref }}</router-link>
+                        → <b class="mono">v{{ i.version }}</b>
+                        <Pill v-if="includeOutdated(i.name, i.ref)" :data-testid="`outdated-${i.name}`" class="draft-pill">now v{{ includeOutdated(i.name, i.ref) }}</Pill>
+                      </li>
+                    </ul>
+                    <Button variant="primary" size="sm" v-if="canWrite && isLatestPublished && anyOutdated" :disabled="draftBusy" data-testid="rebuild" @click="rebuildPrompt">Rebuild with the current fragments</Button>
+                    <p v-if="canWrite && isLatestPublished && anyOutdated" class="soft">Saves a draft to review; nothing changes until you publish it.</p>
+                  </div>
+                  <div v-if="data.prompt.kind === 'fragment'" class="side-card" data-testid="used-by-card">
+                    <span class="eyebrow">USED BY</span>
+                    <p v-if="data.usedBy.length === 0" class="soft" data-testid="used-by-empty">No prompt includes this fragment yet. Write <code>{{ includeExample(data.prompt.name) }}</code> in a prompt to use it.</p>
+                    <ul v-else class="plain">
+                      <li v-for="u in data.usedBy" :key="u.promptId" :data-testid="`used-by-${u.name}`">
+                        <router-link :to="{ name: 'prompt', params: { experimentId: String(route.params.experimentId), promptId: u.promptId } }" class="link mono">{{ u.name }}</router-link> <span class="soft">v{{ u.version }}</span>
+                        <Pill v-if="u.outdated" class="draft-pill">behind</Pill>
+                        <Pill v-else class="ok-pill">up to date</Pill>
+                      </li>
+                    </ul>
+                  </div>
+                  <div class="side-card">
+                    <span class="eyebrow">RUNNING IN</span>
+                    <div v-if="runningHere.length > 0" class="vars"><EnvFlag v-for="env in runningHere" :key="env" :env="env" /></div>
+                    <p v-else class="soft" data-testid="not-running">No environment reports this version yet.</p>
+                  </div>
+          <section v-if="openRequests.length > 0" class="side-card" data-testid="waiting-card">
+            <span class="eyebrow">WAITING FOR APPROVAL</span>
+            <p v-for="r in openRequests" :key="r.id" class="small"><b class="mono">{{ requestTitle(r) }}</b></p>
+            <Button variant="link" data-testid="link-approvals-open" @click="mode = 'approvals'">See request →</Button>
+          </section>
+          <section class="side-card links" data-testid="links-card">
+            <span class="eyebrow">MORE ABOUT THIS PROMPT</span>
+            <button type="button" class="link-row" data-testid="link-usedby" @click="mode = 'usedby'"><span><b>Used by</b><span class="soft">Traces, agents and dependencies</span></span><i>→</i></button>
+            <button type="button" class="link-row" data-testid="link-release" @click="mode = 'release'"><span><b>Release history</b><span class="soft">{{ data.events.length }} tag {{ data.events.length === 1 ? "move" : "moves" }}, policy and free tags</span></span><i>→</i></button>
+            <button type="button" class="link-row" data-testid="link-approvals" @click="mode = 'approvals'"><span><b>Approvals</b><span class="soft">Who has to approve, requests and history</span></span><i>→</i></button>
+          </section>
+        </aside>
       </div>
     </template>
 
@@ -997,27 +1054,84 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
 .body {
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: 290px minmax(0, 1fr);
+  display: flex;
   gap: 14px;
 }
 .main {
+  flex: 1;
   min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
-
-/* ---- columna de versiones ---- */
-.rail {
+.inspector {
+  width: 320px;
+  flex: none;
   min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ---- selector de versión: un desplegable en la barra de arriba ---- */
+.toolbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+.picker {
+  position: relative;
+}
+.picker-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  max-width: 460px;
+  padding: 0 12px;
+  border: 1px solid var(--mt-line);
+  border-radius: 6px;
+  background: var(--mt-card);
+  color: var(--mt-ink);
+  font: inherit;
+  cursor: pointer;
+}
+.picker-btn:hover,
+.picker-btn[aria-expanded="true"] {
+  border-color: var(--mt-brand);
+  background: var(--mt-accent-tint);
+}
+.picker-msg {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 19;
+}
+.picker-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  width: 460px;
+  max-width: calc(100vw - 32px);
+  max-height: min(70vh, 640px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   background: var(--mt-card);
   border: 1px solid var(--mt-line);
   border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(10, 35, 33, 0.16);
 }
 .rail-head {
   flex: none;
@@ -1128,10 +1242,11 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
 
 /* ---- cabecera del prompt ---- */
 .strip {
-  flex: none;
+  min-width: 0;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 16px;
 }
 .description {
   margin: 0;
@@ -1161,14 +1276,125 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
   color: var(--mt-muted);
 }
 
-/* ---- panel ---- */
-.detail {
+/* ---- vistas de página completa ---- */
+.view-card {
   flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
   overflow: auto;
   padding: 0;
+}
+.view-bar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 16px;
+  background: var(--mt-card);
+  border-bottom: 1px solid var(--mt-line);
+}
+.back {
+  font-weight: 700;
+  color: var(--mt-accent-text);
+}
+.used-pane h3.sub-title {
+  margin: 4px 0 0;
+  font-size: 14px;
+}
+.strip-card {
+  flex: none;
+  padding: 0;
+  overflow: hidden;
+}
+.strip-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 16px;
+}
+.strip-note {
+  margin: 0;
+  padding: 0 16px 14px;
+}
+.strip-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.strip-table th {
+  height: 28px;
+  padding: 0 16px;
+  text-align: left;
+  background: var(--mt-bg);
+  font-family: var(--mt-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mt-faint);
+}
+.strip-table td {
+  height: 38px;
+  padding: 0 16px;
+  border-top: 1px solid var(--mt-line);
+}
+.strip-table td.bad {
+  color: var(--mt-error-ink, #a8321a);
+  font-weight: 700;
+}
+.env-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  border-top: 1px solid var(--mt-line);
+}
+.env-line-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+.env-line-msg {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+}
+.links {
+  gap: 0;
+}
+.link-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border: none;
+  border-top: 1px solid var(--mt-line);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.link-row > span {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.link-row i {
+  font-style: normal;
+  color: var(--mt-muted);
+}
+.link-row:hover b {
+  color: var(--mt-accent-text);
 }
 .pane {
   display: flex;
@@ -1193,10 +1419,7 @@ h3 {
 
 /* contenido */
 .content-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 262px;
-  gap: 14px;
-  align-items: start;
+  display: block;
 }
 .code-card {
   border: 1px solid var(--mt-line);
@@ -1552,43 +1775,6 @@ h3 {
 }
 
 /* tags */
-.actions-bar {
-  display: flex;
-  gap: 8px;
-  padding: 0 16px 12px;
-  border-bottom: 1px solid var(--mt-line);
-}
-.sub-title {
-  margin: 8px 16px 0;
-  font-size: 13px;
-}
-.drawer-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 2000;
-  display: flex;
-  justify-content: flex-end;
-  background: rgba(20, 30, 40, 0.28);
-}
-.drawer {
-  width: min(760px, 100%);
-  height: 100%;
-  overflow: auto;
-  background: var(--mt-surface, #fff);
-  border-left: 1px solid var(--mt-line);
-  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.12);
-}
-.drawer-head {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
-  background: inherit;
-  border-bottom: 1px solid var(--mt-line);
-}
 .tags-pane {
   display: flex;
   flex-direction: column;
@@ -1857,13 +2043,15 @@ ul.plain {
 }
 
 @media (max-width: 1100px) {
-  .body,
-  .content-grid,
+  .body {
+    flex-direction: column;
+  }
+  .inspector {
+    width: auto;
+    overflow: visible;
+  }
   .tags-pane {
     grid-template-columns: 1fr;
-  }
-  .rail {
-    max-height: 360px;
   }
 }
 </style>
