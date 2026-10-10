@@ -1,0 +1,42 @@
+name: TypeScript SDK CI
+
+on:
+  pull_request:
+    paths:
+      - "sdk/typescript/**"
+      - "sdk/conformance/**"
+      - ".github/workflows/sdk-typescript-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "sdk/typescript/**"
+      - "sdk/conformance/**"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Node ${{ matrix.node-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20, 22, 24]
+    defaults:
+      run:
+        working-directory: sdk/typescript
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+          cache-dependency-path: sdk/typescript/package-lock.json
+      - run: npm ci
+      - name: Type check
+        run: npm run typecheck
+      - name: Test (includes the conformance scenarios)
+        run: npm test
+      - name: Build
+        run: npm run build

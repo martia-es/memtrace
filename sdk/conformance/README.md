@@ -1,7 +1,7 @@
 # SDK conformance scenarios
 
 Language-neutral scenarios that every MemTrace SDK must pass ([ADR-095](../../docs/adrs/sdk/adr-095-multi-language-sdk-contract.md)).
-Python is the reference: `sdk/python/tests/test_conformance.py` runs them today; the TypeScript SDK will run the same files.
+Python is the reference: `sdk/python/tests/test_conformance.py` runs them, and `sdk/typescript/tests/conformance.test.ts` runs the same files for the TypeScript SDK (tracing scenarios so far; the `http/` ones when its HTTP clients land).
 A scenario fails when an attribute name, a status or an HTTP request differs, so a divergence is caught in CI and not as a
 missing column in the dashboard.
 
