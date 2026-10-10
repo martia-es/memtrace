@@ -1,6 +1,6 @@
 # Convenciones de UI del dashboard
 
-Reglas vigentes del dashboard (`dashboard/`). Sustituye a los ADR de UI 017–019, 046, 057–059, 063, 071 (release board de prompts), 079 y 080–083, que estaban retirados por ser convenciones y no decisiones de arquitectura (ver [docs/adrs/README.md](adrs/README.md)). El sistema de diseño de base sigue en [ADR-048](adrs/ui/adr-048-mediterranean-design-system-and-simplified-navigation.md) y la identidad de marca en [brand.md](brand.md).
+Reglas vigentes del dashboard (`dashboard/`). El sistema de diseño de base sigue en [ADR-048](adrs/ui/adr-048-mediterranean-design-system-and-simplified-navigation.md) y la identidad de marca en [brand.md](brand.md).
 
 ## 1. Tokens y temas
 
