@@ -7,7 +7,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { InMemorySpanExporter, type ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import { afterEach, describe, expect, it } from "vitest";
-import { initTracer, session, shutdown, traceLlmCall, withStep } from "../src/index.js";
+import { flush, initTracer, session, shutdown, traceLlmCall, withStep } from "../src/index.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "conformance");
 
@@ -92,6 +92,7 @@ describe("tracing scenarios", () => {
 
     if (scenario.actions.some(hasFail)) expect(() => run(scenario.actions)).toThrow(ScenarioFailure);
     else run(scenario.actions);
+    await flush(); // spans are sanitized asynchronously before they reach the exporter
 
     const spans = new Map<string, ReadableSpan>();
     for (const span of exporter.getFinishedSpans()) if (span.instrumentationScope.name === "memtrace") spans.set(span.name, span);

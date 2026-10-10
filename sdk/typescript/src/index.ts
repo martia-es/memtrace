@@ -20,3 +20,5 @@ export type {
   DatasetSource, EvalItem, EvalItemResult, Evaluator, EvaluatorArgs, EvaluatorLike, IncrementalResultsSink, LLMClient, LLMReply,
   ResultsSink, RetrievedChunk, Score, ScoreDataType, ScoreSource, ScoreSummary, TaskFunction,
 } from "./eval/types.js";
+export { presidioRedactor, textHook, maskRanges, DEFAULT_ENTITIES } from "./pii.js";
+export type { PresidioOptions } from "./pii.js";

@@ -2,7 +2,7 @@ import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Redactor } from "../src/redaction.js";
 import { parseHeaders, resolveRevision } from "../src/config.js";
-import { currentTraceId, initTracer, session, shutdown, traceStep, withStep } from "../src/index.js";
+import { currentTraceId, flush, initTracer, session, shutdown, traceStep, withStep } from "../src/index.js";
 
 describe("redaction by value", () => {
   const redactor = new Redactor();
@@ -14,9 +14,9 @@ describe("redaction by value", () => {
     ["token mtk_abcdefghij12345", "token ****"],
   ])("%s", (input, expected) => expect(redactor.scrubText(input)).toBe(expected));
 
-  it("masks the value of a sensitive key but keeps token counts", () => {
-    expect(redactor.attribute("api_key", "x")).toBe("****");
-    expect(redactor.attribute("gen_ai.usage.input_tokens", 7)).toBe(7);
+  it("masks the value of a sensitive key but keeps token counts", async () => {
+    expect(await redactor.attribute("api_key", "x")).toBe("****");
+    expect(await redactor.attribute("gen_ai.usage.input_tokens", 7)).toBe(7);
   });
 });
 
@@ -34,11 +34,13 @@ describe("steps", () => {
   afterEach(async () => { await shutdown(); delete process.env.MEMTRACE_CAPTURE_CONTENT; });
   const byName = (name: string) => exporter.getFinishedSpans().find((s) => s.name === name)!;
 
+
   it("keeps parentage and the session across awaits", async () => {
     await session("conv-1", () => withStep("turn", "chain", async () => {
       await new Promise((resolve) => setTimeout(resolve, 5));
       await withStep("inner", "tool", async () => { await Promise.resolve(); });
     }));
+    await flush();
     expect(byName("inner").parentSpanContext?.spanId).toBe(byName("turn").spanContext().spanId);
     expect(byName("inner").attributes["gen_ai.conversation.id"]).toBe("conv-1");
   });
@@ -46,6 +48,7 @@ describe("steps", () => {
   it("returns the result and rethrows a rejection with ERROR status", async () => {
     await expect(withStep("ok", "chain", async () => 42)).resolves.toBe(42);
     await expect(withStep("bad", "chain", async () => { throw new Error("nope"); })).rejects.toThrow("nope");
+    await flush();
     expect(byName("bad").status).toMatchObject({ code: 2, message: "nope" });
   });
 
@@ -57,6 +60,7 @@ describe("steps", () => {
     initTracer({ serviceName: "t", spanExporter: exporter });
     const search = traceStep((q: string, apiKey: string) => `found ${q}`, { name: "search", stepType: "tool" });
     expect(search("cats", "sk-secret")).toBe("found cats");
+    await flush();
     expect(JSON.parse(byName("search").attributes["gen_ai.tool.call.arguments"] as string)).toEqual(["cats", "sk-secret"]);
     expect(byName("search").attributes["gen_ai.tool.call.result"]).toBe('"found cats"');
   });

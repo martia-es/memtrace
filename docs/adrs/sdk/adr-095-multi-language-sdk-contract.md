@@ -16,7 +16,7 @@ F6 adds a TypeScript SDK with the same scope as the Python one, and more framewo
 2. **A language-neutral conformance suite** lives in `sdk/conformance/`: JSON fixtures (`scenario → expected spans and HTTP requests`). Each SDK runs the same fixtures in its own test suite, with an in-memory span exporter and a mocked HTTP transport. A new SDK is "done" when it passes them all.
 3. **One repository, one folder per language**: `sdk/python/`, `sdk/typescript/`. The npm package is `@memtrace/sdk`; the PyPI one stays `memtrace-ai`. Versions are independent; a contract change bumps the minor of both.
 4. **No LLM vendor in the core of any SDK.** Judges and `propose_fix` depend on a minimal `LLMClient` (`complete(system, prompt, model?) → text | LLMReply`, optional `model`), as in [ADR-029](../README.md#retired-adrs) for Python. TypeScript has the same interface; vendor adapters (Anthropic today) are optional extras and are never the default.
-5. **Personal-data masking has two layers in both languages** ([ADR-084](../storage/adr-084-data-protection-retention-masking-audit-and-export.md)): fixed formats in the Collector (always on), and an opt-in client layer for names and free text. Python uses Presidio; TypeScript uses the same interface with its own engine, and the fixtures fix only the output (`****`), not the engine.
+5. **Personal-data masking has two layers in both languages** ([ADR-084](../storage/adr-084-data-protection-retention-masking-audit-and-export.md)): fixed formats in the Collector (always on), and an opt-in client layer for names and free text. Python runs Presidio and spaCy in the process; TypeScript, which has no Presidio engine, asks a Presidio analyzer service (the official image) and applies the same `****` mask locally, so it detects the same entities with the same models. The fixtures fix only the output (`****`), not the engine.
 
 ### The contract
 
@@ -61,6 +61,7 @@ Behaviour that is the same in both is fixed by the conformance scenarios; these 
 * `prompts.get()` is `async` in TypeScript (Python blocks for a few seconds at startup); `compile()` is synchronous in both.
 * The playground override is fetched **before** the request runs in TypeScript (`prompts.override` / `promptOverrideMiddleware`), because `compile()` cannot wait for the network; in Python `compile()` asks MemTrace itself.
 * TypeScript has no OTLP/gRPC.
+* Client-side PII in TypeScript needs a Presidio analyzer service the team runs (a local container or a sidecar), so the text of the spans is sent to it; if it stops answering, the content is replaced by `[UNSERIALIZABLE]` and never exported unmasked. The `redact` hook may be asynchronous, so spans reach the exporter a moment after they end (`flush()` waits for them).
 
 ## Alternatives Considered
 
@@ -72,5 +73,5 @@ Behaviour that is the same in both is fixed by the conformance scenarios; these 
 ## Consequences
 
 * **Positive**: a divergence fails in CI instead of showing up as a missing dashboard column; adding a third language or framework adapter has a clear acceptance test; the contract is written down in one place.
-* **Negative**: every contract change touches both SDKs and the fixtures; the TypeScript PII engine will not match Presidio's recall, and the fixtures cannot prove it does.
+* **Negative**: every contract change touches both SDKs and the fixtures; the TypeScript PII path depends on a service that Python does not need, and the fixtures cannot prove both detect the same entities.
 * **Follow-up**: build `sdk/conformance/` from the Python behaviour before writing the TypeScript SDK; add `@memtrace/sdk` publishing and CI when the first TypeScript piece lands.

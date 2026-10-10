@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  Faithfulness, MemTraceResultsSink, ResultsUploadError, contains, evaluator, exactMatch, initTracer, recordRetrievedChunks, runExperiment,
+  Faithfulness, MemTraceResultsSink, flush, ResultsUploadError, contains, evaluator, exactMatch, initTracer, recordRetrievedChunks, runExperiment,
   shutdown, withStep, MRR, type IncrementalResultsSink,
 } from "../src/index.js";
 import { FixProposalError, suggestFix } from "../src/prompts/fix.js";
@@ -68,6 +68,7 @@ describe("runExperiment", () => {
     });
     expect(result.items[0]!.scores).toEqual([{ name: "mrr", value: 1, dataType: "numeric" }]);
     expect(result.items[0]!.traceId).toMatch(/^[0-9a-f]{32}$/);
+    await flush();
     const spans = exporter.getFinishedSpans();
     expect(spans.find((s) => s.name === "eval.item")).toBeDefined();
     expect(spans.find((s) => s.name === "retrieve")!.attributes["memtrace.retriever.documents"]).toBe(1);

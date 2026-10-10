@@ -12,7 +12,10 @@ export class SanitizingSpanExporter implements SpanExporter {
   constructor(private readonly inner: SpanExporter, private readonly redactor: Redactor) {}
 
   export(spans: ReadableSpan[], resultCallback: (result: ExportResult) => void): void {
-    this.inner.export(spans.map((span) => this.sanitize(span)), resultCallback);
+    Promise.all(spans.map((span) => this.sanitize(span))).then(
+      (sanitized) => this.inner.export(sanitized, resultCallback),
+      () => resultCallback({ code: 1 }), // ExportResultCode.FAILED; sanitize() itself never rejects
+    );
   }
 
   shutdown(): Promise<void> {
@@ -23,17 +26,15 @@ export class SanitizingSpanExporter implements SpanExporter {
     return this.inner.forceFlush?.() ?? Promise.resolve();
   }
 
-  private sanitize(span: ReadableSpan): ReadableSpan {
+  private async redactAll(attrs: Record<string, unknown> | undefined): Promise<Record<string, unknown>> {
+    const entries = await Promise.all(Object.entries(attrs ?? {}).map(async ([key, value]) => [key, await this.redactor.attribute(key, value)] as const));
+    return Object.fromEntries(entries);
+  }
+
+  private async sanitize(span: ReadableSpan): Promise<ReadableSpan> {
     try {
-      const attributes = Object.fromEntries(
-        Object.entries(span.attributes).map(([key, value]) => [key, this.redactor.attribute(key, value)]),
-      );
-      const events = span.events.map((event) => ({
-        ...event,
-        attributes: Object.fromEntries(
-          Object.entries(event.attributes ?? {}).map(([key, value]) => [key, this.redactor.attribute(key, value)]),
-        ),
-      }));
+      const attributes = await this.redactAll(span.attributes);
+      const events = await Promise.all(span.events.map(async (event) => ({ ...event, attributes: await this.redactAll(event.attributes) })));
       const status = span.status.message ? { ...span.status, message: this.redactor.scrubText(span.status.message) } : span.status;
       return this.copy(span, attributes, events, status);
     } catch {

@@ -47,9 +47,9 @@ function looksLikeJson(text: string): boolean {
   return /^[{[]/.test(trimmed) && /[}\]]$/.test(trimmed);
 }
 
-export type RedactHook = (value: unknown) => unknown;
+export type RedactHook = (value: unknown) => unknown | Promise<unknown>;
 
-/** Masks secrets in span attributes. `hook` (optional) receives content values and returns what to keep. */
+/** Masks secrets in span attributes. `hook` (optional, may be async) receives content values and returns what to keep. */
 export class Redactor {
   constructor(private readonly keys: readonly string[] = DEFAULT_SENSITIVE_KEYS, private readonly hook?: RedactHook) {}
 
@@ -69,10 +69,10 @@ export class Redactor {
     return value;
   }
 
-  private applyHook(value: unknown): unknown {
+  private async applyHook(value: unknown): Promise<unknown> {
     if (!this.hook) return value;
     try {
-      return this.hook(value);
+      return await this.hook(value);
     } catch {
       return SERIALIZATION_FAILED; // fail closed: a broken hook must never let raw content through
     }
@@ -82,28 +82,28 @@ export class Redactor {
     return CONTENT_KEYS.has(key) || CONTENT_PREFIXES.some((p) => key.startsWith(p));
   }
 
-  stringAttribute(key: string, value: string): string {
+  async stringAttribute(key: string, value: string): Promise<string> {
     if (isSensitiveKey(key, this.keys)) return REDACTED;
     if (looksLikeJson(value)) {
       try {
-        return JSON.stringify(this.applyHook(this.redactData(JSON.parse(value))));
+        return JSON.stringify(await this.applyHook(this.redactData(JSON.parse(value))));
       } catch {
         /* truncated / invalid JSON: treat as text below */
       }
     }
     const text = this.scrubText(value);
     if (this.hook && this.isContentKey(key)) {
-      const hooked = this.applyHook(text);
+      const hooked = await this.applyHook(text);
       return typeof hooked === "string" ? hooked : JSON.stringify(hooked);
     }
     return text;
   }
 
   /** Redacted version of any attribute value; non-text values pass through untouched. */
-  attribute(key: string, value: unknown): unknown {
+  async attribute(key: string, value: unknown): Promise<unknown> {
     if (typeof value === "string") return this.stringAttribute(key, value);
     if (Array.isArray(value) && value.length > 0 && value.every((v) => typeof v === "string")) {
-      return value.map((v) => this.stringAttribute(key, v));
+      return Promise.all(value.map((v) => this.stringAttribute(key, v)));
     }
     if (isSensitiveKey(key, this.keys) && value !== undefined && value !== null && typeof value !== "boolean") return REDACTED;
     return value;
