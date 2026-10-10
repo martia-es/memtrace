@@ -19,6 +19,17 @@ export class ExportService {
     private readonly audit: AuditService,
   ) {}
 
+  /**
+   * Valida la petición y dice cuántas filas tendría, sin leer ni registrar nada: lo usa la pantalla antes de ofrecer la descarga
+   * para poder explicar un error (rango, tamaño) sin que el navegador acabe en una página de error.
+   */
+  async preview(input: { serviceName: string; kind: unknown; from: unknown; to: unknown }): Promise<{ rows: number; maxRows: number }> {
+    const request = parseExportRequest(input);
+    const rows = await this.exporter.count(input.serviceName, request.kind, request.from, request.to);
+    if (rows > MAX_EXPORT_ROWS) throw new ExportTooLargeError(rows, MAX_EXPORT_ROWS);
+    return { rows, maxRows: MAX_EXPORT_ROWS };
+  }
+
   async start(input: {
     organizationId: string;
     experimentId: string;
@@ -29,8 +40,7 @@ export class ExportService {
     to: unknown;
   }): Promise<StartedExport> {
     const request = parseExportRequest(input);
-    const rows = await this.exporter.count(input.serviceName, request.kind, request.from, request.to);
-    if (rows > MAX_EXPORT_ROWS) throw new ExportTooLargeError(rows, MAX_EXPORT_ROWS);
+    const { rows } = await this.preview(input);
 
     await this.audit.record({
       organizationId: input.organizationId,

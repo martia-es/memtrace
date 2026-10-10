@@ -1,4 +1,4 @@
-import type { ChartCatalogEntryDto, CustomMetricDefinitionDto, ScoreConfigDto } from "@contract";
+import type { AuditPageDto, ChartCatalogEntryDto, CustomMetricDefinitionDto, RetentionPolicyDto, ScoreConfigDto } from "@contract";
 import { ApiError } from "@/application/trace-api";
 import type {
   ApiKeyDto,
@@ -53,6 +53,35 @@ export class HttpIdentityApi implements IdentityApi {
 
   updateOrganizationTheme(organizationId: string, theme: OrganizationThemeDto, signal?: AbortSignal): Promise<OrganizationDto> {
     return this.patch(`/organizations/${encodeURIComponent(organizationId)}/theme`, theme, signal);
+  }
+
+  getRetention(organizationId: string, signal?: AbortSignal): Promise<RetentionPolicyDto> {
+    return this.get(`/organizations/${encodeURIComponent(organizationId)}/retention`, signal);
+  }
+
+  setOrganizationRetention(organizationId: string, days: number, signal?: AbortSignal): Promise<RetentionPolicyDto> {
+    return this.put(`/organizations/${encodeURIComponent(organizationId)}/retention`, { days }, signal);
+  }
+
+  setExperimentRetention(organizationId: string, experimentId: string, days: number | null, signal?: AbortSignal): Promise<RetentionPolicyDto> {
+    return this.put(`/organizations/${encodeURIComponent(organizationId)}/experiments/${encodeURIComponent(experimentId)}/retention`, { days }, signal);
+  }
+
+  listAuditLog(organizationId: string, filter: { action?: string; experimentId?: string; from?: string; to?: string; cursor?: string; limit?: number }, signal?: AbortSignal): Promise<AuditPageDto> {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(filter)) if (value !== undefined && value !== "") params.set(key, String(value));
+    const query = params.toString();
+    return this.get(`/organizations/${encodeURIComponent(organizationId)}/audit${query ? `?${query}` : ""}`, signal);
+  }
+
+  previewExport(experimentId: string, request: { kind: string; from: string; to: string }, signal?: AbortSignal): Promise<{ rows: number; maxRows: number }> {
+    const params = new URLSearchParams({ kind: request.kind, from: request.from, to: request.to, dryRun: "1" });
+    return this.get(`/experiments/${encodeURIComponent(experimentId)}/export?${params.toString()}`, signal);
+  }
+
+  exportUrl(experimentId: string, request: { kind: string; from: string; to: string }): string {
+    const params = new URLSearchParams({ kind: request.kind, from: request.from, to: request.to });
+    return `${this.baseUrl}/experiments/${encodeURIComponent(experimentId)}/export?${params.toString()}`;
   }
 
   getOrganizationIdentity(organizationId: string, signal?: AbortSignal): Promise<OrganizationIdentityDto> {

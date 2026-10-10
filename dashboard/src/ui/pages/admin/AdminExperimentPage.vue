@@ -13,6 +13,7 @@ import MemberList from "../../components/admin/MemberList.vue";
 import InviteForm from "../../components/admin/InviteForm.vue";
 import ExperimentApiKeys from "../../components/admin/ExperimentApiKeys.vue";
 import ApprovalRulesPanel from "../../components/admin/ApprovalRulesPanel.vue";
+import ExperimentExport from "../../components/admin/ExperimentExport.vue";
 
 /**
  * Nivel 3: un experimento. Un paso por pestaña, en el orden en que se configura un agente:
@@ -38,6 +39,7 @@ const canManage = computed(() => (experiment.value ? canManageExperiment(experim
 const canKeys = computed(() => (experiment.value ? canUseApiKeys(experiment.value) : false));
 const canScoreConfigs = computed(() => hasPermission(experiment.value, "scoreconfig:manage"));
 const canApprovals = computed(() => hasPermission(experiment.value, "approval:manage"));
+const canExport = computed(() => hasPermission(experiment.value, "data:export"));
 const members = computed(() => dir.membersByExperiment[props.experimentId]);
 
 const keyCount = ref<number | null>(null);
@@ -57,6 +59,7 @@ const tabs = computed(() => {
     { id: "score-configs", label: "Score configs" },
   ];
   if (canApprovals.value) list.push({ id: "approvals", label: "Approvals" });
+  if (canExport.value) list.push({ id: "export", label: "Export" });
   if (canManage.value) {
     list.push({ id: "members", label: "Members", count: (members.value?.members.length ?? 0) + (members.value?.pendingInvitations.length ?? 0) });
   }
@@ -183,6 +186,10 @@ const MEMBER_ROLE_OPTIONS = [
             <p class="adm-hint">Extra review for the prompts of this agent, on top of what the organization already asks. You can add people or approvers; you cannot ask for fewer than the organization.</p>
             <ApprovalRulesPanel :scope="{ type: 'experiment', id: experiment.id }" />
           </div>
+        </section>
+
+        <section v-if="tab === 'export' && canExport" class="panel">
+          <ExperimentExport :experiment="experiment" />
         </section>
 
         <section v-if="tab === 'members' && canManage" class="panel">

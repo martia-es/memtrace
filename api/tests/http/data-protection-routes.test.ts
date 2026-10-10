@@ -10,6 +10,7 @@ const state = {
   experimentPermissions: [] as string[],
   audit: [] as unknown[],
   exportStarted: [] as unknown[],
+  exportPreviews: [] as unknown[],
 };
 
 vi.mock("@/adapters/inbound/http/auth-context", () => ({
@@ -33,6 +34,7 @@ vi.mock("@/dependency-container", () => ({
   }),
   getAudit: () => ({ list: async (...args: unknown[]) => (state.audit.push(args), { items: [], nextCursor: null }) }),
   getExport: () => ({
+    preview: async (input: unknown) => (state.exportPreviews.push(input), { rows: 2, maxRows: 2000000 }),
     start: async (input: unknown) => (
       state.exportStarted.push(input),
       { filename: "weather-traces.jsonl", rows: 2, lines: (async function* () { yield '{"a":1}'; yield '{"a":2}'; })() }
@@ -56,6 +58,7 @@ beforeEach(() => {
   state.experimentPermissions = [];
   state.audit = [];
   state.exportStarted = [];
+  state.exportPreviews = [];
 });
 
 describe("retention routes", () => {
@@ -108,6 +111,17 @@ describe("export route", () => {
     state.experimentPermissions = ["experiment:read", "trace:read_technical"];
     state.orgPermissions = ["retention:manage", "audit:read"];
     expect((await getExport(new Request(url), expCtx)).status).toBe(403);
+    expect(state.exportStarted).toHaveLength(0);
+  });
+
+  it("dryRun checks and counts without exporting, and needs the same permission", async () => {
+    state.experimentPermissions = ["experiment:read"];
+    expect((await getExport(new Request(`${url}&dryRun=1`), expCtx)).status).toBe(403);
+    state.experimentPermissions = ["data:export"];
+    const response = await getExport(new Request(`${url}&dryRun=1`), expCtx);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ rows: 2, maxRows: 2000000 });
+    expect(state.exportPreviews).toHaveLength(1);
     expect(state.exportStarted).toHaveLength(0);
   });
 

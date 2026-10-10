@@ -57,6 +57,14 @@ describe("ExportService (ADR-080)", () => {
     expect(events).toEqual([]);
   });
 
+  it("previews the row count without recording anything or reading data", async () => {
+    const { service, events } = setup({ rows: 7 });
+    expect(await service.preview(input)).toEqual({ rows: 7, maxRows: MAX_EXPORT_ROWS });
+    expect(events).toEqual([]);
+    const big = setup({ rows: MAX_EXPORT_ROWS + 5 });
+    await expect(big.service.preview(input)).rejects.toBeInstanceOf(ExportTooLargeError);
+  });
+
   it("validates before touching any store", async () => {
     const { service, events } = setup();
     await expect(service.start({ ...input, kind: "secrets" })).rejects.toBeInstanceOf(ValidationError);
