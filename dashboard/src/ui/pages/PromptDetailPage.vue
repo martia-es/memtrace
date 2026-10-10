@@ -101,48 +101,41 @@ function promoteLatest(key: string) {
   moveEnvironment(key);
 }
 
-// ---- una página con pestañas por tarea; algunas pestañas agrupan dos vistas ----
-type Mode = "text" | "versions" | "compare" | "try" | "fix" | "evidence" | "release" | "approvals" | "usedby";
-type Tab = "overview" | "versions" | "test" | "releases" | "usedby";
-const TAB_OF: Record<Mode, Tab> = { text: "overview", evidence: "overview", versions: "versions", compare: "versions", try: "test", fix: "test", release: "releases", approvals: "releases", usedby: "usedby" };
-const TAB_ROOT: Record<Tab, Mode> = { overview: "text", versions: "versions", test: "try", releases: "release", usedby: "usedby" };
-const VIEW_TITLE: Record<Exclude<Mode, "text">, { title: string; sub: string }> = {
-  versions: { title: "Versions", sub: "Pick one to read it, or compare two" },
-  compare: { title: "Compare versions", sub: "Line by line, and how each one behaved" },
-  try: { title: "Try it on the real agent", sub: "Nothing is promoted and no tag moves" },
-  fix: { title: "Fix a failure", sub: "Start from a real failure and save the change as a draft" },
-  evidence: { title: "Evidence", sub: "Measured on real traces" },
-  release: { title: "Release", sub: "Tags, what runs now, promotion policy and history" },
-  approvals: { title: "Approvals", sub: "Rules, open requests and history for this prompt" },
-  usedby: { title: "Used by", sub: "Traces, agents, fragments and prompts that depend on this one" },
+// ---- dos columnas: entornos y versiones a la izquierda; la versión elegida a la derecha, con sus pestañas ----
+type Mode = "text" | "compare" | "evidence" | "try" | "fix";
+type Drawer = "rules" | "activity" | "usedby";
+type ViewTab = "prompt" | "changes" | "behaviour" | "test";
+const TAB_OF: Record<Mode, ViewTab> = { text: "prompt", compare: "changes", evidence: "behaviour", try: "test", fix: "test" };
+const TAB_ROOT: Record<ViewTab, Mode> = { prompt: "text", changes: "compare", behaviour: "evidence", test: "try" };
+// enlaces antiguos (?tab=...) siguen funcionando: abren la vista o el panel que corresponde
+const LEGACY_TAB: Record<string, { mode?: Mode; drawer?: Drawer }> = {
+  compare: { mode: "compare" }, try: { mode: "try" }, fix: { mode: "fix" }, evidence: { mode: "evidence" },
+  tags: { drawer: "rules" }, approvals: { drawer: "rules" }, traces: { drawer: "usedby" }, map: { drawer: "usedby" },
 };
-// enlaces antiguos (?tab=...) siguen funcionando: abren la vista que corresponde
-const LEGACY_TAB: Record<string, Mode> = { compare: "compare", try: "try", fix: "fix", tags: "release", approvals: "approvals", evidence: "evidence", traces: "usedby", map: "usedby" };
+const legacy = LEGACY_TAB[String(route.query.tab)] ?? {};
 const fixTrace = typeof route.query.trace === "string" && route.query.tab === "fix" ? route.query.trace : null;
 const replayTrace = ref<string | null>(typeof route.query.trace === "string" ? route.query.trace : null);
-const mode = ref<Mode>(LEGACY_TAB[String(route.query.tab)] ?? "text");
+const mode = ref<Mode>(legacy.mode ?? "text");
+const drawer = ref<Drawer | null>(legacy.drawer ?? null);
 const activeTab = computed(() => TAB_OF[mode.value]);
-const tabs = computed(() => [
-  { id: "overview", label: "Overview" },
-  { id: "versions", label: "Versions", count: versions.value.length },
+const VIEW_TABS = [
+  { id: "prompt", label: "Prompt" },
+  { id: "changes", label: "Changes" },
+  { id: "behaviour", label: "Behaviour" },
   { id: "test", label: "Test" },
-  { id: "releases", label: "Releases", ...(openRequests.value.length > 0 ? { count: `${openRequests.value.length} pending` } : {}) },
+];
+function openTab(id: string) {
+  if (TAB_OF[mode.value] !== id) mode.value = TAB_ROOT[id as ViewTab];
+}
+const TEST_OPTIONS = [{ value: "try", label: "Try it", testid: "sub-try" }, { value: "fix", label: "Fix a failure", testid: "sub-fix" }];
+const drawerTabs = computed(() => [
+  { id: "rules", label: "Rules" },
+  { id: "activity", label: "Activity", ...(openRequests.value.length > 0 ? { count: `${openRequests.value.length} pending` } : {}) },
   { id: "usedby", label: "Used by" },
 ]);
-function openTab(id: string) {
-  if (TAB_OF[mode.value] !== id || id === "overview") mode.value = TAB_ROOT[id as Tab];
-}
-const SUBVIEWS: Partial<Record<Tab, { value: Mode; label: string; testid: string }[]>> = {
-  versions: [{ value: "versions", label: "List", testid: "sub-versions" }, { value: "compare", label: "Compare", testid: "sub-compare" }],
-  test: [{ value: "try", label: "Try it", testid: "sub-try" }, { value: "fix", label: "Fix a failure", testid: "sub-fix" }],
-  releases: [{ value: "release", label: "Tags & policy", testid: "sub-release" }, { value: "approvals", label: "Approvals", testid: "sub-approvals" }],
-};
-const subviews = computed(() => SUBVIEWS[activeTab.value] ?? []);
 const allVersionOptions = computed(() => versions.value.map((v) => ({ label: `v${v.version}${v.message ? ` · ${v.message}` : ""}`, value: v.version })));
-const pickerOpen = ref(false);
 function pick(version: number) {
   selected.value = version;
-  pickerOpen.value = false;
 }
 
 // ---- evidencia (ADR-069) ----
@@ -166,7 +159,7 @@ function ensureEvidence() {
   void evidence.run();
 }
 watch([mode, rangeKey], () => {
-  if (mode.value === "text" || mode.value === "evidence" || mode.value === "compare") ensureEvidence();
+  if (mode.value === "evidence" || mode.value === "compare") ensureEvidence();
 }, { immediate: true });
 const evidenceVersions = computed(() => evidence.data.value?.versions ?? []);
 const evaluatorColumns = computed(() => evaluatorNames(evidenceVersions.value));
@@ -279,7 +272,7 @@ const servedBefore = (tag: string, version: number) => (data.value?.events ?? []
 const needsApproval = (tag: string, version: number) => approvalRules.value.promote.includes(tag) && !servedBefore(tag, version);
 async function onRequested() {
   await detail.run();
-  mode.value = "approvals";
+  drawer.value = "rules";
   void approvalInfo.run();
 }
 
@@ -389,8 +382,8 @@ async function onPromoted() {
 
 const datasets = useAsync((signal) => traceApi.listDatasets(signal));
 let datasetsRequested = false;
-watch(mode, (m) => {
-  if (m === "release" && !datasetsRequested) {
+watch(drawer, (d) => {
+  if (d === "rules" && !datasetsRequested) {
     datasetsRequested = true;
     void datasets.run();
   }
@@ -482,7 +475,6 @@ const failures = computed(() => {
   }
   return [...byTitle.values()].sort((a, b) => b.traces - a.traces).slice(0, 5);
 });
-const stripRows = computed(() => [...evidenceVersions.value].sort((x, y) => y.version - x.version).slice(0, 4));
 /** Promote la versión que se está viendo al entorno: pasa por la solicitud de aprobación o el gate igual que desde Release. */
 const canPromoteSelected = computed(() => canPromote.value && selectedVersion.value?.status === "published");
 function promoteSelected(tag: string) {
@@ -513,14 +505,17 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
     <LoadingState v-else-if="!data" size="lg" />
 
     <template v-else>
-      <div class="body">
-        <div class="main">
-          <section class="head-row">
-            <p class="description" data-testid="description">{{ data.prompt.description }}</p>
-            <span class="grow" />
-            <Button variant="primary" v-if="canWrite && mode === 'text' && !editing && selectedVersion" data-testid="edit-version" @click="startEdit">Edit as new version</Button>
-          </section>
-          <section v-if="envCards.length > 0" class="env-strip" data-testid="env-strip" aria-label="What runs in each environment">
+      <section class="title-row">
+        <p class="description" data-testid="description">{{ data.prompt.description }}</p>
+        <span class="grow" />
+        <Button data-testid="open-rules" @click="drawer = 'rules'">Rules &amp; approvals</Button>
+        <Button data-testid="open-usedby" @click="drawer = 'usedby'">Used by</Button>
+      </section>
+
+      <div class="split">
+        <aside class="side" aria-label="Environments and versions">
+          <span class="eyebrow">ENVIRONMENTS</span>
+          <div v-if="envCards.length > 0" class="env-list" data-testid="env-strip">
             <div v-for="e in envCards" :key="e.key" class="env-card" :class="{ late: e.behind !== null && e.behind > 0 && e.key === 'pro' }" :data-testid="`env-card-${e.key}`">
               <EnvFlag :env="e.key" />
               <div class="env-card-body">
@@ -538,8 +533,24 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                 @click="promoteLatest(e.key)"
               >{{ needsApproval(e.key, latestVersion) ? "Request approval" : `Promote v${latestVersion}` }}</Button>
             </div>
-          </section>
-          <TabBar :tabs="tabs" :model-value="activeTab" @update:model-value="openTab" />
+          </div>
+          <div class="versions-box" data-testid="versions-box">
+            <PromptVersionList :versions="versions" :selected="selected" :tags-by-version="tagsByVersion" :pinned="[]" :running="running" :author-name="authorName" @pick="pick" />
+          </div>
+        </aside>
+
+        <div class="detail">
+          <header v-if="selectedVersion" class="vhead" data-testid="version-head">
+            <strong class="mono vnum" data-testid="version-picker">v{{ selected }}</strong>
+            <EnvFlag v-for="tag in tagsByVersion.get(selected ?? -1) ?? []" :key="tag" :env="tag" />
+            <Pill v-if="isDraft" class="draft-pill">draft</Pill>
+            <span v-if="selectedVersion.message" class="vmsg">{{ selectedVersion.message }}</span>
+            <span class="soft">Saved {{ formatDateTime(selectedVersion.createdAt) }}<template v-if="authorName(selectedVersion.createdBy)"> · {{ authorName(selectedVersion.createdBy) }}</template><template v-if="parentOfSelected"> · from v{{ parentOfSelected.version }}</template></span>
+            <span class="grow" />
+            <Button variant="primary" v-if="canWrite && mode === 'text' && !editing" data-testid="edit-version" @click="startEdit">Edit as new version</Button>
+          </header>
+          <TabBar :tabs="VIEW_TABS" :model-value="activeTab" @update:model-value="openTab" />
+
           <template v-if="mode === 'text'">
             <div v-if="selectedVersion" class="pane" data-testid="pane-content">
               <section v-if="isDraft && !editing && selectedVersion" class="draft-banner" data-testid="draft-banner">
@@ -574,23 +585,9 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
               </section>
               <div v-if="!editing" class="content-grid">
                 <div class="code-card">
-                  <div class="code-head">
-                    <div class="picker" data-testid="picker">
-                      <button type="button" class="picker-btn" :aria-expanded="pickerOpen" data-testid="version-picker" @click="pickerOpen = !pickerOpen">
-                        <strong class="mono">v{{ selected }}</strong>
-                        <EnvFlag v-for="tag in tagsByVersion.get(selected ?? -1) ?? []" :key="tag" :env="tag" />
-                        <Pill v-if="isDraft" class="draft-pill">draft</Pill>
-                        <i aria-hidden="true">▾</i>
-                      </button>
-                      <div v-show="pickerOpen" class="picker-backdrop" @click="pickerOpen = false" />
-                      <div v-show="pickerOpen" class="picker-pop" role="dialog" aria-label="Versions">
-                        <PromptVersionList :versions="versions" :selected="selected" :tags-by-version="tagsByVersion" :pinned="pinned" :running="running" :author-name="authorName" @pick="pick" />
-                      </div>
-                    </div>
-                    <span v-if="selectedVersion.message" class="code-msg">{{ selectedVersion.message }}</span>
-                    <span class="soft">Saved {{ formatDateTime(selectedVersion.createdAt) }}<template v-if="parentOfSelected"> · from v{{ parentOfSelected.version }}</template></span>
+                  <div v-if="hasIncludes" class="code-head">
                     <span class="grow" />
-                    <SegmentedControl v-if="hasIncludes" size="sm" class="view-toggle" aria-label="Text shown" :options="TEXT_VIEW_OPTIONS" :model-value="view" @update:model-value="view = $event as typeof view" />
+                    <SegmentedControl size="sm" class="view-toggle" aria-label="Text shown" :options="TEXT_VIEW_OPTIONS" :model-value="view" @update:model-value="view = $event as typeof view" />
                   </div>
                   <pre class="code" data-testid="version-content"><span v-for="line in codeLines" :key="line.n" class="ln" :class="{ changed: line.changed, heading: line.heading }"><span v-for="(part, i) in line.parts" :key="i" :class="{ variable: part.variable }">{{ part.text }}</span></span></pre>
                   <div v-if="!showingSource && changedLines.size > 0" class="code-foot"><i /> Lines changed since v{{ parentOfSelected?.version }}</div>
@@ -635,42 +632,9 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                 </form>
               </div>
             </div>
-            <Card as="section" padding="none" block v-if="!editing" class="strip-card" data-testid="evidence-strip">
-              <header class="strip-head">
-                <span class="eyebrow">EVIDENCE</span>
-                <span class="soft">Real traces, last {{ rangeLabel }}</span>
-                <span class="grow" />
-                <Button variant="link" data-testid="link-evidence" @click="mode = 'evidence'">Open full evidence →</Button>
-              </header>
-              <p v-if="evidence.loading.value && !evidence.data.value" class="soft strip-note">Loading…</p>
-              <p v-else-if="stripRows.length === 0" class="soft strip-note" data-testid="strip-empty">No trace used this prompt in the last {{ rangeLabel }}.</p>
-              <table v-else class="strip-table">
-                <thead><tr><th>Version</th><th>Traces</th><th>Errors</th><th>Latency p95</th><th>Cost / trace</th><th>User approval</th><th>Main failure</th></tr></thead>
-                <tbody>
-                  <tr v-for="e in stripRows" :key="e.version" :data-testid="`strip-v${e.version}`">
-                    <td class="mono"><strong>v{{ e.version }}</strong><span class="env-stack"><EnvFlag v-for="tag in tagsByVersion.get(e.version) ?? []" :key="tag" :env="tag" /></span></td>
-                    <td class="mono">{{ formatCount(e.traces) }}</td>
-                    <td class="mono" :class="{ bad: e.errorRate >= 0.1 }">{{ formatPercent(e.errorRate) }}</td>
-                    <td class="mono">{{ formatDuration(e.latencyMs.p95) }}</td>
-                    <td class="mono">{{ formatCostUsd(e.costPerTraceUsd) ?? "–" }}</td>
-                    <td class="mono">{{ e.feedback.satisfaction === null ? "–" : `${e.feedback.satisfaction.toFixed(0)}%` }}</td>
-                    <td>{{ e.errorCauses[0]?.title ?? "–" }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </Card>
           </template>
-          <Card as="section" padding="none" block v-else class="view-card" :data-testid="`view-${mode}`">
-            <div class="view-bar">
-              <Button v-if="mode === 'evidence'" variant="link" data-testid="back-to-text" class="back" @click="mode = 'text'">← Overview</Button>
-              <strong>{{ VIEW_TITLE[mode].title }}</strong>
-              <span class="soft">{{ VIEW_TITLE[mode].sub }}</span>
-              <span class="grow" />
-              <SegmentedControl v-if="subviews.length > 0" size="sm" aria-label="View" :options="subviews" :model-value="mode" @update:model-value="mode = $event as Mode" />
-            </div>
-            <div v-if="mode === 'versions'" class="pane versions-pane" data-testid="pane-versions">
-              <PromptVersionList :versions="versions" :selected="selected" :tags-by-version="tagsByVersion" :pinned="pinned" :running="running" :author-name="authorName" @pick="pick($event); mode = 'text'" />
-            </div>
+          <div v-else class="view" :data-testid="`view-${mode}`">
+            <SegmentedControl v-if="mode === 'try' || mode === 'fix'" class="test-switch" size="sm" aria-label="Kind of test" :options="TEST_OPTIONS" :model-value="mode" @update:model-value="mode = $event as Mode" />
             <div v-if="mode === 'compare' && selectedVersion" class="pane" data-testid="pane-compare">
               <div class="compare-bar compare-toolbar">
                 <span class="muted">Compare</span>
@@ -796,7 +760,21 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                 </div>
               </template>
             </div>
-            <div v-if="mode === 'release'" class="pane tags-pane" data-testid="pane-tags">
+          </div>
+        </div>
+      </div>
+
+      <template v-if="drawer">
+        <div class="drawer-backdrop" data-testid="drawer-backdrop" @click="drawer = null" />
+        <aside class="drawer" role="dialog" aria-label="Rules, activity and dependencies" data-testid="drawer">
+          <header class="drawer-head">
+            <strong>{{ drawer === "rules" ? "Rules & approvals" : drawer === "activity" ? "Activity" : "Used by" }}</strong>
+            <span class="grow" />
+            <Button variant="icon" aria-label="Close" data-testid="drawer-close" @click="drawer = null">×</Button>
+          </header>
+          <TabBar :tabs="drawerTabs" :model-value="drawer" @update:model-value="drawer = $event as Drawer" />
+          <div class="drawer-body">
+            <div v-if="drawer === 'rules'" class="pane tags-pane" data-testid="pane-tags">
               <TextInput v-if="canPromote || canWrite" v-model="reason" placeholder="Reason for the change (optional, saved in the history)" data-testid="tag-reason" />
 
               <section class="card tags-card">
@@ -835,47 +813,6 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                 </div>
               </section>
 
-              <section class="card history">
-                <header class="card-head"><h3>History</h3><span class="muted small">Every tag move, newest first.</span></header>
-                <p v-if="data.events.length === 0" class="empty muted small">No tag has been moved yet.</p>
-                <ul v-else class="events" data-testid="tag-events">
-                  <li v-for="ev in data.events" :key="ev.id">
-                    <i class="dot" :class="environmentKeys.includes(ev.tag) ? ev.tag : 'free'" />
-                    <span class="ev-what mono">
-                      <b>{{ ev.tag }}</b>
-                      <template v-if="ev.toVersion === null"> removed (was {{ ev.fromVersion === null ? "none" : `v${ev.fromVersion}` }})</template>
-                      <template v-else-if="ev.fromVersion === null"> added at v{{ ev.toVersion }}</template>
-                      <template v-else> v{{ ev.fromVersion }} → v{{ ev.toVersion }}</template>
-                    </span>
-                    <span class="ev-note">
-                      <template v-if="ev.reason">“{{ ev.reason }}”</template>
-                      <span v-if="ev.gateBypassed" class="warn" :data-testid="`bypassed-${ev.id}`"> skipped the evaluation: “{{ ev.bypassReason }}”</span>
-                      <span v-if="authorName(ev.changedBy)" class="muted" :data-testid="`event-author-${ev.id}`"> by {{ authorName(ev.changedBy) }}</span>
-                    </span>
-                    <span class="ev-date mono">{{ formatDateTime(ev.createdAt) }}</span>
-                  </li>
-                </ul>
-              </section>
-
-              <details class="card usage-fold" :open="usageRows.length === 0">
-                <summary>In use right now <span class="muted">({{ usageRows.length }})</span></summary>
-                <p v-if="usageRows.length === 0" class="muted small" data-testid="usage-empty">
-                  No agent has reported this prompt yet. It shows up here once an agent loads it with <code>memtrace.prompts.get()</code>.
-                </p>
-                <table v-else class="tags" data-testid="usage-table">
-                  <tbody>
-                    <tr v-for="u in usageRows" :key="`${u.experimentId}-${u.environment}-${u.tag}-${u.version}`" :data-testid="`usage-${u.environment || 'none'}-v${u.version}`">
-                      <td class="mono tag-name">{{ u.environment || "no environment" }}</td>
-                      <td class="mono">v{{ u.version }}</td>
-                      <td class="muted">{{ u.tag ? `follows “${u.tag}”` : "fixed version" }}</td>
-                      <td><Pill :tone="USAGE_TONE[u.state]" class="usage">{{ USAGE_LABEL[u.state] }}</Pill></td>
-                      <td v-if="u.state === 'behind'" class="muted small">“{{ u.tag }}” now points to v{{ u.tagVersion }}</td>
-                      <td v-else class="muted small">{{ formatRelativeTime(u.lastSeenAt, nowMs) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </details>
-
               <section class="card policy-card">
                 <header class="card-head"><h3>Promotion policy</h3></header>
                 <div class="card-body">
@@ -913,11 +850,54 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                 </form>
                 </div>
               </section>
-            </div>
-            <div v-if="mode === 'approvals'" class="pane" data-testid="pane-approvals">
+              <div data-testid="pane-approvals">
               <PromptApprovals :prompt-id="promptId" :environments="environmentKeys" @changed="detail.run(); approvalInfo.run()" />
+              </div>
             </div>
-            <div v-if="mode === 'usedby'" class="pane used-pane">
+            <div v-if="drawer === 'activity'" class="pane tags-pane" data-testid="pane-activity">
+              <details class="card usage-fold" :open="usageRows.length === 0">
+                <summary>In use right now <span class="muted">({{ usageRows.length }})</span></summary>
+                <p v-if="usageRows.length === 0" class="muted small" data-testid="usage-empty">
+                  No agent has reported this prompt yet. It shows up here once an agent loads it with <code>memtrace.prompts.get()</code>.
+                </p>
+                <table v-else class="tags" data-testid="usage-table">
+                  <tbody>
+                    <tr v-for="u in usageRows" :key="`${u.experimentId}-${u.environment}-${u.tag}-${u.version}`" :data-testid="`usage-${u.environment || 'none'}-v${u.version}`">
+                      <td class="mono tag-name">{{ u.environment || "no environment" }}</td>
+                      <td class="mono">v{{ u.version }}</td>
+                      <td class="muted">{{ u.tag ? `follows “${u.tag}”` : "fixed version" }}</td>
+                      <td><Pill :tone="USAGE_TONE[u.state]" class="usage">{{ USAGE_LABEL[u.state] }}</Pill></td>
+                      <td v-if="u.state === 'behind'" class="muted small">“{{ u.tag }}” now points to v{{ u.tagVersion }}</td>
+                      <td v-else class="muted small">{{ formatRelativeTime(u.lastSeenAt, nowMs) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </details>
+
+              <section class="card history">
+                <header class="card-head"><h3>History</h3><span class="muted small">Every tag move, newest first.</span></header>
+                <p v-if="data.events.length === 0" class="empty muted small">No tag has been moved yet.</p>
+                <ul v-else class="events" data-testid="tag-events">
+                  <li v-for="ev in data.events" :key="ev.id">
+                    <i class="dot" :class="environmentKeys.includes(ev.tag) ? ev.tag : 'free'" />
+                    <span class="ev-what mono">
+                      <b>{{ ev.tag }}</b>
+                      <template v-if="ev.toVersion === null"> removed (was {{ ev.fromVersion === null ? "none" : `v${ev.fromVersion}` }})</template>
+                      <template v-else-if="ev.fromVersion === null"> added at v{{ ev.toVersion }}</template>
+                      <template v-else> v{{ ev.fromVersion }} → v{{ ev.toVersion }}</template>
+                    </span>
+                    <span class="ev-note">
+                      <template v-if="ev.reason">“{{ ev.reason }}”</template>
+                      <span v-if="ev.gateBypassed" class="warn" :data-testid="`bypassed-${ev.id}`"> skipped the evaluation: “{{ ev.bypassReason }}”</span>
+                      <span v-if="authorName(ev.changedBy)" class="muted" :data-testid="`event-author-${ev.id}`"> by {{ authorName(ev.changedBy) }}</span>
+                    </span>
+                    <span class="ev-date mono">{{ formatDateTime(ev.createdAt) }}</span>
+                  </li>
+                </ul>
+              </section>
+
+            </div>
+            <div v-if="drawer === 'usedby'" class="pane used-pane" data-testid="pane-usedby">
               <h3 class="sub-title">Traces</h3>
             <div class="pane" data-testid="pane-traces">
               <PromptTraces :prompt-name="data.prompt.name" :versions="versionOptions.map((o) => Number(o.value))" :selected="selected" />
@@ -927,9 +907,9 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
               <PromptDependencyMap :prompt-id="promptId" :kind="data.prompt.kind" :name="data.prompt.name" :tag-versions="tagVersionMap" :latest="latestVersion" />
             </div>
             </div>
-          </Card>
-        </div>
-      </div>
+          </div>
+        </aside>
+      </template>
     </template>
 
     <RequestApprovalModal
@@ -997,65 +977,8 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
   letter-spacing: 0.08em;
   color: var(--mt-faint);
 }
-.body {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  gap: 14px;
-}
-.main {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
 
 /* ---- selector de versión: un desplegable en la barra de arriba ---- */
-.picker {
-  position: relative;
-}
-.picker-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 36px;
-  max-width: 460px;
-  padding: 0 12px;
-  border: 1px solid var(--mt-line);
-  border-radius: 6px;
-  background: var(--mt-card);
-  color: var(--mt-ink);
-  font: inherit;
-  cursor: pointer;
-}
-.picker-btn:hover,
-.picker-btn[aria-expanded="true"] {
-  border-color: var(--mt-brand);
-  background: var(--mt-accent-tint);
-}
-.picker-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 19;
-}
-.picker-pop {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 20;
-  width: 460px;
-  max-width: calc(100vw - 32px);
-  max-height: min(70vh, 640px);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--mt-card);
-  border: 1px solid var(--mt-line);
-  border-radius: 10px;
-  box-shadow: 0 12px 32px rgba(10, 35, 33, 0.16);
-}
 
 /* ---- cabecera del prompt ---- */
 .description {
@@ -1069,75 +992,9 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
 }
 
 /* ---- vistas de página completa ---- */
-.view-card {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: auto;
-  padding: 0;
-}
-.view-bar {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 44px;
-  padding: 0 16px;
-  background: var(--mt-card);
-  border-bottom: 1px solid var(--mt-line);
-}
-.back {
-  font-weight: 700;
-  color: var(--mt-accent-text);
-}
 .used-pane h3.sub-title {
   margin: 4px 0 0;
   font-size: 14px;
-}
-.strip-card {
-  flex: none;
-  padding: 0;
-  overflow: hidden;
-}
-.strip-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 44px;
-  padding: 0 16px;
-}
-.strip-note {
-  margin: 0;
-  padding: 0 16px 14px;
-}
-.strip-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12.5px;
-}
-.strip-table th {
-  height: 28px;
-  padding: 0 16px;
-  text-align: left;
-  background: var(--mt-bg);
-  font-family: var(--mt-mono);
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--mt-faint);
-}
-.strip-table td {
-  height: 38px;
-  padding: 0 16px;
-  border-top: 1px solid var(--mt-line);
-}
-.strip-table td.bad {
-  color: var(--mt-error-ink, #a8321a);
-  font-weight: 700;
 }
 .pane {
   display: flex;
@@ -1775,21 +1632,6 @@ ul.plain {
 }
 
 /* ---- cabecera: descripción, franja de entornos y pestañas ---- */
-.head-row {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.head-row .description:empty {
-  display: none;
-}
-.env-strip {
-  flex: none;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 12px;
-}
 .env-card {
   display: flex;
   align-items: center;
@@ -1823,13 +1665,6 @@ ul.plain {
 .env-card-note.late {
   color: var(--mt-highlight-ink);
 }
-.versions-pane {
-  padding: 0;
-  max-height: none;
-}
-.view-bar .back {
-  margin-right: 4px;
-}
 
 /* ---- propiedades del texto: variables, fragmentos que incluye, quién lo usa ---- */
 .props {
@@ -1852,5 +1687,158 @@ ul.plain {
   align-items: center;
   gap: 6px;
   font-size: 12.5px;
+}
+
+
+/* ---- dos columnas: entornos y versiones | versión elegida ---- */
+.title-row {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.title-row .description {
+  margin: 0;
+  font-size: 13px;
+  color: var(--mt-muted);
+}
+.split {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 24px;
+}
+.side {
+  width: 380px;
+  flex: none;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.env-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.env-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--mt-line);
+  border-radius: 10px;
+  background: var(--mt-card);
+}
+.env-card.late {
+  background: var(--mt-highlight-soft);
+  border-color: var(--mt-highlight);
+}
+.env-card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.env-card-ver {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.env-card-note {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--mt-ok-ink);
+}
+.env-card-note.late {
+  color: var(--mt-highlight-ink);
+}
+.versions-box {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--mt-line);
+  border-radius: 10px;
+  background: var(--mt-card);
+  overflow: hidden;
+}
+.detail {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+}
+.vhead {
+  flex: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.vnum {
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+.vmsg {
+  font-weight: 700;
+}
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.test-switch {
+  align-self: flex-start;
+}
+.code-head {
+  justify-content: flex-end;
+}
+.code {
+  font-size: 14px;
+}
+.ln {
+  min-height: 30px;
+  line-height: 30px;
+}
+
+/* ---- panel lateral: reglas, actividad y quién lo usa ---- */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(10, 35, 33, 0.25);
+}
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 41;
+  width: min(620px, 100vw);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px 0;
+  background: var(--mt-bg);
+  border-left: 1px solid var(--mt-line);
+  box-shadow: -12px 0 32px rgba(10, 35, 33, 0.16);
+}
+.drawer-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+}
+.drawer-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 20px;
 }
 </style>
