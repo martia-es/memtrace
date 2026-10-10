@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import type { IoBlock } from "@/domain/span-io";
 import MessageBlock from "./MessageBlock.vue";
+import SegmentedControl from "./SegmentedControl.vue";
 
 const props = defineProps<{
   title: string;
@@ -14,6 +15,7 @@ const props = defineProps<{
 }>();
 
 const mode = ref<"text" | "json">("text");
+const MODE_OPTIONS = [{ value: "text", label: "Text" }, { value: "json", label: "JSON" }];
 const collapsed = ref(false);
 const copied = ref(false);
 const copyText = computed(() => (mode.value === "json" ? props.json : props.blocks.map((b) => b.text).join("\n\n")));
@@ -38,10 +40,7 @@ async function copy() {
       <h2>{{ title }}</h2>
       <span class="badge" :class="{ error: badgeTone === 'error' }">{{ badge }}</span>
       <template v-if="!collapsed">
-        <div class="mt-segmented small toggle" role="group" :aria-label="`${title} format`">
-          <button type="button" :aria-pressed="mode === 'text'" @click="mode = 'text'">Text</button>
-          <button type="button" :aria-pressed="mode === 'json'" @click="mode = 'json'">JSON</button>
-        </div>
+        <SegmentedControl class="toggle" size="sm" :aria-label="`${title} format`" :options="MODE_OPTIONS" :model-value="mode" @update:model-value="mode = $event as 'text' | 'json'" />
         <button type="button" class="mt-round-btn copy" :aria-label="`Copy ${title.toLowerCase()}`" :disabled="blocks.length === 0" @click="copy">
           <q-icon :name="copied ? 'check' : 'content_copy'" size="14px" />
         </button>

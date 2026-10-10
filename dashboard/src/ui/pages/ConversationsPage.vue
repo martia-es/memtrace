@@ -30,6 +30,7 @@ import { useExperimentRepo } from "../composables/useExperimentRepo";
 import DataTable from "../components/DataTable.vue";
 import LoadingState from "../components/LoadingState.vue";
 import Card from "../components/Card.vue";
+import SegmentedControl from "../components/SegmentedControl.vue";
 
 const PAGE_SIZE = 50;
 const api = useTraceApi();
@@ -38,6 +39,7 @@ const route = useRoute();
 const experimentId = computed(() => route.params.experimentId as string);
 const currentExperiment = inject(CURRENT_EXPERIMENT, computed(() => null));
 const f = useFilters();
+const LIST_MODES = [{ value: "conversation", label: "Conversations", class: "mode-conversations" }, { value: "flat", label: "Traces", class: "mode-traces" }];
 const grouped = computed(() => f.group.value === "conversation");
 
 // Ungrouped (default): all traces. Grouped: one row per conversation.
@@ -249,10 +251,7 @@ const footer = computed(() => {
     </Card>
 
     <div class="views-row">
-      <div class="mt-segmented small" role="group" aria-label="List mode">
-        <button type="button" class="mode-conversations" :aria-pressed="grouped" @click="f.setGroup('conversation')">Conversations</button>
-        <button type="button" class="mode-traces" :aria-pressed="!grouped" @click="f.setGroup('flat')">Traces</button>
-      </div>
+      <SegmentedControl size="sm" aria-label="List mode" :options="LIST_MODES" :model-value="grouped ? 'conversation' : 'flat'" @update:model-value="f.setGroup($event as 'conversation' | 'flat')" />
       <div class="quick-tabs" role="tablist" aria-label="Quick views">
         <button v-for="v in quickViews" :key="v.key" type="button" role="tab" class="quick" :class="{ active: quick === v.key }" :aria-selected="quick === v.key" @click="f.setQuickView(v.key)">
           {{ v.label }}<span v-if="v.count !== null" class="quick-count mono">{{ v.count }}</span>

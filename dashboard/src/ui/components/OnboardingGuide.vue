@@ -205,6 +205,7 @@ with session(conversation_id):
     example: `import { initTracer, session, traceStep } from "memtrace-ai";
 import { Agent } from "pydantic-ai";
 import Card from "./Card.vue";
+import SegmentedControl from "./SegmentedControl.vue";
 
 initTracer({ serviceName: "my-agent" });
 
@@ -258,32 +259,12 @@ const guide = computed(() => {
     <div class="pickers">
       <div class="picker">
         <span class="picker-label">Framework</span>
-        <div class="mt-segmented">
-          <button
-            v-for="fw in FRAMEWORKS"
-            :key="fw.id"
-            type="button"
-            :aria-pressed="selectedFramework === fw.id"
-            @click="selectedFramework = fw.id"
-          >
-            {{ fw.label }}
-          </button>
-        </div>
+        <SegmentedControl :options="FRAMEWORKS.map((fw) => ({ value: fw.id, label: fw.label }))" :model-value="selectedFramework" @update:model-value="selectedFramework = $event as typeof selectedFramework" />
       </div>
 
       <div class="picker">
         <span class="picker-label">Language</span>
-        <div class="mt-segmented">
-          <button
-            v-for="lang in LANGUAGES"
-            :key="lang.id"
-            type="button"
-            :aria-pressed="selectedLanguage === lang.id"
-            @click="selectedLanguage = lang.id"
-          >
-            {{ lang.label }}
-          </button>
-        </div>
+        <SegmentedControl :options="LANGUAGES.map((l) => ({ value: l.id, label: l.label }))" :model-value="selectedLanguage" @update:model-value="selectedLanguage = $event as typeof selectedLanguage" />
       </div>
     </div>
 

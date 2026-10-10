@@ -16,6 +16,7 @@ import type { RangeParams } from "@/application/trace-api";
 import Button from "./Button.vue";
 import LoadingState from "./LoadingState.vue";
 import Spinner from "./Spinner.vue";
+import Modal from "./Modal.vue";
 
 const props = defineProps<{ experimentId: string; reportId: string; range: RangeParams }>();
 const emit = defineEmits<{ renamed: [name: string]; deleted: [] }>();
@@ -269,31 +270,24 @@ async function sendEmail() {
       </GridItem>
     </GridLayout>
 
-    <q-dialog v-model="confirmingDelete">
-      <q-card class="confirm-card">
-        <q-card-section>Delete report "{{ report?.name }}"? Its saved charts aren't affected.</q-card-section>
-        <q-card-actions align="right">
-          <Button @click="confirmingDelete = false">Cancel</Button>
-          <Button variant="danger" @click="confirmDelete">Delete</Button>
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+    <Modal v-if="confirmingDelete" title="Delete report" @close="confirmingDelete = false">
+      <p>Delete report "{{ report?.name }}"? Its saved charts aren't affected.</p>
+      <template #footer>
+        <Button @click="confirmingDelete = false">Cancel</Button>
+        <Button variant="danger" @click="confirmDelete">Delete</Button>
+      </template>
+    </Modal>
 
-    <q-dialog v-model="sendDialogOpen">
-      <q-card class="send-card">
-        <q-card-section>
-          <div class="send-title">Send "{{ report?.name }}" by email</div>
-          <p class="hint">Sends a text summary (one table per chart) over the current time range — no PDF attachment.</p>
-          <TextInput v-model="sendEmails" placeholder="emails separated by comma" />
-          <p v-if="sendError" class="error-text">{{ sendError }}</p>
-          <p v-if="sendSuccess" class="success-text">Sent.</p>
-        </q-card-section>
-        <q-card-actions align="right">
-          <Button @click="sendDialogOpen = false">Close</Button>
-          <Button variant="primary" :loading="sending" :disabled="!sendEmails.trim()" @click="sendEmail">Send</Button>
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+    <Modal v-if="sendDialogOpen" :title="`Send &quot;${report?.name}&quot; by email`" @close="sendDialogOpen = false">
+      <p class="hint">Sends a text summary (one table per chart) over the current time range — no PDF attachment.</p>
+      <TextInput v-model="sendEmails" placeholder="emails separated by comma" aria-label="Emails" />
+      <p v-if="sendError" class="error-text">{{ sendError }}</p>
+      <p v-if="sendSuccess" class="success-text">Sent.</p>
+      <template #footer>
+        <Button @click="sendDialogOpen = false">Close</Button>
+        <Button variant="primary" :loading="sending" :disabled="!sendEmails.trim()" @click="sendEmail">Send</Button>
+      </template>
+    </Modal>
   </section>
 </template>
 
@@ -456,17 +450,7 @@ async function sendEmail() {
   text-transform: uppercase;
   letter-spacing: 0.02em;
 }
-.confirm-card,
-.send-card {
-  padding: 8px;
-  min-width: 360px;
-}
-.send-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--mt-ink);
-  margin-bottom: 8px;
-}
+
 .error-text {
   font-size: 12.5px;
   color: var(--mt-err-ink);

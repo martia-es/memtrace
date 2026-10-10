@@ -31,6 +31,7 @@ import Button from "../components/Button.vue";
 import Pill from "../components/Pill.vue";
 import LoadingState from "../components/LoadingState.vue";
 import Card from "../components/Card.vue";
+import TabBar from "../components/TabBar.vue";
 
 const props = defineProps<{ traceId: string }>();
 const api = useTraceApi();
@@ -68,6 +69,10 @@ const select = (spanId: string) => void router.replace({ query: { ...route.query
 const { can } = usePermissions();
 const canTechnical = computed(() => can("trace:read_technical"));
 const tab = computed<"conversation" | "trace">(() => (!canTechnical.value || route.query.tab === "conversation" ? "conversation" : "trace"));
+const viewTabs = computed(() => [
+  { id: "conversation", label: "Conversation" },
+  ...(canTechnical.value ? [{ id: "trace", label: "Technical trace", count: formatCount(trace.data.value?.spanCount ?? 0) }] : []),
+]);
 const setTab = (value: "conversation" | "trace") => void router.replace({ query: { ...route.query, tab: value === "trace" ? undefined : value } });
 const turns = computed(() => conversationTurns(traceThread(roots.value)));
 
@@ -178,13 +183,9 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
 
       <div class="body">
       <div class="main">
-      <div class="tabs" role="tablist" aria-label="Trace views">
-        <button type="button" role="tab" class="tab" :class="{ active: tab === 'conversation' }" :aria-selected="tab === 'conversation'" data-testid="tab-conversation" @click="setTab('conversation')">Conversation</button>
-        <button v-if="canTechnical" type="button" role="tab" class="tab" :class="{ active: tab === 'trace' }" :aria-selected="tab === 'trace'" data-testid="tab-trace" @click="setTab('trace')">
-          Technical trace<span class="tab-count mono">{{ formatCount(trace.data.value.spanCount) }}</span>
-        </button>
-        <span class="tabs-hint">{{ tab === "trace" ? "Select a span to see its input, output and metadata" : "The messages exchanged, without ids or raw JSON" }}</span>
-      </div>
+      <TabBar :tabs="viewTabs" :model-value="tab" @update:model-value="setTab($event as 'conversation' | 'trace')">
+        <template #trailing><span class="tabs-hint">{{ tab === "trace" ? "Select a span to see its input, output and metadata" : "The messages exchanged, without ids or raw JSON" }}</span></template>
+      </TabBar>
 
       <div v-if="trace.data.value.truncated" class="banner warn">Trace has more than 5000 spans: only showing the first ones.</div>
       <div v-if="hasOrphans" class="banner warn">
@@ -347,38 +348,6 @@ h2 {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-}
-.tabs {
-  display: flex;
-  align-items: flex-end;
-  gap: 4px;
-  border-bottom: 1px solid var(--mt-line);
-  flex-shrink: 0;
-}
-.tab {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 9px 12px;
-  margin-bottom: -1px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: none;
-  color: var(--mt-muted);
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-.tab.active {
-  color: var(--mt-ink);
-  border-bottom-color: var(--mt-accent);
-}
-.tab-count {
-  padding: 0 5px;
-  border-radius: var(--mt-radius-xs);
-  background: var(--mt-soft);
-  font-size: 11px;
-  font-weight: 500;
 }
 .tabs-hint {
   margin-left: auto;

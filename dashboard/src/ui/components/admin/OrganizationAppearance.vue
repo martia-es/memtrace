@@ -8,6 +8,7 @@ import { applyOrganizationTheme, themeCssVars } from "../../composables/useOrgan
 import { ASSISTANT_DISPLAY_MODES, MODE_LABELS, type AssistantDisplayMode } from "@/domain/assistant-display";
 import { notifyErrorWith } from "../../composables/useAdminDirectory";
 import Button from "../Button.vue";
+import SegmentedControl from "../SegmentedControl.vue";
 
 /** Apariencia de la organización (ADR-019, ADR-063): colores, esquinas, fuente y cómo se ve el asistente. Solo org_admin la cambia. */
 const props = defineProps<{ organization: OrganizationDto; canManage: boolean }>();
@@ -53,6 +54,14 @@ function toggleMode(mode: AssistantDisplayMode) {
   if (draft.assistantDefaultMode && !next.includes(draft.assistantDefaultMode)) draft.assistantDefaultMode = null;
 }
 
+const MODE_OPTIONS = ASSISTANT_DISPLAY_MODES.map((m) => ({ value: m, label: MODE_LABELS[m], testid: `allow-${m}` }));
+const DEFAULT_OPTIONS = computed(() => allowed.value.map((m) => ({ value: m, label: MODE_LABELS[m], testid: `default-${m}` })));
+/** El selector múltiple devuelve la lista nueva; el cambio es un solo modo, que reutiliza toggleMode (mínimo uno, orden estable). */
+function onAllowedChange(next: AssistantDisplayMode[]) {
+  const changed = ASSISTANT_DISPLAY_MODES.find((m) => next.includes(m) !== allowed.value.includes(m));
+  if (changed) toggleMode(changed);
+}
+
 // la vista previa pinta con las mismas variables que aplicará el tema, pero acotadas a este recuadro
 const previewStyle = computed(() => themeCssVars(draft));
 const previewName = computed(() => draft.assistantName?.trim() || "Weather Assistant");
@@ -95,18 +104,7 @@ function reset() {
 
       <div class="field">
         <span class="field-label">Corner style</span>
-        <div class="mt-segmented small">
-          <button
-            v-for="opt in RADIUS_OPTIONS"
-            :key="opt.label"
-            type="button"
-            :disabled="!canManage"
-            :aria-pressed="draft.radiusPreset === opt.value"
-            @click="draft.radiusPreset = opt.value"
-          >
-            {{ opt.label }}
-          </button>
-        </div>
+        <SegmentedControl size="sm" :disabled="!canManage" :options="RADIUS_OPTIONS" :model-value="draft.radiusPreset" @update:model-value="draft.radiusPreset = $event as OrganizationThemeDto['radiusPreset']" />
       </div>
 
       <div class="field">
@@ -120,9 +118,7 @@ function reset() {
 
       <div class="field">
         <span class="field-label">Font</span>
-        <div class="mt-segmented small">
-          <button v-for="opt in FONT_OPTIONS" :key="opt.label" type="button" :disabled="!canManage" :aria-pressed="draft.fontPreset === opt.value" @click="draft.fontPreset = opt.value">{{ opt.label }}</button>
-        </div>
+        <SegmentedControl size="sm" :disabled="!canManage" :options="FONT_OPTIONS" :model-value="draft.fontPreset" @update:model-value="draft.fontPreset = $event as OrganizationThemeDto['fontPreset']" />
       </div>
 
       <h4 class="section">Assistant</h4>
@@ -134,16 +130,12 @@ function reset() {
 
       <div class="field">
         <span class="field-label">Available views</span>
-        <div class="mt-segmented small">
-          <button v-for="m in ASSISTANT_DISPLAY_MODES" :key="m" type="button" :disabled="!canManage" :aria-pressed="allowed.includes(m)" :data-testid="`allow-${m}`" @click="toggleMode(m)">{{ MODE_LABELS[m] }}</button>
-        </div>
+        <SegmentedControl size="sm" multiple :disabled="!canManage" :options="MODE_OPTIONS" :model-value="allowed" @update:model-value="onAllowedChange($event as AssistantDisplayMode[])" />
       </div>
 
       <div class="field">
         <span class="field-label">Default view</span>
-        <div class="mt-segmented small">
-          <button v-for="m in allowed" :key="m" type="button" :disabled="!canManage" :aria-pressed="(draft.assistantDefaultMode ?? allowed[0]) === m" :data-testid="`default-${m}`" @click="draft.assistantDefaultMode = m">{{ MODE_LABELS[m] }}</button>
-        </div>
+        <SegmentedControl size="sm" :disabled="!canManage" :options="DEFAULT_OPTIONS" :model-value="draft.assistantDefaultMode ?? allowed[0]" @update:model-value="draft.assistantDefaultMode = $event as AssistantDisplayMode" />
       </div>
 
       <div class="preview" :style="previewStyle" aria-label="Preview" data-testid="appearance-preview">

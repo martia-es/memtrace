@@ -26,6 +26,8 @@ import { useRoute, useRouter } from "vue-router";
 import Button from "../components/Button.vue";
 import Card from "../components/Card.vue";
 import Spinner from "../components/Spinner.vue";
+import Modal from "../components/Modal.vue";
+import TabPanel from "../components/TabPanel.vue";
 
 const api = useTraceApi();
 const identityApi = useIdentityApi();
@@ -65,7 +67,6 @@ watch([f.rangeSig, f.service], reload, { immediate: true });
 const data = computed(() => overview.data.value);
 const customChartsRange = computed(() => f.resolve());
 const empty = computed(() => data.value !== null && data.value.totals.traces === 0 && data.value.totals.spans === 0);
-
 
 const successRate = computed(() => (data.value ? 1 - data.value.totals.errorRate : 1));
 const health = computed(() => {
@@ -376,21 +377,16 @@ function swapAgents() {
   <q-page class="page">
     <PageHeader :crumbs="crumbs" icon="M3 11l9-8 9 8v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z" :title="pageTitle" />
 
-    <q-dialog v-model="creatingReport">
-      <q-card class="create-report-card">
-        <q-card-section>
-          <div class="create-report-title">New report</div>
-          <TextInput v-model="newReportName" placeholder="Report name" @keyup.enter="createReport" />
-        </q-card-section>
-        <q-card-actions align="right">
-          <Button @click="creatingReport = false">Cancel</Button>
-          <Button variant="primary" :disabled="!newReportName.trim()" :loading="creatingReportBusy" @click="createReport">Create</Button>
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+    <Modal v-if="creatingReport" title="New report" @close="creatingReport = false">
+      <TextInput v-model="newReportName" placeholder="Report name" aria-label="Report name" @keyup.enter="createReport" />
+      <template #footer>
+        <Button @click="creatingReport = false">Cancel</Button>
+        <Button variant="primary" :disabled="!newReportName.trim()" :loading="creatingReportBusy" @click="createReport">Create</Button>
+      </template>
+    </Modal>
 
-    <q-tab-panels :model-value="activePanel" keep-alive class="metrics-tab-panels">
-      <q-tab-panel name="overview" class="metrics-tab-panel">
+    <div class="metrics-tab-panels">
+      <TabPanel :active="activePanel === 'overview'" class="metrics-tab-panel">
         <ApprovalInbox class="overview-approvals" />
         <ErrorBanner v-if="overview.error.value" :error="overview.error.value" @retry="reload" />
         <div v-else-if="overview.loading.value && !data" class="loading-box">
@@ -489,9 +485,9 @@ function swapAgents() {
             </Card>
           </div>
         </template>
-      </q-tab-panel>
+      </TabPanel>
 
-      <q-tab-panel name="compare" class="metrics-tab-panel">
+      <TabPanel :active="activePanel === 'compare'" class="metrics-tab-panel">
         <AgentCompareView
           :name-a="agentAName"
           :name-b="agentBName"
@@ -506,13 +502,13 @@ function swapAgents() {
           @swap="swapAgents"
           @retry="loadCompare"
         />
-      </q-tab-panel>
+      </TabPanel>
 
-      <q-tab-panel name="custom" class="metrics-tab-panel">
+      <TabPanel :active="activePanel === 'custom'" class="metrics-tab-panel">
         <CustomChartsPanel :experiment-id="experimentId" :range="customChartsRange" />
-      </q-tab-panel>
+      </TabPanel>
 
-      <q-tab-panel name="reports" class="metrics-tab-panel">
+      <TabPanel :active="activePanel === 'reports'" class="metrics-tab-panel">
         <div class="reports-head">
           <p class="reports-hint">A report is a saved set of custom charts you can share with the rest of the experiment.</p>
           <button type="button" class="add-report-btn mt-new" data-testid="new-report" @click="openCreateReport">+ New report</button>
@@ -522,9 +518,9 @@ function swapAgents() {
         <div v-else class="report-list">
           <ReportCard v-for="r in reports.data.value ?? []" :key="r.id" :experiment-id="experimentId" :report="r" />
         </div>
-      </q-tab-panel>
+      </TabPanel>
 
-      <q-tab-panel name="report" class="metrics-tab-panel">
+      <TabPanel :active="activePanel === 'report'" class="metrics-tab-panel">
         <MetricReportView
           v-if="reportId"
           :key="reportId"
@@ -534,8 +530,8 @@ function swapAgents() {
           @renamed="(name) => onReportRenamed(reportId!, name)"
           @deleted="onReportDeleted"
         />
-      </q-tab-panel>
-    </q-tab-panels>
+      </TabPanel>
+    </div>
   </q-page>
 </template>
 
@@ -591,20 +587,6 @@ function swapAgents() {
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 16px;
 }
-
-.create-report-card {
-  padding: 8px;
-  min-width: 360px;
-}
-
-.create-report-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--mt-ink);
-  margin-bottom: 8px;
-}
-
-
 
 .metrics-tab-panels {
   background: transparent;

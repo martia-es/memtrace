@@ -17,6 +17,9 @@ const emit = defineEmits<{ close: [] }>();
         <div class="modal-body">
           <slot />
         </div>
+        <div v-if="$slots.footer" class="modal-footer">
+          <slot name="footer" />
+        </div>
       </Card>
     </div>
   </Teleport>
@@ -89,5 +92,12 @@ const emit = defineEmits<{ close: [] }>();
 .modal-close:hover {
   background: var(--mt-soft);
   color: var(--mt-ink);
+}
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--mt-line);
 }
 </style>

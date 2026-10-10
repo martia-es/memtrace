@@ -19,6 +19,7 @@ import Checkbox from "./Checkbox.vue";
 import Pill from "./Pill.vue";
 import { aggregatePillTone } from "@/domain/evaluation";
 import LoadingState from "./LoadingState.vue";
+import TabBar from "./TabBar.vue";
 
 /** Progreso, trabajo por revisor, rúbrica y items de una cola (ADR-039). Los admins pueden cambiar `requiredAnnotations` y retirar items del reparto. */
 const props = defineProps<{ queueId: string; canManage: boolean; initialTab?: "summary" | "results" | "settings" }>();
@@ -116,9 +117,7 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
     <div v-else class="detail" data-testid="queue-detail">
       <p v-if="detail.data.value.instructions" class="instructions">{{ detail.data.value.instructions }}</p>
 
-      <nav v-if="canManage" class="tabs" role="tablist" aria-label="Queue sections">
-        <button v-for="t in TABS" :key="t.id" type="button" role="tab" class="tab" :class="{ on: tab === t.id }" :aria-selected="tab === t.id" :data-testid="`tab-${t.id}`" @click="tab = t.id">{{ t.label }}</button>
-      </nav>
+      <TabBar v-if="canManage" :tabs="TABS" :model-value="tab" @update:model-value="tab = $event as Tab" />
 
       <QueueResults v-if="canManage && tab === 'results'" :queue-id="queueId" @close="emit('close')" />
 
@@ -225,26 +224,6 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
 </template>
 
 <style scoped>
-.tabs {
-  display: flex;
-  gap: 4px;
-  border-bottom: 1px solid var(--mt-line);
-}
-.tab {
-  padding: 6px 14px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: none;
-  color: var(--mt-muted);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.tab.on {
-  border-bottom-color: var(--mt-accent);
-  color: var(--mt-ink);
-}
 .detail {
   display: flex;
   flex-direction: column;
