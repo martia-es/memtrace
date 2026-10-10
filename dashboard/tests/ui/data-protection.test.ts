@@ -105,9 +105,9 @@ describe("Data protection tab (organization)", () => {
       expect(rows[1]!.text()).toContain("7 days");
     });
 
-    it("says that the dashboard shows 30 days at most, so a longer period is for exporting", async () => {
+    it("says that the dashboard can show up to a year, and that older data no longer exists", async () => {
       const { wrapper } = await open();
-      expect(wrapper.text()).toContain("shows the last 30 days at most");
+      expect(wrapper.text()).toContain("can show up to a year");
     });
 
     it("saves a new organization period only when it changed and is valid", async () => {

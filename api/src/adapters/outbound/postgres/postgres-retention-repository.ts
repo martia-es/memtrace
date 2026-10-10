@@ -64,6 +64,16 @@ export class PostgresRetentionRepository implements RetentionRepository {
     return (result.rowCount ?? 0) > 0;
   }
 
+  async effectiveDaysForService(serviceName?: string): Promise<number | null> {
+    const { rows } = await this.pool.query<{ days: number | null }>(
+      `SELECT MAX(LEAST(o.trace_retention_days, COALESCE(e.trace_retention_days, o.trace_retention_days))) AS days
+         FROM experiments e JOIN organizations o ON o.id = e.organization_id
+        WHERE $1::text IS NULL OR e.service_name = $1`,
+      [serviceName ?? null],
+    );
+    return rows[0]?.days ?? null;
+  }
+
   async listPurgeTargets(): Promise<PurgeTarget[]> {
     // Dos organizaciones pueden usar el mismo `service.name` y las trazas no se pueden separar por organización: se aplica
     // el plazo MÁS LARGO, porque un borrado equivocado no se deshace y uno que se queda corto sí se corrige (ADR-084).

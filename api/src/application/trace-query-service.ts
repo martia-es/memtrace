@@ -12,6 +12,7 @@ import {
   type StepKindCount,
 } from "@/domain/metrics";
 import { summarizeErrors, type ErrorOverview } from "@/domain/error-categories";
+import { MAX_RETENTION_DAYS } from "@/domain/retention";
 import { MAX_RANGE_MS, resolveTimeRange } from "@/domain/time-range";
 import { toSpanRow, type SpanCursor, type SpanRow } from "@/domain/span-row";
 import { buildTranscript, lastOf, parseMessages, type Transcript } from "@/domain/transcript";
@@ -89,6 +90,8 @@ export class TraceQueryService {
   constructor(
     private readonly repository: TraceRepository,
     private readonly now: () => number = Date.now,
+    /** Días de retención efectivos de un `service.name` (o el techo si no se indica). Sin él se asume el techo (workers). */
+    private readonly retentionDays: (service?: string) => Promise<number> = async () => MAX_RETENTION_DAYS,
   ) {}
 
   private async pricingCatalog(): Promise<PricingCatalog> {
@@ -256,7 +259,8 @@ export class TraceQueryService {
     const range = resolveTimeRange(input, this.now());
     const candidate = { fromMs: range.fromMs - (range.toMs - range.fromMs), toMs: range.fromMs };
     // más allá de la retención no hay datos y "0 antes" haría parecer nuevo cualquier error
-    const previousRange = candidate.fromMs >= this.now() - MAX_RANGE_MS ? candidate : null;
+    const retentionMs = (await this.retentionDays(input.service)) * 86_400_000;
+    const previousRange = candidate.fromMs >= this.now() - retentionMs ? candidate : null;
     const [current, previous] = await Promise.all([
       this.repository.listErrorGroups({ ...range, service: input.service }),
       previousRange ? this.repository.listErrorGroups({ ...previousRange, service: input.service }) : null,
