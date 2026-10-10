@@ -4,8 +4,20 @@ export const RANGE_PRESETS = [
   { key: "6h", label: "6 h", long: "Last 6 hours", ms: 6 * 60 * 60_000 },
   { key: "24h", label: "24 h", long: "Last 24 hours", ms: 24 * 60 * 60_000 },
   { key: "7d", label: "7 d", long: "Last 7 days", ms: 7 * 24 * 60 * 60_000 },
-  { key: "30d", label: "30 d", long: "Last 30 days", ms: 30 * 24 * 60 * 60_000 }, // = ClickHouse retention (ADR-003)
+  { key: "30d", label: "30 d", long: "Last 30 days", ms: 30 * 24 * 60 * 60_000 },
+  { key: "90d", label: "90 d", long: "Last 90 days", ms: 90 * 24 * 60 * 60_000 },
+  { key: "365d", label: "1 y", long: "Last year", ms: 365 * 24 * 60 * 60_000 },
 ] as const;
+
+/** Lo máximo que acepta la API (= techo de la retención, ADR-084). Lo que haya más allá de la retención de cada agente ya no existe. */
+export const MAX_RANGE_DAYS = 365;
+
+/** Primer día (YYYY-MM-DD, hora local) que se puede elegir: los días completos de un rango propio caben en los 365 que acepta la API. */
+export function earliestCustomDay(nowMs: number): string {
+  const d = new Date(nowMs - (MAX_RANGE_DAYS - 1) * 24 * 60 * 60_000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
 
 export type RangeKey = (typeof RANGE_PRESETS)[number]["key"];
 export const DEFAULT_RANGE: RangeKey = "1h";

@@ -5,9 +5,11 @@ import { FakeTraceRepository, SCOPE, emptyOverview, span } from "../helpers";
 
 const NOW = Date.parse("2026-09-26T12:00:00Z");
 
-function setup() {
+function setup(retentionDays = 30) {
   const repo = new FakeTraceRepository();
-  return { repo, service: new TraceQueryService(repo, () => NOW) };
+  const asked: Array<string | undefined> = [];
+  const retention = async (service?: string) => (asked.push(service), retentionDays);
+  return { repo, asked, service: new TraceQueryService(repo, () => NOW, retention) };
 }
 
 describe("TraceQueryService", () => {
@@ -115,5 +117,26 @@ describe("TraceQueryService.getErrorOverview (ADR-066)", () => {
     const out = await service.getErrorOverview({ scope: SCOPE, from: new Date(NOW - 20 * 24 * 3600_000) });
     expect(repo.lastErrorQueries).toHaveLength(1);
     expect(out.previousRange).toBeNull();
+  });
+
+  it("compares further back when the agent keeps its traces longer (M8)", async () => {
+    const { repo, service, asked } = setup(180);
+    const out = await service.getErrorOverview({ from: new Date(NOW - 60 * 24 * 3600_000), scope: { ...SCOPE, serviceName: "weather" } });
+    expect(asked).toEqual(["weather"]);
+    expect(repo.lastErrorQueries).toHaveLength(2);
+    expect(out.previousRange).not.toBeNull();
+  });
+
+  it("does not compare when the previous period starts before the agent's retention", async () => {
+    const { repo, service } = setup(90);
+    const out = await service.getErrorOverview({ scope: SCOPE, from: new Date(NOW - 60 * 24 * 3600_000) });
+    expect(repo.lastErrorQueries).toHaveLength(1);
+    expect(out.previousRange).toBeNull();
+  });
+
+  it("accepts ranges up to a year", async () => {
+    const { service } = setup(365);
+    await expect(service.getErrorOverview({ scope: SCOPE, from: new Date(NOW - 300 * 24 * 3600_000) })).resolves.toBeDefined();
+    await expect(service.getErrorOverview({ scope: SCOPE, from: new Date(NOW - 366 * 24 * 3600_000) })).rejects.toThrow();
   });
 });

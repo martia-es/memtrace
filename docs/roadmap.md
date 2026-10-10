@@ -289,7 +289,7 @@ Un usuario puede agrupar varias gráficas custom ya guardadas en un **informe** 
 - [x] **Frontera de cliente**: una organización por cliente y relación partner con grants por persona y por cliente, revocables por el cliente — [ADR-091](adrs/cybersecurity/adr-091-client-boundary-for-multi-client-organizations.md). pantallas del dashboard (Admin › Partners y Clients); un grant de partner nunca incluye exportar datos
 - [x] **Cabeceras de seguridad y límites de la ingesta** (CSP verificada en Chromium, límite por experimento y por origen con claves inválidas) — [ADR-092](adrs/cybersecurity/adr-092-security-headers-and-ingest-rate-limits.md)
 - [x] **Auditoría de la frontera de cliente** sobre el registro de la Fase 1.9 (`audit_log`): altas y bajas de relaciones partner y de grants, y cada acceso de una consultora a los datos de un cliente (`partner.access`), legibles por el cliente con `audit:read` — [ADR-093](adrs/cybersecurity/adr-093-audit-of-consultancy-access.md)
-- [ ] P1 (ADR-087) pendiente: TLS (ingress) y HSTS, cifrado en reposo y gestor de secretos, límites de uso en el resto de la API y cuotas por tenant, borrado y retención por cliente, política de PII en el servidor, flujos hacia terceros (jueces LLM, playground)
+- [ ] P1 (ADR-087) pendiente: TLS (ingress) y HSTS, cifrado en reposo y gestor de secretos, límites de uso en el resto de la API y cuotas por tenant, borrado y retención por cliente, política de PII en el servidor, flujos hacia terceros (jueces LLM, playground). Detalle completo en [security-pending.md](security-pending.md)
 - [ ] P2 (ADR-087): políticas de fila en ClickHouse, políticas de sesión, escaneo de la cadena de suministro en CI, copias de seguridad cifradas, pentest y cumplimiento
 
 ---

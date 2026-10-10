@@ -40,6 +40,7 @@ import { PromptEvidenceService } from "@/application/prompt-evidence-service";
 import { PromptFailureService } from "@/application/prompt-failure-service";
 import { PromptMapService } from "@/application/prompt-map-service";
 import { ChartCatalogService } from "@/application/chart-catalog-service";
+import { MAX_RETENTION_DAYS } from "@/domain/retention";
 import { RetentionService } from "@/application/retention-service";
 import { ExportService } from "@/application/export-service";
 import { AlertService } from "@/application/alert-service";
@@ -122,7 +123,7 @@ function getTraceRepository(): ClickHouseTraceRepository {
 /** Compartido por `getHandlers` y por los sitios que necesitan llamar al servicio directamente (p.ej. el envío por email de un informe, ADR-035). */
 export function getTraceQueryService(): TraceQueryService {
   if (!globalForContainer.__memtraceTraceQueryService) {
-    globalForContainer.__memtraceTraceQueryService = new TraceQueryService(getTraceRepository());
+    globalForContainer.__memtraceTraceQueryService = new TraceQueryService(getTraceRepository(), Date.now, (service) => getRetentionLookup().daysFor(service));
   }
   return globalForContainer.__memtraceTraceQueryService;
 }
@@ -325,6 +326,26 @@ export function getAudit(): AuditService {
 export function getRetention(): RetentionService {
   if (!globalForContainer.__memtraceRetention) globalForContainer.__memtraceRetention = new RetentionService(new PostgresRetentionRepository(getPostgresPool()), getAudit());
   return globalForContainer.__memtraceRetention;
+}
+
+/**
+ * Días de retención efectivos de un servicio, con una caché corta: se consulta en cada vista de errores y un cambio de plazo
+ * puede tardar un minuto en notarse. Si el servicio no es de ningún experimento (o Postgres falla) vale el techo, que es el
+ * comportamiento anterior a este cambio: no se oculta ninguna comparación por un fallo de la consulta.
+ */
+export function getRetentionLookup(): { daysFor(service?: string): Promise<number> } {
+  const cache = new Map<string, { atMs: number; days: number }>();
+  const repo = new PostgresRetentionRepository(getPostgresPool());
+  return {
+    async daysFor(service) {
+      const key = service ?? "";
+      const hit = cache.get(key);
+      if (hit && Date.now() - hit.atMs < 60_000) return hit.days;
+      const days = await repo.effectiveDaysForService(service).then((d) => d ?? MAX_RETENTION_DAYS, () => MAX_RETENTION_DAYS);
+      cache.set(key, { atMs: Date.now(), days });
+      return days;
+    },
+  };
 }
 
 /** Alertas y presupuestos de coste (ADR-086). La evaluación periódica la hace el CronJob `alerts-evaluate`, con su propia raíz de composición. */

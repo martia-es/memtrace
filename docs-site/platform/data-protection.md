@@ -52,8 +52,8 @@ What it covers and what it does not:
 | **Deleted when it expires** | Spans (traces, with their prompts and answers if content capture is on) and the topics extracted from them |
 | **Not deleted** | Evaluation scores, human annotations and end-user feedback. They are not traces; feedback must outlive the trace it refers to. The text of evaluation run items has its own limit of 180 days |
 
-::: warning The dashboard shows 30 days at most
-You can keep traces for up to 365 days, but the dashboard (lists, metrics, search) only looks at the last 30. Older traces are there to be [exported](#export-your-data), for example for an audit. Every span is stored with the id of its experiment, so two organizations that use the same `service.name` keep their own period. Spans stored before that id existed are only deleted after they have been assigned an experiment (see `make backfill-experiment-id`).
+::: tip The dashboard looks as far back as you keep
+You can keep traces for up to 365 days and the dashboard (lists, metrics, search) can show up to a year: use the **90 d** and **1 y** presets of the time range, or pick a custom range. Anything older than the period you set no longer exists, so a range that reaches past it simply shows less. Long periods are also what lets you [export](#export-your-data) older traces, for example for an audit. Wide ranges read more data, so charts over a year are slower than over a day. Every span is stored with the id of its experiment, so two organizations that use the same `service.name` keep their own period. Spans stored before that id existed are only deleted after they have been assigned an experiment (see `make backfill-experiment-id`).
 :::
 
 Operators: the job is the `retention-purge` CronJob. To run it now, `kubectl -n memtrace create job --from=cronjob/retention-purge purge-now`.

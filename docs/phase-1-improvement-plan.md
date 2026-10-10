@@ -42,7 +42,7 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 | M4 | [ ] | Evaluaciones | Intervalos de confianza al comparar runs (con pocos items, un +3 % puede ser ruido) | M | S |
 | M5 | [ ] | Costes | Coste por usuario, por conversación y por versión de prompt; tendencia con proyección | M | M |
 | M6 | [ ] | Gobierno | Simplificar u ocultar por defecto «quién puede llamar a cada entorno» si no se usa (ver sección 5) | B | S |
-| M8 | [ ] | Dashboard | Consultar más de 30 días (`MAX_RANGE_MS` en la API y presets del selector de rango) para aprovechar una retención más larga | M | M |
+| M8 | [x] | Dashboard | Hecho (ADR-084, actualización): la API acepta hasta 365 días, presets 90 d y 1 y, rango propio de hasta un año; el periodo anterior de Errores respeta la retención efectiva del agente | M | M |
 | M7 | [ ] | Documentación | Guía «ciclo de mejora en 30 minutos»: traza → fallo → dataset → prompt → eval → deploy | M | S |
 
 ## 4. Orden propuesto
@@ -73,3 +73,4 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 | 2026-10-10 | F4 y F7 hechos (ADR-084). Nuevos pendientes: F9 (validar `service.name` en el gateway) y M8 (consultar más de 30 días) |
 | 2026-10-10 | F9 hecho (ADR-085) |
 | 2026-10-10 | F1 y F2 hechos (ADR-086). Pendiente de este bloque: webhooks para las alertas |
+| 2026-10-10 | M8 hecho: el dashboard y la API consultan hasta 365 días |
