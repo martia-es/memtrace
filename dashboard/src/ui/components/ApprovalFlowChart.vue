@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { ApprovalRuleDto } from "@contract";
-import { describeRule, profileLabel } from "@/domain/approvals";
+import { describeRule, profileLabel, STEP_MODE_LABEL, type StepMode } from "@/domain/approvals";
 
 /**
  * El recorrido de un cambio de prompt (ADR-076), de izquierda a derecha: publicar una versión y mover cada entorno. Cada
@@ -16,8 +16,8 @@ export interface FlowStep {
   rule: ApprovalRuleDto | null;
   /** el suelo que pone la organización, si se muestra aparte */
   floor?: ApprovalRuleDto | null;
-  /** un `org_admin` ha eximido a este agente de la regla de la organización en este paso (ADR-076) */
-  exempt?: boolean;
+  /** en un agente, con regla de la organización en este paso: si la sigue, usa solo la suya o no pide aprobación */
+  mode?: StepMode;
   /** el paso que se está editando */
   open?: boolean;
 }
@@ -86,7 +86,7 @@ const cards = computed(() =>
         <!-- los datos de siempre, para quien los lea como texto -->
         <span class="sr" data-testid="rule-summary">{{ describeRule(c.step.rule, names) }}</span>
         <span v-if="c.step.floor" class="floor" data-testid="rule-floor">Organization: {{ describeRule(c.step.floor, names) }}</span>
-        <span v-if="c.step.exempt" class="floor" data-testid="rule-exempt">Exempt from the organization's rule</span>
+        <span v-if="c.step.mode" class="mode" :class="c.step.mode" data-testid="rule-mode">{{ STEP_MODE_LABEL[c.step.mode] }}</span>
         <div v-if="$slots.actions" class="actions"><slot name="actions" :step="c.step" /></div>
       </div>
     </li>
@@ -118,6 +118,8 @@ const cards = computed(() =>
 .label { flex: 1; min-width: 0; font-size: 13px; font-weight: 700; color: var(--mt-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tag { font-size: 11px; font-weight: 700; color: var(--mt-muted); }
 .floor { font-size: 11.5px; color: var(--mt-muted); }
+.mode { width: fit-content; height: 20px; padding: 0 8px; display: inline-flex; align-items: center; border-radius: 10px; font-size: 11px; font-weight: 800; background: var(--mt-accent-soft, var(--mt-line)); color: var(--mt-ink); }
+.mode.none { background: var(--mt-ok-bg, var(--mt-line)); color: var(--mt-ok-ink, var(--mt-ink)); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .actions { display: flex; gap: 8px; }
 </style>
