@@ -28,7 +28,9 @@ card system (`.mt-card` as a global utility, 39 usages) next to our `Card`.
 ## Consequences
 - One implementation of each interaction pattern; behaviour and look change in one place.
 - `Menu` has no collision handling beyond clamping to the viewport and closes on resize.
-- Still hand-made (not status or action buttons): vote buttons, copy/remove icon buttons,
-  menu items, the `view` toggles of `PromptDetailPage` and the quick-view tabs of the
-  conversation list. They should become `Button variant="icon"` or `SegmentedControl` when
-  those screens are next touched.
+- Action buttons are all `Button` (icon, link, primary, danger…); menu options are `MenuItem`;
+  segmented and tab-like groups are `SegmentedControl`; filter chips are `ToggleChip`.
+- A raw `<button>` is still allowed in two cases, listed with a reason in `Widgets.test.ts`:
+  the internals of the interaction components themselves, and pieces whose whole row or card is
+  the button or that have a bespoke design (popover triggers, expandable rows, sortable headers,
+  keyboard-shortcut answer choices, OAuth provider buttons). The test fails for any other file.

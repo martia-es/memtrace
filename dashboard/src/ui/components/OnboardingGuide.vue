@@ -206,6 +206,7 @@ with session(conversation_id):
 import { Agent } from "pydantic-ai";
 import Card from "./Card.vue";
 import SegmentedControl from "./SegmentedControl.vue";
+import Button from "./Button.vue";
 
 initTracer({ serviceName: "my-agent" });
 
@@ -273,27 +274,27 @@ const guide = computed(() => {
         <span class="step-label">Install</span>
         <div class="snippet">
           <pre><code>{{ guide.install }}</code></pre>
-          <button class="copy" type="button" title="Copy" @click="copy(guide.install, 'install')">
+          <Button variant="icon" size="sm" class="copy" title="Copy" @click="copy(guide.install, 'install')">
             <q-icon :name="copiedKey === 'install' ? 'check' : 'content_copy'" size="15px" />
-          </button>
+          </Button>
         </div>
       </li>
 
       <li class="step">
         <div class="step-header">
           <span class="step-label">Set environment variables</span>
-          <button class="generate-key-btn" type="button" :disabled="generatingApiKey" @click="generateApiKey">
+          <Button class="generate-key-btn" :disabled="generatingApiKey" @click="generateApiKey">
             {{ generatedApiKey ? "Generate another API key" : "Generate API key" }}
-          </button>
+          </Button>
         </div>
         <p v-if="generatedApiKey" class="key-warning">
           Copy it now — it won't be shown in full again. If you leave this screen you'll need to generate a new one.
         </p>
         <div class="snippet">
           <pre><code>{{ guide.env }}</code></pre>
-          <button class="copy" type="button" title="Copy" @click="copy(guide.env, 'env')">
+          <Button variant="icon" size="sm" class="copy" title="Copy" @click="copy(guide.env, 'env')">
             <q-icon :name="copiedKey === 'env' ? 'check' : 'content_copy'" size="15px" />
-          </button>
+          </Button>
         </div>
       </li>
 
@@ -301,9 +302,9 @@ const guide = computed(() => {
         <span class="step-label">Instrument your agent</span>
         <div class="snippet">
           <pre><code>{{ guide.example }}</code></pre>
-          <button class="copy" type="button" title="Copy" @click="copy(guide.example, 'example')">
+          <Button variant="icon" size="sm" class="copy" title="Copy" @click="copy(guide.example, 'example')">
             <q-icon :name="copiedKey === 'example' ? 'check' : 'content_copy'" size="15px" />
-          </button>
+          </Button>
         </div>
       </li>
     </ol>
@@ -386,22 +387,8 @@ const guide = computed(() => {
   justify-content: space-between;
   gap: 12px;
 }
-.generate-key-btn {
-  flex-shrink: 0;
-  height: 30px;
-  padding: 0 14px;
-  border-radius: var(--mt-radius-lg);
-  border: none;
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.generate-key-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
+.generate-key-btn { flex-shrink: 0; }
+
 .key-warning {
   margin: -2px 0 0;
   font-size: 12px;
@@ -428,25 +415,8 @@ const guide = computed(() => {
   white-space: pre;
 }
 
-.copy {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border: 0;
-  border-radius: var(--mt-radius-sm);
-  background: var(--mt-card);
-  color: var(--mt-muted);
-  cursor: pointer;
-  box-shadow: 0 1px 3px rgba(20, 60, 35, 0.12);
-}
-.copy:hover {
-  color: var(--mt-ink);
-}
+.copy { position: absolute; top: 8px; right: 8px; }
+
 
 @media (max-width: 560px) {
   .onboarding {

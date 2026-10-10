@@ -106,6 +106,36 @@ describe("Menu", () => {
   });
 });
 
+/**
+ * Guardia: un <button> crudo solo se permite donde el propio botón ES el componente (internos de
+ * Button, ToggleChip, MenuItem, Disclosure, TabBar, SegmentedControl, Select, TextInput) o donde la
+ * pieza es una fila/disparador con su propio diseño (no un botón de acción). Cualquier botón de acción
+ * nuevo debe usar <Button>.
+ */
+describe("raw <button> elements", () => {
+  const UI = join(__dirname, "..", "..", "..", "src", "ui");
+  const vueFiles = (dir: string): string[] =>
+    readdirSync(dir).flatMap((n) => {
+      const p = join(dir, n);
+      return statSync(p).isDirectory() ? vueFiles(p) : p.endsWith(".vue") ? [p] : [];
+    });
+  const ALLOWED = new Set([
+    // internos de los componentes de interacción
+    "Button.vue", "ToggleChip.vue", "MenuItem.vue", "Disclosure.vue", "TabBar.vue", "SegmentedControl.vue", "Select.vue", "TextInput.vue",
+    // disparadores de menú o de popover con aspecto propio
+    "ExperimentSelect.vue", "FilterBar.vue", "FilterPill.vue", "LiveControl.vue", "UserMenu.vue",
+    // filas y tarjetas pulsables (la fila entera es el botón)
+    "ConversationTree.vue", "ErrorOverviewCard.vue", "SpanTree.vue", "TraceTimeline.vue", "OfflineTrendView.vue", "MetricsPage.vue",
+    "CustomChartsPanel.vue", "PromptFixFromFailure.vue", "PromptFragmentPicker.vue", "PromptDetailPage.vue",
+    // controles específicos: cabecera ordenable, respuestas con atajo de teclado, filtro quitable, selector de modo del chat, botones de proveedor OAuth, maqueta
+    "ModelPricingPage.vue", "AnnotationQueueReviewPage.vue", "ConversationsPage.vue", "AssistantModeSwitch.vue", "AssistantChatDock.vue", "LoginPage.vue", "OrganizationAppearance.vue",
+  ]);
+  it("only appear in the allow-listed files", () => {
+    const offenders = vueFiles(UI).filter((f) => !ALLOWED.has(f.split("/").pop()!) && /<button\b/.test(readFileSync(f, "utf8")));
+    expect(offenders).toEqual([]);
+  });
+});
+
 /** Guardia: el dashboard no usa widgets visuales de Quasar; solo iconos, la estructura de página (q-layout/q-page) y plugins (Notify, Dark). */
 describe("no Quasar visual widgets across the dashboard", () => {
   const UI = join(__dirname, "..", "..", "..", "src", "ui");

@@ -18,6 +18,7 @@ import Checkbox from "./Checkbox.vue";
 import Pill from "./Pill.vue";
 import DataTable from "./DataTable.vue";
 import LoadingState from "./LoadingState.vue";
+import ToggleChip from "./ToggleChip.vue";
 
 /**
  * Resultados de una cola para el perfil técnico (ADR-050): qué respondió cada revisor por item y criterio, los
@@ -238,15 +239,14 @@ async function promote() {
             <div v-if="drafts[key(openedRow, crit.configId)] && configById.get(crit.configId)" class="decide">
               <span class="muted">Verdict (settles the disagreement)</span>
               <template v-if="valueChoices(configById.get(crit.configId)!)">
-                <button
+                <ToggleChip
                   v-for="c in valueChoices(configById.get(crit.configId)!)"
                   :key="c.value"
-                  type="button"
                   class="choice"
-                  :class="{ on: drafts[key(openedRow, crit.configId)]!.value === c.value }"
+                  :pressed="drafts[key(openedRow, crit.configId)]!.value === c.value"
                   data-testid="choice"
                   @click="drafts[key(openedRow, crit.configId)]!.value = c.value"
-                >{{ c.label }}</button>
+                >{{ c.label }}</ToggleChip>
               </template>
               <TextInput v-else v-model="drafts[key(openedRow, crit.configId)]!.value" type="number" aria-label="Final value" />
             </div>
@@ -360,22 +360,6 @@ h4 {
   align-items: center;
   gap: 6px;
   margin: 6px 0;
-}
-.choice {
-  height: 26px;
-  padding: 0 10px;
-  border-radius: var(--mt-radius-sm);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  color: var(--mt-ink);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-.choice.on {
-  border-color: var(--mt-accent);
-  color: var(--mt-accent);
-  font-weight: 700;
 }
 .promote {
   display: flex;

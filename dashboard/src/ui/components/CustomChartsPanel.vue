@@ -36,6 +36,7 @@ import {
 } from "@/domain/custom-chart-vocabulary";
 import Button from "./Button.vue";
 import ToggleChip from "./ToggleChip.vue";
+import SegmentedControl from "./SegmentedControl.vue";
 
 const props = defineProps<{ experimentId: string; range: RangeParams }>();
 
@@ -486,7 +487,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
             </div>
           </div>
           <div>
-            <button type="button" class="add-condition" :disabled="!singleStep" @click="addFilterRow">+ Add condition</button>
+            <Button variant="link" class="add-condition" :disabled="!singleStep" @click="addFilterRow">+ Add condition</Button>
           </div>
         </div>
 
@@ -516,11 +517,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
               <TextInput v-model="newChartName" placeholder="Name this chart" @update:model-value="nameTouched = true" />
               <span class="hint">{{ description }}</span>
             </div>
-            <div class="seg" role="group" aria-label="Chart type">
-              <button v-for="t in CHART_TYPES" :key="t.value" type="button" class="seg-btn" :class="{ on: chartType === t.value }" @click="pickChartType(t.value)">
-                {{ t.label }}
-              </button>
-            </div>
+            <SegmentedControl class="seg" aria-label="Chart type" :options="CHART_TYPES.map((t) => ({ value: t.value, label: t.label, class: 'seg-btn' }))" :model-value="chartType" @update:model-value="pickChartType($event as typeof chartType)" />
           </div>
 
           <div class="preview-body" :class="{ stale: previewLoading }">
@@ -844,21 +841,6 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
   gap: 6px;
 }
 
-.add-condition {
-  font-family: inherit;
-  cursor: pointer;
-  padding: 5px 10px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--mt-muted);
-  background: none;
-  border: 1px dashed var(--mt-muted);
-  border-radius: var(--mt-radius-sm, 8px);
-}
-.add-condition:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
 .cc-preview-card {
   display: flex;
   flex-direction: column;
@@ -911,29 +893,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
   flex-direction: column;
   gap: 4px;
 }
-.seg {
-  display: flex;
-  gap: 2px;
-  padding: 3px;
-  border-radius: var(--mt-radius-sm, 8px);
-  background: var(--mt-soft);
-}
-.seg-btn {
-  font-family: inherit;
-  cursor: pointer;
-  padding: 6px 11px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--mt-muted);
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-}
-.seg-btn.on {
-  color: var(--mt-ink);
-  background: var(--mt-card);
-  box-shadow: var(--mt-shadow);
-}
+
 .preview-body {
   padding: 16px 22px;
   display: flex;

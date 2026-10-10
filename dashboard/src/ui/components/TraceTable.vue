@@ -8,6 +8,7 @@ import AnnotationChip from "./AnnotationChip.vue";
 import FeedbackChip from "./FeedbackChip.vue";
 import PromptChips from "./PromptChips.vue";
 import DataTable from "./DataTable.vue";
+import Button from "./Button.vue";
 
 const props = defineProps<{
   items: TraceSummaryDto[];
@@ -82,7 +83,7 @@ const activate = (traceId: string) => (props.selectable ? emit("select", traceId
           <a v-if="t.conversationId" class="conv-link mono" href="#" @click.prevent.stop="$emit('openConversation', t.conversationId)">{{ t.conversationId }}</a>
           <span v-else class="muted">–</span>
         </td>
-        <td v-if="annotatable"><button type="button" class="annotate-btn" data-testid="row-annotate" @click.stop="$emit('annotate', t.traceId)" @dblclick.stop @keydown.enter.stop>Annotate</button></td>
+        <td v-if="annotatable"><Button size="sm" class="annotate-btn" data-testid="row-annotate" @click.stop="$emit('annotate', t.traceId)" @dblclick.stop @keydown.enter.stop>Annotate</Button></td>
       </tr>
     </tbody>
   </DataTable>
@@ -155,16 +156,5 @@ const activate = (traceId: string) => (props.selectable ? emit("select", traceId
 @media (prefers-reduced-motion: reduce) {
   .item.fresh { animation: none; background: var(--mt-accent-tint); }
 }
-.annotate-btn {
-  height: 24px;
-  padding: 0 10px;
-  border-radius: var(--mt-radius-sm);
-  border: 1px solid var(--mt-line);
-  background: var(--mt-card);
-  color: var(--mt-ink);
-  font: inherit;
-  font-size: 11.5px;
-  font-weight: 600;
-  cursor: pointer;
-}
+
 </style>

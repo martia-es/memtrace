@@ -11,6 +11,7 @@ import EmptyState from "./EmptyState.vue";
 import ErrorBanner from "./ErrorBanner.vue";
 import Select from "./Select.vue";
 import LoadingState from "./LoadingState.vue";
+import Button from "./Button.vue";
 
 const props = defineProps<{
   nameA: string;
@@ -118,9 +119,9 @@ const charts = computed(() => {
         <span class="ac-badge a">A</span>
         <div class="ac-agent-text"><strong>{{ nameA }}</strong><span>Baseline · set with the agent selector above</span></div>
       </div>
-      <button type="button" class="ac-swap" aria-label="Swap A and B" title="Swap A and B" :disabled="!agentBId" @click="emit('swap')">
+      <Button variant="icon" size="sm" class="ac-swap" aria-label="Swap A and B" title="Swap A and B" :disabled="!agentBId" @click="emit('swap')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7" /></svg>
-      </button>
+      </Button>
       <div class="ac-agent b">
         <span class="ac-badge b">B</span>
         <div class="ac-agent-select"><span>Candidate</span><Select :model-value="agentBId" :options="options" placeholder="Choose an agent to compare" @update:model-value="emit('update:agentBId', $event)" /></div>
@@ -226,9 +227,9 @@ h3 { margin: 0; font-size: 14px; font-weight: 800; letter-spacing: -0.01em; }
 .ac-badge.sm { width: 22px; height: 22px; font-size: 11px; border-radius: 5px; }
 .ac-badge.a { background: var(--mt-accent-soft); color: var(--mt-accent); }
 .ac-badge.b { background: var(--mt-highlight-soft); color: var(--mt-highlight-ink); }
-.ac-swap { align-self: center; flex: none; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--mt-line); background: var(--mt-card); color: var(--mt-muted); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.ac-swap { align-self: center; flex: none; }
 .ac-swap:hover:not(:disabled) { color: var(--mt-ink); border-color: var(--mt-muted); }
-.ac-swap:disabled { opacity: 0.4; cursor: default; }
+
 
 .ac-verdict { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding: 14px 18px; border-radius: var(--mt-radius-lg); border: 1px solid var(--mt-line); background: var(--mt-soft); }
 .ac-verdict.good { background: var(--mt-ok-bg); color: var(--mt-ok-ink); border-color: var(--mt-ok); }

@@ -5,6 +5,7 @@ import { useAsync } from "../composables/useAsync";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTheme } from "../composables/useTheme";
 import Menu from "./Menu.vue";
+import MenuItem from "./MenuItem.vue";
 // signOut import removed (next-auth/react is React‑only and not usable in Vue)
 
 const DOCS_URL = "https://docs.memtrace.com";
@@ -52,7 +53,7 @@ const initials = computed(() => {
           </span>
         </div>
         <div class="menu-divider" />
-        <button type="button" class="menu-action neutral" @click="toggleTheme">
+        <MenuItem @click="toggleTheme">
           <svg v-if="theme === 'dark'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
           </svg>
@@ -60,20 +61,19 @@ const initials = computed(() => {
             <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z" />
           </svg>
           Theme: {{ theme === "dark" ? "Dark" : "Light" }}
-        </button>
-        <a :href="DOCS_URL" target="_blank" rel="noopener noreferrer" class="menu-action neutral">
+        </MenuItem>
+        <MenuItem :href="DOCS_URL">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
           </svg>
-          Documentation
-        </a>
+          Documentation</MenuItem>
         <div class="menu-divider" />
-        <button type="button" class="menu-action" @click="handleSignOut">
+        <MenuItem danger @click="handleSignOut">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" />
           </svg>
           Sign out
-        </button>
+        </MenuItem>
       </Menu>
     </button>
   </div>
@@ -198,32 +198,5 @@ const initials = computed(() => {
   background: var(--mt-line);
   margin: 0 0 6px;
 }
-.user-menu-popover .menu-action {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  box-sizing: border-box;
-  padding: 10px 14px;
-  margin: 0 0 6px;
-  border: none;
-  background: transparent;
-  color: var(--mt-err-ink);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  text-align: left;
-  text-decoration: none;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-.user-menu-popover .menu-action:hover {
-  background: var(--mt-err-bg);
-}
-.user-menu-popover .menu-action.neutral {
-  color: var(--mt-ink);
-}
-.user-menu-popover .menu-action.neutral:hover {
-  background: var(--mt-soft);
-}
+
 </style>

@@ -143,9 +143,9 @@ function openRun(runId: string) {
                   <td class="muted">{{ v.createdByEmail }}</td>
                   <td class="muted mono">{{ formatDateTime(v.createdAt) }}</td>
                   <td class="info-cell">
-                    <button class="info-btn" type="button" :aria-label="`Details of v${v.major}.${v.minor}`" @click="inspectedVersion = v">
+                    <Button variant="icon" size="sm" class="info-btn" :aria-label="`Details of v${v.major}.${v.minor}`" @click="inspectedVersion = v">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
-                    </button>
+                    </Button>
                   </td>
                 </tr>
               </tbody>
@@ -282,17 +282,8 @@ function openRun(runId: string) {
   width: 40px;
   text-align: right;
 }
-.info-btn {
-  display: inline-flex;
-  padding: 4px;
-  border: none;
-  background: transparent;
-  color: var(--mt-muted);
-  cursor: pointer;
-}
-.info-btn:hover {
-  color: var(--mt-ink);
-}
+
+
 .row-actions {
   display: flex;
   align-items: center;

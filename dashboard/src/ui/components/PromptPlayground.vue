@@ -153,12 +153,12 @@ async function run() {
           <div v-for="(_, i) in history" :key="i" class="turn">
             <span class="who mono">PERSON</span>
             <TextInput v-model="history[i]" size="sm" :data-testid="`playground-earlier-${i}`" />
-            <button type="button" class="x" :aria-label="`Remove earlier message ${i + 1}`" :data-testid="`playground-earlier-remove-${i}`" @click="removeEarlier(i)">×</button>
+            <Button variant="icon" size="sm" class="x" :aria-label="`Remove earlier message ${i + 1}`" :data-testid="`playground-earlier-remove-${i}`" @click="removeEarlier(i)">×</Button>
           </div>
           <p class="faint small note">
             <template v-if="history.length > 0">The agent receives these first, in the same conversation, and answers them again before the message below.</template>
             <template v-else>No earlier messages.</template>
-            <button v-if="history.length < MAX_HISTORY" type="button" class="add" data-testid="playground-add-earlier" @click="history.push('')">+ Add an earlier message</button>
+            <Button variant="link" v-if="history.length < MAX_HISTORY" class="add" data-testid="playground-add-earlier" @click="history.push('')">+ Add an earlier message</Button>
           </p>
         </div>
         <div class="body">
@@ -286,30 +286,14 @@ async function run() {
   font-size: 10.5px;
   letter-spacing: 0.04em;
 }
-.x {
-  width: 22px;
-  height: 22px;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--mt-faint);
-  font: inherit;
-  cursor: pointer;
-}
+
 .note {
   display: flex;
   align-items: center;
   gap: 12px;
   margin: 0;
 }
-.add {
-  border: none;
-  background: transparent;
-  color: var(--mt-accent-text);
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
+
 .tag {
   padding: 2px 8px;
   border-radius: 4px;

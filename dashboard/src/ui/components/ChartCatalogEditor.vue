@@ -9,6 +9,7 @@ import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import Modal from "./Modal.vue";
 import Checkbox from "./Checkbox.vue";
+import Button from "./Button.vue";
 
 /**
  * "Rename things" (ADR-078): el nombre de negocio de cada paso y atributo que las Custom charts ofrecen. Se guarda por experimento
@@ -185,7 +186,7 @@ async function reset(r: Row) {
                 <option value="shown">Always show</option>
                 <option value="hidden">Always hide</option>
               </select>
-              <button v-if="entryOf(r.kind, r.key) && entryOf(r.kind, r.key)!.displayName" type="button" class="reset" :disabled="busy === id(r.kind, r.key)" :data-testid="`catalog-reset-${r.kind}-${r.key}`" @click="reset(r)">Reset</button>
+              <Button variant="link" v-if="entryOf(r.kind, r.key) && entryOf(r.kind, r.key)!.displayName" class="reset" :disabled="busy === id(r.kind, r.key)" :data-testid="`catalog-reset-${r.kind}-${r.key}`" @click="reset(r)">Reset</Button>
               <span v-else class="reset-space" />
               <p v-if="errors[id(r.kind, r.key)]" class="error" role="alert" :data-testid="`catalog-error-${r.kind}-${r.key}`">{{ errors[id(r.kind, r.key)] }}</p>
             </li>
@@ -212,7 +213,7 @@ li { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1.1f
 .kind { align-self: flex-start; padding: 1px 7px; border-radius: var(--mt-radius-xs); background: var(--mt-soft); color: var(--mt-muted); font-size: 11px; font-weight: 700; }
 .kind.category, .kind.number { background: var(--mt-ok-bg); color: var(--mt-ok-ink); }
 .vis { height: 34px; padding: 0 6px; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-sm); background: transparent; color: var(--mt-ink); font: inherit; font-size: 12px; }
-.reset { height: 30px; border: none; background: transparent; color: var(--mt-accent); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+
 .reset:disabled, .name:disabled { opacity: 0.5; }
 .error { grid-column: 1 / -1; margin: 0; font-size: 12px; color: var(--mt-err-ink); }
 </style>

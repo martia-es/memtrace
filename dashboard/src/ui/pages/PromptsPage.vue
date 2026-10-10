@@ -23,6 +23,7 @@ import Button from "../components/Button.vue";
 import Checkbox from "../components/Checkbox.vue";
 import Pill from "../components/Pill.vue";
 import LoadingState from "../components/LoadingState.vue";
+import ToggleChip from "../components/ToggleChip.vue";
 
 const api = usePromptApi();
 const route = useRoute();
@@ -206,18 +207,7 @@ async function create() {
       </section>
 
       <div class="toolbar">
-        <button
-          v-for="chip in STATUS_CHIPS"
-          :key="chip.id"
-          type="button"
-          class="chip"
-          :class="{ active: status === chip.id }"
-          :data-testid="`status-${chip.id}`"
-          :aria-pressed="status === chip.id"
-          @click="status = chip.id"
-        >
-          {{ chip.label }} <b>{{ chip.count }}</b>
-        </button>
+        <ToggleChip v-for="chip in STATUS_CHIPS" :key="chip.id" :pressed="status === chip.id" :count="chip.count" :data-testid="`status-${chip.id}`" @click="status = chip.id">{{ chip.label }}</ToggleChip>
         <span class="grow" />
         <span class="legend"><i class="bar released" /> released</span>
         <span class="legend"><i class="bar ahead" /> ahead of PRO</span>
@@ -638,31 +628,6 @@ code {
 }
 .grow {
   flex: 1;
-}
-.chip {
-  height: 28px;
-  padding: 0 12px;
-  border: 1px solid var(--mt-line);
-  border-radius: 14px;
-  background: var(--mt-card);
-  color: var(--mt-muted);
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.chip b {
-  margin-left: 6px;
-  color: var(--mt-ink);
-}
-.chip.active {
-  background: var(--mt-accent-tint);
-  border-color: var(--mt-accent-soft);
-  color: var(--mt-accent-text);
-  font-weight: 800;
-}
-.chip.active b {
-  color: var(--mt-accent-text);
 }
 .legend {
   display: inline-flex;

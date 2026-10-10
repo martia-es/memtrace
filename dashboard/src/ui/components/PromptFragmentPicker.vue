@@ -8,6 +8,7 @@ import ErrorBanner from "./ErrorBanner.vue";
 import TextInput from "./TextInput.vue";
 import Button from "./Button.vue";
 import Pill from "./Pill.vue";
+import SegmentedControl from "./SegmentedControl.vue";
 
 /**
  * Panel de fragmentos que acompaña al editor del prompt (ADR-073), siempre visible: enseña a qué versión resuelve cada
@@ -95,9 +96,7 @@ const tagsOf = (f: PromptSummaryDto) => sortEnvironments(Object.keys(f.tags)).ma
 
       <div v-if="data && choice" class="choose">
         <span class="eyebrow">WHICH VERSION</span>
-        <div class="seg" role="group" aria-label="Which version">
-          <button v-for="(c, i) in choices" :key="c.ref" type="button" :class="{ on: i === choiceIndex }" :data-testid="`choice-${c.kind}-${c.ref}`" @click="choiceIndex = i">{{ c.label }}</button>
-        </div>
+        <SegmentedControl class="seg" aria-label="Which version" :options="choices.map((c, i) => ({ value: i, label: c.label, testid: `choice-${c.kind}-${c.ref}` }))" :model-value="choiceIndex" @update:model-value="choiceIndex = $event as number" />
         <p class="soft expl" data-testid="choice-explain">
           <template v-if="choice.kind === 'tag'">Follows {{ choice.ref }}: today that is <b>v{{ choice.version }}</b>. When {{ choice.ref }} moves, this prompt gets a <b>draft</b> to review. It never changes by itself.</template>
           <template v-else>Fixed to <b>v{{ choice.version }}</b>. It stays on that text until someone edits this prompt.</template>
@@ -210,29 +209,7 @@ const tagsOf = (f: PromptSummaryDto) => sortEnvironments(Object.keys(f.tags)).ma
   letter-spacing: 0.08em;
   color: var(--mt-faint);
 }
-.seg {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.seg button {
-  flex: 1;
-  min-width: 120px;
-  height: 34px;
-  border: 1px solid var(--mt-line);
-  border-radius: 6px;
-  background: var(--mt-card);
-  color: var(--mt-muted);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-.seg button.on {
-  border: 1.5px solid var(--mt-brand);
-  background: var(--mt-accent-tint);
-  color: var(--mt-accent-text);
-  font-weight: 800;
-}
+
 .expl {
   margin: 0;
   line-height: 1.5;

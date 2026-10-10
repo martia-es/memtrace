@@ -165,7 +165,7 @@ async function remove(row: { action: "publish" | "promote"; stage: string }) {
           <header>
             <span class="env">{{ editing.action === "publish" ? "PUBLISH" : editing.stage }}</span>
             <h4>Rule for {{ stepLabel(editing.action, editing.stage).toLowerCase() }}</h4>
-            <button v-if="ruleFor(data.rules, editing.action, editing.stage)" class="remove" type="button" :disabled="saving" data-testid="rule-remove" @click="remove(editing)">Remove rule</button>
+            <Button variant="danger" size="sm" v-if="ruleFor(data.rules, editing.action, editing.stage)" class="remove" :disabled="saving" data-testid="rule-remove" @click="remove(editing)">Remove rule</Button>
           </header>
           <div class="cols">
             <fieldset>
@@ -226,7 +226,7 @@ async function remove(row: { action: "publish" | "promote"; stage: string }) {
 header { display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-bottom: 1px solid var(--mt-line); }
 header h4 { flex: 1; margin: 0; font-size: 15px; font-weight: 800; }
 .env { height: 22px; padding: 0 8px; display: inline-flex; align-items: center; border-radius: 4px; font: 800 11px/1 var(--mt-mono, monospace); background: var(--mt-accent, var(--mt-ink)); color: var(--mt-accent-ink, #fff); }
-.remove { border: none; background: none; padding: 0; font: inherit; font-weight: 700; color: var(--mt-err-ink); cursor: pointer; }
+
 .cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 @media (max-width: 900px) { .cols { grid-template-columns: minmax(0, 1fr); } }
 fieldset { border: none; margin: 0; padding: 16px 20px; display: flex; flex-direction: column; gap: 8px; border-right: 1px solid var(--mt-line); min-width: 0; }

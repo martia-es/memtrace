@@ -108,7 +108,7 @@ onBeforeUnmount(stopDrag);
       <div class="head-top">
         <span class="eyebrow">PREVIEW</span>
         <Button variant="link" data-testid="preview-open" @click="$emit('open')">{{ openLabel ?? "Open full view" }} ↗</Button>
-        <button type="button" class="close" aria-label="Close preview" data-testid="preview-close" @click="$emit('close')">✕</button>
+        <Button variant="icon" size="sm" class="close" aria-label="Close preview" data-testid="preview-close" @click="$emit('close')">✕</Button>
       </div>
       <h2 class="title" :title="title">{{ title }}</h2>
       <span class="sub mono">{{ subtitle }}</span>
@@ -201,14 +201,7 @@ onBeforeUnmount(stopDrag);
 .link:hover {
   text-decoration: underline;
 }
-.close {
-  border: 0;
-  background: none;
-  padding: 2px 4px;
-  color: var(--mt-faint);
-  font-size: 14px;
-  cursor: pointer;
-}
+
 .title {
   margin: 0;
   font-size: 15px;

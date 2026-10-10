@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import Menu from "./Menu.vue";
+import MenuItem from "./MenuItem.vue";
 
 export interface PillOption {
   label: string;
@@ -19,9 +20,9 @@ const current = computed(() => props.options.find((o) => o.value === props.model
     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
     <Menu auto-close anchor="bottom left" self="top left" :offset="[0, 6]" class="pill-menu">
       <div class="opts">
-        <button type="button" class="opt" :class="{ active: modelValue === undefined }" @click="$emit('update:modelValue', undefined)">{{ allLabel ?? "All" }}</button>
-        <button v-for="o in options" :key="o.value" type="button" class="opt" :class="{ active: modelValue === o.value }" @click="$emit('update:modelValue', o.value)">{{ o.label }}</button>
-        <span v-if="options.length === 0" class="opt none">No options</span>
+        <MenuItem :active="modelValue === undefined" @click="$emit('update:modelValue', undefined)">{{ allLabel ?? "All" }}</MenuItem>
+        <MenuItem v-for="o in options" :key="o.value" :active="modelValue === o.value" @click="$emit('update:modelValue', o.value)">{{ o.label }}</MenuItem>
+        <span v-if="options.length === 0" class="none">No options</span>
       </div>
     </Menu>
   </button>
@@ -56,20 +57,10 @@ const current = computed(() => props.options.find((o) => o.value === props.model
   min-width: 160px;
   padding: 4px;
 }
-.opt {
+.none {
   display: block;
   padding: 7px 12px;
-  border: 0;
-  border-radius: var(--mt-radius-sm);
-  background: transparent;
-  color: var(--mt-ink);
-  font: inherit;
+  color: var(--mt-muted);
   font-size: 13px;
-  text-align: left;
-  cursor: pointer;
 }
-.opt:hover { background: var(--mt-soft); }
-.opt.active { background: var(--mt-accent-tint); color: var(--mt-accent-text); font-weight: 700; }
-.opt.none { color: var(--mt-muted); cursor: default; }
-.opt.none:hover { background: transparent; }
 </style>

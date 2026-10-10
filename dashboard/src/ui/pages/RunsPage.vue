@@ -182,8 +182,8 @@ function openRun(run: RunListItemDto) {
       <span class="compare-title">{{ picked.length }} {{ picked.length === 1 ? "run" : "runs" }} selected</span>
       <span class="compare-sub">{{ picked.length === 2 ? `${pickedRuns[0]?.name} (baseline) vs ${pickedRuns[1]?.name}` : "Pick one more run to compare" }}</span>
       <div class="compare-actions">
-        <button type="button" class="compare-clear" @click="picked = []">Clear</button>
-        <button type="button" class="compare-go" data-testid="compare-go" :disabled="picked.length !== 2" @click="compare">Compare runs →</button>
+        <Button variant="link" class="compare-clear" @click="picked = []">Clear</Button>
+        <Button variant="primary" class="compare-go" data-testid="compare-go" :disabled="picked.length !== 2" @click="compare">Compare runs →</Button>
       </div>
     </div>
 
@@ -318,28 +318,7 @@ function openRun(run: RunListItemDto) {
   align-items: center;
   gap: 12px;
 }
-.compare-clear {
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  font-weight: 700;
-  opacity: 0.8;
-  cursor: pointer;
-}
-.compare-go {
-  height: 34px;
-  padding: 0 18px;
-  border: 0;
-  border-radius: var(--mt-radius-sm);
-  background: var(--mt-brand);
-  color: var(--mt-ink);
-  font: inherit;
-  font-weight: 800;
-  cursor: pointer;
-}
-.compare-go:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
+
+
+
 </style>

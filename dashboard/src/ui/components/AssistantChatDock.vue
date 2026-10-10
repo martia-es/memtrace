@@ -5,6 +5,7 @@ import AssistantChat from "./AssistantChat.vue";
 import AssistantModeSwitch from "./AssistantModeSwitch.vue";
 import { useAssistantDisplay } from "../composables/useAssistantDisplay";
 import { useChatDock } from "../composables/useChatDock";
+import Button from "./Button.vue";
 
 /**
  * Contenedor del chat con un agente (ADR-055) en dos de los tres modos de visualización (ADR-063):
@@ -41,10 +42,10 @@ function onModeSelected(mode: AssistantDisplayMode) {
         <span class="env">{{ state.target.environmentLabel }}</span>
       </button>
       <AssistantModeSwitch v-if="!state.minimized" :theme="display.theme.value" :current="display.mode.value" @select="onModeSelected" />
-      <button v-if="!state.minimized && state.messages.length > 0" type="button" class="icon" title="New conversation" aria-label="New conversation" @click="dock.reset()">↺</button>
-      <button v-if="!asPanel && !state.minimized" type="button" class="icon" :title="state.maximized ? 'Restore size' : 'Maximize'" :aria-label="state.maximized ? 'Restore size' : 'Maximize'" data-testid="chat-maximize" @click="state.maximized = !state.maximized">{{ state.maximized ? "⤡" : "⤢" }}</button>
-      <button v-if="!asPanel" type="button" class="icon" :title="state.minimized ? 'Expand' : 'Minimize'" :aria-label="state.minimized ? 'Expand' : 'Minimize'" @click="state.minimized = !state.minimized">{{ state.minimized ? "▢" : "–" }}</button>
-      <button type="button" class="icon" title="Close" aria-label="Close chat" data-testid="chat-close" @click="dock.close()">✕</button>
+      <Button variant="icon" size="sm" v-if="!state.minimized && state.messages.length > 0" class="icon" title="New conversation" aria-label="New conversation" @click="dock.reset()">↺</Button>
+      <Button variant="icon" size="sm" v-if="!asPanel && !state.minimized" class="icon" :title="state.maximized ? 'Restore size' : 'Maximize'" :aria-label="state.maximized ? 'Restore size' : 'Maximize'" data-testid="chat-maximize" @click="state.maximized = !state.maximized">{{ state.maximized ? "⤡" : "⤢" }}</Button>
+      <Button variant="icon" size="sm" v-if="!asPanel" class="icon" :title="state.minimized ? 'Expand' : 'Minimize'" :aria-label="state.minimized ? 'Expand' : 'Minimize'" @click="state.minimized = !state.minimized">{{ state.minimized ? "▢" : "–" }}</Button>
+      <Button variant="icon" size="sm" class="icon" title="Close" aria-label="Close chat" data-testid="chat-close" @click="dock.close()">✕</Button>
     </header>
     <AssistantChat v-if="asPanel || !state.minimized" :display-name="displayName" :large="!asPanel && state.maximized" />
   </aside>
@@ -64,8 +65,8 @@ function onModeSelected(mode: AssistantDisplayMode) {
 .title b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--mt-accent); }
 .env { flex: none; font-family: var(--mt-mono); font-size: 11px; color: var(--mt-muted); }
-.icon { width: 28px; height: 28px; font: inherit; font-size: 14px; color: var(--mt-muted); background: none; border: none; border-radius: var(--mt-radius-sm); cursor: pointer; }
-.icon:hover { color: var(--mt-ink); background: var(--mt-line); }
+
+
 .title:focus-visible, .icon:focus-visible { outline: 2px solid var(--mt-accent); outline-offset: 2px; }
 @media (max-width: 480px) { .dock:not(.panel) { right: 12px; bottom: 12px; } }
 </style>

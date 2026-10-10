@@ -19,6 +19,7 @@ import {
 import EChart from "./EChart.vue";
 import DataTable from "./DataTable.vue";
 import Card from "./Card.vue";
+import Button from "./Button.vue";
 
 const props = defineProps<{ runs: RunListItemDto[]; targets?: EvaluatorTargets }>();
 const emit = defineEmits<{ "open-run": [run: RunListItemDto]; compare: [ids: [string, string]] }>();
@@ -208,7 +209,7 @@ function openAt(index: number) {
               <td class="muted">v{{ r.versionMajor }}.{{ r.versionMinor }}</td>
               <td class="num">{{ r.itemCount }}</td>
               <td class="muted">{{ formatDateTime(r.createdAt) }}</td>
-              <td class="actions"><button type="button" class="open" @click.stop="emit('open-run', r)">Open</button></td>
+              <td class="actions"><Button size="sm" class="open" @click.stop="emit('open-run', r)">Open</Button></td>
             </tr>
           </tbody>
       </DataTable>
@@ -284,8 +285,8 @@ h3 { margin: 0; font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
 .status.judge-changed { color: var(--mt-err-ink); border-style: dashed; }
 .status.stable, .status.first-run { color: var(--mt-muted); }
 .actions { text-align: right; width: 1%; }
-.open { height: 28px; padding: 0 12px; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); background: transparent; color: var(--mt-ink); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
-.open:hover { border-color: var(--mt-accent); color: var(--mt-accent); }
+
+
 .notice { border: 1px solid var(--mt-err-ink); border-radius: var(--mt-radius-lg); padding: 12px 16px; font-size: 13px; color: var(--mt-ink); }
 .notice p { margin: 4px 0; color: var(--mt-muted); }
 .notice ul { margin: 4px 0 0; padding-left: 18px; }

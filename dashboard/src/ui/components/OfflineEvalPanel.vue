@@ -14,6 +14,7 @@ import OfflineRunView from "./OfflineRunView.vue";
 import OfflineTrendView from "./OfflineTrendView.vue";
 import FormField from "./FormField.vue";
 import LoadingState from "./LoadingState.vue";
+import Button from "./Button.vue";
 
 const props = defineProps<{ experimentId: string; range: RangeParams; /** baseline and candidate to compare, from the Evaluations run list */ compareIds?: [string, string] | null }>();
 
@@ -77,7 +78,7 @@ function openRun(run: RunListItemDto) {
       </div>
     </header>
 
-    <button v-if="view !== 'trend'" type="button" class="back" @click="view = 'trend'">← All runs</button>
+    <Button variant="link" v-if="view !== 'trend'" class="back" @click="view = 'trend'">← All runs</Button>
 
     <ErrorBanner v-if="runs.error.value" :error="runs.error.value" @retry="runs.run()" />
     <LoadingState v-else-if="runs.loading.value && !runs.data.value" size="lg" />
@@ -100,6 +101,6 @@ function openRun(run: RunListItemDto) {
 .filters { min-width: 220px; }
 
 .field-label { color: var(--mt-muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
-.back { align-self: flex-start; padding: 0; border: 0; background: none; color: var(--mt-muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
-.back:hover { color: var(--mt-ink); }
+.back { align-self: flex-start; }
+
 </style>

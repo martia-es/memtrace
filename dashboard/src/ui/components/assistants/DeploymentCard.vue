@@ -83,7 +83,7 @@ const mono = new Set(["API", "Health", "Chat", "Latency", "Version", "Deploys fr
         <dd v-else :class="{ mono: mono.has(label) }" :title="value">{{ value }}</dd>
       </template>
     </dl>
-    <button type="button" class="select" :aria-pressed="selected" @click="emit('select')">{{ selected ? "Showing who can call it" : "Show who can call it" }}</button>
+    <Button size="sm" class="select" :aria-pressed="selected" @click="emit('select')">{{ selected ? "Showing who can call it" : "Show who can call it" }}</Button>
   </article>
 </template>
 
@@ -97,13 +97,12 @@ const mono = new Set(["API", "Health", "Chat", "Latency", "Version", "Deploys fr
 
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.link, .select { font: inherit; font-size: 12px; font-weight: 700; color: var(--mt-accent-text); background: none; border: none; padding: 0; cursor: pointer; }
+.link { font: inherit; font-size: 12px; font-weight: 700; color: var(--mt-accent-text); background: none; border: none; padding: 0; cursor: pointer; }
 
-.link:hover:not(:disabled), .select:hover { text-decoration: underline; }
+.link:hover:not(:disabled) { text-decoration: underline; }
 .link:disabled { opacity: 0.5; cursor: default; }
 .head .link + .link { margin-left: 4px; }
 .select { align-self: flex-start; }
-.select[aria-pressed="true"] { color: var(--mt-muted); cursor: default; text-decoration: none; }
 .uptime { display: flex; flex-direction: column; gap: 5px; }
 .uptime-legend { display: flex; justify-content: space-between; font-size: 11px; color: var(--mt-faint); }
 .uptime-legend b { font-family: var(--mt-mono); font-weight: 500; color: var(--mt-ink); }

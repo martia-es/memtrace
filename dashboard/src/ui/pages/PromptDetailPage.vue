@@ -34,6 +34,7 @@ import Pill from "../components/Pill.vue";
 import LoadingState from "../components/LoadingState.vue";
 import Card from "../components/Card.vue";
 import Disclosure from "../components/Disclosure.vue";
+import SegmentedControl from "../components/SegmentedControl.vue";
 
 const props = defineProps<{ promptId: string }>();
 const api = usePromptApi();
@@ -150,6 +151,7 @@ const comparison = computed(() => {
   return base && target ? compareVersions(base, target) : null;
 });
 const missingEvidence = computed(() => [compareWith.value, selected.value].filter((v): v is number => v !== null && evidenceOf(v) === null));
+const TEXT_VIEW_OPTIONS = [{ value: "source", label: "Source", testid: "view-source" }, { value: "resolved", label: "Resolved", testid: "view-resolved" }];
 const USAGE_TONE: Record<UsageState, "ok" | "highlight" | "info" | "neutral"> = { in_sync: "ok", behind: "highlight", pinned: "info", stale: "neutral" };
 const DIRECTION_TONE = { better: "ok", worse: "error", same: "neutral", unknown: "neutral" } as const;
 const DIRECTION_LABEL = { better: "Better", worse: "Worse", same: "No change", unknown: "–" } as const;
@@ -579,10 +581,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                     <span class="grow" />
                     <span class="soft">{{ formatDateTime(selectedVersion.createdAt) }}</span>
                     <Pill v-if="parentOfSelected" class="from">from v{{ parentOfSelected.version }}</Pill>
-                    <span v-if="hasIncludes" class="view-toggle" role="group" aria-label="Text shown">
-                      <button type="button" :class="{ on: view === 'source' }" data-testid="view-source" @click="view = 'source'">Source</button>
-                      <button type="button" :class="{ on: view === 'resolved' }" data-testid="view-resolved" @click="view = 'resolved'">Resolved</button>
-                    </span>
+                    <SegmentedControl v-if="hasIncludes" size="sm" class="view-toggle" aria-label="Text shown" :options="TEXT_VIEW_OPTIONS" :model-value="view" @update:model-value="view = $event as typeof view" />
                   </div>
                   <pre class="code" data-testid="version-content"><span v-for="line in codeLines" :key="line.n" class="ln" :class="{ changed: line.changed, heading: line.heading }"><span v-for="(part, i) in line.parts" :key="i" :class="{ variable: part.variable }">{{ part.text }}</span></span></pre>
                   <div v-if="!showingSource && changedLines.size > 0" class="code-foot"><i /> Lines changed since v{{ parentOfSelected?.version }}</div>
@@ -683,7 +682,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   <div class="free-tags">
                     <span v-for="t in freeTags" :key="t.tag" class="free-tag">
                       <span class="mono">{{ t.tag }}</span><strong class="mono">v{{ t.version }}</strong>
-                      <button v-if="canWrite" type="button" class="x" :aria-label="`Remove the ${t.tag} tag`" @click="moveTag(t.tag, null)">×</button>
+                      <Button variant="icon" size="sm" v-if="canWrite" class="x" :aria-label="`Remove the ${t.tag} tag`" @click="moveTag(t.tag, null)">×</Button>
                     </span>
                     <span v-if="freeTags.length === 0" class="soft">No free tags.</span>
                   </div>
@@ -1698,25 +1697,7 @@ h3 {
   align-items: center;
   gap: 8px;
 }
-.view-toggle {
-  display: inline-flex;
-  border: 1px solid var(--mt-line);
-  border-radius: var(--mt-radius-lg);
-  overflow: hidden;
-}
-.view-toggle button {
-  padding: 2px 10px;
-  border: none;
-  background: transparent;
-  color: var(--mt-muted);
-  font: inherit;
-  font-size: 11.5px;
-  cursor: pointer;
-}
-.view-toggle button.on {
-  background: var(--mt-accent-soft);
-  color: var(--mt-accent-text);
-}
+
 ul.plain {
   margin: 0;
   padding: 0;

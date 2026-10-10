@@ -20,6 +20,7 @@ import Checkbox from "../components/Checkbox.vue";
 import LoadingState from "../components/LoadingState.vue";
 import Card from "../components/Card.vue";
 import Menu from "../components/Menu.vue";
+import MenuItem from "../components/MenuItem.vue";
 
 /**
  * Colas de revisión (ADR-039): qué trazas hay que revisar, con qué rúbrica y cuánto va hecho. Cualquier
@@ -249,18 +250,18 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
           <Button variant="primary" size="sm" v-if="q.isReviewer && q.progress.pending > 0 && !q.archivedAt" @click="review(q.id)">Review</Button>
           <Button size="sm" v-else-if="canCurate && !q.archivedAt" data-testid="queue-results-btn" @click="openDetail(q.id, 'results')">View results</Button>
           <Button size="sm" v-else @click="openDetail(q.id)">Details</Button>
-          <button type="button" class="more" aria-label="More actions" data-testid="queue-more">
+          <Button variant="icon" size="sm" class="more" aria-label="More actions" data-testid="queue-more">
             ⋯
             <Menu auto-close anchor="bottom right" self="top right" :offset="[0, 6]" class="queue-menu">
               <div class="menu-list">
-                <button v-if="!q.archivedAt" type="button" @click="addTo = q">Add traces</button>
-                <button v-if="canCurate && q.toCurate > 0" type="button" @click="openDetail(q.id, 'results')">Review results</button>
-                <button type="button" @click="openDetail(q.id)">Details</button>
-                <button v-if="canManage && !q.archivedAt" type="button" @click="setArchived(q, true)">Archive</button>
-                <button v-if="canManage && q.archivedAt" type="button" @click="setArchived(q, false)">Restore</button>
+                <MenuItem v-if="!q.archivedAt" @click="addTo = q">Add traces</MenuItem>
+                <MenuItem v-if="canCurate && q.toCurate > 0" @click="openDetail(q.id, 'results')">Review results</MenuItem>
+                <MenuItem @click="openDetail(q.id)">Details</MenuItem>
+                <MenuItem v-if="canManage && !q.archivedAt" @click="setArchived(q, true)">Archive</MenuItem>
+                <MenuItem v-if="canManage && q.archivedAt" @click="setArchived(q, false)">Restore</MenuItem>
               </div>
             </Menu>
-          </button>
+          </Button>
         </div>
       </div>
     </Card>
@@ -527,22 +528,7 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
   min-width: 160px;
   padding: 4px;
 }
-.menu-list button {
-  height: 32px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: var(--mt-radius-xs);
-  background: none;
-  color: var(--mt-ink);
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  text-align: left;
-  cursor: pointer;
-}
-.menu-list button:hover {
-  background: var(--mt-soft);
-}
+
 .footnote {
   max-width: 760px;
   margin: 0;

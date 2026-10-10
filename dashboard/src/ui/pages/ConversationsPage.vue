@@ -253,11 +253,7 @@ const footer = computed(() => {
 
     <div class="views-row">
       <SegmentedControl size="sm" aria-label="List mode" :options="LIST_MODES" :model-value="grouped ? 'conversation' : 'flat'" @update:model-value="f.setGroup($event as 'conversation' | 'flat')" />
-      <div class="quick-tabs" role="tablist" aria-label="Quick views">
-        <button v-for="v in quickViews" :key="v.key" type="button" role="tab" class="quick" :class="{ active: quick === v.key }" :aria-selected="quick === v.key" @click="f.setQuickView(v.key)">
-          {{ v.label }}<span v-if="v.count !== null" class="quick-count mono">{{ v.count }}</span>
-        </button>
-      </div>
+      <SegmentedControl tabs class="quick-tabs" size="sm" aria-label="Quick views" :options="quickViews.map((v) => ({ value: v.key, label: v.label, count: v.count ?? undefined, class: 'quick' }))" :model-value="quick" @update:model-value="f.setQuickView($event as typeof quick)" />
       <button v-if="f.prompt.value" type="button" class="prompt-filter" data-testid="prompt-filter" :title="'Remove the prompt filter'" @click="f.setPrompt(undefined)">
         Prompt: <b>{{ f.prompt.value }}{{ f.promptVersion.value ? ` v${f.promptVersion.value}` : "" }}</b> ✕
       </button>
@@ -438,35 +434,9 @@ const footer = computed(() => {
   width: 280px;
 }
 .quick-tabs {
-  display: flex;
-  gap: 4px;
   align-self: flex-end;
 }
-.quick {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 9px 10px;
-  margin-bottom: -1px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: none;
-  color: var(--mt-muted);
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-.quick.active {
-  color: var(--mt-ink);
-  border-bottom-color: var(--mt-accent);
-}
-.quick-count {
-  padding: 0 5px;
-  border-radius: var(--mt-radius-xs);
-  background: var(--mt-soft);
-  color: var(--mt-muted);
-  font-size: 11px;
-}
+
 .body {
   flex: 1;
   min-height: 0;

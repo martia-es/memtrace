@@ -200,7 +200,7 @@ async function sendEmail() {
         </template>
         <template v-else>
           <h3>{{ report?.name }}</h3>
-          <button v-if="!editMode" type="button" class="icon-link" title="Rename" @click="renameValue = report?.name ?? ''; renaming = true">Rename</button>
+          <Button variant="link" v-if="!editMode" class="icon-link" title="Rename" @click="renameValue = report?.name ?? ''; renaming = true">Rename</Button>
         </template>
       </div>
 
@@ -319,20 +319,8 @@ async function sendEmail() {
 .rename-input {
   width: 240px;
 }
-.icon-link {
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--mt-muted);
-  background: none;
-  border: none;
-  cursor: pointer;
-  text-decoration: underline;
-  padding: 0;
-}
-.icon-link:hover {
-  color: var(--mt-accent);
-}
+
+
 
 .report-actions {
   display: flex;

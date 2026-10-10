@@ -511,7 +511,7 @@ function swapAgents() {
       <TabPanel :active="activePanel === 'reports'" class="metrics-tab-panel">
         <div class="reports-head">
           <p class="reports-hint">A report is a saved set of custom charts you can share with the rest of the experiment.</p>
-          <button type="button" class="add-report-btn mt-new" data-testid="new-report" @click="openCreateReport">+ New report</button>
+          <Button size="sm" class="add-report-btn mt-new" data-testid="new-report" @click="openCreateReport">+ New report</Button>
         </div>
         <ErrorBanner v-if="reports.error.value" :error="reports.error.value" @retry="reports.run()" />
         <EmptyState v-else-if="reports.data.value && reports.data.value.length === 0" icon="dashboard" title="No reports yet">Create one to group the charts you check every week.</EmptyState>
@@ -553,22 +553,9 @@ function swapAgents() {
   min-height: 240px;
 }
 
-.add-report-btn {
-  flex-shrink: 0;
-  font-family: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--mt-muted);
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 10px 4px;
-  white-space: nowrap;
-}
+.add-report-btn { flex-shrink: 0; }
 
-.add-report-btn:hover {
-  color: var(--mt-accent);
-}
+
 
 .reports-head {
   display: flex;
