@@ -1,0 +1,30 @@
+{
+  "description": "Asking again with the ETag it already has; a 304 means nothing changed.",
+  "baseUrl": "http://memtrace.test/api/v1/experiments/e1",
+  "apiKey": "mtk_x",
+  "call": {
+    "op": "promptResolve",
+    "name": "weather-system",
+    "version": 3,
+    "etag": "\"v3-abc\""
+  },
+  "respond": {
+    "status": 304
+  },
+  "expect": {
+    "requests": [
+      {
+        "method": "GET",
+        "path": "/api/v1/experiments/e1/prompts/resolve",
+        "query": {
+          "name": "weather-system",
+          "version": "3"
+        },
+        "headers": {
+          "if-none-match": "\"v3-abc\""
+        }
+      }
+    ],
+    "result": null
+  }
+}

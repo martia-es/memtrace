@@ -1,0 +1,26 @@
+{
+  "description": "Resource attributes come from the init call and the MEMTRACE_* environment (ADR-095, ADR-065).",
+  "env": {
+    "MEMTRACE_SERVICE_VERSION": "1.4.0",
+    "MEMTRACE_ENVIRONMENT": "pre",
+    "MEMTRACE_GIT_SHA": "0123456789abcdef0123456789abcdef01234567"
+  },
+  "init": {
+    "serviceName": "conf-agent"
+  },
+  "actions": [
+    {
+      "op": "step",
+      "name": "turn",
+      "type": "chain"
+    }
+  ],
+  "expect": {
+    "resource": {
+      "service.name": "conf-agent",
+      "service.version": "1.4.0",
+      "deployment.environment.name": "pre",
+      "vcs.repository.ref.revision": "0123456789abcdef0123456789abcdef01234567"
+    }
+  }
+}

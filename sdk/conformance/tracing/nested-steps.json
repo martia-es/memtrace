@@ -1,0 +1,50 @@
+{
+  "description": "Steps nest by parentage and carry memtrace.step_type.",
+  "init": {
+    "serviceName": "conf-agent"
+  },
+  "actions": [
+    {
+      "op": "step",
+      "name": "turn",
+      "type": "chain",
+      "actions": [
+        {
+          "op": "step",
+          "name": "search",
+          "type": "tool"
+        },
+        {
+          "op": "step",
+          "name": "answer",
+          "type": "llm"
+        }
+      ]
+    }
+  ],
+  "expect": {
+    "spans": [
+      {
+        "name": "turn",
+        "parent": null,
+        "attributes": {
+          "memtrace.step_type": "chain"
+        }
+      },
+      {
+        "name": "search",
+        "parent": "turn",
+        "attributes": {
+          "memtrace.step_type": "tool"
+        }
+      },
+      {
+        "name": "answer",
+        "parent": "turn",
+        "attributes": {
+          "memtrace.step_type": "llm"
+        }
+      }
+    ]
+  }
+}

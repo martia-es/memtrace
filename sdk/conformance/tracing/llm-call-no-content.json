@@ -1,0 +1,61 @@
+{
+  "description": "Standard GenAI attributes are recorded; message content is NOT unless MEMTRACE_CAPTURE_CONTENT=true (ADR-004).",
+  "init": {
+    "serviceName": "conf-agent"
+  },
+  "actions": [
+    {
+      "op": "step",
+      "name": "answer",
+      "type": "llm",
+      "actions": [
+        {
+          "op": "llm",
+          "provider": "anthropic",
+          "model": "claude-x",
+          "inputTokens": 7,
+          "outputTokens": 3,
+          "responseModel": "claude-x-2024",
+          "finishReasons": [
+            "end_turn"
+          ],
+          "temperature": 0.2,
+          "inputMessages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "outputMessages": [
+            {
+              "role": "assistant",
+              "content": "hi"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "expect": {
+    "spans": [
+      {
+        "name": "answer",
+        "attributes": {
+          "gen_ai.provider.name": "anthropic",
+          "gen_ai.request.model": "claude-x",
+          "gen_ai.usage.input_tokens": 7,
+          "gen_ai.usage.output_tokens": 3,
+          "gen_ai.response.model": "claude-x-2024",
+          "gen_ai.request.temperature": 0.2,
+          "gen_ai.response.finish_reasons": [
+            "end_turn"
+          ]
+        },
+        "absent": [
+          "gen_ai.input.messages",
+          "gen_ai.output.messages"
+        ]
+      }
+    ]
+  }
+}

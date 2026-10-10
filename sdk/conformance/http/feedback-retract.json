@@ -1,0 +1,27 @@
+{
+  "description": "Retracting a vote is a DELETE on the same path with the end user as a query parameter.",
+  "baseUrl": "http://memtrace.test/api/v1/experiments/e1",
+  "apiKey": "mtk_x",
+  "call": {
+    "op": "retractFeedback",
+    "traceId": "tttttttttttttttttttttttttttttttt",
+    "endUserId": "u-9"
+  },
+  "respond": {
+    "status": 204
+  },
+  "expect": {
+    "requests": [
+      {
+        "method": "DELETE",
+        "path": "/api/v1/experiments/e1/traces/tttttttttttttttttttttttttttttttt/feedback",
+        "query": {
+          "endUserId": "u-9"
+        },
+        "headers": {
+          "authorization": "Bearer mtk_x"
+        }
+      }
+    ]
+  }
+}
