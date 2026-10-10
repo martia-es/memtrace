@@ -36,6 +36,27 @@ for item_result in result.items:
 
 For each item in `data`, `run_experiment` calls `task`, then runs every evaluator in `evaluators` on `(input, output, expected_output)`, and returns an `ExperimentResult` with one row per item.
 
+## Generate the script from the platform
+
+You do not have to write the script by hand. In the dashboard, open a dataset and press **Run offline**:
+
+1. **Dataset**: the dataset and the version to read (the latest, or a pinned one so the run stays reproducible).
+2. **Metrics**: `exact_match`, `contains` and the `Correctness` LLM judge.
+3. **Agent to call**: the environment (DEV, PRE, PRO) of the agent. The script calls its chat endpoint with the JSON contract declared on the agent card. If the agent declares no chat endpoint, it leaves an `agent()` function for you to fill in.
+
+You get `run_eval.py`, a `.env` and the install commands, with **Copy** and **Download**. Everything is filled in (API URL with the experiment id, dataset id, service name, ingest endpoint, agent URL) except the secrets, which are never shown in the platform: replace `PASTE_YOUR_MEMTRACE_API_KEY` with an agent key (Experiment > API keys) and, if you tick the judge, `PASTE_YOUR_ANTHROPIC_API_KEY`. For agents that require authentication the `.env` also asks for `AGENT_AUTHORIZATION`.
+
+```bash
+pip install "memtrace-ai[eval]" httpx python-dotenv
+python run_eval.py
+```
+
+The run appears under **Datasets > your dataset > Runs**, with the version it used and the latency, tokens and cost of each item.
+
+::: tip Faithfulness and retrieval metrics
+They need the context retrieved by the agent, which only exists inside the agent's own process, so they are not offered here because the script reaches the agent over HTTP. Use them from your own code (see below).
+:::
+
 ## Writing an evaluator
 
 An evaluator is any callable with `name` set, taking keyword-only arguments:

@@ -56,6 +56,12 @@ Un `<button>` crudo solo se admite en las interioridades de estos componentes y 
 
 Tres modos de visualización: `bubble` (ventana flotante), `dock` (panel lateral que empuja el contenido) y `fullscreen` (ruta `/assistant` en pestaña nueva, abierta dentro del gesto de clic para que el navegador no la bloquee). `resolveMode(theme, userMode)` elige la preferencia personal si la organización la permite, si no el modo por defecto de la organización y, si no, la burbuja. La preferencia personal vive en `localStorage`, no en el perfil.
 
+## 7. Run offline (dataset)
+
+- El botón **Run offline** de la cabecera del dataset abre un modal a pantalla completa (`RunOfflineModal`): a la izquierda dataset/versión, métricas y entorno del agente; a la derecha el script, el `.env` y los comandos de instalación con Copy/Download.
+- El texto sale de funciones puras en `domain/eval-script.ts` (`buildEvalScript`, `buildEvalEnv`, `buildEvalInstall`); no hay endpoint nuevo. El host sale del despliegue y el contrato JSON de `chat` de la ficha del agente (ADR-055). Sin chat declarado, el script trae una función para rellenar.
+- **Nunca lleva secretos**: la API key de MemTrace, la de Anthropic y el token del agente son marcadores `PASTE_…` y el modal avisa de cuáles faltan. Solo se ofrecen métricas que funcionan con el agente corriendo en otro proceso (`exact_match`, `contains`, `Correctness`); Faithfulness y las de retrieval necesitan el contexto en el mismo proceso.
+
 ## Cómo añadir cosas
 
 - Una sección nueva = un hijo en `NAV` + una ruta con su `meta.section`.
