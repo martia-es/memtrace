@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { belowFloor, canDecideNow, daysLeft, describeRule, profileLabel, progressLines, requestTitle, ruleFor, steps, waitingOn } from "@/domain/approvals";
+import { belowFloor, canDecideNow, daysLeft, describeRule, profileLabel, progressLines, requestTitle, ruleFor, sameRule, stepMode, steps, waitingOn } from "@/domain/approvals";
 import { approvalRequest } from "../fakes-prompts";
 
 const rule = (over = {}) => ({ action: "promote" as const, stage: "pro", requirements: [{ role: "technical", min: 1 }], approvers: [] as string[], ...over });
@@ -66,5 +66,22 @@ describe("requests", () => {
     const r = approvalRequest({ expiresAt: "2026-10-16T10:00:00.000Z" });
     expect(daysLeft(r, new Date("2026-10-09T10:00:00.000Z"))).toBe(7);
     expect(daysLeft(r, new Date("2026-10-20T10:00:00.000Z"))).toBe(0);
+  });
+});
+
+describe("step modes", () => {
+  it("is follow without an exemption, and own or none depending on whether the agent has a rule of its own", () => {
+    expect(stepMode({ exempt: false, hasOwnRule: false })).toBe("follow");
+    expect(stepMode({ exempt: false, hasOwnRule: true })).toBe("follow"); // una regla propia sin exención solo endurece
+    expect(stepMode({ exempt: true, hasOwnRule: true })).toBe("own");
+    expect(stepMode({ exempt: true, hasOwnRule: false })).toBe("none");
+  });
+
+  it("sameRule ignores order", () => {
+    const a = { requirements: [{ role: "technical", min: 1 }, { role: "business", min: 2 }], approvers: ["x", "y"] };
+    const b = { requirements: [{ role: "business", min: 2 }, { role: "technical", min: 1 }], approvers: ["y", "x"] };
+    expect(sameRule(a, b)).toBe(true);
+    expect(sameRule(a, { ...b, approvers: ["x"] })).toBe(false);
+    expect(sameRule(a, { ...b, requirements: [{ role: "business", min: 3 }, { role: "technical", min: 1 }] })).toBe(false);
   });
 });

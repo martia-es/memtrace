@@ -4,18 +4,20 @@ import { useQuasar } from "quasar";
 import type { ApprovalRulesResponse } from "@contract";
 import type { ApprovalScope } from "@/application/prompt-api";
 import { describeApiError } from "@/application/describe-api-error";
-import { belowFloor, describeRule, profileLabel, ruleFor, stepLabel, steps } from "@/domain/approvals";
+import { belowFloor, describeRule, profileLabel, ruleFor, sameRule, stepLabel, stepMode, steps, type StepMode } from "@/domain/approvals";
 import { usePromptApi } from "../../composables/usePromptApi";
 import ApprovalFlowChart, { type FlowStep } from "../ApprovalFlowChart.vue";
 import Button from "../Button.vue";
 import Checkbox from "../Checkbox.vue";
+import Radio from "../Radio.vue";
 
 /**
  * Reglas de aprobación de prompts (ADR-076), de la organización o de un experimento: por cada paso (publicar una versión y
  * mover cada entorno) cuántas personas de qué perfil tienen que aprobar y quién tiene que aprobar sí o sí. Un experimento
  * parte del suelo de la organización y solo puede endurecerlo; la API lo exige, aquí además se avisa antes de guardar. La única
- * salida es una excepción por paso que concede un `org_admin` (la pestaña solo la ve quien tiene `approval:manage`): ese agente
- * deja de seguir la regla de la organización en ese paso y queda en la auditoría.
+ * salida es una excepción por paso que concede un `org_admin` (la pestaña solo la ve quien tiene `approval:manage`) y queda en la
+ * auditoría. En un paso con regla de la organización la excepción y la regla propia se presentan como UNA elección de tres
+ * (seguir la de la organización, usar solo la propia, no pedir aprobación) y un solo Save aplica lo que haga falta.
  */
 const props = defineProps<{ scope: ApprovalScope }>();
 
@@ -44,10 +46,15 @@ const isExperiment = computed(() => props.scope.type === "experiment");
 const rows = computed(() => steps(data.value?.options.environments ?? []));
 const names = computed(() => Object.fromEntries((data.value?.options.candidates ?? []).map((c) => [c.userId, c.name?.trim() || c.email])));
 const orgRuleOf = (action: "publish" | "promote", stage: string) => ruleFor(data.value?.organizationRules ?? [], action, stage);
+const ownRuleOf = (action: "publish" | "promote", stage: string) => ruleFor(data.value?.rules ?? [], action, stage);
 const isExempt = (action: "publish" | "promote", stage: string) => (data.value?.exemptions ?? []).some((x) => x.action === action && x.stage === stage);
 /** El suelo que de verdad aplica a este agente: el de la organización, salvo que lo hayan eximido en ese paso. */
 const floorOf = (action: "publish" | "promote", stage: string) => (isExempt(action, stage) ? null : orgRuleOf(action, stage));
 const allowedRoles = (action: "publish" | "promote") => (action === "publish" ? data.value?.options.publishRoles : data.value?.options.roles) ?? [];
+
+/** El modo de un agente en un paso con regla de la organización; null si no hay tal regla (o es la organización). */
+const modeOf = (action: "publish" | "promote", stage: string): StepMode | null =>
+  isExperiment.value && orgRuleOf(action, stage) ? stepMode({ exempt: isExempt(action, stage), hasOwnRule: !!ownRuleOf(action, stage) }) : null;
 
 // ---- organigrama: quién aprueba en cada paso ----
 const flowSteps = computed<FlowStep[]>(() =>
@@ -55,7 +62,7 @@ const flowSteps = computed<FlowStep[]>(() =>
     ...row,
     rule: ruleFor(data.value?.rules ?? [], row.action, row.stage),
     floor: isExperiment.value ? floorOf(row.action, row.stage) : null,
-    exempt: isExperiment.value && !!orgRuleOf(row.action, row.stage) && isExempt(row.action, row.stage),
+    mode: modeOf(row.action, row.stage) ?? undefined,
     open: editing.value?.action === row.action && editing.value.stage === row.stage,
   })),
 );
@@ -65,15 +72,29 @@ const isEditing = (row: { action: string; stage: string }) => editing.value?.act
 const editing = ref<{ action: "publish" | "promote"; stage: string } | null>(null);
 const draft = reactive<{ mins: Record<string, number>; approvers: string[] }>({ mins: {}, approvers: [] });
 
-function edit(row: { action: "publish" | "promote"; stage: string }) {
-  const current = ruleFor(data.value?.rules ?? [], row.action, row.stage);
-  const floor = floorOf(row.action, row.stage);
+const mode = ref<StepMode | null>(null);
+
+/** Rellena el borrador según el modo: seguir (suelo + lo propio), solo lo propio, o nada. */
+function fill(row: { action: "publish" | "promote"; stage: string }, as: StepMode | null) {
+  const current = ownRuleOf(row.action, row.stage);
+  const floor = as === "own" || as === "none" ? null : orgRuleOf(row.action, row.stage);
   draft.mins = {};
   for (const role of allowedRoles(row.action)) draft.mins[role] = 0;
-  for (const source of [floor, current]) for (const r of source?.requirements ?? []) draft.mins[r.role] = Math.max(draft.mins[r.role] ?? 0, r.min);
-  if (!current && !floor) draft.mins[allowedRoles(row.action)[0] ?? ""] = 1;
-  draft.approvers = [...new Set([...(floor?.approvers ?? []), ...(current?.approvers ?? [])])];
+  if (as !== "none") for (const source of [floor, current]) for (const r of source?.requirements ?? []) draft.mins[r.role] = Math.max(draft.mins[r.role] ?? 0, r.min);
+  if (as === null && !current && !floor) draft.mins[allowedRoles(row.action)[0] ?? ""] = 1;
+  draft.approvers = as === "none" ? [] : [...new Set([...(floor?.approvers ?? []), ...(current?.approvers ?? [])])];
+}
+
+function edit(row: { action: "publish" | "promote"; stage: string }) {
+  mode.value = modeOf(row.action, row.stage);
+  fill(row, mode.value);
   editing.value = { action: row.action, stage: row.stage };
+}
+
+function setMode(next: unknown) {
+  if (!editing.value || (next !== "follow" && next !== "own" && next !== "none")) return;
+  mode.value = next;
+  fill(editing.value, next);
 }
 
 const caretLeft = computed(() => {
@@ -99,17 +120,17 @@ const preview = computed(() => {
 });
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "?";
 
-const floorProblem = computed(() => (editing.value && isExperiment.value ? belowFloor(candidate.value, floorOf(editing.value.action, editing.value.stage)) : null));
+/** Solo al seguir la regla de la organización hay un suelo que no se puede bajar; usando la propia o sin aprobación ya no aplica. */
+const floorProblem = computed(() => (editing.value && isExperiment.value && mode.value !== "own" && mode.value !== "none" ? belowFloor(candidate.value, orgRuleOf(editing.value.action, editing.value.stage)) : null));
+const isEmpty = computed(() => candidate.value.requirements.length === 0 && candidate.value.approvers.length === 0);
 /** Una regla sin perfiles ni personas no se guarda: se explica por qué y cómo quitar la que haya. */
 const emptyHint = computed(() => {
-  if (!editing.value || candidate.value.requirements.length > 0 || candidate.value.approvers.length > 0) return null;
-  const own = ruleFor(data.value?.rules ?? [], editing.value.action, editing.value.stage);
-  if (own) return "A rule needs at least one profile or person. To stop asking for approval in this step, use Remove rule.";
-  return isExperiment.value && isExempt(editing.value.action, editing.value.stage)
-    ? "Nothing to save: this step already needs no approval. Add a profile or a person only if you want a rule of your own."
-    : "A rule needs at least one profile or person. Without one there is nothing to save: press Cancel.";
+  if (!editing.value || !isEmpty.value || mode.value === "none") return null;
+  if (mode.value) return "Choose at least one profile or person, or pick \"No approval\" above.";
+  if (ownRuleOf(editing.value.action, editing.value.stage)) return "A rule needs at least one profile or person. To stop asking for approval in this step, use Remove rule.";
+  return "A rule needs at least one profile or person. Without one there is nothing to save: press Cancel.";
 });
-const canSave = computed(() => !saving.value && !floorProblem.value && (candidate.value.requirements.length > 0 || candidate.value.approvers.length > 0));
+const canSave = computed(() => !saving.value && !floorProblem.value && (mode.value === "none" || !isEmpty.value));
 
 function setMin(role: string, value: string) {
   const n = Math.trunc(Number(value));
@@ -122,32 +143,46 @@ function toggleApprover(userId: string, on: boolean) {
   draft.approvers = on ? [...draft.approvers, userId] : draft.approvers.filter((id) => id !== userId);
 }
 
+const MODE_SAVED: Record<StepMode, string> = {
+  follow: "This agent follows the organization's rule in this step",
+  own: "This agent uses its own rule in this step",
+  none: "This step needs no approval for this agent",
+};
+
+/**
+ * Aplica lo que haga falta para el modo elegido, en el orden que la API exige: la exención va ANTES de la regla propia (si no, la
+ * API la compararía con el suelo) y se quita ANTES de volver a seguir la regla de la organización.
+ */
+async function applyMode(chosen: StepMode, step: { action: "publish" | "promote"; stage: string }) {
+  if (props.scope.type !== "experiment") return;
+  const { id } = props.scope;
+  const own = ownRuleOf(step.action, step.stage);
+  const exempt = isExempt(step.action, step.stage);
+  if (chosen === "follow") {
+    if (exempt) await api.setApprovalExemption(id, step.action, step.stage, false);
+    const floor = orgRuleOf(step.action, step.stage);
+    if (floor && sameRule(candidate.value, floor)) {
+      if (own) await api.deleteApprovalRule(props.scope, step.action, step.stage);
+    } else await api.setApprovalRule(props.scope, { ...step, ...candidate.value });
+    return;
+  }
+  if (!exempt) await api.setApprovalExemption(id, step.action, step.stage, true);
+  if (chosen === "own") await api.setApprovalRule(props.scope, { ...step, ...candidate.value });
+  else if (own) await api.deleteApprovalRule(props.scope, step.action, step.stage);
+}
+
 async function save() {
   if (!editing.value) return;
   saving.value = true;
   try {
-    await api.setApprovalRule(props.scope, { ...editing.value, ...candidate.value });
+    if (mode.value) await applyMode(mode.value, editing.value);
+    else await api.setApprovalRule(props.scope, { ...editing.value, ...candidate.value });
+    const saved = mode.value;
     editing.value = null;
     await load();
-    $q.notify({ message: "Approval rule saved", color: "positive", timeout: 2500 });
+    $q.notify({ message: saved ? MODE_SAVED[saved] : "Approval rule saved", color: "positive", timeout: 3000 });
   } catch (error) {
     $q.notify({ message: `Could not save the rule: ${describeApiError(error as Error)}`, color: "negative", timeout: 5000 });
-  } finally {
-    saving.value = false;
-  }
-}
-
-async function toggleExemption(exempt: boolean) {
-  if (!editing.value || props.scope.type !== "experiment") return;
-  const { action, stage } = editing.value;
-  saving.value = true;
-  try {
-    await api.setApprovalExemption(props.scope.id, action, stage, exempt);
-    await load();
-    $q.notify({ message: exempt ? "This agent no longer follows the organization's rule in this step" : "The organization's rule applies to this agent again", color: "positive", timeout: 3500 });
-    if (editing.value) edit(editing.value);
-  } catch (error) {
-    $q.notify({ message: `Could not change the exemption: ${describeApiError(error as Error)}`, color: "negative", timeout: 5000 });
   } finally {
     saving.value = false;
   }
@@ -159,9 +194,7 @@ async function remove(row: { action: "publish" | "promote"; stage: string }) {
     await api.deleteApprovalRule(props.scope, row.action, row.stage);
     if (editing.value?.action === row.action && editing.value.stage === row.stage) editing.value = null;
     await load();
-    // con un suelo que aplica, quitar la regla del agente deja la de la organización; exento o sin suelo, deja sin aprobación
-    const message = floorOf(row.action, row.stage) ? "Rule removed; the organization's rule still applies" : "Rule removed: no approval needed here";
-    $q.notify({ message, color: "positive", timeout: 3000 });
+    $q.notify({ message: "Rule removed: no approval needed here", color: "positive", timeout: 3000 });
   } catch (error) {
     $q.notify({ message: `Could not remove the rule: ${describeApiError(error as Error)}`, color: "negative", timeout: 5000 });
   } finally {
@@ -176,7 +209,7 @@ async function remove(row: { action: "publish" | "promote"; stage: string }) {
     <p v-else-if="loadError" class="adm-empty" role="alert" data-testid="rules-error">{{ loadError }}</p>
     <template v-else-if="data">
       <p class="intro">
-        <template v-if="isExperiment">A change travels left to right. This agent starts from the organization's rules and can only make them <b>stricter</b>: ask for more people or add a default approver, never fewer. To follow a different rule in a step, exempt this agent from the organization's rule there.</template>
+        <template v-if="isExperiment">A change travels left to right. This agent starts from the organization's rules and can only make them <b>stricter</b>: ask for more people or add a default approver, never fewer. Where the organization has a rule, an org admin can choose for each step to follow it, use a rule of its own instead, or ask for no approval.</template>
         <template v-else>A change travels left to right. Each step can ask for a second opinion before it happens. A step without a rule works as before. Experiments can ask for more, never for less.</template>
       </p>
       <p class="legend">
@@ -198,17 +231,22 @@ async function remove(row: { action: "publish" | "promote"; stage: string }) {
           <header>
             <span class="env">{{ editing.action === "publish" ? "PUBLISH" : editing.stage }}</span>
             <h4>Rule for {{ stepLabel(editing.action, editing.stage).toLowerCase() }}</h4>
-            <Button variant="danger" size="sm" v-if="ruleFor(data.rules, editing.action, editing.stage)" class="remove" :disabled="saving" data-testid="rule-remove" @click="remove(editing)">Remove rule</Button>
+            <Button variant="danger" size="sm" v-if="!mode && ruleFor(data.rules, editing.action, editing.stage)" class="remove" :disabled="saving" data-testid="rule-remove" @click="remove(editing)">Remove rule</Button>
           </header>
-          <label v-if="isExperiment && orgRuleOf(editing.action, editing.stage)" class="exempt" :class="{ on: isExempt(editing.action, editing.stage) }">
-            <Checkbox :checked="isExempt(editing.action, editing.stage)" :disabled="saving" data-testid="rule-exempt-toggle" @change="toggleExemption(($event.target as HTMLInputElement).checked)" />
-            <span class="grow">
-              <b>Exempt this agent from the organization's rule</b>
-              <span class="adm-hint">The organization asks for {{ describeRule(orgRuleOf(editing.action, editing.stage), names) }} here. Exempt, this agent follows only its own rule (or none). Other agents are not affected. It is recorded in the audit log.</span>
-            </span>
-          </label>
-          <div class="cols">
-            <fieldset>
+          <div v-if="mode" class="modes" role="radiogroup" aria-label="What this agent does in this step" data-testid="rule-modes">
+            <span class="kicker">In this step, this agent…</span>
+            <Radio class="opt" :class="{ on: mode === 'follow' }" name="step-mode" value="follow" :model-value="mode" data-testid="mode-follow" @update:model-value="setMode">
+              <span class="txt"><b>Follow the organization's rule</b><span class="adm-hint">{{ describeRule(orgRuleOf(editing.action, editing.stage), names) }}. You can still add more people on top, never fewer.</span></span>
+            </Radio>
+            <Radio class="opt" :class="{ on: mode === 'own' }" name="step-mode" value="own" :model-value="mode" data-testid="mode-own" @update:model-value="setMode">
+              <span class="txt"><b>Use its own rule instead</b><span class="adm-hint">Replaces the organization's rule in this step, only for this agent. Choose who approves.</span></span>
+            </Radio>
+            <Radio class="opt" :class="{ on: mode === 'none' }" name="step-mode" value="none" :model-value="mode" data-testid="mode-none" @update:model-value="setMode">
+              <span class="txt"><b>No approval</b><span class="adm-hint">Whoever can do this does it straight away, only for this agent. It is recorded in the audit log.</span></span>
+            </Radio>
+          </div>
+          <div class="cols" :class="{ single: mode === 'none' }">
+            <fieldset v-if="mode !== 'none'">
               <legend>Profiles</legend>
               <p v-if="editing.action === 'publish'" class="adm-hint">Publishing a version is a review of the text, so only technical profiles can approve it.</p>
               <label v-for="role in allowedRoles(editing.action)" :key="role" class="row" :class="{ on: (draft.mins[role] ?? 0) > 0 }">
@@ -228,7 +266,7 @@ async function remove(row: { action: "publish" | "promote"; stage: string }) {
               </label>
               <p class="adm-hint">A person counts for the profile they have.</p>
             </fieldset>
-            <fieldset>
+            <fieldset v-if="mode !== 'none'">
               <legend>People who must always approve <span>· optional</span></legend>
               <p v-if="data.options.candidates.length === 0" class="adm-hint">Nobody can approve yet: add members with a technical or business role to an experiment first.</p>
               <Checkbox v-for="c in data.options.candidates" :key="c.userId" class="row" :class="{ on: draft.approvers.includes(c.userId) }" :checked="draft.approvers.includes(c.userId)" :data-testid="`approver-${c.userId}`" @change="toggleApprover(c.userId, ($event.target as HTMLInputElement).checked)"> <span class="mark person">{{ initials(c.name?.trim() || c.email) }}</span>
@@ -268,9 +306,12 @@ header { display: flex; align-items: center; gap: 10px; padding: 12px 20px; bord
 header h4 { flex: 1; margin: 0; font-size: 15px; font-weight: 800; }
 .env { height: 22px; padding: 0 8px; display: inline-flex; align-items: center; border-radius: 4px; font: 800 11px/1 var(--mt-mono, monospace); background: var(--mt-accent, var(--mt-ink)); color: var(--mt-accent-ink, #fff); }
 
-.exempt { display: flex; align-items: flex-start; gap: 10px; padding: 12px 20px; border-bottom: 1px solid var(--mt-line); font-size: 13px; cursor: pointer; }
-.exempt.on { background: var(--mt-soft); }
-.exempt .grow { display: flex; flex-direction: column; gap: 2px; }
+.modes { display: flex; flex-direction: column; gap: 8px; padding: 14px 20px; border-bottom: 1px solid var(--mt-line); }
+.opt { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border: 1px solid var(--mt-line); border-radius: 8px; cursor: pointer; }
+.opt.on { border: 2px solid var(--mt-accent, var(--mt-ink)); padding: 11px 13px; background: var(--mt-soft); }
+.opt .txt { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
+.opt .adm-hint { font-weight: 400; }
+.cols.single { grid-template-columns: minmax(0, 1fr); }
 .cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 @media (max-width: 900px) { .cols { grid-template-columns: minmax(0, 1fr); } }
 fieldset { border: none; margin: 0; padding: 16px 20px; display: flex; flex-direction: column; gap: 8px; border-right: 1px solid var(--mt-line); min-width: 0; }

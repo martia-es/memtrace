@@ -51,6 +51,29 @@ export function belowFloor(candidate: Pick<ApprovalRuleDto, "requirements" | "ap
   return null;
 }
 
+/**
+ * Qué hace un agente en un paso en el que la organización tiene regla (ADR-076): seguirla (quizá con algo más), usar solo la
+ * suya (exento y con regla propia) o no pedir aprobación (exento y sin regla). Son tres estados de dos datos, y se enseñan como
+ * una elección para que nadie tenga que deducirlos.
+ */
+export type StepMode = "follow" | "own" | "none";
+
+export const STEP_MODE_LABEL: Record<StepMode, string> = {
+  follow: "Follows the organization",
+  own: "Own rule · this agent only",
+  none: "No approval · this agent only",
+};
+
+export function stepMode(state: { exempt: boolean; hasOwnRule: boolean }): StepMode {
+  return !state.exempt ? "follow" : state.hasOwnRule ? "own" : "none";
+}
+
+/** ¿Piden lo mismo? (mismos perfiles y mínimos, mismas personas, sin importar el orden). */
+export function sameRule(a: Pick<ApprovalRuleDto, "requirements" | "approvers">, b: Pick<ApprovalRuleDto, "requirements" | "approvers">): boolean {
+  const reqs = (r: Pick<ApprovalRuleDto, "requirements">) => r.requirements.map((x) => `${x.role}:${x.min}`).sort().join("|");
+  return reqs(a) === reqs(b) && [...a.approvers].sort().join("|") === [...b.approvers].sort().join("|");
+}
+
 export const REQUEST_STATUS: Record<ApprovalRequestDto["status"], { label: string; tone: Tone }> = {
   pending: { label: "Waiting for approval", tone: "warn" },
   approved: { label: "Approved", tone: "info" },
