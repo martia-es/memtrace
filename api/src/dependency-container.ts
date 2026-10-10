@@ -36,6 +36,12 @@ import { PromptEvidenceService } from "@/application/prompt-evidence-service";
 import { PromptFailureService } from "@/application/prompt-failure-service";
 import { PromptMapService } from "@/application/prompt-map-service";
 import { ChartCatalogService } from "@/application/chart-catalog-service";
+import { AuditService } from "@/application/audit-service";
+import { RetentionService } from "@/application/retention-service";
+import { ExportService } from "@/application/export-service";
+import { ClickHouseDataExporter } from "@/adapters/outbound/clickhouse/clickhouse-data-exporter";
+import { PostgresAuditRepository } from "@/adapters/outbound/postgres/postgres-audit-repository";
+import { PostgresRetentionRepository } from "@/adapters/outbound/postgres/postgres-retention-repository";
 import { ApprovalRuleResolver } from "@/application/approval-rules";
 import { ApprovalService } from "@/application/approval-service";
 import { PromptGateService } from "@/application/prompt-gate-service";
@@ -69,6 +75,9 @@ const globalForContainer = globalThis as unknown as {
   __memtraceDeploy?: DeployService;
   __memtracePrompts?: PromptService;
   __memtraceChartCatalog?: ChartCatalogService;
+  __memtraceAudit?: AuditService;
+  __memtraceRetention?: RetentionService;
+  __memtraceExport?: ExportService;
   __memtraceApprovals?: ApprovalService;
   __memtraceApprovalRepository?: PostgresApprovalRepository;
   __memtracePromptEvidence?: PromptEvidenceService;
@@ -292,6 +301,27 @@ export function getPromptGate(): PromptGateService {
 }
 
 /** Catálogo de datos de las Custom charts: nombres y visibilidad de pasos y atributos por experimento (ADR-078). */
+/** Registro de auditoría (ADR-080). Quien lee (`audit:read`) y quien escribe son la misma instancia. */
+export function getAudit(): AuditService {
+  if (!globalForContainer.__memtraceAudit) globalForContainer.__memtraceAudit = new AuditService(new PostgresAuditRepository(getPostgresPool()));
+  return globalForContainer.__memtraceAudit;
+}
+
+/** Plazos de retención (ADR-080). La API solo los cambia; el borrado lo hace el CronJob `retention-purge`, que lleva su propio cliente. */
+export function getRetention(): RetentionService {
+  if (!globalForContainer.__memtraceRetention) globalForContainer.__memtraceRetention = new RetentionService(new PostgresRetentionRepository(getPostgresPool()), getAudit());
+  return globalForContainer.__memtraceRetention;
+}
+
+/** Exportación de datos de un experimento (ADR-080). Lee con el cliente de solo lectura; la autorización (`data:export`) la decide la ruta. */
+export function getExport(): ExportService {
+  if (!globalForContainer.__memtraceExport) {
+    const config = configFromEnv();
+    globalForContainer.__memtraceExport = new ExportService(new ClickHouseDataExporter(createReadOnlyClient(config), config.database, config.maxConcurrentQueries), getAudit());
+  }
+  return globalForContainer.__memtraceExport;
+}
+
 export function getChartCatalog(): ChartCatalogService {
   if (!globalForContainer.__memtraceChartCatalog) globalForContainer.__memtraceChartCatalog = new ChartCatalogService(new PostgresChartCatalogRepository(getPostgresPool()));
   return globalForContainer.__memtraceChartCatalog;

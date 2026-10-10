@@ -19,6 +19,8 @@ COPY --from=build --chown=node:node /app/.next/standalone ./
 COPY --from=build --chown=node:node /app/.next/static ./.next/static
 # worker de /health (ADR-053): un solo archivo; lo ejecuta el CronJob `health-probe` con la misma imagen
 COPY --from=build --chown=node:node /app/dist-worker/probe-health.cjs ./worker/probe-health.cjs
+# worker de retención (ADR-080): lo ejecuta el CronJob `retention-purge`
+COPY --from=build --chown=node:node /app/dist-worker/purge-traces.cjs ./worker/purge-traces.cjs
 # uid de `node`; numérico para que Kubernetes pueda verificar runAsNonRoot
 USER 1000:1000
 EXPOSE 3001

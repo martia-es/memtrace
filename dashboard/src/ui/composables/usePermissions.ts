@@ -25,7 +25,10 @@ export type Permission =
   | "prompt:promote"
   | "prompt:approve"
   | "approval:manage"
-  | "catalog:manage";
+  | "catalog:manage"
+  | "retention:manage"
+  | "audit:read"
+  | "data:export";
 
 export function hasPermission(target: Pick<ExperimentDto | OrganizationDto, "permissions"> | null | undefined, permission: Permission): boolean {
   return !!target && target.permissions.includes(permission);

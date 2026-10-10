@@ -1,4 +1,5 @@
-import { requirePermission } from "@/adapters/inbound/http/auth-context";
+import { auditExperiment } from "@/adapters/inbound/http/audit-context";
+import { requirePermission, requireUser } from "@/adapters/inbound/http/auth-context";
 import { json, problem } from "@/adapters/inbound/http/problem";
 import { getIdentity } from "@/dependency-container";
 
@@ -22,6 +23,8 @@ export async function POST(_request: Request, context: { params: Promise<{ exper
   const access = await requireKeyAccess(experimentId);
   if (access instanceof Response) return access;
   const { apiKey, plaintext } = await getIdentity().identityRepository.createApiKey(experimentId, access.userId);
+  const actor = await requireUser();
+  if (!(actor instanceof Response)) await auditExperiment(actor, experimentId, "apikey.create", { type: "api_key", id: apiKey.id }, "best-effort", { keyPrefix: apiKey.keyPrefix });
   return json({ ...apiKey, plaintext }, 201);
 }
 

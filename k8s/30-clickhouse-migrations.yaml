@@ -24,6 +24,11 @@ spec:
             secretKeyRef:
               name: clickhouse-credentials
               key: writer-password
+        - name: CLICKHOUSE_RETENTION_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: clickhouse-credentials
+              key: retention-password
         command: ["/bin/sh", "-c"]
         args:
         - |
@@ -49,6 +54,13 @@ spec:
           $CH --query "ALTER USER api_writer IDENTIFIED WITH sha256_password BY '$CLICKHOUSE_WRITER_PASSWORD'"
           for t in eval_items eval_scores eval_run_summaries annotations user_feedback; do
             $CH --query "GRANT INSERT ON memtrace.$t TO api_writer"
+          done
+          # Usuario del CronJob de retención (ADR-080): lee y borra solo en las tablas de trazas. No inserta, no borra en
+          # ninguna otra tabla y no puede alterar el esquema.
+          $CH --query "CREATE USER IF NOT EXISTS retention_worker IDENTIFIED WITH sha256_password BY '$CLICKHOUSE_RETENTION_PASSWORD'"
+          $CH --query "ALTER USER retention_worker IDENTIFIED WITH sha256_password BY '$CLICKHOUSE_RETENTION_PASSWORD'"
+          for t in otel_traces span_topics; do
+            $CH --query "GRANT SELECT, ALTER DELETE ON memtrace.$t TO retention_worker"
           done
         volumeMounts:
         - name: migrations

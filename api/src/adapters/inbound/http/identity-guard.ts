@@ -24,6 +24,8 @@ import {
   ValidationError,
   ApprovalNotAllowedError,
   ApprovalRequiredError,
+  RetentionTargetNotFoundError,
+  ExportTooLargeError,
 } from "@/domain/errors";
 import { problem } from "./problem";
 
@@ -33,6 +35,8 @@ export async function identityGuard(run: () => Promise<Response>): Promise<Respo
     return await run();
   } catch (error) {
     if (error instanceof TraceNotFoundError || error instanceof SpanNotFoundError || error instanceof DatasetRunNotFoundError) return problem(404, "Not Found", error.message);
+    if (error instanceof ExportTooLargeError) return problem(413, "Payload Too Large", error.message);
+    if (error instanceof RetentionTargetNotFoundError) return problem(404, "Not Found", error.message);
     if (error instanceof AnnotationValueError) return problem(422, "Unprocessable Entity", error.message, { value: error.message });
     if (error instanceof UserFeedbackValueError) return problem(422, "Unprocessable Entity", error.message, { rating: error.message });
     if (error instanceof AnnotationForbiddenError) return problem(403, "Forbidden", error.message);

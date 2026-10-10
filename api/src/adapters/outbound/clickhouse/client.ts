@@ -8,6 +8,9 @@ export interface ClickHouseConfig {
   /** Credenciales del cliente de escritura (ADR-045). Sin configurar, se reutilizan las de lectura (desarrollo local). */
   writeUsername: string;
   writePassword: string;
+  /** Credenciales del usuario de retención (ADR-080): solo SELECT y ALTER DELETE en las tablas de trazas. Sin configurar, las de lectura. */
+  retentionUsername: string;
+  retentionPassword: string;
   /** hilos máximos por consulta: el almacén local tiene muy poco margen (ver query-limiter.ts) */
   maxThreads: number;
   maxConcurrentQueries: number;
@@ -23,6 +26,8 @@ export function configFromEnv(env: NodeJS.ProcessEnv = process.env): ClickHouseC
     database: env.CLICKHOUSE_DATABASE ?? "memtrace",
     writeUsername: env.CLICKHOUSE_WRITE_USER ?? username,
     writePassword: env.CLICKHOUSE_WRITE_USER ? (env.CLICKHOUSE_WRITE_PASSWORD ?? "") : password,
+    retentionUsername: env.CLICKHOUSE_RETENTION_USER ?? username,
+    retentionPassword: env.CLICKHOUSE_RETENTION_USER ? (env.CLICKHOUSE_RETENTION_PASSWORD ?? "") : password,
     maxThreads: Number(env.CLICKHOUSE_QUERY_MAX_THREADS ?? 2),
     maxConcurrentQueries: Number(env.CLICKHOUSE_MAX_CONCURRENT_QUERIES ?? 3),
   };
@@ -56,5 +61,20 @@ export function createEvaluationWriteClient(config: ClickHouseConfig): ClickHous
     password: config.writePassword,
     database: config.database,
     request_timeout: 15_000,
+  });
+}
+
+/**
+ * Cliente del worker de retención (ADR-080): con `CLICKHOUSE_RETENTION_USER` (en k8s, `retention_worker`) ClickHouse solo le
+ * deja leer y borrar en `otel_traces`, `otel_traces_trace_id_ts` y `span_topics`. Lo usa solo el CronJob de purga, nunca la API.
+ */
+export function createRetentionClient(config: ClickHouseConfig): ClickHouseClient {
+  return createClient({
+    url: config.url,
+    username: config.retentionUsername,
+    password: config.retentionPassword,
+    database: config.database,
+    request_timeout: 600_000,
+    clickhouse_settings: { max_threads: config.maxThreads },
   });
 }

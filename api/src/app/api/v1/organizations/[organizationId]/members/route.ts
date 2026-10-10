@@ -1,3 +1,4 @@
+import { auditOrganization } from "@/adapters/inbound/http/audit-context";
 import { requireUser } from "@/adapters/inbound/http/auth-context";
 import { identityGuard } from "@/adapters/inbound/http/identity-guard";
 import { addOrgAdminBody, parseJsonOrThrow } from "@/adapters/inbound/http/identity-schemas";
@@ -56,10 +57,12 @@ export async function POST(request: Request, context: { params: Promise<{ organi
         roleLabel: "org_admin",
         appUrl: new URL(request.url).origin,
       });
+      await auditOrganization(user, organizationId, "member.add", { type: "user", id: email }, { role: "org_admin", status: "pending" });
       return json({ organizationId, email, role: "org_admin", status: "pending" }, 202);
     }
 
     await identityRepository.addOrgAdmin(organizationId, invitee.id);
+    await auditOrganization(user, organizationId, "member.add", { type: "user", id: invitee.id }, { role: "org_admin", status: "added" });
     return json({ organizationId, userId: invitee.id, role: "org_admin" }, 201);
   });
 }

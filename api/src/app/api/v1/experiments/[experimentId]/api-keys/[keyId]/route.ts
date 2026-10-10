@@ -1,4 +1,5 @@
-import { requirePermission } from "@/adapters/inbound/http/auth-context";
+import { auditExperiment } from "@/adapters/inbound/http/audit-context";
+import { requirePermission, requireUser } from "@/adapters/inbound/http/auth-context";
 import { json, problem } from "@/adapters/inbound/http/problem";
 import { getIdentity } from "@/dependency-container";
 
@@ -16,5 +17,7 @@ export async function DELETE(_request: Request, context: { params: Promise<{ exp
     if (all instanceof Response) return problem(403, "Forbidden", "Missing permission: apikey:manage_own or apikey:manage_all");
   }
   await getIdentity().identityRepository.revokeApiKey(experimentId, keyId, onlyCreatedBy);
+  const actor = await requireUser();
+  if (!(actor instanceof Response)) await auditExperiment(actor, experimentId, "apikey.revoke", { type: "api_key", id: keyId });
   return json({ revoked: true });
 }

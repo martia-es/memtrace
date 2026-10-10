@@ -1,7 +1,7 @@
 /** Permisos de los roles de serie (ADR-052), para construir sesiones de prueba sin repetirlos. */
 export const ROLE_PERMISSIONS: Record<string, string[]> = {
-  org_admin: ["org:manage", "experiment:create", "member:manage", "apikey:manage_all", "governance:read", "governance:manage", "prompt:read", "prompt:write", "prompt:promote", "approval:manage"],
-  technical: ["experiment:read", "trace:read_technical", "annotation:write", "queue:manage", "queue:curate", "scoreconfig:manage", "dataset:write", "apikey:manage_own", "assistant:manage", "deploy:run", "prompt:read", "prompt:write", "prompt:promote", "prompt:approve", "catalog:manage"],
+  org_admin: ["org:manage", "experiment:create", "member:manage", "apikey:manage_all", "governance:read", "governance:manage", "prompt:read", "prompt:write", "prompt:promote", "approval:manage", "retention:manage", "audit:read"],
+  technical: ["experiment:read", "trace:read_technical", "annotation:write", "queue:manage", "queue:curate", "scoreconfig:manage", "dataset:write", "apikey:manage_own", "assistant:manage", "deploy:run", "prompt:read", "prompt:write", "prompt:promote", "prompt:approve", "catalog:manage", "data:export"],
   business: ["experiment:read", "annotation:write", "prompt:read", "prompt:approve", "catalog:manage"],
   governance: ["governance:read", "governance:manage", "prompt:read"],
 };
