@@ -10,7 +10,9 @@ import type { AttributeKeyCount, AttributeValueCount, CustomMetricQuery, CustomM
 import type { Span, StatusCode } from "@/domain/span";
 import { MAX_RANGE_MS, type TimeRange } from "@/domain/time-range";
 import type { PromptRef, Page, TraceStats, TraceSummary } from "@/domain/trace";
+import type { TenantScope } from "@/domain/tenant";
 import { QueryLimiter } from "./query-limiter";
+import { TENANT_SQL, tenantParams, tenantSqlFor } from "./tenant-sql";
 
 /** Los hijos de un span raíz pueden empezar después de que el rango termine: ventana de agregación. */
 export const TRACE_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -94,10 +96,10 @@ export class ClickHouseTraceRepository implements TraceRepository {
   }
 
   /** `memtrace.step_type` distintos vistos en el rango, con conteo (ADR-027). */
-  async getStepKinds(query: TimeRange & { service?: string }): Promise<StepKindCount[]> {
+  async getStepKinds(query: TimeRange & { scope: TenantScope }): Promise<StepKindCount[]> {
     const { clause, params } = ClickHouseTraceRepository.range(query.fromMs, query.toMs);
-    const svc = query.service ? " AND ServiceName = {service:String}" : "";
-    const p: Params = { ...params, ...(query.service ? { service: query.service } : {}) };
+    const svc = ` AND ${TENANT_SQL}`;
+    const p: Params = { ...params, ...tenantParams(query.scope) };
     const rows = await this.rows<{ stepType: string; count: number }>(
       `SELECT ${KIND} AS stepType, count() AS count FROM ${this.spans} WHERE ${clause}${svc} GROUP BY stepType ORDER BY count DESC LIMIT 200`,
       p,
@@ -106,14 +108,14 @@ export class ClickHouseTraceRepository implements TraceRepository {
   }
 
   /** Valores distintos de un atributo, acotados a los step types dados (ADR-027): alimenta filtro/agrupación dinámicos. */
-  async getAttributeValues(query: TimeRange & { service?: string; stepTypes: string[]; attribute: string }): Promise<AttributeValueCount[]> {
+  async getAttributeValues(query: TimeRange & { scope: TenantScope; stepTypes: string[]; attribute: string }): Promise<AttributeValueCount[]> {
     const { clause, params } = ClickHouseTraceRepository.range(query.fromMs, query.toMs);
-    const svc = query.service ? " AND ServiceName = {service:String}" : "";
+    const svc = ` AND ${TENANT_SQL}`;
     const p: Params = {
       ...params,
       attribute: query.attribute,
       stepTypes: query.stepTypes,
-      ...(query.service ? { service: query.service } : {}),
+      ...tenantParams(query.scope),
     };
     const rows = await this.rows<{ value: string; count: number }>(
       `SELECT SpanAttributes[{attribute:String}] AS value, count() AS count FROM ${this.spans}
@@ -125,10 +127,10 @@ export class ClickHouseTraceRepository implements TraceRepository {
   }
 
   /** Claves de `SpanAttributes` vistas en los step types dados, para los selectores de "group by"/"filter by" (ADR-030). */
-  async getAttributeKeys(query: TimeRange & { service?: string; stepTypes: string[] }): Promise<AttributeKeyCount[]> {
+  async getAttributeKeys(query: TimeRange & { scope: TenantScope; stepTypes: string[] }): Promise<AttributeKeyCount[]> {
     const { clause, params } = ClickHouseTraceRepository.range(query.fromMs, query.toMs);
-    const svc = query.service ? " AND ServiceName = {service:String}" : "";
-    const p: Params = { ...params, stepTypes: query.stepTypes, ...(query.service ? { service: query.service } : {}) };
+    const svc = ` AND ${TENANT_SQL}`;
+    const p: Params = { ...params, stepTypes: query.stepTypes, ...tenantParams(query.scope) };
     const rows = await this.rows<{ key: string; count: number }>(
       `SELECT arrayJoin(mapKeys(SpanAttributes)) AS key, count() AS count FROM ${this.spans}
        WHERE ${clause}${svc} AND ${KIND} IN {stepTypes:Array(String)}
@@ -142,10 +144,10 @@ export class ClickHouseTraceRepository implements TraceRepository {
    * Calcula un gráfico custom (ADR-027/030). `metric`/`chartType` son un enum cerrado elegido por el
    * servidor; `filters`/`groupByAttribute` son siempre parámetros ligados, nunca concatenados al SQL.
    */
-  async listErrorGroups({ fromMs, toMs, service }: TimeRange & { service?: string }): Promise<ErrorGroupsResult> {
+  async listErrorGroups({ fromMs, toMs, scope }: TimeRange & { scope: TenantScope }): Promise<ErrorGroupsResult> {
     const { clause, params } = ClickHouseTraceRepository.range(fromMs, toMs);
-    const svc = service ? " AND ServiceName = {service:String}" : "";
-    const p: Params = { ...params, ...(service ? { service } : {}) };
+    const svc = ` AND ${TENANT_SQL}`;
+    const p: Params = { ...params, ...tenantParams(scope) };
     const base = `FROM ${this.spans} WHERE ${clause}${svc}`;
     const failed = `${base} AND StatusCode = ${ERROR}`;
     // solo el fallo más profundo: un span cuyo hijo también falla es una propagación del mismo error
@@ -186,8 +188,8 @@ export class ClickHouseTraceRepository implements TraceRepository {
 
   async getCustomMetric(q: CustomMetricQuery): Promise<CustomMetricResult> {
     const { clause, params } = ClickHouseTraceRepository.range(q.fromMs, q.toMs);
-    const svc = q.service ? " AND ServiceName = {service:String}" : "";
-    const p: Params = { ...params, stepTypes: q.stepTypes, ...(q.service ? { service: q.service } : {}) };
+    const svc = ` AND ${TENANT_SQL}`;
+    const p: Params = { ...params, stepTypes: q.stepTypes, ...tenantParams(q.scope) };
 
     const filterClauses = q.filters.map((f, i) => {
       p[`filterAttr${i}`] = f.attribute;
@@ -271,41 +273,44 @@ export class ClickHouseTraceRepository implements TraceRepository {
     }
   }
 
-  async listRevisions({ fromMs, toMs, service }: TimeRange & { service?: string }): Promise<RevisionSummary[]> {
+  async listRevisions({ fromMs, toMs, scope }: TimeRange & { scope: TenantScope }): Promise<RevisionSummary[]> {
     const { clause, params } = ClickHouseTraceRepository.range(fromMs, toMs);
-    const svc = service ? " AND ServiceName = {service:String}" : "";
+    const svc = ` AND ${TENANT_SQL}`;
     const rows = await this.rows(
       `SELECT Revision, uniqExact(TraceId) AS traces, toUnixTimestamp64Milli(max(Timestamp)) AS lastMs
        FROM ${this.spans} WHERE ParentSpanId = '' AND Revision != '' AND ${clause}${svc}
        GROUP BY Revision ORDER BY lastMs DESC LIMIT 50`,
-      service ? { ...params, service } : params,
+      { ...params, ...tenantParams(scope) },
     );
     return rows.map((r) => ({ revision: String(r.Revision), traces: num(r.traces), lastSeenMs: num(r.lastMs) }));
   }
 
-  async listServices({ fromMs, toMs }: TimeRange): Promise<string[]> {
+  /** Nombres de servicio con datos en el rango, **solo** de los experimentos dados (los que la persona puede leer). */
+  async listServices({ fromMs, toMs }: TimeRange, scopes: TenantScope[]): Promise<string[]> {
+    if (scopes.length === 0) return [];
     const { clause, params } = ClickHouseTraceRepository.range(fromMs, toMs);
     const rows = await this.rows<{ ServiceName: string }>(
-      `SELECT DISTINCT ServiceName FROM ${this.spans} WHERE ${clause} ORDER BY ServiceName LIMIT 1000`,
-      params,
+      `SELECT DISTINCT ServiceName FROM ${this.spans} WHERE ${clause} AND ExperimentId IN {experimentIds:Array(String)} ORDER BY ServiceName LIMIT 1000`,
+      { ...params, experimentIds: scopes.map((s) => tenantParams(s).tenantExperiment) },
     );
     return rows.map((r) => r.ServiceName);
   }
 
-  /** Una sola consulta agrupada por ServiceName: evita N consultas al comparar coste entre varios experimentos. */
-  async getUsageByServices(serviceNames: string[], { fromMs, toMs }: TimeRange): Promise<ServiceUsage[]> {
-    if (serviceNames.length === 0) return [];
+  /** Una sola consulta agrupada por experimento: evita N consultas al comparar coste entre varios experimentos. */
+  async getUsageByServices(scopes: TenantScope[], { fromMs, toMs }: TimeRange): Promise<ServiceUsage[]> {
+    if (scopes.length === 0) return [];
     const { clause, params } = ClickHouseTraceRepository.range(fromMs, toMs);
     const rows = await this.rows(
-      `SELECT ServiceName, countIf(ParentSpanId = '') AS traces,
+      `SELECT ExperimentId, ServiceName, countIf(ParentSpanId = '') AS traces,
               sumIf(${attrNum("gen_ai.usage.input_tokens")}, ${OP} = 'chat') AS inputTokens,
               sumIf(${attrNum("gen_ai.usage.output_tokens")}, ${OP} = 'chat') AS outputTokens,
               sumIf(${TOKENS}, ${OP} = 'chat') AS totalTokens
-       FROM ${this.spans} WHERE ${clause} AND ServiceName IN {serviceNames:Array(String)}
-       GROUP BY ServiceName`,
-      { ...params, serviceNames },
+       FROM ${this.spans} WHERE ${clause} AND ExperimentId IN {experimentIds:Array(String)}
+       GROUP BY ExperimentId, ServiceName`,
+      { ...params, experimentIds: scopes.map((s) => tenantParams(s).tenantExperiment) },
     );
     return rows.map((r) => ({
+      experimentId: String(r.ExperimentId),
       serviceName: String(r.ServiceName),
       traces: num(r.traces),
       inputTokens: num(r.inputTokens),
@@ -319,10 +324,8 @@ export class ClickHouseTraceRepository implements TraceRepository {
     const where = [clause];
     const p: Params = { ...params, limit: q.limit + 1 };
 
-    if (q.service) {
-      where.push("ServiceName = {service:String}");
-      p.service = q.service;
-    }
+    where.push(TENANT_SQL);
+    Object.assign(p, tenantParams(q.scope));
     if (q.kind) {
       where.push(`${KIND} = {kind:String}`);
       p.kind = q.kind;
@@ -403,10 +406,8 @@ export class ClickHouseTraceRepository implements TraceRepository {
     const where = ["ParentSpanId = ''", clause];
     const p: Params = { ...params, limit: q.limit + 1 };
 
-    if (q.service) {
-      where.push("ServiceName = {service:String}");
-      p.service = q.service;
-    }
+    where.push(TENANT_SQL);
+    Object.assign(p, tenantParams(q.scope));
     if (q.status) {
       where.push("StatusCode = {statusCode:String}");
       p.statusCode = q.status === "ok" ? "STATUS_CODE_OK" : "STATUS_CODE_ERROR";
@@ -417,12 +418,12 @@ export class ClickHouseTraceRepository implements TraceRepository {
     }
     if (q.hasErrors) {
       where.push(
-        `TraceId IN (SELECT TraceId FROM ${this.spans} WHERE StatusCode = ${ERROR} AND Timestamp >= fromUnixTimestamp64Milli({fromMs:Int64}) AND Timestamp < fromUnixTimestamp64Milli({toWithWindowMs:Int64}))`,
+        `TraceId IN (SELECT TraceId FROM ${this.spans} WHERE ${TENANT_SQL} AND StatusCode = ${ERROR} AND Timestamp >= fromUnixTimestamp64Milli({fromMs:Int64}) AND Timestamp < fromUnixTimestamp64Milli({toWithWindowMs:Int64}))`,
       );
       p.toWithWindowMs = q.toMs + TRACE_WINDOW_MS;
     }
     if (q.text) {
-      where.push(`TraceId IN (SELECT TraceId FROM ${this.spans} WHERE ${CONTENT_MATCH} AND Timestamp >= fromUnixTimestamp64Milli({fromMs:Int64}) AND Timestamp < fromUnixTimestamp64Milli({toWithWindowMs:Int64}))`);
+      where.push(`TraceId IN (SELECT TraceId FROM ${this.spans} WHERE ${TENANT_SQL} AND ${CONTENT_MATCH} AND Timestamp >= fromUnixTimestamp64Milli({fromMs:Int64}) AND Timestamp < fromUnixTimestamp64Milli({toWithWindowMs:Int64}))`);
       p.text = q.text;
       p.toWithWindowMs = q.toMs + TRACE_WINDOW_MS;
     }
@@ -438,7 +439,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
     if (q.promptName) {
       // el prompt lo marca el span que lo usa (normalmente una llamada al modelo), no la raíz: se busca en toda la traza
       const version = q.promptVersion ? " AND PromptVersion = {promptVersion:UInt32}" : "";
-      where.push(`TraceId IN (SELECT TraceId FROM ${this.spans} WHERE PromptName = {promptName:String}${version} AND Timestamp >= fromUnixTimestamp64Milli({fromMs:Int64}) AND Timestamp < fromUnixTimestamp64Milli({toWithWindowMs:Int64}))`);
+      where.push(`TraceId IN (SELECT TraceId FROM ${this.spans} WHERE ${TENANT_SQL} AND PromptName = {promptName:String}${version} AND Timestamp >= fromUnixTimestamp64Milli({fromMs:Int64}) AND Timestamp < fromUnixTimestamp64Milli({toWithWindowMs:Int64}))`);
       p.promptName = q.promptName;
       if (q.promptVersion) p.promptVersion = q.promptVersion;
       p.toWithWindowMs = q.toMs + TRACE_WINDOW_MS;
@@ -459,7 +460,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
 
     const hasMore = roots.length > q.limit;
     const page = roots.slice(0, q.limit);
-    const aggregates = await this.aggregatesFor(page);
+    const aggregates = await this.aggregatesFor(q.scope, page);
 
     const items: TraceSummary[] = page.map((r) => {
       const agg = aggregates.get(String(r.TraceId));
@@ -491,7 +492,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
   }
 
   /** Agregados por traza para una página, acotados en tiempo para podar particiones diarias. */
-  private async aggregatesFor(roots: Row[]) {
+  private async aggregatesFor(scope: TenantScope, roots: Row[]) {
     const result = new Map<string, { spanCount: number; errorCount: number; totalTokens: number; inputRaw: string | null; inputChat: boolean; outputRaw: string | null; outputChat: boolean; outputTool: boolean; prompts: PromptRef[] }>();
     if (roots.length === 0) return result;
 
@@ -513,8 +514,8 @@ export class ClickHouseTraceRepository implements TraceRepository {
               argMaxIf(${OP} = 'chat', Timestamp + toIntervalNanosecond(Duration), ${outputExpr} != '') AS outputChat,
               argMaxIf(${OP} = 'execute_tool', Timestamp + toIntervalNanosecond(Duration), ${outputExpr} != '') AS outputTool,
               groupUniqArrayIf(20)((PromptName, PromptVersion), PromptName != '') AS prompts
-       FROM ${this.spans} WHERE TraceId IN {ids:Array(String)} AND ${clause} GROUP BY TraceId`,
-      { ...params, ids: roots.map((r) => String(r.TraceId)) },
+       FROM ${this.spans} WHERE TraceId IN {ids:Array(String)} AND ${TENANT_SQL} AND ${clause} GROUP BY TraceId`,
+      { ...params, ...tenantParams(scope), ids: roots.map((r) => String(r.TraceId)) },
     );
     for (const r of rows) {
       result.set(String(r.TraceId), {
@@ -537,19 +538,17 @@ export class ClickHouseTraceRepository implements TraceRepository {
     const where = ["ParentSpanId = ''", "ConversationId != ''", clause];
     const p: Params = { ...params, limit: q.limit + 1 };
 
-    if (q.service) {
-      where.push("ServiceName = {service:String}");
-      p.service = q.service;
-    }
+    where.push(TENANT_SQL);
+    Object.assign(p, tenantParams(q.scope));
     if (q.hasErrors) {
       where.push(
-        `ConversationId IN (SELECT ConversationId FROM ${this.spans} WHERE ConversationId != '' AND StatusCode = ${ERROR} AND Timestamp >= fromUnixTimestamp64Milli({fromMs:Int64}) AND Timestamp < fromUnixTimestamp64Milli({toWithWindowMs:Int64}))`,
+        `ConversationId IN (SELECT ConversationId FROM ${this.spans} WHERE ${TENANT_SQL} AND ConversationId != '' AND StatusCode = ${ERROR} AND Timestamp >= fromUnixTimestamp64Milli({fromMs:Int64}) AND Timestamp < fromUnixTimestamp64Milli({toWithWindowMs:Int64}))`,
       );
       p.toWithWindowMs = q.toMs + TRACE_WINDOW_MS;
     }
     if (q.text) {
       where.push(
-        `ConversationId IN (SELECT ConversationId FROM ${this.spans} WHERE ConversationId != '' AND ${CONTENT_MATCH} AND Timestamp >= fromUnixTimestamp64Milli({fromMs:Int64}) AND Timestamp < fromUnixTimestamp64Milli({toWithWindowMs:Int64}))`,
+        `ConversationId IN (SELECT ConversationId FROM ${this.spans} WHERE ${TENANT_SQL} AND ConversationId != '' AND ${CONTENT_MATCH} AND Timestamp >= fromUnixTimestamp64Milli({fromMs:Int64}) AND Timestamp < fromUnixTimestamp64Milli({toWithWindowMs:Int64}))`,
       );
       p.text = q.text;
       p.toWithWindowMs = q.toMs + TRACE_WINDOW_MS;
@@ -562,7 +561,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
       // el prompt lo marca el span que lo usa (no la raíz del turno): la conversación entra si algún span suyo lo usó (ADR-068)
       const version = q.promptVersion ? " AND PromptVersion = {promptVersion:UInt32}" : "";
       where.push(
-        `ConversationId IN (SELECT ConversationId FROM ${this.spans} WHERE ConversationId != '' AND PromptName = {promptName:String}${version} AND Timestamp >= fromUnixTimestamp64Milli({fromMs:Int64}) AND Timestamp < fromUnixTimestamp64Milli({toWithWindowMs:Int64}))`,
+        `ConversationId IN (SELECT ConversationId FROM ${this.spans} WHERE ${TENANT_SQL} AND ConversationId != '' AND PromptName = {promptName:String}${version} AND Timestamp >= fromUnixTimestamp64Milli({fromMs:Int64}) AND Timestamp < fromUnixTimestamp64Milli({toWithWindowMs:Int64}))`,
       );
       p.promptName = q.promptName;
       if (q.promptVersion) p.promptVersion = q.promptVersion;
@@ -586,7 +585,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
     const page = found.slice(0, q.limit).map((r) => String(r.ConversationId));
 
     // 2) sus cifras, sobre toda la historia retenida
-    const summaries = await this.conversationSummaries(page, q.toMs);
+    const summaries = await this.conversationSummaries(q.scope, page, q.toMs);
     const items = page.map((id) => summaries.get(id)).filter((s): s is ConversationSummary => s !== undefined);
     const lastRow = found[q.limit - 1];
     return {
@@ -595,13 +594,13 @@ export class ClickHouseTraceRepository implements TraceRepository {
     };
   }
 
-  async getConversation(conversationId: string, range: TimeRange): Promise<ConversationSummary | null> {
-    const found = await this.conversationSummaries([conversationId], range.toMs);
+  async getConversation(scope: TenantScope, conversationId: string, range: TimeRange): Promise<ConversationSummary | null> {
+    const found = await this.conversationSummaries(scope, [conversationId], range.toMs);
     return found.get(conversationId) ?? null;
   }
 
   /** Cifras por conversación en una sola pasada sobre la columna `ConversationId` (ADR-012). */
-  private async conversationSummaries(ids: string[], toMs: number): Promise<Map<string, ConversationSummary>> {
+  private async conversationSummaries(scope: TenantScope, ids: string[], toMs: number): Promise<Map<string, ConversationSummary>> {
     const result = new Map<string, ConversationSummary>();
     if (ids.length === 0) return result;
     const { clause, params } = ClickHouseTraceRepository.range(toMs - MAX_RANGE_MS, toMs + TRACE_WINDOW_MS);
@@ -617,8 +616,8 @@ export class ClickHouseTraceRepository implements TraceRepository {
               sumIf(${TOKENS}, ${OP} = 'chat') AS totalTokens,
               sumIf(Duration, ParentSpanId = '') AS activeNs,
               groupUniqArrayIf(20)((PromptName, PromptVersion), PromptName != '') AS prompts
-       FROM ${this.spans} WHERE ConversationId IN {ids:Array(String)} AND ${clause} GROUP BY ConversationId`,
-      { ...params, ids },
+       FROM ${this.spans} WHERE ConversationId IN {ids:Array(String)} AND ${TENANT_SQL} AND ${clause} GROUP BY ConversationId`,
+      { ...params, ...tenantParams(scope), ids },
     );
     for (const r of rows) {
       const id = String(r.ConversationId);
@@ -638,23 +637,23 @@ export class ClickHouseTraceRepository implements TraceRepository {
     return result;
   }
 
-  async getConversationUsage(ids: string[], toMs: number): Promise<Map<string, ConversationUsage>> {
+  async getConversationUsage(scope: TenantScope, ids: string[], toMs: number): Promise<Map<string, ConversationUsage>> {
     const result = new Map<string, ConversationUsage>();
     if (ids.length === 0) return result;
     const { clause, params } = ClickHouseTraceRepository.range(toMs - MAX_RANGE_MS, toMs + TRACE_WINDOW_MS);
-    const where = `ConversationId IN {ids:Array(String)} AND ${OP} = 'chat' AND ${clause}`;
+    const where = `ConversationId IN {ids:Array(String)} AND ${OP} = 'chat' AND ${TENANT_SQL} AND ${clause}`;
     const [first, usage] = await Promise.all([
       this.rows(
         `SELECT ConversationId, argMin(SpanAttributes['gen_ai.input.messages'], Timestamp) AS firstInput
          FROM ${this.spans} WHERE ${where} GROUP BY ConversationId`,
-        { ...params, ids },
+        { ...params, ...tenantParams(scope), ids },
       ),
       this.rows(
         `SELECT ConversationId, ${attr("gen_ai.request.model")} AS model,
                 sum(${attrNum("gen_ai.usage.input_tokens")}) AS inputTokens,
                 sum(${attrNum("gen_ai.usage.output_tokens")}) AS outputTokens
          FROM ${this.spans} WHERE ${where} GROUP BY ConversationId, model`,
-        { ...params, ids },
+        { ...params, ...tenantParams(scope), ids },
       ),
     ]);
     for (const r of first) {
@@ -668,17 +667,17 @@ export class ClickHouseTraceRepository implements TraceRepository {
     return result;
   }
 
-  async getConversationTraceIds(ids: string[], toMs: number): Promise<Map<string, string[]>> {
+  async getConversationTraceIds(scope: TenantScope, ids: string[], toMs: number): Promise<Map<string, string[]>> {
     if (ids.length === 0) return new Map();
     const { clause, params } = ClickHouseTraceRepository.range(toMs - MAX_RANGE_MS, toMs + TRACE_WINDOW_MS);
     const rows = await this.rows(
-      `SELECT ConversationId, groupUniqArray(TraceId) AS traceIds FROM ${this.spans} WHERE ConversationId IN {ids:Array(String)} AND ${clause} GROUP BY ConversationId`,
-      { ...params, ids },
+      `SELECT ConversationId, groupUniqArray(TraceId) AS traceIds FROM ${this.spans} WHERE ConversationId IN {ids:Array(String)} AND ${TENANT_SQL} AND ${clause} GROUP BY ConversationId`,
+      { ...params, ...tenantParams(scope), ids },
     );
     return new Map(rows.map((r) => [String(r.ConversationId), (r.traceIds as unknown[]).map(String)]));
   }
 
-  async getConversationMessages(conversationId: string, range: TimeRange, maxSpans: number): Promise<{ records: ChatSpanRecord[]; truncated: boolean }> {
+  async getConversationMessages(scope: TenantScope, conversationId: string, range: TimeRange, maxSpans: number): Promise<{ records: ChatSpanRecord[]; truncated: boolean }> {
     const { clause, params } = ClickHouseTraceRepository.range(range.toMs - MAX_RANGE_MS, range.toMs + TRACE_WINDOW_MS);
     const rows = await this.rows(
       `SELECT TraceId, toUnixTimestamp64Micro(Timestamp) AS startUs,
@@ -686,9 +685,9 @@ export class ClickHouseTraceRepository implements TraceRepository {
               SpanAttributes['gen_ai.input.messages'] AS input,
               SpanAttributes['gen_ai.output.messages'] AS output
        FROM ${this.spans}
-       WHERE ConversationId = {conversationId:String} AND ${OP} = 'chat' AND ${clause}
+       WHERE ConversationId = {conversationId:String} AND ${OP} = 'chat' AND ${TENANT_SQL} AND ${clause}
        ORDER BY Timestamp ASC LIMIT {limit:UInt32}`,
-      { ...params, conversationId, limit: maxSpans + 1 },
+      { ...params, ...tenantParams(scope), conversationId, limit: maxSpans + 1 },
     );
     return {
       records: rows.slice(0, maxSpans).map((r) => ({
@@ -702,7 +701,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
     };
   }
 
-  async getTraceSpans(traceId: string, maxSpans: number): Promise<TraceSpans | null> {
+  async getTraceSpans(scope: TenantScope, traceId: string, maxSpans: number): Promise<TraceSpans | null> {
     // El índice se alimenta por bloque de inserción: una traza puede tener varias filas
     const [bounds] = await this.rows(
       `SELECT count() AS n, toUnixTimestamp64Micro(min(Start)) AS startUs, toUnixTimestamp64Micro(max(End)) AS endUs
@@ -717,11 +716,13 @@ export class ClickHouseTraceRepository implements TraceRepository {
               \`Events.Name\` AS evName, \`Events.Attributes\` AS evAttrs,
               arrayMap(t -> toUnixTimestamp64Micro(t), \`Events.Timestamp\`) AS evTs
        FROM ${this.spans}
-       WHERE TraceId = {traceId:String}
+       WHERE TraceId = {traceId:String} AND ${TENANT_SQL}
          AND Timestamp >= fromUnixTimestamp64Micro({startUs:Int64}) AND Timestamp <= fromUnixTimestamp64Micro({endUs:Int64})
        ORDER BY Timestamp ASC LIMIT {limit:UInt32}`,
-      { traceId, startUs: num(bounds.startUs), endUs: num(bounds.endUs), limit: maxSpans + 1 },
+      { ...tenantParams(scope), traceId, startUs: num(bounds.startUs), endUs: num(bounds.endUs), limit: maxSpans + 1 },
     );
+    // El índice de trazas no conoce al tenant: si la traza es de otro experimento, aquí no hay spans y es como si no existiera.
+    if (rows.length === 0) return null;
 
     const spans: Span[] = rows.slice(0, maxSpans).map((r) => {
       const evName = (r.evName as string[]) ?? [];
@@ -745,7 +746,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
   }
 
   /** Latencia (span raíz) y tokens de LLM por modelo de varias trazas, en una sola consulta acotada por la ventana temporal de esas trazas. */
-  async getTraceStatsForTraces(traceIds: string[]): Promise<Map<string, TraceStats>> {
+  async getTraceStatsForTraces(scope: TenantScope, traceIds: string[]): Promise<Map<string, TraceStats>> {
     const result = new Map<string, TraceStats>();
     if (traceIds.length === 0) return result;
 
@@ -765,10 +766,10 @@ export class ClickHouseTraceRepository implements TraceRepository {
               countIf(${OP} = 'chat') AS chatCalls,
               groupUniqArrayIf(20)((PromptName, PromptVersion), PromptName != '') AS prompts
        FROM ${this.spans}
-       WHERE TraceId IN {ids:Array(String)}
+       WHERE TraceId IN {ids:Array(String)} AND ${TENANT_SQL}
          AND Timestamp >= fromUnixTimestamp64Micro({startUs:Int64}) AND Timestamp <= fromUnixTimestamp64Micro({endUs:Int64})
        GROUP BY TraceId, model`,
-      { ids: traceIds, startUs: num(bounds.startUs), endUs: num(bounds.endUs) },
+      { ...tenantParams(scope), ids: traceIds, startUs: num(bounds.startUs), endUs: num(bounds.endUs) },
     );
 
     for (const r of rows) {
@@ -788,7 +789,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
   }
 
   /** Igual que `getTraceSpans` pero para varias trazas en una sola consulta (vista de árbol de conversación). */
-  async getTraceSpansForTraces(traceIds: string[], maxSpansPerTrace: number): Promise<Map<string, TraceSpans>> {
+  async getTraceSpansForTraces(scope: TenantScope, traceIds: string[], maxSpansPerTrace: number): Promise<Map<string, TraceSpans>> {
     const result = new Map<string, TraceSpans>();
     if (traceIds.length === 0) return result;
 
@@ -811,12 +812,12 @@ export class ClickHouseTraceRepository implements TraceRepository {
                 arrayMap(t -> toUnixTimestamp64Micro(t), \`Events.Timestamp\`) AS evTs,
                 row_number() OVER (PARTITION BY TraceId ORDER BY Timestamp ASC) AS rn
          FROM ${this.spans}
-         WHERE TraceId IN {ids:Array(String)}
+         WHERE TraceId IN {ids:Array(String)} AND ${TENANT_SQL}
            AND Timestamp >= fromUnixTimestamp64Micro({startUs:Int64}) AND Timestamp <= fromUnixTimestamp64Micro({endUs:Int64})
        )
        WHERE rn <= {maxSpansPerTrace:UInt32}
        ORDER BY TraceId ASC, startUs ASC`,
-      { ids: traceIds, startUs: num(bounds.startUs), endUs: num(bounds.endUs), maxSpansPerTrace: maxSpansPerTrace + 1 },
+      { ...tenantParams(scope), ids: traceIds, startUs: num(bounds.startUs), endUs: num(bounds.endUs), maxSpansPerTrace: maxSpansPerTrace + 1 },
     );
 
     const byTraceId = new Map<string, Row[]>();
@@ -853,8 +854,8 @@ export class ClickHouseTraceRepository implements TraceRepository {
 
   async getOverview(q: MetricsQuery): Promise<MetricsOverview> {
     const { clause, params } = ClickHouseTraceRepository.range(q.fromMs, q.toMs);
-    const svc = q.service ? " AND ServiceName = {service:String}" : "";
-    const p: Params = { ...params, bucket: q.bucketSeconds, ...(q.service ? { service: q.service } : {}) };
+    const svc = ` AND ${TENANT_SQL}`;
+    const p: Params = { ...params, bucket: q.bucketSeconds, ...tenantParams(q.scope) };
     const from = `FROM ${this.spans} WHERE ${clause}${svc}`;
     const bucket = "intDiv(toUnixTimestamp(Timestamp), {bucket:UInt32}) * {bucket:UInt32}";
 
@@ -896,7 +897,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
         `SELECT st.Topic AS topic, count() AS responses, avg(st.Confidence) AS avgConfidence
          FROM ${this.topics} AS st FINAL
          INNER JOIN ${this.spans} AS t ON t.TraceId = st.TraceId AND t.SpanId = st.SpanId
-         WHERE ${clause.replace(/(?<![\w.])Timestamp\b/g, "t.Timestamp")}${q.service ? " AND t.ServiceName = {service:String}" : ""}
+         WHERE ${clause.replace(/(?<![\w.])Timestamp\b/g, "t.Timestamp")}AND ${tenantSqlFor("t")}
          GROUP BY st.Topic ORDER BY responses DESC LIMIT 100`,
         p,
       ),

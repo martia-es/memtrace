@@ -51,6 +51,12 @@ Rules that keep this safe:
 - The last `org_admin` of an organization is never removed by the provider.
 - Using your own sign-in tenant per customer (own issuer and client secret) is not available yet; sign in with Google or Microsoft and map groups from the token.
 
+## Data isolation between experiments
+
+Each experiment is its own tenant. Its traces, conversations, scores, annotations, votes and prompt evidence are stored under the experiment's id and every read is limited to it, so two organizations that use the same `service.name` (or the same trace or conversation ids) cannot see each other's data. `GET /api/v1/services` now requires a session and lists only the services of experiments you can read.
+
+If you upgrade an installation that already holds data, run `make backfill-experiment-id` once: it assigns the earlier rows to their experiment. When two organizations shared a service name, those earlier rows cannot be attributed, so they stay hidden until you decide who owns them (the job's log lists them).
+
 ## Agent API keys
 
 Agents authenticate with an API key tied to one experiment, not with a user account. A `technical` profile creates their own keys, and an `org_admin` sees and revokes all of them, in **Admin → organization → experiment → API keys** (the **Connect** tab walks through the setup), or with `POST /api/v1/experiments/{experimentId}/api-keys`.

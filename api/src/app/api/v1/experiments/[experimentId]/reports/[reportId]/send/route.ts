@@ -4,6 +4,7 @@ import { parseJsonOrThrow } from "@/adapters/inbound/http/identity-schemas";
 import { json, problem } from "@/adapters/inbound/http/problem";
 import { sendMetricReportEmailBody } from "@/adapters/inbound/http/schemas";
 import type { ReportChartSnapshot } from "@/application/ports/email-sender";
+import type { CustomMetricDefinition } from "@/domain/metrics";
 import { getIdentity, getTraceQueryService } from "@/dependency-container";
 
 export const dynamic = "force-dynamic";
@@ -30,9 +31,9 @@ export async function POST(request: Request, context: { params: Promise<{ experi
     const traceQueryService = getTraceQueryService();
     const charts: ReportChartSnapshot[] = await Promise.all(
       report.charts.map(async (c): Promise<ReportChartSnapshot> => {
-        const definition = c.definition as { chartType: string; stepTypes: string[]; metric: string; groupByAttribute: string | null; filters: unknown[] };
+        const definition = c.definition as unknown as CustomMetricDefinition; // validada al guardar el gráfico
         try {
-          const result = await traceQueryService.getCustomMetric({ ...definition, service: experiment.serviceName } as never);
+          const result = await traceQueryService.getCustomMetric({ ...definition, scope: { experimentId: experiment.id, serviceName: experiment.serviceName } });
           const rows = result.points.length
             ? result.points
             : summarizeTimeseries(result.timeseries);

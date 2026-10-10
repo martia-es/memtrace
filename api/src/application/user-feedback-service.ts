@@ -1,3 +1,4 @@
+import type { TenantScope } from "@/domain/tenant";
 import type { AnnotationRepository } from "@/application/ports/annotation-repository";
 import type { ScoreConfigRepository } from "@/application/ports/score-config-repository";
 import type { TraceRepository } from "@/application/ports/trace-repository";
@@ -70,9 +71,9 @@ export class UserFeedbackService {
   ) {}
 
   /** Crea o cambia el voto de (traza, span, usuario final). La traza debe existir bajo el servicio del experimento. */
-  async submit(serviceName: string, traceId: string, input: SubmitFeedbackInput): Promise<UserFeedback> {
+  async submit(scope: TenantScope, traceId: string, input: SubmitFeedbackInput): Promise<UserFeedback> {
     const rating = validateRating(input.rating);
-    await this.requireTraceInTenant(serviceName, traceId, input.spanId ?? null);
+    await this.requireTraceInTenant(scope, traceId, input.spanId ?? null);
     const vote: UserFeedback = {
       traceId,
       spanId: input.spanId || null,
@@ -82,33 +83,33 @@ export class UserFeedbackService {
       externalMessageId: input.externalMessageId?.trim() || null,
       createdAt: this.now().toISOString(),
     };
-    await this.feedback.upsert(serviceName, vote);
+    await this.feedback.upsert(scope, vote);
     return vote;
   }
 
   /** Retira un voto (lápida). Idempotente: si no existe no hace nada. */
-  async retract(serviceName: string, traceId: string, input: RetractFeedbackInput): Promise<void> {
+  async retract(scope: TenantScope, traceId: string, input: RetractFeedbackInput): Promise<void> {
     const spanId = input.spanId || null;
     const endUserId = input.endUserId?.trim() || null;
-    const existing = (await this.feedback.listForTrace(serviceName, traceId)).find((v) => v.spanId === spanId && v.endUserId === endUserId);
+    const existing = (await this.feedback.listForTrace(scope, traceId)).find((v) => v.spanId === spanId && v.endUserId === endUserId);
     if (!existing) return;
-    await this.feedback.retract(serviceName, { ...existing, createdAt: this.now().toISOString() });
+    await this.feedback.retract(scope, { ...existing, createdAt: this.now().toISOString() });
   }
 
   /** Votos vigentes de la traza y si coinciden con la revisión humana. No exige que la traza siga existiendo. */
-  async listForTrace(experimentId: string, serviceName: string, traceId: string): Promise<TraceFeedback> {
-    const votes = await this.feedback.listForTrace(serviceName, traceId);
-    const alignment = (await this.alignments(experimentId, serviceName, votes)).get(traceId) ?? "unknown";
+  async listForTrace(scope: TenantScope, traceId: string): Promise<TraceFeedback> {
+    const votes = await this.feedback.listForTrace(scope, traceId);
+    const alignment = (await this.alignments(scope, votes)).get(traceId) ?? "unknown";
     return { votes, alignment };
   }
 
   /** Votos de las trazas (o de las conversaciones, vía sus turnos) dadas, para las columnas de las listas. Solo los ids con algún voto. */
-  async listRatings(serviceName: string, target: { traceIds: string[] } | { conversationIds: string[] }): Promise<FeedbackRatingSummary[]> {
-    const byConversation = "conversationIds" in target ? await this.traces.getConversationTraceIds(target.conversationIds, this.now().getTime()) : null;
+  async listRatings(scope: TenantScope, target: { traceIds: string[] } | { conversationIds: string[] }): Promise<FeedbackRatingSummary[]> {
+    const byConversation = "conversationIds" in target ? await this.traces.getConversationTraceIds(scope, target.conversationIds, this.now().getTime()) : null;
     const groups = byConversation ? [...byConversation].map(([id, traceIds]) => ({ id, traceIds })) : (target as { traceIds: string[] }).traceIds.map((id) => ({ id, traceIds: [id] }));
     const traceIds = [...new Set(groups.flatMap((g) => g.traceIds))];
     if (traceIds.length === 0) return [];
-    const votes = await this.feedback.listForTraces(serviceName, traceIds);
+    const votes = await this.feedback.listForTraces(scope, traceIds);
     const byTrace = new Map<string, UserFeedback[]>();
     for (const v of votes) byTrace.set(v.traceId, [...(byTrace.get(v.traceId) ?? []), v]);
     return groups.flatMap(({ id, traceIds: ids }) => {
@@ -120,14 +121,14 @@ export class UserFeedbackService {
   }
 
   /** Totales, serie diaria, alineación y últimas trazas con 👎 del rango. */
-  async overview(experimentId: string, serviceName: string, range: TimeRange): Promise<FeedbackOverview> {
+  async overview(scope: TenantScope, range: TimeRange): Promise<FeedbackOverview> {
     const [summary, days, recent, down] = await Promise.all([
-      this.feedback.summarize(serviceName, range.fromMs, range.toMs),
-      this.feedback.daily(serviceName, range.fromMs, range.toMs),
-      this.feedback.listRecent(serviceName, range.fromMs, range.toMs, ALIGNMENT_SCAN_LIMIT),
-      this.feedback.listRecent(serviceName, range.fromMs, range.toMs, 200, -1),
+      this.feedback.summarize(scope, range.fromMs, range.toMs),
+      this.feedback.daily(scope, range.fromMs, range.toMs),
+      this.feedback.listRecent(scope, range.fromMs, range.toMs, ALIGNMENT_SCAN_LIMIT),
+      this.feedback.listRecent(scope, range.fromMs, range.toMs, 200, -1),
     ]);
-    const alignments = await this.alignments(experimentId, serviceName, recent);
+    const alignments = await this.alignments(scope, recent);
     let aligned = 0;
     let misaligned = 0;
     for (const a of alignments.values()) {
@@ -143,11 +144,11 @@ export class UserFeedbackService {
   }
 
   /** Alineación por traza: el voto mayoritario frente al veredicto de las etiquetas humanas de la traza entera. */
-  private async alignments(experimentId: string, serviceName: string, votes: UserFeedback[]): Promise<Map<string, FeedbackAlignment>> {
+  private async alignments(scope: TenantScope, votes: UserFeedback[]): Promise<Map<string, FeedbackAlignment>> {
     const traceIds = [...new Set(votes.map((v) => v.traceId))];
     const result = new Map<string, FeedbackAlignment>();
     if (traceIds.length === 0) return result;
-    const [labels, configs] = await Promise.all([this.annotations.listForTraces(serviceName, traceIds), this.scoreConfigs.list(experimentId, true)]);
+    const [labels, configs] = await Promise.all([this.annotations.listForTraces(scope, traceIds), this.scoreConfigs.list(scope.experimentId, true)]);
     const configById = new Map<string, ScoreConfig>(configs.map((c) => [c.id, c]));
     const verdict = new Map<string, { good: number; bad: number }>();
     for (const a of labels) {
@@ -174,10 +175,10 @@ export class UserFeedbackService {
    * usuario vota nada más ver la respuesta y el SDK exporta por lotes (unos segundos), así que el voto suele llegar
    * antes que los spans. No hay fuga entre tenants porque el voto se guarda y se lee siempre bajo el `ServiceName` de quien lo envía.
    */
-  private async requireTraceInTenant(serviceName: string, traceId: string, spanId: string | null): Promise<void> {
-    const found = await this.traces.getTraceSpans(traceId, TRACE_LOOKUP_MAX_SPANS);
+  private async requireTraceInTenant(scope: TenantScope, traceId: string, spanId: string | null): Promise<void> {
+    const found = await this.traces.getTraceSpans(scope, traceId, TRACE_LOOKUP_MAX_SPANS);
     if (!found) return;
-    if (!found.spans.some((s) => s.serviceName === serviceName)) throw new TraceNotFoundError(traceId);
+    if (!found.spans.some((s) => s.serviceName === scope.serviceName)) throw new TraceNotFoundError(traceId);
     if (spanId && !found.truncated && !found.spans.some((s) => s.spanId === spanId)) throw new SpanNotFoundError(spanId);
   }
 }

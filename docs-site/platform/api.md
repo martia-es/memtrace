@@ -4,11 +4,11 @@ The dashboard's only data source. HTTP/JSON, versioned under `/api/v1`; within a
 
 ## Experiment data
 
-All under `/api/v1/experiments/{experimentId}`:
+All under `/api/v1/experiments/{experimentId}`. Every read is limited to that experiment: ids that two experiments happen to share (a trace id, a conversation id, a service name) never mix, and an id from another experiment answers `404`. A `service` or `experimentId` query parameter is ignored.
 
 | Endpoint | Description |
 |---|---|
-| `GET /traces` | Paginated trace list; every item has `prompts: [{ name, version }]`, the registry prompt versions the trace used. Params: `from`, `to`, `service`, `status`, `hasErrors`, `minDurationMs`, `text`, `revision`, `promptName`, `promptVersion`, `limit`, `cursor`. Each trace carries `revision`, the commit of the code that produced it (`null` if the agent does not send it); `revision=` keeps the traces of that commit, full or a prefix such as the 7-character short SHA; `promptName=` (and optionally `promptVersion=`) keeps the traces where some step used that [prompt](/library/prompts) |
+| `GET /traces` | Paginated trace list; every item has `prompts: [{ name, version }]`, the registry prompt versions the trace used. Params: `from`, `to`, `status`, `hasErrors`, `minDurationMs`, `text`, `revision`, `promptName`, `promptVersion`, `limit`, `cursor`. Each trace carries `revision`, the commit of the code that produced it (`null` if the agent does not send it); `revision=` keeps the traces of that commit, full or a prefix such as the 7-character short SHA; `promptName=` (and optionally `promptVersion=`) keeps the traces where some step used that [prompt](/library/prompts) |
 | `GET /traces/{traceId}` | A trace with its span tree |
 | `GET /revisions` | Commits (code versions) seen in the experiment's traces in the range, newest first, with how many traces each produced: `{ items: [{ revision, traces, lastSeen }] }`. It feeds the version filter of the dashboard |
 | `GET /spans` | Flat, paginated span list; `revision=` keeps the spans of one commit; `promptName=` (and optionally `promptVersion=`) keeps the spans that used that [prompt](/library/prompts) |

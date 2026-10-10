@@ -1,3 +1,4 @@
+import type { TenantScope } from "@/domain/tenant";
 import { randomUUID } from "node:crypto";
 import type { IdentityRepository } from "@/application/ports/identity-repository";
 import type { ScoreRepository } from "@/application/ports/score-repository";
@@ -34,7 +35,7 @@ export class EvaluationService {
 
   /** `datasetVersion` ("major.minor") es obligatoria: un run siempre declara de qué versión salieron sus items (ADR-034). */
   async submitDatasetRun(
-    serviceName: string,
+    scope: TenantScope,
     datasetId: string,
     name: string,
     items: DatasetRunItemSubmission[],
@@ -46,16 +47,16 @@ export class EvaluationService {
     const version = (await this.identityRepository.listDatasetVersions(datasetId)).find((v) => v.major === major && v.minor === minor);
     if (!version) throw new ValidationError(`dataset ${datasetId} has no version ${datasetVersion}`, { datasetVersion: "unknown version" });
     const runId = randomUUID();
-    await this.scoreRepository.insertScores(serviceName, runId, items, 0);
+    await this.scoreRepository.insertScores(scope, runId, items, 0);
     const run = await this.identityRepository.createDatasetRun(runId, datasetId, version.id, name, items.length, complete ? "completed" : "running", revision);
-    if (complete) await this.summarize(serviceName, runId);
+    if (complete) await this.summarize(scope, runId);
     return run;
   }
 
   /** Congela el agregado de un run recién completado (ADR-045). Si falla no se pierde nada: las lecturas lo recalculan al vuelo. */
-  private async summarize(serviceName: string, runId: string): Promise<void> {
+  private async summarize(scope: TenantScope, runId: string): Promise<void> {
     try {
-      await this.scoreRepository.materializeRunSummary(serviceName, runId);
+      await this.scoreRepository.materializeRunSummary(scope, runId);
     } catch (error) {
       console.error(`[memtrace-api] could not store the summary of run ${runId}; it will be computed on read:`, error);
     }
@@ -63,7 +64,7 @@ export class EvaluationService {
 
   /** Añade un lote a un run abierto. Los índices (`itemIndex` o `startIndex`) hacen idempotente el reenvío; los items pueden llegar en cualquier orden. Devuelve null si el run no existe. */
   async appendToDatasetRun(
-    serviceName: string,
+    scope: TenantScope,
     datasetId: string,
     runId: string,
     startIndex: number,
@@ -73,10 +74,10 @@ export class EvaluationService {
     const run = await this.identityRepository.getDatasetRun(runId);
     if (!run || run.datasetId !== datasetId) return null;
     if (run.status === "completed") throw new DatasetRunClosedError(runId);
-    await this.scoreRepository.insertScores(serviceName, runId, items, startIndex);
+    await this.scoreRepository.insertScores(scope, runId, items, startIndex);
     const total = items.length === 0 ? startIndex : Math.max(...items.map((item, i) => item.itemIndex ?? startIndex + i)) + 1;
     const updated = await this.identityRepository.updateDatasetRunProgress(runId, total, complete);
-    if (complete) await this.summarize(serviceName, runId);
+    if (complete) await this.summarize(scope, runId);
     return updated;
   }
 }

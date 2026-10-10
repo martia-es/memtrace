@@ -3,6 +3,7 @@ import { getIdentity, getPrompts } from "@/dependency-container";
 import type { User } from "@/domain/identity";
 import type { Permission } from "@/domain/permissions";
 import type { Prompt } from "@/domain/prompt";
+import type { TenantScope } from "@/domain/tenant";
 import { problem } from "./problem";
 
 /** Resuelve el usuario de dominio (tabla `users`) a partir de la sesión de Auth.js, o un 401. */
@@ -20,6 +21,8 @@ export async function requireUser(): Promise<User | Response> {
 /** Sesión + permiso sobre el experimento (ADR-052): `ctx` o una `Response` de error lista para devolver desde la route. */
 export interface ExperimentContext {
   user: User;
+  /** Frontera de aislamiento de los datos (ADR-077), construida desde el experimento, nunca desde la petición. */
+  scope: TenantScope;
   serviceName: string;
   /** etiqueta del rol; para decidir qué se puede hacer, usar `permissions` */
   role: string;
@@ -41,7 +44,7 @@ export async function requirePermission(experimentId: string, permission: Permis
   const access = await authorizationService.resolveExperimentAccess(user.id, experimentId);
   if (access === null) return problem(403, "Forbidden", "No access to this experiment");
   if (!access.permissions.includes(permission)) return problem(403, "Forbidden", `Missing permission: ${permission}`);
-  return { user, serviceName: experiment.serviceName, role: access.role, permissions: access.permissions };
+  return { user, scope: { experimentId: experiment.id, serviceName: experiment.serviceName }, serviceName: experiment.serviceName, role: access.role, permissions: access.permissions };
 }
 
 /** Sesión + `org:manage` sobre la organización: ajustes de identidad externa, mapeos y tokens SCIM (ADR-052). */
@@ -55,9 +58,9 @@ export async function requireOrgAdmin(organizationId: string): Promise<User | Re
 }
 
 /** Lectura del dashboard (`experiment:read`); devuelve solo lo que necesitan las rutas de consulta. */
-export async function requireExperimentRead(experimentId: string): Promise<{ serviceName: string } | Response> {
+export async function requireExperimentRead(experimentId: string): Promise<{ serviceName: string; scope: TenantScope } | Response> {
   const ctx = await requirePermission(experimentId, "experiment:read");
-  return ctx instanceof Response ? ctx : { serviceName: ctx.serviceName };
+  return ctx instanceof Response ? ctx : { serviceName: ctx.serviceName, scope: ctx.scope };
 }
 
 /**
@@ -70,26 +73,19 @@ export async function requireExperimentRead(experimentId: string): Promise<{ ser
  * `createdByUserId` es quien queda como autor de lo creado vía esta ruta: el usuario de la sesión,
  * o quien creó la API key si no hay sesión (un agente no tiene usuario propio).
  */
-export async function requireExperimentAccess(experimentId: string, request: Request, writePermission: Permission = "dataset:write"): Promise<{ serviceName: string; createdByUserId: string } | Response> {
+export async function requireExperimentAccess(experimentId: string, request: Request, writePermission: Permission = "dataset:write"): Promise<{ serviceName: string; scope: TenantScope; createdByUserId: string } | Response> {
   const { identityRepository } = getIdentity();
   const bearer = request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
   if (bearer) {
     const access = await identityRepository.resolveApiKey(bearer);
     if (!access) return problem(401, "Unauthorized", "Invalid or revoked API key");
     if (access.experimentId !== experimentId) return problem(403, "Forbidden", "API key does not belong to this experiment");
-    return { serviceName: access.serviceName, createdByUserId: access.createdByUserId };
+    return { serviceName: access.serviceName, scope: { experimentId: access.experimentId, serviceName: access.serviceName }, createdByUserId: access.createdByUserId };
   }
 
   const ctx = await requirePermission(experimentId, request.method === "GET" || request.method === "HEAD" ? "experiment:read" : writePermission);
   if (ctx instanceof Response) return ctx;
-  return { serviceName: ctx.serviceName, createdByUserId: ctx.user.id };
-}
-
-/** Sustituye/añade `service` en la query string de la request, forzando el scoping por experimento. */
-export function withServiceFilter(request: Request, serviceName: string): Request {
-  const url = new URL(request.url);
-  url.searchParams.set("service", serviceName);
-  return new Request(url, request);
+  return { serviceName: ctx.serviceName, scope: ctx.scope, createdByUserId: ctx.user.id };
 }
 
 /**
@@ -108,7 +104,7 @@ export async function requireAnyPermission(experimentId: string, permissions: Pe
   const access = await authorizationService.resolveExperimentAccess(user.id, experimentId);
   if (access === null) return problem(403, "Forbidden", "No access to this experiment");
   if (!permissions.some((p) => access.permissions.includes(p))) return problem(403, "Forbidden", `Missing permission: ${permissions.join(" or ")}`);
-  return { user, serviceName: experiment.serviceName, role: access.role, permissions: access.permissions };
+  return { user, scope: { experimentId: experiment.id, serviceName: experiment.serviceName }, serviceName: experiment.serviceName, role: access.role, permissions: access.permissions };
 }
 
 /** Sesión + un permiso concedido por el rol de organización (catálogo de asistentes, ADR-053). */

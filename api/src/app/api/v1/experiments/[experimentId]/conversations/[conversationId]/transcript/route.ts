@@ -7,5 +7,5 @@ export async function GET(request: Request, context: { params: Promise<{ experim
   const { experimentId, conversationId } = await context.params;
   const access = await requireExperimentRead(experimentId);
   if (access instanceof Response) return access;
-  return getHandlers().getTranscript(request, conversationId);
+  return getHandlers().getTranscript(request, access.scope, conversationId);
 }

@@ -25,7 +25,7 @@ export async function POST(request: Request, context: { params: Promise<{ experi
     const { startIndex, items, complete } = await parseJsonOrThrow(appendDatasetRunItemsBody, request);
     try {
       const run = await getEvaluation().appendToDatasetRun(
-        access.serviceName,
+        access.scope,
         datasetId,
         runId,
         startIndex,

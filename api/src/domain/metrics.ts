@@ -1,7 +1,10 @@
+import type { TenantScope } from "@/domain/tenant";
+
 export interface MetricsQuery {
   fromMs: number;
   toMs: number;
-  service?: string;
+  /** Frontera de aislamiento (ADR-077): obligatoria, nunca construida a partir de la petición. */
+  scope: TenantScope;
   bucketSeconds: number;
 }
 
@@ -63,6 +66,7 @@ export interface TopicUsage {
 
 /** Tokens totales de un experimento en un rango, para la comparativa de coste entre agentes. */
 export interface ServiceUsage {
+  experimentId: string;
   serviceName: string;
   traces: number;
   inputTokens: number;
@@ -116,7 +120,8 @@ export interface CustomMetricDefinition {
 export interface CustomMetricQuery extends CustomMetricDefinition {
   fromMs: number;
   toMs: number;
-  service?: string;
+  /** Frontera de aislamiento (ADR-077): obligatoria, nunca construida a partir de la petición. */
+  scope: TenantScope;
   /** solo para chartType "line": tamaño del bucket temporal */
   bucketSeconds?: number;
 }

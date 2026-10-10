@@ -7,7 +7,7 @@ DASH_IMAGE ?= docker.io/memtrace/dashboard:dev
 DOCS_IMAGE ?= docker.io/memtrace/docs:dev
 
 .DEFAULT_GOAL := help
-.PHONY: help check up images dashboard api status forward logs query migrate migrate-postgres down reset db-reset dev-data docs weather weather-bg weather-stop
+.PHONY: help check up images dashboard api status forward logs query migrate backfill-experiment-id migrate-postgres down reset db-reset dev-data docs weather weather-bg weather-stop
 
 help: ## Muestra esta ayuda
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-10s %s\n", $$1, $$2}'
@@ -114,6 +114,12 @@ migrate: ## Relanza las migraciones de ClickHouse
 	kubectl delete job clickhouse-migrate -n $(NS) --ignore-not-found
 	kubectl apply -k .
 	kubectl wait --for=condition=complete job/clickhouse-migrate -n $(NS) --timeout=300s
+
+backfill-experiment-id: ## Asigna el experimento a las filas de ClickHouse anteriores a la migración 013 (ADR-077)
+	kubectl delete job backfill-experiment-id -n $(NS) --ignore-not-found
+	kubectl apply -k .
+	kubectl wait --for=condition=complete job/backfill-experiment-id -n $(NS) --timeout=600s
+	kubectl logs job/backfill-experiment-id -n $(NS)
 
 migrate-postgres: ## Relanza las migraciones de Postgres (necesario tras añadir un archivo en migrations/postgres/)
 	kubectl delete job postgres-migrate -n $(NS) --ignore-not-found

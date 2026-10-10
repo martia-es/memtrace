@@ -2,10 +2,13 @@ import type { ClickHouseClient } from "@clickhouse/client";
 import { RepositoryUnavailableError } from "@/application/errors";
 import type { JudgeScoreRow, ScoreRepository } from "@/application/ports/score-repository";
 import type { TraceScore } from "@/domain/annotation";
+import { assertTenantScope, type TenantScope } from "@/domain/tenant";
+import { TENANT_SQL, tenantParams, tenantSqlFor } from "./tenant-sql";
 import type { DatasetRunItemResult, DatasetRunItemSubmission, Score, ScoreAggregate, ScoreDataType } from "@/domain/evaluation";
 
 interface ItemRow {
   ServiceName: string;
+  ExperimentId: string;
   DatasetRunId: string;
   ItemIndex: number;
   TraceId: string | null;
@@ -18,6 +21,7 @@ interface ItemRow {
 
 interface ScoreRow {
   ServiceName: string;
+  ExperimentId: string;
   DatasetRunId: string;
   ItemIndex: number;
   Name: string;
@@ -50,13 +54,15 @@ export class ClickHouseScoreRepository implements ScoreRepository {
     private readonly database: string,
   ) {}
 
-  async insertScores(serviceName: string, datasetRunId: string, items: DatasetRunItemSubmission[], startIndex = 0): Promise<void> {
+  async insertScores(scope: TenantScope, datasetRunId: string, items: DatasetRunItemSubmission[], startIndex = 0): Promise<void> {
+    const { serviceName, experimentId } = assertTenantScope(scope);
     // DateTime64 en JSONEachRow espera "YYYY-MM-DD HH:MM:SS.mmm", no el "T"/"Z" de toISOString()
     const now = new Date().toISOString().replace("T", " ").replace("Z", "");
     const indexed = items.map((item, position) => ({ item, itemIndex: item.itemIndex ?? startIndex + position }));
     // un item sin scores (p.ej. porque `task` lanzó una excepción) queda igualmente en eval_items
     const itemRows: ItemRow[] = indexed.map(({ item, itemIndex }) => ({
       ServiceName: serviceName,
+      ExperimentId: experimentId,
       DatasetRunId: datasetRunId,
       ItemIndex: itemIndex,
       TraceId: item.traceId,
@@ -69,6 +75,7 @@ export class ClickHouseScoreRepository implements ScoreRepository {
     const scoreRows: ScoreRow[] = indexed.flatMap(({ item, itemIndex }) =>
       item.scores.map((score) => ({
         ServiceName: serviceName,
+        ExperimentId: experimentId,
         DatasetRunId: datasetRunId,
         ItemIndex: itemIndex,
         Name: score.name,
@@ -93,20 +100,20 @@ export class ClickHouseScoreRepository implements ScoreRepository {
     }
   }
 
-  async listScoresByRun(serviceName: string, datasetRunId: string): Promise<DatasetRunItemResult[]> {
+  async listScoresByRun(scope: TenantScope, datasetRunId: string): Promise<DatasetRunItemResult[]> {
     try {
-      const params = { serviceName, datasetRunId };
+      const params = { ...tenantParams(scope), datasetRunId };
       const [items, scores] = await Promise.all([
         this.readClient.query({
           query: `SELECT * FROM ${this.database}.eval_items FINAL
-                   WHERE ServiceName = {serviceName:String} AND DatasetRunId = {datasetRunId:String}
+                   WHERE ${TENANT_SQL} AND DatasetRunId = {datasetRunId:String}
                    ORDER BY ItemIndex ASC`,
           query_params: params,
           format: "JSONEachRow",
         }),
         this.readClient.query({
           query: `SELECT * FROM ${this.database}.eval_scores FINAL
-                   WHERE ServiceName = {serviceName:String} AND DatasetRunId = {datasetRunId:String}
+                   WHERE ${TENANT_SQL} AND DatasetRunId = {datasetRunId:String}
                    ORDER BY ItemIndex ASC, Name ASC`,
           query_params: params,
           format: "JSONEachRow",
@@ -119,7 +126,7 @@ export class ClickHouseScoreRepository implements ScoreRepository {
     }
   }
 
-  async listScoresByTrace(serviceName: string, traceId: string): Promise<TraceScore[]> {
+  async listScoresByTrace(scope: TenantScope, traceId: string): Promise<TraceScore[]> {
     try {
       // eval_items tiene un índice de salto bloom_filter en TraceId; los scores se buscan por (run, item) de esos items.
       const result = await this.readClient.query({
@@ -127,12 +134,12 @@ export class ClickHouseScoreRepository implements ScoreRepository {
                   FROM ${this.database}.eval_scores AS s FINAL
                  INNER JOIN (
                    SELECT DatasetRunId, ItemIndex FROM ${this.database}.eval_items FINAL
-                    WHERE ServiceName = {serviceName:String} AND TraceId = {traceId:String}
+                    WHERE ${TENANT_SQL} AND TraceId = {traceId:String}
                  ) AS i ON s.DatasetRunId = i.DatasetRunId AND s.ItemIndex = i.ItemIndex
-                 WHERE s.ServiceName = {serviceName:String}
+                 WHERE ${tenantSqlFor("s")}
                  ORDER BY s.CreatedAt ASC, s.Name ASC
                  LIMIT 500`,
-        query_params: { serviceName, traceId },
+        query_params: { ...tenantParams(scope), traceId },
         format: "JSONEachRow",
       });
       const rows = await result.json<{ DatasetRunId: string; ItemIndex: number; Name: string; Value: string; DataType: string; Source: string; Comment: string | null }>();
@@ -151,18 +158,18 @@ export class ClickHouseScoreRepository implements ScoreRepository {
     }
   }
 
-  async listJudgeScoresForRuns(serviceName: string, datasetRunIds: string[], name?: string): Promise<JudgeScoreRow[]> {
+  async listJudgeScoresForRuns(scope: TenantScope, datasetRunIds: string[], name?: string): Promise<JudgeScoreRow[]> {
     if (datasetRunIds.length === 0) return [];
     try {
       const result = await this.readClient.query({
         query: `SELECT DatasetRunId, ItemIndex, Name, Value, DataType, JudgeModel, JudgePromptHash
                   FROM ${this.database}.eval_scores FINAL
-                 WHERE ServiceName = {serviceName:String}
+                 WHERE ${TENANT_SQL}
                    AND DatasetRunId IN {datasetRunIds:Array(String)}
                    AND Source = 'llm_judge'
                    ${name === undefined ? "" : "AND Name = {name:String}"}
                  LIMIT 50000`,
-        query_params: { serviceName, datasetRunIds, ...(name === undefined ? {} : { name }) },
+        query_params: { ...tenantParams(scope), datasetRunIds, ...(name === undefined ? {} : { name }) },
         format: "JSONEachRow",
       });
       const rows = await result.json<{ DatasetRunId: string; ItemIndex: number; Name: string; Value: string; DataType: string; JudgeModel: string | null; JudgePromptHash: string | null }>();
@@ -181,30 +188,31 @@ export class ClickHouseScoreRepository implements ScoreRepository {
     }
   }
 
-  async aggregateForRuns(serviceName: string, datasetRunIds: string[]): Promise<ScoreAggregate[]> {
+  async aggregateForRuns(scope: TenantScope, datasetRunIds: string[]): Promise<ScoreAggregate[]> {
     if (datasetRunIds.length === 0) return [];
     try {
       // Los runs completos ya tienen su resumen (ADR-045); solo el resto (en curso, o cerrados antes del resumen) se calcula sobre eval_scores.
-      const summaries = await this.readSummaries(serviceName, datasetRunIds);
+      const summaries = await this.readSummaries(scope, datasetRunIds);
       const summarized = new Set(summaries.map((a) => a.datasetRunId));
       const pending = datasetRunIds.filter((id) => !summarized.has(id));
-      return [...summaries, ...(await this.computeAggregates(serviceName, pending))];
+      return [...summaries, ...(await this.computeAggregates(scope, pending))];
     } catch (error) {
       console.error("[memtrace-api] ClickHouse query (score aggregates) failed:", error);
       throw new RepositoryUnavailableError(error);
     }
   }
 
-  async materializeRunSummary(serviceName: string, datasetRunId: string): Promise<void> {
+  async materializeRunSummary(scope: TenantScope, datasetRunId: string): Promise<void> {
     const now = new Date().toISOString().replace("T", " ").replace("Z", "");
     try {
       // Se lee con el cliente de lectura y se inserta con el de escritura: `api_writer` solo puede INSERT (ADR-045).
-      const aggregates = await this.computeAggregates(serviceName, [datasetRunId]);
+      const aggregates = await this.computeAggregates(scope, [datasetRunId]);
       if (aggregates.length === 0) return;
       await this.writeClient.insert({
         table: `${this.database}.eval_run_summaries`,
         values: aggregates.map((a) => ({
-          ServiceName: serviceName,
+          ServiceName: assertTenantScope(scope).serviceName,
+          ExperimentId: scope.experimentId,
           DatasetRunId: a.datasetRunId,
           Name: a.name,
           DataType: a.dataType,
@@ -221,18 +229,18 @@ export class ClickHouseScoreRepository implements ScoreRepository {
     }
   }
 
-  private async readSummaries(serviceName: string, datasetRunIds: string[]): Promise<ScoreAggregate[]> {
+  private async readSummaries(scope: TenantScope, datasetRunIds: string[]): Promise<ScoreAggregate[]> {
     const result = await this.readClient.query({
       query: `SELECT DatasetRunId, Name, DataType, Total AS total, AvgValue AS avgValue, Judges AS judges
                 FROM ${this.database}.eval_run_summaries FINAL
-               WHERE ServiceName = {serviceName:String} AND DatasetRunId IN {datasetRunIds:Array(String)}`,
-      query_params: { serviceName, datasetRunIds },
+               WHERE ${TENANT_SQL} AND DatasetRunId IN {datasetRunIds:Array(String)}`,
+      query_params: { ...tenantParams(scope), datasetRunIds },
       format: "JSONEachRow",
     });
     return (await result.json<AggregateRow>()).map(toScoreAggregate);
   }
 
-  private async computeAggregates(serviceName: string, datasetRunIds: string[]): Promise<ScoreAggregate[]> {
+  private async computeAggregates(scope: TenantScope, datasetRunIds: string[]): Promise<ScoreAggregate[]> {
     if (datasetRunIds.length === 0) return [];
     // ValueNum es la columna tipada (ADR-044): ya no hay que parsear `Value` en cada agregación.
     const result = await this.readClient.query({
@@ -242,10 +250,10 @@ export class ClickHouseScoreRepository implements ScoreRepository {
                  avgIf(ValueNum, DataType IN ('boolean', 'numeric')) AS avgValue,
                  groupUniqArrayIf((JudgeModel, JudgePromptHash), Source = 'llm_judge') AS judges
                FROM ${this.database}.eval_scores FINAL
-               WHERE ServiceName = {serviceName:String}
+               WHERE ${TENANT_SQL}
                  AND DatasetRunId IN {datasetRunIds:Array(String)}
                GROUP BY DatasetRunId, Name, DataType`,
-      query_params: { serviceName, datasetRunIds },
+      query_params: { ...tenantParams(scope), datasetRunIds },
       format: "JSONEachRow",
     });
     return (await result.json<AggregateRow>()).map(toScoreAggregate);

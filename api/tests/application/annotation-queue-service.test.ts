@@ -111,7 +111,7 @@ describe("AnnotationQueueService (ADR-039)", () => {
     it("snapshots the traces matching a filter, scoped to the experiment's service", async () => {
       traces.page = { items: ["t1", "t2"].map((traceId) => ({ traceId }) as never), nextCursor: null };
       expect(await service.addItems(ana, queueId, { fromFilter: { hasErrors: true, limit: 10 } })).toEqual({ added: 2, duplicates: 0 });
-      expect(traces.lastListQuery).toMatchObject({ service: SERVICE, hasErrors: true });
+      expect(traces.lastListQuery).toMatchObject({ scope: { experimentId: "e1", serviceName: SERVICE }, hasErrors: true });
     });
 
     it("adds run items only for runs of the experiment and indexes inside the run", async () => {
@@ -187,7 +187,7 @@ describe("AnnotationQueueService (ADR-039)", () => {
       expect(run).toMatchObject({ targetType: "run_item" });
       await service.complete(ana, queueId, run.id, [{ configId: toneId, value: 5 }]);
       expect(annotations.rows.at(-1)?.annotation).toMatchObject({ datasetRunId: "run-1", itemIndex: 1, traceId: "" });
-      expect(await annotations.listForTrace(SERVICE, "")).toEqual([]);
+      expect(await annotations.listForTrace(ana, "")).toEqual([]);
     });
 
     it("skip returns the item to the pool for others but not for the same reviewer", async () => {
@@ -247,10 +247,10 @@ describe("AnnotationQueueService (ADR-039)", () => {
     async function twoReviewedItems() {
       const q = await service.create("e1", "u1", { name: "Two", instructions: null, requiredAnnotations: 2, reviewerIds: ["ana", "luis"], rubric: [{ configId: toneId, required: true }] });
       await service.addItems(ana, q.id, { traceIds: ["t1", "t2"] });
-      await annotations.upsert(SERVICE, label("ana", "t1", "5", "great"));
-      await annotations.upsert(SERVICE, label("luis", "t1", "4"));
-      await annotations.upsert(SERVICE, label("ana", "t2", "1"));
-      await annotations.upsert(SERVICE, label("luis", "t2", "5"));
+      await annotations.upsert(ana, label("ana", "t1", "5", "great"));
+      await annotations.upsert(ana, label("luis", "t1", "4"));
+      await annotations.upsert(ana, label("ana", "t2", "1"));
+      await annotations.upsert(ana, label("luis", "t2", "5"));
       return q.id;
     }
 

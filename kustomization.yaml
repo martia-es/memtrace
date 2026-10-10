@@ -16,6 +16,7 @@ resources:
   - k8s/80-topic-extraction.yaml
   - k8s/81-model-pricing-sync.yaml
   - k8s/82-health-probe.yaml
+  - k8s/83-backfill-experiment-id.yaml
 configMapGenerator:
   - name: clickhouse-migrations
     files:
@@ -31,6 +32,7 @@ configMapGenerator:
       - migrations/clickhouse/010_user_feedback.sql
       - migrations/clickhouse/011_revision.sql
       - migrations/clickhouse/012_prompt_version.sql
+      - migrations/clickhouse/013_experiment_id.sql
     options:
       disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
   - name: postgres-migrations

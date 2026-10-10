@@ -1,3 +1,4 @@
+import type { TenantScope } from "@/domain/tenant";
 import type { PromptEvidenceRepository } from "@/application/ports/prompt-evidence-repository";
 import { buildPromptEvidence, type PromptEvidence } from "@/domain/prompt-evidence";
 import type { PricingCatalog } from "@/domain/pricing";
@@ -15,9 +16,9 @@ export class PromptEvidenceService {
     private readonly now: () => number = Date.now,
   ) {}
 
-  async forPrompt(promptName: string, serviceName: string, input: { from?: Date; to?: Date }): Promise<PromptEvidence> {
+  async forPrompt(promptName: string, scope: TenantScope, input: { from?: Date; to?: Date }): Promise<PromptEvidence> {
     const range = resolveTimeRange(input, this.now());
-    const [rows, pricing] = await Promise.all([this.repository.rowsFor({ ...range, service: serviceName, promptName }), this.pricing()]);
+    const [rows, pricing] = await Promise.all([this.repository.rowsFor({ ...range, scope, promptName }), this.pricing()]);
     return buildPromptEvidence(rows, pricing, range);
   }
 }

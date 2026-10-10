@@ -7,7 +7,6 @@ export async function GET(request: Request, context: { params: Promise<{ experim
   const { experimentId, traceId } = await context.params;
   const access = await requireExperimentRead(experimentId);
   if (access instanceof Response) return access;
-  // Nota (ADR-013): el lookup por traceId es global, no filtra por service_name en la capa de datos.
-  // El traceId es un identificador de alta entropía generado por el SDK, no una URL enumerable.
-  return getHandlers().getTrace(request, traceId);
+  // El lookup va acotado al experimento (ADR-077): una traza de otro experimento responde 404, aunque se conozca su id.
+  return getHandlers().getTrace(request, access.scope, traceId);
 }

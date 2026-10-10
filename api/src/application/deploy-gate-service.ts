@@ -28,7 +28,7 @@ export class DeployGateService {
       this.deployedShas(experimentId),
     ]);
     const runs = allRuns.filter((r) => sameRevision(r.revision, sha));
-    const aggregates = runs.length ? await this.scores.aggregateForRuns(experiment.serviceName, runs.map((r) => r.id)) : [];
+    const aggregates = runs.length ? await this.scores.aggregateForRuns({ experimentId: experiment.id, serviceName: experiment.serviceName }, runs.map((r) => r.id)) : [];
     const targets = new Map(configs.filter((c) => c.targetPassRate !== null).map((c) => [c.name, c.targetPassRate as number]));
 
     return evaluateDeployGate({

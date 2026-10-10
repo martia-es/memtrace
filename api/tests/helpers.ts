@@ -27,9 +27,15 @@ import {
   type QueueTarget,
   type ReviewerProgress,
 } from "@/domain/annotation-queue";
+import type { TenantScope } from "@/domain/tenant";
 import type { ScoreConfigRepository } from "@/application/ports/score-config-repository";
 import { AnnotationQueueInvariantError, ScoreConfigInvariantError } from "@/domain/errors";
 import type { NewScoreConfig, ScoreConfig, ScoreConfigChanges } from "@/domain/score-config";
+
+/** Tenant de los tests: el mismo `serviceName` en dos experimentos distintos es justo el caso que ADR-077 tiene que aislar. */
+export const SCOPE: TenantScope = { experimentId: "exp-1", serviceName: "svc" };
+export const OTHER_SCOPE: TenantScope = { experimentId: "exp-2", serviceName: "svc" };
+const tenantKey = (scope: TenantScope) => `${scope.experimentId}/${scope.serviceName}`;
 
 let counter = 0;
 
@@ -88,11 +94,11 @@ export class FakeTraceRepository implements TraceRepository {
     this.lastListQuery = query;
     return this.page;
   }
-  async getTraceSpans(traceId: string) {
+  async getTraceSpans(_scope: TenantScope, traceId: string) {
     this.check();
     return this.traces.get(traceId) ?? null;
   }
-  async getTraceSpansForTraces(traceIds: string[]) {
+  async getTraceSpansForTraces(_scope: TenantScope, traceIds: string[]) {
     this.check();
     const result = new Map<string, TraceSpans>();
     for (const id of traceIds) {
@@ -102,7 +108,7 @@ export class FakeTraceRepository implements TraceRepository {
     return result;
   }
   traceStats = new Map<string, TraceStats>();
-  async getTraceStatsForTraces(traceIds: string[]) {
+  async getTraceStatsForTraces(_scope: TenantScope, traceIds: string[]) {
     this.check();
     return new Map(traceIds.flatMap((id) => (this.traceStats.has(id) ? [[id, this.traceStats.get(id)!] as const] : [])));
   }
@@ -112,15 +118,15 @@ export class FakeTraceRepository implements TraceRepository {
     return this.overview;
   }
   revisions: Array<{ revision: string; traces: number; lastSeenMs: number }> = [];
-  async listRevisions(_range: TimeRange) {
+  async listRevisions(_range: TimeRange & { scope: TenantScope }) {
     this.check();
     return this.revisions;
   }
-  async listServices(_range: TimeRange) {
+  async listServices(_range: TimeRange, _scopes: TenantScope[]) {
     this.check();
     return this.services;
   }
-  async getUsageByServices(_serviceNames: string[], _range: TimeRange) {
+  async getUsageByServices(_scopes: TenantScope[], _range: TimeRange) {
     this.check();
     return this.usageByService;
   }
@@ -129,7 +135,7 @@ export class FakeTraceRepository implements TraceRepository {
     this.lastConversationQuery = query;
     return this.conversationPage;
   }
-  async getConversation(conversationId: string, range: TimeRange) {
+  async getConversation(_scope: TenantScope, conversationId: string, range: TimeRange) {
     this.check();
     this.lastConversationRange = range;
     return this.conversations.get(conversationId) ?? null;
@@ -140,12 +146,12 @@ export class FakeTraceRepository implements TraceRepository {
     return this.spanPage;
   }
   conversationUsage = new Map<string, ConversationUsage>();
-  async getConversationUsage(ids: string[]) {
+  async getConversationUsage(_scope: TenantScope, ids: string[]) {
     this.check();
     return new Map(ids.flatMap((id) => (this.conversationUsage.has(id) ? [[id, this.conversationUsage.get(id)!] as const] : [])));
   }
   conversationTraceIds = new Map<string, string[]>();
-  async getConversationTraceIds(ids: string[]) {
+  async getConversationTraceIds(_scope: TenantScope, ids: string[]) {
     this.check();
     return new Map(ids.flatMap((id) => (this.conversationTraceIds.has(id) ? [[id, this.conversationTraceIds.get(id)!] as const] : [])));
   }
@@ -158,8 +164,8 @@ export class FakeTraceRepository implements TraceRepository {
     return this.modelPricing;
   }
   errorGroups: ErrorGroupsResult = { groups: [], tracesWithErrors: 0, conversationsWithErrors: 0, totalTraces: 0, totalConversations: 0 };
-  lastErrorQueries: (TimeRange & { service?: string })[] = [];
-  async listErrorGroups(query: TimeRange & { service?: string }) {
+  lastErrorQueries: (TimeRange & { scope: TenantScope })[] = [];
+  async listErrorGroups(query: TimeRange & { scope: TenantScope }) {
     this.check();
     this.lastErrorQueries.push(query);
     return this.errorGroups;
@@ -233,21 +239,26 @@ export class FakeAnnotationRepository implements AnnotationRepository {
     this.rows = this.rows.filter((r) => !(r.serviceName === serviceName && this.sameKey(r.annotation, annotation)));
     this.rows.push({ serviceName, annotation, isDeleted });
   }
-  async upsert(serviceName: string, annotation: Annotation) {
+  async upsert(scope: TenantScope, annotation: Annotation) {
+    const serviceName = tenantKey(scope);
     this.put(serviceName, annotation, false);
   }
-  async retract(serviceName: string, annotation: Annotation) {
+  async retract(scope: TenantScope, annotation: Annotation) {
+    const serviceName = tenantKey(scope);
     this.put(serviceName, annotation, true);
   }
-  async listForTrace(serviceName: string, traceId: string) {
+  async listForTrace(scope: TenantScope, traceId: string) {
+    const serviceName = tenantKey(scope);
     return this.rows.filter((r) => r.serviceName === serviceName && r.annotation.traceId === traceId && !r.annotation.datasetRunId && !r.isDeleted).map((r) => r.annotation);
   }
-  async listForRuns(serviceName: string, datasetRunIds: string[], configName?: string) {
+  async listForRuns(scope: TenantScope, datasetRunIds: string[], configName?: string) {
+    const serviceName = tenantKey(scope);
     return this.rows
       .filter((r) => r.serviceName === serviceName && !r.isDeleted && !!r.annotation.datasetRunId && datasetRunIds.includes(r.annotation.datasetRunId) && (configName === undefined || r.annotation.configName === configName))
       .map((r) => r.annotation);
   }
-  async listRecentForTraces(serviceName: string, fromMs: number, toMs: number, limit: number) {
+  async listRecentForTraces(scope: TenantScope, fromMs: number, toMs: number, limit: number) {
+    const serviceName = tenantKey(scope);
     return this.rows
       .filter((r) => r.serviceName === serviceName && !r.isDeleted && !r.annotation.datasetRunId && r.annotation.spanId === null)
       .map((r) => r.annotation)
@@ -255,7 +266,8 @@ export class FakeAnnotationRepository implements AnnotationRepository {
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
       .slice(0, limit);
   }
-  async listForTraces(serviceName: string, traceIds: string[], configName?: string) {
+  async listForTraces(scope: TenantScope, traceIds: string[], configName?: string) {
+    const serviceName = tenantKey(scope);
     return this.rows
       .filter((r) => r.serviceName === serviceName && !r.isDeleted && !r.annotation.datasetRunId && r.annotation.spanId === null && traceIds.includes(r.annotation.traceId) && (configName === undefined || r.annotation.configName === configName))
       .map((r) => r.annotation);
@@ -273,28 +285,34 @@ export class FakeUserFeedbackRepository implements UserFeedbackRepository {
   private live(serviceName: string) {
     return this.rows.filter((r) => r.serviceName === serviceName && !r.isDeleted).map((r) => r.feedback);
   }
-  async upsert(serviceName: string, feedback: UserFeedback) {
+  async upsert(scope: TenantScope, feedback: UserFeedback) {
+    const serviceName = tenantKey(scope);
     this.put(serviceName, feedback, false);
   }
-  async retract(serviceName: string, feedback: UserFeedback) {
+  async retract(scope: TenantScope, feedback: UserFeedback) {
+    const serviceName = tenantKey(scope);
     this.put(serviceName, feedback, true);
   }
-  async listForTrace(serviceName: string, traceId: string) {
+  async listForTrace(scope: TenantScope, traceId: string) {
+    const serviceName = tenantKey(scope);
     return this.live(serviceName).filter((f) => f.traceId === traceId);
   }
-  async listForTraces(serviceName: string, traceIds: string[]) {
+  async listForTraces(scope: TenantScope, traceIds: string[]) {
+    const serviceName = tenantKey(scope);
     return this.live(serviceName).filter((f) => traceIds.includes(f.traceId));
   }
   private inRange(serviceName: string, fromMs: number, toMs: number) {
     return this.live(serviceName).filter((f) => Date.parse(f.createdAt) >= fromMs && Date.parse(f.createdAt) < toMs);
   }
-  async summarize(serviceName: string, fromMs: number, toMs: number) {
+  async summarize(scope: TenantScope, fromMs: number, toMs: number) {
+    const serviceName = tenantKey(scope);
     const votes = this.inRange(serviceName, fromMs, toMs);
     const up = votes.filter((v) => v.rating === 1).length;
     const total = votes.length;
     return { total, up, down: total - up, satisfaction: total === 0 ? null : Math.round((up / total) * 1000) / 10, ratedTraces: new Set(votes.map((v) => v.traceId)).size };
   }
-  async daily(serviceName: string, fromMs: number, toMs: number) {
+  async daily(scope: TenantScope, fromMs: number, toMs: number) {
+    const serviceName = tenantKey(scope);
     const byDay = new Map<string, { up: number; down: number }>();
     for (const v of this.inRange(serviceName, fromMs, toMs)) {
       const day = v.createdAt.slice(0, 10);
@@ -305,7 +323,8 @@ export class FakeUserFeedbackRepository implements UserFeedbackRepository {
     }
     return [...byDay].sort(([a], [b]) => a.localeCompare(b)).map(([day, c]) => ({ day, ...c }));
   }
-  async listRecent(serviceName: string, fromMs: number, toMs: number, limit: number, rating?: 1 | -1) {
+  async listRecent(scope: TenantScope, fromMs: number, toMs: number, limit: number, rating?: 1 | -1) {
+    const serviceName = tenantKey(scope);
     return this.inRange(serviceName, fromMs, toMs)
       .filter((v) => rating === undefined || v.rating === rating)
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))

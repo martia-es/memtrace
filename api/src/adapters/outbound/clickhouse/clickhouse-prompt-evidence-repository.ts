@@ -4,7 +4,9 @@ import type { PromptEvidenceRepository } from "@/application/ports/prompt-eviden
 import type { PromptEvidenceRows } from "@/domain/prompt-evidence";
 import type { TimeRange } from "@/domain/time-range";
 import { ERROR, KIND, OP, TRACE_WINDOW_MS, attr, attrNum, nsToMs, num } from "./clickhouse-trace-repository";
+import type { TenantScope } from "@/domain/tenant";
 import { QueryLimiter } from "./query-limiter";
+import { TENANT_SQL, tenantParams } from "./tenant-sql";
 
 type Row = Record<string, unknown>;
 type Params = Record<string, string | number | string[]>;
@@ -42,17 +44,17 @@ export class ClickHousePromptEvidenceRepository implements PromptEvidenceReposit
     this.evalScores = `${database}.eval_scores`;
   }
 
-  async rowsFor({ fromMs, toMs, service, promptName }: TimeRange & { service: string; promptName: string }): Promise<PromptEvidenceRows> {
-    const p: Params = { fromMs, toMs, toWithWindowMs: toMs + TRACE_WINDOW_MS, service, promptName };
+  async rowsFor({ fromMs, toMs, scope, promptName }: TimeRange & { scope: TenantScope; promptName: string }): Promise<PromptEvidenceRows> {
+    const p: Params = { fromMs, toMs, toWithWindowMs: toMs + TRACE_WINDOW_MS, ...tenantParams(scope), promptName };
     const inRange = "Timestamp >= fromUnixTimestamp64Milli({fromMs:Int64}) AND Timestamp < fromUnixTimestamp64Milli({toMs:Int64})";
     // el resto de los spans de una traza pueden terminar después de que acabe el rango
     const inWindow = "Timestamp >= fromUnixTimestamp64Milli({fromMs:Int64}) AND Timestamp < fromUnixTimestamp64Milli({toWithWindowMs:Int64})";
-    const usedPairs = `SELECT TraceId, PromptVersion AS version FROM ${this.spans} WHERE PromptName = {promptName:String} AND ServiceName = {service:String} AND ${NOT_PLAYGROUND} AND ${inRange} GROUP BY TraceId, PromptVersion`;
-    const usedIds = `SELECT TraceId FROM ${this.spans} WHERE PromptName = {promptName:String} AND ServiceName = {service:String} AND ${NOT_PLAYGROUND} AND ${inRange}`;
-    const joined = `FROM ${this.spans} INNER JOIN (${usedPairs}) AS used USING (TraceId) WHERE ServiceName = {service:String} AND ${inWindow}`;
+    const usedPairs = `SELECT TraceId, PromptVersion AS version FROM ${this.spans} WHERE PromptName = {promptName:String} AND ${TENANT_SQL} AND ${NOT_PLAYGROUND} AND ${inRange} GROUP BY TraceId, PromptVersion`;
+    const usedIds = `SELECT TraceId FROM ${this.spans} WHERE PromptName = {promptName:String} AND ${TENANT_SQL} AND ${NOT_PLAYGROUND} AND ${inRange}`;
+    const joined = `FROM ${this.spans} INNER JOIN (${usedPairs}) AS used USING (TraceId) WHERE ${TENANT_SQL} AND ${inWindow}`;
 
     const failed = `StatusCode = ${ERROR}`;
-    const failedInWindow = `${failed} AND ServiceName = {service:String} AND ${inWindow}`;
+    const failedInWindow = `${failed} AND ${TENANT_SQL} AND ${inWindow}`;
 
     const [traces, tokens, errors, feedback, evaluators] = await Promise.all([
       this.rows(
@@ -81,16 +83,16 @@ export class ClickHousePromptEvidenceRepository implements PromptEvidenceReposit
       ),
       this.rows(
         `SELECT version, countIf(f.Rating = 1) AS up, countIf(f.Rating = -1) AS down, uniqExact(f.TraceId) AS ratedTraces
-         FROM (SELECT TraceId, Rating FROM ${this.feedback} FINAL WHERE IsDeleted = 0 AND ServiceName = {service:String} AND TraceId IN (${usedIds})) AS f
+         FROM (SELECT TraceId, Rating FROM ${this.feedback} FINAL WHERE IsDeleted = 0 AND ${TENANT_SQL} AND TraceId IN (${usedIds})) AS f
          INNER JOIN (${usedPairs}) AS used ON f.TraceId = used.TraceId GROUP BY version`,
         p,
       ),
       // los scores de la evaluación offline cuyas trazas (la del item) usaron la versión
       this.rows(
         `SELECT version, s.Name AS name, any(s.DataType) AS dataType, count() AS items, avg(s.ValueNum) AS average
-         FROM (SELECT DatasetRunId, ItemIndex, assumeNotNull(TraceId) AS TraceId FROM ${this.evalItems} FINAL WHERE ServiceName = {service:String} AND TraceId IS NOT NULL AND TraceId IN (${usedIds})) AS i
+         FROM (SELECT DatasetRunId, ItemIndex, assumeNotNull(TraceId) AS TraceId FROM ${this.evalItems} FINAL WHERE ${TENANT_SQL} AND TraceId IS NOT NULL AND TraceId IN (${usedIds})) AS i
          INNER JOIN (${usedPairs}) AS used ON i.TraceId = used.TraceId
-         INNER JOIN (SELECT DatasetRunId, ItemIndex, Name, DataType, ValueNum FROM ${this.evalScores} FINAL WHERE ServiceName = {service:String}) AS s
+         INNER JOIN (SELECT DatasetRunId, ItemIndex, Name, DataType, ValueNum FROM ${this.evalScores} FINAL WHERE ${TENANT_SQL}) AS s
            ON s.DatasetRunId = i.DatasetRunId AND s.ItemIndex = i.ItemIndex
          GROUP BY version, name`,
         p,
@@ -133,18 +135,18 @@ export class ClickHousePromptEvidenceRepository implements PromptEvidenceReposit
     };
   }
 
-  async runsUsingVersion({ service, promptName, version, runIds }: { service: string; promptName: string; version: number; runIds: string[] }): Promise<string[]> {
+  async runsUsingVersion({ scope, promptName, version, runIds }: { scope: TenantScope; promptName: string; version: number; runIds: string[] }): Promise<string[]> {
     if (runIds.length === 0) return [];
     // las trazas viven 30 días (ADR-003): más atrás no hay marca que leer
     const rows = await this.rows(
       `SELECT i.DatasetRunId AS runId, countIf(used.version = {version:UInt32}) AS onVersion, countIf(used.version != {version:UInt32}) AS onOther
        FROM (SELECT DatasetRunId, assumeNotNull(TraceId) AS TraceId FROM ${this.evalItems} FINAL
-              WHERE ServiceName = {service:String} AND DatasetRunId IN {runIds:Array(String)} AND TraceId IS NOT NULL) AS i
+              WHERE ${TENANT_SQL} AND DatasetRunId IN {runIds:Array(String)} AND TraceId IS NOT NULL) AS i
        INNER JOIN (SELECT TraceId, PromptVersion AS version FROM ${this.spans}
-                    WHERE PromptName = {promptName:String} AND ServiceName = {service:String} AND ${NOT_PLAYGROUND} AND Timestamp >= now() - INTERVAL 31 DAY
+                    WHERE PromptName = {promptName:String} AND ${TENANT_SQL} AND ${NOT_PLAYGROUND} AND Timestamp >= now() - INTERVAL 31 DAY
                     GROUP BY TraceId, PromptVersion) AS used ON i.TraceId = used.TraceId
        GROUP BY runId HAVING onVersion > 0 AND onOther = 0`,
-      { service, promptName, version, runIds },
+      { ...tenantParams(scope), promptName, version, runIds },
     );
     return rows.map((r) => String(r.runId));
   }

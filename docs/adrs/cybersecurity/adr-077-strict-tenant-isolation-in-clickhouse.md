@@ -1,6 +1,6 @@
 # ADR-077: Strict Tenant Isolation in ClickHouse
 
-* **Status**: Pending
+* **Status**: Accepted — implemented (2026-10-10). Row policies and a read-only query user remain open (P2 in ADR-076)
 * **Date**: 2026-10-09
 * **Deciders**: MemTrace Core Team
 * **Parent**: [ADR-076](adr-076-multi-tenant-security-baseline.md)
@@ -33,7 +33,35 @@ The query API injects the experiment's `service_name` into every read (`withServ
 4. The ingestion path stamps `ExperimentId` (see [ADR-078](adr-078-ingestion-identity-binding.md)), so a client cannot choose it.
 5. Add ClickHouse row policies per tenant and a read-only user for the query API as a second layer (tracked as P2 in ADR-076).
 
+## Findings during implementation
+
+Reading every query showed the problem was wider than the ADR first described:
+
+1. **Detail reads were global by id.** `GET /experiments/{id}/traces/{traceId}`, `/conversations/{conversationId}`, `/transcript` and the conversation tree checked that the caller could read *an* experiment, then looked the id up across all tenants (the route comments called it acceptable because trace ids are high-entropy). Conversation ids are chosen by the client (`session("...")`), so they are guessable. Any member of any organization could read another organization's transcript by id.
+2. **`GET /api/v1/services` required no session** and listed the service names of every tenant.
+3. **Deduplication collisions.** In the `ReplacingMergeTree` tables the sorting key is the identity of a row. Two experiments sharing a service name and using the same trace id (a vote may target a trace that is not ingested yet) overwrote each other on merge, so one tenant could replace another's vote or annotation. `ExperimentId` therefore goes into the sorting key of those tables, not only into the filter.
+4. **Optional filter.** `service?` was optional in every query type, so a caller that forgot it read all tenants. It is now a required `TenantScope`.
+
+## Implementation
+
+- `domain/tenant.ts`: `TenantScope { experimentId, serviceName }`, built only by `requirePermission` / `resolveApiKey`. `assertTenantScope` throws on an empty value, because `''` would match the rows from before the migration.
+- Migration `013_experiment_id.sql`: `otel_traces.ExperimentId` is a `DEFAULT` column read from the resource attribute that the gateway stamps (ADR-078); the five API-written tables get the column inside the sorting key (ClickHouse only allows that for a column added in the same `ALTER` and without a `DEFAULT` expression).
+- Every repository method takes the scope and emits `ServiceName = … AND ExperimentId = …` (`tenant-sql.ts`). `ServiceName` stays first so the primary key still prunes parts. Sub-queries (`hasErrors`, text, prompt filters) carry the predicate as well.
+- HTTP handlers receive the scope from the route; the `service` query parameter is gone from the schemas and `withServiceFilter` was deleted.
+- Cross-experiment endpoints (`/services`, `/experiments/usage`) receive the list of experiments the user can read and group by `ExperimentId`.
+- Backfill (`worker/backfill-experiment-id.ts`, `make backfill-experiment-id`): assigns old rows only when the service name belongs to one experiment; ambiguous services are reported and left hidden. Tables with the id in the key are copied and the original deleted (a key column cannot be updated); the job is idempotent.
+- `tests/tenant-scope-guard.test.ts` fails the build if a repository method touches the store without the tenant predicate (verified by removing one).
+
 ## Verification
+
+Run against ClickHouse 24.3 (the cluster version) and PostgreSQL 16:
+
+- `tests/integration/tenant-isolation.test.ts`: two experiments with the same service name, trace id, conversation id and dataset run id; 13 checks across traces, spans, conversations, aggregates, usage, scores, annotations, votes and prompt evidence. It failed before `ExperimentId` joined the sorting key.
+- `tests/integration/experiment-id-backfill.test.ts`: legacy rows are invisible, are assigned when unambiguous, stay hidden when shared, and a second run changes nothing.
+- The upgrade path was exercised by seeding a database at migration 012 and applying 013.
+- Full suite: 790 passed. Two Postgres integration tests (`annotation-queues`, `assistant-registry`) fail identically on the branch without these changes; they are unrelated.
+
+Originally planned checks:
 
 - Integration test: organizations A and B each own an experiment with `service_name = "chatbot"`; data written for A is invisible through every read endpoint of B (traces, conversations, spans, metrics, scores, annotations, queues, feedback, evaluation).
 - A static test fails the build if a ClickHouse query on a tenant table lacks the `ExperimentId` predicate.
@@ -42,4 +70,5 @@ The query API injects the experiment's `service_name` into every read (`withServ
 
 - **Positive**: isolation no longer depends on naming; a missing filter fails loudly; renaming a service no longer orphans history.
 - **Negative**: migration of every tenant table and of local data; larger sorting keys; the SDK and Collector contract (`service.name`) is unchanged but is no longer the identity of the tenant.
-- **Open question**: whether to keep `ServiceName` in the key for compatibility with existing queries or drop it after the migration.
+- **Decided**: `ServiceName` stays in the key and in the predicate; it is what lets ClickHouse prune parts.
+- **Rollout**: rows written before the migration are invisible until `make backfill-experiment-id` runs. Agents keep sending traces through the gateway (ADR-078); a Collector reachable directly would write rows with no experiment, which nobody can read (ADR-079 closes that path).

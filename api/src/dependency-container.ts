@@ -219,7 +219,7 @@ export function getAssistantRegistry(): AssistantRegistryService {
   if (!globalForContainer.__memtraceAssistantRegistry) {
     const traces = getTraceQueryService();
     globalForContainer.__memtraceAssistantRegistry = new AssistantRegistryService(new PostgresAssistantRegistryRepository(getPostgresPool()), {
-      toolUsage: async (serviceName, from, to) => (await traces.getOverview({ service: serviceName, from, to })).byTool,
+      toolUsage: async (scope, from, to) => (await traces.getOverview({ scope, from, to })).byTool,
     });
   }
   return globalForContainer.__memtraceAssistantRegistry;

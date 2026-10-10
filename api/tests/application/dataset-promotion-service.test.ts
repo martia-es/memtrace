@@ -5,7 +5,7 @@ import type { Annotation } from "@/domain/annotation";
 import type { DatasetItem } from "@/domain/identity";
 import { FakeAnnotationRepository, FakeTraceRepository, span } from "../helpers";
 
-const actor = { userId: "u1", serviceName: "svc" };
+const actor = { userId: "u1", experimentId: "e1", serviceName: "svc" };
 const NOW = new Date("2026-10-03T12:00:00Z");
 
 /** Solo lo que usa el servicio: reproduce el filtro de duplicados que en Postgres hace el lock + SELECT. */
@@ -50,7 +50,7 @@ describe("DatasetPromotionService", () => {
 
   it("promotes a batch in ONE repository call with provenance metadata", async () => {
     traces.traces.set("t2", { truncated: false, spans: [span({ attributes: { "memtrace.input": "second" } })] });
-    await annotations.upsert("svc", annotation());
+    await annotations.upsert(actor, annotation());
     const result = await service.promoteTraces(actor, "d1", [{ traceId: "t1", fromConfigId: "c1" }, { traceId: "t2", expectedOutput: "typed" }]);
 
     expect(identity.calls).toHaveLength(1);
@@ -78,8 +78,8 @@ describe("DatasetPromotionService", () => {
   });
 
   it("reports ambiguous and unsupported labels instead of guessing", async () => {
-    await annotations.upsert("svc", annotation());
-    await annotations.upsert("svc", annotation({ annotatorId: "u3", value: "Lyon" }));
+    await annotations.upsert(actor, annotation());
+    await annotations.upsert(actor, annotation({ annotatorId: "u3", value: "Lyon" }));
     const ambiguous = await service.promoteTraces(actor, "d1", [{ traceId: "t1", fromConfigId: "c1" }]);
     expect(ambiguous.skipped).toEqual([{ traceId: "t1", reason: "ambiguous_label" }]);
     // explicit answer resolves the disagreement

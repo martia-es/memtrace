@@ -7,6 +7,6 @@ export async function GET(request: Request, context: { params: Promise<{ experim
   const { experimentId, conversationId } = await context.params;
   const access = await requireExperimentRead(experimentId);
   if (access instanceof Response) return access;
-  // Nota (ADR-013): igual que en traces/[traceId], el lookup es global por conversationId.
-  return getHandlers().getConversation(request, conversationId);
+  // Acotado al experimento (ADR-077): el id de conversación lo elige el cliente y puede repetirse entre organizaciones.
+  return getHandlers().getConversation(request, access.scope, conversationId);
 }

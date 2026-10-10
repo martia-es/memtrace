@@ -7,5 +7,5 @@ export async function GET(request: Request, context: { params: Promise<{ experim
   const { experimentId, conversationId } = await context.params;
   const access = await requirePermission(experimentId, "trace:read_technical");
   if (access instanceof Response) return access;
-  return getHandlers().getConversationTree(request, conversationId);
+  return getHandlers().getConversationTree(request, access.scope, conversationId);
 }

@@ -1,3 +1,4 @@
+import { tenantOf } from "@/domain/tenant";
 import type { AnnotationQueueRepository } from "@/application/ports/annotation-queue-repository";
 import type { AnnotationRepository } from "@/application/ports/annotation-repository";
 import type { IdentityRepository } from "@/application/ports/identity-repository";
@@ -98,8 +99,8 @@ export class AgreementService {
     }
 
     const [judgeRows, annotations] = await Promise.all([
-      this.scores.listJudgeScoresForRuns(actor.serviceName, runIds, name),
-      this.annotations.listForRuns(actor.serviceName, runIds, name),
+      this.scores.listJudgeScoresForRuns(tenantOf(actor), runIds, name),
+      this.annotations.listForRuns(tenantOf(actor), runIds, name),
     ]);
     const inScope = (run: string, index: number) => allowed === null || allowed.has(runKey(run, index));
     const judge = judgeRows.filter((r) => inScope(r.datasetRunId, r.itemIndex));
@@ -134,8 +135,8 @@ export class AgreementService {
     const configIds = new Set(queue.rubric.map((r) => r.configId));
 
     const [runLabels, traceLabels] = await Promise.all([
-      this.annotations.listForRuns(actor.serviceName, [...new Set(runItems.map((i) => i.datasetRunId))], name),
-      this.annotations.listForTraces(actor.serviceName, traceIds, name),
+      this.annotations.listForRuns(tenantOf(actor), [...new Set(runItems.map((i) => i.datasetRunId))], name),
+      this.annotations.listForTraces(tenantOf(actor), traceIds, name),
     ]);
     const labels = [
       ...runLabels.filter((a) => a.datasetRunId != null && a.itemIndex != null && allowedRunItems.has(runKey(a.datasetRunId, a.itemIndex))),

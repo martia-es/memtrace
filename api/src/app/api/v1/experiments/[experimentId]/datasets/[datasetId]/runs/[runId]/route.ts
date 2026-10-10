@@ -3,6 +3,7 @@ import { identityGuard } from "@/adapters/inbound/http/identity-guard";
 import { toDatasetRunDetailResponse, toScoreAggregateDto } from "@/adapters/inbound/http/mappers";
 import { json, problem } from "@/adapters/inbound/http/problem";
 import type { DatasetRunItemResult } from "@/domain/evaluation";
+import type { TenantScope } from "@/domain/tenant";
 import { getIdentity, getScores, getTraceQueryService } from "@/dependency-container";
 
 export const dynamic = "force-dynamic";
@@ -26,18 +27,18 @@ export async function GET(_request: Request, context: { params: Promise<{ experi
     }
 
     const [items, aggregates] = await Promise.all([
-      getScores().listScoresByRun(experiment.serviceName, runId),
-      getScores().aggregateForRuns(experiment.serviceName, [runId]),
+      getScores().listScoresByRun({ experimentId: experiment.id, serviceName: experiment.serviceName }, runId),
+      getScores().aggregateForRuns({ experimentId: experiment.id, serviceName: experiment.serviceName }, [runId]),
     ]);
-    return json(toDatasetRunDetailResponse(dataset, run, await withTelemetry(items), aggregates.map(toScoreAggregateDto)));
+    return json(toDatasetRunDetailResponse(dataset, run, await withTelemetry({ experimentId: experiment.id, serviceName: experiment.serviceName }, items), aggregates.map(toScoreAggregateDto)));
   });
 }
 
 /** Latencia, tokens y coste salen de la traza enlazada (ADR-044). Si el almacén de trazas falla, el detalle se sirve igualmente sin esas cifras. */
-async function withTelemetry(items: DatasetRunItemResult[]): Promise<DatasetRunItemResult[]> {
+async function withTelemetry(scope: TenantScope, items: DatasetRunItemResult[]): Promise<DatasetRunItemResult[]> {
   const traceIds = items.flatMap((i) => (i.traceId ? [i.traceId] : []));
   try {
-    const telemetry = await getTraceQueryService().getItemTelemetry(traceIds);
+    const telemetry = await getTraceQueryService().getItemTelemetry(scope, traceIds);
     return items.map((i) => ({ ...i, telemetry: i.traceId ? (telemetry.get(i.traceId) ?? null) : null }));
   } catch (error) {
     console.error("[memtrace-api] item telemetry unavailable:", error);

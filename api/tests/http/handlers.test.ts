@@ -3,7 +3,7 @@ import { createHandlers } from "@/adapters/inbound/http/handlers";
 import { encodeCursor } from "@/adapters/inbound/http/schemas";
 import { RepositoryUnavailableError } from "@/application/errors";
 import { TraceQueryService } from "@/application/trace-query-service";
-import { FakeTraceRepository, span } from "../helpers";
+import { FakeTraceRepository, SCOPE, span } from "../helpers";
 
 const NOW = Date.parse("2026-09-26T12:00:00Z");
 const TRACE_ID = "8791d6e0a1b2c3d4e5f60718293a4b5c";
@@ -15,6 +15,20 @@ function setup() {
 }
 const get = (path: string) => new Request(`http://localhost/api/v1${path}`);
 
+describe("tenant scope (ADR-077)", () => {
+  it("never takes the tenant from the query string", async () => {
+    const { repo, handlers } = setup();
+    await handlers.listTraces(get("/traces?service=victim&experimentId=other&scope=x"), SCOPE);
+    await handlers.listConversations(get("/conversations?service=victim&experimentId=other"), SCOPE);
+    await handlers.listSpans(get("/spans?service=victim&experimentId=other"), SCOPE);
+    await handlers.overview(get("/metrics/overview?service=victim&experimentId=other"), SCOPE);
+    expect(repo.lastListQuery?.scope).toEqual(SCOPE);
+    expect(repo.lastConversationQuery?.scope).toEqual(SCOPE);
+    expect(repo.lastSpanQuery?.scope).toEqual(SCOPE);
+    expect(repo.lastOverviewQuery?.scope).toEqual(SCOPE);
+  });
+});
+
 describe("GET /traces", () => {
   it("returns items as ISO dates and an opaque cursor that round-trips", async () => {
     const { repo, handlers } = setup();
@@ -23,14 +37,14 @@ describe("GET /traces", () => {
       items: [{ traceId: TRACE_ID, rootSpanName: "agent", serviceName: "svc", startTimeUs: 1_790_000_000_123_456, durationMs: 12.5, status: "ok", spanCount: 3, errorCount: 0, totalTokens: 7, input: null, output: null, error: null, conversationId: "conv-1", revision: null, prompts: [] }],
       nextCursor: cursor,
     };
-    const response = await handlers.listTraces(get("/traces"));
+    const response = await handlers.listTraces(get("/traces"), SCOPE);
     const body = await response.json();
     expect(response.status).toBe(200);
     expect(body.items[0].startTime).toBe(new Date(1_790_000_000_123).toISOString());
     expect(body.nextCursor).toBe(encodeCursor(cursor));
 
-    await handlers.listTraces(get(`/traces?cursor=${body.nextCursor}&hasErrors=true&status=error&minDurationMs=5&service=svc&limit=10`));
-    expect(repo.lastListQuery).toMatchObject({ cursor, hasErrors: true, status: "error", minDurationMs: 5, service: "svc", limit: 10 });
+    await handlers.listTraces(get(`/traces?cursor=${body.nextCursor}&hasErrors=true&status=error&minDurationMs=5&service=victim&experimentId=other&limit=10`), SCOPE);
+    expect(repo.lastListQuery).toMatchObject({ cursor, hasErrors: true, status: "error", minDurationMs: 5, scope: SCOPE, limit: 10 });
   });
 
   it.each([
@@ -42,7 +56,7 @@ describe("GET /traces", () => {
     ["from=2026-09-26T12:00:00Z&to=2026-09-26T11:00:00Z", "from"],
   ])("rejects invalid query %s with problem+json 400", async (qs, field) => {
     const { handlers } = setup();
-    const response = await handlers.listTraces(get(`/traces?${qs}`));
+    const response = await handlers.listTraces(get(`/traces?${qs}`), SCOPE);
     const body = await response.json();
     expect(response.status).toBe(400);
     expect(response.headers.get("content-type")).toBe("application/problem+json");
@@ -52,7 +66,7 @@ describe("GET /traces", () => {
   it("maps an unavailable store to 503 without leaking the cause", async () => {
     const { repo, handlers } = setup();
     repo.failWith = new RepositoryUnavailableError(new Error("connect ECONNREFUSED 10.0.0.1:8123"));
-    const response = await handlers.listTraces(get("/traces"));
+    const response = await handlers.listTraces(get("/traces"), SCOPE);
     expect(response.status).toBe(503);
     expect(JSON.stringify(await response.json())).not.toContain("ECONNREFUSED");
   });
@@ -60,7 +74,7 @@ describe("GET /traces", () => {
   it("maps unexpected errors to a generic 500", async () => {
     const { repo, handlers } = setup();
     repo.failWith = new Error("SELECT * FROM secret");
-    const response = await handlers.listTraces(get("/traces"));
+    const response = await handlers.listTraces(get("/traces"), SCOPE);
     expect(response.status).toBe(500);
     expect(JSON.stringify(await response.json())).not.toContain("secret");
   });
@@ -71,7 +85,7 @@ describe("GET /traces/{id}", () => {
     const { repo, handlers } = setup();
     const root = span({ spanId: "r", startTimeUs: 1_790_000_000_000_000 });
     repo.traces.set(TRACE_ID, { spans: [root, span({ parentSpanId: "r", startTimeUs: 1_790_000_000_500_000 })], truncated: false });
-    const response = await handlers.getTrace(get(""), TRACE_ID.toUpperCase());
+    const response = await handlers.getTrace(get(""), SCOPE, TRACE_ID.toUpperCase());
     const body = await response.json();
     expect(response.status).toBe(200);
     expect(body.roots[0].children).toHaveLength(1);
@@ -81,8 +95,8 @@ describe("GET /traces/{id}", () => {
 
   it("returns 404 for an unknown trace and 400 for a malformed id", async () => {
     const { handlers } = setup();
-    expect((await handlers.getTrace(get(""), TRACE_ID)).status).toBe(404);
-    expect((await handlers.getTrace(get(""), "not-hex")).status).toBe(400);
+    expect((await handlers.getTrace(get(""), SCOPE, TRACE_ID)).status).toBe(404);
+    expect((await handlers.getTrace(get(""), SCOPE, "not-hex")).status).toBe(400);
   });
 });
 
@@ -90,10 +104,10 @@ describe("other endpoints", () => {
   it("serves overview, services and health", async () => {
     const { repo, handlers } = setup();
     repo.services = ["a", "b"];
-    const overview = await (await handlers.overview(get("/metrics/overview"))).json();
+    const overview = await (await handlers.overview(get("/metrics/overview"), SCOPE)).json();
     expect(overview.range.bucketSeconds).toBe(1440);
     expect(overview.timeseries).toHaveLength(60);
-    expect(await (await handlers.services(get("/services"))).json()).toEqual({ items: ["a", "b"] });
+    expect(await (await handlers.services(get("/services"), [SCOPE])).json()).toEqual({ items: ["a", "b"] });
     expect(await (await handlers.health()).json()).toEqual({ status: "ok" });
     expect((await handlers.ready()).status).toBe(200);
     repo.failWith = new RepositoryUnavailableError();
@@ -112,44 +126,44 @@ describe("conversations endpoints", () => {
     const { repo, handlers } = setup();
     const cursor = { lastActivityUs: 1_790_000_060_000_000, conversationId: "conv a/b" };
     repo.conversationPage = { items: [summary("conv a/b")], nextCursor: cursor };
-    await handlers.listConversations(get("/conversations?text=refund"));
+    await handlers.listConversations(get("/conversations?text=refund"), SCOPE);
     expect(repo.lastConversationQuery).toMatchObject({ text: "refund" });
-    await handlers.listTraces(get("/traces?text=refund"));
+    await handlers.listTraces(get("/traces?text=refund"), SCOPE);
     expect(repo.lastListQuery).toMatchObject({ text: "refund" });
-    const response = await handlers.listConversations(get("/conversations?service=svc&hasErrors=true"));
+    const response = await handlers.listConversations(get("/conversations?service=victim&experimentId=other&hasErrors=true"), SCOPE);
     const body = await response.json();
     expect(response.status).toBe(200);
     expect(body.items[0]).toMatchObject({ conversationId: "conv a/b", turnCount: 2, errorTurns: 1, lastActivity: new Date(1_790_000_060_000).toISOString() });
 
-    await handlers.listConversations(get(`/conversations?cursor=${body.nextCursor}&limit=5`));
+    await handlers.listConversations(get(`/conversations?cursor=${body.nextCursor}&limit=5`), SCOPE);
     expect(repo.lastConversationQuery).toMatchObject({ cursor, limit: 5 });
   });
 
   it("filters conversations by prompt and version, and exposes the prompts each one used (ADR-068)", async () => {
     const { repo, handlers } = setup();
     repo.conversationPage = { items: [{ ...summary("c1"), prompts: [{ name: "weather-system", version: 2 }] }], nextCursor: null };
-    const response = await handlers.listConversations(get("/conversations?promptName=weather-system&promptVersion=2"));
+    const response = await handlers.listConversations(get("/conversations?promptName=weather-system&promptVersion=2"), SCOPE);
     expect(repo.lastConversationQuery).toMatchObject({ promptName: "weather-system", promptVersion: 2 });
     expect((await response.json()).items[0].prompts).toEqual([{ name: "weather-system", version: 2 }]);
-    expect((await handlers.listConversations(get("/conversations?promptName=Bad%20Name"))).status).toBe(400);
+    expect((await handlers.listConversations(get("/conversations?promptName=Bad%20Name"), SCOPE)).status).toBe(400);
   });
 
   it("rejects an invalid cursor or limit", async () => {
     const { handlers } = setup();
-    expect((await handlers.listConversations(get("/conversations?cursor=%%%"))).status).toBe(400);
-    expect((await handlers.listConversations(get("/conversations?limit=999"))).status).toBe(400);
+    expect((await handlers.listConversations(get("/conversations?cursor=%%%"), SCOPE)).status).toBe(400);
+    expect((await handlers.listConversations(get("/conversations?limit=999"), SCOPE)).status).toBe(400);
   });
 
   it("returns a conversation with its turns, and 404 when unknown", async () => {
     const { repo, handlers } = setup();
     repo.conversations.set("c1", summary("c1"));
     repo.page = { items: [{ traceId: TRACE_ID, rootSpanName: "turno", serviceName: "svc", startTimeUs: 1_790_000_000_000_000, durationMs: 5, status: "ok", spanCount: 2, errorCount: 0, totalTokens: 0, input: null, output: null, error: null, conversationId: "c1", revision: null, prompts: [] }], nextCursor: null };
-    const ok = await handlers.getConversation(get("/conversations/c1"), "c1");
+    const ok = await handlers.getConversation(get("/conversations/c1"), SCOPE, "c1");
     const body = await ok.json();
     expect(ok.status).toBe(200);
     expect(body).toMatchObject({ conversationId: "c1", turnCount: 2 });
     expect(body.turns.items[0]).toMatchObject({ conversationId: "c1", rootSpanName: "turno" });
-    expect((await handlers.getConversation(get("/conversations/x"), "x")).status).toBe(404);
+    expect((await handlers.getConversation(get("/conversations/x"), SCOPE, "x")).status).toBe(404);
   });
 
   it("returns the span tree of each turn, and 404 when unknown", async () => {
@@ -157,18 +171,18 @@ describe("conversations endpoints", () => {
     repo.conversations.set("c1", summary("c1"));
     repo.page = { items: [{ traceId: TRACE_ID, rootSpanName: "turno", serviceName: "svc", startTimeUs: 1_790_000_000_000_000, durationMs: 5, status: "ok", spanCount: 1, errorCount: 0, totalTokens: 0, input: null, output: null, error: null, conversationId: "c1", revision: null, prompts: [] }], nextCursor: null };
     repo.traces.set(TRACE_ID, { spans: [span({ spanId: TRACE_ID })], truncated: false });
-    const ok = await handlers.getConversationTree(get("/conversations/c1/tree"), "c1");
+    const ok = await handlers.getConversationTree(get("/conversations/c1/tree"), SCOPE, "c1");
     const body = await ok.json();
     expect(ok.status).toBe(200);
     expect(body.items).toHaveLength(1);
     expect(body.items[0]).toMatchObject({ traceId: TRACE_ID });
     expect(body.items[0].roots).toHaveLength(1);
-    expect((await handlers.getConversationTree(get("/conversations/x/tree"), "x")).status).toBe(404);
+    expect((await handlers.getConversationTree(get("/conversations/x/tree"), SCOPE, "x")).status).toBe(404);
   });
 
   it("passes the conversationId filter to the trace list", async () => {
     const { repo, handlers } = setup();
-    await handlers.listTraces(get("/traces?conversationId=c1"));
+    await handlers.listTraces(get("/traces?conversationId=c1"), SCOPE);
     expect(repo.lastListQuery).toMatchObject({ conversationId: "c1" });
   });
 
@@ -179,19 +193,19 @@ describe("conversations endpoints", () => {
       traceId: TRACE_ID, startTimeUs: 1_790_000_000_000_000, model: "gpt-4o",
       inputMessages: JSON.stringify([{ role: "user", content: "hola" }]), outputMessages: JSON.stringify([{ role: "assistant", content: "buenas" }]),
     }];
-    const ok = await handlers.getTranscript(get("/conversations/c1/transcript"), "c1");
+    const ok = await handlers.getTranscript(get("/conversations/c1/transcript"), SCOPE, "c1");
     const body = await ok.json();
     expect(ok.status).toBe(200);
     expect(body).toMatchObject({ conversationId: "c1", contentCaptured: true, truncated: false });
     expect(body.turns[0]).toEqual({ traceId: TRACE_ID, model: "gpt-4o", user: "hola", assistant: "buenas", startTime: new Date(1_790_000_000_000).toISOString() });
-    expect((await handlers.getTranscript(get("/x"), "x")).status).toBe(404);
+    expect((await handlers.getTranscript(get("/x"), SCOPE, "x")).status).toBe(404);
   });
 
   it("says content was not captured instead of returning an empty error", async () => {
     const { repo, handlers } = setup();
     repo.conversations.set("c1", summary("c1"));
     repo.chatRecords = [{ traceId: TRACE_ID, startTimeUs: 1, model: null, inputMessages: null, outputMessages: null }];
-    const body = await (await handlers.getTranscript(get("/x"), "c1")).json();
+    const body = await (await handlers.getTranscript(get("/x"), SCOPE, "c1")).json();
     expect(body).toMatchObject({ contentCaptured: false, turns: [] });
   });
 });
@@ -204,24 +218,24 @@ describe("GET /spans", () => {
       items: [{ spanId: "00f067aa0ba902b7", traceId: TRACE_ID, parentSpanId: null, conversationId: "c1", name: "tool.search", kind: "tool", serviceName: "svc", startTimeUs: 1_790_000_000_000_000, durationMs: 9, status: "error", model: null, totalTokens: null, inputTokens: null, outputTokens: null, inputRaw: '{"a":1}', outputRaw: "TimeoutError", chat: false }],
       nextCursor: cursor,
     };
-    const response = await handlers.listSpans(get("/spans?kind=tool&status=error&text=vuelo&service=svc&conversationId=c1&limit=20"));
+    const response = await handlers.listSpans(get("/spans?kind=tool&status=error&text=vuelo&service=victim&experimentId=other&conversationId=c1&limit=20"), SCOPE);
     const body = await response.json();
     expect(response.status).toBe(200);
     expect(body.items[0]).toMatchObject({ name: "tool.search", kind: "tool", input: '{"a":1}', output: "TimeoutError", startTime: new Date(1_790_000_000_000).toISOString() });
-    expect(repo.lastSpanQuery).toMatchObject({ kind: "tool", status: "error", text: "vuelo", service: "svc", conversationId: "c1", limit: 20 });
+    expect(repo.lastSpanQuery).toMatchObject({ kind: "tool", status: "error", text: "vuelo", scope: SCOPE, conversationId: "c1", limit: 20 });
 
-    await handlers.listSpans(get(`/spans?cursor=${body.nextCursor}`));
+    await handlers.listSpans(get(`/spans?cursor=${body.nextCursor}`), SCOPE);
     expect(repo.lastSpanQuery?.cursor).toEqual(cursor);
   });
 
   it.each(["kind=weird", "status=maybe", "limit=999", "cursor=%%%", "text="])("rejects %s", async (qs) => {
     const { handlers } = setup();
-    expect((await handlers.listSpans(get(`/spans?${qs}`))).status).toBe(400);
+    expect((await handlers.listSpans(get(`/spans?${qs}`), SCOPE)).status).toBe(400);
   });
 
   it("answers 503 when the store is unavailable", async () => {
     const { repo, handlers } = setup();
     repo.failWith = new RepositoryUnavailableError(new Error("down"));
-    expect((await handlers.listSpans(get("/spans"))).status).toBe(503);
+    expect((await handlers.listSpans(get("/spans"), SCOPE)).status).toBe(503);
   });
 });
