@@ -7,7 +7,7 @@ DASH_IMAGE ?= docker.io/memtrace/dashboard:dev
 DOCS_IMAGE ?= docker.io/memtrace/docs:dev
 
 .DEFAULT_GOAL := help
-.PHONY: help check up images dashboard api status forward logs query migrate migrate-postgres down reset db-reset dev-data docs weather weather-bg weather-stop
+.PHONY: help check up images dashboard api status forward logs query migrate migrate-postgres down reset db-reset dev-data docs weather weather-bg weather-stop weather-restart
 
 help: ## Muestra esta ayuda
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-10s %s\n", $$1, $$2}'
@@ -161,6 +161,11 @@ weather-bg: weather-stop ## Arranca el asistente del tiempo en segundo plano (lo
 	@command -v uv >/dev/null 2>&1 || { echo "Falta 'uv': omito el asistente del tiempo"; exit 0; }
 	@cd weather_assistant && uv sync --all-groups >/dev/null && \
 		(nohup uv run uvicorn app.main:app --reload --port 8000 >uvicorn.log 2>&1 &)
+
+weather-restart: weather-bg ## Reinicia el asistente del tiempo (relee el .env: API key, id del experimento y prompt solo se leen al arrancar)
+	@sleep 4
+	@echo "Asistente reiniciado: http://localhost:8000 (logs: weather_assistant/uvicorn.log)"
+	@curl -s -m 5 http://localhost:8000/api/prompt && echo || echo "Aún arrancando: revisa weather_assistant/uvicorn.log"
 
 diagrams:
 	cd docs/architecture && env -u GEMINI_API_KEY npx likec4@1.59.2 serve
