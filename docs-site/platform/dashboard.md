@@ -134,7 +134,7 @@ Click **Edit layout** on a report's page to drag and resize its charts, or add m
 
 ## Review
 
-**Review** opens **My inbox**: how many conversations are waiting for you and a **Continue reviewing** button that jumps into the first queue with pending work. Below it, each queue shows its progress. **All queues** lists every active queue and **Archived** the ones that were put away. Open one to review conversations one at a time. Labels can also be added to any trace from its **Annotate** panel. See [Annotations & review](/platform/annotations).
+**Review** is a single screen. It opens on the queues **Assigned to me**, with how many conversations are waiting for you and a **Continue reviewing** button that jumps into the first queue with pending work. Below it, each queue shows its progress. Two filters at the top switch between **Assigned to me** and **All queues**, and between **Active** and **Archived** (the ones that were put away). The filters are kept in the URL, so you can share or bookmark a view. Open one to review conversations one at a time. Labels can also be added to any trace from its **Annotate** panel. See [Annotations & review](/platform/annotations).
 
 ## Theme
 
