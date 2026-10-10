@@ -26,7 +26,6 @@ import MenuItem from "../components/MenuItem.vue";
 import Pill from "../components/Pill.vue";
 import LoadingState from "../components/LoadingState.vue";
 import Select from "../components/Select.vue";
-import SegmentedControl from "../components/SegmentedControl.vue";
 
 const api = usePromptApi();
 const route = useRoute();
@@ -52,27 +51,28 @@ void prompts.run().then(() => {
   void router.replace({ name: "prompt", params: { experimentId: experimentId.value, promptId: found.id }, query: { tab: "traces", ...(version ? { version } : {}) } });
 });
 
-// ---- qué corre en cada entorno ----
-const live = computed(() => (prompts.data.value ?? []).filter((p) => !p.archivedAt && p.kind !== "fragment"));
-// los fragmentos (ADR-073) no se despliegan por entorno: no entran en el aviso ni en los estados de release
-const fragments = computed(() => (prompts.data.value ?? []).filter((p) => p.kind === "fragment"));
-const summary = computed(() => releaseSummary(live.value));
-
-// ---- filtros: viajan en la URL (`?kind=fragments`, `?status=behind`); el valor por defecto no se escribe ----
-type Kind = "prompts" | "fragments";
+// ---- una sola tabla: prompts y fragmentos (columna Type), con filtros en la URL ----
+// `?type=fragment`, `?status=behind`; el valor por defecto no se escribe
+type TypeFilter = "all" | "prompt" | "fragment";
 type StatusFilter = "all" | ReleaseState;
+const TYPE_VALUES: TypeFilter[] = ["all", "prompt", "fragment"];
 const STATUS_VALUES: StatusFilter[] = ["all", "behind", "in_sync", "not_released"];
-const kind = computed<Kind>({
-  get: () => (route.query.kind === "fragments" ? "fragments" : "prompts"),
-  set: (v) => void router.replace({ query: { ...route.query, kind: v === "fragments" ? "fragments" : undefined } }),
+const typeFilter = computed<TypeFilter>({
+  get: () => TYPE_VALUES.find((v) => v === route.query.type) ?? "all",
+  set: (v) => void router.replace({ query: { ...route.query, type: v === "all" ? undefined : v } }),
 });
 const status = computed<StatusFilter>({
   get: () => STATUS_VALUES.find((v) => v === route.query.status) ?? "all",
   set: (v) => void router.replace({ query: { ...route.query, status: v === "all" ? undefined : v } }),
 });
-const KIND_OPTIONS = computed(() => [
-  { value: "prompts", label: "Prompts", count: live.value.length, testid: "kind-prompts" },
-  { value: "fragments", label: "Fragments", count: fragments.value.length, testid: "kind-fragments" },
+const items = computed(() => prompts.data.value ?? []);
+const kindOf = (p: PromptSummaryDto): "prompt" | "fragment" => (p.kind === "fragment" ? "fragment" : "prompt");
+const live = computed(() => items.value.filter((p) => !p.archivedAt));
+const summary = computed(() => releaseSummary(live.value));
+const TYPE_OPTIONS = computed(() => [
+  { value: "all", label: "All" },
+  { value: "prompt", label: `Prompts · ${items.value.filter((p) => kindOf(p) === "prompt").length}` },
+  { value: "fragment", label: `Fragments · ${items.value.filter((p) => kindOf(p) === "fragment").length}` },
 ]);
 const STATUS_OPTIONS = computed(() => [
   { value: "all", label: "All" },
@@ -84,15 +84,11 @@ const STATUS_OPTIONS = computed(() => [
 const search = ref("");
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase();
-  return (prompts.data.value ?? []).filter((p) => {
-    if (p.kind === "fragment") return false;
+  return items.value.filter((p) => {
+    if (typeFilter.value !== "all" && kindOf(p) !== typeFilter.value) return false;
     if (q && !p.name.toLowerCase().includes(q) && !p.description.toLowerCase().includes(q)) return false;
     return status.value === "all" || releaseStatus(p).state === status.value;
   });
-});
-const shownFragments = computed(() => {
-  const q = search.value.trim().toLowerCase();
-  return fragments.value.filter((f) => !q || f.name.toLowerCase().includes(q) || f.description.toLowerCase().includes(q));
 });
 
 /** Una celda por entorno: la versión que apunta el tag y, en producción, cuánto va por detrás de la última. */
@@ -165,6 +161,7 @@ async function create() {
     <PageHeader :crumbs="[{ label: 'Prompts' }, { label: 'Prompts' }]" icon="M4 6h16M4 12h16M4 18h10" title="Prompts">
       <div class="actions">
         <TextInput v-model="search" type="search" placeholder="Filter by name…" class="search" />
+        <Button v-if="can('prompt:write')" data-testid="new-fragment" @click="openCreate('fragment')">+ New fragment</Button>
         <Button variant="primary" v-if="can('prompt:write')" data-testid="new-prompt" @click="openCreate('prompt')">+ New prompt</Button>
       </div>
     </PageHeader>
@@ -198,21 +195,11 @@ async function create() {
     </section>
 
     <template v-else>
-      <section v-if="summary.behind > 0" class="alert" data-testid="drift" role="status">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /></svg>
-        <strong>{{ summary.behind }} {{ summary.behind === 1 ? "prompt runs" : "prompts run" }} behind the latest version in PRO</strong>
-        <span class="alert-sub">{{ summary.waitingVersions }} {{ summary.waitingVersions === 1 ? "version is" : "versions are" }} waiting to be released</span>
-        <span class="grow" />
-        <Button v-if="status !== 'behind'" variant="danger" size="sm" data-testid="show-behind" @click="kind = 'prompts'; status = 'behind'">Show {{ summary.behind === 1 ? "it" : "them" }}</Button>
-      </section>
-
       <div class="toolbar">
-        <SegmentedControl v-model="kind" aria-label="What to list" :options="KIND_OPTIONS" />
-        <label v-if="kind === 'prompts'" class="status-filter">Status
-          <Select v-model="status" :options="STATUS_OPTIONS" aria-label="Release status" data-testid="status-filter" />
-        </label>
+        <label class="filter">Type <div class="filter-select"><Select v-model="typeFilter" :options="TYPE_OPTIONS" aria-label="Type" data-testid="type-filter" /></div></label>
+        <label class="filter">Status <div class="filter-select"><Select v-model="status" :options="STATUS_OPTIONS" aria-label="Release status" data-testid="status-filter" /></div></label>
         <span class="grow" />
-        <Button v-if="kind === 'fragments' && can('prompt:write')" data-testid="new-fragment" @click="openCreate('fragment')">+ New fragment</Button>
+        <span class="soft" data-testid="count">{{ filtered.length }} {{ filtered.length === 1 ? "item" : "items" }}</span>
         <Button variant="icon" aria-label="More options" data-testid="more-options">
           ⋯
           <Menu anchor="bottom right" self="top right" auto-close>
@@ -221,56 +208,34 @@ async function create() {
         </Button>
       </div>
 
-      <template v-if="kind === 'prompts'">
-        <EmptyState v-if="rows.length === 0" icon="search_off" title="No matches">Try a different search or filter.</EmptyState>
-        <DataTable v-else class="prompt-table" data-testid="prompt-table">
-          <thead>
-            <tr><th>Prompt</th><th>Latest</th><th>DEV</th><th>PRE</th><th>PRO</th><th class="num">Updated</th></tr>
-          </thead>
-          <tbody>
-            <tr v-for="r in rows" :key="r.prompt.id" class="row" :data-testid="`prompt-row-${r.prompt.name}`" tabindex="0" @click="open(r.prompt.id)" @keydown.enter="open(r.prompt.id)">
-              <td class="who">
-                <div class="who-name">
-                  <span class="name">{{ r.prompt.name }}</span>
-                  <Pill v-if="r.prompt.archivedAt" class="archived">archived</Pill>
-                  <Pill v-if="awaitingMe.has(r.prompt.id)" :data-testid="`awaiting-${r.prompt.name}`" class="awaiting">needs your approval</Pill>
-                  <span v-for="t in freeTags(r.prompt)" :key="t" class="free-tag mono" :data-testid="`tag-${r.prompt.name}-${t}`">{{ t }} → v{{ r.prompt.tags[t] }}</span>
-                </div>
-                <div v-if="r.prompt.description" class="desc">{{ r.prompt.description }}</div>
-              </td>
-              <td class="mono strong" :data-testid="`latest-${r.prompt.name}`">v{{ r.prompt.latestVersion }}</td>
-              <td v-for="c in r.cells" :key="c.env">
-                <span v-if="c.version === null" class="none" :data-testid="`tag-${r.prompt.name}-${c.env}`">—</span>
-                <span v-else-if="c.behind > 0" class="chip late mono" :data-testid="`tag-${r.prompt.name}-${c.env}`">v{{ c.version }}<b>{{ c.behind }} behind</b></span>
-                <span v-else class="chip mono" :class="c.env" :data-testid="`tag-${r.prompt.name}-${c.env}`">v{{ c.version }}</span>
-              </td>
-              <td class="num mono when">{{ formatDateTime(r.prompt.updatedAt) }}</td>
-              <td class="sr-only" :data-testid="`release-${r.prompt.name}`">{{ r.release.state === "behind" ? `${r.release.behindBy} ${r.release.behindBy === 1 ? "version" : "versions"} behind in PRO` : r.release.state === "in_sync" ? "In sync" : "Not released" }}</td>
-            </tr>
-          </tbody>
-        </DataTable>
-      </template>
-
-      <section v-else class="fragments" data-testid="fragments">
-        <p class="soft small">Shared text that prompts include with <code>{{ sampleInclude }}</code>. Changing one proposes a new version of every prompt that uses it.</p>
-        <p v-if="fragments.length === 0" class="soft small fragments-empty" data-testid="fragments-empty">No fragments yet.</p>
-        <article
-          v-for="f in shownFragments"
-          :key="f.id"
-          class="fragment-row"
-          :data-testid="`fragment-row-${f.name}`"
-          tabindex="0"
-          @click="open(f.id)"
-          @keydown.enter="open(f.id)"
-        >
-          <span class="name">{{ f.name }}</span>
-          <Pill v-if="f.archivedAt" class="archived">archived</Pill>
-          <span v-if="f.description" class="soft frag-desc">{{ f.description }}</span>
-          <span class="grow" />
-          <span class="mono">v{{ f.latestVersion }}</span>
-          <Pill v-for="[tag, version] in sortEnvironments(Object.keys(f.tags)).map((t): [string, number] => [t, f.tags[t]!])" :key="tag" :class="tag" class="tag">{{ tag }} → v{{ version }}</Pill>
-        </article>
-      </section>
+      <EmptyState v-if="rows.length === 0" icon="search_off" title="No matches">Try a different search or filter.</EmptyState>
+      <DataTable v-else class="prompt-table" data-testid="prompt-table">
+        <thead>
+          <tr><th>Name</th><th>Type</th><th>Latest</th><th>DEV</th><th>PRE</th><th>PRO</th><th class="num">Updated</th></tr>
+        </thead>
+        <tbody>
+          <tr v-for="r in rows" :key="r.prompt.id" class="prompt-row" :data-testid="`${r.prompt.kind === 'fragment' ? 'fragment' : 'prompt'}-row-${r.prompt.name}`" tabindex="0" @click="open(r.prompt.id)" @keydown.enter="open(r.prompt.id)">
+            <td class="who">
+              <div class="who-name">
+                <span class="name">{{ r.prompt.name }}</span>
+                <Pill v-if="r.prompt.archivedAt" class="archived">archived</Pill>
+                <Pill v-if="awaitingMe.has(r.prompt.id)" :data-testid="`awaiting-${r.prompt.name}`" class="awaiting">needs your approval</Pill>
+                <span v-for="t in freeTags(r.prompt)" :key="t" class="free-tag mono" :data-testid="`tag-${r.prompt.name}-${t}`">{{ t }} → v{{ r.prompt.tags[t] }}</span>
+              </div>
+              <div v-if="r.prompt.description" class="desc">{{ r.prompt.description }}</div>
+              <span class="sr-only" :data-testid="`release-${r.prompt.name}`">{{ r.release.state === "behind" ? `${r.release.behindBy} ${r.release.behindBy === 1 ? "version" : "versions"} behind in PRO` : r.release.state === "in_sync" ? "In sync" : "Not released" }}</span>
+            </td>
+            <td class="type" :data-testid="`type-${r.prompt.name}`"><Pill v-if="r.prompt.kind === 'fragment'" tone="accent">Fragment</Pill><span v-else class="soft">Prompt</span></td>
+            <td class="mono strong" :data-testid="`latest-${r.prompt.name}`">v{{ r.prompt.latestVersion }}</td>
+            <td v-for="c in r.cells" :key="c.env">
+              <span v-if="c.version === null" class="none" :data-testid="`tag-${r.prompt.name}-${c.env}`">—</span>
+              <span v-else-if="c.behind > 0" class="chip late mono" :data-testid="`tag-${r.prompt.name}-${c.env}`">v{{ c.version }}<b>{{ c.behind }} behind</b></span>
+              <span v-else class="chip mono" :class="c.env" :data-testid="`tag-${r.prompt.name}-${c.env}`">v{{ c.version }}</span>
+            </td>
+            <td class="num mono when">{{ formatDateTime(r.prompt.updatedAt) }}</td>
+          </tr>
+        </tbody>
+      </DataTable>
     </template>
 
     <Modal v-if="showCreate" :title="form.kind === 'fragment' ? 'New fragment' : 'New prompt'" :wide="true" @close="showCreate = false">
@@ -316,51 +281,8 @@ async function create() {
 
 <style scoped>
 .awaiting { background: var(--mt-accent); color: var(--mt-accent-ink); }
-.fragments {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 10px;
-}
-.fragments-head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.fragments-intro {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.fragments-intro p,
-.fragments-empty {
-  margin: 0;
-}
-.frag-desc {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 code {
   font-family: var(--mt-mono);
-}
-.fragment-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 18px;
-  border: 1px solid var(--mt-line);
-  border-radius: 10px;
-  background: var(--mt-card);
-  cursor: pointer;
-}
-.fragment-row:hover,
-.fragment-row:focus-visible {
-  background: var(--mt-soft-2);
-  outline: none;
 }
 .hint {
   margin: 0;
@@ -464,46 +386,6 @@ code {
   letter-spacing: 0.08em;
   color: var(--mt-accent);
 }
-.tag {
-  background: var(--mt-soft);
-  color: var(--mt-muted);
-  font-family: var(--mt-mono);
-  font-weight: 500;
-  font-size: 11.5px;
-}
-.tag.pre {
-  background: var(--mt-warn-bg);
-  color: var(--mt-warn-ink);
-}
-.tag.pro {
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-}
-
-/* ---- aviso de producción ---- */
-.alert {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 52px;
-  box-sizing: border-box;
-  padding: 0 9px 0 18px;
-  border-radius: 10px;
-  background: var(--mt-highlight-soft);
-  color: var(--mt-highlight-ink);
-}
-.alert strong {
-  font-size: 14px;
-  font-weight: 800;
-}
-.alert-sub {
-  font-weight: 600;
-  opacity: 0.85;
-}
-.grow {
-  flex: 1;
-}
 
 /* ---- filtros ---- */
 .toolbar {
@@ -512,19 +394,25 @@ code {
   align-items: center;
   gap: 12px;
 }
-.status-filter {
+.filter {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   color: var(--mt-muted);
   font-weight: 600;
 }
+.filter-select {
+  width: 200px;
+}
+.grow {
+  flex: 1;
+}
 
 /* ---- tabla de prompts ---- */
-.prompt-table .row {
+.prompt-table .prompt-row {
   cursor: pointer;
 }
-.prompt-table .row:focus-visible {
+.prompt-table .prompt-row:focus-visible {
   outline: 2px solid var(--mt-accent);
   outline-offset: -2px;
 }

@@ -48,12 +48,14 @@ Un `<button>` crudo solo se admite en las interioridades de estos componentes y 
 
 ## 5. Prompts: lista y detalle
 
-- La lista es una tabla (`DataTable`): `Prompt | Latest | DEV | PRE | PRO | Updated`. Cada entorno es un chip con la versión; en `pro`, si va por detrás, el chip se resalta y dice «N behind». Un solo aviso arriba («N prompts run behind…», con «Show them») y solo si hay algo que atender. Todo se deriva de lo que la lista ya devuelve (`latestVersion`, `tags`).
-- Prompts y fragmentos son una sola pantalla con un `SegmentedControl` (`?kind=fragments`) y el estado de release un filtro (`?status=behind`), según la regla de «filtros en vez de submenú». «Show archived» vive en el menú ⋯.
-- El detalle de un prompt abre con una franja de entornos (una tarjeta por entorno con su versión, estado y la acción «Promote vN» / «Request approval») y pestañas por tarea con `TabBar`: Overview, Versions, Test, Releases, Used by. Una pestaña puede agrupar dos vistas con un `SegmentedControl` en la barra de la vista (Versions: List | Compare; Test: Try it | Fix a failure; Releases: Tags & policy | Approvals). No hay panel lateral: variables e inclusiones van bajo el texto.
-- La lista de versiones (buscador, fijadas por tag, agrupadas por mes) es `PromptVersionList`, y se usa en el desplegable del texto y en la pestaña Versions. Las reglas de «detrás» y de agrupación son funciones puras en `domain/prompt-release.ts`; `EnvFlag` pinta la etiqueta de entorno.
+- La lista es una sola tabla (`DataTable`): `Name | Type | Latest | DEV | PRE | PRO | Updated`, con prompts y fragmentos mezclados (la columna Type los distingue). Cada entorno es un chip con la versión; en `pro`, si va por detrás, el chip se resalta y dice «N behind». Sin aviso aparte: el estado se lee en la fila y se filtra con los desplegables Type y Status (`?type=fragment`, `?status=behind`, el valor por defecto no se escribe). «Show archived» vive en el menú ⋯. Todo se deriva de lo que la lista ya devuelve (`latestVersion`, `tags`).
+- No uses la clase `row` en una fila de tabla: Quasar la define como `display:flex` y rompe las columnas (`prompt-row`).
+- Un `Select` dentro de un contenedor que se encoge hereda su ancho: ponle un contenedor con ancho fijo (`filter-select`) o la lista de opciones sale estrecha.
+- El detalle de un prompt son dos columnas: a la izquierda, tarjetas de entorno (versión, estado y acción «Promote vN» / «Request approval») y la lista de versiones (`PromptVersionList`: buscador, agrupadas por mes); a la derecha, la versión elegida con pestañas **de esa versión** (`TabBar`: Prompt, Changes, Behaviour, Test). Test agrupa Try it y Fix a failure con un `SegmentedControl`.
+- Lo que no es de una versión (reglas y aprobaciones, actividad, quién lo usa) va en un panel lateral que se abre desde la cabecera (`?tab=` antiguo lo abre). Mismo patrón para cualquier otra información secundaria de un objeto: panel lateral, no una pestaña más.
+- Las reglas de «detrás» y de agrupación son funciones puras en `domain/prompt-release.ts`; `EnvFlag` pinta la etiqueta de entorno.
 - Un mensaje de versión vacío no se pinta («No message» no aporta nada).
-- Limitación: la tabla asume los tres entornos habituales; con otros nombres las etiquetas extra salen junto al nombre del prompt.
+- Limitación: la tabla asume los tres entornos habituales; con otros nombres las etiquetas extra salen junto al nombre.
 
 ## 6. Asistente embebido
 
