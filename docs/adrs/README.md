@@ -68,6 +68,7 @@ Do **not** write one for a new screen, an endpoint that follows an existing patt
 | 092 | Security Headers and Ingest Rate Limits | [cybersecurity/adr-092-security-headers-and-ingest-rate-limits.md](cybersecurity/adr-092-security-headers-and-ingest-rate-limits.md) |
 | 093 | Audit of Consultancy Access Reuses the Audit Log | [cybersecurity/adr-093-audit-of-consultancy-access.md](cybersecurity/adr-093-audit-of-consultancy-access.md) |
 | 094 | In-app Notification Feed Derived from Alert History | [observability/adr-094-in-app-notification-feed.md](observability/adr-094-in-app-notification-feed.md) |
+| 095 | Multi-Language SDK Contract: Python Is the Reference, a Shared Conformance Suite Keeps TypeScript Aligned | [sdk/adr-095-multi-language-sdk-contract.md](sdk/adr-095-multi-language-sdk-contract.md) |
 
 ## Retired ADRs
 
