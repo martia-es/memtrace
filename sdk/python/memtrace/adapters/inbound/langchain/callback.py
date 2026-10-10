@@ -53,7 +53,8 @@ class MemTraceCallbackHandler(BaseCallbackHandler):
             # `thread_id` is the LangGraph conversation identifier
             sc.GEN_AI_CONVERSATION_ID: md.get("session_id") or md.get("conversation_id") or md.get("thread_id"),
             # LangGraph injects `langgraph_node`/`langgraph_step` into each run's metadata (ADR-011)
-            sc.MEMTRACE_FRAMEWORK: "langgraph" if any(k.startswith("langgraph_") for k in md) else "langchain",
+            # the graph's own root run has no `langgraph_*` keys, only `ls_integration` (ADR-011)
+            sc.MEMTRACE_FRAMEWORK: "langgraph" if md.get("ls_integration") == "langgraph" or any(k.startswith("langgraph_") for k in md) else "langchain",
         }
 
     def _start(self, name, step_type, run_id, parent_run_id, tags, metadata, extra=None) -> None:
