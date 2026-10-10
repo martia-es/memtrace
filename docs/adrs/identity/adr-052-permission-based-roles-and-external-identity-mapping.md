@@ -3,8 +3,8 @@
 * **Status**: Accepted — phases A, B and C implemented (C without per-organization sign-in providers, see notes)
 * **Date**: 2026-10-04
 * **Deciders**: MemTrace Core Team
-* **Supersedes in part**: [ADR-013](adr-013-identity-postgres-and-oauth-rbac.md) (the fixed `admin`/`member` experiment roles), [ADR-016](adr-016-admin-page-visible-to-experiment-members.md) (who generates API keys)
-* **Depends on**: [ADR-013](adr-013-identity-postgres-and-oauth-rbac.md), [ADR-051](../evaluation/adr-051-explicit-queue-reviewers.md)
+* **Supersedes in part**: [ADR-013](adr-013-identity-postgres-and-oauth-rbac.md) (the fixed `admin`/`member` experiment roles), [ADR-016](../README.md#retired-adrs) (who generates API keys)
+* **Depends on**: [ADR-013](adr-013-identity-postgres-and-oauth-rbac.md), [ADR-051](../README.md#retired-adrs)
 
 ## Context and Problem Statement
 

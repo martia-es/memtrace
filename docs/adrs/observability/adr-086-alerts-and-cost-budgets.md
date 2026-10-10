@@ -3,11 +3,11 @@
 * **Status**: Accepted
 * **Date**: 2026-10-10
 * **Deciders**: MemTrace Core Team
-* **Related**: [ADR-053](../governance/adr-053-assistant-registry-data-model.md) (the CronJob worker pattern), [ADR-062](adr-062-end-user-feedback-on-traces.md), [ADR-027](../evaluation/adr-027-custom-metrics-on-custom-spans.md), [ADR-084](../storage/adr-084-data-protection-retention-masking-audit-and-export.md)
+* **Related**: [ADR-053](../governance/adr-053-assistant-registry-data-model.md) (the CronJob worker pattern), [ADR-062](adr-062-end-user-feedback-on-traces.md), [ADR-027](../README.md#retired-adrs), [ADR-084](../storage/adr-084-data-protection-retention-masking-audit-and-export.md)
 
 ## Context and Problem Statement
 
-MemTrace was a viewer: a spike in errors, a slow model or a runaway bill was only noticed by someone who happened to open the dashboard. Items F1 and F2 of `docs/phase-1-improvement-plan.md` ask for threshold alerts with notifications, and for per-agent cost budgets. The metrics already exist (Overview, feedback, saved custom charts), so the problem is evaluation, state and delivery, not measurement.
+MemTrace was a viewer: a spike in errors, a slow model or a runaway bill was only noticed by someone who happened to open the dashboard. Items F1 and F2 of `docs/backlog.md` ask for threshold alerts with notifications, and for per-agent cost budgets. The metrics already exist (Overview, feedback, saved custom charts), so the problem is evaluation, state and delivery, not measurement.
 
 ## Decision Outcome
 

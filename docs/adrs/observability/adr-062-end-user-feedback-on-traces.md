@@ -3,7 +3,7 @@
 * **Status**: Accepted — implemented
 * **Date**: 2026-10-06
 * **Deciders**: MemTrace Core Team
-* **Related**: [ADR-037](../evaluation/adr-037-human-annotations-storage-and-api.md), [ADR-049](../api/adr-049-conversation-title-cost-and-low-rated-traces.md), [ADR-055](../governance/adr-055-agent-chat-endpoint-and-proxy.md)
+* **Related**: [ADR-037](../evaluation/adr-037-human-annotations-storage-and-api.md), [ADR-049](../README.md#retired-adrs), [ADR-055](../governance/adr-055-agent-chat-endpoint-and-proxy.md)
 
 ## Context and Problem Statement
 

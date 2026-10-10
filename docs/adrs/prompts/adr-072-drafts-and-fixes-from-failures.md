@@ -4,7 +4,7 @@
 * **Date**: 2026-10-09
 * **Deciders**: MemTrace Core Team
 * **Extends**: [ADR-067](adr-067-prompt-registry-immutable-versions-and-tags.md)
-* **Related**: [ADR-029](../evaluation/adr-029-llm-as-judge-evaluators.md), [ADR-066](../observability/adr-066-business-error-overview.md), [ADR-069](adr-069-evidence-per-prompt-version.md), [ADR-070](adr-070-prompt-promotion-gate.md), [ADR-071](adr-071-playground-against-the-real-agent.md)
+* **Related**: [ADR-029](../README.md#retired-adrs), [ADR-066](../README.md#retired-adrs), [ADR-069](../README.md#retired-adrs), [ADR-070](adr-070-prompt-promotion-gate.md), [ADR-071](adr-071-playground-against-the-real-agent.md)
 
 ## Context and Problem Statement
 

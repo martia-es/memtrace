@@ -92,9 +92,9 @@ Cuando termine, abre el dashboard en **http://localhost:8080**.
 
 Una vez ejecutado `make up`, tendrás acceso directo a:
 
-* 📊 **Dashboard:** [http://localhost:8080](http://localhost:8080) (nginx sirve la app y reenvía `/api` a la API; ADR-014)
+* 📊 **Dashboard:** [http://localhost:8080](http://localhost:8080) (nginx sirve la app y reenvía `/api` a la API)
 * 🔌 **API de consulta:** `http://localhost:3001` (la usan el SDK y los `examples/` a través de `MEMTRACE_API_URL`)
-* 📖 **Documentación pública:** [http://localhost:8081](http://localhost:8081) (`docs-site/`; ADR-020)
+* 📖 **Documentación pública:** [http://localhost:8081](http://localhost:8081) (`docs-site/`)
 * 🌐 **UI Web de ClickHouse (Play):** [http://localhost:8123/play](http://localhost:8123/play)
   * **Usuario:** `default`
   * **Contraseña:** `memtrace-dev-only`
@@ -177,10 +177,12 @@ MemTrace/
 │   │   └── 001_init_traces.sql
 │   └── postgres/                # Esquema de identidad (transaccional)
 │       └── 001_init_identity.sql
-├── docs/                       # Documentación técnica y decisiones de diseño (ADRs)
-│   ├── roadmap.md
-│   ├── phase_1_design.md
-│   └── adrs/                   # Architecture Decision Records
+├── docs/                       # Documentación técnica (índice en docs/README.md)
+│   ├── roadmap.md              # Visión y fases
+│   ├── backlog.md              # Única lista de pendientes
+│   ├── ui-conventions.md       # Convenciones del dashboard
+│   ├── adrs/                   # Architecture Decision Records (solo decisiones de arquitectura)
+│   └── archive/                # Documentos históricos
 ├── kustomization.yaml          # Configuración de Kustomize
 ├── Makefile                    # Automatización de tareas de desarrollo
 └── README.md                   # Documentación principal
@@ -231,12 +233,12 @@ Cada agente instrumentado envía trazas al Collector autenticándose con una API
 
    *(Pendiente: añadir un parámetro `api_key` de primera clase al SDK en vez de depender de este workaround.)*
 
-3. La API valida la key contra el almacén de identidad antes de reenviar la traza al Collector; una key inválida o revocada se rechaza con 401. Nota: la validación actual solo comprueba que la key sea válida, no que el `service.name` de la traza coincida con el experimento de la key — ver comentario en `ingest/v1/traces/route.ts`.
+3. La API valida la key contra el almacén de identidad antes de reenviar la traza al Collector; una key inválida o revocada se rechaza con 401. También comprueba que el `service.name` de cada recurso pertenezca al experimento de la key (ver [ADR-085](docs/adrs/identity/adr-085-ingest-gateway-validates-service-name.md)).
 
 ---
 
 ## 📚 Documentación Adicional
 
+* 🗂️ [**Índice de la documentación**](docs/README.md) — Qué documento mirar para cada cosa.
 * 🗺️ [**Roadmap del Proyecto**](docs/roadmap.md) — Visión completa y fases de desarrollo.
-* 📐 [**Diseño Técnico de la Fase 1**](docs/phase_1_design.md) — Detalles de instrumentación, ingestión y almacenamiento.
-* 📜 [**ADRs (Architecture Decision Records)**](docs/adrs/) — Decisiones de arquitectura tomadas.
+* 📜 [**ADRs (Architecture Decision Records)**](docs/adrs/README.md) — Solo decisiones de arquitectura.

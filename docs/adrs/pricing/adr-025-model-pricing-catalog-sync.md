@@ -6,7 +6,7 @@
 
 ## Context and Problem Statement
 
-`otel_traces` only stores token counts (`gen_ai.usage.input_tokens` / `output_tokens` / `total_tokens`), never a cost in currency (documented gap, [ADR-023](../api/adr-023-cross-experiment-usage-endpoint.md)). Converting tokens to cost requires a per-model price table, and that table needs to stay current as providers change prices and ship new models — maintaining it by hand does not scale.
+`otel_traces` only stores token counts (`gen_ai.usage.input_tokens` / `output_tokens` / `total_tokens`), never a cost in currency (documented gap, [ADR-023](../README.md#retired-adrs)). Converting tokens to cost requires a per-model price table, and that table needs to stay current as providers change prices and ship new models — maintaining it by hand does not scale.
 
 ## Decision Drivers
 

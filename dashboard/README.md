@@ -1,6 +1,6 @@
 # memtrace-dashboard
 
-Dashboard de MemTrace (pieza 5 del roadmap). Consume **solo** la API de consulta ([`api/`](../api)); nunca accede a ClickHouse. Decisiones: [ADR-011](../docs/adrs/adr-011-dashboard-architecture.md).
+Dashboard de MemTrace (pieza 5 del roadmap). Consume **solo** la API de consulta ([`api/`](../api)); nunca accede a ClickHouse. Convenciones de UI: [docs/ui-conventions.md](../docs/ui-conventions.md). Decisiones de arquitectura: [índice de ADRs](../docs/adrs/README.md).
 
 ## Arrancar
 

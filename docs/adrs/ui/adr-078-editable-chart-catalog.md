@@ -3,7 +3,7 @@
 * **Status**: Accepted — all three phases implemented (editable names, automatic classification, numeric metrics)
 * **Date**: 2026-10-09
 * **Deciders**: MemTrace Core Team
-* **Extends**: [ADR-027](../evaluation/adr-027-custom-metrics-on-custom-spans.md), [ADR-030](../evaluation/adr-030-expand-custom-charts-builder.md), [ADR-057](adr-057-business-vocabulary-for-custom-charts.md)
+* **Extends**: [ADR-027](../README.md#retired-adrs), [ADR-030](../README.md#retired-adrs), [ADR-057](../../ui-conventions.md)
 * **Related**: [ADR-052](../identity/adr-052-permission-based-roles-and-external-identity-mapping.md)
 
 ## Context and Problem Statement

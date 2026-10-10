@@ -92,7 +92,7 @@ Para probar el gate de despliegue sin LLM ni cuota: `uv run python evals/run_eva
 
 Evaluadores: `tool_calls` (localidad y `days` correctos, y sin llamar a la tool cuando no toca) y `response_checks` (cifras presentes, nada inventado ni filtrado). Cada fila del dataset lo declara en `metadata`. `uv run pytest` valida el dataset y los evaluadores sin LLM.
 
-Decisión de arquitectura: [ADR-047](../docs/adrs/assistant/adr-047-weather-assistant-architecture.md).
+Decisión de arquitectura: [ADR-047](../docs/adrs/README.md#retired-adrs).
 
 ## Versión del código y despliegue (ADR-064, ADR-065)
 

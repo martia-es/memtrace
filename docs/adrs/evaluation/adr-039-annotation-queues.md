@@ -3,7 +3,7 @@
 * **Status**: Accepted — implemented (manual and filter-based population; run-item UI deferred to ADR-040)
 * **Date**: 2026-10-03
 * **Deciders**: MemTrace Core Team
-* **Depends on**: [ADR-036](adr-036-score-configs-annotation-rubrics.md), [ADR-037](adr-037-human-annotations-storage-and-api.md). Feeds into [ADR-038](../datasets/adr-038-promote-trace-to-dataset-item.md).
+* **Depends on**: [ADR-036](../README.md#retired-adrs), [ADR-037](adr-037-human-annotations-storage-and-api.md). Feeds into [ADR-038](../datasets/adr-031-dataset-versioning.md).
 
 ## Context and Problem Statement
 
@@ -72,7 +72,7 @@ CREATE TABLE annotation_queue_claims (              -- one row per reviewer per 
 
 ### Why a separate `claims` table instead of `assigned_to` on the item
 
-`required_annotations > 1` (several independent labels per item, needed for agreement metrics in [ADR-040](adr-040-judge-human-agreement.md)) means one item has several reviewers. A single `assigned_to` column cannot represent that. The item's own `status` becomes **derived from claims**: it is `completed` when the count of claims with `completed_at` reaches `required_annotations`.
+`required_annotations > 1` (several independent labels per item, needed for agreement metrics in [ADR-040](../README.md#retired-adrs)) means one item has several reviewers. A single `assigned_to` column cannot represent that. The item's own `status` becomes **derived from claims**: it is `completed` when the count of claims with `completed_at` reaches `required_annotations`.
 
 ### Semantics
 
@@ -122,7 +122,7 @@ body: { fromFilter: { <same filter object as the traces list endpoint>, limit: n
 
 * The filter form **resolves once at request time and stores trace ids**; a queue is not a live saved search, so its contents are stable while people review it.
 * Every id is verified against the tenant (like ADR-037 step 4) in one batched `TraceRepository` query, not one query per id.
-* Run items (`target_type = 'run_item'`) are added from the dataset run detail page (this is where judge-vs-human review of an evaluation run happens, [ADR-040](adr-040-judge-human-agreement.md)).
+* Run items (`target_type = 'run_item'`) are added from the dataset run detail page (this is where judge-vs-human review of an evaluation run happens, [ADR-040](../README.md#retired-adrs)).
 * Sampling rules over live traffic: **out of scope** (roadmap excludes online evaluation).
 
 ### API summary
@@ -152,7 +152,7 @@ Authorization: create/edit/archive queues -> `admin`; add items, pull, complete,
 
 ## Amendment: random sampling and item provenance (ADR-040)
 
-[ADR-040](adr-040-judge-human-agreement.md) measures judge-vs-human agreement over the items a queue holds, so it matters *how* they got there: labeling only the items the judge failed biases the result. This amendment adds the missing pieces; nothing above changes for existing callers.
+[ADR-040](../README.md#retired-adrs) measures judge-vs-human agreement over the items a queue holds, so it matters *how* they got there: labeling only the items the judge failed biases the result. This amendment adds the missing pieces; nothing above changes for existing callers.
 
 * **`sample: { size, seed? }`** on `fromFilter` (replacing `limit`; exactly one of the two) and a new form **`{ fromRun: { datasetRunId, sample? } }`**. The server draws the sample (Fisher-Yates with a seeded PRNG, `domain/sampling.ts`), so it works for runs with thousands of items, which the 500-per-request cap of `runItems` could not express. `size` is 1–500. Without `seed` the server generates one; the response returns `sample: { seed, size, poolSize, truncated }` so the sample can be reproduced.
 * **Pool limit**: a filtered sample is drawn from at most 5,000 matching trace ids (read in pages, ids only). If more traces match, `truncated: true` is returned and the sample comes only from the most recent 5,000; the dashboard says so. A run is always sampled from all its items.
@@ -166,7 +166,7 @@ Authorization: create/edit/archive queues -> `admin`; add items, pull, complete,
 * **Changing `required_annotations` mid-flight**: raising it reopens `completed` items below the new threshold (status is derived, so recomputation on read/transition suffices); lowering it can complete items. The recomputation is a single SQL update, tested.
 * **Trace disappears or becomes unreadable** while pending: `next` returns the item, the UI detail load 404s, and the reviewer uses "skip". The queue never blocks on a missing trace.
 * **Reviewers who leave the experiment**: their `claims` rows persist for history; open claims lapse by lease.
-* **Bias**: ordering by `added_at` is deterministic and unbiased; random ordering is a possible per-queue option later (useful to reduce position bias in agreement studies) but not now. Random *sampling* when populating a queue (`sample: N`) is also still open: [ADR-040](adr-040-judge-human-agreement.md) recommends it to avoid selection bias in agreement studies.
+* **Bias**: ordering by `added_at` is deterministic and unbiased; random ordering is a possible per-queue option later (useful to reduce position bias in agreement studies) but not now. Random *sampling* when populating a queue (`sample: N`) is also still open: [ADR-040](../README.md#retired-adrs) recommends it to avoid selection bias in agreement studies.
 * **Hand-off to ADR-038**: a "Promote completed items to dataset" action in the queue view calls the batch endpoint, so a whole review session yields one dataset version.
 * **Dashboard**: new `AnnotationQueuesPage.vue` and a focused review screen (rubric on one side, trace detail on the other). It reuses the trace detail components rather than a new renderer.
 

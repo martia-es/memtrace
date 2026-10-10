@@ -4,7 +4,7 @@
 * **Date**: 2026-10-08
 * **Deciders**: MemTrace Core Team
 * **Extends**: [ADR-067](adr-067-prompt-registry-immutable-versions-and-tags.md), [ADR-068](adr-068-prompt-handle-trace-link-and-usage-report.md)
-* **Related**: [ADR-055](../governance/adr-055-agent-chat-endpoint-and-proxy.md), [ADR-069](adr-069-evidence-per-prompt-version.md), [ADR-070](adr-070-prompt-promotion-gate.md)
+* **Related**: [ADR-055](../governance/adr-055-agent-chat-endpoint-and-proxy.md), [ADR-069](../README.md#retired-adrs), [ADR-070](adr-070-prompt-promotion-gate.md)
 
 ## Context and Problem Statement
 

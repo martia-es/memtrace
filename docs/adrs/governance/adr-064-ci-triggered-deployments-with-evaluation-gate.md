@@ -43,7 +43,7 @@ Stored encrypted in PostgreSQL; the API never returns it. Rotation and revocatio
 ### What "successful evaluation" means
 
 - Run `completed`, tagged with the commit SHA (ADR-065), commit present on the remote and no dirty working tree (`revision_dirty = false`).
-- Every evaluator reaches its pass-rate target ([ADR-060](../evaluation/adr-060-per-evaluator-pass-rate-target.md)); the experiment may require more than one run in PRO (non-deterministic LLMs make a single pass evidence, not proof).
+- Every evaluator reaches its pass-rate target ([ADR-060](../README.md#retired-adrs)); the experiment may require more than one run in PRO (non-deterministic LLMs make a single pass evidence, not proof).
 - Redeploying a commit that already deployed successfully (**rollback**) does not need a new evaluation.
 
 ### Emergency path

@@ -1,15 +1,17 @@
 # Diseño Técnico - Fase 1: Plataforma de Trazabilidad (K8s, Instrumentación & Ingestión)
 
-Este documento complementa a [`roadmap.md`](roadmap.md) detallando las decisiones técnicas de las piezas 1 (instrumentación), 2 (ingestión) y 3 (almacén) de la Fase 1. Las piezas 4 (API) y 5 (dashboard) se diseñarán en documentos posteriores.
+> **Documento archivado.** Describe el diseño técnico de las piezas 1-3 de la Fase 1, ya completada. Se conserva como referencia histórica y no se mantiene: para el estado actual, véanse [roadmap.md](../roadmap.md), [backlog.md](../backlog.md) y los [ADRs vigentes](../adrs/README.md).
+
+Este documento complementa a [`roadmap.md`](../roadmap.md) detallando las decisiones técnicas de las piezas 1 (instrumentación), 2 (ingestión) y 3 (almacén) de la Fase 1. Las piezas 4 (API) y 5 (dashboard) se diseñarán en documentos posteriores.
 
 Decisiones relacionadas:
 
-- [ADR-001](adrs/infra/adr-001-otel-collector-clickhouse.md): OTel Collector + ClickHouse.
-- [ADR-002](adrs/infra/adr-002-local-kubernetes-k3d.md): Kubernetes local con k3d (sustituye a Docker Compose).
-- [ADR-003](adrs/storage/adr-003-clickhouse-schema-and-migrations.md): esquema propio y migraciones versionadas.
-- [ADR-004](adrs/adr-004-genai-semconv-and-content-capture.md): atributos GenAI y captura de contenido.
-- [ADR-005](adrs/infra/adr-005-persistent-storage-and-queue.md): persistencia de ClickHouse y cola persistente del Collector.
-- [ADR-006](adrs/adr-006-kind-and-podman-support.md): Soporte para Kind y Podman en el entorno local de Kubernetes.
+- [ADR-001](../adrs/infra/adr-001-otel-collector-clickhouse.md): OTel Collector + ClickHouse.
+- [ADR-002](../adrs/infra/adr-002-local-kubernetes-k3d.md): Kubernetes local con k3d (sustituye a Docker Compose).
+- [ADR-003](../adrs/storage/adr-003-clickhouse-schema-and-migrations.md): esquema propio y migraciones versionadas.
+- ADR-004: atributos GenAI y captura de contenido (el fichero nunca se añadió al repositorio; ver [el índice de ADRs](../adrs/README.md#numbers-cited-but-never-committed)).
+- [ADR-005](../adrs/infra/adr-005-persistent-storage-and-queue.md): persistencia de ClickHouse y cola persistente del Collector.
+- Soporte para Kind y Podman en el entorno local de Kubernetes (ver el `README.md` de la raíz; no tiene ADR).
 
 ---
 

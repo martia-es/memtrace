@@ -68,7 +68,7 @@ Inspirada en el sur: el turquesa de las calas de Cabo de Gata y la terracota al 
 
 Series de gráficos: turquesa `#00b3ad`, terracota `#ff6b4a`, mar hondo `#0a5c8f`, sol `#ffb820`, arena `#c9a27a`, pizarra `#64748b`.
 
-Reglas: el relleno de un botón con texto blanco cumple contraste AA (4,5:1); el turquesa de marca claro se usa solo en gráficos y elementos decorativos. Cada organización puede sustituir únicamente el color de acción ([ADR-019](adrs/ui/adr-019-organization-theme-tokens.md)). Los tokens viven en `dashboard/src/styles/app.css`.
+Reglas: el relleno de un botón con texto blanco cumple contraste AA (4,5:1); el turquesa de marca claro se usa solo en gráficos y elementos decorativos. Cada organización puede sustituir únicamente el color de acción ([ADR-019](ui-conventions.md)). Los tokens viven en `dashboard/src/styles/app.css`.
 
 ## 7. Tipografía
 
@@ -98,5 +98,5 @@ Ejemplos reales de la interfaz: "Your assistant is healthy", "Nothing needs your
 
 ## 10. Próximos pasos
 
-1. Valoraciones de usuarios finales como señal de calidad en "Needs attention" (hoy se usan las etiquetas humanas de Review, [ADR-049](adrs/api/adr-049-conversation-title-cost-and-low-rated-traces.md)).
+1. Valoraciones de usuarios finales como señal de calidad en "Needs attention" (hoy se usan las etiquetas humanas de Review, [ADR-049](adrs/README.md#retired-adrs)).
 2. Versión del logo en una sola tinta para documentación e impresión (`dashboard/public/logo-mono.svg`) y revisión del favicon sobre fondos claros.

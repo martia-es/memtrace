@@ -3,7 +3,7 @@
 * **Status**: Accepted — implemented (phase A: trace-level and span-level annotations)
 * **Date**: 2026-10-03
 * **Deciders**: MemTrace Core Team
-* **Depends on**: [ADR-036](adr-036-score-configs-annotation-rubrics.md). Related: [ADR-028](adr-028-offline-evaluation-decoupled-sdk.md), [ADR-034](adr-034-run-records-dataset-version-and-uploads-incrementally.md), [ADR-013](../identity/adr-013-identity-postgres-and-oauth-rbac.md).
+* **Depends on**: [ADR-036](../README.md#retired-adrs). Related: [ADR-028](adr-028-offline-evaluation-decoupled-sdk.md), [ADR-034](../README.md#retired-adrs), [ADR-013](../identity/adr-013-identity-postgres-and-oauth-rbac.md).
 
 ## Context and Problem Statement
 
@@ -59,7 +59,7 @@ SETTINGS index_granularity = 8192;
 
 Key points:
 
-* **Why `TargetType` + sparse columns instead of one `TargetId` string**: a typed target keeps filters indexable and avoids parsing `"<runId>:<index>"`. Run items need a target because `DatasetRunItemSubmission.traceId` is nullable, so a run item with no trace can only be addressed by `(DatasetRunId, ItemIndex)`, and judge-human agreement ([ADR-040](adr-040-judge-human-agreement.md)) must cover them. Phase A exposes only `TargetType = 'trace'`; the schema reserves `run_item` so no later migration is needed.
+* **Why `TargetType` + sparse columns instead of one `TargetId` string**: a typed target keeps filters indexable and avoids parsing `"<runId>:<index>"`. Run items need a target because `DatasetRunItemSubmission.traceId` is nullable, so a run item with no trace can only be addressed by `(DatasetRunId, ItemIndex)`, and judge-human agreement ([ADR-040](../README.md#retired-adrs)) must cover them. Phase A exposes only `TargetType = 'trace'`; the schema reserves `run_item` so no later migration is needed.
 * **Sorting key = identity of one label**: `(target, span, config, annotator)`. Re-submitting the same annotator/config/target replaces the previous row (edit). Different annotators coexist. Different configs coexist.
 * **`ReplacingMergeTree(CreatedAt, IsDeleted)`** requires ClickHouse **>= 23.2**. The implementer must verify the version in `kustomization.yaml`/Helm values before relying on it; if older, fall back to `argMax` queries with an `IsDeleted` filter and no engine-level cleanup.
 * **Retraction** = insert the same key with `IsDeleted = 1` and a newer `CreatedAt`. Rows are physically removed on merge; until then reads must exclude them (see below).
@@ -70,7 +70,7 @@ Key points:
 ### Read semantics
 
 * `FINAL` is required to see deduplicated rows (same pattern as `listScoresByRun`), plus `WHERE IsDeleted = 0`. `FINAL` on this table is cheap because every query is bounded by `ServiceName` + `TraceId` or a run.
-* Reads respect the query limiter already used for trace queries (`query-limiter.ts`); the ClickHouse footprint is tight in local k3d ([ADR-010](../storage/adr-010-clickhouse-thread-footprint-in-kind.md)).
+* Reads respect the query limiter already used for trace queries (`query-limiter.ts`); the ClickHouse footprint is tight in local k3d ([ADR-010](../README.md#retired-adrs)).
 
 ### Write path and client scoping
 
@@ -107,11 +107,11 @@ DELETE /api/v1/experiments/:experimentId/traces/:traceId/annotations/:configId?s
 
 ## Design Implications
 
-* **Retention vs. traces.** If trace retention (TTL on `otel_traces`) is ever enabled, annotations become orphaned. This is deliberate: a label is valuable on its own and the unified read must tolerate a missing trace. Anything that *needs* the trace content later (promotion to a dataset, [ADR-038](../datasets/adr-038-promote-trace-to-dataset-item.md)) must **copy** it at promotion time, never reference it.
+* **Retention vs. traces.** If trace retention (TTL on `otel_traces`) is ever enabled, annotations become orphaned. This is deliberate: a label is valuable on its own and the unified read must tolerate a missing trace. Anything that *needs* the trace content later (promotion to a dataset, [ADR-038](../datasets/adr-031-dataset-versioning.md)) must **copy** it at promotion time, never reference it.
 * **Content redaction ([ADR-021](../sdk/adr-021-sdk-explicit-tracer-provider-and-content-redaction.md)).** If an SDK redacts prompts, annotators see redacted content and their labels reflect that. Nothing here decrypts or restores content.
-* **Privacy of `Comment`.** Free-text comments may contain sensitive data pasted from a trace. They share the tenant boundary of the trace and are never returned outside the experiment. No cross-experiment endpoint (cf. [ADR-023](../api/adr-023-cross-experiment-usage-endpoint.md)) may expose them.
+* **Privacy of `Comment`.** Free-text comments may contain sensitive data pasted from a trace. They share the tenant boundary of the trace and are never returned outside the experiment. No cross-experiment endpoint (cf. [ADR-023](../README.md#retired-adrs)) may expose them.
 * **Cost of `FINAL` and per-trace reads** is bounded; **list-level aggregates** ("percent of traces annotated as incorrect over the last 7 days") need a separate aggregate query on `annotations` with `FINAL`. That is Phase D territory and is not exposed in A.
-* **Multi-annotator display**: A shows all annotations; no consensus/adjudication is defined. "Which label wins when annotators disagree" is deliberately deferred to [ADR-040](adr-040-judge-human-agreement.md) (reporting) rather than baked into storage.
+* **Multi-annotator display**: A shows all annotations; no consensus/adjudication is defined. "Which label wins when annotators disagree" is deliberately deferred to [ADR-040](../README.md#retired-adrs) (reporting) rather than baked into storage.
 
 ## Consequences
 
@@ -144,4 +144,4 @@ DELETE /api/v1/experiments/:experimentId/traces/:traceId/annotations/:configId?s
 * **POST returns the full view** (`annotations` + `scores`, `201`) instead of just the saved row, so the client refreshes from one response.
 * **Config ids that are not UUIDs** resolve to "not found" in the PostgreSQL adapter (404) instead of failing the `uuid` cast (500). This also applies to the ADR-036 endpoints.
 * **Tenant check scope.** The trace must have at least one span under the experiment's `ServiceName` (the first 5000 spans are examined, like the trace detail). A `spanId` is rejected unless the trace was truncated, in which case it is accepted unchecked.
-* **Not done:** conversation-level annotation (open question). Delivered later: inline "create score config" in the annotation panel (admins), `run_item` targets (through annotation queues, ADR-039) and the dedicated ClickHouse user with `GRANT INSERT` ([ADR-045](adr-045-evaluation-follow-ups-retrieval-metrics-summaries-retention-and-writer-user.md)).
+* **Not done:** conversation-level annotation (open question). Delivered later: inline "create score config" in the annotation panel (admins), `run_item` targets (through annotation queues, ADR-039) and the dedicated ClickHouse user with `GRANT INSERT` ([ADR-045](../README.md#retired-adrs)).

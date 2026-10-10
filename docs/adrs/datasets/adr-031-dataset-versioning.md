@@ -1,35 +1,33 @@
-# ADR-031: Dataset Versioning and Management UI
+# ADR-031: Dataset Versioning — Immutable Snapshots, Semver, Stable Item Identity and Publish per Session
 
-* **Status**: Accepted; the manual version-creation model (point 2, "a new version clones...") is superseded by [ADR-032](adr-032-automatic-dataset-versioning-and-item-audit.md), which makes versioning fully automatic. The `dataset_versions` table itself, the major-change-stays-reproducible rationale, and the SDK-compatibility approach (points 1, 3, 6) still stand.
-* **Date**: 2026-10-02
+* **Status**: Accepted. Consolidates the former ADR-031, 032, 033, 038 and 041 (see [the ADR index](../README.md))
+* **Date**: 2026-10-02 (consolidated 2026-10-10)
 * **Deciders**: MemTrace Core Team
 
 ## Context and Problem Statement
 
-Datasets (ADR-028) are a flat `datasets` 1→N `dataset_items` table. Editing a dataset's items mutates them in place, so a `dataset_run` created yesterday points at data that may no longer exist today — the run is no longer reproducible, and comparing two runs can silently compare different underlying data. There is also no way to manage a dataset (create it, edit its items) from the dashboard: today the only path is the Python SDK uploading data via `run_experiment()`.
-
-We need: (1) a way to change a dataset's items without breaking past runs, and (2) a dashboard UI to create/edit datasets and their items manually. Both touch the same place: how `dataset_items` relates to `datasets`.
-
-Hard constraint: the SDK (`sdk/python/memtrace/adapters/outbound/http/eval_api_client.py`) calls `GET /datasets/:id/items` and `POST /datasets/:id/runs` with a plain `dataset_id`, documented publicly in `docs-site/library/evaluation.md` and `examples/06_evaluate_against_memtrace.py`. This surface cannot change.
+Datasets (ADR-028) started as a flat `datasets` 1→N `dataset_items` table. Editing items mutated them in place, so a `dataset_run` created yesterday pointed at data that may no longer exist today: the run was not reproducible and comparing two runs could silently compare different data. Datasets also needed to be managed from the dashboard, not only from the SDK. The public SDK/API surface (`GET /datasets/:id/items`, `POST /datasets/:id/runs`, documented in `docs-site/library/evaluation.md`) could not change.
 
 ## Decision Outcome
 
-1. **`dataset_versions` as an intermediate table, not a `version` column on `dataset_items`.** A version is an immutable snapshot: once created, its items don't change (new items go into the next version, not retroactively into an old one). Modeling it as its own table with its own `id` lets `dataset_runs` and `dataset_items` both point at a specific, frozen version via a normal foreign key, instead of a "valid as of version N" range query.
+1. **Versions are immutable snapshots in their own table.** `dataset_versions` has its own `id`; `dataset_items` and `dataset_runs` point at a frozen version through a normal foreign key. A mutation clones the previous version's items into a new version. `dataset_runs` also keeps a denormalized `dataset_id` so runs can be listed per experiment without a join.
+2. **Versioning is automatic, never a manual step.** Every mutation creates its version atomically in the same transaction. The version carries semver-style `major.minor`: **MAJOR** on a structural change (item added or removed, so old and new runs are not directly comparable), **MINOR** when only the content of existing items is edited. `note` is generated ("Added 3 · Edited 2 · Removed 1").
+3. **Per-item audit.** Items carry `created_by/at`, `updated_by/at` and `deleted_by/at`. Deleting clones the item into the new version as a **tombstone** (never re-cloned afterwards), so who removed what survives.
+4. **Stable identity and server-side diff.** `dataset_items.origin_item_id` is the id the item was born with, copied on every clone. A pure domain function (`domain/dataset-diff.ts`) pairs items by it and compares `input`, `expectedOutput` and `metadata` by deep equality; audit columns never count. Any version can be diffed against any other (`GET .../versions/:versionId/diff?against=`); `GET .../versions` returns real added/modified/removed counts.
+5. **The SDK stays versionless by default.** Without a version the server resolves "latest" when the run is submitted. The SDK can pin `major.minor` (`run_experiment(..., dataset_version="2.1")`); the `major.minor` string is the public handle (`domain/dataset-version.ts`). A run always records the exact version it read: the API requires `datasetVersion` on `POST .../runs` and never guesses "latest", and the SDK refuses to open a run when the version is unknown.
+6. **One published session = one version.** The Items tab is an inline-editable grid whose edits live in a client-side draft until **Publish**, which calls `POST /datasets/{id}/changes` with `{ add[], update[], remove[] }`. The server applies it in a single transaction (dataset row locked with `FOR UPDATE`) and creates one version; if someone else published first and ids are stale, nothing is written and the draft stays in the browser. The per-item `PUT`/`DELETE` endpoints remain for API users (one version each).
+7. **Promotion from traces reuses all of the above.** `POST .../items/from-traces` (max 100 traces per call) builds items from annotated traces and calls the same add path **once**, so one call = one MAJOR. The item is self-contained: the input is copied (and editable), the agent's real answer goes to `metadata.observedOutput` and **never** silently to `expected_output`. Expected output resolves in this order: explicit `expectedOutput` > observed output if the person asked for it (`useObservedOutput`) > the label of a chosen categorical annotation config > `null`. Traces without captured content are skipped (`no_content`) and a trace already promoted is skipped (`already_promoted`). Provenance is stored in `promotedFrom`.
+8. **Authorization.** No new role: dataset mutations use `canReadExperiment` (any experiment member), as before versioning.
 
-2. **A new version clones (snapshots) the previous version's items** instead of starting empty. The dashboard's "new version" action is meant for small edits (fix a wrong expected output, add a couple of items), not re-authoring a dataset from scratch — cloning makes that the common case the cheap one.
+## Considered Alternatives
 
-3. **`submitDatasetRun` resolves "latest version" server-side**, at the moment a run is submitted (`EvaluationService.submitDatasetRun`, `api/src/application/evaluation-service.ts`). The SDK still only ever sends a `dataset_id`; it never learns about versions. This is what keeps the public SDK/API surface unchanged — the versioning concept exists entirely behind the one endpoint the SDK calls, resolved transparently.
-
-4. **The old `datasets/:id/items` route becomes an alias for "items of the latest version"**, kept only for the SDK and backward compatibility. Dashboard-side management (listing/creating versions, editing/deleting individual items of a chosen version) uses new, explicit routes: `datasets/:id/versions`, `datasets/:id/versions/:versionId/items`, `.../items/:itemId`.
-
-5. **`dataset_runs` keeps its direct `dataset_id` column** (denormalized) alongside the new `dataset_version_id`, so runs can still be listed/filtered by dataset without a join through versions — used by the new experiment-wide "Runs" view (see below).
-
-6. **Dashboard navigation splits "Datasets" and "Runs" into two top-level sections.** Previously a single "Evaluation" entry showed datasets, and only inside one dataset could its runs be seen. A run belongs to exactly one dataset (and one version of it), but browsing runs across all datasets without picking one first is a common need (e.g., "what ran most recently, regardless of dataset?") — hence a new `GET /experiments/:id/runs` endpoint (`listRunsForExperiment`) joining `dataset_runs` + `datasets` + `dataset_versions`, backing a dedicated Runs page. Clicking a row still opens the existing per-dataset run detail page/URL — no change to how a single run is fetched.
-
-7. **No new authorization role.** Dataset management mutations (create dataset/version, add/edit/delete item) use the same `canReadExperiment` check that dataset creation already used pre-ADR-031 (any experiment member, not just `admin`) — consistent with how `api-keys` creation already works (ADR-016). Introducing a stricter "who can edit datasets" role is left for a future ADR if it turns out to be needed.
+* **A `version` column on `dataset_items`.** Rejected: runs would need a "valid as of version N" range query instead of a foreign key.
+* **Manual "New version" button.** Tried first; people forgot to version before editing, or it was friction before every edit.
+* **Server-side drafts, debounced auto-publish, CSV/JSONL import as main path.** Rejected for now: drafts add schema and conflict states for a low-volume, usually single-editor workflow; auto-merging versions makes boundaries unpredictable; the product direction is that the grid must be as good as a spreadsheet.
 
 ## Consequences
 
-* **Positive**: past runs stay reproducible — a run's `dataset_version_id` never changes even as the dataset evolves. Manual dataset management becomes possible from the dashboard without touching the SDK or its documented contract. The Datasets/Runs nav split matches how users actually think about the two (a dataset is a thing you curate; a run is an event that happened).
-* **Negative**: dataset size now grows with `items × versions`, since each version fully clones the previous one's items — acceptable given datasets are explicitly curated/low-volume (ADR-028's own premise), but a dataset edited very frequently with very large items would waste storage. Not optimized for here; revisit if it becomes a real workload.
-* **Compatibility**: purely additive at the SDK/public-API level — `dataset_id`-based calls behave exactly as before, now resolved against "latest version" instead of "the only version". Migration (`migrations/postgres/007_dataset_versioning.sql`) backfills every existing dataset with a version 1 containing its current items, so no existing data or run is lost or reassigned.
+* **Positive**: past runs stay reproducible; change counts and diffs are true; an editing session is one meaningful version; the SDK contract is unchanged.
+* **Negative**: dataset size grows with `items × versions` (each version clones the previous). Diffing loads all items of the compared versions in memory. Both are acceptable while datasets are curated and low-volume (ADR-028's premise); revisit with SQL-side diffing or deduplicated storage otherwise.
+* **Negative**: unpublished edits live only in the browser tab (guarded by an unload warning). Concurrent editors can force a "reload and retry".
+* **Migration**: `007_dataset_versioning.sql` backfilled a version 1 per dataset; `011_dataset_item_origin.sql` backfilled `origin_item_id` heuristically (matching clones by dataset, `created_by` and `created_at`), so old versions may pair a sibling wrongly. New data does not depend on it.

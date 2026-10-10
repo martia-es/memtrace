@@ -4,7 +4,7 @@
 * **Date**: 2026-10-08
 * **Deciders**: MemTrace Core Team
 * **Extends**: [ADR-067](adr-067-prompt-registry-immutable-versions-and-tags.md)
-* **Related**: [ADR-064](../governance/adr-064-ci-triggered-deployments-with-evaluation-gate.md), [ADR-060](../evaluation/adr-060-per-evaluator-pass-rate-target.md), [ADR-068](adr-068-prompt-handle-trace-link-and-usage-report.md), [ADR-069](adr-069-evidence-per-prompt-version.md)
+* **Related**: [ADR-064](../governance/adr-064-ci-triggered-deployments-with-evaluation-gate.md), [ADR-060](../README.md#retired-adrs), [ADR-068](adr-068-prompt-handle-trace-link-and-usage-report.md), [ADR-069](../README.md#retired-adrs)
 
 ## Context and Problem Statement
 

@@ -1,11 +1,8 @@
 # Custom charts: cómo se construyen y cómo se mapea OTel a preguntas de negocio
 
-Documento técnico (no es un ADR). Describe el estado actual del código. Las decisiones de diseño
-están en [ADR-026](adrs/observability/adr-026-custom-step-trees.md),
-[ADR-027](adrs/evaluation/adr-027-custom-metrics-on-custom-spans.md),
-[ADR-030](adrs/evaluation/adr-030-expand-custom-charts-builder.md),
-[ADR-035](adrs/evaluation/adr-035-saved-metric-reports.md) y
-[ADR-057](adrs/ui/adr-057-business-vocabulary-for-custom-charts.md).
+Documento técnico (no es un ADR). Describe el estado actual del código y recoge las decisiones de los
+antiguos ADR-026, 027, 030, 035 y 057, ya retirados ([índice](adrs/README.md#retired-adrs)). Las convenciones
+de presentación están en [ui-conventions.md](ui-conventions.md).
 
 ## 1. Resumen en una frase
 

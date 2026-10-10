@@ -3,7 +3,7 @@
 * **Status**: Proposed
 * **Date**: 2026-10-07
 * **Deciders**: MemTrace Core Team
-* **Related**: [ADR-064](../governance/adr-064-ci-triggered-deployments-with-evaluation-gate.md), [ADR-006](../sdk/adr-006-python-sdk-design.md), [ADR-034](../evaluation/adr-034-run-records-dataset-version-and-uploads-incrementally.md)
+* **Related**: [ADR-064](../governance/adr-064-ci-triggered-deployments-with-evaluation-gate.md), [ADR-006](../sdk/adr-006-python-sdk-design.md), [ADR-034](../README.md#retired-adrs)
 
 ## Context and Problem Statement
 

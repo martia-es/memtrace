@@ -1,6 +1,6 @@
-# Plan de cierre de la Fase 1
+# Backlog: cierre de la Fase 1
 
-Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace sea una buena herramienta de observabilidad y mejora continua **antes de empezar la Fase 2 (Mem)**. Complementa a [roadmap.md](roadmap.md) y a [pending-gaps.md](pending-gaps.md); cuando un punto se cierra, se marca aquí y se actualiza el roadmap.
+Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace sea una buena herramienta de observabilidad y mejora continua **antes de empezar la Fase 2 (Mem)**. Complementa a [roadmap.md](roadmap.md); es la **única** lista de pendientes (sustituye al antiguo `pending-gaps.md`); cuando un punto se cierra, se marca aquí y se actualiza el roadmap.
 
 **Leyenda**: `[ ]` pendiente · `[~]` en curso · `[x]` hecho · Prioridad **A** (alta), **M** (media), **B** (baja) · Esfuerzo **S** (días), **M** (1-2 semanas), **L** (más de 2 semanas)
 
@@ -30,6 +30,9 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 | R4 | [ ] | Prompts — evidencia (ADR-069) | Anotaciones humanas, serie temporal por versión, cohortes de tráfico | M |
 | R5 | [ ] | Prompts — otros | Límites de coste/latencia en la promoción, permiso propio para la política, edición in situ de borradores, fragmentos anidados, límite de ejecuciones del playground | B |
 | R6 | [ ] | Apariencia (ADR-063) | Preferencia de modo en el perfil, avatar y bienvenida, presets de tema, paleta de gráficas | B |
+| R8 | [ ] | Identidad (ADR-052) | Mapeo de IdP externo (SCIM/grupos) | B |
+| R9 | [ ] | Seguridad | Guardrails sobre trazas | B |
+| R10 | [ ] | Alertas (ADR-086) | Webhooks (Slack, Teams, PagerDuty) y alertar sobre la calidad de la evaluación online (depende de F3) | M |
 | R7 | [ ] | Feedback de usuario | Alertas por caída de satisfacción (ligado a F1) y satisfacción por versión de despliegue | M |
 
 ## 3. Mejoras sobre lo ya construido
@@ -74,3 +77,4 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 | 2026-10-10 | F9 hecho (ADR-085) |
 | 2026-10-10 | F1 y F2 hechos (ADR-086). Pendiente de este bloque: webhooks para las alertas |
 | 2026-10-10 | M8 hecho: el dashboard y la API consultan hasta 365 días |
+| 2026-10-10 | Limpieza de documentación: `pending-gaps.md` se fusiona aquí (R8-R10) y este documento pasa a llamarse `backlog.md` |

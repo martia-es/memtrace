@@ -1,5 +1,5 @@
 # El ConfigMap `clickhouse-migrations` lo genera kustomize (ver kustomization.yaml).
-# Los Jobs son inmutables: para relanzar, borrar antes el Job (ver docs/phase_1_design.md §0.3).
+# Los Jobs son inmutables: para relanzar, borrar antes el Job (ver docs/archive/phase_1_design.md §0.3).
 apiVersion: batch/v1
 kind: Job
 metadata:

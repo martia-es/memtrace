@@ -16,18 +16,18 @@ All decisions here stay inside the dashboard (piece 5): every screen still consu
 
 | Token | Light | Use |
 |-------|-------|-----|
-| `--mt-accent` | `#00857f` | Buttons, links, selection. The only token an organization may override ([ADR-019](adr-019-organization-theme-tokens.md)) |
+| `--mt-accent` | `#00857f` | Buttons, links, selection. The only token an organization may override ([ADR-019](../../ui-conventions.md)) |
 | `--mt-brand` | `#00b3ad` | Logo, charts, focus |
 | `--mt-highlight` | `#ff6b4a` | Counters, pending work, the second logo bar |
 | `--mt-ok` / `--mt-warn` / `--mt-err` | green / amber / rose | Status only, never decoration |
 
-Neutrals carry a teal tint (`--mt-bg #f2faf9`, `--mt-line #d6e9e7`) instead of gray. Existing `--mt-*` names are kept, so every component picks up the new look without edits; new tokens (`--mt-accent-soft`, `--mt-accent-tint`, `--mt-accent-text`, `--mt-highlight-*`, `--mt-shadow-float`) were added. The dark theme ([ADR-017](adr-017-dark-theme-via-mt-tokens.md)) is a designed set of values for the same tokens, not an inversion. Button fills meet WCAG AA with white text (`#00857f` is 4.6:1); the lighter brand teal is used only for graphics.
+Neutrals carry a teal tint (`--mt-bg #f2faf9`, `--mt-line #d6e9e7`) instead of gray. Existing `--mt-*` names are kept, so every component picks up the new look without edits; new tokens (`--mt-accent-soft`, `--mt-accent-tint`, `--mt-accent-text`, `--mt-highlight-*`, `--mt-shadow-float`) were added. The dark theme ([ADR-017](../../ui-conventions.md)) is a designed set of values for the same tokens, not an inversion. Button fills meet WCAG AA with white text (`#00857f` is 4.6:1); the lighter brand teal is used only for graphics.
 
 Chart series are `turquoise, terracotta, deep sea, sun, sand, slate` (`chart-theme.ts`, `palette.ts`), replacing the grayscale scale.
 
 ### 2. Compact, flat and slightly squarer
 
-- Corners follow [ADR-018](adr-018-centralized-border-radius-tokens.md) with new defaults: **4 px** chips and badges, **6 px** buttons and inputs, **8 px** cards. Organizations that pick a preset still override all three together; the appearance panel gained an explicit **Default** option.
+- Corners follow [ADR-018](../../ui-conventions.md) with new defaults: **4 px** chips and badges, **6 px** buttons and inputs, **8 px** cards. Organizations that pick a preset still override all three together; the appearance panel gained an explicit **Default** option.
 - 1 px borders and no card shadows; only floating elements (menus, dialogs) use `--mt-shadow-float`.
 - Plus Jakarta Sans at 13 px for text and JetBrains Mono (replacing Geist Mono) for ids, timestamps and every numeric column, so digits align. Table rows are 46–50 px with an uppercase 11 px header on a tinted background.
 - Status is a chip (dot + label) in one component, `StatusChip`.
@@ -52,5 +52,5 @@ Chart series are `turquoise, terracotta, deep sea, sun, sand, slate` (`chart-the
 
 - **Positive**: one token set explains the whole look; screens answer "is it healthy?" without reading charts; the same pages serve business and technical users because depth is one click away.
 - **Positive**: no API change and no new endpoint; the redesign can be reverted or evolved screen by screen.
-- **Follow-up** ([ADR-049](../api/adr-049-conversation-title-cost-and-low-rated-traces.md)): conversations now carry a readable title and a cost, *Needs attention* also flags traces that reviewers rated low, and the whole UI is in English with `en-US` formats. The original design shipped without these because the API did not provide them.
+- **Follow-up** ([ADR-049](../README.md#retired-adrs)): conversations now carry a readable title and a cost, *Needs attention* also flags traces that reviewers rated low, and the whole UI is in English with `en-US` formats. The original design shipped without these because the API did not provide them.
 - **Negative**: *Needs attention* covers what MemTrace can measure today (errors, failing tools, human labels, review backlog). It has no signal from end-user ratings.

@@ -1,6 +1,6 @@
 # ADR-067: Prompt Registry — Immutable Versions, Movable Tags and Evidence per Version
 
-* **Status**: Proposed — phases 1 to 6 implemented; phase 6 in [ADR-072](adr-072-drafts-and-fixes-from-failures.md); phase 5 in [ADR-071](adr-071-playground-against-the-real-agent.md); phase 4 in [ADR-070](adr-070-prompt-promotion-gate.md); phase 2 in [ADR-068](adr-068-prompt-handle-trace-link-and-usage-report.md), phase 3 in [ADR-069](adr-069-evidence-per-prompt-version.md)
+* **Status**: Proposed — phases 1 to 6 implemented; phase 6 in [ADR-072](adr-072-drafts-and-fixes-from-failures.md); phase 5 in [ADR-071](adr-071-playground-against-the-real-agent.md); phase 4 in [ADR-070](adr-070-prompt-promotion-gate.md); phase 2 in [ADR-068](adr-068-prompt-handle-trace-link-and-usage-report.md), phase 3 in [ADR-069](../README.md#retired-adrs)
 * **Date**: 2026-10-08
 * **Deciders**: MemTrace Core Team
 * **Related**: [ADR-052](../identity/adr-052-permission-based-roles-and-external-identity-mapping.md), [ADR-053](../governance/adr-053-assistant-registry-data-model.md), [ADR-054](../governance/adr-054-experiment-is-an-agent.md), [ADR-064](../governance/adr-064-ci-triggered-deployments-with-evaluation-gate.md), [ADR-065](../observability/adr-065-code-revision-on-traces-and-evaluations.md)

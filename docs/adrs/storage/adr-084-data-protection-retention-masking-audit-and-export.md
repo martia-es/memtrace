@@ -3,11 +3,11 @@
 * **Status**: Accepted
 * **Date**: 2026-10-10
 * **Deciders**: MemTrace Core Team
-* **Related**: [ADR-013](../identity/adr-013-identity-postgres-and-oauth-rbac.md), [ADR-021](../sdk/adr-021-sdk-explicit-tracer-provider-and-content-redaction.md), [ADR-045](../evaluation/adr-045-evaluation-follow-ups-retrieval-metrics-summaries-retention-and-writer-user.md), [ADR-052](../identity/adr-052-permission-based-roles-and-external-identity-mapping.md)
+* **Related**: [ADR-013](../identity/adr-013-identity-postgres-and-oauth-rbac.md), [ADR-021](../sdk/adr-021-sdk-explicit-tracer-provider-and-content-redaction.md), [ADR-045](../README.md#retired-adrs), [ADR-052](../identity/adr-052-permission-based-roles-and-external-identity-mapping.md)
 
 ## Context and Problem Statement
 
-Traces contain prompts and answers, so they contain whatever the users of an agent typed. Four gaps stopped MemTrace from being adopted by a company that has to answer to a data protection officer (items F4 and F7 of `docs/phase-1-improvement-plan.md`):
+Traces contain prompts and answers, so they contain whatever the users of an agent typed. Four gaps stopped MemTrace from being adopted by a company that has to answer to a data protection officer (items F4 and F7 of `docs/backlog.md`):
 
 1. **Personal data reaches the database.** The SDK can anonymize (ADR-021, Presidio) but only if the agent turns it on. The platform had no net of its own.
 2. **Retention is a hard-coded 30 days** in the ClickHouse TTL of every trace table. It cannot differ per organization or per agent, and it cannot be longer.

@@ -6,7 +6,8 @@ Por cada código que vayas a implementar tienes que:
 2. Actualizar docs-site/ solo con la información que sea relevante para un usuario de esta libreria + herramienta.
 
 Además:
-- Cada vez que hagas una funcionalidad que requiera tomar / modificar una decisión de diseño, debes crear un ADR en docs/adrs, con el titulo en ingles, por ejemplo: docs/adrs/sdk/adr-001-use-fastapi.md. Los ADRs están organizados en subcarpetas por temática (infra, storage, sdk, api, identity, ui, observability, evaluation, datasets, pricing) — coloca cada ADR nuevo en la subcarpeta que corresponda, o crea una nueva si ninguna encaja. Este ADR debe ser sencillo y no debe contener más de 500 líneas. No debes hacer un ADR por cada nuevo desarrollo, solo por decisiones que impliquen cambios de arquitectura importantes.
+- Solo crea un ADR para decisiones de arquitectura difíciles de revertir (un almacén nuevo, un protocolo, un modelo de datos, una frontera de seguridad, un contrato público) que afecten a más de un componente y tengan alternativas reales. Lee antes docs/adrs/README.md: ahí están los criterios, el índice y la numeración. Si ya existe un ADR del mismo tema, amplíalo en vez de crear otro. El ADR va en docs/adrs/<tema>/, con el título en inglés, por ejemplo: docs/adrs/sdk/adr-001-use-fastapi.md, y no debe contener más de 500 líneas. Los temas son: infra, storage, sdk, api, identity, governance, observability, evaluation, datasets, prompts, pricing, ui. Actualiza la tabla de docs/adrs/README.md.
+- No es un ADR: una pantalla nueva, un endpoint que sigue un patrón existente, un componente o una convención de UI (va en docs/ui-conventions.md), ni lo que queda pendiente (va en docs/backlog.md). Consulta docs/README.md para saber dónde va cada cosa.
 
 - El Readme.md debe quedarse limpio, debe ser una guia básica para entender la estructura de este proyecto y los comandos básicos para levantarlo. Actualizalo solo cuando sea necesario.
 

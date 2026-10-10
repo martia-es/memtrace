@@ -3,8 +3,8 @@
 * **Status**: Accepted
 * **Date**: 2026-10-03
 * **Deciders**: MemTrace Core Team
-* **Resolves**: limitations 1, 2, 3, 4, 5 and 10 of [ADR-042](adr-042-offline-evaluation-storage-model-limitations.md)
-* **Relates to**: [ADR-028](adr-028-offline-evaluation-decoupled-sdk.md), [ADR-034](adr-034-run-records-dataset-version-and-uploads-incrementally.md), [ADR-037](adr-037-human-annotations-storage-and-api.md), [ADR-043](adr-043-record-judge-identity-on-scores.md), [ADR-025](../pricing/adr-025-model-pricing-catalog-sync.md)
+* **Resolves**: limitations 1, 2, 3, 4, 5 and 10 of [ADR-042](../README.md#retired-adrs)
+* **Relates to**: [ADR-028](adr-028-offline-evaluation-decoupled-sdk.md), [ADR-034](../README.md#retired-adrs), [ADR-037](adr-037-human-annotations-storage-and-api.md), [ADR-043](../README.md#retired-adrs), [ADR-025](../pricing/adr-025-model-pricing-catalog-sync.md)
 
 ## Context
 
@@ -73,4 +73,4 @@ The LangChain callback fills it automatically; for manual instrumentation `memtr
 
 * Positive: item text is stored once; numeric analytics use a typed column; latency, tokens and cost work with no extra SDK contract and no per-item trace fetches; the trace id is now actually captured.
 * Negative: the first deployment wipes previous evaluation runs and their run-item labels; telemetry requires the user to call `init_tracer()` and depends on trace retention; a run-detail read now issues two queries on the evaluation tables plus one on traces.
-* Still open: nothing from this list. Partitioning/TTL, stored run summaries and retrieval metrics were delivered in [ADR-045](adr-045-evaluation-follow-ups-retrieval-metrics-summaries-retention-and-writer-user.md).
+* Still open: nothing from this list. Partitioning/TTL, stored run summaries and retrieval metrics were delivered in [ADR-045](../README.md#retired-adrs).
