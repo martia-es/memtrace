@@ -26,21 +26,31 @@ const loading = ref(true);
 const showHidden = ref(false);
 
 const MAX_STEPS_FOR_ATTRIBUTES = 20;
+let firstLoad = true;
+let seq = 0;
 async function load() {
-  loading.value = true;
+  const mine = ++seq;
+  // solo la primera vez se oculta la tabla; al cambiar de periodo se refresca sin parpadeo
+  loading.value = firstLoad;
+  firstLoad = false;
   try {
-    steps.value = (await traces.getStepKinds(props.range)).items;
-    const types = steps.value.slice(0, MAX_STEPS_FOR_ATTRIBUTES).map((s) => s.stepType);
-    attributes.value = types.length > 0 ? (await traces.getAttributeKeys({ ...props.range, stepTypes: types })).items : [];
+    const found = (await traces.getStepKinds(props.range)).items;
+    const types = found.slice(0, MAX_STEPS_FOR_ATTRIBUTES).map((s) => s.stepType);
+    const keys = types.length > 0 ? (await traces.getAttributeKeys({ ...props.range, stepTypes: types })).items : [];
+    if (mine !== seq) return; // llegó otra consulta con un periodo más nuevo
+    steps.value = found;
+    attributes.value = keys;
   } catch {
+    if (mine !== seq) return;
     // sin datos de actividad todavía se pueden revisar los nombres ya puestos
     steps.value = [];
     attributes.value = [];
   } finally {
-    loading.value = false;
+    if (mine === seq) loading.value = false;
   }
 }
-void load();
+// al cambiar el periodo se vuelve a mirar qué hay; los cambios pendientes se conservan porque van por clave
+watch(() => [props.range.from, props.range.to], () => void load(), { immediate: true });
 
 type Kind = "step" | "attribute";
 interface Row {

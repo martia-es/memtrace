@@ -6,6 +6,7 @@ import { createMemoryHistory, createRouter } from "vue-router";
 import { CURRENT_EXPERIMENT, IDENTITY_API, TRACE_API } from "@/dependency-container";
 import { EMPTY_THEME, type ExperimentDto } from "@/application/identity-api";
 import CustomChartsPanel from "@/ui/components/CustomChartsPanel.vue";
+import ChartCatalogTable from "@/ui/components/ChartCatalogTable.vue";
 import ChartCatalogPage from "@/ui/pages/ChartCatalogPage.vue";
 import { permissionsOf } from "../permissions";
 import { FakeIdentityApi, FakeTraceApi } from "../fakes";
@@ -138,6 +139,29 @@ describe("Data catalog page (ADR-079)", () => {
     expect(w.find("[data-testid='catalog-row-step-tool']").exists()).toBe(false);
     await w.find("[data-testid='catalog-search']").setValue("zzz");
     expect(w.find("[data-testid='catalog-empty-step']").text()).toContain("Nothing matches");
+  });
+
+  it("looks at what the agent reports again when the period changes, keeping pending edits", async () => {
+    const calls: unknown[] = [];
+    class Counting extends Api {
+      async getStepKinds(...args: unknown[]) {
+        calls.push(args[0]);
+        return super.getStepKinds();
+      }
+    }
+    const identity = new FakeIdentityApi();
+    const table = mount(ChartCatalogTable, {
+      props: { experimentId: "e1", range: RANGE, entries: [], manual: true },
+      global: { plugins: [quasar], provide: { ...provide(identity, "technical"), [TRACE_API as symbol]: new Counting() } },
+      attachTo: document.body,
+    });
+    mounted = table;
+    await flushPromises();
+    await table.find("[data-testid='catalog-input-step-chain']").setValue("Mine");
+    await table.setProps({ range: { from: "2026-09-10T00:00:00.000Z", to: "2026-10-10T00:00:00.000Z" } });
+    await flushPromises();
+    expect(calls).toHaveLength(2);
+    expect(table.find<HTMLInputElement>("[data-testid='catalog-input-step-chain']").element.value).toBe("Mine");
   });
 
   it("is read-only for people without the catalog permission", async () => {
