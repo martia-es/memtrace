@@ -9,7 +9,7 @@ DOCS_IMAGE ?= docker.io/memtrace/docs:dev
 PRICING_IMAGE ?= localhost/memtrace/model-pricing:dev
 
 .DEFAULT_GOAL := help
-.PHONY: help check up images dashboard api status forward logs query migrate backfill-experiment-id netpol-check migrate-postgres pricing-sync down reset db-reset dev-data docs weather weather-bg weather-stop weather-restart
+.PHONY: help check up images dashboard api status forward logs query migrate backfill-experiment-id netpol-check migrate-postgres pricing-sync down reset db-reset dev-data docs weather weather-bg weather-stop weather-restart rag
 
 help: ## Muestra esta ayuda
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-10s %s\n", $$1, $$2}'
@@ -191,6 +191,10 @@ weather-restart: weather-bg ## Reinicia el asistente del tiempo (relee el .env: 
 	@sleep 4
 	@echo "Asistente reiniciado: http://localhost:8000 (logs: weather_assistant/uvicorn.log)"
 	@curl -s -m 5 http://localhost:8000/api/prompt && echo || echo "Aún arrancando: revisa weather_assistant/uvicorn.log"
+
+rag: ## Arranca el asistente RAG de FAQs (API + UI en http://localhost:8001). Ctrl+C para parar
+	@command -v uv >/dev/null 2>&1 || { echo "Falta 'uv': instálalo antes de continuar"; exit 1; }
+	cd rag_assistant && uv sync --all-groups && uv run uvicorn app.main:app --reload --port 8001
 
 diagrams:
 	cd docs/architecture && env -u GEMINI_API_KEY npx likec4@1.59.2 serve

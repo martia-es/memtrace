@@ -137,6 +137,7 @@ El proyecto incluye un `Makefile` interactivo para gestionar fácilmente el cicl
 | Comando | Descripción |
 | :--- | :--- |
 | **`make up`** | Levanta todo el entorno en 1 paso (clúster, despliegue, migraciones, puertos y el asistente del tiempo en http://localhost:8000, que se relanza para releer el `.env`). |
+| **`make rag`** | Arranca el asistente RAG de FAQs (segundo agente de ejemplo, [`rag_assistant/`](rag_assistant/README.md)) en http://localhost:8001. |
 | **`make weather-stop`** | Para el asistente del tiempo lanzado en segundo plano (`make down` también lo para). |
 | **`make status`** | Muestra el estado de los Pods, PVCs (volúmenes) y Jobs de migración. |
 | **`make query`** | Ejecuta una consulta de prueba en ClickHouse mostrando trazas y spans registrados. |
