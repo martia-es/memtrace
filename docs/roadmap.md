@@ -256,6 +256,17 @@ Un usuario puede agrupar varias gráficas custom ya guardadas en un **informe** 
 
 ---
 
+## Fase 1.9: Protección de datos — PII, retención, auditoría y exportación
+
+**Objetivo**: que una empresa pueda adoptar MemTrace sin que los datos personales de sus usuarios acaben en el almacén y pueda responder a quién los vio, cuánto tiempo se guardan y cómo sacarlos. Decisión: [ADR-080](adrs/storage/adr-080-data-protection-retention-masking-audit-and-export.md). Guía de usuario: `docs-site/platform/data-protection.md`.
+
+- [x] **Enmascarado de PII con `****` antes de escribir**: capa del SDK (Presidio, opt-in, cubre nombres) y capa del Collector (`transform/pii`, siempre activa, formatos fijos: email, tarjeta, IBAN, DNI/NIE, SSN, teléfono, IPv4). La misma máscara fija `****` para secretos y datos personales; los nombres y el texto libre solo los cubre el SDK. Pruebas contra el Collector real en `scripts/check_collector_pii.py`
+- [x] **Retención de trazas configurable**: por organización y, más corto, por experimento (1-365 días, 30 por defecto); CronJob diario `retention-purge` con un usuario de ClickHouse de privilegios mínimos (`retention_worker`); el TTL de las tablas pasa a ser el techo (365 días). Permiso `retention:manage` (`org_admin`). **Pendiente**: el dashboard solo consulta 30 días como máximo
+- [x] **Registro de auditoría** (`audit_log`, PostgreSQL, solo se añade): aperturas de contenido de trazas y conversaciones, exportaciones, cambios y purgas de retención, altas de miembros y claves de API. Consulta en Admin con `audit:read` (`org_admin`); retención propia de un año
+- [x] **Exportación en JSON Lines** de trazas, anotaciones, feedback y scores (hasta 31 días y 2.000.000 de registros por fichero), registrada en la auditoría antes del primer byte. Permiso `data:export` (`technical`; `org_admin` no lee datos por diseño)
+
+---
+
 ## Fase 2: Mem - Aprendizaje Iterativo del Agente
 
 **Objetivo**: Extraer conocimiento de las trazas para mejorar el comportamiento del agente y evitar errores recurrentes.

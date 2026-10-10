@@ -72,5 +72,5 @@ The API for these views is in the [Query API](/platform/api#agreement-adr-040).
 
 ## Retention
 
-- Traces are kept for 30 days. Latency, tokens and cost for an item disappear with its trace.
+- Traces are kept for 30 days by default; an `org_admin` can [change that](/platform/data-protection#how-long-traces-are-kept). Latency, tokens and cost for an item disappear with its trace.
 - The **text** of each run item (input, output, expected output, error) is dropped after 180 days. Older runs keep their scores, trends and summaries, but their items appear without text.

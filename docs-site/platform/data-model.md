@@ -24,7 +24,7 @@ Each experiment has its **API keys** (`api_keys`). The agent sends its traces wi
 
 ### 3. Traces arrive
 
-Each operation of the agent (a call to a model, a tool or a retriever) is a **span**. Spans are stored in `otel_traces` and grouped by `TraceId` into a complete **trace**. Traces expire after 30 days. From the spans, latency, tokens and cost are computed, and topics are extracted (`span_topics`).
+Each operation of the agent (a call to a model, a tool or a retriever) is a **span**. Spans are stored in `otel_traces` and grouped by `TraceId` into a complete **trace**. Traces expire after 30 days by default (configurable, see [Data protection](/platform/data-protection#how-long-traces-are-kept)). From the spans, latency, tokens and cost are computed, and topics are extracted (`span_topics`).
 
 ### 4. Reviewing what arrived
 

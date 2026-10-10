@@ -21,7 +21,7 @@ Each piece exposes a stable contract to its neighbor and hides its own technolog
 | ClickHouse | Traces, automatic scores, human annotations, and the per-item results of evaluation runs | **Yes**, if content capture is on. Anonymize in the SDK ([Anonymizing personal data](/library/pii)); the Collector also masks fixed-format personal data before storage ([Data protection](/platform/data-protection)) |
 | PostgreSQL | Users, organizations, roles, hashed API keys, datasets and their versions, score configs, review queues | Dataset items are long-lived and are written by people, so keep personal data out of them too |
 
-Retention: traces are kept for 30 days, and the text of evaluation run items for 180 days. Details are in [Datasets & offline evals](/platform/evaluation#retention).
+Retention: traces are kept for 30 days by default, configurable per organization and per experiment ([Data protection](/platform/data-protection#how-long-traces-are-kept)), and the text of evaluation run items for 180 days. Details are in [Datasets & offline evals](/platform/evaluation#retention).
 
 Trace attributes follow the OpenTelemetry [GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/), so traces from other libraries that emit `gen_ai.*` attributes work too.
 

@@ -47,7 +47,7 @@ The mask is the same fixed `****` everywhere (secrets in the SDK, Presidio, the 
 
 ### 4. Export as streamed JSONL
 
-`GET /experiments/{id}/export?kind=traces|annotations|feedback|scores&from&to` streams newline-delimited JSON from ClickHouse, limited to 31 days per call. It needs permission `data:export`, which goes to the `technical` role and not to `org_admin`: `org_admin` manages people and settings but by design reads no data (ADR-052), and an export is reading data. It is recorded before the first byte is sent and goes through the existing query limiter. One `kind` per call keeps the files composable and the memory flat.
+`GET /experiments/{id}/export?kind=traces|annotations|feedback|scores&from&to` streams newline-delimited JSON from ClickHouse, limited to 31 days per call. It needs permission `data:export`, which goes to the `technical` role and not to `org_admin`: `org_admin` manages people and settings but by design reads no data (ADR-052), and an export is reading data. It is recorded before the first byte is sent and goes through the existing query limiter. One `kind` per call keeps the files composable and the memory flat. A `dryRun=1` variant validates and counts without recording anything, so the screen can explain a bad range or an oversized export before the browser starts a download that it cannot recover from; the download itself is a plain streamed response, never buffered in memory. Above 2,000,000 records the request is refused and the range must be narrowed.
 
 ## Considered Options
 
@@ -62,4 +62,6 @@ The mask is the same fixed `****` everywhere (secrets in the SDK, Presidio, the 
 * Easier: answering a data protection review (what is masked, how long it is kept, who accessed it, how to export it).
 * Harder: patterns in the Collector have false positives and negatives; they live in one ConfigMap and a test. A 9-digit phone number with no separators is not masked on purpose, to avoid hitting ordinary numbers.
 * Costs: a longer ceiling TTL allows more data on disk if someone raises retention; the default does not.
+* The dashboard and the query API still cap every query at 30 days (`MAX_RANGE_MS`). A retention longer than 30 days therefore keeps data that can be exported and audited but not browsed; lifting that cap is a follow-up (item M8 of the plan) and is stated on the retention screen and in the user documentation.
+* Two organizations may use the same `service.name`; their traces cannot be separated in storage, so the **longest** of the periods applies (a wrong deletion is irreversible, a late one is not).
 * Limits: the ingest gateway does not check that the `service.name` of a span belongs to the API key used (ADR-013). Retention and audit are per experiment by `ServiceName`, so closing that hole is a follow-up (F9 in the plan).

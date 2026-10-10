@@ -75,6 +75,7 @@ export function createRetentionClient(config: ClickHouseConfig): ClickHouseClien
     password: config.retentionPassword,
     database: config.database,
     request_timeout: 600_000,
-    clickhouse_settings: { max_threads: config.maxThreads },
+    // un borrado grande espera a que termine la mutación: las cabeceras de progreso mantienen viva la conexión
+    clickhouse_settings: { max_threads: config.maxThreads, send_progress_in_http_headers: 1, http_headers_progress_interval_ms: "30000" },
   });
 }

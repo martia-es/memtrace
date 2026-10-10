@@ -13,10 +13,11 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 | F1 | [ ] | **Alertas** | Reglas con umbral sobre error rate, latencia, coste y satisfacción (👍/👎), con notificación (email primero; webhook/Slack después) | A | M | — | observability |
 | F2 | [ ] | **Presupuestos de coste** | Budget mensual por experimento, aviso al 80 % y al 100 %, proyección a fin de mes | A | S | F1 (reutiliza el motor de reglas) | pricing |
 | F3 | [ ] | **Evaluación online** | Muestreo configurable de trazas de producción + evaluadores/juez ya existentes, scores en ClickHouse enlazados a la traza | A | L | F1 (alertar sobre caídas de score) | evaluation |
-| F4 | [ ] | **Retención y PII en trazas** | Retención configurable por organización (hoy el TTL de 180 días solo cubre items de evaluación) y detección/redacción de PII en servidor | A | M | — | storage / identity |
+| F4 | [x] | **Retención y PII en trazas** | Hecho ([ADR-080](adrs/storage/adr-080-data-protection-retention-masking-audit-and-export.md)): retención por organización y experimento, y PII enmascarada con `****` en el SDK y en el Collector antes de guardar (los nombres solo los cubre el SDK) | A | M | — | storage / identity |
 | F5 | [ ] | **Gate de regresión en PR** | Extender el gate de despliegue (ADR-064) para que un PR no pueda fusionarse si bajan las métricas de la evaluación offline | M | M | Fase 2c de ADR-064 | governance |
 | F6 | [ ] | **SDK por framework + TypeScript** | Paquetes para LangGraph y OpenAI Agents SDK; SDK TypeScript | M | L | — | sdk |
-| F7 | [ ] | **Auditoría y exportación** | Registro de quién vio/exportó qué y exportación de datos de un experimento | M | M | — | identity |
+| F7 | [x] | **Auditoría y exportación** | Hecho (ADR-080): registro de aperturas de contenido, exportaciones y cambios de acceso/configuración, y exportación JSON Lines | M | M | — | identity |
+| F9 | [ ] | **Gateway de ingesta que valide `service.name`** | Hoy una API key válida puede escribir trazas con el `service.name` de otro experimento; la retención y la auditoría por experimento dependen de ese nombre. Requiere parsear el OTLP en el gateway | A | M | — | identity |
 | F8 | [ ] | **Operación en producción** | Backups de ClickHouse/Postgres, despliegue fuera de kind (Helm), pruebas de carga en CI | M | L | — | infra |
 
 ## 2. Pendientes ya anotados en el roadmap
@@ -41,6 +42,7 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 | M4 | [ ] | Evaluaciones | Intervalos de confianza al comparar runs (con pocos items, un +3 % puede ser ruido) | M | S |
 | M5 | [ ] | Costes | Coste por usuario, por conversación y por versión de prompt; tendencia con proyección | M | M |
 | M6 | [ ] | Gobierno | Simplificar u ocultar por defecto «quién puede llamar a cada entorno» si no se usa (ver sección 5) | B | S |
+| M8 | [ ] | Dashboard | Consultar más de 30 días (`MAX_RANGE_MS` en la API y presets del selector de rango) para aprovechar una retención más larga | M | M |
 | M7 | [ ] | Documentación | Guía «ciclo de mejora en 30 minutos»: traza → fallo → dataset → prompt → eval → deploy | M | S |
 
 ## 4. Orden propuesto
@@ -68,3 +70,4 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 | Fecha | Cambio |
 |---|---|
 | 2026-10-10 | Creación del documento a partir de la revisión de la Fase 1 |
+| 2026-10-10 | F4 y F7 hechos (ADR-080). Nuevos pendientes: F9 (validar `service.name` en el gateway) y M8 (consultar más de 30 días) |
