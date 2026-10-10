@@ -53,7 +53,7 @@ up: check ## Levanta todo en 1 solo comando (clúster, despliegue, migraciones y
 	@echo "  • API (SDK/ejemplos): http://localhost:3001"
 	@echo "  • UI de ClickHouse:  http://localhost:8123/play (Usuario: default | Pass: memtrace-dev-only)"
 	@echo "  • Asistente del tiempo: http://localhost:8000 (logs: weather_assistant/uvicorn.log)"
-	@echo "  • OTel Collector:    localhost:4317 (gRPC) / localhost:4318 (HTTP)"
+	@echo "  • OTel Collector:    solo accesible desde la API (ingesta: http://localhost:3001/api/v1/ingest)"
 	@echo "  • Postgres:          localhost:5432 (Usuario: memtrace | DB: memtrace_identity | Pass: memtrace-dev-only)"
 	@echo ""
 
@@ -161,7 +161,7 @@ db-reset: ## BORRA las tablas de Postgres y ClickHouse (conserva el clúster) y 
 	fi
 
 dev-data: ## Genera trazas de ejemplo (agente simulado) para probar el dashboard. Requiere MEMTRACE_API_KEY (ver README)
-	@$(PYTHON) -c "import opentelemetry.sdk, opentelemetry.exporter.otlp.proto.http" 2>/dev/null || { echo "Falta el SDK de Python con el extra http: pip install -e 'sdk/python[http]'"; exit 1; }
+	@$(PYTHON) -c "import opentelemetry.sdk, opentelemetry.exporter.otlp.proto.http" 2>/dev/null || { echo "Falta el SDK de Python: pip install -e sdk/python"; exit 1; }
 	@test -n "$$MEMTRACE_API_KEY" || { echo "Falta MEMTRACE_API_KEY: crea una API key en Admin → experimento → API keys y expórtala (el Collector ya no es accesible sin la pasarela, ADR-090)"; exit 1; }
 	MEMTRACE_OTLP_PROTOCOL=http/protobuf MEMTRACE_OTLP_ENDPOINT=http://localhost:8080/api/v1/ingest \
 	MEMTRACE_OTLP_HEADERS="authorization=Bearer $$MEMTRACE_API_KEY" \

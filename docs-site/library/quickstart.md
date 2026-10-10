@@ -7,7 +7,7 @@ from memtrace import init_tracer, trace_step, trace_llm_call, shutdown
 
 init_tracer(
     service_name="my-agent",
-    protocol="http/protobuf",                          # needs memtrace-ai[http]
+    protocol="http/protobuf",                          # the default, shown for clarity
     endpoint="http://localhost:8080/api/v1/ingest",
     headers={"authorization": "Bearer mtk_..."},
 )
@@ -41,6 +41,10 @@ Open the dashboard: the run appears as one trace, with the `tool` and `llm` span
 
 ::: tip Short-lived processes
 Spans are batched. In scripts and serverless functions call `flush()` (keeps the tracer) or `shutdown()` (closes it) before exiting, or the last spans can be lost.
+:::
+
+::: tip Not using the MemTrace platform?
+Point `endpoint` at your own OpenTelemetry Collector, Jaeger, Tempo or any other OTLP backend and drop the `authorization` header. See [Bring your own backend](./bring-your-own-backend).
 :::
 
 More runnable agents are in the repository's `examples/` folder.

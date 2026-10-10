@@ -6,7 +6,7 @@
 init_tracer(
     service_name=None,      # service.name; defaults to MEMTRACE_SERVICE_NAME
     endpoint=None,          # OTLP endpoint
-    protocol=None,          # "grpc" (default) or "http/protobuf"
+    protocol=None,          # "http/protobuf" (default) or "grpc" (needs memtrace-ai[grpc])
     headers=None,           # e.g. {"authorization": "Bearer mtk_..."}
     span_ttl_seconds=None,  # closes orphaned spans
 )

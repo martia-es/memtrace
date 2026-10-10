@@ -18,7 +18,7 @@ ADR-006 copied the LangSmith exporter design: derive `trace_id`/`span_id` determ
 3. **Deterministic UUID→ID conversion is removed** (`_otel_utils.py` deleted). `run_id` is a lookup key, not a trace/span ID.
 4. **Attributes follow ADR-004**, not ADR-006: `gen_ai.provider.name` (not `gen_ai.system`), `memtrace.step_type` (not `memtrace.span.kind`), `gen_ai.conversation.id` for sessions (standard attribute instead of `memtrace.trace.session_id`), `memtrace.metadata`/`memtrace.tags` for framework metadata.
 5. **Every span ending is fail-safe and catches `BaseException`** (asyncio `CancelledError`, `KeyboardInterrupt`), so spans are never leaked until TTL.
-6. **Transport is configurable**: gRPC (default) or OTLP/HTTP (extra `http`), headers, batch parameters, public `flush()`.
+6. **Transport is configurable**: OTLP/HTTP (default; gRPC in the extra `grpc`, see the amendment below), headers, batch parameters, public `flush()`.
 
 ## Consequences
 
@@ -27,3 +27,7 @@ ADR-006 copied the LangSmith exporter design: derive `trace_id`/`span_id` determ
   - The LangChain handler does not make its spans *current* (attaching/detaching a context across async callbacks is unsafe), so auto-instrumented calls made inside a LangChain tool attach to the nearest `@trace_step`, not to the tool span.
   - If LangChain never delivers the parent's callback, the child becomes a child of the current span or a root (fragmented trace).
   - Re-exporting pre-existing runs with fixed IDs (LangSmith-style) would need a custom `IdGenerator`; out of scope for Phase 1.
+
+## Amendment (2026-10-10): OTLP/HTTP is the default transport
+
+The platform's Collector now accepts only OTLP/HTTP behind the ingest gateway (ADR-090), so a gRPC default pointed at `localhost:4317` no longer reaches any MemTrace component. The base install now ships the OTLP/HTTP exporter and `MEMTRACE_OTLP_PROTOCOL` defaults to `http/protobuf`. gRPC stays available for users who send traces to their own collector or another OTLP backend, as the extra `grpc` (`protocol="grpc"`). The `http` extra remains as an empty alias for existing installs. The SDK's trace path is still plain OpenTelemetry: only the defaults changed, not the ability to point it at any OTLP endpoint.

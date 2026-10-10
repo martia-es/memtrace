@@ -10,7 +10,7 @@ dependencies = [
     "httpx>=0.27.0",
     "python-dotenv>=1.0.0",
     "fastmcp>=2.0.0",
-    "memtrace-ai[http]",
+    "memtrace-ai",
 ]
 
 [tool.uv.sources]

@@ -5,7 +5,10 @@ from memtrace.config import PROTOCOL_GRPC, PROTOCOL_HTTP
 
 
 def _grpc(endpoint: str, headers: Optional[Mapping[str, str]], timeout_s: float):
-    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+    try:
+        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+    except ImportError as exc:
+        raise ImportError('OTLP/gRPC needs the grpc extra: pip install "memtrace-ai[grpc]"') from exc
 
     # With https and no credentials the standard certificates apply (OTEL_EXPORTER_OTLP_CERTIFICATE)
     return OTLPSpanExporter(

@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Changed
+- **OTLP/HTTP is now the default transport.** `opentelemetry-exporter-otlp-proto-http` is part of the base install and `MEMTRACE_OTLP_PROTOCOL` defaults to `http/protobuf` (endpoint `http://localhost:4318`). OTLP/gRPC moves to the new `grpc` extra and is chosen with `protocol="grpc"` / `MEMTRACE_OTLP_PROTOCOL=grpc`; without the extra the SDK says which one to install. The `http` extra stays as an empty alias so existing installs keep working. **Migration**: if you relied on the gRPC default (`localhost:4317`), install `memtrace-ai[grpc]` and set the protocol explicitly.
 - **Fewer extras.** `otel-langchain` and `langchain-agents` are merged into `langchain` (handler, `prompt_middleware` and auto-instrumentation; on Python 3.9, `wrapt<2`), and `eval-judges` into `eval` (adds `anthropic`). The old extra names no longer exist.
 - **Masks are now `****`** everywhere. Secrets were masked as `[REDACTED]` and `presidio_redactor` replaced personal data with `<ENTITY_TYPE>` (`<PERSON>`, `<ES_NIF>`...); both now use the same fixed `****`, which also hides the length of the data. Code or dashboards that matched the old strings must be updated; `memtrace.domain.serialization.REDACTED` keeps pointing at the mask.
 

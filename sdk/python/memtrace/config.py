@@ -7,6 +7,7 @@ _TRUE = ("1", "true", "yes", "on")
 
 PROTOCOL_GRPC = "grpc"
 PROTOCOL_HTTP = "http/protobuf"
+DEFAULT_PROTOCOL = PROTOCOL_HTTP
 _DEFAULT_ENDPOINTS = {
     PROTOCOL_GRPC: "http://localhost:4317",
     PROTOCOL_HTTP: "http://localhost:4318",
@@ -89,8 +90,8 @@ class Settings:
 
     @property
     def protocol(self) -> str:
-        val = os.getenv("MEMTRACE_OTLP_PROTOCOL", PROTOCOL_GRPC).strip().lower()
-        return PROTOCOL_HTTP if val in ("http", "http/protobuf") else PROTOCOL_GRPC
+        val = os.getenv("MEMTRACE_OTLP_PROTOCOL", DEFAULT_PROTOCOL).strip().lower()
+        return PROTOCOL_GRPC if val == "grpc" else PROTOCOL_HTTP
 
     @property
     def otlp_endpoint(self) -> Optional[str]:

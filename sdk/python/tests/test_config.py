@@ -30,11 +30,13 @@ def test_env_int_falls_back_on_garbage(monkeypatch):
 def test_protocol_and_default_endpoint(monkeypatch):
     s = Settings()
     monkeypatch.delenv("MEMTRACE_OTLP_PROTOCOL", raising=False)
-    assert s.protocol == config.PROTOCOL_GRPC
-    assert config.default_endpoint(s.protocol) == "http://localhost:4317"
-    monkeypatch.setenv("MEMTRACE_OTLP_PROTOCOL", "HTTP")
     assert s.protocol == config.PROTOCOL_HTTP
     assert config.default_endpoint(s.protocol) == "http://localhost:4318"
+    monkeypatch.setenv("MEMTRACE_OTLP_PROTOCOL", "HTTP")
+    assert s.protocol == config.PROTOCOL_HTTP
+    monkeypatch.setenv("MEMTRACE_OTLP_PROTOCOL", "grpc")
+    assert s.protocol == config.PROTOCOL_GRPC
+    assert config.default_endpoint(s.protocol) == "http://localhost:4317"
 
 
 def test_settings_read_environment_live(monkeypatch):

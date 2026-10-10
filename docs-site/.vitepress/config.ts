@@ -22,6 +22,7 @@ export default defineConfig({
             { text: "Tracing steps", link: "/library/tracing" },
             { text: "Conversations", link: "/library/conversations" },
             { text: "Integrations", link: "/library/integrations" },
+            { text: "Bring your own backend", link: "/library/bring-your-own-backend" },
             { text: "Configuration", link: "/library/configuration" },
             { text: "Personal data (PII)", link: "/library/pii" },
             { text: "Offline evaluation", link: "/library/evaluation" },

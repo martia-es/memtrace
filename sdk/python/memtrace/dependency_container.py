@@ -87,7 +87,7 @@ def init_tracer(
 ) -> TracingService:
     """Initializes MemTrace. Idempotent and never raises.
 
-    `protocol`: "grpc" (default) or "http/protobuf". `span_exporter` replaces OTLP (tests).
+    `protocol`: "http/protobuf" (default) or "grpc" (needs the `grpc` extra). `span_exporter` replaces OTLP (tests).
     `redact`: optional hook for personal data that has no recognizable shape. It runs on every
     exported span, after the built-in masking of secrets (by key and by value, see ADR-021), and
     receives JSON-compatible data or text and returns what to keep.

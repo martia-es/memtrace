@@ -11,7 +11,7 @@ from memtrace import init_tracer
 
 init_tracer(
     service_name="my-agent",
-    protocol="http/protobuf",                 # needs memtrace-ai[http]
+    protocol="http/protobuf",                 # the default
     endpoint="https://<your-host>/api/v1/ingest",
     headers={"authorization": "Bearer mtk_Ab3xY9..."},
 )
