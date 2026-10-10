@@ -20,7 +20,7 @@ Settings can be passed to `init_tracer` or set as environment variables.
 | `MEMTRACE_BATCH_MAX_QUEUE_SIZE` | `2048` | Batch queue size |
 | `MEMTRACE_BATCH_SCHEDULE_DELAY_MS` | `5000` | Batch flush interval |
 | `MEMTRACE_BATCH_MAX_EXPORT_SIZE` | `512` | Spans per export |
-| `MEMTRACE_API_URL` | none | Query API base URL, including the experiment id; used by [offline evaluation](./evaluation#sending-results-to-memtrace) |
+| `MEMTRACE_API_URL` | none | Query API base URL, including the experiment id; used by [offline evaluation](./evaluation#send-them-to-memtrace-dataset-id) |
 | `MEMTRACE_API_KEY` | none | Agent API key for the query API (the same key used for tracing) |
 | `MEMTRACE_ALLOW_PROMPT_OVERRIDE` | `false` | Lets MemTrace's [playground](./prompts#try-a-version-in-the-real-agent) run another prompt version in this agent for one request. Turn it on in non-production environments only |
 | `MEMTRACE_PROMPT_REFRESH_SECONDS`, `MEMTRACE_PROMPT_USAGE_SECONDS`, `MEMTRACE_PROMPT_TIMEOUT_SECONDS`, `MEMTRACE_PROMPT_CACHE_DIR` | `30`, `300`, `3`, none | How the [prompt registry](./prompts#configuration) is followed and reported |

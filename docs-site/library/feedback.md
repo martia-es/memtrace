@@ -15,7 +15,7 @@ def answer(message: str) -> dict:
 memtrace.feedback(trace_id, "down", end_user_id="user-42", comment="Wrong city")
 ```
 
-Needs `pip install "memtrace-ai[eval]"`, `MEMTRACE_API_URL` (with the experiment id, like [offline evaluation](./evaluation#sending-results-to-memtrace)) and `MEMTRACE_API_KEY`. **Call it from your server**, never from the browser: the API key must not reach your users.
+Needs `pip install "memtrace-ai[eval]"`, `MEMTRACE_API_URL` (with the experiment id, like [offline evaluation](./evaluation#send-them-to-memtrace-dataset-id)) and `MEMTRACE_API_KEY`. **Call it from your server**, never from the browser: the API key must not reach your users.
 
 ## Functions
 
