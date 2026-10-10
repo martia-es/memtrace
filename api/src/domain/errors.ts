@@ -190,3 +190,19 @@ export class CiUnavailableError extends Error {
     this.name = "CiUnavailableError";
   }
 }
+
+/** La relación partner o el grant no existe (o no es de esta organización). HTTP 404. */
+export class PartnershipNotFoundError extends Error {
+  constructor(what = "Partnership") {
+    super(`${what} not found`);
+    this.name = "PartnershipNotFoundError";
+  }
+}
+
+/** La operación rompe una regla de la relación partner (ADR-080). HTTP 409. */
+export class PartnershipInvariantError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PartnershipInvariantError";
+  }
+}

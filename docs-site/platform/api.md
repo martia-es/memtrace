@@ -228,6 +228,17 @@ For your identity provider, under `/api/scim/v2`, authenticated with `Authorizat
 | `GET, POST /Groups` | List (`?filter=displayName eq "x"`) / create with `members` |
 | `GET, PUT, PATCH, DELETE /Groups/{id}` | PATCH `add`, `remove` (also `members[value eq "id"]`) and `replace` members |
 
+## Partner access (consultancies)
+
+| Endpoint | Description |
+|---|---|
+| `GET /organizations/{id}/partnerships` | Consultancies with access to the organization and the people granted, with their role. `org_admin` only |
+| `POST /organizations/{id}/partnerships` | `{ partnerOrganizationId }`: starts the relationship. Grants nothing by itself |
+| `DELETE /organizations/{id}/partnerships/{partnershipId}` | Ends it; every grant stops working immediately |
+| `POST /organizations/{id}/partnerships/{partnershipId}/grants` | `{ email, role, experimentId }`: gives a member of the partner organization an experiment role on the whole organization (`experimentId: null`) or on one experiment. Repeating the person and scope changes the role |
+| `DELETE /organizations/{id}/partnerships/{partnershipId}/grants/{grantId}` | Takes one person's access away |
+| `GET /partner/clients` | For the consultancy's people: the clients that granted them access, with experiments and role. Metadata only |
+
 ## Ingest and health
 
 | Endpoint | Description |

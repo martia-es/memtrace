@@ -1,6 +1,6 @@
 # ADR-076: Multi-Tenant Security Baseline
 
-* **Status**: Pending
+* **Status**: Accepted — all four P0 items are implemented; P1 and P2 remain open. The isolation of the network layer still has to be checked on a cluster that enforces `NetworkPolicy`
 * **Date**: 2026-10-09
 * **Deciders**: MemTrace Core Team
 * **Related**: [ADR-013](../identity/adr-013-identity-postgres-and-oauth-rbac.md), [ADR-021](../sdk/adr-021-sdk-explicit-tracer-provider-and-content-redaction.md), [ADR-052](../identity/adr-052-permission-based-roles-and-external-identity-mapping.md)
@@ -36,7 +36,7 @@ This ADR is the umbrella: it lists **what has to be addressed**, in what order, 
 | Tenant isolation in ClickHouse | Data is scoped by `ServiceName`, which is unique only per organization | [ADR-077](adr-077-strict-tenant-isolation-in-clickhouse.md) — implemented |
 | Ingestion identity binding | The gateway accepts any valid key for any `service.name` | [ADR-078](adr-078-ingestion-identity-binding.md) — implemented |
 | Network segmentation | No `NetworkPolicy`; the Collector accepts OTLP from any pod without auth | [ADR-079](adr-079-network-segmentation-and-collector-access.md) — implemented, to verify on a cluster |
-| Client boundary | `org_admin` sees every experiment of the organization | [ADR-080](adr-080-client-boundary-for-multi-client-organizations.md) |
+| Client boundary | `org_admin` sees every experiment of the organization | [ADR-080](adr-080-client-boundary-for-multi-client-organizations.md) — implemented (backend) |
 
 ### P1 — before a public or enterprise launch (ADRs to write when scheduled)
 

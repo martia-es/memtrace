@@ -51,6 +51,16 @@ Rules that keep this safe:
 - The last `org_admin` of an organization is never removed by the provider.
 - Using your own sign-in tenant per customer (own issuer and client secret) is not available yet; sign in with Google or Microsoft and map groups from the token.
 
+## Working with a consultancy (partner access)
+
+If a consultancy manages your agents, give it its **own organization** and keep yours separate: nothing is shared by default, and being staff of the consultancy gives access to nothing.
+
+1. The consultancy gives you the id of its organization. As `org_admin` of your organization, `POST /api/v1/organizations/{yourOrg}/partnerships` with `{ "partnerOrganizationId": "…" }`. This alone grants nothing.
+2. Name each person: `POST …/partnerships/{partnershipId}/grants` with `{ "email": "ana@consulting.com", "role": "business", "experimentId": null }`. The person must belong to the consultancy's organization. `experimentId: null` means every experiment of your organization, including future ones; an id limits it to that experiment. The role is an experiment role (`technical`, `business`…), never an administrator role.
+3. Remove one person with `DELETE …/grants/{grantId}` or end the whole relationship with `DELETE …/partnerships/{partnershipId}`. It takes effect on the next request.
+
+If the consultancy removes someone from its organization, that person loses access to all its clients at once, and adding them back does not restore it: you grant it again. People at the consultancy see the clients that granted them access with `GET /api/v1/partner/clients` (names and roles only, never trace data).
+
 ## Data isolation between experiments
 
 Each experiment is its own tenant. Its traces, conversations, scores, annotations, votes and prompt evidence are stored under the experiment's id and every read is limited to it, so two organizations that use the same `service.name` (or the same trace or conversation ids) cannot see each other's data. `GET /api/v1/services` now requires a session and lists only the services of experiments you can read.

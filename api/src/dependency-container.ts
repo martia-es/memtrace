@@ -21,8 +21,10 @@ import { ClickHouseUserFeedbackRepository } from "@/adapters/outbound/clickhouse
 import { DatasetPromotionService } from "@/application/dataset-promotion-service";
 import { EvaluationService } from "@/application/evaluation-service";
 import { ExternalAccessService } from "@/application/external-access-service";
+import { PartnershipService } from "@/application/partnership-service";
 import type { ExternalIdentityRepository } from "@/application/ports/external-identity-repository";
 import { PostgresExternalIdentityRepository } from "@/adapters/outbound/postgres/postgres-external-identity-repository";
+import { PostgresPartnershipRepository } from "@/adapters/outbound/postgres/postgres-partnership-repository";
 import type { IdentityRepository } from "@/application/ports/identity-repository";
 import { DeployGateService } from "@/application/deploy-gate-service";
 import { DeployService } from "@/application/deploy-service";
@@ -48,6 +50,7 @@ const globalForContainer = globalThis as unknown as {
   __memtraceTraceQueryService?: TraceQueryService;
   __memtraceTraceRepository?: ClickHouseTraceRepository;
   __memtraceIdentity?: { identityRepository: IdentityRepository; authorizationService: AuthorizationService; emailSender: EmailSender };
+  __memtracePartnerships?: PartnershipService;
   __memtraceExternalAccess?: { externalRepository: ExternalIdentityRepository; externalAccessService: ExternalAccessService };
   __memtraceEvaluation?: EvaluationService;
   __memtraceScoreRepository?: ClickHouseScoreRepository;
@@ -107,6 +110,14 @@ export function getHandlers(): Handlers {
     globalForContainer.__memtraceHandlers = createHandlers(getTraceQueryService());
   }
   return globalForContainer.__memtraceHandlers;
+}
+
+/** Relación partner entre organizaciones (ADR-080): una consultora opera a sus clientes con acceso opt-in por cliente. */
+export function getPartnerships(): PartnershipService {
+  if (!globalForContainer.__memtracePartnerships) {
+    globalForContainer.__memtracePartnerships = new PartnershipService(new PostgresPartnershipRepository(getPostgresPool()));
+  }
+  return globalForContainer.__memtracePartnerships;
 }
 
 /** Identidad externa (ADR-052, fases B y C): mapeos de grupos, conciliación de membresías y SCIM. */
