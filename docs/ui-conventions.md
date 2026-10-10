@@ -46,11 +46,14 @@ Un `<button>` crudo solo se admite en las interioridades de estos componentes y 
 - «Empieza por una pregunta»: plantillas que son `CustomMetricDefinition` normales, ofrecidas solo si existen los pasos necesarios en el rango. Flujo en tres pasos (qué medir, cómo verlo, guardar) con vista previa en vivo. Los atributos técnicos (`memtrace.*`, `otel.*`, `gen_ai.usage.*`) quedan tras «Show technical details».
 - El catálogo editable ([ADR-078](adrs/ui/adr-078-editable-chart-catalog.md)) es la misma tabla (`ChartCatalogTable`) en tres sitios: modal «Customize names», renombrado en el sitio sobre cada chip de paso y la página **Overview › Data catalog**. Editar exige `catalog:manage`; verlo, `experiment:read`.
 
-## 5. Prompts: release board
+## 5. Prompts: lista y detalle
 
-- La lista abre con un tablero de lanzamiento (prompts fijados en `dev`, `pre`, `pro` y cuántos van por detrás en `pro`), chips de estado (*Behind in PRO*, *In sync*, *Not released*) y una línea con las últimas 9 versiones. Todo se deriva de lo que la lista ya devuelve (`latestVersion`, `tags`).
-- En la página de un prompt, las versiones forman un raíl vertical con búsqueda, una sección «Pinned by tags» siempre arriba y el resto agrupado por mes. Las reglas de «detrás», cobertura por entorno y agrupación son funciones puras en `domain/prompt-release.ts`. `EnvFlag` pinta la etiqueta de entorno.
-- Limitación: el tablero asume los tres entornos habituales; con otros nombres hace falta que la lista devuelva las claves de entorno.
+- La lista es una tabla (`DataTable`): `Prompt | Latest | DEV | PRE | PRO | Updated`. Cada entorno es un chip con la versión; en `pro`, si va por detrás, el chip se resalta y dice «N behind». Un solo aviso arriba («N prompts run behind…», con «Show them») y solo si hay algo que atender. Todo se deriva de lo que la lista ya devuelve (`latestVersion`, `tags`).
+- Prompts y fragmentos son una sola pantalla con un `SegmentedControl` (`?kind=fragments`) y el estado de release un filtro (`?status=behind`), según la regla de «filtros en vez de submenú». «Show archived» vive en el menú ⋯.
+- El detalle de un prompt abre con una franja de entornos (una tarjeta por entorno con su versión, estado y la acción «Promote vN» / «Request approval») y pestañas por tarea con `TabBar`: Overview, Versions, Test, Releases, Used by. Una pestaña puede agrupar dos vistas con un `SegmentedControl` en la barra de la vista (Versions: List | Compare; Test: Try it | Fix a failure; Releases: Tags & policy | Approvals). No hay panel lateral: variables e inclusiones van bajo el texto.
+- La lista de versiones (buscador, fijadas por tag, agrupadas por mes) es `PromptVersionList`, y se usa en el desplegable del texto y en la pestaña Versions. Las reglas de «detrás» y de agrupación son funciones puras en `domain/prompt-release.ts`; `EnvFlag` pinta la etiqueta de entorno.
+- Un mensaje de versión vacío no se pinta («No message» no aporta nada).
+- Limitación: la tabla asume los tres entornos habituales; con otros nombres las etiquetas extra salen junto al nombre del prompt.
 
 ## 6. Asistente embebido
 

@@ -4,13 +4,11 @@ The place where the prompts of your agents live, with their history. A prompt be
 
 ## The list: what is live
 
-The top of the list is a board of what is live. For `dev`, `pre` and `pro` it shows how many of your prompts have that environment pinned, and an orange block counts the prompts whose `pro` tag is **behind the latest version**, with the total number of versions waiting to be released. Each prompt below has:
+The list is one table, one row per prompt: its **latest** version and, for `dev`, `pre` and `pro`, the version each tag points to. In `pro`, a prompt that is behind the latest version is highlighted in orange and says how far (*3 behind*); a dash means that environment has no tag yet.
 
-- its status: *N versions behind in PRO*, *In sync* (production runs the latest version) or *Not released* (no `pro` tag);
-- the version each tag points to (`dev → v12`);
-- a line with its last versions: the tags hang from the version they point to, and the stretch after `pro` is orange because those versions are not released yet.
+When some prompts run behind in production, a single banner at the top says how many and how many versions are waiting to be released. **Show them** filters the list to those prompts. You can also use the **Status** filter (*All*, *Behind in PRO*, *In sync*, *Not released*); the filter is kept in the link. The table assumes the usual `dev`, `pre` and `pro` environments; any other tag is listed next to the prompt's name.
 
-Use the chips above the list (*Behind in PRO*, *In sync*, *Not released*) to see only the prompts that need attention. The board assumes the usual `dev`, `pre` and `pro` environments.
+Prompts and fragments share the screen: the **Prompts | Fragments** switch shows one or the other. **Show archived** is in the **⋯** menu.
 
 ## Versions
 
@@ -18,17 +16,23 @@ Every save creates a new, **immutable version** (`v1`, `v2`, `v3`…): the text,
 
 Variables are written `{{city}}`; MemTrace detects them when you save and lists them on the version.
 
-Inside a prompt, the page has two columns and no tabs. The **version picker** at the top (`v12 · dev · Shorter alerts…`) opens a list: **Pinned by tags** stays on top, so the versions that `dev`, `pre` and `pro` point to are always one click away; below, **all versions** grouped by month, each with who created it. Type a number (`12`) or a word of the message in the search box to find one. Next to the picker, a strip says what runs in each environment and, when production is behind, by how many versions.
+Inside a prompt, the top of the page shows one card per environment (`dev`, `pre`, `pro`) with the version it runs and whether it is *up to date* or *N versions behind*. Next to a card that is behind, **Promote vN** moves that environment to the latest version (or **Request approval** when the step needs one). A request waiting for approval is counted in the **Releases** tab.
 
-On the left is the text of the selected version, with the **Compare**, **Try it**, **Fix a failure** and **Edit as new version** buttons on its header, and a short **Evidence** table underneath (last 7 days). Compare, Try it and Fix a failure replace the text in the same place and **← Back to text** returns to it.
+Below, the page has one tab per task:
 
-On the right, an **inspector** is always at hand: the **environments** with a **Promote vN** button (or **Request approval** when the step needs one) next to each environment that does not run the version you are viewing, the **variables**, the fragments it includes, any request **waiting for approval** and links to **Used by**, **Release history** and **Approvals**. Those, and **Open full evidence**, open as full pages (without the inspector) with the same **← Back to text**. Old links with `?tab=` still open the right view.
+- **Overview**: the text of the selected version with its **version picker** (`v12 · dev`) and **Edit as new version**. The picker opens a list: **Pinned by tags** stays on top, so the versions that `dev`, `pre` and `pro` point to are always one click away; below, **all versions** grouped by month, each with who created it. Under the text you see its **variables** and the fragments it includes; underneath, a short **Evidence** table (last 7 days) with **Open full evidence**.
+- **Versions**: the same list as a full tab, and **Compare** to put two versions side by side.
+- **Test**: **Try it** and **Fix a failure**.
+- **Releases**: **Tags & policy** (tags, what really runs, promotion policy and history) and **Approvals**.
+- **Used by**: traces, agents, fragments and prompts that depend on this one.
 
-On **Content** the text has numbered lines, the `{{variables}}` are highlighted, and the lines changed since the version it came from are marked.
+Old links with `?tab=` still open the right view.
+
+On **Overview** the text has numbered lines, the `{{variables}}` are highlighted, and the lines changed since the version it came from are marked.
 
 To change a prompt, open a version and press **Edit as new version**. The new version remembers the one it started from, which is what **Compare** uses by default.
 
-**Compare** shows two versions side by side, line by line, with line numbers and a summary (*2 lines rewritten, 1 added*): red is what was removed, green what was added. You can compare the selected version with any other.
+**Compare** (in the **Versions** tab) shows two versions side by side, line by line, with line numbers and a summary (*2 lines rewritten, 1 added*): red is what was removed, green what was added. You can compare the selected version with any other.
 
 ## Tags: which version runs where
 

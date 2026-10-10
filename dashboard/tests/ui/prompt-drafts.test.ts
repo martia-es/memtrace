@@ -145,7 +145,7 @@ describe("drafts in the prompt page (ADR-072)", () => {
     const api = withDraft();
     api.detail = { ...api.detail, tags: [{ tag: "pro", version: 2, updatedBy: null, updatedAt: "t" }] };
     const { wrapper } = await open(api);
-    expect(wrapper.find("[data-testid='behind-pill']").exists()).toBe(false); // pro is on v2, the latest published
+    expect(wrapper.find("[data-testid='env-note-pro']").text()).toBe("Up to date"); // pro is on v2, the latest published
   });
 });
 
