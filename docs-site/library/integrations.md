@@ -143,6 +143,32 @@ Requires `pip install "memtrace-ai[pydantic-ai,eval]"`. See [Prompts](./prompts)
 
 The `enable_*` functions raise `ImportError` when their extra is missing; every other MemTrace call never raises.
 
+## OpenAI Agents SDK
+
+The Agents SDK has its own tracing: each run is a trace made of agent, model, tool, handoff and guardrail spans. One call sends all of them to MemTrace, after `init_tracer`:
+
+```python
+import memtrace
+from memtrace.openai_agents import enable_openai_agents_instrumentation
+
+memtrace.init_tracer(service_name="my-agent")
+enable_openai_agents_instrumentation()
+```
+
+Requires `pip install "memtrace-ai[openai-agents]"`. Safe to call more than once.
+
+| In the Agents SDK | In MemTrace |
+|---|---|
+| Workflow (`trace(...)`) | Root step. Its `group_id` is the conversation id of every span, so pass your own thread id there to group turns |
+| Agent, turn, task | Steps (`chain`) |
+| Model call (`response` or `generation`) | `llm` step with model, tokens and, with content capture on, the messages |
+| Function tool | `tool` step with arguments and result; `memtrace.mcp_server` when the tool runs on an MCP server |
+| Handoff, guardrail | Steps named `handoff: A -> B` and `guardrail: name` |
+
+All spans carry `memtrace.framework=openai-agents`. Tokens are only counted on model calls, never on turns or tasks, so costs are not added twice. Prompts and completions are recorded only with [content capture](./configuration#privacy-and-content-capture) on.
+
+By default the Agents SDK keeps uploading its traces to the OpenAI dashboard as well. Pass `enable_openai_agents_instrumentation(keep_openai_export=False)` to send them only to MemTrace.
+
 ## Mixing with your own steps
 
 Spans from integrations nest under an enclosing `@trace_step` or `session(...)`, so you can trace the outer agent by hand and let the framework fill in the inside.
