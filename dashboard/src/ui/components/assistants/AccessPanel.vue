@@ -14,6 +14,7 @@ import PersonAvatar from "./PersonAvatar.vue";
 import Button from "../Button.vue";
 import DataTable from "../DataTable.vue";
 import Card from "../Card.vue";
+import Pill from "../Pill.vue";
 
 /** Quién puede llamar a un entorno (ADR-053). Documentado y sincronizado desde el proveedor de identidad; MemTrace no lo hace cumplir. */
 const props = defineProps<{ experimentId: string; deployment: DeploymentSummaryDto; canGovern: boolean; nowMs: number }>();
@@ -65,7 +66,7 @@ function saved() {
             <span v-if="g.user" class="person-cell"><PersonAvatar :name="g.user.name" :email="g.user.email" :image="g.user.image" :size="22" />{{ personLabel(g.user) }}</span>
             <template v-else>{{ g.subjectType === "everyone" ? "Everyone in the organization" : g.externalGroup ?? g.userId }}</template>
           </td>
-          <td><span class="tag" :class="g.subjectType">{{ TYPE_LABEL[g.subjectType] }}</span></td>
+          <td><Pill :tone="g.subjectType === 'group' ? 'info' : g.subjectType === 'everyone' ? 'highlight' : 'neutral'">{{ TYPE_LABEL[g.subjectType] }}</Pill></td>
           <td class="mono">{{ g.memberCount ?? (g.subjectType === "user" ? 1 : "–") }}</td>
           <td class="muted">{{ SOURCE_LABEL[g.source] }}<template v-if="g.syncedAt"> · {{ formatRelativeTime(g.syncedAt, nowMs) }}</template></td>
           <td class="end"><Button variant="link" v-if="canGovern" @click="remove(g.id)">Remove</Button></td>
@@ -88,9 +89,6 @@ p { margin: 2px 0 0; font-size: 12px; color: var(--mt-muted); }
 .person-cell { display: inline-flex; align-items: center; gap: 8px; }
 .muted { color: var(--mt-muted); }
 .end { text-align: right; }
-.tag { display: inline-flex; height: 22px; align-items: center; padding: 0 8px; border-radius: var(--mt-radius-xs); font-size: 11.5px; font-weight: 700; background: var(--mt-soft); color: var(--mt-muted); }
-.tag.group { background: var(--mt-accent-tint); color: var(--mt-accent-text); }
-.tag.everyone { background: var(--mt-highlight-soft); color: var(--mt-highlight-ink); }
 .link { font: inherit; font-size: 12px; font-weight: 700; color: var(--mt-accent-text); background: none; border: none; cursor: pointer; }
 .link:hover { text-decoration: underline; }
 

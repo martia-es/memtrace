@@ -21,6 +21,7 @@ import Pill from "../components/Pill.vue";
 import LoadingState from "../components/LoadingState.vue";
 import Card from "../components/Card.vue";
 import Button from "../components/Button.vue";
+import SegmentedControl from "../components/SegmentedControl.vue";
 
 const props = defineProps<{ conversationId: string }>();
 const api = useTraceApi();
@@ -35,6 +36,7 @@ const MAX_PAGE = 200;
 const turnsLimit = ref(PAGE);
 
 // ---- view toggle: flat table vs unified span tree of the whole conversation ----
+const VIEW_OPTIONS = [{ value: "table", label: "Table" }, { value: "tree", label: "Tree" }];
 const view = computed(() => (route.query.view === "tree" ? "tree" : "table"));
 const setView = (mode: "table" | "tree") => void router.replace({ query: { ...route.query, view: mode === "table" ? undefined : mode } });
 
@@ -146,10 +148,7 @@ const backToList = () => void router.push({ name: "conversations", params: { exp
         <div class="stats">
           <div v-for="s in stats" :key="s.k" class="stat"><span class="muted k">{{ s.k }}</span><span class="v">{{ s.v }}</span></div>
         </div>
-        <div class="view-toggle" role="group" aria-label="View mode">
-          <button type="button" class="toggle-btn" :class="{ active: view === 'table' }" @click="setView('table')">Table</button>
-          <button type="button" class="toggle-btn" :class="{ active: view === 'tree' }" @click="setView('tree')">Tree</button>
-        </div>
+        <SegmentedControl size="sm" class="view-toggle" aria-label="View mode" :options="VIEW_OPTIONS" :model-value="view" @update:model-value="setView($event as 'table' | 'tree')" />
       </Card>
 
       <Card as="section" padding="none" block v-if="view === 'table'" class="list" aria-label="Conversation traces">
@@ -268,30 +267,7 @@ h1 {
   letter-spacing: -0.02em;
   white-space: nowrap;
 }
-.view-toggle {
-  display: flex;
-  gap: 2px;
-  padding: 3px;
-  border-radius: var(--mt-radius-sm);
-  background: var(--mt-soft);
-  flex-shrink: 0;
-}
-.toggle-btn {
-  border: 0;
-  background: none;
-  padding: 5px 14px;
-  border-radius: var(--mt-radius-xs);
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 700;
-  color: var(--mt-muted);
-  cursor: pointer;
-}
-.toggle-btn.active {
-  background: var(--mt-card);
-  color: var(--mt-ink);
-  box-shadow: 0 0 0 1px var(--mt-line);
-}
+
 .list {
   box-sizing: border-box;
   flex: 1;

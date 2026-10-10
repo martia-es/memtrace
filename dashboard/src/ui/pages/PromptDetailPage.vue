@@ -33,6 +33,7 @@ import Button from "../components/Button.vue";
 import Pill from "../components/Pill.vue";
 import LoadingState from "../components/LoadingState.vue";
 import Card from "../components/Card.vue";
+import Disclosure from "../components/Disclosure.vue";
 
 const props = defineProps<{ promptId: string }>();
 const api = usePromptApi();
@@ -652,11 +653,8 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
               <Button v-if="canWrite" data-testid="open-fix" @click="panel = 'fix'">Fix a failure</Button>
             </div>
 
-            <section class="fold" :class="{ open: isOpen('release') }" data-testid="fold-release">
-              <button type="button" class="fold-head" :aria-expanded="isOpen('release')" data-testid="toggle-release" @click="toggleSection('release')">
-                <strong>Release</strong><span class="soft">{{ pinned.length > 0 ? pinned.map((p) => `${p.tag} v${p.version}`).join(" · ") : "no environment tagged" }}</span><span class="grow" /><span class="chev" aria-hidden="true">{{ isOpen('release') ? "−" : "+" }}</span>
-              </button>
-              <div v-if="isOpen('release')" class="fold-body">
+            <Disclosure :open="isOpen('release')" toggle-testid="toggle-release" data-testid="fold-release" @toggle="toggleSection('release')">
+              <template #head><strong>Release</strong><span class="soft">{{ pinned.length > 0 ? pinned.map((p) => `${p.tag} v${p.version}`).join(" · ") : "no environment tagged" }}</span></template>
             <div class="pane tags-pane" data-testid="pane-tags">
               <TextInput v-if="canPromote || canWrite" v-model="reason" placeholder="Reason for the change (optional, saved in the history)" data-testid="tag-reason" />
 
@@ -779,13 +777,9 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
             <div class="pane" data-testid="pane-approvals">
               <PromptApprovals :prompt-id="promptId" :environments="environmentKeys" @changed="detail.run()" />
             </div>
-              </div>
-            </section>
-            <section class="fold" :class="{ open: isOpen('evidence') }" data-testid="fold-evidence">
-              <button type="button" class="fold-head" :aria-expanded="isOpen('evidence')" data-testid="toggle-evidence" @click="toggleSection('evidence')">
-                <strong>Evidence</strong><span class="soft">How each version behaved on real traces</span><span class="grow" /><span class="chev" aria-hidden="true">{{ isOpen('evidence') ? "−" : "+" }}</span>
-              </button>
-              <div v-if="isOpen('evidence')" class="fold-body">
+              </Disclosure>
+            <Disclosure :open="isOpen('evidence')" toggle-testid="toggle-evidence" data-testid="fold-evidence" @toggle="toggleSection('evidence')">
+              <template #head><strong>Evidence</strong><span class="soft">How each version behaved on real traces</span></template>
             <div class="pane" data-testid="pane-evidence">
               <div class="compare-bar">
                 <span class="muted">Traces of the last</span>
@@ -846,13 +840,9 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                 </div>
               </template>
             </div>
-              </div>
-            </section>
-            <section class="fold" :class="{ open: isOpen('usage') }" data-testid="fold-usage">
-              <button type="button" class="fold-head" :aria-expanded="isOpen('usage')" data-testid="toggle-usage" @click="toggleSection('usage')">
-                <strong>Used by</strong><span class="soft">Traces and dependencies</span><span class="grow" /><span class="chev" aria-hidden="true">{{ isOpen('usage') ? "−" : "+" }}</span>
-              </button>
-              <div v-if="isOpen('usage')" class="fold-body">
+              </Disclosure>
+            <Disclosure :open="isOpen('usage')" toggle-testid="toggle-usage" data-testid="fold-usage" @toggle="toggleSection('usage')">
+              <template #head><strong>Used by</strong><span class="soft">Traces and dependencies</span></template>
               <h3 class="sub-title">Traces</h3>
             <div class="pane" data-testid="pane-traces">
               <PromptTraces :prompt-name="data.prompt.name" :versions="versionOptions.map((o) => Number(o.value))" :selected="selected" />
@@ -861,8 +851,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
             <div class="pane" data-testid="pane-map">
               <PromptDependencyMap :prompt-id="promptId" :kind="data.prompt.kind" :name="data.prompt.name" :tag-versions="tagVersionMap" :latest="latestVersion" />
             </div>
-              </div>
-            </section>
+              </Disclosure>
           </Card>
 
           <div v-if="panel" class="drawer-backdrop" data-testid="drawer-backdrop" @click.self="panel = null">
@@ -1569,35 +1558,6 @@ h3 {
   gap: 8px;
   padding: 0 16px 12px;
   border-bottom: 1px solid var(--mt-line);
-}
-.fold {
-  border-bottom: 1px solid var(--mt-line);
-}
-.fold:last-child {
-  border-bottom: none;
-}
-.fold-head {
-  width: 100%;
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  padding: 12px 16px;
-  border: none;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.fold-head:hover {
-  background: var(--mt-bg);
-}
-.chev {
-  color: var(--mt-muted);
-  font-family: var(--mt-mono, monospace);
-}
-.fold-body {
-  padding-bottom: 8px;
 }
 .sub-title {
   margin: 8px 16px 0;

@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import type { IoBlock } from "@/domain/span-io";
 import MessageBlock from "./MessageBlock.vue";
 import SegmentedControl from "./SegmentedControl.vue";
+import Pill from "./Pill.vue";
 
 const props = defineProps<{
   title: string;
@@ -38,7 +39,7 @@ async function copy() {
         <q-icon name="chevron_right" size="16px" :class="{ open: !collapsed }" />
       </button>
       <h2>{{ title }}</h2>
-      <span class="badge" :class="{ error: badgeTone === 'error' }">{{ badge }}</span>
+      <Pill :tone="badgeTone === 'error' ? 'error' : 'neutral'">{{ badge }}</Pill>
       <template v-if="!collapsed">
         <SegmentedControl class="toggle" size="sm" :aria-label="`${title} format`" :options="MODE_OPTIONS" :model-value="mode" @update:model-value="mode = $event as 'text' | 'json'" />
         <button type="button" class="mt-round-btn copy" :aria-label="`Copy ${title.toLowerCase()}`" :disabled="blocks.length === 0" @click="copy">
@@ -105,18 +106,6 @@ h2 {
   font-size: 16px;
   font-weight: 600;
   letter-spacing: -0.02em;
-}
-.badge {
-  padding: 2px 10px;
-  border-radius: var(--mt-radius-sm);
-  background: var(--mt-soft);
-  color: var(--mt-muted);
-  font-size: 12px;
-  white-space: nowrap;
-}
-.badge.error {
-  background: var(--mt-err-bg);
-  color: var(--mt-err-ink);
 }
 .toggle {
   margin-left: auto;

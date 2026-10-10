@@ -11,6 +11,7 @@ import { useTraceApi } from "../composables/useTraceApi";
 import Button from "./Button.vue";
 import Checkbox from "./Checkbox.vue";
 import Card from "./Card.vue";
+import Pill from "./Pill.vue";
 
 /**
  * Editor de items estilo hoja de cálculo (ADR-041): se edita en la propia tabla, todo queda en un
@@ -230,9 +231,9 @@ defineExpose({ dirty });
             </td>
             <td class="muted last-edit">
               <div class="meta-line">
-                <span v-if="row.id === null && rowState(row) !== 'empty'" class="badge new">new</span>
-                <span v-else-if="rowState(row) === 'modified'" class="badge modified">edited</span>
-                <span v-else-if="row.removed" class="badge removed">will be deleted</span>
+                <Pill v-if="row.id === null && rowState(row) !== 'empty'" tone="ok">new</Pill>
+                <Pill v-else-if="rowState(row) === 'modified'" tone="warn">edited</Pill>
+                <Pill v-else-if="row.removed" tone="error">will be deleted</Pill>
                 <span v-else>{{ lastEdit(row) }}</span>
               </div>
               <div v-if="rowProblem(row)" class="problem-text">{{ rowProblem(row) }}</div>
@@ -428,22 +429,6 @@ td {
   align-items: center;
   flex-wrap: wrap;
   gap: 4px;
-}
-.badge {
-  display: inline-block;
-  padding: 1px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-}
-.badge.new {
-  color: var(--mt-ok-ink);
-}
-.badge.modified {
-  color: var(--mt-warn-ink);
-}
-.badge.removed {
-  color: var(--mt-err-ink);
 }
 .problem-text {
   color: var(--mt-err-ink, #c0392b);
