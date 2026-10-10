@@ -26,6 +26,6 @@ export async function GET(request: Request, context: { params: Promise<{ experim
     if (!prompt.experimentIds.includes(experimentId)) return problem(404, "Not Found", "Prompt not found for this agent");
 
     const { from, to } = parseOrThrow(failuresQuery, queryToObject(new URL(request.url).searchParams));
-    return json(toPromptFailuresResponse(await getPromptFailures().list(experimentId, ctx.serviceName, prompt.name, { from, to })));
+    return json(toPromptFailuresResponse(await getPromptFailures().list(ctx.scope, prompt.name, { from, to })));
   });
 }

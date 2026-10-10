@@ -12,6 +12,8 @@ import type { UserFeedback } from "@/domain/user-feedback";
 const enabled = Boolean(process.env.CLICKHOUSE_INTEGRATION);
 const config = { ...configFromEnv(), password: process.env.CLICKHOUSE_PASSWORD ?? "memtrace-dev-only" };
 const SERVICE = `it-fb-${randomBytes(4).toString("hex")}`;
+const SCOPE = { experimentId: `exp-${SERVICE}`, serviceName: SERVICE };
+const OTHER_SCOPE = { experimentId: "exp-other", serviceName: SERVICE }; // mismo servicio, otro experimento (ADR-088)
 const TRACE = randomBytes(16).toString("hex");
 
 const vote = (overrides: Partial<UserFeedback> = {}): UserFeedback => ({
@@ -41,30 +43,30 @@ describe.skipIf(!enabled)("ClickHouseUserFeedbackRepository (integration)", () =
   });
 
   it("a changed vote replaces the previous one; other end users and anonymous votes coexist", async () => {
-    await repo.upsert(SERVICE, vote({ rating: 1 }));
-    await repo.upsert(SERVICE, vote({ rating: -1, comment: "wrong", createdAt: "2026-10-06T10:01:00.000Z" }));
-    await repo.upsert(SERVICE, vote({ endUserId: "u-2", rating: 1, externalMessageId: "msg-7" }));
-    await repo.upsert(SERVICE, vote({ endUserId: null, rating: 1 }));
+    await repo.upsert(SCOPE, vote({ rating: 1 }));
+    await repo.upsert(SCOPE, vote({ rating: -1, comment: "wrong", createdAt: "2026-10-06T10:01:00.000Z" }));
+    await repo.upsert(SCOPE, vote({ endUserId: "u-2", rating: 1, externalMessageId: "msg-7" }));
+    await repo.upsert(SCOPE, vote({ endUserId: null, rating: 1 }));
 
-    const found = await repo.listForTrace(SERVICE, TRACE);
+    const found = await repo.listForTrace(SCOPE, TRACE);
     expect(found.map((v) => `${v.endUserId ?? "-"}=${v.rating}`).sort()).toEqual(["-=1", "u-1=-1", "u-2=1"]);
     expect(found.find((v) => v.endUserId === "u-1")?.comment).toBe("wrong");
     expect(found.find((v) => v.endUserId === "u-2")?.externalMessageId).toBe("msg-7");
   });
 
   it("a tombstone hides the vote", async () => {
-    await repo.retract(SERVICE, vote({ endUserId: null, createdAt: "2026-10-06T10:05:00.000Z" }));
-    expect((await repo.listForTrace(SERVICE, TRACE)).some((v) => v.endUserId === null)).toBe(false);
+    await repo.retract(SCOPE, vote({ endUserId: null, createdAt: "2026-10-06T10:05:00.000Z" }));
+    expect((await repo.listForTrace(SCOPE, TRACE)).some((v) => v.endUserId === null)).toBe(false);
   });
 
   it("summarises and groups by day", async () => {
-    expect(await repo.summarize(SERVICE, ...range)).toEqual({ total: 2, up: 1, down: 1, satisfaction: 50, ratedTraces: 1 });
-    expect(await repo.daily(SERVICE, ...range)).toEqual([{ day: "2026-10-06", up: 1, down: 1 }]);
-    expect((await repo.listRecent(SERVICE, ...range, 10, -1)).map((v) => v.endUserId)).toEqual(["u-1"]);
+    expect(await repo.summarize(SCOPE, ...range)).toEqual({ total: 2, up: 1, down: 1, satisfaction: 50, ratedTraces: 1 });
+    expect(await repo.daily(SCOPE, ...range)).toEqual([{ day: "2026-10-06", up: 1, down: 1 }]);
+    expect((await repo.listRecent(SCOPE, ...range, 10, -1)).map((v) => v.endUserId)).toEqual(["u-1"]);
   });
 
-  it("never returns another tenant's votes", async () => {
-    expect(await repo.listForTrace("someone-else", TRACE)).toEqual([]);
-    expect((await repo.summarize("someone-else", ...range)).total).toBe(0);
+  it("never returns another experiment's votes, even when it shares the service name (ADR-088)", async () => {
+    expect(await repo.listForTrace(OTHER_SCOPE, TRACE)).toEqual([]);
+    expect((await repo.summarize(OTHER_SCOPE, ...range)).total).toBe(0);
   });
 });

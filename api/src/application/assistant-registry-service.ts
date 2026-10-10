@@ -36,7 +36,7 @@ import { AssistantInvariantError, AssistantNotFoundError, AssistantUpstreamError
 
 /** Uso de tools observado en trazas (ClickHouse). Puerto propio para no acoplar el registro al repositorio de trazas. */
 export interface ToolUsageSource {
-  toolUsage(serviceName: string, from: Date, to: Date): Promise<Array<{ tool: string; calls: number; errors: number; mcpServer?: string | null }>>;
+  toolUsage(scope: { experimentId: string; serviceName: string }, from: Date, to: Date): Promise<Array<{ tool: string; calls: number; errors: number; mcpServer?: string | null }>>;
 }
 
 const DAY_MS = 86_400_000;
@@ -160,7 +160,7 @@ export class AssistantRegistryService {
     const to = this.now();
     const [connections, usage] = await Promise.all([
       this.repo.listConnections(experimentId),
-      this.toolUsage.toolUsage(serviceName, new Date(to.getTime() - OBSERVATION_WINDOW_DAYS * DAY_MS), to),
+      this.toolUsage.toolUsage({ experimentId, serviceName }, new Date(to.getTime() - OBSERVATION_WINDOW_DAYS * DAY_MS), to),
     ]);
     const byTool = new Map(usage.map((u) => [u.tool, u]));
     const byServer = new Map<string, { calls: number; errors: number }>();
@@ -183,7 +183,7 @@ export class AssistantRegistryService {
   async syncObservedConnections(experimentId: string, serviceName: string): Promise<{ observed: number }> {
     await this.getCard(experimentId);
     const to = this.now();
-    const usage = await this.toolUsage.toolUsage(serviceName, new Date(to.getTime() - OBSERVATION_WINDOW_DAYS * DAY_MS), to);
+    const usage = await this.toolUsage.toolUsage({ experimentId, serviceName }, new Date(to.getTime() - OBSERVATION_WINDOW_DAYS * DAY_MS), to);
     const called = usage.filter((u) => u.calls > 0);
     const servers = [...new Set(called.flatMap((u) => (u.mcpServer ? [u.mcpServer] : [])))];
     const seen: ObservedConnection[] = [

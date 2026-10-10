@@ -2,6 +2,7 @@ import type { AnnotationService } from "@/application/annotation-service";
 import type { ScoreRepository } from "@/application/ports/score-repository";
 import type { TraceRepository } from "@/application/ports/trace-repository";
 import type { UserFeedbackRepository } from "@/application/ports/user-feedback-repository";
+import type { TenantScope } from "@/domain/tenant";
 import { isLowScore, reasonsOf, type FailureReason, type PromptFailure } from "@/domain/prompt-failure";
 import { resolveTimeRange } from "@/domain/time-range";
 
@@ -31,14 +32,14 @@ export class PromptFailureService {
     private readonly now: () => number = Date.now,
   ) {}
 
-  async list(experimentId: string, serviceName: string, promptName: string, input: { from?: Date; to?: Date }): Promise<PromptFailures> {
+  async list(scope: TenantScope, promptName: string, input: { from?: Date; to?: Date }): Promise<PromptFailures> {
     const range = resolveTimeRange(input, this.now());
-    const page = await this.traces.listTraces({ ...range, service: serviceName, promptName, limit: SCAN_LIMIT });
+    const page = await this.traces.listTraces({ ...range, scope, promptName, limit: SCAN_LIMIT });
     const ids = page.items.map((t) => t.traceId);
     const [scores, votes, ratings] = await Promise.all([
-      this.scores.listScoresByTraces(serviceName, ids),
-      this.feedback.listForTraces(serviceName, ids),
-      this.annotations.listRatings(experimentId, serviceName, { traceIds: ids }),
+      this.scores.listScoresByTraces(scope, ids),
+      this.feedback.listForTraces(scope, ids),
+      this.annotations.listRatings(scope, { traceIds: ids }),
     ]);
     const lowScore = new Set(scores.filter(isLowScore).map((s) => s.traceId));
     const disliked = new Set(votes.filter((v) => v.rating === -1).map((v) => v.traceId));

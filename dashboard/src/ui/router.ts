@@ -23,6 +23,7 @@ export const router = createRouter({
     { path: "/", name: "home", component: { render: () => null } },
     // área de administración (ADR-037): organización → experimento, con una pestaña por paso de configuración
     { path: "/admin", name: "admin", component: () => import("./pages/admin/AdminHomePage.vue"), meta: { title: "Admin", section: "admin" } },
+    { path: "/clients", name: "partner-clients", component: () => import("./pages/PartnerClientsPage.vue"), meta: { title: "Clients", section: "admin" } },
     { path: "/admin/members", name: "admin-members", component: () => import("./pages/admin/AdminMembersPage.vue"), meta: { title: "Members", section: "admin" } },
     { path: "/admin/organizations/:organizationId", name: "admin-organization", component: () => import("./pages/admin/AdminOrganizationPage.vue"), props: true, meta: { title: "Organization", section: "admin" } },
     // el parámetro no se llama :experimentId a propósito: el guard de abajo fija el experimento "activo" para :experimentId

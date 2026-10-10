@@ -18,6 +18,9 @@ spec:
       backoffLimit: 0                # un fallo se reintenta en la pasada del minuto siguiente
       activeDeadlineSeconds: 55
       template:
+        metadata:
+          labels:
+            app: health-probe
         spec:
           restartPolicy: Never
           containers:
@@ -61,3 +64,10 @@ spec:
               resources:
                 requests: { cpu: 25m, memory: 64Mi }
                 limits: { memory: 192Mi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities: { drop: ["ALL"] }
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000

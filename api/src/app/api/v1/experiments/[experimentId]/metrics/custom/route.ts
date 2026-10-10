@@ -8,5 +8,5 @@ export async function POST(request: Request, context: { params: Promise<{ experi
   const { experimentId } = await context.params;
   const access = await requireExperimentRead(experimentId);
   if (access instanceof Response) return access;
-  return getHandlers().customMetricQuery(request, access.serviceName);
+  return getHandlers().customMetricQuery(request, access.scope);
 }

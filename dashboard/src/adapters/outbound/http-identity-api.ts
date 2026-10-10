@@ -1,4 +1,4 @@
-import type { AlertEventsPageDto, AlertRuleDto, AlertsOverviewDto, AuditPageDto, BudgetViewDto, ChartCatalogEntryDto, CustomMetricDefinitionDto, OpenAlertsDto, RetentionPolicyDto, ScoreConfigDto } from "@contract";
+import type { AlertEventsPageDto, AlertRuleDto, AlertsOverviewDto, AuditPageDto, BudgetViewDto, ChartCatalogEntryDto, CustomMetricDefinitionDto, OpenAlertsDto, PartnerClientDto, PartnerGrantDto, PartnershipDto, RetentionPolicyDto, ScoreConfigDto } from "@contract";
 import { ApiError } from "@/application/trace-api";
 import type {
   AlertRuleBody,
@@ -107,6 +107,32 @@ export class HttpIdentityApi implements IdentityApi {
     for (const [key, value] of Object.entries(filter)) if (value !== undefined && value !== "") params.set(key, String(value));
     const query = params.toString();
     return this.get(`/organizations/${encodeURIComponent(organizationId)}/audit${query ? `?${query}` : ""}`, signal);
+  }
+
+  async listPartnerships(organizationId: string, signal?: AbortSignal): Promise<PartnershipDto[]> {
+    const { items } = await this.get<{ items: PartnershipDto[] }>(`/organizations/${encodeURIComponent(organizationId)}/partnerships`, signal);
+    return items;
+  }
+
+  createPartnership(organizationId: string, partnerOrganizationId: string, signal?: AbortSignal): Promise<PartnershipDto> {
+    return this.post(`/organizations/${encodeURIComponent(organizationId)}/partnerships`, { partnerOrganizationId }, signal);
+  }
+
+  async revokePartnership(organizationId: string, partnershipId: string, signal?: AbortSignal): Promise<void> {
+    await this.remove(`/organizations/${encodeURIComponent(organizationId)}/partnerships/${encodeURIComponent(partnershipId)}`, signal);
+  }
+
+  grantPartnerAccess(organizationId: string, partnershipId: string, input: { email: string; role: string; experimentId: string | null }, signal?: AbortSignal): Promise<PartnerGrantDto> {
+    return this.post(`/organizations/${encodeURIComponent(organizationId)}/partnerships/${encodeURIComponent(partnershipId)}/grants`, input, signal);
+  }
+
+  async revokePartnerGrant(organizationId: string, partnershipId: string, grantId: string, signal?: AbortSignal): Promise<void> {
+    await this.remove(`/organizations/${encodeURIComponent(organizationId)}/partnerships/${encodeURIComponent(partnershipId)}/grants/${encodeURIComponent(grantId)}`, signal);
+  }
+
+  async listPartnerClients(signal?: AbortSignal): Promise<PartnerClientDto[]> {
+    const { items } = await this.get<{ items: PartnerClientDto[] }>("/partner/clients", signal);
+    return items;
   }
 
   previewExport(experimentId: string, request: { kind: string; from: string; to: string }, signal?: AbortSignal): Promise<{ rows: number; maxRows: number }> {

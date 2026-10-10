@@ -29,7 +29,7 @@ export async function GET(request: Request, context: { params: Promise<{ experim
       Promise.all(datasets.map((d) => identityRepository.listDatasetVersions(d.id))),
     ]);
     const lastRunIds = runsByDataset.map((runs) => runs[0]?.id).filter((id): id is string => id !== undefined);
-    const aggregatesByRun = groupAggregatesByRun(await getScores().aggregateForRuns(access.serviceName, lastRunIds));
+    const aggregatesByRun = groupAggregatesByRun(await getScores().aggregateForRuns(access.scope, lastRunIds));
 
     const entries: DatasetListEntry[] = datasets.map((dataset, i) => {
       const runs = runsByDataset[i]!;

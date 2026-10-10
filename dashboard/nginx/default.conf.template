@@ -8,6 +8,7 @@ server {
 
     # Mismo origen para el navegador: sin CORS (ADR-009/ADR-011)
     location /api/ {
+        include /etc/nginx/snippets/security-headers.conf;
         proxy_pass ${API_UPSTREAM};
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -16,6 +17,7 @@ server {
 
     # Los ficheros con hash en el nombre nunca cambian
     location /assets/ {
+        include /etc/nginx/snippets/security-headers.conf;
         expires 1y;
         add_header Cache-Control "public, immutable";
         try_files $uri =404;
@@ -23,6 +25,7 @@ server {
 
     # SPA: cualquier ruta del router vuelve a index.html (que no se cachea)
     location / {
+        include /etc/nginx/snippets/security-headers.conf;
         add_header Cache-Control "no-cache";
         try_files $uri /index.html;
     }

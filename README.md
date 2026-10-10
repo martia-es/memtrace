@@ -21,7 +21,8 @@ El entorno corre íntegramente de forma local sobre **Kubernetes** (`kind` / `k3
 
 ```mermaid
 graph LR
-    Agent["🤖 Agente de IA<br/>(SDK OpenTelemetry)"] -->|OTLP gRPC :4317 / HTTP :4318| Collector["📡 OpenTelemetry Collector<br/>(otelcol-contrib)"]
+    Agent["🤖 Agente de IA<br/>(SDK OpenTelemetry)"] -->|OTLP/HTTP + API key| Gateway["🚪 Pasarela de ingesta<br/>(API :3001, ADR-089)"]
+    Gateway -->|OTLP/HTTP + token interno| Collector["📡 OpenTelemetry Collector<br/>(otelcol-contrib)"]
     Collector -->|Escritura por Lotes| ClickHouse["🗄️ ClickHouse DB<br/>(Almacén Columnar - Trazas)"]
     MigrateCH["⚙️ Job Migraciones<br/>(clickhouse-migrate)"] -->|Esquema SQL Versionado| ClickHouse
     User["👤 Desarrollador"] -->|Login OIDC Google/Microsoft| API["🔌 API de Consulta<br/>(Next.js + Auth.js)"]
@@ -34,7 +35,7 @@ graph LR
 ```
 
 ### Componentes Principales:
-* **OpenTelemetry Collector:** Recibe trazas vía OTLP (puertos `4317` gRPC / `4318` HTTP), agrupadamente con cola persistente en disco.
+* **OpenTelemetry Collector:** Recibe trazas solo vía OTLP/HTTP (`4318`) y solo de la pasarela de ingesta de la API, que valida la API key y fija el experimento (ADR-089, ADR-090). Agrupa con cola persistente en disco.
 * **ClickHouse Server:** Base de datos columnar optimizada para analítica de trazas de alto rendimiento.
 * **ClickHouse Migrations Job:** Orquestador declarativo que aplica migraciones SQL versionadas (`migrations/clickhouse/*.sql`).
 * **PostgreSQL:** Almacén de identidad transaccional (usuarios, organizaciones, experimentos, memberships y sesiones), independiente de ClickHouse — ver [ADR-013](docs/adrs/identity/adr-013-identity-postgres-and-oauth-rbac.md).
@@ -99,17 +100,17 @@ Una vez ejecutado `make up`, tendrás acceso directo a:
   * **Usuario:** `default`
   * **Contraseña:** `memtrace-dev-only`
   * **Base de Datos:** `memtrace`
-* 📡 **Endpoint OTLP Collector (gRPC):** `localhost:4317`
-* 🌐 **Endpoint OTLP Collector (HTTP):** `localhost:4318`
+* 📡 **Endpoint de ingesta OTLP/HTTP:** `http://localhost:8080/api/v1/ingest` (con una API key; el Collector ya no se expone fuera del clúster)
 
 ### Probar con trazas
 
 ```bash
 pip install -e sdk/python   # una vez: el SDK de Python
-make dev-data               # agente simulado que envía trazas al collector (localhost:4317)
+export MEMTRACE_API_KEY=mtk_...   # Admin → experimento → API keys
+make dev-data               # agente simulado que envía trazas a la pasarela de ingesta
 ```
 
-Tu propio agente solo debe apuntar al collector, que es el valor por defecto del SDK (`localhost:4317`); ver [`sdk/python/README.md`](sdk/python/README.md). El dashboard se actualiza solo (por defecto cada 5 s).
+Tu propio agente apunta a la pasarela (`MEMTRACE_OTLP_ENDPOINT=http://localhost:8080/api/v1/ingest`, `MEMTRACE_OTLP_PROTOCOL=http/protobuf`) y envía su API key en `MEMTRACE_OTLP_HEADERS`; ver [`sdk/python/README.md`](sdk/python/README.md). Las trazas que lleguen sin pasar por la pasarela no tienen experimento y nadie puede verlas. El dashboard se actualiza solo (por defecto cada 5 s).
 
 ### Ver tus cambios de código
 
@@ -231,7 +232,7 @@ Cada agente instrumentado envía trazas al Collector autenticándose con una API
 
    *(Pendiente: añadir un parámetro `api_key` de primera clase al SDK en vez de depender de este workaround.)*
 
-3. La API valida la key contra el almacén de identidad antes de reenviar la traza al Collector; una key inválida o revocada se rechaza con 401. Nota: la validación actual solo comprueba que la key sea válida, no que el `service.name` de la traza coincida con el experimento de la key — ver comentario en `ingest/v1/traces/route.ts`.
+3. La API valida la key contra el almacén de identidad antes de reenviar la traza al Collector; una key inválida o revocada se rechaza con 401. La pasarela sustituye `service.name` y `memtrace.experiment_id` por los del experimento de la key (ADR-089).
 
 ---
 

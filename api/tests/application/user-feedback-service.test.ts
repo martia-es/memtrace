@@ -5,6 +5,8 @@ import type { Annotation } from "@/domain/annotation";
 import { FakeAnnotationRepository, FakeScoreConfigRepository, FakeTraceRepository, FakeUserFeedbackRepository, span } from "../helpers";
 
 const SERVICE = "agent-a";
+const SCOPE_A = { experimentId: "exp-a", serviceName: SERVICE };
+const SCOPE_OTHER_SERVICE = { experimentId: "exp-b", serviceName: "other-agent" };
 const NOW = new Date("2026-10-06T10:00:00.000Z");
 
 function annotation(traceId: string, value: string): Annotation {
@@ -26,69 +28,77 @@ describe("UserFeedbackService", () => {
   });
 
   it("stores a vote with the server clock and trims the optional fields", async () => {
-    const vote = await service.submit(SERVICE, "t1", { rating: 1, comment: "  great  ", endUserId: " u-9 ", externalMessageId: "msg-1" });
+    const vote = await service.submit(SCOPE_A, "t1", { rating: 1, comment: "  great  ", endUserId: " u-9 ", externalMessageId: "msg-1" });
     expect(vote).toMatchObject({ traceId: "t1", spanId: null, rating: 1, comment: "great", endUserId: "u-9", externalMessageId: "msg-1", createdAt: NOW.toISOString() });
-    expect(await feedback.listForTrace(SERVICE, "t1")).toHaveLength(1);
+    expect(await feedback.listForTrace(SCOPE_A, "t1")).toHaveLength(1);
   });
 
   it("lets the same end user change their mind, and anonymous votes dedupe per trace", async () => {
-    await service.submit(SERVICE, "t1", { rating: 1, endUserId: "u-9" });
-    await service.submit(SERVICE, "t1", { rating: -1, endUserId: "u-9" });
-    await service.submit(SERVICE, "t1", { rating: 1 });
-    await service.submit(SERVICE, "t1", { rating: -1 });
-    const votes = await feedback.listForTrace(SERVICE, "t1");
+    await service.submit(SCOPE_A, "t1", { rating: 1, endUserId: "u-9" });
+    await service.submit(SCOPE_A, "t1", { rating: -1, endUserId: "u-9" });
+    await service.submit(SCOPE_A, "t1", { rating: 1 });
+    await service.submit(SCOPE_A, "t1", { rating: -1 });
+    const votes = await feedback.listForTrace(SCOPE_A, "t1");
     expect(votes.map((v) => [v.endUserId, v.rating])).toEqual([["u-9", -1], [null, -1]]);
   });
 
   it("rejects an invalid rating", async () => {
-    await expect(service.submit(SERVICE, "t1", { rating: 5 })).rejects.toBeInstanceOf(UserFeedbackValueError);
+    await expect(service.submit(SCOPE_A, "t1", { rating: 5 })).rejects.toBeInstanceOf(UserFeedbackValueError);
     expect(feedback.rows).toEqual([]);
   });
 
   it("does not accept traces that belong to another tenant", async () => {
-    await expect(service.submit("other-agent", "t1", { rating: 1 })).rejects.toBeInstanceOf(TraceNotFoundError);
+    await expect(service.submit(SCOPE_OTHER_SERVICE, "t1", { rating: 1 })).rejects.toBeInstanceOf(TraceNotFoundError);
     expect(feedback.rows).toEqual([]);
   });
 
+  it("keeps the votes of two experiments that share a service name apart (ADR-088)", async () => {
+    const sameName = { experimentId: "exp-b", serviceName: SERVICE };
+    await service.submit(SCOPE_A, "t1", { rating: 1, endUserId: "u-1" });
+    await service.submit(sameName, "t1", { rating: -1, endUserId: "u-1" });
+    expect((await feedback.listForTrace(SCOPE_A, "t1")).map((v) => v.rating)).toEqual([1]);
+    expect((await feedback.listForTrace(sameName, "t1")).map((v) => v.rating)).toEqual([-1]);
+  });
+
   it("accepts a vote for a trace that is not ingested yet (the SDK exports in batches)", async () => {
-    await expect(service.submit(SERVICE, "not-yet", { rating: 1 })).resolves.toMatchObject({ traceId: "not-yet" });
+    await expect(service.submit(SCOPE_A, "not-yet", { rating: 1 })).resolves.toMatchObject({ traceId: "not-yet" });
   });
 
   it("validates the span when the trace is complete", async () => {
-    await expect(service.submit(SERVICE, "t1", { rating: 1, spanId: "bbbbbbbbbbbbbbbb" })).rejects.toBeInstanceOf(SpanNotFoundError);
-    await expect(service.submit(SERVICE, "t1", { rating: 1, spanId: "aaaaaaaaaaaaaaaa" })).resolves.toMatchObject({ spanId: "aaaaaaaaaaaaaaaa" });
+    await expect(service.submit(SCOPE_A, "t1", { rating: 1, spanId: "bbbbbbbbbbbbbbbb" })).rejects.toBeInstanceOf(SpanNotFoundError);
+    await expect(service.submit(SCOPE_A, "t1", { rating: 1, spanId: "aaaaaaaaaaaaaaaa" })).resolves.toMatchObject({ spanId: "aaaaaaaaaaaaaaaa" });
   });
 
   it("retracts a vote and is idempotent", async () => {
-    await service.submit(SERVICE, "t1", { rating: -1, endUserId: "u-9" });
-    await service.retract(SERVICE, "t1", { endUserId: "u-9" });
-    await service.retract(SERVICE, "t1", { endUserId: "u-9" });
-    expect(await feedback.listForTrace(SERVICE, "t1")).toEqual([]);
+    await service.submit(SCOPE_A, "t1", { rating: -1, endUserId: "u-9" });
+    await service.retract(SCOPE_A, "t1", { endUserId: "u-9" });
+    await service.retract(SCOPE_A, "t1", { endUserId: "u-9" });
+    expect(await feedback.listForTrace(SCOPE_A, "t1")).toEqual([]);
   });
 
   it("flags a thumbs down on a well-rated trace as misaligned, and agrees once a reviewer rates it badly", async () => {
-    await service.submit(SERVICE, "t1", { rating: -1 });
-    await annotations.upsert(SERVICE, annotation("t1", "true"));
-    expect((await service.listForTrace("e1", SERVICE, "t1")).alignment).toBe("misaligned");
-    await annotations.upsert(SERVICE, { ...annotation("t1", "false"), annotatorId: "u2" });
-    expect((await service.listForTrace("e1", SERVICE, "t1")).alignment).toBe("aligned"); // una etiqueta mala hace malo el veredicto y el usuario dio 👎: ahora coinciden
+    await service.submit(SCOPE_A, "t1", { rating: -1 });
+    await annotations.upsert(SCOPE_A, annotation("t1", "true"));
+    expect((await service.listForTrace(SCOPE_A, "t1")).alignment).toBe("misaligned");
+    await annotations.upsert(SCOPE_A, { ...annotation("t1", "false"), annotatorId: "u2" });
+    expect((await service.listForTrace(SCOPE_A, "t1")).alignment).toBe("aligned"); // una etiqueta mala hace malo el veredicto y el usuario dio 👎: ahora coinciden
   });
 
   it("reports unknown alignment when nobody reviewed the trace", async () => {
-    await service.submit(SERVICE, "t1", { rating: 1 });
-    expect((await service.listForTrace("e1", SERVICE, "t1")).alignment).toBe("unknown");
+    await service.submit(SCOPE_A, "t1", { rating: 1 });
+    expect((await service.listForTrace(SCOPE_A, "t1")).alignment).toBe("unknown");
   });
 
   it("summarises votes per trace for list columns, only for ids with votes", async () => {
-    await service.submit(SERVICE, "t1", { rating: 1, endUserId: "a" });
-    await service.submit(SERVICE, "t1", { rating: -1, endUserId: "b" });
-    expect(await service.listRatings(SERVICE, { traceIds: ["t1", "t2"] })).toEqual([{ id: "t1", up: 1, down: 1 }]);
+    await service.submit(SCOPE_A, "t1", { rating: 1, endUserId: "a" });
+    await service.submit(SCOPE_A, "t1", { rating: -1, endUserId: "b" });
+    expect(await service.listRatings(SCOPE_A, { traceIds: ["t1", "t2"] })).toEqual([{ id: "t1", up: 1, down: 1 }]);
   });
 
   it("builds the overview of a range", async () => {
-    await service.submit(SERVICE, "t1", { rating: -1, comment: "wrong city" });
-    await annotations.upsert(SERVICE, annotation("t1", "true"));
-    const overview = await service.overview("e1", SERVICE, { fromMs: NOW.getTime() - 86_400_000, toMs: NOW.getTime() + 1000 });
+    await service.submit(SCOPE_A, "t1", { rating: -1, comment: "wrong city" });
+    await annotations.upsert(SCOPE_A, annotation("t1", "true"));
+    const overview = await service.overview(SCOPE_A, { fromMs: NOW.getTime() - 86_400_000, toMs: NOW.getTime() + 1000 });
     expect(overview.summary).toMatchObject({ total: 1, up: 0, down: 1, satisfaction: 0, ratedTraces: 1 });
     expect(overview.days).toEqual([{ day: "2026-10-06", up: 0, down: 1 }]);
     expect(overview.alignment).toEqual({ aligned: 0, misaligned: 1 });

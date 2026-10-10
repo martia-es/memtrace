@@ -8,7 +8,7 @@ Settings can be passed to `init_tracer` or set as environment variables.
 | `MEMTRACE_SERVICE_NAME` | `default-agent` | OTel `service.name` |
 | `MEMTRACE_SERVICE_VERSION`, `MEMTRACE_ENVIRONMENT` | none | Resource attributes |
 | `MEMTRACE_GIT_SHA` | auto | Commit of the code that runs. If unset, the SDK reads `GIT_SHA`, `GITHUB_SHA`, `CI_COMMIT_SHA`, `VERCEL_GIT_COMMIT_SHA`, `RENDER_GIT_COMMIT` or `HEROKU_SLUG_COMMIT`, and as a last resort `git rev-parse HEAD`. Sent on every trace as `vcs.repository.ref.revision` |
-| `MEMTRACE_OTLP_ENDPOINT` | `http://localhost:4317` (grpc), `:4318` (http) | Where to send traces |
+| `MEMTRACE_OTLP_ENDPOINT` | `http://localhost:4317` (grpc), `:4318` (http) | Where to send traces. Against a MemTrace platform use its ingest gateway (`https://<host>/api/v1/ingest`) with `http/protobuf` and an API key: the platform no longer accepts gRPC or traces sent straight to its collector |
 | `MEMTRACE_OTLP_PROTOCOL` | `grpc` | Or `http/protobuf` (needs the `http` extra) |
 | `MEMTRACE_OTLP_HEADERS` | none | `k1=v1,k2=v2` |
 | `MEMTRACE_CAPTURE_CONTENT` | `false` | Store prompts, completions and tool arguments |

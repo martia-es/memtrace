@@ -18,6 +18,9 @@ spec:
       backoffLimit: 0                # un fallo se reintenta en la pasada de cinco minutos después
       activeDeadlineSeconds: 280
       template:
+        metadata:
+          labels:
+            app: alerts-evaluate
         spec:
           restartPolicy: Never
           containers:
@@ -42,13 +45,14 @@ spec:
                 # ClickHouse solo en lectura: mide trazas y votos, no escribe nada
                 - name: CLICKHOUSE_URL
                   value: http://clickhouse:8123
+                # usuario de solo lectura (ADR-090): ningún job usa la cuenta administradora de ClickHouse
                 - name: CLICKHOUSE_USER
-                  value: default
+                  value: api_reader
                 - name: CLICKHOUSE_PASSWORD
                   valueFrom:
                     secretKeyRef:
                       name: clickhouse-credentials
-                      key: password
+                      key: reader-password
                 - name: CLICKHOUSE_DATABASE
                   value: memtrace
                 - name: RESEND_API_KEY

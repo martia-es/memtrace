@@ -8,17 +8,22 @@ data:
     extensions:
       health_check:
         endpoint: 0.0.0.0:13133
+      # Solo la pasarela de ingesta de la API (ADR-089) conoce este token: aunque otro pod llegue al puerto 4318 (una
+      # NetworkPolicy no aplicada, o un CNI que no las aplica), el Collector rechaza lo que no lo presente (ADR-090).
+      bearertokenauth:
+        token: ${env:INGEST_INTERNAL_TOKEN}
       file_storage/queue:
         directory: /var/lib/otelcol/queue
         timeout: 10s
 
     receivers:
+      # Solo OTLP/HTTP y solo detrás de la pasarela: no hay gRPC porque no pasaría por la validación de API key (ADR-090)
       otlp:
         protocols:
-          grpc:
-            endpoint: 0.0.0.0:4317
           http:
             endpoint: 0.0.0.0:4318
+            auth:
+              authenticator: bearertokenauth
 
     processors:
       # Evita que el collector exceda el límite de memoria del contenedor
@@ -80,8 +85,11 @@ data:
       clickhouse:
         endpoint: tcp://clickhouse.memtrace.svc.cluster.local:9000
         database: memtrace
-        username: default
-        password: ${env:CLICKHOUSE_PASSWORD}
+        # Usuario propio, solo INSERT en las tablas de trazas (ADR-090): no lee contenido ni toca el resto del esquema
+        username: collector
+        password: ${env:COLLECTOR_CLICKHOUSE_PASSWORD}
+        # el exporter 0.96 ejecuta CREATE ... IF NOT EXISTS al arrancar: por eso el usuario tiene CREATE sobre las tablas de
+        # trazas y su vista (no puede borrar, alterar ni leer contenido), ver el Job de migraciones
         traces_table_name: otel_traces
         timeout: 5s
         retry_on_failure:
@@ -96,7 +104,7 @@ data:
           storage: file_storage/queue # cola persistente en disco (ADR-005)
 
     service:
-      extensions: [health_check, file_storage/queue]
+      extensions: [health_check, file_storage/queue, bearertokenauth]
       pipelines:
         traces:
           receivers: [otlp]
@@ -148,14 +156,17 @@ spec:
         image: otel/opentelemetry-collector-contrib:0.96.0
         args: ["--config=/etc/otelcol-contrib/otel-collector-config.yaml"]
         env:
-        - name: CLICKHOUSE_PASSWORD
+        - name: COLLECTOR_CLICKHOUSE_PASSWORD
           valueFrom:
             secretKeyRef:
               name: clickhouse-credentials
-              key: password
+              key: collector-password
+        - name: INGEST_INTERNAL_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: ingest-internal
+              key: token
         ports:
-        - containerPort: 4317
-          name: otlp-grpc
         - containerPort: 4318
           name: otlp-http
         - containerPort: 13133
@@ -183,6 +194,14 @@ spec:
           mountPath: /etc/otelcol-contrib
         - name: queue
           mountPath: /var/lib/otelcol/queue
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 10001        # usuario del contenedor contrib
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
       volumes:
       - name: config-volume
         configMap:
@@ -199,9 +218,6 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-  - port: 4317
-    targetPort: 4317
-    name: otlp-grpc
   - port: 4318
     targetPort: 4318
     name: otlp-http

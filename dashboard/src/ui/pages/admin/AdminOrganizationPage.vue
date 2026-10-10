@@ -16,6 +16,7 @@ import OrganizationIdentity from "../../components/admin/OrganizationIdentity.vu
 import ApprovalRulesPanel from "../../components/admin/ApprovalRulesPanel.vue";
 import OrganizationRetention from "../../components/admin/OrganizationRetention.vue";
 import AuditLogPanel from "../../components/admin/AuditLogPanel.vue";
+import OrganizationPartners from "../../components/admin/OrganizationPartners.vue";
 import { hasPermission } from "../../composables/usePermissions";
 import Button from "../../components/Button.vue";
 import Pill from "../../components/Pill.vue";
@@ -49,6 +50,7 @@ const tabs = computed(() => {
     list.push({ id: "members", label: "Members", count: (orgMembers.value?.members.length ?? 0) + (orgMembers.value?.pendingInvitations.length ?? 0) });
     list.push({ id: "approvals", label: "Approvals" });
     if (canRetention.value || canAudit.value) list.push({ id: "data", label: "Data protection" });
+    list.push({ id: "partners", label: "Partners" });
     list.push({ id: "identity", label: "Identity" });
     list.push({ id: "appearance", label: "Appearance" });
   }
@@ -175,6 +177,10 @@ async function inviteOrgAdmin({ email }: { email: string }) {
         <section v-if="tab === 'data' && organization && isOrgAdmin" class="panel">
           <OrganizationRetention v-if="canRetention" :organization="organization" />
           <AuditLogPanel v-if="canAudit" :organization="organization" :experiments="orgExperiments" />
+        </section>
+
+        <section v-if="tab === 'partners' && organization && isOrgAdmin" class="panel">
+          <OrganizationPartners :organization="organization" :experiments="orgExperiments" />
         </section>
 
         <section v-if="tab === 'identity' && organization && isOrgAdmin" class="panel">
