@@ -37,7 +37,7 @@ describe("time range", () => {
     expect(resolveTimeRange({}, now)).toEqual({ fromMs: now - DEFAULT_RANGE_MS, toMs: now });
   });
 
-  it("rejects from >= to and ranges over 30 days", () => {
+  it("rejects from >= to and ranges over 365 days", () => {
     expect(() => resolveTimeRange({ from: new Date(now), to: new Date(now) }, now)).toThrow(ValidationError);
     expect(() => resolveTimeRange({ from: new Date(now - MAX_RANGE_MS - 1), to: new Date(now) }, now)).toThrow(ValidationError);
     expect(() => resolveTimeRange({ from: new Date(now - MAX_RANGE_MS), to: new Date(now) }, now)).not.toThrow();

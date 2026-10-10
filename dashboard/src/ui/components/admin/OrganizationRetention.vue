@@ -92,7 +92,7 @@ async function saveExperiment(id: string, days: number | null) {
         <strong>{{ organization.name }}</strong>. Scores, annotations and end-user feedback are not traces and are kept.
       </p>
       <p class="adm-hint">
-        The dashboard shows the last 30 days at most. A longer period keeps older traces so you can <strong>export</strong> them (Admin › experiment › Export), not to browse them.
+        The dashboard can show up to a year (presets 90 d and 1 y, or a custom range). Whatever is older than the period you set here no longer exists, so a longer period also lets you <strong>export</strong> it (Admin › experiment › Export).
       </p>
       <div v-if="policy" class="line">
         <FormField label="Organization default">

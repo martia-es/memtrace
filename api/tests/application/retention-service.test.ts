@@ -29,6 +29,7 @@ function fakes(initial: { defaultDays?: number; overrides?: Record<string, numbe
             maxDays: 365,
             experiments: Object.entries(state.overrides).map(([id, o]) => ({ experimentId: id, name: id, serviceName: id, overrideDays: o, effectiveDays: effectiveRetentionDays(state.defaultDays, o) })),
           } satisfies RetentionPolicy),
+    effectiveDaysForService: async () => state.defaultDays,
     setOrganizationDefault: async (organizationId, days) => {
       if (organizationId === "missing") return null;
       state.defaultDays = days;

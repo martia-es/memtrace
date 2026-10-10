@@ -11,6 +11,11 @@ export interface RetentionRepository {
   setOrganizationDefault(organizationId: string, days: number): Promise<{ clearedExperimentIds: string[] } | null>;
   /** Pone (o quita, con null) el override de un experimento de esa organización. False si el experimento no es suyo. */
   setExperimentOverride(organizationId: string, experimentId: string, days: number | null): Promise<boolean>;
+  /**
+   * Plazo efectivo con el que se conservan las trazas de un `service.name` (el más largo si varias organizaciones lo comparten),
+   * o el máximo de todos si no se indica servicio. Null si ningún experimento lo usa.
+   */
+  effectiveDaysForService(serviceName?: string): Promise<number | null>;
   /** Todos los experimentos con su plazo efectivo, para el worker de purga. */
   listPurgeTargets(): Promise<PurgeTarget[]>;
 }

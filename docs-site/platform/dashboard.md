@@ -47,7 +47,7 @@ Each span is a step: an LLM call, a tool, a retriever or an agent. Spans are col
 
 ## Overview
 
-The sidebar groups its pages in submenus. **Overview** opens **Summary**, **Compare**, **Custom charts** and **Reports**; each one is its own page with its own link, so you can bookmark or share it. The time range applies to all of them.
+The sidebar groups its pages in submenus. **Overview** opens **Summary**, **Compare**, **Custom charts** and **Reports**; each one is its own page with its own link, so you can bookmark or share it. The time range applies to all of them: from 15 minutes to **1 year** (presets 15 min, 1 h, 6 h, 24 h, 7 d, 30 d, 90 d and 1 y, or a custom range of up to 365 days). Traces older than the [retention period](data-protection#how-long-traces-are-kept) of the agent no longer exist, so a longer range shows only what is kept. In **Errors**, the comparison with the previous period is hidden when that period is older than the retention.
 
 ### Summary
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatCount, formatDuration, formatPercent, formatRelativeTime, shortId } from "@/domain/format";
-import { DEFAULT_RANGE, isRangeKey, RANGE_PRESETS, resolveRange } from "@/domain/time-range";
+import { DEFAULT_RANGE, earliestCustomDay, isRangeKey, RANGE_PRESETS, resolveRange } from "@/domain/time-range";
 
 describe("formatDuration", () => {
   it.each([
@@ -42,9 +42,14 @@ describe("time range", () => {
     const now = Date.parse("2026-09-26T12:00:00Z");
     expect(resolveRange("1h", now)).toEqual({ from: "2026-09-26T11:00:00.000Z", to: "2026-09-26T12:00:00.000Z" });
   });
-  it("never exceeds the 30-day retention the API accepts", () => {
+  it("never exceeds the 365 days the API accepts", () => {
     const max = Math.max(...RANGE_PRESETS.map((p) => p.ms));
-    expect(max).toBeLessThanOrEqual(30 * 24 * 3600_000);
+    expect(max).toBeLessThanOrEqual(365 * 24 * 3600_000);
+  });
+  it("offers presets beyond 30 days and limits custom ranges to a year", () => {
+    expect(isRangeKey("90d")).toBe(true);
+    expect(isRangeKey("365d")).toBe(true);
+    expect(earliestCustomDay(Date.parse("2026-10-10T12:00:00"))).toBe("2025-10-11");
   });
   it("validates keys", () => {
     expect(isRangeKey(DEFAULT_RANGE)).toBe(true);
