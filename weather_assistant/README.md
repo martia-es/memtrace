@@ -23,7 +23,7 @@ Para añadir una capacidad: crea `app/capabilities/<dominio>.py` con una `Capabi
 
 ## Ejecutar
 
-Requiere `GOOGLE_API_KEY` en el `.env` de la raíz del repo (o en el entorno).
+Requiere `GOOGLE_API_KEY` en `weather_assistant/.env` (plantilla: `.env.example`), en el `.env` de la raíz del repo o en el entorno; manda el entorno, luego el `.env` del asistente y por último el de la raíz.
 
 ```bash
 cd weather_assistant

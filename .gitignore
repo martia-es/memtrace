@@ -6,3 +6,4 @@ weather_assistant/uvicorn.log
 # credenciales por experimento para ejemplos
 examples/.env.*
 scripts/entra-groups-check.env
+rag_assistant/uvicorn.log

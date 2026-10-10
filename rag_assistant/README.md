@@ -23,10 +23,11 @@ tests/                    # Sin red ni LLM
 
 ## Ejecutar
 
-Requiere `GOOGLE_API_KEY` (LLM y embeddings) en el `.env` de la raíz del repo (o en el entorno).
+Requiere `GOOGLE_API_KEY` (LLM y embeddings) en `rag_assistant/.env` (plantilla: `.env.example`), en el `.env` de la raíz del repo o en el entorno; manda el entorno, luego el `.env` del asistente y por último el de la raíz.
 
 ```bash
 make rag                  # desde la raíz: http://localhost:8001
+make rag-restart          # en segundo plano (lo lanza make up): relee el .env y muestra qué prompt usa
 # o, a mano:
 cd rag_assistant && uv sync --all-groups && uv run uvicorn app.main:app --reload --port 8001
 ```
@@ -66,7 +67,7 @@ Para atender a otra empresa: un `.jsonl` nuevo (`id`, `title`, `category`, `text
 
 ## Trazas, prompt y evaluación
 
-Con `RAG_ASSISTANT_MEMTRACE_HEADERS` (`authorization=Bearer mtk_...`) envía trazas a MemTrace; cada búsqueda es un span `retriever` con los fragmentos devueltos (el texto solo con `MEMTRACE_CAPTURE_CONTENT=true`). Con `MEMTRACE_API_URL` (con el id del experimento) y `MEMTRACE_API_KEY` lee su prompt `faq-system` del [registro](../docs-site/platform/prompts.md). Para el playground añade `MEMTRACE_ALLOW_PROMPT_OVERRIDE=true` (solo en no producción).
+Con `RAG_ASSISTANT_MEMTRACE_HEADERS` (`authorization=Bearer mtk_...`) envía trazas a MemTrace; cada búsqueda es un span `retriever` con los fragmentos devueltos (el texto solo con `MEMTRACE_CAPTURE_CONTENT=true`). Con `RAG_ASSISTANT_MEMTRACE_API_URL` (con el id del experimento del RAG) y `RAG_ASSISTANT_MEMTRACE_API_KEY` (tienen prioridad sobre `MEMTRACE_API_URL`/`MEMTRACE_API_KEY`, que son de otro experimento) lee su prompt `faq-system` del [registro](../docs-site/platform/prompts.md). Para el playground añade `MEMTRACE_ALLOW_PROMPT_OVERRIDE=true` (solo en no producción).
 
 ```bash
 uv run pytest                                          # sin LLM ni red
