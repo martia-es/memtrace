@@ -29,6 +29,8 @@ import CommitLink from "../components/CommitLink.vue";
 import PromptChips from "../components/PromptChips.vue";
 import Button from "../components/Button.vue";
 import Pill from "../components/Pill.vue";
+import LoadingState from "../components/LoadingState.vue";
+import Card from "../components/Card.vue";
 
 const props = defineProps<{ traceId: string }>();
 const api = useTraceApi();
@@ -124,10 +126,10 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
       </nav>
     </TopbarSlot>
     <ErrorBanner v-if="trace.error.value" :error="trace.error.value" @retry="trace.run()" />
-    <div v-else-if="!trace.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
+    <LoadingState v-else-if="!trace.data.value" size="lg" />
 
     <template v-if="trace.data.value">
-      <header class="head mt-card">
+      <Card as="header" padding="none" block class="head">
         <div class="title-row">
           <h1 :title="rootName">{{ rootName }}</h1>
           <StatusBadge :status="trace.data.value.status" show-label />
@@ -169,7 +171,7 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
           <span v-if="trace.data.value.totalTokens">Tokens <b class="mono">{{ formatCount(trace.data.value.totalTokens) }}</b></span>
           <span v-if="trace.data.value.totalCostUsd">Cost <b class="mono">{{ formatCostUsd(trace.data.value.totalCostUsd) }}</b></span>
         </div>
-      </header>
+      </Card>
 
       <p v-if="replayProblem" class="bad replay-problem" role="alert" data-testid="replay-problem">{{ replayProblem }}</p>
       <TraceFeedbackStrip :trace-id="traceId" />
@@ -190,13 +192,13 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
         <template v-else>Some spans have no parent in the trace (lost or not yet exported) and are shown as roots.</template>
       </div>
 
-      <section v-if="tab === 'conversation'" class="mt-card thread-card" aria-label="Conversation">
+      <Card as="section" padding="none" block v-if="tab === 'conversation'" class="thread-card" aria-label="Conversation">
         <ConversationThread v-if="turns.length" :turns="turns" />
         <p v-else class="muted empty-thread">This trace has no message content saved. Enable <code>MEMTRACE_CAPTURE_CONTENT=true</code> on the agent to read the conversation here.</p>
-      </section>
+      </Card>
 
       <div v-else class="cols">
-        <section class="mt-card tree-card" aria-label="Span tree">
+        <Card as="section" padding="none" block class="tree-card" aria-label="Span tree">
           <div class="tree-head">
             <h2>Spans</h2>
             <div class="tree-actions">
@@ -207,10 +209,10 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
             </div>
           </div>
           <SpanTree ref="treeRef" :roots="roots" :total-ms="trace.data.value.durationMs" :selected-id="selectedNode?.spanId ?? null" @select="select" />
-        </section>
+        </Card>
 
         <SpanInspector v-if="selectedNode" :node="selectedNode" :empty-hint="hint" />
-        <section v-else class="mt-card empty-card">This trace has no spans to show.</section>
+        <Card as="section" padding="none" block v-else class="empty-card">This trace has no spans to show.</Card>
       </div>
 
       </div>
@@ -261,11 +263,6 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
 }
 .current {
   color: var(--mt-ink);
-}
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 60px;
 }
 .muted {
   color: var(--mt-muted);

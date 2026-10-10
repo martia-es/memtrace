@@ -31,6 +31,8 @@ import { usePromptApi } from "../composables/usePromptApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import Button from "../components/Button.vue";
 import Pill from "../components/Pill.vue";
+import LoadingState from "../components/LoadingState.vue";
+import Card from "../components/Card.vue";
 
 const props = defineProps<{ promptId: string }>();
 const api = usePromptApi();
@@ -468,7 +470,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
     </PageHeader>
 
     <ErrorBanner v-if="detail.error.value" :error="detail.error.value" @retry="detail.run()" />
-    <div v-else-if="!data" class="loading"><q-spinner size="32px" color="primary" /></div>
+    <LoadingState v-else-if="!data" size="lg" />
 
     <template v-else>
       <div class="body">
@@ -536,7 +538,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
             </div>
           </section>
 
-          <section class="mt-card detail">
+          <Card as="section" padding="none" block class="detail">
             <div v-if="selectedVersion" class="pane" data-testid="pane-content">
               <section v-if="isDraft && !editing && selectedVersion" class="draft-banner" data-testid="draft-banner">
                 <div>
@@ -792,7 +794,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                 <span class="soft">A trace counts for every version it used.</span>
               </div>
               <ErrorBanner v-if="evidence.error.value" :error="evidence.error.value" @retry="evidence.run()" />
-              <div v-else-if="evidence.loading.value && !evidence.data.value" class="loading"><q-spinner size="28px" color="primary" /></div>
+              <LoadingState v-else-if="evidence.loading.value && !evidence.data.value" size="md" />
               <p v-else-if="evidenceVersions.length === 0" class="muted small" data-testid="evidence-empty">
                 No trace used this prompt in the last {{ rangeLabel }}. Traces show up here when an agent calls <code>compile()</code> inside a traced step.
               </p>
@@ -861,7 +863,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
             </div>
               </div>
             </section>
-          </section>
+          </Card>
 
           <div v-if="panel" class="drawer-backdrop" data-testid="drawer-backdrop" @click.self="panel = null">
             <aside class="drawer" role="dialog" :aria-label="PANEL_TITLE[panel]" data-testid="drawer">
@@ -882,7 +884,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                 </template>
               </div>
               <section v-if="compareVersion" class="behaviour" data-testid="behaviour">
-                <div v-if="evidence.loading.value && !evidence.data.value" class="loading"><q-spinner size="24px" color="primary" /></div>
+                <LoadingState v-if="evidence.loading.value && !evidence.data.value" size="md" />
                 <p v-else-if="evidence.error.value" class="muted small" data-testid="behaviour-error">Could not load the evidence: {{ evidence.error.value.message }}</p>
                 <p v-else-if="!comparison" class="muted small" data-testid="behaviour-empty">
                   No traces used {{ missingEvidence.map((v) => `v${v}`).join(" or ") }} in the last {{ rangeLabel }}, so there is nothing to compare yet.
@@ -1003,11 +1005,6 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
   font-size: 10.5px;
   letter-spacing: 0.08em;
   color: var(--mt-faint);
-}
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 60px;
 }
 .body {
   flex: 1;

@@ -17,6 +17,7 @@ import Button from "./Button.vue";
 import Checkbox from "./Checkbox.vue";
 import Pill from "./Pill.vue";
 import DataTable from "./DataTable.vue";
+import LoadingState from "./LoadingState.vue";
 
 /**
  * Resultados de una cola para el perfil técnico (ADR-050): qué respondió cada revisor por item y criterio, los
@@ -167,7 +168,7 @@ async function promote() {
     </div>
 
     <ErrorBanner v-if="results.error.value" :error="results.error.value" @retry="results.run()" />
-    <div v-else-if="!results.data.value" class="loading"><q-spinner size="24px" color="primary" /></div>
+    <LoadingState v-else-if="!results.data.value" size="md" />
     <p v-else-if="!rows.length" class="muted" data-testid="results-empty">{{ onlyDisagreements ? "No items where reviewers disagree." : "No items in this queue yet." }}</p>
 
     <div v-else class="scroll">
@@ -281,11 +282,6 @@ async function promote() {
   align-items: center;
   gap: 6px;
   font-size: 12.5px;
-}
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 24px;
 }
 .muted {
   color: var(--mt-muted);

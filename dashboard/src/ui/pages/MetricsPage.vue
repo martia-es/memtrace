@@ -25,6 +25,7 @@ import { useTraceApi } from "../composables/useTraceApi";
 import { useRoute, useRouter } from "vue-router";
 import Button from "../components/Button.vue";
 import Card from "../components/Card.vue";
+import Spinner from "../components/Spinner.vue";
 
 const api = useTraceApi();
 const identityApi = useIdentityApi();
@@ -393,7 +394,7 @@ function swapAgents() {
         <ApprovalInbox class="overview-approvals" />
         <ErrorBanner v-if="overview.error.value" :error="overview.error.value" @retry="reload" />
         <div v-else-if="overview.loading.value && !data" class="loading-box">
-          <q-spinner size="32px" color="primary" />
+          <Spinner size="lg" />
         </div>
 
         <EmptyState v-else-if="empty" icon="insights" title="No data in this range">Run an instrumented agent or extend the time range.</EmptyState>

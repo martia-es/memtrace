@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Card from "./Card.vue";
 defineProps<{ title: string; medium?: boolean; wide?: boolean; full?: boolean }>();
 const emit = defineEmits<{ close: [] }>();
 </script>
@@ -6,7 +7,7 @@ const emit = defineEmits<{ close: [] }>();
 <template>
   <Teleport to="body">
     <div class="modal-backdrop" @click.self="emit('close')" @keydown.esc="emit('close')">
-      <div class="modal-card mt-card" :class="{ medium, wide, full }" role="dialog" aria-modal="true" :aria-label="title">
+      <Card padding="none" block class="modal-card" :class="{ medium, wide, full }" role="dialog" aria-modal="true" :aria-label="title">
         <div class="modal-header">
           <h2>{{ title }}</h2>
           <button class="modal-close" type="button" aria-label="Close" @click="emit('close')">
@@ -16,7 +17,7 @@ const emit = defineEmits<{ close: [] }>();
         <div class="modal-body">
           <slot />
         </div>
-      </div>
+      </Card>
     </div>
   </Teleport>
 </template>

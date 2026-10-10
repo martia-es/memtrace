@@ -7,6 +7,8 @@ import ErrorBanner from "./ErrorBanner.vue";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
 import Button from "./Button.vue";
+import LoadingState from "./LoadingState.vue";
+import Card from "./Card.vue";
 
 /**
  * "Agreement with human labels" (ADR-040): por evaluador, cuánto coinciden el juez LLM y las personas. La parte que
@@ -47,14 +49,14 @@ function targetLabel(target: string): string {
 </script>
 
 <template>
-  <section class="mt-card agreement" data-testid="judge-human-agreement">
+  <Card as="section" padding="none" block class="agreement" data-testid="judge-human-agreement">
     <header>
       <h2>Agreement with human labels</h2>
       <slot name="actions" />
     </header>
 
     <ErrorBanner v-if="agreement.error.value" :error="agreement.error.value" @retry="agreement.run()" />
-    <div v-else-if="agreement.loading.value && !agreement.data.value" class="loading"><q-spinner size="24px" color="primary" /></div>
+    <LoadingState v-else-if="agreement.loading.value && !agreement.data.value" size="md" />
 
     <template v-else>
       <p v-if="!metrics.length" class="muted" data-testid="agreement-empty">
@@ -135,7 +137,7 @@ function targetLabel(target: string): string {
         Agreement is only as representative as the sample: label a random sample of items, not only the ones the judge failed.
       </p>
     </template>
-  </section>
+  </Card>
 </template>
 
 <style scoped>
@@ -163,11 +165,6 @@ h3 {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-}
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 16px;
 }
 .muted {
   margin: 0;

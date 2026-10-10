@@ -10,6 +10,7 @@ import Modal from "./Modal.vue";
 import { useTraceApi } from "../composables/useTraceApi";
 import Button from "./Button.vue";
 import Checkbox from "./Checkbox.vue";
+import Card from "./Card.vue";
 
 /**
  * Editor de items estilo hoja de cálculo (ADR-041): se edita en la propia tabla, todo queda en un
@@ -187,7 +188,7 @@ defineExpose({ dirty });
       <span class="muted hint">Enter ↓ next row · Shift+Enter new line · paste cells from Excel/Sheets · ⌘/Ctrl+Enter publish</span>
     </div>
 
-    <div class="mt-card table-card">
+    <Card padding="none" block class="table-card">
       <table class="items">
         <colgroup>
           <col class="col-check" />
@@ -258,10 +259,10 @@ defineExpose({ dirty });
           </tr>
         </tbody>
       </table>
-    </div>
+    </Card>
 
     <!-- barra de publicación: aparece solo con cambios sin publicar -->
-    <div v-if="dirty" class="publish-bar mt-card" role="status">
+    <Card padding="none" block v-if="dirty" class="publish-bar" role="status">
       <div class="publish-summary">
         <strong>{{ changeCount }} unpublished change{{ changeCount === 1 ? "" : "s" }}</strong>
         <span v-if="summary.added" class="added">+{{ summary.added }} added</span>
@@ -271,7 +272,7 @@ defineExpose({ dirty });
       </div>
       <Button :disabled="publishing" @click="discard">Discard</Button>
       <Button variant="primary" :disabled="publishing || summary.problems > 0" @click="publish">{{ publishing ? "Publishing…" : `Publish ${nextLabel}` }}</Button>
-    </div>
+    </Card>
 
     <Modal v-if="detailRow" title="Item details" @close="detailKey = null">
       <div class="modal-form">

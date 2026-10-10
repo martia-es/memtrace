@@ -8,6 +8,7 @@ import { useTraceApi } from "../composables/useTraceApi";
 import EmptyState from "./EmptyState.vue";
 import Select from "./Select.vue";
 import TraceTable from "./TraceTable.vue";
+import LoadingState from "./LoadingState.vue";
 
 /**
  * Todas las trazas que usaron este prompt, de una versión o de todas (ADR-068). Es la otra cara de Evidence: allí las cifras,
@@ -50,7 +51,7 @@ const allLink = computed(() => ({
       <router-link :to="allLink" class="link" data-testid="traces-open-all">Open in Conversations →</router-link>
     </div>
     <p v-if="traces.error.value" class="problem" role="alert">{{ describeApiError(traces.error.value) }}</p>
-    <div v-else-if="traces.loading.value && !traces.data.value" class="loading"><q-spinner size="28px" color="primary" /></div>
+    <LoadingState v-else-if="traces.loading.value && !traces.data.value" size="md" />
     <EmptyState v-else-if="items.length === 0" icon="manage_search" title="No traces for this selection" data-testid="traces-empty">
       No trace used {{ promptName }}{{ version ? ` v${version}` : "" }} in this range. Traces show up when an agent calls <code>compile()</code> inside a traced step.
     </EmptyState>
@@ -89,10 +90,5 @@ const allLink = computed(() => ({
   font-size: 13px;
   color: var(--mt-err-ink);
   background: var(--mt-err-bg);
-}
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 24px;
 }
 </style>

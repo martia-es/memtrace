@@ -18,6 +18,8 @@ import { useLiveRefresh } from "../composables/useLiveRefresh";
 import { useTraceApi } from "../composables/useTraceApi";
 import { useExperimentRepo } from "../composables/useExperimentRepo";
 import Pill from "../components/Pill.vue";
+import LoadingState from "../components/LoadingState.vue";
+import Card from "../components/Card.vue";
 
 const props = defineProps<{ conversationId: string }>();
 const api = useTraceApi();
@@ -127,10 +129,10 @@ const backToList = () => void router.push({ name: "conversations", params: { exp
     </TopbarSlot>
 
     <ErrorBanner v-if="detail.error.value" :error="detail.error.value" @retry="load" />
-    <div v-else-if="!conversation" class="loading"><q-spinner size="32px" color="primary" /></div>
+    <LoadingState v-else-if="!conversation" size="lg" />
 
     <template v-if="conversation">
-      <header class="head mt-card">
+      <Card as="header" padding="none" block class="head">
         <div class="titles">
           <div class="title-row">
             <h1 class="leading-none" :title="conversation.title ?? undefined">{{ conversation.title ?? "Conversation" }}</h1>
@@ -147,24 +149,24 @@ const backToList = () => void router.push({ name: "conversations", params: { exp
           <button type="button" class="toggle-btn" :class="{ active: view === 'table' }" @click="setView('table')">Table</button>
           <button type="button" class="toggle-btn" :class="{ active: view === 'tree' }" @click="setView('tree')">Tree</button>
         </div>
-      </header>
+      </Card>
 
-      <section v-if="view === 'table'" class="mt-card list" aria-label="Conversation traces">
+      <Card as="section" padding="none" block v-if="view === 'table'" class="list" aria-label="Conversation traces">
         <TraceTable v-if="traces.length" :items="traces" :labels="labels" :repo="repo" annotatable @open="openTrace" @annotate="annotatingTrace = $event" />
         <p v-else class="muted empty">This conversation has no traces to show.</p>
         <button v-if="cursor" type="button" class="more" :disabled="more.loading.value" @click="loadMore">{{ more.loading.value ? "Loading…" : "Load more traces" }}</button>
         <ErrorBanner v-if="more.error.value" :error="more.error.value" @retry="loadMore" />
-      </section>
+      </Card>
 
       <template v-else>
         <ErrorBanner v-if="tree.error.value" :error="tree.error.value" @retry="tree.run" />
-        <div v-else-if="!tree.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
+        <LoadingState v-else-if="!tree.data.value" size="lg" />
         <div v-else class="cols">
-          <section class="mt-card tree-card" aria-label="Conversation span tree">
+          <Card as="section" padding="none" block class="tree-card" aria-label="Conversation span tree">
             <ConversationTree :turns="tree.data.value.items" :selected-trace-id="selected?.traceId ?? null" :selected-span-id="selected?.spanId ?? null" @select="selectSpan" />
-          </section>
+          </Card>
           <SpanInspector v-if="selectedNode" :node="selectedNode" :empty-hint="hint" />
-          <section v-else class="mt-card empty-card">Select a span to inspect it.</section>
+          <Card as="section" padding="none" block v-else class="empty-card">Select a span to inspect it.</Card>
         </div>
       </template>
     </template>
@@ -207,11 +209,6 @@ const backToList = () => void router.push({ name: "conversations", params: { exp
 }
 .current {
   color: var(--mt-ink);
-}
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 60px;
 }
 .muted {
   color: var(--mt-muted);

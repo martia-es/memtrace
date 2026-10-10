@@ -19,6 +19,8 @@ import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
 import { numericChoices } from "../score-config-form";
 import Button from "../components/Button.vue";
+import LoadingState from "../components/LoadingState.vue";
+import Card from "../components/Card.vue";
 
 /**
  * Pantalla de revisión (ADR-039): a un lado la traza (mismos componentes que el detalle de traza), al otro la
@@ -163,7 +165,7 @@ const progress = computed(() => queue.value?.progress);
 
 <template>
   <div class="page">
-    <header class="head mt-card">
+    <Card as="header" padding="none" block class="head">
       <button type="button" class="crumb" @click="back">← Review</button>
       <span class="muted">/</span>
       <h1>{{ queue?.name ?? "Queue" }}</h1>
@@ -171,10 +173,10 @@ const progress = computed(() => queue.value?.progress);
         <span class="muted counts" data-testid="progress">{{ progress.completed }} done · {{ progress.pending }} pending</span>
         <div class="bar" aria-hidden="true"><div class="bar-fill" :style="{ width: `${Math.round((progress.completed / Math.max(1, progress.completed + progress.pending + progress.skipped)) * 100)}%` }" /></div>
       </div>
-    </header>
+    </Card>
 
     <ErrorBanner v-if="loadError" :error="loadError" @retry="loadError = null; loadNext()" />
-    <div v-else-if="!queue" class="loading"><q-spinner size="32px" color="primary" /></div>
+    <LoadingState v-else-if="!queue" size="lg" />
 
     <EmptyState v-else-if="finished" icon="task_alt" title="Nothing left to review here">
       You have reviewed everything this queue has for you.
@@ -182,13 +184,13 @@ const progress = computed(() => queue.value?.progress);
     </EmptyState>
 
     <div v-else-if="item" class="cols">
-      <section class="mt-card main" aria-label="Item to review">
+      <Card as="section" padding="none" block class="main" aria-label="Item to review">
         <template v-if="item.targetType === 'trace'">
           <ErrorBanner v-if="trace.error.value && !traceGone" :error="trace.error.value" @retry="trace.run()" />
           <p v-else-if="traceGone" class="gone" data-testid="trace-gone">
             This trace is no longer available (it may have been deleted by retention). Skip it; an admin can mark it unreviewable.
           </p>
-          <div v-else-if="!trace.data.value" class="loading"><q-spinner size="28px" color="primary" /></div>
+          <LoadingState v-else-if="!trace.data.value" size="md" />
           <template v-else>
             <h2 class="section-title">Conversation</h2>
             <ConversationThread :turns="turns" answer-label="Reply to review">
@@ -214,9 +216,9 @@ const progress = computed(() => queue.value?.progress);
         <p v-else class="gone">
           Run item #{{ item.itemIndex }} of run <span class="mono">{{ shortId(item.datasetRunId ?? "") }}</span>. Review its input and output in the run's detail.
         </p>
-      </section>
+      </Card>
 
-      <aside class="mt-card rubric" aria-label="Rubric" data-testid="rubric">
+      <Card as="aside" padding="none" block class="rubric" aria-label="Rubric" data-testid="rubric">
         <h2 class="section-title">Your review</h2>
         <p v-if="queue.instructions" class="instructions"><q-icon name="info" size="16px" /> {{ queue.instructions }}</p>
         <section v-for="r in rubric" :key="r.configId" class="criterion" data-testid="rubric-config">
@@ -263,7 +265,7 @@ const progress = computed(() => queue.value?.progress);
           <Button variant="primary" :disabled="busy || !ready" data-testid="submit" @click="submit">Submit &amp; next</Button>
         </div>
         <p class="hint">Keys 1–9 pick an answer for the first open criterion · Enter submits</p>
-      </aside>
+      </Card>
     </div>
   </div>
 </template>
@@ -323,11 +325,6 @@ const progress = computed(() => queue.value?.progress);
   color: var(--mt-muted);
   font-size: 12.5px;
   margin: 0;
-}
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 60px;
 }
 .cols {
   flex: 1;

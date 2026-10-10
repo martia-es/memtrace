@@ -21,6 +21,8 @@ import Checkbox from "../components/Checkbox.vue";
 import Pill from "../components/Pill.vue";
 import Pagination from "../components/Pagination.vue";
 import DataTable from "../components/DataTable.vue";
+import LoadingState from "../components/LoadingState.vue";
+import Card from "../components/Card.vue";
 
 const PAGE_SIZE = 20;
 
@@ -109,28 +111,28 @@ function openRun(run: RunListItemDto) {
     </div>
 
     <section v-if="hasTrend" class="insights">
-      <div class="mt-card insight">
+      <Card padding="none" block class="insight">
         <h2>Score trend</h2>
         <EChart :option="trendOption" height="150px" label="Pass rate per evaluator across runs" />
-      </div>
-      <div class="mt-card insight">
+      </Card>
+      <Card padding="none" block class="insight">
         <h2>Latest vs previous run</h2>
         <div v-for="s in deltas" :key="s.name" class="delta-row">
           <span class="delta-name">{{ s.name }}</span>
           <span class="mono muted">{{ fmt(s.previous, s.kind) }} → <b class="ink">{{ fmt(s.latest, s.kind) }}</b></span>
           <Pill mono :tone="deltaClass(s)">{{ deltaLabel(s) }}</Pill>
         </div>
-      </div>
+      </Card>
     </section>
 
     <ErrorBanner v-if="runs.error.value" :error="runs.error.value" @retry="runs.run()" />
-    <div v-else-if="runs.loading.value && !runs.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
+    <LoadingState v-else-if="runs.loading.value && !runs.data.value" size="lg" />
     <EmptyState v-else-if="(runs.data.value?.items.length ?? 0) === 0" icon="playlist_add_check" title="No runs yet">
       Run <code>run_experiment(data="…", …)</code> from your script, or open a dataset and run it manually.
     </EmptyState>
     <EmptyState v-else-if="items.length === 0" icon="search_off" title="No matches">Try a different search or dataset.</EmptyState>
 
-    <div v-else class="mt-card table-card">
+    <Card padding="none" block v-else class="table-card">
       <DataTable class="runs" sticky nowrap>
         <thead>
           <tr>
@@ -174,7 +176,7 @@ function openRun(run: RunListItemDto) {
           </tr>
         </tbody>
       </DataTable>
-    </div>
+    </Card>
 
     <div v-if="picked.length > 0" class="compare-bar" data-testid="compare-bar">
       <span class="compare-title">{{ picked.length }} {{ picked.length === 1 ? "run" : "runs" }} selected</span>
@@ -252,11 +254,6 @@ function openRun(run: RunListItemDto) {
 }
 .muted {
   color: var(--mt-muted);
-}
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 60px;
 }
 .table-card {
   flex: 1;

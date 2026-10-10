@@ -12,6 +12,7 @@ import { useTraceApi } from "../composables/useTraceApi";
 import TextInput from "./TextInput.vue";
 import Button from "./Button.vue";
 import Pill from "./Pill.vue";
+import LoadingState from "./LoadingState.vue";
 
 /**
  * Arreglar un prompt desde un fallo real (ADR-072): se ve qué falló en la traza, se parte de la versión que la produjo, se
@@ -133,7 +134,7 @@ async function save() {
         <b>Which failure do you want to fix?</b>
         <span class="faint">Last 30 days of {{ promptName }}: errors, low scores, reviewer "no" and 👎 from users</span>
       </header>
-      <div v-if="recent.loading.value && !recent.data.value" class="center"><q-spinner size="24px" color="primary" /></div>
+      <LoadingState v-if="recent.loading.value && !recent.data.value" size="md" />
       <p v-else-if="recent.error.value" class="warn small pad" role="alert">{{ describeApiError(recent.error.value) }}</p>
       <p v-else-if="all.length === 0" class="muted small pad" data-testid="fix-picker-empty">
         No failure found among the latest {{ recent.data.value?.scanned ?? 0 }} traces of this prompt. Good news, or the agent is not sending traces yet. You can still paste a trace id below.
@@ -339,10 +340,6 @@ async function save() {
 .center,
 .pad {
   padding: 16px;
-}
-.center {
-  display: flex;
-  justify-content: center;
 }
 .filters {
   display: flex;

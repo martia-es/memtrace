@@ -5,6 +5,7 @@ import { formatCostUsd, formatCount, formatDateTime, formatDuration } from "@/do
 import { kindMeta } from "@/domain/meta";
 import { genAiRows, spanIo, type IoBlock } from "@/domain/span-io";
 import IoPanel from "./IoPanel.vue";
+import Card from "./Card.vue";
 
 const props = defineProps<{ node: SpanNodeDto; emptyHint: string }>();
 
@@ -84,7 +85,7 @@ const tabs = computed(() => [
 </script>
 
 <template>
-  <section class="inspector mt-card" aria-label="Selected span details">
+  <Card as="section" padding="none" block class="inspector" aria-label="Selected span details">
     <div class="head">
       <span class="kind-box" :style="{ background: cur.kind.bg }"><q-icon :name="cur.kind.icon" :style="{ color: cur.kind.color }" size="16px" /></span>
       <div class="title">
@@ -130,7 +131,7 @@ const tabs = computed(() => [
         </div>
       </section>
     </div>
-  </section>
+  </Card>
 </template>
 
 <style scoped>

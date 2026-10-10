@@ -3,6 +3,7 @@ import { computed, ref, watch } from "vue";
 import type { AnnotationDto, TraceAnnotationsResponse, TraceQueueDto } from "@contract";
 import { shortId } from "@/domain/format";
 import { useTraceApi } from "../composables/useTraceApi";
+import Card from "./Card.vue";
 
 /**
  * Resumen de solo lectura de todo lo que la traza tiene asociado (ADR-037, ADR-039): etiquetas humanas,
@@ -31,7 +32,7 @@ const queueStatus = (q: TraceQueueDto) => (q.itemStatus === "skipped" ? "unrevie
 
 <template>
   <aside class="summary" aria-label="Trace summary" data-testid="trace-summary">
-    <section v-if="judgments" class="mt-card block" aria-label="Human labels">
+    <Card as="section" padding="none" block v-if="judgments" class="block" aria-label="Human labels">
       <h2>Human labels</h2>
       <p v-if="!annotations.length" class="empty" data-testid="trace-not-annotated">Not annotated yet.</p>
       <ul v-else>
@@ -44,9 +45,9 @@ const queueStatus = (q: TraceQueueDto) => (q.itemStatus === "skipped" ? "unrevie
           <span v-if="a.comment" class="comment">“{{ a.comment }}”</span>
         </li>
       </ul>
-    </section>
+    </Card>
 
-    <section v-if="scores.length" class="mt-card block" aria-label="Automatic evaluations">
+    <Card as="section" padding="none" block v-if="scores.length" class="block" aria-label="Automatic evaluations">
       <h2>Evaluations</h2>
       <ul>
         <li v-for="(s, i) in scores" :key="i" data-testid="trace-score">
@@ -58,9 +59,9 @@ const queueStatus = (q: TraceQueueDto) => (q.itemStatus === "skipped" ? "unrevie
           <span v-if="s.comment" class="comment">“{{ s.comment }}”</span>
         </li>
       </ul>
-    </section>
+    </Card>
 
-    <section v-if="queues" class="mt-card block" aria-label="Review queues">
+    <Card as="section" padding="none" block v-if="queues" class="block" aria-label="Review queues">
       <h2>Review queues</h2>
       <p v-if="!queues.length" class="empty" data-testid="trace-no-queues">Not in any queue.</p>
       <ul v-else>
@@ -72,7 +73,7 @@ const queueStatus = (q: TraceQueueDto) => (q.itemStatus === "skipped" ? "unrevie
           <span v-if="q.archived" class="by">archived</span>
         </li>
       </ul>
-    </section>
+    </Card>
   </aside>
 </template>
 

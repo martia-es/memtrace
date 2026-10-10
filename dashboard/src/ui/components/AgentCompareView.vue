@@ -10,6 +10,7 @@ import EChart from "./EChart.vue";
 import EmptyState from "./EmptyState.vue";
 import ErrorBanner from "./ErrorBanner.vue";
 import Select from "./Select.vue";
+import LoadingState from "./LoadingState.vue";
 
 const props = defineProps<{
   nameA: string;
@@ -128,7 +129,7 @@ const charts = computed(() => {
 
     <EmptyState v-if="!agentBId" icon="compare_arrows" title="Pick an agent to compare">Choose the candidate (B) above to compare it against {{ nameA }}.</EmptyState>
     <ErrorBanner v-else-if="error" :error="error" @retry="emit('retry')" />
-    <div v-else-if="loading && !b" class="ac-loading"><q-spinner size="32px" color="primary" /></div>
+    <LoadingState v-else-if="loading && !b" size="lg" />
 
     <template v-else-if="a && b">
       <section class="ac-verdict" :class="verdict.tone">
@@ -212,7 +213,6 @@ const charts = computed(() => {
 <style scoped>
 .ac { display: flex; flex-direction: column; gap: 14px; font-family: var(--mt-sans); }
 h3 { margin: 0; font-size: 14px; font-weight: 800; letter-spacing: -0.01em; }
-.ac-loading { display: flex; justify-content: center; padding: 40px 0; }
 
 .ac-pick { display: flex; align-items: stretch; gap: 12px; flex-wrap: wrap; }
 .ac-agent { flex: 1 1 280px; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--mt-card); border: 1px solid var(--mt-line); border-top-width: 3px; border-radius: var(--mt-radius-lg); }

@@ -17,6 +17,8 @@ import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import Button from "../components/Button.vue";
 import Checkbox from "../components/Checkbox.vue";
+import LoadingState from "../components/LoadingState.vue";
+import Card from "../components/Card.vue";
 
 /**
  * Colas de revisión (ADR-039): qué trazas hay que revisar, con qué rúbrica y cuánto va hecho. Cualquier
@@ -204,7 +206,7 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
     <p v-if="pendingTotal === 0 && curateTotal === 0 && queues.data.value?.items.length" class="hint muted">You are all caught up.</p>
 
     <ErrorBanner v-if="queues.error.value" :error="queues.error.value" @retry="queues.run()" />
-    <div v-else-if="queues.loading.value && !queues.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
+    <LoadingState v-else-if="queues.loading.value && !queues.data.value" size="lg" />
     <EmptyState v-else-if="(queues.data.value?.items.length ?? 0) === 0" icon="rate_review" title="No review queues yet">
       {{ canManage ? 'Create one with "New queue" (you need at least one score config first).' : "Ask an experiment admin to create one." }}
     </EmptyState>
@@ -212,7 +214,7 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
       {{ tab === "archived" ? "No archived queues." : tab === "assigned" ? "You are not assigned to any queue." : "You are all caught up." }}
     </p>
 
-    <div v-if="visibleQueues.length" class="mt-card table-card">
+    <Card padding="none" block v-if="visibleQueues.length" class="table-card">
       <div class="grid head">
         <span>Queue</span>
         <span>Rubric</span>
@@ -261,7 +263,7 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
           </button>
         </div>
       </div>
-    </div>
+    </Card>
     <p class="footnote muted">A queue is a batch of conversations that people review with a rubric. Business reviewers rate quality; technical reviewers can promote the best examples into a dataset.</p>
 
     <QueueDetailModal v-if="detailQueueId" :queue-id="detailQueueId" :can-manage="canManage" :initial-tab="detailTab" @close="detailQueueId = null" @changed="queues.run()" />
@@ -328,11 +330,6 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
 }
 .muted {
   color: var(--mt-muted);
-}
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 60px;
 }
 .inbox {
   display: flex;

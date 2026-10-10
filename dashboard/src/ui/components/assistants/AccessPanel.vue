@@ -13,6 +13,7 @@ import AddAccessModal from "./AddAccessModal.vue";
 import PersonAvatar from "./PersonAvatar.vue";
 import Button from "../Button.vue";
 import DataTable from "../DataTable.vue";
+import Card from "../Card.vue";
 
 /** Quién puede llamar a un entorno (ADR-053). Documentado y sincronizado desde el proveedor de identidad; MemTrace no lo hace cumplir. */
 const props = defineProps<{ experimentId: string; deployment: DeploymentSummaryDto; canGovern: boolean; nowMs: number }>();
@@ -44,7 +45,7 @@ function saved() {
 </script>
 
 <template>
-  <section class="panel mt-card" data-testid="access-panel">
+  <Card as="section" padding="none" block class="panel" data-testid="access-panel">
     <header class="head">
       <div class="title">
         <h2>Who can call it in <span class="mono">{{ deployment.environment.label }}</span></h2>
@@ -72,7 +73,7 @@ function saved() {
       </tbody>
     </DataTable>
     <AddAccessModal v-if="adding" :experiment-id="experimentId" :deployment-id="deployment.id" :env-label="deployment.environment.label" @close="adding = false" @saved="saved" />
-  </section>
+  </Card>
 </template>
 
 <style scoped>

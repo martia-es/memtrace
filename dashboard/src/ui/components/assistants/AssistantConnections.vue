@@ -13,6 +13,8 @@ import StatusChip from "../StatusChip.vue";
 import DeclareConnectionModal from "./DeclareConnectionModal.vue";
 import Button from "../Button.vue";
 import DataTable from "../DataTable.vue";
+import LoadingState from "../LoadingState.vue";
+import Card from "../Card.vue";
 
 /** Pestaña «Connections»: servidores MCP, tools y agentes, declarados y observados (ADR-053). */
 const props = defineProps<{ card: AssistantCardDto; canManage: boolean; canGovern: boolean; nowMs: number }>();
@@ -74,13 +76,13 @@ const sync = () =>
     </div>
 
     <ErrorBanner v-if="connections.error.value" :error="connections.error.value" @retry="connections.run()" />
-    <div v-else-if="connections.loading.value && !connections.data.value" class="loading"><q-spinner size="28px" color="primary" /></div>
+    <LoadingState v-else-if="connections.loading.value && !connections.data.value" size="md" />
     <EmptyState v-else-if="(connections.data.value ?? []).length === 0" icon="hub" title="No connections yet">
       Declare what this assistant should use, or find the tools it already calls in its traces.
     </EmptyState>
 
     <template v-else>
-      <section v-for="g in groups" :key="g.kind" class="group mt-card" :data-testid="`group-${g.kind}`">
+      <Card as="section" padding="none" block v-for="g in groups" :key="g.kind" class="group" :data-testid="`group-${g.kind}`">
         <header><h2>{{ g.title }}</h2><span>{{ g.hint }}</span></header>
         <p v-if="g.items.length === 0" class="none">None yet.</p>
         <div v-else class="scroll">
@@ -110,7 +112,7 @@ const sync = () =>
             </tbody>
           </DataTable>
         </div>
-      </section>
+      </Card>
     </template>
     <DeclareConnectionModal v-if="declaring" :experiment-id="card.experimentId" @close="declaring = false" @saved="connections.run(); emit('changed')" />
   </div>
@@ -122,7 +124,6 @@ const sync = () =>
 .toolbar { display: flex; gap: 8px; }
 .ghost { height: 30px; padding: 0 12px; font: inherit; font-size: 13px; font-weight: 700; color: var(--mt-accent-text); background: transparent; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-sm); cursor: pointer; }
 .ghost:disabled { opacity: 0.5; }
-.loading { display: flex; justify-content: center; padding: 40px; }
 .group { padding: 0; overflow: hidden; }
 header { display: flex; align-items: baseline; gap: 10px; padding: 12px 16px; }
 h2 { margin: 0; font-size: 14px; font-weight: 800; }

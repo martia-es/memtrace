@@ -28,6 +28,8 @@ import { usePagedList } from "../composables/usePagedList";
 import { useTraceApi } from "../composables/useTraceApi";
 import { useExperimentRepo } from "../composables/useExperimentRepo";
 import DataTable from "../components/DataTable.vue";
+import LoadingState from "../components/LoadingState.vue";
+import Card from "../components/Card.vue";
 
 const PAGE_SIZE = 50;
 const api = useTraceApi();
@@ -235,7 +237,7 @@ const footer = computed(() => {
   <q-page class="page">
     <PageHeader :crumbs="[{ label: 'MemTrace', to: { name: 'overview', params: { experimentId } } }, { label: 'Conversations' }]" icon="M4 5h16v11H9l-5 4z" title="Conversations" />
 
-    <section class="kpis mt-card" aria-label="Summary">
+    <Card as="section" padding="none" block class="kpis" aria-label="Summary">
       <template v-if="kpis.length">
         <div v-for="(k, i) in kpis" :key="k.k" class="kpi" :class="{ first: i === 0 }">
           <span class="kpi-k">{{ k.k }}</span>
@@ -244,7 +246,7 @@ const footer = computed(() => {
       </template>
       <div v-else-if="overview.error.value" class="kpi-msg">Could not load summary.</div>
       <div v-else class="kpi-msg">Loading summary…</div>
-    </section>
+    </Card>
 
     <div class="views-row">
       <div class="mt-segmented small" role="group" aria-label="List mode">
@@ -264,7 +266,7 @@ const footer = computed(() => {
     </div>
 
     <div class="body">
-      <section class="table-card mt-card">
+      <Card as="section" padding="none" block class="table-card">
         <ErrorBanner v-if="active.error.value" :error="active.error.value" @retry="reload" />
 
         <div class="list">
@@ -321,7 +323,7 @@ const footer = computed(() => {
             :service-name="currentExperiment?.serviceName ?? ''"
             :experiment-id="experimentId"
           />
-          <div v-if="active.loading.value && active.items.value.length === 0" class="spinner"><q-spinner size="28px" color="primary" /></div>
+          <LoadingState v-if="active.loading.value && active.items.value.length === 0" size="md" />
         </div>
 
         <ErrorBanner v-if="active.moreError.value" :error="active.moreError.value" @retry="active.loadMore" />
@@ -331,7 +333,7 @@ const footer = computed(() => {
             {{ active.moreLoading.value ? "Loading…" : "Load more" }}
           </button>
         </div>
-      </section>
+      </Card>
 
       <ConversationPreview
         v-if="preview"
@@ -536,11 +538,6 @@ const footer = computed(() => {
   padding: 40px;
   text-align: center;
   color: var(--mt-muted);
-}
-.spinner {
-  display: flex;
-  justify-content: center;
-  padding: 40px;
 }
 .footer {
   display: flex;

@@ -18,6 +18,7 @@ import Button from "./Button.vue";
 import Checkbox from "./Checkbox.vue";
 import Pill from "./Pill.vue";
 import { aggregatePillTone } from "@/domain/evaluation";
+import LoadingState from "./LoadingState.vue";
 
 /** Progreso, trabajo por revisor, rúbrica y items de una cola (ADR-039). Los admins pueden cambiar `requiredAnnotations` y retirar items del reparto. */
 const props = defineProps<{ queueId: string; canManage: boolean; initialTab?: "summary" | "results" | "settings" }>();
@@ -110,7 +111,7 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
 <template>
   <Modal :title="detail.data.value?.name ?? 'Queue'" wide @close="emit('close')">
     <ErrorBanner v-if="detail.error.value" :error="detail.error.value" @retry="detail.run()" />
-    <div v-else-if="!detail.data.value" class="loading"><q-spinner size="28px" color="primary" /></div>
+    <LoadingState v-else-if="!detail.data.value" size="md" />
 
     <div v-else class="detail" data-testid="queue-detail">
       <p v-if="detail.data.value.instructions" class="instructions">{{ detail.data.value.instructions }}</p>
@@ -243,11 +244,6 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
 .tab.on {
   border-bottom-color: var(--mt-accent);
   color: var(--mt-ink);
-}
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 30px;
 }
 .detail {
   display: flex;

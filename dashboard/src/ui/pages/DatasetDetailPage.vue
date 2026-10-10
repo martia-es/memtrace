@@ -17,6 +17,8 @@ import Button from "../components/Button.vue";
 import Pill from "../components/Pill.vue";
 import Pagination from "../components/Pagination.vue";
 import DataTable from "../components/DataTable.vue";
+import LoadingState from "../components/LoadingState.vue";
+import Card from "../components/Card.vue";
 
 const PAGE_SIZE = 20;
 
@@ -104,7 +106,7 @@ function openRun(runId: string) {
         <q-tab-panel name="items" class="tab-panel">
           <p class="hint muted">Current version: v{{ latestVersion?.major ?? 1 }}.{{ latestVersion?.minor ?? 0 }} — edit directly in the table; when you press Publish, all your changes are saved as <b>a single version</b>.</p>
           <ErrorBanner v-if="items.error.value" :error="items.error.value" @retry="items.run()" />
-          <div v-else-if="items.loading.value && !items.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
+          <LoadingState v-else-if="items.loading.value && !items.data.value" size="lg" />
           <DatasetItemsEditor v-else :dataset-id="datasetId" :items="items.data.value?.items ?? []" :version="latestVersion" @published="afterItemMutation" />
         </q-tab-panel>
 
@@ -112,8 +114,8 @@ function openRun(runId: string) {
         <q-tab-panel name="versions" class="tab-panel">
           <p class="hint muted">Every time you publish changes in Items a version is created on its own — adding or removing items bumps the major, editing content only bumps the minor. Press ⓘ to see what changed and compare it with any earlier version.</p>
           <ErrorBanner v-if="versions.error.value" :error="versions.error.value" @retry="versions.run()" />
-          <div v-else-if="versions.loading.value && !versions.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
-          <div v-else class="mt-card table-card">
+          <LoadingState v-else-if="versions.loading.value && !versions.data.value" size="lg" />
+          <Card padding="none" block v-else class="table-card">
             <DataTable class="items" sticky nowrap>
               <thead>
                 <tr>
@@ -149,7 +151,7 @@ function openRun(runId: string) {
                 </tr>
               </tbody>
             </DataTable>
-          </div>
+          </Card>
           <DatasetVersionDiffModal
             v-if="inspectedVersion"
             :dataset-id="datasetId"
@@ -163,12 +165,12 @@ function openRun(runId: string) {
         <q-tab-panel name="runs" class="tab-panel">
           <TextInput type="search" v-model="runSearch" placeholder="Filter by run name…" class="search" />
           <ErrorBanner v-if="runs.error.value" :error="runs.error.value" @retry="runs.run()" />
-          <div v-else-if="runs.loading.value && !runs.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
+          <LoadingState v-else-if="runs.loading.value && !runs.data.value" size="lg" />
           <EmptyState v-else-if="(runs.data.value?.items.length ?? 0) === 0" icon="playlist_add_check" title="No runs yet">
             Run <code>run_experiment(data="{{ datasetId }}", …)</code> from your script.
           </EmptyState>
           <EmptyState v-else-if="pagedRuns.length === 0" icon="search_off" title="No matches">Try a different search.</EmptyState>
-          <div v-else class="mt-card table-card">
+          <Card padding="none" block v-else class="table-card">
             <DataTable class="items" sticky nowrap>
               <thead>
                 <tr>
@@ -194,7 +196,7 @@ function openRun(runId: string) {
                 </tr>
               </tbody>
             </DataTable>
-          </div>
+          </Card>
           <Pagination v-if="pagedRuns.length > 0" v-model:page="runPage" :page-count="runPageCount">{{ filteredRuns.length }} run{{ filteredRuns.length === 1 ? "" : "s" }}</Pagination>
         </q-tab-panel>
       </q-tab-panels>
@@ -215,11 +217,6 @@ function openRun(runId: string) {
 }
 .muted {
   color: var(--mt-muted);
-}
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 60px;
 }
 .tabs {
   flex-shrink: 0;

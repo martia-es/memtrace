@@ -11,6 +11,8 @@ import PageHeader from "../components/PageHeader.vue";
 import Button from "../components/Button.vue";
 import Pagination from "../components/Pagination.vue";
 import DataTable from "../components/DataTable.vue";
+import LoadingState from "../components/LoadingState.vue";
+import Card from "../components/Card.vue";
 
 const PAGE_SIZE = 50;
 
@@ -107,10 +109,10 @@ const items = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, 
     </p>
 
     <ErrorBanner v-if="pricing.error.value" :error="pricing.error.value" @retry="pricing.run()" />
-    <div v-else-if="pricing.loading.value && !pricing.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
+    <LoadingState v-else-if="pricing.loading.value && !pricing.data.value" size="lg" />
     <EmptyState v-else-if="items.length === 0" icon="toll" title="No models found">Try a different search.</EmptyState>
 
-    <div v-else class="mt-card table-card">
+    <Card padding="none" block v-else class="table-card">
       <DataTable class="pricing" sticky nowrap>
         <thead>
           <tr>
@@ -145,7 +147,7 @@ const items = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, 
           </tr>
         </tbody>
       </DataTable>
-    </div>
+    </Card>
 
     <Pagination v-if="items.length > 0" v-model:page="page" :page-count="pageCount">{{ filtered.length }} models</Pagination>
   </div>
@@ -179,11 +181,6 @@ const items = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, 
 }
 .muted {
   color: var(--mt-muted);
-}
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 60px;
 }
 .table-card {
   flex: 1;

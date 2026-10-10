@@ -14,6 +14,8 @@ import { useTraceApi } from "../composables/useTraceApi";
 import type { MetricReportDto, SavedCustomMetricDto } from "@/application/identity-api";
 import type { RangeParams } from "@/application/trace-api";
 import Button from "./Button.vue";
+import LoadingState from "./LoadingState.vue";
+import Spinner from "./Spinner.vue";
 
 const props = defineProps<{ experimentId: string; reportId: string; range: RangeParams }>();
 const emit = defineEmits<{ renamed: [name: string]; deleted: [] }>();
@@ -224,7 +226,7 @@ async function sendEmail() {
     </div>
 
     <ErrorBanner v-if="loadError" :error="loadError" @retry="loadReport" />
-    <div v-else-if="loading && !report" class="loading-box"><q-spinner size="32px" color="primary" /></div>
+    <LoadingState v-else-if="loading && !report" size="lg" />
     <EmptyState v-else-if="report && !layout.length" icon="dashboard" :title="editMode ? 'Add a chart to get started' : 'No charts in this report yet'">
       <template v-if="editMode">Use the chips above to add a chart you've already saved in Custom charts.</template>
       <template v-else>
@@ -260,7 +262,7 @@ async function sendEmail() {
                 </tbody>
               </table>
               <EChart v-else-if="results[item.i]" :option="optionFor(results[item.i]!, chartById.get(item.i)!.definition.chartType, chartById.get(item.i)!.definition.metric)" height="100%" :label="chartById.get(item.i)!.name" />
-              <div v-else class="loading-box small"><q-spinner size="20px" color="primary" /></div>
+              <div v-else class="loading-box small"><Spinner size="sm" /></div>
             </template>
           </div>
         </div>

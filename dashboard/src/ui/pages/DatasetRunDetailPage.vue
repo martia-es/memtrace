@@ -19,6 +19,8 @@ import PromptChips from "../components/PromptChips.vue";
 import Button from "../components/Button.vue";
 import Pill from "../components/Pill.vue";
 import DataTable from "../components/DataTable.vue";
+import LoadingState from "../components/LoadingState.vue";
+import Card from "../components/Card.vue";
 
 const api = useTraceApi();
 const route = useRoute();
@@ -86,7 +88,7 @@ function sourceSuffix(s: ScoreDto): string | null {
     <PageHeader :crumbs="[{ label: 'Evaluation', to: { name: 'datasets' } }, { label: run.data.value?.dataset.name ?? '…', to: { name: 'dataset', params: { datasetId } } }, { label: run.data.value?.run.name ?? runId }]" icon="playlist_add_check" :title="run.data.value?.run.name ?? 'Run'" />
 
     <ErrorBanner v-if="run.error.value" :error="run.error.value" @retry="run.run()" />
-    <div v-else-if="run.loading.value && !run.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
+    <LoadingState v-else-if="run.loading.value && !run.data.value" size="lg" />
     <template v-else>
       <div class="artifacts">
         <span class="artifact">Dataset: <router-link :to="{ name: 'dataset', params: { datasetId } }">{{ run.data.value!.dataset.name }}</router-link></span>
@@ -120,7 +122,7 @@ function sourceSuffix(s: ScoreDto): string | null {
       <EmptyState v-if="run.data.value!.items.length === 0" icon="playlist_add_check" title="No items">This run has no items.</EmptyState>
 
       <div v-else class="items-area">
-      <div class="mt-card table-card">
+      <Card padding="none" block class="table-card">
         <DataTable class="items" sticky>
           <thead>
             <tr>
@@ -152,7 +154,7 @@ function sourceSuffix(s: ScoreDto): string | null {
             </tr>
           </tbody>
         </DataTable>
-      </div>
+      </Card>
       <RunItemPanel
         v-if="selectedItem"
         :item="selectedItem"
@@ -178,11 +180,6 @@ function sourceSuffix(s: ScoreDto): string | null {
   gap: 12px;
   padding: 16px 24px 20px;
   background: var(--mt-bg);
-}
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 60px;
 }
 .artifacts {
   display: flex;

@@ -9,6 +9,7 @@ import { useTraceApi } from "../composables/useTraceApi";
 import ErrorBanner from "./ErrorBanner.vue";
 import Modal from "./Modal.vue";
 import Pill from "./Pill.vue";
+import LoadingState from "./LoadingState.vue";
 
 const props = defineProps<{
   datasetId: string;
@@ -66,7 +67,7 @@ const KIND_TONE = { added: "ok", modified: "warn", removed: "error" } as const;
     </dl>
 
     <ErrorBanner v-if="diff.error.value" :error="diff.error.value" @retry="diff.run()" />
-    <div v-else-if="diff.loading.value && !diff.data.value" class="loading"><q-spinner size="28px" color="primary" /></div>
+    <LoadingState v-else-if="diff.loading.value && !diff.data.value" size="md" />
     <template v-else-if="diff.data.value">
       <p v-if="diff.data.value.base" class="muted range">Changes from {{ label(diff.data.value.base) }} to {{ label(diff.data.value.target) }} — everything that differs between the two, including changes made by versions in between.</p>
       <p v-if="entries.length === 0" class="muted empty">No differences{{ diff.data.value.base ? ` between ${label(diff.data.value.base)} and ${label(diff.data.value.target)}` : "" }}.</p>

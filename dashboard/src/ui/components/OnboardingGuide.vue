@@ -204,6 +204,7 @@ with session(conversation_id):
     install: "npm install memtrace-ai pydantic-ai",
     example: `import { initTracer, session, traceStep } from "memtrace-ai";
 import { Agent } from "pydantic-ai";
+import Card from "./Card.vue";
 
 initTracer({ serviceName: "my-agent" });
 
@@ -247,7 +248,7 @@ const guide = computed(() => {
 </script>
 
 <template>
-  <div class="onboarding mt-card">
+  <Card padding="none" block class="onboarding">
     <div class="intro">
       <q-icon name="forum" size="32px" class="intro-icon" />
       <div class="intro-title">No traces detected yet</div>
@@ -325,7 +326,7 @@ const guide = computed(() => {
         </div>
       </li>
     </ol>
-  </div>
+  </Card>
 </template>
 
 <style scoped>

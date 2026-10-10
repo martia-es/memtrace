@@ -22,6 +22,7 @@ import { usePromptApi } from "../composables/usePromptApi";
 import Button from "../components/Button.vue";
 import Checkbox from "../components/Checkbox.vue";
 import Pill from "../components/Pill.vue";
+import LoadingState from "../components/LoadingState.vue";
 
 const api = usePromptApi();
 const route = useRoute();
@@ -151,7 +152,7 @@ async function create() {
     <ApprovalInbox />
 
     <ErrorBanner v-if="prompts.error.value" :error="prompts.error.value" @retry="prompts.run()" />
-    <div v-else-if="prompts.loading.value && !prompts.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
+    <LoadingState v-else-if="prompts.loading.value && !prompts.data.value" size="lg" />
     <section v-else-if="(prompts.data.value?.length ?? 0) === 0" class="welcome" data-testid="empty-state">
       <div class="welcome-head">
         <h2>Version what your agent says</h2>
@@ -408,11 +409,6 @@ code {
 }
 .search {
   width: 240px;
-}
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 60px;
 }
 .soft {
   color: var(--mt-muted);

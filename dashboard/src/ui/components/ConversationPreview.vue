@@ -2,6 +2,8 @@
 import { onBeforeUnmount, ref } from "vue";
 import TraceTimeline from "./TraceTimeline.vue";
 import Button from "./Button.vue";
+import LoadingState from "./LoadingState.vue";
+import Card from "./Card.vue";
 
 /**
  * Panel de vista previa de la lista de Conversations (ADR-048): permite leer una conversación o una traza sin
@@ -86,7 +88,7 @@ onBeforeUnmount(stopDrag);
 </script>
 
 <template>
-  <aside class="preview mt-card" :class="{ dragging }" :style="{ width: `${width}px` }" aria-label="Preview">
+  <Card as="aside" padding="none" block class="preview" :class="{ dragging }" :style="{ width: `${width}px` }" aria-label="Preview">
     <div
       class="resize"
       role="separator"
@@ -113,7 +115,7 @@ onBeforeUnmount(stopDrag);
     </header>
 
     <div class="thread">
-      <div v-if="loading" class="state"><q-spinner size="22px" color="primary" /></div>
+      <LoadingState v-if="loading" size="md" />
       <template v-else-if="messages.length">
         <div v-for="(m, i) in messages" :key="i" class="bubble" :class="m.role">
           <span class="who">{{ m.role === "user" ? "USER" : "ASSISTANT" }}</span>
@@ -135,7 +137,7 @@ onBeforeUnmount(stopDrag);
         <Button data-testid="preview-add-to-dataset" :disabled="actionsDisabled" @click="$emit('addToDataset')">Add to dataset</Button>
       </div>
     </footer>
-  </aside>
+  </Card>
 </template>
 
 <style scoped>

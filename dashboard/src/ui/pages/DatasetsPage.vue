@@ -12,6 +12,8 @@ import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
 import Button from "../components/Button.vue";
 import DataTable from "../components/DataTable.vue";
+import LoadingState from "../components/LoadingState.vue";
+import Card from "../components/Card.vue";
 
 const api = useTraceApi();
 const router = useRouter();
@@ -72,13 +74,13 @@ async function createDataset() {
     </p>
 
     <ErrorBanner v-if="datasets.error.value" :error="datasets.error.value" @retry="datasets.run()" />
-    <div v-else-if="datasets.loading.value && !datasets.data.value" class="loading"><q-spinner size="32px" color="primary" /></div>
+    <LoadingState v-else-if="datasets.loading.value && !datasets.data.value" size="lg" />
     <EmptyState v-else-if="(datasets.data.value?.items.length ?? 0) === 0" icon="science" title="No datasets yet">
       Create one with "New dataset", or upload one from <code>memtrace.eval.run_experiment(data="…")</code>.
     </EmptyState>
     <EmptyState v-else-if="filtered.length === 0" icon="search_off" title="No matches">Try a different search.</EmptyState>
 
-    <div v-else class="mt-card table-card">
+    <Card padding="none" block v-else class="table-card">
       <DataTable class="datasets" sticky nowrap>
         <thead>
           <tr>
@@ -97,7 +99,7 @@ async function createDataset() {
           </tr>
         </tbody>
       </DataTable>
-    </div>
+    </Card>
 
     <Modal v-if="showCreateModal" title="New dataset" @close="showCreateModal = false">
       <form class="modal-form" @submit.prevent="createDataset">
@@ -132,11 +134,6 @@ async function createDataset() {
 }
 .muted {
   color: var(--mt-muted);
-}
-.loading {
-  display: flex;
-  justify-content: center;
-  padding: 60px;
 }
 .table-card {
   flex: 1;

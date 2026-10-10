@@ -13,6 +13,7 @@ import OfflineCompareView from "./OfflineCompareView.vue";
 import OfflineRunView from "./OfflineRunView.vue";
 import OfflineTrendView from "./OfflineTrendView.vue";
 import FormField from "./FormField.vue";
+import LoadingState from "./LoadingState.vue";
 
 const props = defineProps<{ experimentId: string; range: RangeParams; /** baseline and candidate to compare, from the Evaluations run list */ compareIds?: [string, string] | null }>();
 
@@ -79,7 +80,7 @@ function openRun(run: RunListItemDto) {
     <button v-if="view !== 'trend'" type="button" class="back" @click="view = 'trend'">← All runs</button>
 
     <ErrorBanner v-if="runs.error.value" :error="runs.error.value" @retry="runs.run()" />
-    <div v-else-if="runs.loading.value && !runs.data.value" class="loading-box"><q-spinner size="32px" color="primary" /></div>
+    <LoadingState v-else-if="runs.loading.value && !runs.data.value" size="lg" />
     <EmptyState v-else-if="!allCompleted.length" icon="science" title="No offline evaluation runs">No completed runs yet. Run <code>run_experiment</code> against a MemTrace dataset to see them here.</EmptyState>
 
     <template v-else>
@@ -101,5 +102,4 @@ function openRun(run: RunListItemDto) {
 .field-label { color: var(--mt-muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
 .back { align-self: flex-start; padding: 0; border: 0; background: none; color: var(--mt-muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
 .back:hover { color: var(--mt-ink); }
-.loading-box { display: flex; justify-content: center; align-items: center; min-height: 240px; }
 </style>
