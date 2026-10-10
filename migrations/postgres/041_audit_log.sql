@@ -1,4 +1,4 @@
--- Registro de auditoría (ADR-080): quién abrió contenido de trazas, exportó datos o cambió accesos y configuración.
+-- Registro de auditoría (ADR-084): quién abrió contenido de trazas, exportó datos o cambió accesos y configuración.
 -- Solo se inserta: la aplicación no tiene camino de UPDATE ni de DELETE; el worker de retención purga lo más antiguo.
 -- No guarda contenido, solo identificadores. El email del actor se copia (`actor_label`) para que la entrada sobreviva
 -- al borrado del usuario. Idempotente.

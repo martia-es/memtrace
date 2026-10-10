@@ -1,5 +1,5 @@
 /**
- * Lector mínimo de una petición OTLP/HTTP de trazas (ADR-081): solo saca el `service.name` de cada `ResourceSpans`, sin
+ * Lector mínimo de una petición OTLP/HTTP de trazas (ADR-085): solo saca el `service.name` de cada `ResourceSpans`, sin
  * decodificar un solo span. En protobuf recorre unos pocos campos de cabecera y salta el resto por su longitud, así que el coste
  * es una fracción de lo que cuesta copiar el cuerpo.
  *

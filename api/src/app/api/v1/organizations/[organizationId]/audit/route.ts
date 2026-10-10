@@ -15,7 +15,7 @@ function date(value: string | null, field: string): Date | undefined {
 }
 
 /**
- * Registro de auditoría de la organización (ADR-080), de más reciente a más antiguo. Filtros: `from`, `to`, `action`,
+ * Registro de auditoría de la organización (ADR-084), de más reciente a más antiguo. Filtros: `from`, `to`, `action`,
  * `experimentId`, `actorUserId`; paginación con `limit` y `cursor`. Requiere `audit:read`. Solo guarda identificadores, no contenido.
  */
 export async function GET(request: Request, context: { params: Promise<{ organizationId: string }> }) {

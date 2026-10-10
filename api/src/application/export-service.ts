@@ -10,7 +10,7 @@ export interface StartedExport {
 }
 
 /**
- * Exportación de datos de un experimento (ADR-080). Quien llama ya comprobó `data:export`. Una exportación que no se puede
+ * Exportación de datos de un experimento (ADR-084). Quien llama ya comprobó `data:export`. Una exportación que no se puede
  * registrar en la auditoría no se hace: el registro se escribe ANTES de leer ningún dato.
  */
 export class ExportService {

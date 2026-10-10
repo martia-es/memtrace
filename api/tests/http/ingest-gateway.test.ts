@@ -1,5 +1,5 @@
 /**
- * Puerta de ingesta (ADR-013 pieza 9, ADR-081): con peticiones OTLP reales (las codifica el exportador oficial de OpenTelemetry)
+ * Puerta de ingesta (ADR-013 pieza 9, ADR-085): con peticiones OTLP reales (las codifica el exportador oficial de OpenTelemetry)
  * comprueba que una API key solo escribe trazas de SU experimento y que lo que pasa llega intacto al Collector.
  */
 import { readFileSync } from "node:fs";

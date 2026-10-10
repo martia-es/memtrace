@@ -7,7 +7,7 @@ import { useIdentityApi } from "../../composables/useIdentityApi";
 import { notifyErrorWith } from "../../composables/useAdminDirectory";
 
 /**
- * Cuánto tiempo se guardan las trazas (ADR-080): un plazo por organización y, si hace falta, uno más corto por experimento
+ * Cuánto tiempo se guardan las trazas (ADR-084): un plazo por organización y, si hace falta, uno más corto por experimento
  * (un agente con datos delicados). Cada noche se borra lo que lo supere. Solo con `retention:manage`.
  */
 const props = defineProps<{ organization: OrganizationDto }>();

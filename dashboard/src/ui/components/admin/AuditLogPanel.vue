@@ -7,7 +7,7 @@ import { useIdentityApi } from "../../composables/useIdentityApi";
 import { formatDate, notifyErrorWith } from "../../composables/useAdminDirectory";
 
 /**
- * Registro de auditoría de la organización (ADR-080): quién abrió el contenido de una traza o conversación, quién exportó datos y
+ * Registro de auditoría de la organización (ADR-084): quién abrió el contenido de una traza o conversación, quién exportó datos y
  * quién cambió accesos o configuración. Solo identificadores, nunca el contenido. Solo con `audit:read`.
  */
 const props = defineProps<{ organization: OrganizationDto; experiments: ExperimentDto[] }>();

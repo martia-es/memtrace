@@ -13,11 +13,11 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 | F1 | [ ] | **Alertas** | Reglas con umbral sobre error rate, latencia, coste y satisfacción (👍/👎), con notificación (email primero; webhook/Slack después) | A | M | — | observability |
 | F2 | [ ] | **Presupuestos de coste** | Budget mensual por experimento, aviso al 80 % y al 100 %, proyección a fin de mes | A | S | F1 (reutiliza el motor de reglas) | pricing |
 | F3 | [ ] | **Evaluación online** | Muestreo configurable de trazas de producción + evaluadores/juez ya existentes, scores en ClickHouse enlazados a la traza | A | L | F1 (alertar sobre caídas de score) | evaluation |
-| F4 | [x] | **Retención y PII en trazas** | Hecho ([ADR-080](adrs/storage/adr-080-data-protection-retention-masking-audit-and-export.md)): retención por organización y experimento, y PII enmascarada con `****` en el SDK y en el Collector antes de guardar (los nombres solo los cubre el SDK) | A | M | — | storage / identity |
+| F4 | [x] | **Retención y PII en trazas** | Hecho ([ADR-084](adrs/storage/adr-084-data-protection-retention-masking-audit-and-export.md)): retención por organización y experimento, y PII enmascarada con `****` en el SDK y en el Collector antes de guardar (los nombres solo los cubre el SDK) | A | M | — | storage / identity |
 | F5 | [ ] | **Gate de regresión en PR** | Extender el gate de despliegue (ADR-064) para que un PR no pueda fusionarse si bajan las métricas de la evaluación offline | M | M | Fase 2c de ADR-064 | governance |
 | F6 | [ ] | **SDK por framework + TypeScript** | Paquetes para LangGraph y OpenAI Agents SDK; SDK TypeScript | M | L | — | sdk |
-| F7 | [x] | **Auditoría y exportación** | Hecho (ADR-080): registro de aperturas de contenido, exportaciones y cambios de acceso/configuración, y exportación JSON Lines | M | M | — | identity |
-| F9 | [x] | **Gateway de ingesta que valide `service.name`** | Hecho ([ADR-081](adrs/identity/adr-081-ingest-gateway-validates-service-name.md)): cada recurso debe llevar el `service.name` del experimento de la key o la petición se rechaza con 403. Leer la cabecera de una petición de 21 MiB cuesta 0,012 ms | A | M | — | identity |
+| F7 | [x] | **Auditoría y exportación** | Hecho (ADR-084): registro de aperturas de contenido, exportaciones y cambios de acceso/configuración, y exportación JSON Lines | M | M | — | identity |
+| F9 | [x] | **Gateway de ingesta que valide `service.name`** | Hecho ([ADR-085](adrs/identity/adr-085-ingest-gateway-validates-service-name.md)): cada recurso debe llevar el `service.name` del experimento de la key o la petición se rechaza con 403. Leer la cabecera de una petición de 21 MiB cuesta 0,012 ms | A | M | — | identity |
 | F8 | [ ] | **Operación en producción** | Backups de ClickHouse/Postgres, despliegue fuera de kind (Helm), pruebas de carga en CI | M | L | — | infra |
 
 ## 2. Pendientes ya anotados en el roadmap
@@ -70,5 +70,5 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 | Fecha | Cambio |
 |---|---|
 | 2026-10-10 | Creación del documento a partir de la revisión de la Fase 1 |
-| 2026-10-10 | F4 y F7 hechos (ADR-080). Nuevos pendientes: F9 (validar `service.name` en el gateway) y M8 (consultar más de 30 días) |
-| 2026-10-10 | F9 hecho (ADR-081) |
+| 2026-10-10 | F4 y F7 hechos (ADR-084). Nuevos pendientes: F9 (validar `service.name` en el gateway) y M8 (consultar más de 30 días) |
+| 2026-10-10 | F9 hecho (ADR-085) |

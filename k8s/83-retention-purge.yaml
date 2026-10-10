@@ -1,4 +1,4 @@
-# Purga de retención de trazas (ADR-080). Una vez al día (03:30 UTC) borra, por experimento, los spans anteriores a su plazo
+# Purga de retención de trazas (ADR-084). Una vez al día (03:30 UTC) borra, por experimento, los spans anteriores a su plazo
 # (organización o override del experimento) y las entradas de auditoría de más de un año. El TTL de las tablas de trazas en
 # ClickHouse (365 días) es solo el techo.
 # Usa el usuario `retention_worker` de ClickHouse (creado por el Job clickhouse-migrate): solo puede leer y borrar en las

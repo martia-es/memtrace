@@ -1,5 +1,5 @@
 /**
- * Contra el ClickHouse real. Opt-in: `npm run test:integration`. Comprueba el borrado de retención (ADR-080): solo se van los
+ * Contra el ClickHouse real. Opt-in: `npm run test:integration`. Comprueba el borrado de retención (ADR-084): solo se van los
  * spans del servicio y anteriores al corte, con sus temáticas, y nada de otro servicio.
  */
 import { createClient, type ClickHouseClient } from "@clickhouse/client";

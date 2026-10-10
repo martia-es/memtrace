@@ -6,7 +6,7 @@ import { getIdentity, getRetention } from "@/dependency-container";
 
 export const dynamic = "force-dynamic";
 
-/** Plazo de retención de trazas de la organización y el efectivo de cada experimento (ADR-080). Requiere `retention:manage`. */
+/** Plazo de retención de trazas de la organización y el efectivo de cada experimento (ADR-084). Requiere `retention:manage`. */
 export async function GET(_request: Request, context: { params: Promise<{ organizationId: string }> }) {
   return identityGuard(async () => {
     const { organizationId } = await context.params;

@@ -7,7 +7,7 @@ import { getIdentity, getRetention } from "@/dependency-container";
 export const dynamic = "force-dynamic";
 
 /**
- * Plazo propio de un experimento (ADR-080): más corto que el de su organización, o `null` para volver al de la organización.
+ * Plazo propio de un experimento (ADR-084): más corto que el de su organización, o `null` para volver al de la organización.
  * Requiere `retention:manage` en la organización dueña.
  */
 export async function PUT(request: Request, context: { params: Promise<{ organizationId: string; experimentId: string }> }) {

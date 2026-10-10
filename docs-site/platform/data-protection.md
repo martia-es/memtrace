@@ -84,4 +84,4 @@ Lists, metrics and dashboards are **not** recorded: they carry no content and wo
 
 Pick the kind and a range of up to 31 days, press **Prepare export** to see how many records it has, then **Download**. A file can have at most 2,000,000 records: choose a shorter range if it is more. Every export is recorded in the audit log before it starts; if it cannot be recorded, it does not happen.
 
-Exporting needs the `data:export` permission, which the `technical` profile has. `org_admin` does not: it manages people and settings but, by design, does not read the data of the agents. The same endpoint is in the [Query API](/platform/api#data-protection-adr-080).
+Exporting needs the `data:export` permission, which the `technical` profile has. `org_admin` does not: it manages people and settings but, by design, does not read the data of the agents. The same endpoint is in the [Query API](/platform/api#data-protection-adr-084).

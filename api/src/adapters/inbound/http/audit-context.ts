@@ -3,7 +3,7 @@ import type { AuditAction } from "@/domain/audit";
 import type { User } from "@/domain/identity";
 
 /**
- * Deja constancia (ADR-080) de una acción de una persona sobre un experimento. `view`: apertura de contenido, que nunca rompe la
+ * Deja constancia (ADR-084) de una acción de una persona sobre un experimento. `view`: apertura de contenido, que nunca rompe la
  * petición; las demás (`strict`) fallan si no se puede registrar. Solo guarda identificadores, nunca el contenido.
  */
 export async function auditExperiment(

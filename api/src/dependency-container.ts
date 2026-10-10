@@ -301,19 +301,19 @@ export function getPromptGate(): PromptGateService {
 }
 
 /** Catálogo de datos de las Custom charts: nombres y visibilidad de pasos y atributos por experimento (ADR-078). */
-/** Registro de auditoría (ADR-080). Quien lee (`audit:read`) y quien escribe son la misma instancia. */
+/** Registro de auditoría (ADR-084). Quien lee (`audit:read`) y quien escribe son la misma instancia. */
 export function getAudit(): AuditService {
   if (!globalForContainer.__memtraceAudit) globalForContainer.__memtraceAudit = new AuditService(new PostgresAuditRepository(getPostgresPool()));
   return globalForContainer.__memtraceAudit;
 }
 
-/** Plazos de retención (ADR-080). La API solo los cambia; el borrado lo hace el CronJob `retention-purge`, que lleva su propio cliente. */
+/** Plazos de retención (ADR-084). La API solo los cambia; el borrado lo hace el CronJob `retention-purge`, que lleva su propio cliente. */
 export function getRetention(): RetentionService {
   if (!globalForContainer.__memtraceRetention) globalForContainer.__memtraceRetention = new RetentionService(new PostgresRetentionRepository(getPostgresPool()), getAudit());
   return globalForContainer.__memtraceRetention;
 }
 
-/** Exportación de datos de un experimento (ADR-080). Lee con el cliente de solo lectura; la autorización (`data:export`) la decide la ruta. */
+/** Exportación de datos de un experimento (ADR-084). Lee con el cliente de solo lectura; la autorización (`data:export`) la decide la ruta. */
 export function getExport(): ExportService {
   if (!globalForContainer.__memtraceExport) {
     const config = configFromEnv();

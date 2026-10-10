@@ -1,5 +1,5 @@
 /**
- * Contra el ClickHouse real. Opt-in: `npm run test:integration`. La exportación (ADR-080) devuelve solo las filas del servicio y
+ * Contra el ClickHouse real. Opt-in: `npm run test:integration`. La exportación (ADR-084) devuelve solo las filas del servicio y
  * del rango, no las de otros servicios ni las lápidas de anotaciones borradas, y cuenta lo mismo que devuelve.
  */
 import { createClient, type ClickHouseClient } from "@clickhouse/client";

@@ -11,7 +11,7 @@ import AdminOrganizationPage from "@/ui/pages/admin/AdminOrganizationPage.vue";
 import AdminExperimentPage from "@/ui/pages/admin/AdminExperimentPage.vue";
 import { FakeIdentityApi, FakeTraceApi } from "../fakes";
 
-// Retención, auditoría y exportación en Admin (ADR-080)
+// Retención, auditoría y exportación en Admin (ADR-084)
 
 class Fake extends FakeIdentityApi {
   constructor(

@@ -32,7 +32,7 @@ const toEntry = (r: Row): AuditEntry => ({
   metadata: r.metadata ?? {},
 });
 
-/** Registro de auditoría (ADR-080) en `audit_log`. A propósito no hay UPDATE ni DELETE de entradas sueltas. */
+/** Registro de auditoría (ADR-084) en `audit_log`. A propósito no hay UPDATE ni DELETE de entradas sueltas. */
 export class PostgresAuditRepository implements AuditRepository {
   constructor(private readonly pool: Pool) {}
 

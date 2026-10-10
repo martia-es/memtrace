@@ -1,4 +1,4 @@
-# ADR-080: Data Protection — Retention, PII Masking, Audit Log and Export
+# ADR-084: Data Protection — Retention, PII Masking, Audit Log and Export
 
 * **Status**: Accepted
 * **Date**: 2026-10-10
@@ -64,4 +64,4 @@ The mask is the same fixed `****` everywhere (secrets in the SDK, Presidio, the 
 * Costs: a longer ceiling TTL allows more data on disk if someone raises retention; the default does not.
 * The dashboard and the query API still cap every query at 30 days (`MAX_RANGE_MS`). A retention longer than 30 days therefore keeps data that can be exported and audited but not browsed; lifting that cap is a follow-up (item M8 of the plan) and is stated on the retention screen and in the user documentation.
 * Two organizations may use the same `service.name`; their traces cannot be separated in storage, so the **longest** of the periods applies (a wrong deletion is irreversible, a late one is not).
-* The ingest gateway now checks that the `service.name` of every span belongs to the API key used ([ADR-081](../identity/adr-081-ingest-gateway-validates-service-name.md)), which is what makes retention and audit per experiment trustworthy.
+* The ingest gateway now checks that the `service.name` of every span belongs to the API key used ([ADR-085](../identity/adr-085-ingest-gateway-validates-service-name.md)), which is what makes retention and audit per experiment trustworthy.

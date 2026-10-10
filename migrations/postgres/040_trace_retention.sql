@@ -1,4 +1,4 @@
--- Retención de trazas configurable (ADR-080): un valor por organización y, opcionalmente, uno más corto por experimento.
+-- Retención de trazas configurable (ADR-084): un valor por organización y, opcionalmente, uno más corto por experimento.
 -- El plazo efectivo es min(override, organización); el TTL de ClickHouse queda como techo (migración clickhouse 013) y un
 -- CronJob diario borra por experimento lo que lo supere. Idempotente.
 ALTER TABLE organizations ADD COLUMN IF NOT EXISTS trace_retention_days INTEGER NOT NULL DEFAULT 30

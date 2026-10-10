@@ -1,7 +1,7 @@
 /**
  * Contra un Postgres real (15+) con las migraciones 001-041 aplicadas. Opt-in: `POSTGRES_INTEGRATION_URL=postgres://… npm run test:integration`.
  * Cubre lo que los fakes no pueden: las restricciones de la migración 040 (rango 1-365), el recorte de overrides al acortar la
- * organización, el plazo efectivo del worker de purga, las semillas de permisos y la tabla append-only de auditoría (ADR-080).
+ * organización, el plazo efectivo del worker de purga, las semillas de permisos y la tabla append-only de auditoría (ADR-084).
  */
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";

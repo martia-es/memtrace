@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ValidationError } from "@/domain/errors";
 import { MAX_RETENTION_DAYS, effectiveRetentionDays, retentionCutoff, validateRetentionDays } from "@/domain/retention";
 
-describe("retention rules (ADR-080)", () => {
+describe("retention rules (ADR-084)", () => {
   it("accepts whole days from 1 to 365", () => {
     expect(validateRetentionDays(1)).toBe(1);
     expect(validateRetentionDays(30)).toBe(30);

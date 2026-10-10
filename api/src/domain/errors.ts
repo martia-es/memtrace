@@ -213,7 +213,7 @@ export class CiUnavailableError extends Error {
   }
 }
 
-/** La organización o el experimento de un plazo de retención no existe (ADR-080). */
+/** La organización o el experimento de un plazo de retención no existe (ADR-084). */
 export class RetentionTargetNotFoundError extends Error {
   constructor(message: string) {
     super(message);
@@ -221,7 +221,7 @@ export class RetentionTargetNotFoundError extends Error {
   }
 }
 
-/** La exportación pedida tiene demasiadas filas: hay que acotar el rango (ADR-080). */
+/** La exportación pedida tiene demasiadas filas: hay que acotar el rango (ADR-084). */
 export class ExportTooLargeError extends Error {
   constructor(
     readonly rows: number,

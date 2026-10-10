@@ -239,7 +239,7 @@ Unlike the endpoints above, this one isn't scoped to a single `{experimentId}` â
 | `GET, POST /experiments/{experimentId}/api-keys` | List / create agent API keys. `technical` sees and creates their own; `org_admin` sees all |
 | `DELETE /experiments/{experimentId}/api-keys/{keyId}` | Revoke a key |
 
-## Data protection (ADR-080)
+## Data protection (ADR-084)
 
 | Endpoint | Description |
 |---|---|

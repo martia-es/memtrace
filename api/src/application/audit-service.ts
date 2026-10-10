@@ -4,7 +4,7 @@ import { VIEW_DEDUPE_SECONDS, validateMetadata, type AuditEntry, type AuditEntry
 const DEFAULT_PAGE = 50;
 const MAX_PAGE = 200;
 
-/** Quién hizo qué (ADR-080). La autorización de lectura (`audit:read`) la decide la ruta. */
+/** Quién hizo qué (ADR-084). La autorización de lectura (`audit:read`) la decide la ruta. */
 export class AuditService {
   constructor(private readonly repo: AuditRepository) {}
 

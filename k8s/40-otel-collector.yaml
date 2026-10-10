@@ -32,7 +32,7 @@ data:
         timeout: 1s
         send_batch_max_size: 5000
 
-      # Capa 2 de PII (ADR-080): enmascara con **** los datos personales de formato fijo ANTES de escribir en
+      # Capa 2 de PII (ADR-084): enmascara con **** los datos personales de formato fijo ANTES de escribir en
       # ClickHouse, para todos los agentes, hayan activado o no la anonimización del SDK. Los nombres propios y el
       # texto libre no tienen formato fijo y solo los cubre el SDK (Presidio). Los patrones son RE2; las pruebas
       # están en scripts/check_collector_pii.py. Un patrón nuevo se añade en los TRES bloques.

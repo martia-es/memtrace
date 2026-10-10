@@ -1,5 +1,5 @@
 /**
- * Las rutas de retención, auditoría y exportación (ADR-080) son las que más datos pueden sacar o cambiar: aquí se comprueba que
+ * Las rutas de retención, auditoría y exportación (ADR-084) son las que más datos pueden sacar o cambiar: aquí se comprueba que
  * cada una cierra la puerta sin el permiso exacto, con los módulos de sesión y de composición sustituidos por dobles.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";

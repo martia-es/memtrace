@@ -11,7 +11,7 @@ const MAX_BODY_BYTES = 16 * 1024 * 1024;
 const MAX_INFLATED_BYTES = 64 * 1024 * 1024;
 
 /**
- * Gateway de ingesta (ADR-013, pieza 9; ADR-081): exige una API key válida y que cada recurso de la petición lleve el
+ * Gateway de ingesta (ADR-013, pieza 9; ADR-085): exige una API key válida y que cada recurso de la petición lleve el
  * `service.name` del experimento de esa key, antes de reenviar el OTLP/HTTP tal cual al Collector. Una key de un experimento
  * no puede escribir en otro: la retención, la auditoría y todas las consultas se apoyan en ese nombre.
  * Solo lee la cabecera de cada recurso (no decodifica spans). El cuerpo original, comprimido o no, es lo que se reenvía.

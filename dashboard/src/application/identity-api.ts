@@ -167,16 +167,16 @@ export interface IdentityApi {
   addOrgAdmin(organizationId: string, email: string, signal?: AbortSignal): Promise<void>;
   listOrgMembers(organizationId: string, signal?: AbortSignal): Promise<MembersResponseDto>;
   updateOrganizationTheme(organizationId: string, theme: OrganizationThemeDto, signal?: AbortSignal): Promise<OrganizationDto>;
-  /** Retención de trazas (ADR-080): plazo de la organización y efectivo de cada experimento. Exige `retention:manage`. */
+  /** Retención de trazas (ADR-084): plazo de la organización y efectivo de cada experimento. Exige `retention:manage`. */
   getRetention(organizationId: string, signal?: AbortSignal): Promise<RetentionPolicyDto>;
   setOrganizationRetention(organizationId: string, days: number, signal?: AbortSignal): Promise<RetentionPolicyDto>;
   /** `days: null` quita el plazo propio del experimento. No puede superar el de la organización. */
   setExperimentRetention(organizationId: string, experimentId: string, days: number | null, signal?: AbortSignal): Promise<RetentionPolicyDto>;
-  /** Registro de auditoría de la organización, de más reciente a más antiguo (ADR-080). Exige `audit:read`. */
+  /** Registro de auditoría de la organización, de más reciente a más antiguo (ADR-084). Exige `audit:read`. */
   listAuditLog(organizationId: string, filter: { action?: string; experimentId?: string; from?: string; to?: string; cursor?: string; limit?: number }, signal?: AbortSignal): Promise<AuditPageDto>;
   /** Valida una exportación y dice cuántas filas tendría, sin descargar ni registrar nada. Lanza si el rango o el tamaño no valen. */
   previewExport(experimentId: string, request: { kind: string; from: string; to: string }, signal?: AbortSignal): Promise<{ rows: number; maxRows: number }>;
-  /** Dirección de descarga de una exportación en JSON Lines (ADR-080). Exige `data:export`; el navegador la descarga con su sesión. */
+  /** Dirección de descarga de una exportación en JSON Lines (ADR-084). Exige `data:export`; el navegador la descarga con su sesión. */
   exportUrl(experimentId: string, request: { kind: string; from: string; to: string }): string;
   /** Identidad externa de la organización: claim de grupos, mapeos y tokens SCIM. Solo org_admin. */
   getOrganizationIdentity(organizationId: string, signal?: AbortSignal): Promise<OrganizationIdentityDto>;

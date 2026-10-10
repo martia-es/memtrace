@@ -8,7 +8,7 @@ export interface ClickHouseConfig {
   /** Credenciales del cliente de escritura (ADR-045). Sin configurar, se reutilizan las de lectura (desarrollo local). */
   writeUsername: string;
   writePassword: string;
-  /** Credenciales del usuario de retención (ADR-080): solo SELECT y ALTER DELETE en las tablas de trazas. Sin configurar, las de lectura. */
+  /** Credenciales del usuario de retención (ADR-084): solo SELECT y ALTER DELETE en las tablas de trazas. Sin configurar, las de lectura. */
   retentionUsername: string;
   retentionPassword: string;
   /** hilos máximos por consulta: el almacén local tiene muy poco margen (ver query-limiter.ts) */
@@ -65,7 +65,7 @@ export function createEvaluationWriteClient(config: ClickHouseConfig): ClickHous
 }
 
 /**
- * Cliente del worker de retención (ADR-080): con `CLICKHOUSE_RETENTION_USER` (en k8s, `retention_worker`) ClickHouse solo le
+ * Cliente del worker de retención (ADR-084): con `CLICKHOUSE_RETENTION_USER` (en k8s, `retention_worker`) ClickHouse solo le
  * deja leer y borrar en `otel_traces`, `otel_traces_trace_id_ts` y `span_topics`. Lo usa solo el CronJob de purga, nunca la API.
  */
 export function createRetentionClient(config: ClickHouseConfig): ClickHouseClient {

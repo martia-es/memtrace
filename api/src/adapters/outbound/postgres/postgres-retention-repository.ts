@@ -5,7 +5,7 @@ import { MAX_RETENTION_DAYS, MIN_RETENTION_DAYS, effectiveRetentionDays, type Pu
 // un id con otra forma haría fallar el cast a uuid de Postgres (500): desde la API es simplemente "no existe"
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Plazos de retención de trazas (ADR-080) sobre las columnas `trace_retention_days` de organizaciones y experimentos. */
+/** Plazos de retención de trazas (ADR-084) sobre las columnas `trace_retention_days` de organizaciones y experimentos. */
 export class PostgresRetentionRepository implements RetentionRepository {
   constructor(private readonly pool: Pool) {}
 
@@ -66,7 +66,7 @@ export class PostgresRetentionRepository implements RetentionRepository {
 
   async listPurgeTargets(): Promise<PurgeTarget[]> {
     // Dos organizaciones pueden usar el mismo `service.name` y las trazas no se pueden separar por organización: se aplica
-    // el plazo MÁS LARGO, porque un borrado equivocado no se deshace y uno que se queda corto sí se corrige (ADR-080).
+    // el plazo MÁS LARGO, porque un borrado equivocado no se deshace y uno que se queda corto sí se corrige (ADR-084).
     const { rows } = await this.pool.query<{ organization_id: string; id: string; service_name: string; days: number }>(
       `SELECT DISTINCT ON (e.service_name) e.organization_id, e.id, e.service_name,
               LEAST(o.trace_retention_days, COALESCE(e.trace_retention_days, o.trace_retention_days)) AS days

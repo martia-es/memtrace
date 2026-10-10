@@ -1446,7 +1446,7 @@ export interface PromptListResponse {
   items: PromptSummaryDto[];
 }
 
-/** Retención de trazas (ADR-080): el plazo de la organización y el efectivo de cada experimento. */
+/** Retención de trazas (ADR-084): el plazo de la organización y el efectivo de cada experimento. */
 export interface RetentionPolicyDto {
   organizationId: string;
   defaultDays: number;
@@ -1462,7 +1462,7 @@ export interface RetentionPolicyDto {
   }[];
 }
 
-/** Una entrada del registro de auditoría (ADR-080). Solo identificadores, nunca contenido. */
+/** Una entrada del registro de auditoría (ADR-084). Solo identificadores, nunca contenido. */
 export interface AuditEntryDto {
   id: string;
   at: string;

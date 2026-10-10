@@ -1,6 +1,6 @@
 import type { PurgeTarget, RetentionPolicy } from "@/domain/retention";
 
-/** Plazos de retención guardados en PostgreSQL (ADR-080). */
+/** Plazos de retención guardados en PostgreSQL (ADR-084). */
 export interface RetentionRepository {
   /** La política de una organización con el plazo efectivo de cada experimento, o null si no existe. */
   getPolicy(organizationId: string): Promise<RetentionPolicy | null>;

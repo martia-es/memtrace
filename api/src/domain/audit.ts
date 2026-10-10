@@ -1,7 +1,7 @@
 import { ValidationError } from "./errors";
 
 /**
- * Registro de auditoría (ADR-080). Solo contenido ABIERTO, exportaciones y cambios de acceso o configuración: las listas y
+ * Registro de auditoría (ADR-084). Solo contenido ABIERTO, exportaciones y cambios de acceso o configuración: las listas y
  * las métricas no llevan contenido y taparían lo importante.
  */
 export const AUDIT_ACTIONS = [

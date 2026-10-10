@@ -32,7 +32,7 @@ function setup(opts: { rows?: number; auditFails?: boolean } = {}) {
   return { service: new ExportService(exporter, new AuditService(auditRepo)), events, entries };
 }
 
-describe("ExportService (ADR-080)", () => {
+describe("ExportService (ADR-084)", () => {
   it("records the export in the audit log before any data is read", async () => {
     const { service, events, entries } = setup();
     const started = await service.start(input);

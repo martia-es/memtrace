@@ -16,7 +16,7 @@ export interface PurgeSummary {
 }
 
 /**
- * Retención de trazas (ADR-080): lo que ve y cambia una persona con `retention:manage` (la ruta lo comprueba) y la pasada
+ * Retención de trazas (ADR-084): lo que ve y cambia una persona con `retention:manage` (la ruta lo comprueba) y la pasada
  * diaria que borra lo vencido. Cada cambio y cada borrado queda en el registro de auditoría.
  */
 export class RetentionService {

@@ -1,14 +1,14 @@
-# ADR-081: The Ingest Gateway Validates the `service.name` Against the API Key
+# ADR-085: The Ingest Gateway Validates the `service.name` Against the API Key
 
 * **Status**: Accepted
 * **Date**: 2026-10-10
 * **Deciders**: MemTrace Core Team
 * **Extends**: [ADR-013](adr-013-identity-postgres-and-oauth-rbac.md)
-* **Related**: [ADR-080](../storage/adr-080-data-protection-retention-masking-audit-and-export.md)
+* **Related**: [ADR-084](../storage/adr-084-data-protection-retention-masking-audit-and-export.md)
 
 ## Context and Problem Statement
 
-The ingest gateway (`POST /api/v1/ingest/v1/traces`, piece 9 of ADR-013) checked that an API key was valid and then forwarded the OTLP body untouched. It did not look inside, so a key of experiment A could write traces with the `service.name` of experiment B. In ClickHouse the experiment *is* its `ServiceName`: every query, the retention job and the audit trail of ADR-080 are scoped by it. A valid key could therefore pollute another agent's metrics, make its data survive or expire under the wrong policy, and write under a name it does not own.
+The ingest gateway (`POST /api/v1/ingest/v1/traces`, piece 9 of ADR-013) checked that an API key was valid and then forwarded the OTLP body untouched. It did not look inside, so a key of experiment A could write traces with the `service.name` of experiment B. In ClickHouse the experiment *is* its `ServiceName`: every query, the retention job and the audit trail of ADR-084 are scoped by it. A valid key could therefore pollute another agent's metrics, make its data survive or expire under the wrong policy, and write under a name it does not own.
 
 ## Decision Outcome
 
@@ -43,5 +43,5 @@ Measured on a 21 MiB request of 5,000 spans: reading the resource header takes 0
 
 * A key can no longer write into another experiment. The retention job, the audit log and every query can rely on `ServiceName`.
 * **Behavior change**: an agent whose `service.name` differs from the one registered for its experiment (or that sets none) now gets `403` instead of being accepted. The error message says which name to use.
-* Two organizations may still register the same `service.name` (the identity schema only requires it to be unique inside an organization). Each key then writes under that shared name; ADR-080 explains which retention applies. Making the name globally unique is a separate decision.
+* Two organizations may still register the same `service.name` (the identity schema only requires it to be unique inside an organization). Each key then writes under that shared name; ADR-084 explains which retention applies. Making the name globally unique is a separate decision.
 * The gRPC receiver of the Collector does not pass through this gateway. It is a `ClusterIP` service, reachable only from inside the cluster; closing it for good is a NetworkPolicy, not application code.

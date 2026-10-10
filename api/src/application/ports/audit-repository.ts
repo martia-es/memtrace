@@ -1,6 +1,6 @@
 import type { AuditEntry, AuditEntryInput, AuditFilter } from "@/domain/audit";
 
-/** Registro de auditoría en PostgreSQL (ADR-080). Solo se añade: no hay actualizar ni borrar entradas sueltas. */
+/** Registro de auditoría en PostgreSQL (ADR-084). Solo se añade: no hay actualizar ni borrar entradas sueltas. */
 export interface AuditRepository {
   /** Añade la entrada. Con `dedupeWithinSeconds`, no si el mismo actor ya hizo lo mismo sobre el mismo objetivo en ese margen. */
   append(entry: AuditEntryInput, dedupeWithinSeconds?: number): Promise<void>;

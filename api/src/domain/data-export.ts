@@ -1,6 +1,6 @@
 import { ValidationError } from "./errors";
 
-/** Exportación de datos de un experimento (ADR-080): un tipo de dato por petición, como JSON Lines. */
+/** Exportación de datos de un experimento (ADR-084): un tipo de dato por petición, como JSON Lines. */
 export const EXPORT_KINDS = ["traces", "annotations", "feedback", "scores"] as const;
 export type ExportKind = (typeof EXPORT_KINDS)[number];
 

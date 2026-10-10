@@ -6,7 +6,7 @@ import { describeApiError } from "@/application/describe-api-error";
 import { ApiError } from "@/application/trace-api";
 
 /**
- * Exportar los datos de un experimento (ADR-080) en JSON Lines: un tipo de dato y un rango de hasta 31 días por descarga.
+ * Exportar los datos de un experimento (ADR-084) en JSON Lines: un tipo de dato y un rango de hasta 31 días por descarga.
  * Cada exportación queda en el registro de auditoría. Solo con `data:export`.
  */
 const props = defineProps<{ experiment: ExperimentDto }>();

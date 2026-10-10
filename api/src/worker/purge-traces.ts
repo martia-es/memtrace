@@ -1,5 +1,5 @@
 /**
- * Worker de retención (ADR-080): una pasada por ejecución, pensada para un CronJob diario de Kubernetes.
+ * Worker de retención (ADR-084): una pasada por ejecución, pensada para un CronJob diario de Kubernetes.
  * Borra, por experimento, las trazas anteriores a su plazo, y purga el registro de auditoría más antiguo que su propia retención.
  * Raíz de composición propia: usa el usuario de ClickHouse `retention_worker`, que solo puede leer y borrar en las tablas de trazas.
  */

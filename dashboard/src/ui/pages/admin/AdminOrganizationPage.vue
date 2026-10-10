@@ -37,7 +37,7 @@ const organization = computed(() => dir.organizations.value.find((o) => o.id ===
 const isOrgAdmin = computed(() => (organization.value ? canManageOrg(organization.value) : false));
 const orgExperiments = computed(() => dir.experiments.value.filter((e) => e.organizationId === props.organizationId));
 const orgMembers = computed(() => dir.membersByOrg[props.organizationId]);
-// protección de datos (ADR-080): retención y registro de auditoría, cada uno con su permiso
+// protección de datos (ADR-084): retención y registro de auditoría, cada uno con su permiso
 const canRetention = computed(() => hasPermission(organization.value, "retention:manage"));
 const canAudit = computed(() => hasPermission(organization.value, "audit:read"));
 

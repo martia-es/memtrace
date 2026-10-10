@@ -1,6 +1,6 @@
 import { ValidationError } from "./errors";
 
-/** Retención de trazas (ADR-080). Un valor por organización y, opcionalmente, uno más corto por experimento. */
+/** Retención de trazas (ADR-084). Un valor por organización y, opcionalmente, uno más corto por experimento. */
 export const MIN_RETENTION_DAYS = 1;
 /** Techo: el TTL de las tablas de trazas en ClickHouse (migración 013). Subirlo exige migrar ese TTL. */
 export const MAX_RETENTION_DAYS = 365;

@@ -8,7 +8,7 @@ export async function GET(request: Request, context: { params: Promise<{ experim
   const { experimentId, traceId } = await context.params;
   const access = await requirePermission(experimentId, "experiment:read");
   if (access instanceof Response) return access;
-  // quién abrió el contenido de una traza (ADR-080)
+  // quién abrió el contenido de una traza (ADR-084)
   await auditExperiment(access.user, experimentId, "trace.view", { type: "trace", id: traceId }, "view");
   // Nota (ADR-013): el lookup por traceId es global, no filtra por service_name en la capa de datos.
   // El traceId es un identificador de alta entropía generado por el SDK, no una URL enumerable.

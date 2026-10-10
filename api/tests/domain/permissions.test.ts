@@ -44,7 +44,7 @@ describe("built-in roles (ADR-052)", () => {
     expect(role("governance").permissions).not.toContain("catalog:manage");
   });
 
-  it("data protection (ADR-080): org_admin sets retention and reads the audit log but cannot export data, technical can", () => {
+  it("data protection (ADR-084): org_admin sets retention and reads the audit log but cannot export data, technical can", () => {
     expect(role("org_admin").permissions).toEqual(expect.arrayContaining(["retention:manage", "audit:read"]));
     expect(role("org_admin").permissions).not.toContain("data:export");
     expect(role("technical").permissions).toContain("data:export");

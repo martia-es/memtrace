@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prueba la capa 2 de PII del Collector (ADR-080) contra k8s/40-otel-collector.yaml.
+"""Prueba la capa 2 de PII del Collector (ADR-084) contra k8s/40-otel-collector.yaml.
 
 1. Estática (siempre): los tres bloques de `transform/pii` llevan los mismos patrones y cada patrón enmascara sus casos
    positivos y respeta los negativos (ids de traza, marcas de tiempo, versiones...).

@@ -2,7 +2,7 @@ import type { ClickHouseClient } from "@clickhouse/client";
 import type { TracePurger } from "@/application/ports/trace-purger";
 
 /**
- * Borra spans antiguos de un servicio (ADR-080). Primero las temáticas derivadas, que se localizan por las trazas que se van
+ * Borra spans antiguos de un servicio (ADR-084). Primero las temáticas derivadas, que se localizan por las trazas que se van
  * a borrar, y después los spans. El índice `otel_traces_trace_id_ts` no lleva `ServiceName` ni contenido (solo ids y
  * tiempos) y lo vacía su propio TTL de techo.
  */

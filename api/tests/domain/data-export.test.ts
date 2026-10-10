@@ -4,7 +4,7 @@ import { ValidationError } from "@/domain/errors";
 
 const ok = { kind: "traces", from: "2026-10-01T00:00:00Z", to: "2026-10-08T00:00:00Z" };
 
-describe("export request (ADR-080)", () => {
+describe("export request (ADR-084)", () => {
   it("accepts a known kind with a range of up to 31 days", () => {
     expect(parseExportRequest(ok)).toMatchObject({ kind: "traces" });
     expect(() => parseExportRequest({ ...ok, to: "2026-11-01T00:00:00Z" })).not.toThrow();
