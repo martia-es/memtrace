@@ -54,6 +54,14 @@ The prompt override header is `x-memtrace-prompt-override` ([ADR-071](../prompts
 
 **Environment variables**: the `MEMTRACE_*` set read by `config.py` (`ENABLED`, `SERVICE_NAME`, `SERVICE_VERSION`, `ENVIRONMENT`, `GIT_SHA`, `OTLP_ENDPOINT`, `OTLP_HEADERS`, `OTLP_PROTOCOL`, `API_URL`, `API_KEY`, the `BATCH_*` and `EXPORT_TIMEOUT_MS` knobs, `SPAN_TTL_SECONDS`, `MAX_ACTIVE_RUNS`, the prompt `*_SECONDS` and `CACHE_DIR`, `ALLOW_PROMPT_OVERRIDE`, and the content settings above). Same names and defaults in every language.
 
+### Where the languages differ on purpose
+
+Behaviour that is the same in both is fixed by the conformance scenarios; these differences are about the runtime and do not change what MemTrace receives:
+
+* `prompts.get()` is `async` in TypeScript (Python blocks for a few seconds at startup); `compile()` is synchronous in both.
+* The playground override is fetched **before** the request runs in TypeScript (`prompts.override` / `promptOverrideMiddleware`), because `compile()` cannot wait for the network; in Python `compile()` asks MemTrace itself.
+* TypeScript has no OTLP/gRPC.
+
 ## Alternatives Considered
 
 * **Spec first (JSON Schema / OpenAPI for everything), then both SDKs generated from it.** Cleaner on paper, but the attributes are plain strings and the HTTP surface is small; a schema would be a third thing to keep in sync. Rejected in favour of Python-as-reference plus runnable fixtures.
