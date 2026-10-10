@@ -1,0 +1,92 @@
+{
+  "description": "Retrieval metrics (ADR-045): a chunk is relevant when its id or source is in metadata.relevant_docs; unlabelled items get no score.",
+  "cases": [
+    {
+      "metadata": {
+        "relevant_docs": [
+          "a",
+          "b"
+        ]
+      },
+      "retrieved": [
+        {
+          "id": "x"
+        },
+        {
+          "id": "a"
+        },
+        {
+          "source": "b"
+        }
+      ],
+      "expect": [
+        {
+          "name": "recall_at_2",
+          "value": 0.5,
+          "dataType": "numeric"
+        },
+        {
+          "name": "recall_at_3",
+          "value": 1.0,
+          "dataType": "numeric"
+        },
+        {
+          "name": "mrr",
+          "value": 0.5,
+          "dataType": "numeric"
+        },
+        {
+          "name": "hit_rate",
+          "value": true,
+          "dataType": "boolean"
+        }
+      ]
+    },
+    {
+      "metadata": {
+        "relevant_docs": [
+          "a"
+        ]
+      },
+      "retrieved": [
+        {
+          "id": "x"
+        },
+        {
+          "id": "y"
+        }
+      ],
+      "expect": [
+        {
+          "name": "recall_at_2",
+          "value": 0.0,
+          "dataType": "numeric"
+        },
+        {
+          "name": "recall_at_3",
+          "value": 0.0,
+          "dataType": "numeric"
+        },
+        {
+          "name": "mrr",
+          "value": 0.0,
+          "dataType": "numeric"
+        },
+        {
+          "name": "hit_rate",
+          "value": false,
+          "dataType": "boolean"
+        }
+      ]
+    },
+    {
+      "metadata": {},
+      "retrieved": [
+        {
+          "id": "x"
+        }
+      ],
+      "expect": []
+    }
+  ]
+}

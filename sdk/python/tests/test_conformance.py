@@ -177,3 +177,59 @@ def test_http_scenario(scenario, clean_env):
             assert json.loads(request.content) == want["json"]
     if "result" in scenario["expect"]:
         assert result == scenario["expect"]["result"]
+
+
+# ----- evaluation -----
+
+
+def _eval(name):
+    return json.loads((ROOT / "eval" / f"{name}.json").read_text())
+
+
+def _judge(name, client):
+    from memtrace.eval_judges import Correctness, Faithfulness
+
+    return {"correctness": Correctness, "faithfulness": Faithfulness}[name](client=client)
+
+
+class _Client:
+    def __init__(self, spec):
+        self.model = spec["model"]
+        self._reply = spec["reply"]
+        self._reply_model = spec.get("replyModel")
+
+    def complete(self, *, system, prompt, model=None):
+        from memtrace.application.eval_ports import LLMReply
+
+        return LLMReply(self._reply, model=self._reply_model) if self._reply_model else self._reply
+
+
+def test_judge_prompt_hashes_match_across_sdks():
+    for name, expected in _eval("judge-prompt-hash")["hashes"].items():
+        assert _judge(name, _Client({"model": "m", "reply": ""})).prompt_hash() == expected, name
+
+
+def test_retrieval_metrics_scenarios():
+    from memtrace.application.retrieval_metrics import MRR, HitRate, RecallAtK
+
+    for case in _eval("retrieval-metrics")["cases"]:
+        scores = []
+        for evaluator in (RecallAtK(2), RecallAtK(3), MRR(), HitRate()):
+            scores += evaluator(metadata=case["metadata"], retrieved_chunks=case["retrieved"])
+        assert [{"name": s.name, "value": s.value, "dataType": s.data_type} for s in scores] == case["expect"]
+
+
+def test_judge_score_scenarios():
+    scenario = _eval("judge-score")
+    item = scenario["item"]
+    for case in scenario["cases"]:
+        judge = _judge(scenario["judge"], _Client(case["client"]))
+        call = dict(input=item["input"], output=item["output"], expected_output=item["expectedOutput"])
+        if case.get("expectError"):
+            with pytest.raises(ValueError):
+                judge(**call)
+            continue
+        score = judge(**call)
+        want = case["expect"]
+        assert (score.name, score.value, score.data_type, score.source, score.comment, score.judge_model, score.judge_prompt_hash) == (
+            want["name"], want["value"], want["dataType"], want["source"], want["comment"], want["judgeModel"], want["judgePromptHash"])

@@ -4,7 +4,7 @@ MemTrace SDK for TypeScript / Node.js (>= 18). Same contract as the Python SDK (
 both run the scenarios in [`../conformance`](../conformance).
 
 **Status**: in progress. This version covers tracing (steps, sessions, LLM calls, content capture and masking, OTLP/HTTP export),
-end-user feedback and the prompt registry. Evaluation, client-side PII masking and framework integrations follow.
+end-user feedback, the prompt registry and offline evaluation. Client-side PII masking and framework integrations follow.
 
 ```ts
 import { initTracer, withStep, traceLlmCall, session, shutdown } from "@memtrace/sdk";
@@ -50,6 +50,28 @@ A timer follows the tag (an unchanged tag costs an empty `304`), the last known 
 To let MemTrace's playground try a version in the real agent (`MEMTRACE_ALLOW_PROMPT_OVERRIDE=true`), mount
 `prompts.promptOverrideMiddleware()` after your body parser (Express / Connect / Node `http`), or wrap the handling of a request in
 `prompts.override(prompts.overrideTokenOf(headers), () => ...)`.
+
+## Evaluation
+
+```ts
+import { runExperiment, exactMatch, Correctness, RecallAtK, MemTraceResultsSink } from "@memtrace/sdk";
+
+const result = await runExperiment({
+  data: { datasetId: "ds-1", version: "2.1" },   // a MemTrace dataset (results upload to it), or a .json/.jsonl path, or plain rows
+  task: (item) => myAgent(String(item.input)),
+  evaluators: [exactMatch, new Correctness({ client: myLlm }), RecallAtK(5)],
+  name: "v2",
+});
+console.log(result.datasetVersion, result.summary());
+```
+
+Pass `sink: null` to keep the result in memory. If `initTracer` ran, each item runs in its own `eval.item` trace, so the dashboard
+shows its latency, tokens and cost. Retrieval metrics read `metadata.relevant_docs` and the chunks your retriever step reports with
+`recordRetrievedChunks(docs)`.
+
+**Judges bring their own model.** There is no default provider: `Correctness`, `Faithfulness` and `prompts.proposeFix` take any
+`LLMClient`, an object with `complete({ system, prompt, model? })` that returns a string (or `{ text, model }` to report the model the
+provider actually served). A judge's rubric fingerprint is identical to the Python SDK's.
 
 ## Development
 

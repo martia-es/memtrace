@@ -1,0 +1,7 @@
+{
+  "description": "A judge's rubric fingerprint (ADR-043) is the same in every SDK, so the dashboard flags a judge as changed only when its rubric changes.",
+  "hashes": {
+    "correctness": "bb50375091f60dc4",
+    "faithfulness": "fa8195fc999fa521"
+  }
+}
