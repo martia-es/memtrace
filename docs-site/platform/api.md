@@ -232,5 +232,5 @@ For your identity provider, under `/api/scim/v2`, authenticated with `Authorizat
 
 | Endpoint | Description |
 |---|---|
-| `POST /ingest/v1/traces` | OTLP/HTTP gateway; requires an agent API key (see [Authentication](/library/authentication)) |
+| `POST /ingest/v1/traces` | OTLP/HTTP gateway; requires an agent API key (see [Authentication](/library/authentication)). Accepts `application/x-protobuf` and `application/json`, optionally `gzip`; answers `400` for a malformed payload, `413` above 10 MiB (32 MiB once decompressed) and `415` for other formats or encodings. `service.name` is set from the key's experiment |
 | `GET /health`, `GET /health/ready` | Liveness / readiness |

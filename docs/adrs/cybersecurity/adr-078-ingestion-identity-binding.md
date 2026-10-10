@@ -1,6 +1,6 @@
 # ADR-078: Ingestion Identity Binding
 
-* **Status**: Pending
+* **Status**: Accepted — gateway implemented (2026-10-10); ClickHouse `ExperimentId` column pending in [ADR-077](adr-077-strict-tenant-isolation-in-clickhouse.md), Collector lock-down pending in [ADR-079](adr-079-network-segmentation-and-collector-access.md)
 * **Date**: 2026-10-09
 * **Deciders**: MemTrace Core Team
 * **Parent**: [ADR-076](adr-076-multi-tenant-security-baseline.md)
@@ -33,6 +33,14 @@ Consequences today:
 4. The Collector exporter writes `memtrace.experiment_id` into the `ExperimentId` column of ClickHouse (ADR-077).
 5. The same rule applies to every other write path that accepts an agent key: scores, evaluation uploads, user feedback, prompt drafts. They already resolve the key to an experiment and must use that value, never a value from the body.
 6. Direct access to the Collector is removed by [ADR-079](adr-079-network-segmentation-and-collector-access.md); without it this ADR can be bypassed.
+
+## Implementation notes
+
+- `api/src/adapters/inbound/http/otlp-identity.ts`: rewrites protobuf at wire level (only the Resource's `service.name` and `memtrace.experiment_id` change; every other byte is copied) and JSON on the parsed object. No new dependency. Checked against payloads produced and decoded by the official `opentelemetry-proto` library.
+- The JSON alias `resource_spans` is rejected, because protobuf JSON parsers accept it and it would skip the rewrite.
+- Limits: 10 MiB received, 32 MiB decompressed (`INGEST_MAX_BODY_BYTES`, `INGEST_MAX_DECOMPRESSED_BYTES`). Only `gzip` and no encoding are accepted.
+- A `service.name` mismatch is logged as `ingest.service_name_mismatch`; there is no metrics backend yet.
+- Item 5 (other write paths) was reviewed: feedback, evaluation uploads and prompt drafts already take the experiment and service from the API key, never from the body.
 
 ## Verification
 
