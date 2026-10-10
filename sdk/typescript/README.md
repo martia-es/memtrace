@@ -4,7 +4,7 @@ MemTrace SDK for TypeScript / Node.js (>= 18). Same contract as the Python SDK (
 both run the scenarios in [`../conformance`](../conformance).
 
 **Status**: in progress. This version covers tracing (steps, sessions, LLM calls, content capture and masking, OTLP/HTTP export),
-end-user feedback, the prompt registry and offline evaluation. Client-side PII masking and framework integrations follow.
+end-user feedback, the prompt registry, offline evaluation and client-side PII masking. Framework integrations follow.
 
 ```ts
 import { initTracer, withStep, traceLlmCall, session, shutdown } from "@memtrace/sdk";
@@ -72,6 +72,27 @@ shows its latency, tokens and cost. Retrieval metrics read `metadata.relevant_do
 **Judges bring their own model.** There is no default provider: `Correctness`, `Faithfulness` and `prompts.proposeFix` take any
 `LLMClient`, an object with `complete({ system, prompt, model? })` that returns a string (or `{ text, model }` to report the model the
 provider actually served). A judge's rubric fingerprint is identical to the Python SDK's.
+
+## Anonymizing personal data
+
+Secrets are always masked. Names and other personal data are masked only if you ask, as in the Python SDK. Presidio has no
+JavaScript engine, so `presidioRedactor` asks a Presidio **analyzer service** (the same recognizers and spaCy models as Python) and
+masks what it finds with `****` here:
+
+```bash
+docker run -p 5002:3000 mcr.microsoft.com/presidio-analyzer
+```
+
+```ts
+import { initTracer, presidioRedactor } from "@memtrace/sdk";
+
+initTracer({ redact: await presidioRedactor({ language: "es", url: "http://localhost:5002" }) });  // or PRESIDIO_ANALYZER_URL
+```
+
+Run the service next to the agent: the text of your spans is sent to it. It fails at startup if the service cannot be reached; if it stops
+answering later, the content of the span is replaced by `[UNSERIALIZABLE]` and never exported unmasked. Options: `entities`,
+`scoreThreshold`, `allowList` (same defaults as Python). `textHook(fn)` turns any `string -> string` function into a hook.
+Because the hook is asynchronous, `await flush()` before reading spans in tests.
 
 ## Development
 

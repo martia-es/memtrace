@@ -1,6 +1,6 @@
 import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
 import { afterEach, expect, it } from "vitest";
-import { initTracer, shutdown, withStep } from "../src/index.js";
+import { flush, initTracer, shutdown, withStep } from "../src/index.js";
 import { annotateCurrent } from "../src/tracer.js";
 import { PromptRegistry } from "../src/prompts/registry.js";
 
@@ -15,6 +15,7 @@ it("compile() inside a step links the trace to the prompt version", async () => 
   };
   const handle = await new PromptRegistry(source, { environment: "pro", annotate: annotateCurrent, log: () => {} }).get("weather");
   withStep("turn", "chain", () => { handle.compile({ x: "there" }); });
+  await flush();
   const attrs = exporter.getFinishedSpans().find((s) => s.name === "turn")!.attributes;
   expect(attrs["memtrace.prompt.name"]).toBe("weather");
   expect(attrs["memtrace.prompt.version"]).toBe(4);
