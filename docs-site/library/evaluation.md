@@ -67,16 +67,74 @@ run_experiment(data="<dataset_id>", dataset_version="2.1", task=my_agent, evalua
 
 `dataset_version` is only valid together with a dataset id. An unknown version raises an HTTP 404 error. The run is recorded against the version the server actually served, even if someone edits the dataset while the experiment runs.
 
-## Local vs. MemTrace, side by side
+## Runnable examples
 
-Two runnable scripts show the same toy agent fed from each source:
+Both scripts are self-contained: copy, paste, run.
 
-| | [`examples/07_dataset_source_local.py`](https://github.com/martia-es/memtrace/blob/main/examples/07_dataset_source_local.py) | [`examples/07_dataset_source_memtrace.py`](https://github.com/martia-es/memtrace/blob/main/examples/07_dataset_source_memtrace.py) |
+### From a local file (no MemTrace)
+
+```python
+import json
+from pathlib import Path
+
+from memtrace.eval import contains, exact_match, run_experiment
+
+dataset = Path("toy_dataset.jsonl")
+dataset.write_text("\n".join(json.dumps(row) for row in [
+    {"input": "2+2?", "expected_output": "4"},
+    {"input": "capital of France?", "expected_output": "Paris"},
+    {"input": "capital of Spain?", "expected_output": "Madrid"},
+]))
+
+def toy_agent(*, item):
+    # Deliberately imperfect: gets Spain wrong.
+    answers = {"2+2?": "4", "capital of France?": "Paris", "capital of Spain?": "Barcelona"}
+    return answers.get(item.input, "I don't know")
+
+result = run_experiment(
+    data=dataset,  # a pathlib.Path -> local file (a plain str would be a dataset id)
+    task=toy_agent,
+    evaluators=[exact_match, contains],
+    name="toy-agent-local",
+    sink=None,  # keep the result in memory; nothing is uploaded
+)
+
+for r in result.items:
+    print(f"{r.item.input!r:25} -> {r.output!r:12}", [(s.name, s.value) for s in r.scores])
+print(result.dataset_version, [(s.name, s.pass_rate) for s in result.summary()])
+```
+
+It prints one line per item and, at the end, the file's fingerprint (`sha256:...`) with a pass rate of 0.67 for both evaluators.
+
+### From a MemTrace dataset
+
+Create a dataset in the platform (or with the API) and note its id. Then:
+
+```bash
+pip install "memtrace-ai[eval]"
+export MEMTRACE_API_URL=http://localhost:3001/api/v1/experiments/<experimentId>
+export MEMTRACE_API_KEY=mtk_...
+```
+
+```python
+from memtrace.eval import exact_match, run_experiment
+
+def toy_agent(*, item):
+    return {"2+2?": "4", "capital of France?": "Paris"}.get(item.input, "I don't know")
+
+latest = run_experiment(data="<dataset_id>", task=toy_agent, evaluators=[exact_match], name="toy-latest")
+pinned = run_experiment(data="<dataset_id>", dataset_version="2.0", task=toy_agent, evaluators=[exact_match], name="toy-v2.0")
+
+print(latest.dataset_version, pinned.dataset_version)  # the versions actually served
+```
+
+Both runs appear in the dashboard under **Datasets > your dataset > Runs**, each with the version it used.
+
+| | Local file | MemTrace dataset |
 |---|---|---|
-| Data lives in | a `.jsonl` file next to your code | MemTrace, edited from the platform |
-| Call | `run_experiment(data=Path("toy_dataset.jsonl"), ..., sink=None)` | `run_experiment(data="<dataset_id>", dataset_version="2.0", ...)` |
-| Needs | nothing (no stack, no network) | a MemTrace deployment, `memtrace-ai[eval]`, an agent API key |
-| Versions | you manage them (e.g. git) | assigned by MemTrace; read the latest or pin a `major.minor` |
+| Data lives in | a `.jsonl` / `.json` file next to your code | MemTrace, edited from the platform |
+| Needs | nothing (no stack, no network) | a deployment, `memtrace-ai[eval]`, an agent API key |
+| Versions | you manage them (e.g. git); the result carries a content fingerprint | assigned by MemTrace; read the latest or pin a `major.minor` |
 | Results | in memory, or your own `sink` | uploaded to MemTrace, recorded against the version used |
 
 ## Reading the results locally
@@ -113,7 +171,80 @@ To upload, set these variables. The API key is the same agent key used for traci
 | `MEMTRACE_API_URL` | Includes the experiment id, e.g. `http://localhost:3001/api/v1/experiments/<experimentId>` |
 | `MEMTRACE_API_KEY` | An agent API key created in the platform |
 
-See [`examples/05_eval_dataset_source_memtrace.py`](https://github.com/martia-es/memtrace/blob/main/examples/05_eval_dataset_source_memtrace.py) for a full script, and [`05_eval_dataset_source_local.py`](https://github.com/martia-es/memtrace/blob/main/examples/05_eval_dataset_source_local.py) for the no-MemTrace path.
+### Sink examples
+
+A sink is where a finished result goes. These four cover the usual cases; each is runnable on its own (the first three need no MemTrace).
+
+**1. In memory** (nothing leaves your process):
+
+```python
+result = run_experiment(data=data, task=my_agent, evaluators=[exact_match], name="v1", sink=None)
+```
+
+**2. A JSON file**, with a plain `.save(result)` sink, called once at the end:
+
+```python
+import json
+from pathlib import Path
+
+class JsonFileSink:
+    def __init__(self, path):
+        self.path = Path(path)
+
+    def save(self, result):
+        rows = [
+            {
+                "input": r.item.input,
+                "output": r.output,
+                "error": r.error,
+                "scores": {s.name: s.value for s in r.scores},
+            }
+            for r in result.items
+        ]
+        self.path.write_text(json.dumps({"name": result.name, "dataset_version": result.dataset_version, "items": rows}, indent=2))
+
+run_experiment(data=data, task=my_agent, evaluators=[exact_match], name="v1", sink=JsonFileSink("results.json"))
+```
+
+**3. Streaming to a JSONL file as items finish**, with an `IncrementalResultsSink`. Items arrive in completion order, so each line carries its dataset `index`; a crash keeps everything written so far:
+
+```python
+import json
+
+class JsonlStreamSink:
+    def __init__(self, path):
+        self.path = path
+
+    def start(self, *, name, dataset_version):
+        self.file = open(self.path, "w")
+
+    def add(self, index, item_result):
+        row = {"index": index, "input": item_result.item.input, "output": item_result.output,
+               "scores": {s.name: s.value for s in item_result.scores}}
+        self.file.write(json.dumps(row) + "\n")
+        self.file.flush()
+
+    def finish(self, result):
+        self.file.close()
+
+run_experiment(data=data, task=my_agent, evaluators=[exact_match], name="v1", sink=JsonlStreamSink("results.jsonl"))
+```
+
+**4. MemTrace.** Reading from a dataset id already uploads to that dataset, with nothing else to configure (see [From a MemTrace dataset](#from-a-memtrace-dataset)). To upload the results of **local data** to a MemTrace dataset, build the sink yourself and state the version they belong to:
+
+```python
+from memtrace.adapters.outbound.http.eval_api_client import MemTraceResultsSink
+
+run_experiment(
+    data=Path("toy_dataset.jsonl"),
+    task=my_agent,
+    evaluators=[exact_match],
+    name="v2-local-data",
+    sink=MemTraceResultsSink("<dataset_id>", version="2.1"),  # reads MEMTRACE_API_URL / MEMTRACE_API_KEY
+)
+```
+
+You can also pass `base_url=` and `api_key=` to `MemTraceResultsSink` (and to `run_experiment` for the dataset-id case) instead of using environment variables.
 
 ## Latency, tokens and cost
 
