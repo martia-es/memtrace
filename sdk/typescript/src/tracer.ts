@@ -109,7 +109,23 @@ export async function flush(): Promise<void> {
 export async function shutdown(): Promise<void> {
   const current = active;
   active = undefined;
+  for (const hook of shutdownHooks.splice(0)) {
+    try { await hook(); } catch { /* never throws */ }
+  }
   try { await current?.provider.shutdown(); } catch { /* never throws */ }
+}
+
+const shutdownHooks: Array<() => void | Promise<void>> = [];
+
+/** Runs `hook` once, the next time `shutdown()` is called (the prompt registry uses it to stop following tags). */
+export function onShutdown(hook: () => void | Promise<void>): void {
+  shutdownHooks.push(hook);
+}
+
+/** Adds attributes to the step being executed (no-op outside one). Never throws. */
+export function annotateCurrent(attributes: Attributes): void {
+  const span = storage.getStore()?.span;
+  if (span) setAttributes(span, attributes);
 }
 
 /** Groups the spans created in `fn` under one conversation (`gen_ai.conversation.id`). */

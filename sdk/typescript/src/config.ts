@@ -74,4 +74,12 @@ export const settings = {
   get batchMaxExportSize() { return envInt("MEMTRACE_BATCH_MAX_EXPORT_SIZE", 512); },
   get apiUrl() { return process.env.MEMTRACE_API_URL || undefined; },
   get apiKey() { return process.env.MEMTRACE_API_KEY || undefined; },
+  /** How often a prompt that follows a tag asks whether the tag moved (an unchanged tag costs a 304). */
+  get promptRefreshSeconds() { return envInt("MEMTRACE_PROMPT_REFRESH_SECONDS", 30); },
+  /** How often the SDK tells MemTrace which prompt versions this agent is using. */
+  get promptUsageSeconds() { return envInt("MEMTRACE_PROMPT_USAGE_SECONDS", 300); },
+  get promptTimeoutSeconds() { return envInt("MEMTRACE_PROMPT_TIMEOUT_SECONDS", 3); },
+  /** Lets MemTrace's playground run another prompt version in this process for one request (ADR-071). Off by default. */
+  get allowPromptOverride() { return envBool("MEMTRACE_ALLOW_PROMPT_OVERRIDE", false); },
+  get promptCacheDir() { return process.env.MEMTRACE_PROMPT_CACHE_DIR || undefined; },
 };
