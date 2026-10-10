@@ -1,4 +1,15 @@
-import type { AuditPageDto, ChartCatalogEntryDto, CustomMetricDefinitionDto, RetentionPolicyDto, ScoreConfigDto } from "@contract";
+import type {
+  AlertEventsPageDto,
+  AlertRuleDto,
+  AlertsOverviewDto,
+  AuditPageDto,
+  BudgetViewDto,
+  ChartCatalogEntryDto,
+  CustomMetricDefinitionDto,
+  OpenAlertsDto,
+  RetentionPolicyDto,
+  ScoreConfigDto,
+} from "@contract";
 
 /** Puerto de salida: identidad y RBAC (ADR-013). Separado de TraceApi: es otro dominio, otro almacén. */
 
@@ -107,6 +118,16 @@ export interface ScoreConfigPatchInput {
 }
 
 /** Gráfico custom guardado por el usuario (ADR-027); su definición usa la misma forma que el query de ClickHouse. */
+/** Lo que se envía al crear o cambiar una regla de alerta (ADR-086). */
+export type AlertRuleBody = Pick<AlertRuleDto, "name" | "metric" | "customMetricId" | "comparator" | "threshold" | "windowMinutes" | "minSamples" | "reminderMinutes" | "recipients" | "enabled">;
+
+export interface BudgetBody {
+  monthlyUsd: number;
+  warnPercent: number;
+  recipients: string[];
+  enabled: boolean;
+}
+
 export interface SavedCustomMetricDto {
   id: string;
   name: string;
@@ -195,6 +216,18 @@ export interface IdentityApi {
   /** El campo `plaintext` solo viene relleno aquí — no se puede volver a consultar después. */
   createApiKey(experimentId: string, signal?: AbortSignal): Promise<ApiKeyDto & { plaintext: string }>;
   revokeApiKey(experimentId: string, keyId: string, signal?: AbortSignal): Promise<void>;
+
+  /** Alertas del agente con su estado, historial reciente y presupuesto (ADR-086). Basta `experiment:read`. */
+  getAlerts(experimentId: string, signal?: AbortSignal): Promise<AlertsOverviewDto>;
+  /** Cambiar reglas y presupuesto exige `alert:manage`. El cuerpo es el mismo al crear y al cambiar: la API dice qué campo falla. */
+  createAlertRule(experimentId: string, rule: AlertRuleBody, signal?: AbortSignal): Promise<AlertRuleDto>;
+  updateAlertRule(experimentId: string, ruleId: string, rule: AlertRuleBody, signal?: AbortSignal): Promise<AlertRuleDto>;
+  deleteAlertRule(experimentId: string, ruleId: string, signal?: AbortSignal): Promise<void>;
+  listAlertEvents(experimentId: string, cursor?: string, signal?: AbortSignal): Promise<AlertEventsPageDto>;
+  setBudget(experimentId: string, budget: BudgetBody, signal?: AbortSignal): Promise<BudgetViewDto>;
+  deleteBudget(experimentId: string, signal?: AbortSignal): Promise<void>;
+  /** Alertas disparadas ahora en los agentes que la persona puede leer, para la campana de la barra superior. */
+  listOpenAlerts(signal?: AbortSignal): Promise<OpenAlertsDto>;
 
   /** Gráficos custom guardados del experimento (ADR-027), más recientes primero. */
   listCustomMetrics(experimentId: string, signal?: AbortSignal): Promise<SavedCustomMetricDto[]>;

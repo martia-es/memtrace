@@ -75,6 +75,9 @@ export async function parseJsonOrThrow<T>(schema: z.ZodType<T>, request: Request
   return result.data;
 }
 
+/** Un objeto JSON cualquiera: el dominio valida los campos y dice cuál falla (ADR-086). */
+export const looseObjectBody = z.record(z.string(), z.unknown());
+
 /** Plazo de retención de la organización (ADR-084). El rango lo valida el dominio. */
 export const organizationRetentionBody = z.object({ days: z.number() });
 

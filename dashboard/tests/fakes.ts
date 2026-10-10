@@ -1,5 +1,5 @@
 import { permissionsOf } from "./permissions";
-import type { AuditPageDto, ChartCatalogEntryDto, RetentionPolicyDto } from "@contract";
+import type { AlertEventsPageDto, AlertRuleDto, AlertsOverviewDto, AuditPageDto, BudgetViewDto, ChartCatalogEntryDto, OpenAlertsDto, RetentionPolicyDto } from "@contract";
 import type {
   AddQueueItemsResponse,
   InterAnnotatorAgreementResponse,
@@ -67,6 +67,8 @@ import type {
 } from "@contract";
 import type { ListConversationsParams, ListSpansParams, ListTracesParams, RangeParams, SaveAnnotationBody, TraceApi, AddQueueItemsBody, AnnotationQueuePatchBody, NewAnnotationQueueBody, QueueLabelBody, AgreementScope } from "@/application/trace-api";
 import {
+  type AlertRuleBody,
+  type BudgetBody,
   EMPTY_THEME,
   type ApiKeyDto,
   type CurrentUser,
@@ -104,6 +106,52 @@ export class FakeIdentityApi implements IdentityApi {
   }
   async updateOrganizationTheme(organizationId: string, theme: OrganizationThemeDto): Promise<OrganizationDto> {
     return { id: organizationId, name: "org", myRole: "org_admin", permissions: permissionsOf("org_admin"), theme };
+  }
+  alerts: AlertsOverviewDto = { rules: [], events: [], budget: null };
+  alertCalls: Array<{ op: string; id?: string; body?: unknown }> = [];
+  /** si se pone, crear o cambiar una regla / el presupuesto falla con este error (p. ej. un 400 con campos) */
+  alertError: Error | null = null;
+  openAlerts: OpenAlertsDto = { items: [] };
+  olderEvents: AlertEventsPageDto = { items: [], nextCursor: null };
+  async getAlerts(): Promise<AlertsOverviewDto> {
+    return this.alerts;
+  }
+  async createAlertRule(_experimentId: string, body: AlertRuleBody): Promise<AlertRuleDto> {
+    this.alertCalls.push({ op: "create", body });
+    if (this.alertError) throw this.alertError;
+    const rule: AlertRuleDto = { ...body, id: `rule-${this.alerts.rules.length + 1}`, experimentId: "exp-1", createdAt: "2026-10-10T00:00:00.000Z", updatedAt: "2026-10-10T00:00:00.000Z" };
+    this.alerts = { ...this.alerts, rules: [...this.alerts.rules, { rule, status: null }] };
+    return rule;
+  }
+  async updateAlertRule(_experimentId: string, ruleId: string, body: AlertRuleBody): Promise<AlertRuleDto> {
+    this.alertCalls.push({ op: "update", id: ruleId, body });
+    if (this.alertError) throw this.alertError;
+    const current = this.alerts.rules.find((r) => r.rule.id === ruleId)!.rule;
+    const rule = { ...current, ...body };
+    this.alerts = { ...this.alerts, rules: this.alerts.rules.map((r) => (r.rule.id === ruleId ? { rule, status: null } : r)) };
+    return rule;
+  }
+  async deleteAlertRule(_experimentId: string, ruleId: string): Promise<void> {
+    this.alertCalls.push({ op: "delete", id: ruleId });
+    this.alerts = { ...this.alerts, rules: this.alerts.rules.filter((r) => r.rule.id !== ruleId) };
+  }
+  async listAlertEvents(_experimentId: string, cursor?: string): Promise<AlertEventsPageDto> {
+    this.alertCalls.push({ op: "events", id: cursor });
+    return this.olderEvents;
+  }
+  async setBudget(_experimentId: string, body: BudgetBody): Promise<BudgetViewDto> {
+    this.alertCalls.push({ op: "setBudget", body });
+    if (this.alertError) throw this.alertError;
+    const view: BudgetViewDto = { budget: { experimentId: "exp-1", ...body, updatedAt: "2026-10-10T00:00:00.000Z" }, month: "2026-10-01", spentUsd: 0, percent: 0, projectedUsd: null };
+    this.alerts = { ...this.alerts, budget: view };
+    return view;
+  }
+  async deleteBudget(): Promise<void> {
+    this.alertCalls.push({ op: "deleteBudget" });
+    this.alerts = { ...this.alerts, budget: null };
+  }
+  async listOpenAlerts(): Promise<OpenAlertsDto> {
+    return this.openAlerts;
   }
   retention: RetentionPolicyDto = { organizationId: "org-1", defaultDays: 30, minDays: 1, maxDays: 365, experiments: [] };
   retentionCalls: Array<{ scope: "organization" | "experiment"; id: string; days: number | null }> = [];

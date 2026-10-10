@@ -42,3 +42,13 @@ export async function auditOrganization(
 ): Promise<void> {
   await getAudit().recordBestEffort({ organizationId, experimentId: null, actorUserId: user.id, actorLabel: user.email, action, targetType: target.type, targetId: target.id, metadata });
 }
+
+/** Contexto que los servicios de alertas reciben de la ruta: el experimento y su organización, ya comprobados al validar el permiso. */
+export function auditContext(access: { organizationId: string }, experimentId: string): { experimentId: string; organizationId: string } {
+  return { experimentId, organizationId: access.organizationId };
+}
+
+/** La persona de la sesión tal como la piden los servicios que auditan (`userId` + email). */
+export function actorOf(user: Pick<User, "id" | "email">): { userId: string; email: string } {
+  return { userId: user.id, email: user.email };
+}

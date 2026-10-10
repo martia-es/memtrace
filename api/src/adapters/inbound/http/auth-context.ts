@@ -21,6 +21,8 @@ export async function requireUser(): Promise<User | Response> {
 export interface ExperimentContext {
   user: User;
   serviceName: string;
+  /** organización dueña del experimento (para el registro de auditoría) */
+  organizationId: string;
   /** etiqueta del rol; para decidir qué se puede hacer, usar `permissions` */
   role: string;
   permissions: Permission[];
@@ -41,7 +43,7 @@ export async function requirePermission(experimentId: string, permission: Permis
   const access = await authorizationService.resolveExperimentAccess(user.id, experimentId);
   if (access === null) return problem(403, "Forbidden", "No access to this experiment");
   if (!access.permissions.includes(permission)) return problem(403, "Forbidden", `Missing permission: ${permission}`);
-  return { user, serviceName: experiment.serviceName, role: access.role, permissions: access.permissions };
+  return { user, serviceName: experiment.serviceName, organizationId: experiment.organizationId, role: access.role, permissions: access.permissions };
 }
 
 /** Sesión + `org:manage` sobre la organización: ajustes de identidad externa, mapeos y tokens SCIM (ADR-052). */
@@ -108,7 +110,7 @@ export async function requireAnyPermission(experimentId: string, permissions: Pe
   const access = await authorizationService.resolveExperimentAccess(user.id, experimentId);
   if (access === null) return problem(403, "Forbidden", "No access to this experiment");
   if (!permissions.some((p) => access.permissions.includes(p))) return problem(403, "Forbidden", `Missing permission: ${permissions.join(" or ")}`);
-  return { user, serviceName: experiment.serviceName, role: access.role, permissions: access.permissions };
+  return { user, serviceName: experiment.serviceName, organizationId: experiment.organizationId, role: access.role, permissions: access.permissions };
 }
 
 /** Sesión + un permiso concedido por el rol de organización (catálogo de asistentes, ADR-053). */

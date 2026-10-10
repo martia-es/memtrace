@@ -12,6 +12,7 @@ import { CURRENT_EXPERIMENT } from "@/dependency-container";
 import ExperimentSelect from "../components/ExperimentSelect.vue";
 import { hasPermission } from "../composables/usePermissions";
 import UserMenu from "../components/UserMenu.vue";
+import AlertBell from "../components/AlertBell.vue";
 import AssistantChatDock from "../components/AssistantChatDock.vue";
 import FilterBar from "../components/FilterBar.vue";
 import LiveControl from "../components/LiveControl.vue";
@@ -50,6 +51,7 @@ const NAV: readonly NavGroup[] = [
       { name: "overview-charts", label: "Custom charts", sections: ["charts"] },
       { name: "overview-catalog", label: "Data catalog", sections: ["catalog"] },
       { name: "overview-reports", label: "Reports", sections: ["reports"] },
+      { name: "alerts", label: "Alerts", sections: ["alerts"] },
     ],
   },
   { id: "conversations", label: "Conversations", icon: "M4 5h16v11H9l-5 4z", children: [{ name: "conversations", label: "Conversations", sections: ["conversations"] }] },
@@ -244,6 +246,7 @@ function switchExperiment(experimentId: string | null) {
           <FilterBar :range="f.range.value" :custom="f.customRange.value" @update:range="f.setRange" @update:custom="f.setCustomRange" />
           <LiveControl :seconds="liveSeconds" :updated-at="liveUpdatedAt" @update:seconds="setRefreshSeconds" @refresh="requestRefresh" />
         </div>
+        <AlertBell />
       </header>
       <main class="content" :class="{ scroll: !framed }">
         <router-view v-if="framed" />

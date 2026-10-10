@@ -10,8 +10,8 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 
 | # | Estado | Tema | Qué falta | Prioridad | Esfuerzo | Depende de | ADR previsto |
 |---|---|---|---|---|---|---|---|
-| F1 | [ ] | **Alertas** | Reglas con umbral sobre error rate, latencia, coste y satisfacción (👍/👎), con notificación (email primero; webhook/Slack después) | A | M | — | observability |
-| F2 | [ ] | **Presupuestos de coste** | Budget mensual por experimento, aviso al 80 % y al 100 %, proyección a fin de mes | A | S | F1 (reutiliza el motor de reglas) | pricing |
+| F1 | [x] | **Alertas** | Hecho ([ADR-086](adrs/observability/adr-086-alerts-and-cost-budgets.md)): reglas sobre tasa de error, latencia p95, coste, satisfacción y gráficas guardadas; email a una lista por regla y campana en la app. Webhooks pendientes | A | M | — | observability |
+| F2 | [x] | **Presupuestos de coste** | Hecho (ADR-086): presupuesto mensual por agente con aviso de umbral, superado y previsión a fin de mes | A | S | F1 (reutiliza el motor de reglas) | pricing |
 | F3 | [ ] | **Evaluación online** | Muestreo configurable de trazas de producción + evaluadores/juez ya existentes, scores en ClickHouse enlazados a la traza | A | L | F1 (alertar sobre caídas de score) | evaluation |
 | F4 | [x] | **Retención y PII en trazas** | Hecho ([ADR-084](adrs/storage/adr-084-data-protection-retention-masking-audit-and-export.md)): retención por organización y experimento, y PII enmascarada con `****` en el SDK y en el Collector antes de guardar (los nombres solo los cubre el SDK) | A | M | — | storage / identity |
 | F5 | [ ] | **Gate de regresión en PR** | Extender el gate de despliegue (ADR-064) para que un PR no pueda fusionarse si bajan las métricas de la evaluación offline | M | M | Fase 2c de ADR-064 | governance |
@@ -72,3 +72,4 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 | 2026-10-10 | Creación del documento a partir de la revisión de la Fase 1 |
 | 2026-10-10 | F4 y F7 hechos (ADR-084). Nuevos pendientes: F9 (validar `service.name` en el gateway) y M8 (consultar más de 30 días) |
 | 2026-10-10 | F9 hecho (ADR-085) |
+| 2026-10-10 | F1 y F2 hechos (ADR-086). Pendiente de este bloque: webhooks para las alertas |

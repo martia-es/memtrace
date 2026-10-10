@@ -239,13 +239,27 @@ Unlike the endpoints above, this one isn't scoped to a single `{experimentId}` â
 | `GET, POST /experiments/{experimentId}/api-keys` | List / create agent API keys. `technical` sees and creates their own; `org_admin` sees all |
 | `DELETE /experiments/{experimentId}/api-keys/{keyId}` | Revoke a key |
 
+## Alerts and budgets (ADR-086)
+
+| Endpoint | Description |
+|---|---|
+| `GET /experiments/{experimentId}/alerts` | `{ rules: [{ rule, status }], events, budget }`: every alert with its last state (`ok`, `firing`, `no_data`, or `null` before the first check), the 20 latest events and the budget. `experiment:read` |
+| `POST /experiments/{experimentId}/alerts` | Creates an alert (`201`). Body: `{ name, metric, comparator, threshold, windowMinutes, recipients?, minSamples?, reminderMinutes?, customMetricId?, enabled? }`. `metric` is `error_rate`, `latency_p95`, `cost`, `satisfaction` or `custom`; `comparator` is `above` or `below`; the threshold is in % for error rate and satisfaction, ms for latency, USD for cost. `windowMinutes` 5 to 1440; `reminderMinutes` 15 to 10080 or empty; up to 10 `recipients`. `customMetricId` is required for `custom` and must be a saved chart about one step with no split. `400` names the wrong fields. `alert:manage` |
+| `PUT /experiments/{experimentId}/alerts/{ruleId}` | Replaces an alert with the same body, and resets its state. `404` if it is not in that experiment. `alert:manage` |
+| `DELETE /experiments/{experimentId}/alerts/{ruleId}` | Deletes it with its state and history. `alert:manage` |
+| `GET /experiments/{experimentId}/alerts/events` | History, newest first: `{ items: [{ id, ruleId, at, kind, value, threshold, emailed }], nextCursor }`. `kind` is `fired`, `resolved` or `reminder`; `emailed` is how many addresses got the email. Params `limit` (1 to 200) and `cursor`. `experiment:read` |
+| `GET /experiments/{experimentId}/budget` | `{ budget: null }`, or `{ budget: { budget, month, spentUsd, percent, projectedUsd } }` with the month's spend and the month-end forecast (`null` before day 3). `experiment:read` |
+| `PUT /experiments/{experimentId}/budget` | `{ monthlyUsd, warnPercent?, recipients?, enabled? }` (warning 1 to 99, 80 by default). `alert:manage` |
+| `DELETE /experiments/{experimentId}/budget` | Removes it (`404` if there is none). `alert:manage` |
+| `GET /alerts/open` | `{ items }`: the alerts firing now in every experiment you can read, for the bell. Not scoped to one experiment |
+
 ## Data protection (ADR-084)
 
 | Endpoint | Description |
 |---|---|
 | `GET, PUT /organizations/{organizationId}/retention` | Trace retention of the organization. `GET` returns `{ organizationId, defaultDays, minDays, maxDays, experiments: [{ experimentId, name, serviceName, overrideDays, effectiveDays }] }`. `PUT { days }` sets the organization period (a whole number from 1 to 365, `400` otherwise); an experiment's own period longer than the new one is removed. `retention:manage` (`org_admin`) |
 | `PUT /organizations/{organizationId}/experiments/{experimentId}/retention` | `{ days }` gives the experiment its own period, never longer than the organization's (`400`); `{ days: null }` goes back to the organization's. `404` if the experiment is not in that organization. `retention:manage` |
-| `GET /organizations/{organizationId}/audit` | Audit log, newest first: `{ items: [{ id, at, experimentId, actorUserId, actorLabel, action, targetType, targetId, metadata }], nextCursor }`. Params: `action` (`trace.view`, `conversation.view`, `data.export`, `retention.update`, `retention.purge`, `member.add`, `apikey.create`, `apikey.revoke`), `experimentId`, `actorUserId`, `from`, `to`, `limit` (1 to 200, 50 by default) and `cursor`. Identifiers only, never content. `audit:read` (`org_admin`) |
+| `GET /organizations/{organizationId}/audit` | Audit log, newest first: `{ items: [{ id, at, experimentId, actorUserId, actorLabel, action, targetType, targetId, metadata }], nextCursor }`. Params: `action` (`trace.view`, `conversation.view`, `data.export`, `retention.update`, `retention.purge`, `member.add`, `apikey.create`, `apikey.revoke`, `alert.create`, `alert.update`, `alert.delete`, `budget.update`, `budget.delete`), `experimentId`, `actorUserId`, `from`, `to`, `limit` (1 to 200, 50 by default) and `cursor`. Identifiers only, never content. `audit:read` (`org_admin`) |
 | `GET /experiments/{experimentId}/export` | Streams the data of the experiment as JSON Lines (`application/x-ndjson`, one record per line, no guaranteed order). Params: `kind` (`traces`, `annotations`, `feedback` or `scores`), `from` and `to` (ISO 8601, both required, at most 31 days; `to` is exclusive). `400` for a bad request, `413` above 2,000,000 records. The export is recorded in the audit log **before** the first byte; if it cannot be recorded, nothing is exported. With `dryRun=1` it only validates and returns `{ rows, maxRows }`, without recording anything. `data:export` (`technical`) |
 
 ## SCIM 2.0
