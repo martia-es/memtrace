@@ -4,7 +4,7 @@ export default defineConfig({
   title: "MemTrace Docs",
   description: "Observability and learning for AI agents: the Python library and the MemTrace platform.",
   cleanUrls: true,
-  markdown: { theme: { light: "github-light", dark: "github-dark" } },
+  markdown: { theme: { light: "github-dark", dark: "github-dark" } },
   sitemap: { hostname: "https://docs.memtraces.ai" },
   themeConfig: {
     nav: [
