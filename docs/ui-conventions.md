@@ -61,8 +61,10 @@ Tres modos de visualización: `bubble` (ventana flotante), `dock` (panel lateral
 
 ## 7. Run offline (dataset)
 
-- El botón **Run offline** de la cabecera del dataset abre un modal a pantalla completa (`RunOfflineModal`): a la izquierda dataset/versión, métricas y entorno del agente; a la derecha el script, el `.env` y los comandos de instalación con Copy/Download.
+- Un botón de icono `</>` (no «Run offline»: no ejecuta nada) en la cabecera del dataset abre un modal a pantalla completa (`RunOfflineModal`): a la izquierda dataset/versión, métricas y entorno del agente; a la derecha el script, el `.env` y los comandos de instalación con Copy/Download.
 - El texto sale de funciones puras en `domain/eval-script.ts` (`buildEvalScript`, `buildEvalEnv`, `buildEvalInstall`); no hay endpoint nuevo. El host sale del despliegue y el contrato JSON de `chat` de la ficha del agente (ADR-055). Sin chat declarado, el script trae una función para rellenar.
+- El código se pinta con `CodeBlock` (resaltador propio en `domain/code-highlight.ts`, sin dependencias) y los tokens `--mt-code-*` de `app.css`, con valores claros y oscuros. Usarlo para cualquier bloque de código nuevo.
+- Sin runs, **Evaluations › Runs** y la pestaña Runs del dataset muestran `OfflineRunSteps` (tres pasos) en vez de un estado vacío de una línea.
 - **Nunca lleva secretos**: la API key de MemTrace, la de Anthropic y el token del agente son marcadores `PASTE_…` y el modal avisa de cuáles faltan. Solo se ofrecen métricas que funcionan con el agente corriendo en otro proceso (`exact_match`, `contains`, `Correctness`); Faithfulness y las de retrieval necesitan el contexto en el mismo proceso.
 
 ## Cómo añadir cosas
