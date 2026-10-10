@@ -6,7 +6,7 @@ Instruments AI agents and exports traces over OTLP (OpenTelemetry GenAI conventi
 
 ```bash
 pip install memtrace-ai
-# extras: http (OTLP/HTTP), langchain, eval, pydantic-ai, pii, dev
+# extras: grpc (OTLP/gRPC), langchain, eval, pydantic-ai, pii, dev
 ```
 
 ```python
@@ -47,8 +47,8 @@ Spans created inside a `@trace_step` (or inside `with memtrace.session("id")`) h
 | `MEMTRACE_ENABLED` | `true` | `false` disables everything (no-op) |
 | `MEMTRACE_SERVICE_NAME` | `default-agent` | `service.name` |
 | `MEMTRACE_SERVICE_VERSION`, `MEMTRACE_ENVIRONMENT` | - | Resource attributes |
-| `MEMTRACE_OTLP_ENDPOINT` | `http://localhost:4317` (grpc) / `:4318` (http) | |
-| `MEMTRACE_OTLP_PROTOCOL` | `grpc` | or `http/protobuf` (extra `http`) |
+| `MEMTRACE_OTLP_ENDPOINT` | `http://localhost:4318` (http) / `:4317` (grpc) | any OTLP endpoint |
+| `MEMTRACE_OTLP_PROTOCOL` | `http/protobuf` | or `grpc` (extra `grpc`) |
 | `MEMTRACE_OTLP_HEADERS` | - | `k1=v1,k2=v2` |
 | `MEMTRACE_CAPTURE_CONTENT` | `false` | store prompts/completions/arguments (ADR-004); also gates the auto-instrumentations |
 | `MEMTRACE_MAX_CONTENT_LENGTH` | `16384` | truncation of captured content |
@@ -68,6 +68,6 @@ Hexagonal (ADR-008): `domain` (pure) → `application` (`SpanPort` port + `Traci
 ## Development
 
 ```bash
-pip install -e ".[dev,http]"
+pip install -e ".[dev]"
 ruff check memtrace tests && mypy memtrace && pytest
 ```

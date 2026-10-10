@@ -22,12 +22,12 @@ def test_sanitize_value_keeps_bool_before_int():
 
 
 def test_grpc_exporter_is_built_for_http_and_https_endpoints():
+    pytest.importorskip("opentelemetry.exporter.otlp.proto.grpc.trace_exporter")
     assert build_otlp_exporter("grpc", "http://localhost:4317", {"k": "v"}, 1000) is not None
     assert build_otlp_exporter("grpc", "https://collector:4317", None, 1000) is not None
 
 
 def test_http_exporter_appends_traces_path():
-    pytest.importorskip("opentelemetry.exporter.otlp.proto.http.trace_exporter")
     exporter = build_otlp_exporter("http/protobuf", "http://localhost:4318", None, 1000)
     assert exporter._endpoint == "http://localhost:4318/v1/traces"
     keep = build_otlp_exporter("http/protobuf", "http://x/v1/traces/", None, 1000)
