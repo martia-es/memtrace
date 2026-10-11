@@ -97,15 +97,15 @@ describe("Breakdown page", () => {
     const trace = new FakeTraceApi();
     const router = await open(trace);
     expect(q("breakdown-empty")?.textContent).toContain("memtrace.prompts");
-    q("group-environment")!.click();
+    q("tab-environment")!.click();
     await flushPromises();
     expect(router.currentRoute.value.query.groupBy).toBe("environment");
     expect(trace.breakdownCalls).toEqual(["prompt_version", "environment"]);
     expect(q("breakdown-empty")?.textContent).toContain("environment=");
   });
 
-  it("offers User as a coming feature, disabled", async () => {
+  it("offers User as a coming tab, disabled", async () => {
     await open(new FakeTraceApi());
-    expect(q<HTMLButtonElement>("group-user")!.disabled).toBe(true);
+    expect(q<HTMLButtonElement>("tab-user")!.disabled).toBe(true);
   });
 });
