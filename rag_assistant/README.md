@@ -80,4 +80,4 @@ uv run python evals/run_eval.py --mock --local         # sin LLM: todo pasa (pru
 
 ## Pendiente
 
-Embeddings como segundo retriever (híbrido), y los workflows de CI/despliegue (ADR-064) que ya tiene el asistente del tiempo.
+Embeddings como segundo retriever (híbrido) y el workflow de despliegue (ADR-064) que ya tiene el asistente del tiempo. La evaluación en CI ya está: `.github/workflows/rag-assistant-eval.yml` (variables `RAG_MEMTRACE_*`, descritas en el propio archivo).

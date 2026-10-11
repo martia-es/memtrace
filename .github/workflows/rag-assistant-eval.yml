@@ -1,0 +1,63 @@
+name: RAG assistant evaluation
+
+# Evalúa el commit y sube el run a MemTrace (ADR-064, ADR-065): el gate de despliegue exige una evaluación exitosa de exactamente el
+# commit que se va a desplegar y, con el gate en el PR activado para este agente, MemTrace publica el check `memtrace/eval-gate`
+# en el último commit del PR.
+#
+# Es otro experimento que el del asistente del tiempo, así que tiene sus propias variables (Settings → Secrets and variables → Actions):
+#   variables: RAG_MEMTRACE_SERVICE_NAME, RAG_MEMTRACE_API_URL (https://<memtrace>/api/v1/experiments/<experimentId>), RAG_MEMTRACE_DATASET_ID
+#   secreto:   RAG_MEMTRACE_API_KEY
+#   opcional:  EVAL_MOCK=true (la misma variable que usa el asistente del tiempo) para ver el gate en verde sin gastar cuota de Gemini
+#
+# La recuperación usa BM25: es determinista y no necesita red, así que una caída de la métrica significa que cambió el agente o el prompt.
+on:
+  # A mano desde la pestaña Actions: GITHUB_SHA es la punta de la rama elegida
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "rag_assistant/**"
+      - "sdk/python/**"
+      - ".github/workflows/rag-assistant-eval.yml"
+  push:
+    branches: [main, develop]
+    paths:
+      - "rag_assistant/**"
+      - "sdk/python/**"
+      - ".github/workflows/rag-assistant-eval.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rag_assistant
+    env:
+      # El commit que se evalúa. En un PR, GITHUB_SHA es el de una fusión de prueba que GitHub fabrica; el check de MemTrace
+      # (memtrace/eval-gate, ADR-064 fase 3) se publica sobre el último commit del PR, así que se pasa ese.
+      MEMTRACE_GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      RAG_ASSISTANT_RETRIEVER: bm25
+      RAG_ASSISTANT_SERVICE_NAME: ${{ vars.RAG_MEMTRACE_SERVICE_NAME }}
+      MEMTRACE_API_URL: ${{ vars.RAG_MEMTRACE_API_URL }}
+      MEMTRACE_DATASET_ID: ${{ vars.RAG_MEMTRACE_DATASET_ID }}
+      MEMTRACE_API_KEY: ${{ secrets.RAG_MEMTRACE_API_KEY }}
+      RAG_ASSISTANT_MEMTRACE_HEADERS: authorization=Bearer ${{ secrets.RAG_MEMTRACE_API_KEY }}
+      GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+      EVAL_MOCK: ${{ vars.EVAL_MOCK }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --all-groups --frozen
+
+      - name: Tests
+        run: uv run pytest -q
+
+      # Los PR de forks no reciben secretos: ahí solo corren los tests.
+      - name: Evaluate and upload the run to MemTrace
+        if: env.MEMTRACE_API_KEY != '' && env.MEMTRACE_DATASET_ID != '' && (env.EVAL_MOCK == 'true' || env.GOOGLE_API_KEY != '')
+        run: |
+          MOCK=""
+          if [ "$EVAL_MOCK" = "true" ]; then MOCK="--mock"; fi
+          uv run python evals/run_eval.py $MOCK --name "${MEMTRACE_GIT_SHA::7}" --dataset-id "$MEMTRACE_DATASET_ID" --min-pass-rate 0.8
