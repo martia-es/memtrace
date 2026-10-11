@@ -7,7 +7,7 @@ import { describeApiError } from "@/application/describe-api-error";
 import { formatCostUsd, formatCount, formatDateTime, formatDuration, formatPercent, formatRelativeTime } from "@/domain/format";
 import { MIN_TRACES, compareVersions, evaluatorCell, evaluatorNames, sampleQuality } from "@/domain/prompt-evidence";
 import { requestTitle } from "@/domain/approvals";
-import { describeUsage, environmentsRunning, type UsageState } from "@/domain/prompt-usage";
+import { describeUsage, environmentsRunning, followersOf, followSnippet, tagNameError, type UsageState } from "@/domain/prompt-usage";
 import { sortEnvironments, splitVariables } from "@/domain/prompt-release";
 import { includeSyntax } from "@/domain/prompt-fragment";
 import { sideBySideDiff } from "@/domain/text-diff";
@@ -365,11 +365,24 @@ async function moveTag(tag: string, version: number | null) {
     moving.value = false;
   }
 }
+const newTagError = computed(() => (newTag.value.trim() ? tagNameError(newTag.value.trim(), environmentKeys.value) : null));
 async function addFreeTag() {
   const tag = newTag.value.trim();
-  if (!tag || selected.value === null) return;
+  if (!tag || selected.value === null || newTagError.value) return;
   await moveTag(tag, selected.value);
   newTag.value = "";
+}
+const followers = (tag: string) => followersOf(usageRows.value, tag);
+const snippetOf = (tag: string) => followSnippet(data.value?.prompt.name ?? "", tag);
+const copiedTag = ref<string | null>(null);
+async function copySnippet(tag: string) {
+  try {
+    await navigator.clipboard.writeText(snippetOf(tag));
+    copiedTag.value = tag;
+    setTimeout(() => (copiedTag.value = null), 1200);
+  } catch {
+    /* clipboard unavailable */
+  }
 }
 
 // ---- promoción con garantías (ADR-070) ----
@@ -821,18 +834,48 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   </div>
                 </div>
                 <div class="other-tags">
-                  <span class="eyebrow">OTHER</span>
-                  <div class="free-tags">
-                    <span v-for="t in freeTags" :key="t.tag" class="free-tag">
-                      <span class="mono">{{ t.tag }}</span><strong class="mono">v{{ t.version }}</strong>
-                      <Button variant="icon" size="sm" v-if="canWrite" class="x" :aria-label="`Remove the ${t.tag} tag`" @click="moveTag(t.tag, null)">×</Button>
-                    </span>
-                    <span v-if="freeTags.length === 0" class="soft">No free tags.</span>
+                  <div class="other-head">
+                    <strong>Custom tags</strong>
+                    <span class="soft">No approval needed</span>
                   </div>
+                  <p class="soft other-help">
+                    A custom tag is a channel with your own name. An agent follows it with <code>tag="canary"</code> and receives the version it points to, so moving the tag updates the agent without a deploy.
+                  </p>
+                  <div v-for="t in freeTags" :key="t.tag" class="free-card" :data-testid="`free-tag-${t.tag}`">
+                    <div class="free-row">
+                      <span class="free-tag mono">{{ t.tag }}</span>
+                      <strong class="mono">v{{ t.version }}</strong>
+                      <span class="grow"></span>
+                      <div v-if="canWrite" class="move">
+                        <Select :model-value="pending[t.tag] ?? t.version" :options="versionOptions" placeholder="Point to…" @update:model-value="pending[t.tag] = $event" />
+                        <Button size="sm" :disabled="moving || pending[t.tag] == null || pending[t.tag] === t.version" :data-testid="`move-${t.tag}`" @click="moveTag(t.tag, pending[t.tag]!)">Move</Button>
+                        <Button variant="icon" :aria-label="`Remove the ${t.tag} tag`" title="Remove the tag" @click="moveTag(t.tag, null)">×</Button>
+                      </div>
+                    </div>
+                    <ul v-if="followers(t.tag).length" class="followers" :data-testid="`followers-${t.tag}`">
+                      <li v-for="u in followers(t.tag)" :key="`${u.experimentId}-${u.environment}-${u.version}`">
+                        <Pill :tone="USAGE_TONE[u.state]" class="usage">{{ USAGE_LABEL[u.state] }}</Pill>
+                        <span>{{ u.environment || "no environment" }} · running <strong class="mono">v{{ u.version }}</strong></span>
+                        <span class="grow"></span>
+                        <span class="soft">{{ formatRelativeTime(u.lastSeenAt, nowMs) }}</span>
+                      </li>
+                    </ul>
+                    <div v-else class="no-followers" :data-testid="`no-followers-${t.tag}`">
+                      <strong>No agent follows this tag yet</strong>
+                      <span>Paste this in the agent.</span>
+                      <div class="snippet">
+                        <code>{{ snippetOf(t.tag) }}</code>
+                        <button type="button" class="copy" @click="copySnippet(t.tag)">{{ copiedTag === t.tag ? "Copied" : "Copy" }}</button>
+                      </div>
+                    </div>
+                  </div>
+                  <p v-if="freeTags.length === 0" class="soft">No custom tags yet.</p>
                   <form v-if="canWrite && selected !== null" class="add-tag" @submit.prevent="addFreeTag">
                     <TextInput v-model="newTag" placeholder="new-tag" mono size="sm" data-testid="new-tag" />
-                    <Button variant="primary" size="sm" type="submit" :disabled="moving || !newTag.trim()" data-testid="add-tag">Tag v{{ selected }}</Button>
+                    <Button variant="primary" size="sm" type="submit" :disabled="moving || !newTag.trim() || !!newTagError" data-testid="add-tag">Tag v{{ selected }}</Button>
                   </form>
+                  <p v-if="newTagError" class="soft tag-error" data-testid="new-tag-error">{{ newTagError }}</p>
+                  <p v-else class="soft">Lowercase letters, digits, “-” and “_”, starting with a letter. dev, pre and pro are environments and have their own rules.</p>
                 </div>
               </section>
 
@@ -1471,15 +1514,89 @@ h3 {
 
 .other-tags {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px;
   background: var(--mt-accent-tint);
 }
-.other-tags .free-tags {
+.other-tags p {
+  margin: 0;
+}
+.other-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.other-help {
+  line-height: 1.5;
+}
+.free-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--mt-card);
+  border: 1px solid var(--mt-line);
+}
+.free-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.grow {
+  flex: 1;
+}
+.followers {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.followers li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--mt-accent-tint);
+}
+.no-followers {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--mt-warn-bg);
+  color: var(--mt-ink);
+}
+.snippet {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--mt-ink);
+  color: var(--mt-card);
+}
+.snippet code {
   flex: 1;
   min-width: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.snippet .copy {
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.tag-error {
+  color: var(--mt-err-ink);
 }
 .add-tag {
   display: flex;
