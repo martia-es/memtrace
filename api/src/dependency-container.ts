@@ -38,6 +38,7 @@ import { PostgresChartCatalogRepository } from "@/adapters/outbound/postgres/pos
 import { PostgresApprovalRepository } from "@/adapters/outbound/postgres/postgres-approval-repository";
 import { PostgresPromptRepository } from "@/adapters/outbound/postgres/postgres-prompt-repository";
 import { PromptService } from "@/application/prompt-service";
+import { BreakdownService } from "@/application/breakdown-service";
 import { PromptEvidenceService } from "@/application/prompt-evidence-service";
 import { PromptFailureService } from "@/application/prompt-failure-service";
 import { PromptMapService } from "@/application/prompt-map-service";
@@ -53,6 +54,7 @@ import { ApprovalRuleResolver } from "@/application/approval-rules";
 import { ApprovalService } from "@/application/approval-service";
 import { PromptGateService } from "@/application/prompt-gate-service";
 import { PromptPlaygroundService } from "@/application/prompt-playground-service";
+import { ClickHouseBreakdownRepository } from "@/adapters/outbound/clickhouse/clickhouse-breakdown-repository";
 import { ClickHousePromptEvidenceRepository } from "@/adapters/outbound/clickhouse/clickhouse-prompt-evidence-repository";
 import { PostgresScoreConfigRepository } from "@/adapters/outbound/postgres/postgres-score-config-repository";
 import { PostgresIdentityRepository } from "@/adapters/outbound/postgres/postgres-identity-repository";
@@ -92,6 +94,7 @@ const globalForContainer = globalThis as unknown as {
   __memtraceApprovals?: ApprovalService;
   __memtraceApprovalRepository?: PostgresApprovalRepository;
   __memtracePromptEvidence?: PromptEvidenceService;
+  __memtraceBreakdown?: BreakdownService;
   __memtracePromptFailures?: PromptFailureService;
   __memtracePromptGate?: PromptGateService;
   __memtracePromptMap?: PromptMapService;
@@ -429,6 +432,15 @@ export function getPrompts(): PromptService {
 }
 
 /** Evidencia por versión de un prompt (ADR-069): trazas, feedback y scores, con los precios del catálogo. */
+/** Overview › Breakdown: trazas por versión de prompt o por entorno. */
+export function getBreakdown(): BreakdownService {
+  if (!globalForContainer.__memtraceBreakdown) {
+    const config = configFromEnv();
+    globalForContainer.__memtraceBreakdown = new BreakdownService(new ClickHouseBreakdownRepository(createReadOnlyClient(config), config.database, config.maxConcurrentQueries), () => getTraceQueryService().getPricingCatalog());
+  }
+  return globalForContainer.__memtraceBreakdown;
+}
+
 export function getPromptEvidence(): PromptEvidenceService {
   if (!globalForContainer.__memtracePromptEvidence) {
     globalForContainer.__memtracePromptEvidence = new PromptEvidenceService(getPromptEvidenceRepository(), () => getTraceQueryService().getPricingCatalog());

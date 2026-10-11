@@ -49,7 +49,7 @@ Each span is a step: an LLM call, a tool, a retriever or an agent. Spans are col
 
 ## Overview
 
-The sidebar groups its pages in submenus. **Overview** opens **Summary**, **Compare**, **Custom charts** and **Reports**; each one is its own page with its own link, so you can bookmark or share it. The time range applies to all of them: from 15 minutes to **1 year** (presets 15 min, 1 h, 6 h, 24 h, 7 d, 30 d, 90 d and 1 y, or a custom range of up to 365 days). Traces older than the [retention period](data-protection#how-long-traces-are-kept) of the agent no longer exist, so a longer range shows only what is kept. In **Errors**, the comparison with the previous period is hidden when that period is older than the retention.
+The sidebar groups its pages in submenus. **Overview** opens **Summary**, **Compare**, **Breakdown**, **Custom charts** and **Reports**; each one is its own page with its own link, so you can bookmark or share it. The time range applies to all of them: from 15 minutes to **1 year** (presets 15 min, 1 h, 6 h, 24 h, 7 d, 30 d, 90 d and 1 y, or a custom range of up to 365 days). Traces older than the [retention period](data-protection#how-long-traces-are-kept) of the agent no longer exist, so a longer range shows only what is kept. In **Errors**, the comparison with the previous period is hidden when that period is older than the retention.
 
 ### Summary
 
@@ -79,6 +79,18 @@ Puts two experiments side by side over the same time range. They are different a
 - **"second compared with first"**: one bar per metric (cost, tokens, latency p50/p95/p99, error rate, conversations, executions) showing the % change. Green is better, red is worse, grey is neutral. Lower cost, tokens, latency and error rate count as better; conversations and executions are volume, so they are never good or bad. Changes under 5% are shown as neutral to avoid highlighting noise.
 - **Cost per execution** and **Input vs output tokens** (for each agent, what share of its tokens is the prompt and what share is the answer).
 - Overlaid charts for executions, tokens and latency p95: A is a solid line, B a dashed one.
+
+### Breakdown
+
+The same figures as **Summary**, split by prompt version or environment: every version of your agent in one table, so you can decide what to promote without opening prompt after prompt. Choose how to group the rows with **Group by**:
+
+- **Prompt version** (`weather-system v3`): one row per version that had traces in the range. The **Seen in** column lists the environments where it ran. Needs the agent to read its prompt with [`memtrace.prompts`](/library/prompts).
+- **Environment** (`dev`, `pre`, `pro`): one row per environment, with the prompt versions each one runs. Needs the agent to set its environment in the SDK configuration. Environments run different versions on purpose, so you can see an improvement in `pre` before promoting it to `pro`.
+- **User** is coming: it will need the SDK to send a pseudonymous user id with each trace.
+
+Each row shows its traces, error rate, p95 latency, cost per trace, total cost, a 7-day error trend and the 👍 rate from [user feedback](/library/feedback). The number after **±** is the 95 % margin of the error rate. When the margins of two rows overlap, the difference may be noise, so do not act on it. Rows with fewer than 20 traces are dimmed. Costs marked **≥** are a minimum, because some model has no price in the [price catalog](/platform/dashboard); the page says how many tokens are left without price. Traces from the prompt playground do not count.
+
+A banner at the top appears only when the worst and best rows are far enough apart to be reliable. **Tick two rows** to compare them: you get the change in errors, latency, cost and 👍 rate, each with a note on how far to trust it. **Open in Custom charts** goes to the chart builder, and **Export CSV** downloads the table with the raw figures.
 
 ### Custom charts
 

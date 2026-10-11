@@ -49,6 +49,7 @@ const NAV: readonly NavGroup[] = [
     children: [
       { name: "overview", label: "Summary", sections: ["overview"] },
       { name: "overview-compare", label: "Compare", sections: ["compare"] },
+      { name: "overview-breakdown", label: "Breakdown", sections: ["breakdown"] },
       { name: "overview-charts", label: "Custom charts", sections: ["charts"] },
       { name: "overview-catalog", label: "Data catalog", sections: ["catalog"] },
       { name: "overview-reports", label: "Reports", sections: ["reports"] },
