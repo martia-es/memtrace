@@ -18,6 +18,8 @@ export const AUDIT_ACTIONS = [
   "alert.delete",
   "budget.update",
   "budget.delete",
+  /** una persona confirmó, descartó o limpió qué entrada de Arena es un modelo del catálogo de precios (ADR-025) */
+  "model_match.update",
   /** un `org_admin` eximió a un agente de la regla de aprobación de la organización en un paso, o lo revirtió (ADR-076) */
   "approval_exemption.grant",
   "approval_exemption.revoke",

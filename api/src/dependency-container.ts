@@ -45,6 +45,8 @@ import { PromptMapService } from "@/application/prompt-map-service";
 import { ChartCatalogService } from "@/application/chart-catalog-service";
 import { MAX_RETENTION_DAYS } from "@/domain/retention";
 import { RetentionService } from "@/application/retention-service";
+import { ModelQualityService } from "@/application/model-quality-service";
+import { PostgresModelQualityRepository } from "@/adapters/outbound/postgres/postgres-model-quality-repository";
 import { ExportService } from "@/application/export-service";
 import { AlertService } from "@/application/alert-service";
 import { PostgresAlertRepository } from "@/adapters/outbound/postgres/postgres-alert-repository";
@@ -89,6 +91,7 @@ const globalForContainer = globalThis as unknown as {
   __memtraceChartCatalog?: ChartCatalogService;
   __memtraceAudit?: AuditService;
   __memtraceRetention?: RetentionService;
+  __memtraceModelQuality?: ModelQualityService;
   __memtraceExport?: ExportService;
   __memtraceAlerts?: AlertService;
   __memtraceApprovals?: ApprovalService;
@@ -349,6 +352,14 @@ export function getAudit(): AuditService {
 export function getRetention(): RetentionService {
   if (!globalForContainer.__memtraceRetention) globalForContainer.__memtraceRetention = new RetentionService(new PostgresRetentionRepository(getPostgresPool()), getAudit());
   return globalForContainer.__memtraceRetention;
+}
+
+/** Calidad por modelo de Arena y las decisiones de cada organización sobre las coincidencias (ADR-025). */
+export function getModelQuality(): ModelQualityService {
+  if (!globalForContainer.__memtraceModelQuality) {
+    globalForContainer.__memtraceModelQuality = new ModelQualityService(getTraceRepository(), new PostgresModelQualityRepository(getPostgresPool()), getAudit());
+  }
+  return globalForContainer.__memtraceModelQuality;
 }
 
 /**

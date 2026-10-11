@@ -1,6 +1,7 @@
 import type { ErrorGroupsResult } from "@/domain/error-categories";
 import type { ConversationCursor, ConversationSummary, ConversationUsage } from "@/domain/conversation";
 import type { AttributeKeyCount, AttributeValueCount, CustomMetricQuery, CustomMetricResult, MetricsOverview, MetricsQuery, ServiceUsage, StepKindCount } from "@/domain/metrics";
+import type { ArenaModel } from "@/domain/model-quality";
 import type { ModelPricing } from "@/domain/pricing";
 import type { ChatSpanRecord } from "@/domain/transcript";
 import type { Span } from "@/domain/span";
@@ -109,6 +110,10 @@ export interface TraceRepository {
   listSpans(query: SpanListQuery): Promise<Page<SpanRecord, SpanCursor>>;
   /** catálogo de precios vigente (ADR-025), un modelo por fila */
   getModelPricing(): Promise<ModelPricing[]>;
+  /** puntuaciones de calidad vigentes (ADR-025, ampliación): catálogo público de Arena, una entrada por fila */
+  getModelQuality(): Promise<ArenaModel[]>;
+  /** `gen_ai.request.model` distintos con alguna llamada en el rango, **solo** de los experimentos dados (los que la persona gestiona) */
+  listModelsInUse(scopes: TenantScope[], range: TimeRange): Promise<string[]>;
 
   /** `memtrace.step_type` distintos vistos en el rango, con conteo — alimenta el selector de tipo de paso (ADR-027) */
   getStepKinds(range: TimeRange & { scope: TenantScope }): Promise<StepKindCount[]>;

@@ -58,6 +58,13 @@ describe("built-in roles (ADR-052)", () => {
     expect(role("governance").permissions).not.toContain("alert:manage");
   });
 
+  it("model quality (ADR-025): technical decides which Arena entry is a model, nobody else does, and org_admin cannot because it reads no data", () => {
+    expect(role("technical").permissions).toContain("pricing:manage");
+    expect(role("business").permissions).not.toContain("pricing:manage");
+    expect(role("org_admin").permissions).not.toContain("pricing:manage");
+    expect(role("governance").permissions).not.toContain("pricing:manage");
+  });
+
   it("governance permissions (ADR-053): org_admin and governance see and decide, technical only maintains its own assistant", () => {
     expect(role("org_admin").permissions).toEqual(expect.arrayContaining(["governance:read", "governance:manage"]));
     expect(role("governance").scope).toBe("organization");
