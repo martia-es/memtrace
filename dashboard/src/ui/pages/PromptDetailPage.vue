@@ -657,14 +657,14 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
             <div v-if="mode === 'compare' && selectedVersion" class="pane" data-testid="pane-compare">
               <div class="compare-bar compare-toolbar">
                 <span class="muted">Compare</span>
-                <Select v-model="selected" :options="allVersionOptions" data-testid="compare-version" />
+                <div class="bar-select"><Select v-model="selected" :options="allVersionOptions" data-testid="compare-version" /></div>
                 <span class="muted">with</span>
-                <Select v-if="compareOptions.length > 0" v-model="compareWith" :options="compareOptions" data-testid="compare-with" />
+                <div class="bar-select"><Select v-if="compareOptions.length > 0" v-model="compareWith" :options="compareOptions" data-testid="compare-with" /></div>
                 <span v-else class="muted">nothing: this is the first version</span>
                 <span class="grow" />
                 <template v-if="compareVersion">
                   <span class="muted">behaviour over the last</span>
-                  <Select v-model="rangeKey" :options="rangeOptions" data-testid="behaviour-range" />
+                  <div class="bar-select"><Select v-model="rangeKey" :options="rangeOptions" data-testid="behaviour-range" /></div>
                 </template>
               </div>
               <section v-if="compareVersion" class="behaviour" data-testid="behaviour">
@@ -722,7 +722,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
             <div v-if="mode === 'evidence'" class="pane" data-testid="pane-evidence">
               <div class="compare-bar">
                 <span class="muted">Traces of the last</span>
-                <Select v-model="rangeKey" :options="rangeOptions" data-testid="evidence-range" />
+                <div class="bar-select"><Select v-model="rangeKey" :options="rangeOptions" data-testid="evidence-range" /></div>
                 <span class="grow" />
                 <span class="soft">A trace counts for every version it used.</span>
               </div>
@@ -1189,6 +1189,10 @@ h3 {
 }
 .compare-toolbar {
   flex-wrap: wrap;
+}
+.bar-select {
+  flex: none;
+  width: 120px;
 }
 .warn-banner {
   display: flex;
