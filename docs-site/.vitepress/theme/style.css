@@ -258,7 +258,9 @@ body { font-size: 14px; letter-spacing: 0; }
 @media (min-width: 960px) {
   .VPDoc { padding-inline: 0; }
   .VPNavBar.has-sidebar .content { padding-inline: 0 32px; }
-  .VPNavBar.has-sidebar .title { width: var(--vp-sidebar-width); padding: 0 24px; box-sizing: border-box; background: transparent; border-right: 1px solid #1d3c3a; }
+  /* brand box = sidebar width, logo centered, no divider (the search box already draws one) */
+  .VPNavBar.has-sidebar .title { width: var(--vp-sidebar-width); padding: 0; box-sizing: border-box; background: transparent; border-right: 0; }
+  .VPNavBar.has-sidebar .VPNavBarTitle, .VPNavBar.has-sidebar .VPNavBarTitle .title { width: 100%; padding: 0; justify-content: center; }
   /* no empty right column when a page has no headings for the outline */
   .VPDoc.has-aside:not(:has(.VPDocAsideOutline.has-outline)) .aside { display: none; }
   .VPDoc.has-aside:not(:has(.VPDocAsideOutline.has-outline)) .container { display: block; }
