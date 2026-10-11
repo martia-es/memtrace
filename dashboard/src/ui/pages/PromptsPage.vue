@@ -225,7 +225,7 @@ async function create() {
               <div v-if="r.prompt.description" class="desc">{{ r.prompt.description }}</div>
               <span class="sr-only" :data-testid="`release-${r.prompt.name}`">{{ r.release.state === "behind" ? `${r.release.behindBy} ${r.release.behindBy === 1 ? "version" : "versions"} behind in PRO` : r.release.state === "in_sync" ? "In sync" : "Not released" }}</span>
             </td>
-            <td class="type" :data-testid="`type-${r.prompt.name}`"><Pill v-if="r.prompt.kind === 'fragment'" tone="accent">Fragment</Pill><span v-else class="soft">Prompt</span></td>
+            <td class="type" :data-testid="`type-${r.prompt.name}`"><Pill v-if="r.prompt.kind === 'fragment'" tone="accent">Fragment</Pill><Pill v-else tone="info">Prompt</Pill></td>
             <td class="mono strong" :data-testid="`latest-${r.prompt.name}`">v{{ r.prompt.latestVersion }}</td>
             <td v-for="c in r.cells" :key="c.env">
               <span v-if="c.version === null" class="none" :data-testid="`tag-${r.prompt.name}-${c.env}`">—</span>
