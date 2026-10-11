@@ -33,12 +33,13 @@ To change a prompt, open a version and press **Edit as new version**. The new ve
 
 ## Tags: which version runs where
 
-A tag is a label that points to one version. The tags `dev`, `pre` and `pro` (the environments of your organization) say which version each environment uses; you can also create free tags such as `stable` or `candidate`.
+A tag is a label that points to one version. The tags `dev`, `pre` and `pro` (the environments of your organization) say which version each environment uses; you can also create **custom tags** such as `canary` or `test`.
 
-- Moving a **free tag** needs `prompt:write`.
+- Moving a **custom tag** needs `prompt:write` and no approval.
 - Moving an **environment tag** (`dev`, `pre`, `pro`) needs `prompt:promote`, which the `technical` role has by default.
 - Each move is saved in the **history** of the prompt: from which version to which, who did it, when and the reason you wrote. The author is shown as their name (or email if they have no name).
 - A version can be retrieved by number (`3`) or by tag (`pro`), also through the [API](./api#prompts).
+- **A custom tag is a channel with your own name.** An agent follows it with `memtrace.prompts.get("weather-system", tag="canary")` and receives the version it points to, so moving the tag updates the agent without a redeploy. In **Rules & approvals → Custom tags**, each tag shows the agents that follow it (environment, running version, last report). A tag nobody follows says so and shows the line to paste in the agent, with a **Copy** button. Names use lowercase letters, digits, `-` and `_`, start with a letter and have up to 32 characters; `dev`, `pre` and `pro` are environments and cannot be created here. The agent chooses its tag in its code; choosing it from this page is not available yet.
 
 ## Archive instead of delete
 

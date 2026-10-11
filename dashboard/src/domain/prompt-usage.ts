@@ -35,3 +35,22 @@ export function environmentsRunning(usage: PromptUsageDto[], version: number): s
   const names = usage.filter((u) => u.active && u.version === version).map((u) => u.environment || "?");
   return [...new Set(names)].sort();
 }
+
+/** Agentes activos que siguen un tag libre, para mostrar quién recibe lo que se mueva. */
+export function followersOf(rows: UsageRow[], tag: string): UsageRow[] {
+  return rows.filter((r) => r.tag === tag && r.state !== "stale");
+}
+
+/** La línea que un agente pega para seguir un tag. */
+export function followSnippet(promptName: string, tag: string): string {
+  return `prompts.get("${promptName}", tag="${tag}")`;
+}
+
+const TAG_PATTERN = /^[a-z][a-z0-9_-]{0,31}$/;
+
+/** Mismas reglas que la API (TAG_PATTERN) y que los entornos son de la organización: null si el nombre vale. */
+export function tagNameError(tag: string, environmentKeys: string[]): string | null {
+  if (environmentKeys.includes(tag)) return `“${tag}” is an environment: move it from the list above.`;
+  if (!TAG_PATTERN.test(tag)) return "Use lowercase letters, digits, “-” or “_”, starting with a letter (up to 32 characters).";
+  return null;
+}

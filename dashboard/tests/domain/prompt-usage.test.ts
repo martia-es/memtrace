@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PromptTagDto, PromptUsageDto } from "@contract";
-import { describeUsage, environmentsRunning } from "@/domain/prompt-usage";
+import { describeUsage, environmentsRunning, followersOf, followSnippet, tagNameError } from "@/domain/prompt-usage";
 
 const usage = (extra: Partial<PromptUsageDto>): PromptUsageDto => ({ experimentId: "a1", environment: "pro", tag: "pro", version: 2, lastSeenAt: "2026-10-08T10:00:00.000Z", active: true, ...extra });
 const tags: PromptTagDto[] = [
@@ -47,5 +47,25 @@ describe("environmentsRunning", () => {
 
   it("shows ? for an agent that declares no environment", () => {
     expect(environmentsRunning([usage({ environment: "" })], 2)).toEqual(["?"]);
+  });
+});
+
+describe("custom tags", () => {
+  it("lists the active agents that follow a tag, not stale ones nor other tags", () => {
+    const rows = describeUsage([usage({ tag: "canary", environment: "dev" }), usage({ tag: "canary", active: false }), usage({ tag: "pro" })], tags);
+    expect(followersOf(rows, "canary").map((r) => r.environment)).toEqual(["dev"]);
+    expect(followersOf(rows, "nobody")).toEqual([]);
+  });
+
+  it("builds the line an agent pastes to follow a tag", () => {
+    expect(followSnippet("system-prompt", "canary")).toBe('prompts.get("system-prompt", tag="canary")');
+  });
+
+  it("validates a tag name like the API and rejects environments", () => {
+    expect(tagNameError("canary", ["dev", "pre", "pro"])).toBeNull();
+    expect(tagNameError("pro", ["dev", "pre", "pro"])).toMatch(/environment/);
+    expect(tagNameError("Canary", [])).toMatch(/lowercase/);
+    expect(tagNameError("1x", [])).toMatch(/lowercase/);
+    expect(tagNameError("a".repeat(33), [])).toMatch(/32/);
   });
 });
