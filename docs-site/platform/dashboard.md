@@ -76,7 +76,7 @@ Below, when anything failed, **What is going wrong** explains the failures by ca
 Puts two experiments side by side over the same time range. They are different agents that evolve on their own, not two versions of the same one, so the page always uses their names: the selected experiment (the one in the selector at the top left) and the one you choose in **Compare with**. Use the swap button to exchange them. It requires access to at least 2 experiments.
 
 - **Verdict**: one sentence on how the second experiment differs from the first (for example "vueling_faqa is cheaper and faster, but failing more often than weather-assistant") and how many metrics are better, worse or neutral for it.
-- **"<second> compared with <first>"**: one bar per metric (cost, tokens, latency p50/p95/p99, error rate, conversations, executions) showing the % change. Green is better, red is worse, grey is neutral. Lower cost, tokens, latency and error rate count as better; conversations and executions are volume, so they are never good or bad. Changes under 5% are shown as neutral to avoid highlighting noise.
+- **"second compared with first"**: one bar per metric (cost, tokens, latency p50/p95/p99, error rate, conversations, executions) showing the % change. Green is better, red is worse, grey is neutral. Lower cost, tokens, latency and error rate count as better; conversations and executions are volume, so they are never good or bad. Changes under 5% are shown as neutral to avoid highlighting noise.
 - **Cost per execution** and **Input vs output tokens** (for each agent, what share of its tokens is the prompt and what share is the answer).
 - Overlaid charts for executions, tokens and latency p95: A is a solid line, B a dashed one.
 
