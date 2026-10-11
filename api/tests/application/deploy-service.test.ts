@@ -10,7 +10,7 @@ import { AssistantInvariantError, AssistantNotFoundError, AssistantUpstreamError
 
 const SHA = "3a08213f9b1c2d4e5f60718293a4b5c6d7e8f901";
 const ID = "0b9a3f10-1f6c-4a7e-9b2d-5d3c1e8f7a64";
-const repo = { url: "https://github.com/acme/weather", provider: "github" as const, deployWorkflow: "deploy.yml" };
+const repo = { url: "https://github.com/acme/weather", provider: "github" as const, deployWorkflow: "deploy.yml", prGate: false };
 const allowed: GateResult = { allowed: true, verdict: "allowed", sha: SHA, requiredRuns: 1, runs: [], reason: "ok" };
 const blocked: GateResult = { ...allowed, allowed: false, verdict: "no_evaluation", reason: "No offline evaluation was run on this commit." };
 
@@ -41,6 +41,7 @@ function build(opts: { gate?: GateResult; card?: object; active?: boolean; dispa
   };
   const dispatcher: CiDispatcher = {
     resolveRef: async () => SHA,
+    publishCheck: async () => {},
     dispatch: async (_r, input) => {
       if (opts.dispatchFails) throw new AssistantUpstreamError("GitHub answered 422");
       dispatched.push(input);

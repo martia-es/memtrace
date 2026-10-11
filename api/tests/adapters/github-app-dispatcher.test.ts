@@ -6,7 +6,7 @@ import { AssistantUpstreamError, CiUnavailableError } from "@/domain/errors";
 
 const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048, privateKeyEncoding: { type: "pkcs8", format: "pem" }, publicKeyEncoding: { type: "spki", format: "pem" } });
 const SHA = "3a08213f9b1c2d4e5f60718293a4b5c6d7e8f901";
-const repo = { url: "https://github.com/acme/weather", provider: "github" as const, deployWorkflow: "deploy.yml" };
+const repo = { url: "https://github.com/acme/weather", provider: "github" as const, deployWorkflow: "deploy.yml", prGate: false };
 
 function fakeGithub(overrides: Record<string, () => Response> = {}) {
   const calls: Array<{ url: string; method: string; auth: string | null; body: unknown }> = [];
@@ -20,6 +20,7 @@ function fakeGithub(overrides: Record<string, () => Response> = {}) {
     if (key === "POST /app/installations/42/access_tokens") return Response.json({ token: "inst-token", expires_at: new Date(Date.now() + 3600_000).toISOString() });
     if (key === "GET /repos/acme/weather/commits/main") return Response.json({ sha: SHA });
     if (key === "POST /repos/acme/weather/actions/workflows/deploy.yml/dispatches") return new Response(null, { status: 204 });
+    if (key === "POST /repos/acme/weather/check-runs") return Response.json({ id: 7 }, { status: 201 });
     return new Response("not found", { status: 404 });
   }) as unknown as typeof fetch;
   return { http, calls };
@@ -45,6 +46,27 @@ describe("GithubAppDispatcher (ADR-064)", () => {
     ]);
     expect(calls[0]!.auth).toMatch(/^Bearer ey/);
     expect(calls[2]!.auth).toBe("Bearer inst-token");
+  });
+
+  it("publishes a check run on the evaluated commit (ADR-064 phase 3)", async () => {
+    const { http, calls } = fakeGithub();
+    await new GithubAppDispatcher({ appId: "1", privateKey }, http).publishCheck(repo, {
+      name: "memtrace/eval-gate", sha: SHA, status: "completed", conclusion: "failure", title: "Evaluation did not reach its targets", summary: "- **correctness**: 62%, target 80%", detailsUrl: "https://memtrace.test/run",
+    });
+    const call = calls.find((c) => c.url.endsWith("/check-runs"))!;
+    expect(call.auth).toBe("Bearer inst-token");
+    expect(call.body).toEqual({
+      name: "memtrace/eval-gate", head_sha: SHA, status: "completed", conclusion: "failure", details_url: "https://memtrace.test/run",
+      output: { title: "Evaluation did not reach its targets", summary: "- **correctness**: 62%, target 80%" },
+    });
+  });
+
+  it("opens an in-progress check without a conclusion, and refuses providers other than GitHub", async () => {
+    const { http, calls } = fakeGithub();
+    const dispatcher = new GithubAppDispatcher({ appId: "1", privateKey }, http);
+    await dispatcher.publishCheck(repo, { name: "memtrace/eval-gate", sha: SHA, status: "in_progress", title: "Evaluation running", summary: "x", detailsUrl: null });
+    expect(calls.find((c) => c.url.endsWith("/check-runs"))!.body).not.toHaveProperty("conclusion");
+    await expect(dispatcher.publishCheck({ ...repo, provider: "gitlab" }, { name: "n", sha: SHA, status: "in_progress", title: "t", summary: "s", detailsUrl: null })).rejects.toBeInstanceOf(CiUnavailableError);
   });
 
   it("reuses the installation token between calls", async () => {

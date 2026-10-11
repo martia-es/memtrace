@@ -5,7 +5,7 @@ import { toDatasetRunSummaryDto } from "@/adapters/inbound/http/mappers";
 import { json, problem } from "@/adapters/inbound/http/problem";
 import { appendDatasetRunItemsBody } from "@/adapters/inbound/http/schemas";
 import { DatasetRunClosedError } from "@/application/evaluation-service";
-import { getEvaluation, getIdentity } from "@/dependency-container";
+import { getEvaluation, getIdentity, getPrGate } from "@/dependency-container";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +41,7 @@ export async function POST(request: Request, context: { params: Promise<{ experi
         complete,
       );
       if (!run) return problem(404, "Not Found", "Run not found");
+      if (complete) void getPrGate().onRunChanged(experimentId, run); // el run acaba de cerrarse: veredicto final para el PR (ADR-064 fase 3)
       return json(toDatasetRunSummaryDto(run), 200);
     } catch (error) {
       if (error instanceof DatasetRunClosedError) return problem(409, "Conflict", error.message);

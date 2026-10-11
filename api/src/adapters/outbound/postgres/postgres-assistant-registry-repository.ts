@@ -205,6 +205,7 @@ export class PostgresAssistantRegistryRepository implements AssistantRegistryRep
       repo_url: string | null;
       repo_provider: RepoProvider | null;
       deploy_workflow: string | null;
+      pr_gate_enabled: boolean;
       created_at: Ts;
       updated_at: Ts;
       name: string;
@@ -215,7 +216,7 @@ export class PostgresAssistantRegistryRepository implements AssistantRegistryRep
     }>(
       `SELECT e.id AS experiment_id, e.description, e.owner_user_id, e.lifecycle, e.created_at, e.updated_at,
               e.chat_path, e.chat_request_field, e.chat_response_field, e.chat_session_field, e.chat_trace_id_field,
-              e.repo_url, e.repo_provider, e.deploy_workflow,
+              e.repo_url, e.repo_provider, e.deploy_workflow, e.pr_gate_enabled,
               e.name, e.service_name, u.name AS owner_name, u.email AS owner_email, u.image AS owner_image
          FROM experiments e LEFT JOIN users u ON u.id = e.owner_user_id
         WHERE ${where} ORDER BY e.name`,
@@ -274,7 +275,7 @@ export class PostgresAssistantRegistryRepository implements AssistantRegistryRep
         chat: r.chat_path
           ? { path: r.chat_path, requestField: r.chat_request_field, responseField: r.chat_response_field, sessionField: r.chat_session_field, traceIdField: r.chat_trace_id_field }
           : null,
-        repo: r.repo_url && r.repo_provider ? { url: r.repo_url, provider: r.repo_provider, deployWorkflow: r.deploy_workflow } : null,
+        repo: r.repo_url && r.repo_provider ? { url: r.repo_url, provider: r.repo_provider, deployWorkflow: r.deploy_workflow, prGate: r.pr_gate_enabled } : null,
         createdAt: iso(r.created_at),
         updatedAt: iso(r.updated_at),
         name: r.name,
@@ -361,6 +362,7 @@ export class PostgresAssistantRegistryRepository implements AssistantRegistryRep
       add("repo_url", patch.repo?.url ?? null);
       add("repo_provider", patch.repo?.provider ?? null);
       add("deploy_workflow", patch.repo?.deployWorkflow ?? null);
+      add("pr_gate_enabled", patch.repo?.prGate ?? false);
     }
     const { rowCount } = await this.pool.query(`UPDATE experiments SET ${[...sets, "updated_at = now()"].join(", ")} WHERE id = $1`, values);
     return rowCount ? this.getCard(experimentId) : null;

@@ -29,6 +29,8 @@ import { PostgresAuditRepository } from "@/adapters/outbound/postgres/postgres-a
 import { PostgresPartnershipRepository } from "@/adapters/outbound/postgres/postgres-partnership-repository";
 import type { IdentityRepository } from "@/application/ports/identity-repository";
 import { DeployGateService } from "@/application/deploy-gate-service";
+import type { CiDispatcher } from "@/application/ports/ci-dispatcher";
+import { PrGateService } from "@/application/pr-gate-service";
 import { DeployService } from "@/application/deploy-service";
 import { GithubAppDispatcher, UnconfiguredDispatcher } from "@/adapters/outbound/github/github-app-dispatcher";
 import { PostgresDeployRunRepository } from "@/adapters/outbound/postgres/postgres-deploy-run-repository";
@@ -77,6 +79,8 @@ const globalForContainer = globalThis as unknown as {
   __memtracePromotion?: DatasetPromotionService;
   __memtraceAssistantRegistry?: AssistantRegistryService;
   __memtraceDeployGate?: DeployGateService;
+  __memtracePrGate?: PrGateService;
+  __memtraceCiDispatcher?: CiDispatcher;
   __memtraceDeployRuns?: PostgresDeployRunRepository;
   __memtraceDeploy?: DeployService;
   __memtracePrompts?: PromptService;
@@ -280,12 +284,28 @@ function getDeployRuns(): PostgresDeployRunRepository {
 /** Despliegue desde MemTrace (ADR-064). Sin GitHub App en el entorno, el servicio existe pero responde 503 al lanzar. */
 export function getDeploy(): DeployService {
   if (!globalForContainer.__memtraceDeploy) {
-    const appId = process.env.GITHUB_APP_ID;
-    const privateKey = process.env.GITHUB_APP_PRIVATE_KEY;
-    const dispatcher = appId && privateKey ? new GithubAppDispatcher({ appId, privateKey }) : new UnconfiguredDispatcher();
-    globalForContainer.__memtraceDeploy = new DeployService(getAssistantRegistry(), getDeployGate(), getDeployRuns(), dispatcher);
+    globalForContainer.__memtraceDeploy = new DeployService(getAssistantRegistry(), getDeployGate(), getDeployRuns(), getCiDispatcher());
   }
   return globalForContainer.__memtraceDeploy;
+}
+
+/** El cliente del CI del repo del agente (GitHub App). Sin credenciales en el entorno, un sustituto que responde 503. */
+function getCiDispatcher(): CiDispatcher {
+  if (!globalForContainer.__memtraceCiDispatcher) {
+    const appId = process.env.GITHUB_APP_ID;
+    const privateKey = process.env.GITHUB_APP_PRIVATE_KEY;
+    globalForContainer.__memtraceCiDispatcher = appId && privateKey ? new GithubAppDispatcher({ appId, privateKey }) : new UnconfiguredDispatcher();
+  }
+  return globalForContainer.__memtraceCiDispatcher;
+}
+
+/** Gate de evaluación en el PR (ADR-064, fase 3): publica el veredicto del commit evaluado como check run. */
+export function getPrGate(): PrGateService {
+  if (!globalForContainer.__memtracePrGate) {
+    const appUrl = process.env.APP_URL ?? process.env.AUTH_URL ?? "http://localhost:3000";
+    globalForContainer.__memtracePrGate = new PrGateService(getAssistantRegistry(), getDeployGate(), getCiDispatcher(), appUrl);
+  }
+  return globalForContainer.__memtracePrGate;
 }
 
 function getPromptRepository(): PostgresPromptRepository {

@@ -80,6 +80,17 @@ Migration `029_assistant_repo.sql`: `experiments.repo_url`, `repo_provider`, `de
 - **UI**: Deploy button per environment, a modal with the commit, the verdict, the failing evaluators and the bypass option, and *Last deploy* on the environment.
 - **Not done**: GitLab and Bitbucket, approvals by a second person in PRO, promotion of the previous environment's commit, a rollback button, and a drift alert.
 
+### Phase 3 (done): the same gate on pull requests
+
+The deploy gate says whether a commit has a passing evaluation. Phase 3 shows that verdict where the merge is decided, so a regression is caught in the pull request and not at deploy time.
+
+- **A check run, not a commit status.** When an evaluation run of a commit is opened, receives results or is closed, MemTrace publishes a check run named `memtrace/eval-gate` on that commit (`POST /repos/{owner}/{repo}/check-runs`): `in_progress` while the run uploads, `success` or `failure` when the gate decides, with a title, the evaluators under their target in the summary and a link to the run. Check runs carry text and a link; commit statuses would only carry a state. Cost: the App needs **Checks: write**, which means every installation must accept the new permission.
+- **Absolute, not relative.** The verdict is the one of the deploy gate (every boolean evaluator at its target, `requiredRuns` runs). A comparison with `main` ("do not get worse") is more exact but needs a tolerance and confidence intervals, because LLM evaluations fluctuate (backlog M4); it is left for later.
+- **Driven by the run, not by the pull request.** MemTrace does not subscribe to `pull_request` events: it reacts to the run that CI uploads, and a check can be attached to any commit. The workflow must report the pull request's **head** commit (`MEMTRACE_GIT_SHA`), because `GITHUB_SHA` on `pull_request` is a synthetic merge commit. A pull request with no evaluation has no check; if the check is required, GitHub keeps the pull request blocked, which is what a mandatory gate means (and why a `paths:` filter on the workflow needs care).
+- **Opt-in per agent** (`experiments.pr_gate_enabled`, migration 047), GitHub only, runs with uncommitted changes or no commit ignored. Each publication adds a check run; GitHub shows the latest per name.
+- **A side effect of the upload, never a cause of failure.** The routes that open and close a run fire the publication without waiting for it; if GitHub is down the run is stored anyway and the next run publishes again.
+- Not done: the relative comparison, a `pull_request` webhook to open the check before the evaluation starts, and GitLab / Bitbucket.
+
 ### Data model for deploys
 
 `deploy_runs(id, deployment_id, commit_sha, ref, requested_by, evaluation_run_id, status, provider_run_url, gate_bypassed, bypass_reason, created_at, finished_at)`; `status` ∈ `queued | running | succeeded | failed | cancelled`.
@@ -88,7 +99,8 @@ Migration `029_assistant_repo.sql`: `experiments.repo_url`, `repo_provider`, `de
 
 1. Repo fields + link in the UI + SDK revision attribute ([ADR-065](../observability/adr-065-code-revision-on-traces-and-evaluations.md)). Metadata only, no risk.
 2. Provider connection (GitHub first), gate, Deploy button, `deploy_runs` history and webhook status.
-3. GitLab/Bitbucket, PRO approvals, promotion of the commit from the previous environment, rollback button, drift alert (deployed commit ≠ last recorded deploy).
+3. (done) The gate as a pull request check (phase 3).
+4. GitLab/Bitbucket, PRO approvals, promotion of the commit from the previous environment, rollback button, drift alert (deployed commit ≠ last recorded deploy).
 
 ### Reference implementation: the weather assistant
 

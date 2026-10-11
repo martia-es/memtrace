@@ -4,7 +4,7 @@ import CommitLink from "@/ui/components/CommitLink.vue";
 import { commitUrl } from "@/domain/assistants";
 
 const SHA = "3a08213f9b1c2d4e5f60718293a4b5c6d7e8f901";
-const github = { url: "https://github.com/acme/weather", provider: "github" as const, deployWorkflow: null };
+const github = { url: "https://github.com/acme/weather", provider: "github" as const, deployWorkflow: null, prGate: false };
 
 describe("CommitLink (ADR-065)", () => {
   it("links the short SHA to the commit when the agent declares its repository", () => {

@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import { deployMarker, deployRunIdFromTitle, missingDeploySetup, parseGithubRepo, statusFromWorkflowRun, validateBypassReason } from "@/domain/deploy";
 import { ValidationError } from "@/domain/errors";
 
-const repo = { url: "https://github.com/acme/weather", provider: "github" as const, deployWorkflow: "deploy.yml" };
+const repo = { url: "https://github.com/acme/weather", provider: "github" as const, deployWorkflow: "deploy.yml", prGate: false };
 
 describe("deploy rules (ADR-064)", () => {
   it("asks for repo, workflow and branch, in that order", () => {
     expect(missingDeploySetup(null, "main")).toContain("source repository");
-    expect(missingDeploySetup({ ...repo, deployWorkflow: null }, "main")).toContain("deploy workflow");
+    expect(missingDeploySetup({ ...repo, deployWorkflow: null, prGate: false }, "main")).toContain("deploy workflow");
     expect(missingDeploySetup(repo, null)).toContain("branch or tag");
     expect(missingDeploySetup(repo, "main")).toBeNull();
   });

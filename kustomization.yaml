@@ -88,6 +88,7 @@ configMapGenerator:
       - migrations/postgres/044_notification_reads.sql
       - migrations/postgres/045_approval_exemptions.sql
       - migrations/postgres/046_budget_notification_spent.sql
+      - migrations/postgres/047_pr_gate.sql
     options:
       disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
   - name: clickhouse-config

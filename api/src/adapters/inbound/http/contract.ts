@@ -973,6 +973,7 @@ export interface RepoConfigDto {
   url: string;
   provider: "github" | "gitlab" | "bitbucket";
   deployWorkflow: string | null;
+  prGate: boolean;
 }
 
 export interface ChatResponseDto {

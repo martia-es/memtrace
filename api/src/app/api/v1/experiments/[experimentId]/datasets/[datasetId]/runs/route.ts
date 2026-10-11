@@ -4,7 +4,7 @@ import { parseJsonOrThrow } from "@/adapters/inbound/http/identity-schemas";
 import { groupAggregatesByRun, toDatasetRunSummaryDto, toDatasetRunsListResponse } from "@/adapters/inbound/http/mappers";
 import { json, problem } from "@/adapters/inbound/http/problem";
 import { submitDatasetRunBody } from "@/adapters/inbound/http/schemas";
-import { getEvaluation, getIdentity, getScores } from "@/dependency-container";
+import { getEvaluation, getIdentity, getPrGate, getScores } from "@/dependency-container";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +61,7 @@ export async function POST(request: Request, context: { params: Promise<{ experi
       complete,
       revision ? { sha: revision.sha.toLowerCase(), dirty: revision.dirty } : null,
     );
+    void getPrGate().onRunChanged(experimentId, run); // check del PR (ADR-064 fase 3): efecto secundario, no frena la subida
     return json(toDatasetRunSummaryDto(run), 201);
   });
 }
