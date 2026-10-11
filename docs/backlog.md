@@ -10,9 +10,8 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 
 | # | Estado | Tema | Qué falta | Prioridad | Esfuerzo | Depende de | ADR previsto |
 |---|---|---|---|---|---|---|---|
-| F1 | [x] | **Alertas** | Hecho ([ADR-086](adrs/observability/adr-086-alerts-and-cost-budgets.md)): reglas sobre tasa de error, latencia p95, coste, satisfacción y gráficas guardadas; email a una lista por regla y campana en la app. Webhooks pendientes | A | M | — | observability |
+| F1 | [x] | **Alertas** | Hecho ([ADR-086](adrs/observability/adr-086-alerts-and-cost-budgets.md)): reglas sobre tasa de error, latencia p95, coste, satisfacción y gráficas guardadas; email a una lista por regla y campana en la app. Webhooks descartados por ahora | A | M | — | observability |
 | F2 | [x] | **Presupuestos de coste** | Hecho (ADR-086): presupuesto mensual por agente con aviso de umbral, superado y previsión a fin de mes | A | S | F1 (reutiliza el motor de reglas) | pricing |
-| F3 | [ ] | **Evaluación online** | Muestreo configurable de trazas de producción + evaluadores/juez ya existentes, scores en ClickHouse enlazados a la traza | A | L | F1 (alertar sobre caídas de score) | evaluation |
 | F4 | [x] | **Retención y PII en trazas** | Hecho ([ADR-084](adrs/storage/adr-084-data-protection-retention-masking-audit-and-export.md)): retención por organización y experimento, y PII enmascarada con `****` en el SDK y en el Collector antes de guardar (los nombres solo los cubre el SDK) | A | M | — | storage / identity |
 | F5 | [ ] | **Gate de regresión en PR** | Extender el gate de despliegue (ADR-064) para que un PR no pueda fusionarse si bajan las métricas de la evaluación offline | M | M | Fase 2c de ADR-064 | governance |
 | F6 | [x] | **SDK por framework + TypeScript** | Hecho ([ADR-095](adrs/sdk/adr-095-multi-language-sdk-contract.md)): LangGraph, OpenAI Agents SDK (Python) y SDK TypeScript con paridad (trazas, feedback, prompts, evaluación, PII con servicio Presidio, LangChain.js y OpenAI Agents JS), todos contra las mismas escenarios de conformidad. Pendiente de publicar en npm | M | L | — | sdk |
@@ -33,8 +32,6 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 | R6 | [ ] | Apariencia (ADR-063) | Preferencia de modo en el perfil, avatar y bienvenida, presets de tema, paleta de gráficas | B |
 | R8 | [ ] | Identidad (ADR-052) | Mapeo de IdP externo (SCIM/grupos) | B |
 | R9 | [ ] | Seguridad | Guardrails sobre trazas | B |
-| R10 | [ ] | Alertas (ADR-086) | Webhooks (Slack, Teams, PagerDuty) y alertar sobre la calidad de la evaluación online (depende de F3) | M |
-| R7 | [ ] | Feedback de usuario | Alertas por caída de satisfacción (ligado a F1) y satisfacción por versión de despliegue | M |
 
 ## 3. Mejoras sobre lo ya construido
 
@@ -53,12 +50,11 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 
 | Orden | Bloque | Contenido | Por qué en este orden |
 |---|---|---|---|
-| 1 | Monitor activo | F1 + F2 (+ R7) | Misma infraestructura; convierte MemTrace de visor en monitor |
-| 2 | Calidad en producción | F3 | Reutiliza evaluadores y jueces; cierra el hueco offline ↔ producción |
-| 3 | Confianza de datos | F4 (+ F7) | Es la barrera habitual de adopción en empresa |
-| 4 | Ciclo completo | F5 + R1 + R2 | Cierra evaluación → despliegue con garantías |
-| 5 | Pulido de producto | M1-M7 | Mejoran lo existente sin riesgo de arquitectura |
-| 6 | Adopción y operación | F6 + F8 | Se prioriza si MemTrace sale de uso local |
+| 1 | Monitor activo | F1 + F2 | Misma infraestructura; convierte MemTrace de visor en monitor |
+| 2 | Confianza de datos | F4 (+ F7) | Es la barrera habitual de adopción en empresa |
+| 3 | Ciclo completo | F5 + R1 + R2 | Cierra evaluación → despliegue con garantías |
+| 4 | Pulido de producto | M1-M7 | Mejoran lo existente sin riesgo de arquitectura |
+| 5 | Adopción y operación | F6 + F8 | Se prioriza si MemTrace sale de uso local |
 
 ## 5. Preguntas abiertas
 
@@ -67,7 +63,6 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 | Q1 | ¿MemTrace saldrá de local/kind y lo usarán terceros? Decide la prioridad de F4, F7 y F8 | Alto |
 | Q2 | ¿Canal de notificación inicial de F1: solo email o también Slack/webhook? | Medio |
 | Q3 | ¿Se mantiene el control de acceso por entorno (DEV/PRE/PRO) del ADR-053, que limita qué agentes o personas pueden llamar a cada entorno? Si nadie lo usa, ver M6 | Bajo |
-| Q4 | ¿La evaluación online muestrea por porcentaje fijo o por reglas (p. ej. solo trazas con 👎)? | Medio |
 
 ## 6. Registro de cambios
 
@@ -80,3 +75,4 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 | 2026-10-10 | M8 hecho: el dashboard y la API consultan hasta 365 días |
 | 2026-10-10 | Limpieza de documentación: `pending-gaps.md` se fusiona aquí (R8-R10) y este documento pasa a llamarse `backlog.md` |
 | 2026-10-10 | F6 hecho: LangGraph, OpenAI Agents SDK y SDK TypeScript (ADR-095) |
+| 2026-10-10 | Se descartan F3 (evaluación online), R7 (alertas de satisfacción y satisfacción por versión) y R10 (webhooks y alertas de calidad online); se elimina Q4 |
