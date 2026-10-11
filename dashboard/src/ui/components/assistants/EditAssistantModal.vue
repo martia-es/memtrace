@@ -15,6 +15,7 @@ import { describeApiError } from "@/application/describe-api-error";
 import { useAssistantApi } from "../../composables/useAssistantApi";
 import Modal from "../Modal.vue";
 import Button from "../Button.vue";
+import Checkbox from "../Checkbox.vue";
 import FormField from "../FormField.vue";
 
 const props = defineProps<{ card: AssistantCardDto }>();
@@ -35,6 +36,7 @@ const form = reactive({
   repoUrl: repo?.url ?? "",
   repoProvider: (repo?.provider ?? "github") as RepoProvider,
   deployWorkflow: repo?.deployWorkflow ?? "",
+  prGate: repo?.prGate ?? false,
 });
 const fieldErrors = ref<Record<string, string>>({});
 const saving = ref(false);
@@ -48,7 +50,7 @@ async function save() {
       description: form.description.trim(),
       lifecycle: form.lifecycle,
       chat: path === "" ? null : { path, requestField: form.requestField.trim(), responseField: form.responseField.trim(), sessionField: form.sessionField.trim() || null, traceIdField: form.traceIdField.trim() || null },
-      repo: repoUrl === "" ? null : { url: repoUrl, provider: form.repoProvider, deployWorkflow: form.deployWorkflow.trim() || null },
+      repo: repoUrl === "" ? null : { url: repoUrl, provider: form.repoProvider, deployWorkflow: form.deployWorkflow.trim() || null, prGate: form.prGate && form.repoProvider === "github" },
     });
     emit("saved");
     emit("close");
@@ -104,6 +106,14 @@ const LIFECYCLE_OPTIONS: { label: string; value: "active" | "retired" }[] = [
         <FormField label="Deploy workflow (optional)" v-if="form.repoUrl.trim() !== ''">
           <TextInput v-model="form.deployWorkflow" :invalid="!!fieldErrors.deployWorkflow" placeholder="deploy.yml" data-testid="deploy-workflow" />
           <p class="hint">The pipeline MemTrace will trigger to deploy. Leave the URL empty if the agent has no repository. No credentials are stored here.</p>
+        </FormField>
+        <FormField label="Pull requests" v-if="form.repoUrl.trim() !== '' && form.repoProvider === 'github'">
+          <Checkbox v-model="form.prGate" variant="switch" data-testid="pr-gate">Check the evaluation of every commit</Checkbox>
+          <p class="hint">
+            MemTrace publishes a <code>memtrace/eval-gate</code> check on the commit that was evaluated. Mark it as required in your branch protection rules
+            and a pull request cannot be merged while its evaluation misses its targets. Needs the MemTrace GitHub App with the Checks permission, and the
+            evaluation to run on the pull request with the head commit as its version.
+          </p>
         </FormField>
       </fieldset>
       <div class="actions"><Button variant="primary" type="submit" :disabled="saving">Save</Button></div>

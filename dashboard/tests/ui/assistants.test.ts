@@ -388,7 +388,7 @@ describe("chat with an agent (ADR-055)", () => {
 
 describe("deploy from MemTrace (ADR-064)", () => {
   beforeEach(() => void (document.body.innerHTML = "")); // los modales de otros tests quedan en el body
-  const repo = { url: "https://github.com/acme/weather", provider: "github" as const, deployWorkflow: "deploy.yml" };
+  const repo = { url: "https://github.com/acme/weather", provider: "github" as const, deployWorkflow: "deploy.yml", prGate: false };
   const card = (over = {}) => assistantCard({ repo, deployments: [deploymentDto("pro", "up", { deployRef: "main" })], ...over });
   const technical = () => new Identity([org("technical")], [{ ...exp("technical"), permissions: permissionsOf("technical") }]);
 
@@ -397,7 +397,7 @@ describe("deploy from MemTrace (ADR-064)", () => {
     full.card = card();
     expect((await setup(AssistantDetailPage, "/assistants/exp-1", full, technical(), { experimentId: "exp-1" })).wrapper.find("[data-testid='deploy']").exists()).toBe(true);
 
-    for (const missing of [{ repo: null }, { repo: { ...repo, deployWorkflow: null } }, { deployments: [deploymentDto("pro", "up")] }, { repo: { ...repo, provider: "gitlab" as const, url: "https://gitlab.com/a/b" } }]) {
+    for (const missing of [{ repo: null }, { repo: { ...repo, deployWorkflow: null, prGate: false } }, { deployments: [deploymentDto("pro", "up")] }, { repo: { ...repo, provider: "gitlab" as const, url: "https://gitlab.com/a/b" } }]) {
       const api = new FakeAssistantApi();
       api.card = card(missing);
       expect((await setup(AssistantDetailPage, "/assistants/exp-1", api, technical(), { experimentId: "exp-1" })).wrapper.find("[data-testid='deploy']").exists()).toBe(false);

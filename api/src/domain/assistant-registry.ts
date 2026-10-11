@@ -59,6 +59,8 @@ export interface RepoConfig {
   provider: RepoProvider;
   /** workflow (GitHub Actions) o pipeline que despliega; null = aún no declarado */
   deployWorkflow: string | null;
+  /** publica en cada PR un check con el veredicto de la evaluación del commit (ADR-064, fase 3) */
+  prGate: boolean;
 }
 
 const REPO_HOSTS: Record<RepoProvider, string> = { github: "github.com", gitlab: "gitlab.com", bitbucket: "bitbucket.org" };

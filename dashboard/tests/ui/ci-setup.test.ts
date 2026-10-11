@@ -11,7 +11,7 @@ describe("CI setup snippet (ADR-065)", () => {
   });
 
   it("starts with the provider of the agent's repository and lets the user switch", async () => {
-    const wrapper = mount(CiSetup, { props: { repo: { url: "https://gitlab.com/acme/w", provider: "gitlab", deployWorkflow: null } } });
+    const wrapper = mount(CiSetup, { props: { repo: { url: "https://gitlab.com/acme/w", provider: "gitlab", deployWorkflow: null, prGate: false } } });
     expect(wrapper.get('[data-testid="ci-build"]').text()).toContain("$CI_COMMIT_SHA");
     await wrapper.findAll(".providers button")[0]!.trigger("click");
     expect(wrapper.get('[data-testid="ci-build"]').text()).toContain("github.sha");

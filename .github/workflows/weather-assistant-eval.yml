@@ -27,6 +27,9 @@ jobs:
       run:
         working-directory: weather_assistant
     env:
+      # El commit que se evalúa. En un PR, GITHUB_SHA es el de una fusión de prueba que GitHub fabrica; el check de MemTrace
+      # (memtrace/eval-gate, ADR-064 fase 3) se publica sobre el último commit del PR, así que se pasa ese.
+      MEMTRACE_GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       # Variables del repo (Settings → Secrets and variables → Actions)
       WEATHER_ASSISTANT_SERVICE_NAME: ${{ vars.MEMTRACE_SERVICE_NAME }}
       MEMTRACE_API_URL: ${{ vars.MEMTRACE_API_URL }}   # https://<memtrace>/api/v1/experiments/<experimentId>
@@ -51,4 +54,4 @@ jobs:
         run: |
           MOCK=""
           if [ "$EVAL_MOCK" = "true" ]; then MOCK="--mock"; fi
-          uv run python evals/run_eval.py $MOCK --name "${GITHUB_SHA::7}" --dataset-id "$MEMTRACE_DATASET_ID" --min-pass-rate 0.8
+          uv run python evals/run_eval.py $MOCK --name "${MEMTRACE_GIT_SHA::7}" --dataset-id "$MEMTRACE_DATASET_ID" --min-pass-rate 0.8

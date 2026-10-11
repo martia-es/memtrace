@@ -1,6 +1,7 @@
 import { createSign } from "node:crypto";
 import type { CiDispatcher, DispatchInput } from "@/application/ports/ci-dispatcher";
 import type { RepoConfig } from "@/domain/assistant-registry";
+import type { CheckPayload } from "@/domain/pr-gate";
 import { parseGithubRepo } from "@/domain/deploy";
 import { AssistantUpstreamError, CiUnavailableError } from "@/domain/errors";
 
@@ -26,7 +27,7 @@ type Fetch = typeof fetch;
 
 /**
  * Dispara GitHub Actions con una GitHub App (ADR-064). La App se instala en los repos de la organización con permisos
- * mínimos (Contents: read, Actions: write, Metadata: read). La credencial vive en el entorno del servidor, nunca en la base
+ * mínimos (Contents: read, Actions: write, Checks: write, Metadata: read). La credencial vive en el entorno del servidor, nunca en la base
  * de datos ni en el navegador. El token de instalación se pide por repo y se reutiliza hasta poco antes de caducar.
  */
 export class GithubAppDispatcher implements CiDispatcher {
@@ -59,6 +60,19 @@ export class GithubAppDispatcher implements CiDispatcher {
       inputs: { sha: input.sha, environment: input.environment, deploy_id: input.marker },
     });
     return { runUrl: `https://github.com/${target.owner}/${target.repo}/actions/workflows/${encodeURIComponent(workflow)}` };
+  }
+
+  async publishCheck(repo: RepoConfig, check: CheckPayload): Promise<void> {
+    const target = this.target(repo);
+    const token = await this.installationToken(target);
+    await this.call(`/repos/${target.owner}/${target.repo}/check-runs`, "POST", token, {
+      name: check.name,
+      head_sha: check.sha,
+      status: check.status,
+      ...(check.conclusion ? { conclusion: check.conclusion } : {}),
+      ...(check.detailsUrl ? { details_url: check.detailsUrl } : {}),
+      output: { title: check.title, summary: check.summary.slice(0, 60_000) },
+    });
   }
 
   private target(repo: RepoConfig): { owner: string; repo: string } {
@@ -116,5 +130,8 @@ export class UnconfiguredDispatcher implements CiDispatcher {
   }
   async dispatch(): Promise<{ runUrl: string | null }> {
     return this.resolveRef().then(() => ({ runUrl: null }));
+  }
+  async publishCheck(): Promise<void> {
+    await this.resolveRef();
   }
 }

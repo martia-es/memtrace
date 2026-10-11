@@ -19,6 +19,7 @@ export const repoConfigBody = z.object({
   url: text(500).min(1),
   provider: z.enum(["github", "gitlab", "bitbucket"]),
   deployWorkflow: nullableText(200).default(null),
+  prGate: z.boolean().default(false),
 });
 
 export const updateAssistantBody = z

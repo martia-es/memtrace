@@ -152,12 +152,12 @@ describe("assistant registry (ADR-053)", () => {
 });
 
 describe("repositorio del agente (ADR-064)", () => {
-  const repo = { url: "https://github.com/acme/weather", provider: "github" as const, deployWorkflow: "deploy.yml" };
+  const repo = { url: "https://github.com/acme/weather", provider: "github" as const, deployWorkflow: "deploy.yml", prGate: false };
 
   it("acepta un repo https cuyo host es el del proveedor", () => {
     expect(() => validateRepoConfig(repo)).not.toThrow();
-    expect(() => validateRepoConfig({ url: "https://gitlab.acme.io/g/p", provider: "gitlab", deployWorkflow: null })).toThrow(ValidationError);
-    expect(() => validateRepoConfig({ url: "https://git.gitlab.com/g/p", provider: "gitlab", deployWorkflow: null })).not.toThrow();
+    expect(() => validateRepoConfig({ url: "https://gitlab.acme.io/g/p", provider: "gitlab", deployWorkflow: null, prGate: false })).toThrow(ValidationError);
+    expect(() => validateRepoConfig({ url: "https://git.gitlab.com/g/p", provider: "gitlab", deployWorkflow: null, prGate: false })).not.toThrow();
   });
 
   it.each([
@@ -171,7 +171,7 @@ describe("repositorio del agente (ADR-064)", () => {
   });
 
   it("rechaza un workflow con espacios", () => {
-    expect(() => validateRepoConfig({ ...repo, deployWorkflow: "deploy now" })).toThrow(ValidationError);
+    expect(() => validateRepoConfig({ ...repo, deployWorkflow: "deploy now", prGate: false })).toThrow(ValidationError);
   });
 
   it("detecta el proveedor por el host", () => {

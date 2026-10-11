@@ -39,6 +39,7 @@ GitHub → *Settings* → *Developer settings* → *GitHub Apps* → *New GitHub
 |---|---|---|
 | Contents | Read-only | Finding the commit a branch points to |
 | Actions | Read and write | Starting your workflow and receiving its result |
+| Checks | Read and write | Only for [blocking pull requests](#block-pull-requests-that-fail-their-evaluation) (optional) |
 | Metadata | Read-only | Mandatory; GitHub adds it |
 
 **Subscribe to events:** only **Workflow run**.
@@ -83,6 +84,23 @@ If you mistype it, `kubectl -n memtrace delete secret github-app-credentials` an
 Your workflow must accept three inputs and name its run after the last one, so MemTrace can match GitHub's result with the deployment (the example is in [Assistants catalog](./assistants#an-assistant-s-card)). The workflow file has to exist on the branch MemTrace starts it from. To tag every trace with its commit, add the two lines of [Code version on every trace](../library/configuration#code-version-on-every-trace).
 
 Finally, in the dashboard, edit the assistant: **Source repository** (GitHub, the repository URL and the workflow file name) and, in each environment, the **branch or tag to deploy**. The **Deploy** button appears on environments that have all three, to people with the `deploy:run` permission (the technical role) or the governance permission.
+
+## Block pull requests that fail their evaluation
+
+The gate that guards **Deploy** can also guard the merge. With it on, MemTrace publishes a check named `memtrace/eval-gate` on the commit it evaluated: *in progress* while the run uploads results, then green if every evaluator reaches its target (the same rule as the deploy gate) or red, with the evaluators that fell short. If you make that check **required**, GitHub will not let a pull request merge while it is red or missing.
+
+1. Give the App the **Checks: Read and write** permission and accept the update on the installation (see the warning above).
+2. Edit the assistant and turn on **Check the evaluation of every commit** under *Source repository*.
+3. In your repository: *Settings → Branches → Branch protection rule → Require status checks to pass* and add `memtrace/eval-gate`.
+4. Make the evaluation of the pull request report **the pull request's last commit**. On `pull_request` events `GITHUB_SHA` is a throw-away merge commit, not the one the check is shown on, so set `MEMTRACE_GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}` in the step that runs the evaluation.
+
+Things to know:
+
+- The check appears when an evaluation of that commit starts. A pull request whose workflow never runs (for example because of a `paths:` filter) has no check, and GitHub will wait for it forever: make the evaluation workflow run on every pull request, or do not mark the check as required.
+- Evaluations made with uncommitted changes, or with no commit, publish nothing.
+- If the agent asks for several runs per commit, the check stays red until enough of them pass.
+- Publishing is best effort: if GitHub cannot be reached, the evaluation upload still succeeds and the next run publishes again.
+- Only GitHub is supported.
 
 ## Check that it works
 

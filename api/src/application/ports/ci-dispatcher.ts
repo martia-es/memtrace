@@ -1,4 +1,5 @@
 import type { RepoConfig } from "@/domain/assistant-registry";
+import type { CheckPayload } from "@/domain/pr-gate";
 
 /**
  * Puerto hacia el CI/CD del repositorio del agente (ADR-064). MemTrace solo lo dispara: construir y desplegar es cosa
@@ -9,6 +10,8 @@ export interface CiDispatcher {
   resolveRef(repo: RepoConfig, ref: string): Promise<string>;
   /** Lanza el workflow del repo con el commit exacto, el entorno y el id del despliegue (para enlazar su resultado). */
   dispatch(repo: RepoConfig, input: DispatchInput): Promise<{ runUrl: string | null }>;
+  /** Publica el estado de un commit como check run (gate de evaluación en el PR, ADR-064 fase 3). Cada llamada añade uno; GitHub muestra el último. */
+  publishCheck(repo: RepoConfig, check: CheckPayload): Promise<void>;
 }
 
 export interface DispatchInput {
