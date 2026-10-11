@@ -14,7 +14,7 @@ const REPOSITORIES = [
   "clickhouse-annotation-repository.ts",
   "clickhouse-user-feedback-repository.ts",
   "clickhouse-prompt-evidence-repository.ts",
-  "clickhouse-analytics-repository.ts",
+  "clickhouse-breakdown-repository.ts",
 ];
 /** Métodos que no tocan datos de un tenant (catálogo global, ping) o son el ejecutor genérico de consultas ya construidas. */
 const EXEMPT = new Set(["constructor", "getModelPricing", "ping", "rows", "query", "range"]);

@@ -2,12 +2,12 @@ import { costOf, type PricingCatalog } from "./pricing";
 import type { TimeRange } from "./time-range";
 
 /**
- * Cómo se agrupan las trazas en Overview › Analytics. `user` llega con el atributo de usuario final del SDK (pendiente).
+ * Cómo se agrupan las trazas en Overview › Breakdown. `user` llega con el atributo de usuario final del SDK (pendiente).
  * Dos filas de grupos distintos no son siempre comparables (cada agente hace cosas distintas); las vistas de entorno y de
  * versión sí lo son a propósito: un entorno corre otra versión para ver la mejora antes de promoverla.
  */
-export const ANALYTICS_GROUPS = ["prompt_version", "environment"] as const;
-export type AnalyticsGroup = (typeof ANALYTICS_GROUPS)[number];
+export const BREAKDOWN_GROUPS = ["prompt_version", "environment"] as const;
+export type BreakdownGroup = (typeof BREAKDOWN_GROUPS)[number];
 
 /** Días de la serie de errores de cada fila. */
 export const TREND_DAYS = 7;
@@ -15,7 +15,7 @@ const DAY_MS = 86_400_000;
 /** z de un intervalo del 95 %. */
 const Z95 = 1.96;
 
-export interface AnalyticsGroupRow {
+export interface BreakdownGroupRow {
   key: string;
   traces: number;
   errorTraces: number;
@@ -25,31 +25,31 @@ export interface AnalyticsGroupRow {
   up: number;
   down: number;
 }
-export interface AnalyticsTokenRow {
+export interface BreakdownTokenRow {
   key: string;
   model: string | null;
   inputTokens: number;
   outputTokens: number;
 }
-export interface AnalyticsDayRow {
+export interface BreakdownDayRow {
   key: string;
   /** inicio del día, en ms */
   dayMs: number;
   traces: number;
   errorTraces: number;
 }
-export interface AnalyticsRows {
-  groups: AnalyticsGroupRow[];
-  tokens: AnalyticsTokenRow[];
-  days: AnalyticsDayRow[];
+export interface BreakdownRows {
+  groups: BreakdownGroupRow[];
+  tokens: BreakdownTokenRow[];
+  days: BreakdownDayRow[];
 }
 
-export interface AnalyticsTrendPoint {
+export interface BreakdownTrendPoint {
   dayMs: number;
   traces: number;
   errorTraces: number;
 }
-export interface AnalyticsItem {
+export interface BreakdownItem {
   key: string;
   related: string[];
   traces: number;
@@ -68,12 +68,12 @@ export interface AnalyticsItem {
   /** 👍 sobre las trazas con valoración; null sin valoraciones */
   thumbsUpRate: number | null;
   ratedTraces: number;
-  trend: AnalyticsTrendPoint[];
+  trend: BreakdownTrendPoint[];
 }
-export interface Analytics {
-  groupBy: AnalyticsGroup;
+export interface Breakdown {
+  groupBy: BreakdownGroup;
   range: TimeRange;
-  items: AnalyticsItem[];
+  items: BreakdownItem[];
   /** tokens de modelos sin precio en el catálogo: lo que falta en el coste en vez de subestimarlo en silencio */
   unpricedTokens: number;
 }
@@ -87,7 +87,7 @@ export function wilsonMargin(successes: number, n: number): number {
 }
 
 /** Los últimos `TREND_DAYS` días (UTC) que acaban en el rango, rellenos con ceros donde no hubo tráfico. */
-function trendOf(rows: AnalyticsDayRow[], toMs: number): AnalyticsTrendPoint[] {
+function trendOf(rows: BreakdownDayRow[], toMs: number): BreakdownTrendPoint[] {
   const last = Math.floor(toMs / DAY_MS) * DAY_MS;
   const byDay = new Map(rows.map((r) => [r.dayMs, r]));
   return Array.from({ length: TREND_DAYS }, (_, i) => {
@@ -98,14 +98,14 @@ function trendOf(rows: AnalyticsDayRow[], toMs: number): AnalyticsTrendPoint[] {
 }
 
 /** Pone precio a los tokens y calcula tasas y márgenes. Las filas van de más a menos trazas. */
-export function buildAnalytics(groupBy: AnalyticsGroup, rows: AnalyticsRows, pricing: PricingCatalog, range: TimeRange): Analytics {
-  const tokensByKey = new Map<string, AnalyticsTokenRow[]>();
+export function buildBreakdown(groupBy: BreakdownGroup, rows: BreakdownRows, pricing: PricingCatalog, range: TimeRange): Breakdown {
+  const tokensByKey = new Map<string, BreakdownTokenRow[]>();
   for (const t of rows.tokens) tokensByKey.set(t.key, [...(tokensByKey.get(t.key) ?? []), t]);
-  const daysByKey = new Map<string, AnalyticsDayRow[]>();
+  const daysByKey = new Map<string, BreakdownDayRow[]>();
   for (const d of rows.days) daysByKey.set(d.key, [...(daysByKey.get(d.key) ?? []), d]);
 
   let unpricedTokens = 0;
-  const items = rows.groups.map((g): AnalyticsItem => {
+  const items = rows.groups.map((g): BreakdownItem => {
     const tokens = tokensByKey.get(g.key) ?? [];
     const costs = tokens.map((t) => costOf(t.model, t.inputTokens, t.outputTokens, pricing));
     tokens.forEach((t, i) => {

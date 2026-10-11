@@ -65,13 +65,13 @@ No gate on promotion, no link with traces, no SDK. Those are the next phases and
 - **Mutable prompt + audit log**: cheaper to store, but "what exactly ran" would require replaying the log; immutability makes it a primary key.
 - **Server-side playground with a provider key**: standard in other tools, but it does not exercise the agent's tools, RAG or memory, so the result is not the real behavior.
 
-## Update (2026-10-11): evidence across all versions and environments (Overview › Analytics)
+## Update (2026-10-11): evidence across all versions and environments (Overview › Breakdown)
 
 Evidence per version (`GET .../prompts/{id}/evidence`) answers "how did each version of **this** prompt behave". Deciding what to promote needs the other view: every version of every prompt in one table, and the same table by environment. Opening prompt after prompt does not scale.
 
 ### Decision
 
-1. **One read endpoint, two groupings:** `GET /experiments/{id}/analytics?groupBy=prompt_version|environment`. A new grouping is a new entry in one table of the repository, not a new endpoint. `user` will be the third, once the SDK sends a user id.
+1. **One read endpoint, two groupings:** `GET /experiments/{id}/breakdown?groupBy=prompt_version|environment`. A new grouping is a new entry in one table of the repository, not a new endpoint. `user` will be the third, once the SDK sends a user id.
 2. **Same evidence model, generalized.** The repository starts from the (trace, group) pairs of the range and then reads the rest of the spans, the feedback and the daily series of those traces, as evidence per version does. Cost is not stored: tokens per model come out of ClickHouse and the application layer prices them with the catalog at read time ([ADR-025](../pricing/adr-025-model-pricing-catalog-sync.md)). A price correction therefore fixes the history. Missing prices are reported (`costComplete`, `unpricedTokens`), never hidden.
 3. **Every error rate carries its 95 % interval (Wilson).** It is the only way to say how far to trust a difference between two rows. When the intervals overlap, the UI says the difference may be noise; it never ranks on a raw percentage. Wilson, because it behaves with few traces and rates near 0, where the normal approximation fails.
 4. **Environments are not "fixed" for comparison.** `dev`, `pre` and `pro` run different versions on purpose, so the page compares them without warnings about it. What the page does state is which versions each one runs. Rows with fewer than 20 traces are dimmed and left out of the banner.

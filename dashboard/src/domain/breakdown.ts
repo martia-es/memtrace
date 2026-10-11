@@ -1,4 +1,4 @@
-import type { AnalyticsItemDto, AnalyticsResponse } from "@contract";
+import type { BreakdownItemDto, BreakdownResponse } from "@contract";
 import { formatCostUsd, formatDuration, formatPercent } from "./format";
 
 /** Con menos trazas que esto las cifras de una fila son ruido: se atenúa y no entra en los avisos. */
@@ -6,8 +6,8 @@ export const MIN_TRACES = 20;
 /** Con menos valoraciones que esto, el 👍 es una anécdota. */
 export const MIN_RATINGS = 20;
 
-export type AnalyticsItem = AnalyticsItemDto;
-export type AnalyticsGroup = AnalyticsResponse["groupBy"];
+export type BreakdownItem = BreakdownItemDto;
+export type BreakdownGroup = BreakdownResponse["groupBy"];
 export type Tone = "ok" | "error" | "neutral";
 
 export interface DeltaCell {
@@ -32,7 +32,7 @@ const percentChange = (from: number, to: number) => Math.round((Math.abs(to - fr
  * versiones pueden compararse sin más; lo que importa es saber cuánto fiarse. Si los intervalos del 95 % de la tasa de error
  * se solapan, la diferencia puede ser ruido.
  */
-export function compareAnalytics(a: AnalyticsItem, b: AnalyticsItem): DeltaCell[] {
+export function compareBreakdown(a: BreakdownItem, b: BreakdownItem): DeltaCell[] {
   const few = a.traces < MIN_TRACES || b.traces < MIN_TRACES;
 
   const errDiff = b.errorRate - a.errorRate;
@@ -94,13 +94,13 @@ export function compareAnalytics(a: AnalyticsItem, b: AnalyticsItem): DeltaCell[
   return [errors, latency, cost, rating];
 }
 
-export interface AnalyticsInsight {
-  worst: AnalyticsItem;
-  best: AnalyticsItem;
+export interface BreakdownInsight {
+  worst: BreakdownItem;
+  best: BreakdownItem;
 }
 
 /** El peor y el mejor por tasa de error, solo si sus intervalos del 95 % no se solapan y ambos tienen trazas de sobra. */
-export function findInsight(items: AnalyticsItem[]): AnalyticsInsight | null {
+export function findInsight(items: BreakdownItem[]): BreakdownInsight | null {
   const solid = items.filter((i) => i.traces >= MIN_TRACES);
   if (solid.length < 2) return null;
   const sorted = [...solid].sort((x, y) => y.errorRate - x.errorRate);
@@ -110,7 +110,7 @@ export function findInsight(items: AnalyticsItem[]): AnalyticsInsight | null {
 }
 
 /** Errores de cada día de la tendencia, 0..1; un día sin trazas es 0. */
-export function trendRates(item: AnalyticsItem): number[] {
+export function trendRates(item: BreakdownItem): number[] {
   return item.trend.map((t) => (t.traces > 0 ? t.errorTraces / t.traces : 0));
 }
 
@@ -129,7 +129,7 @@ const csvCell = (v: string | number | null) => {
 };
 
 /** CSV de la tabla, con las cifras sin formatear para poder explotarlas en una hoja de cálculo. */
-export function analyticsCsv(groupBy: AnalyticsGroup, items: AnalyticsItem[]): string {
+export function breakdownCsv(groupBy: BreakdownGroup, items: BreakdownItem[]): string {
   const head = [groupBy === "environment" ? "environment" : "prompt_version", "traces", "error_traces", "error_rate", "error_margin_95", "p95_ms", "cost_usd", "cost_per_trace_usd", "cost_complete", "thumbs_up_rate", "rated_traces"];
   const rows = items.map((i) => [i.key, i.traces, i.errorTraces, i.errorRate, i.errorMargin, i.p95Ms, i.costUsd, i.costPerTraceUsd, i.costComplete, i.thumbsUpRate, i.ratedTraces]);
   return [head, ...rows].map((r) => r.map((c) => csvCell(c as string | number | null)).join(",")).join("\n");

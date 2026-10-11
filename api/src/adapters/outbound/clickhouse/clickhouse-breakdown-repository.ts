@@ -1,7 +1,7 @@
 import type { ClickHouseClient } from "@clickhouse/client";
 import { RepositoryUnavailableError } from "@/application/errors";
-import type { AnalyticsRepository } from "@/application/ports/analytics-repository";
-import type { AnalyticsGroup, AnalyticsRows } from "@/domain/analytics";
+import type { BreakdownRepository } from "@/application/ports/breakdown-repository";
+import type { BreakdownGroup, BreakdownRows } from "@/domain/breakdown";
 import type { TenantScope } from "@/domain/tenant";
 import type { TimeRange } from "@/domain/time-range";
 import { ERROR, OP, TRACE_WINDOW_MS, attr, attrNum, nsToMs, num } from "./clickhouse-trace-repository";
@@ -23,16 +23,16 @@ const MAX_RELATED = 20;
  * Clave del grupo, filtro de presencia y lo que se ve dentro de cada fila. Una traza que usó dos versiones cuenta en las
  * dos, como en la evidencia por versión (ADR-067).
  */
-const GROUPS: Record<AnalyticsGroup, { key: string; present: string; related: string }> = {
+const GROUPS: Record<BreakdownGroup, { key: string; present: string; related: string }> = {
   prompt_version: { key: VERSION_LABEL, present: "PromptName != ''", related: `groupUniqArrayIf(${MAX_RELATED})(${ENVIRONMENT}, ${ENVIRONMENT} != '')` },
   environment: { key: ENVIRONMENT, present: `${ENVIRONMENT} != ''`, related: `groupUniqArrayIf(${MAX_RELATED})(${VERSION_LABEL}, PromptName != '')` },
 };
 
 /**
- * Overview › Analytics. Todo parte de los pares (traza, grupo) del rango; cada consulta mira después el resto de los spans y el
+ * Overview › Breakdown. Todo parte de los pares (traza, grupo) del rango; cada consulta mira después el resto de los spans y el
  * feedback de esas trazas, como la evidencia por versión (ADR-067). Es un modelo de lectura que cruza tablas a propósito.
  */
-export class ClickHouseAnalyticsRepository implements AnalyticsRepository {
+export class ClickHouseBreakdownRepository implements BreakdownRepository {
   private readonly spans: string;
   private readonly feedback: string;
   private readonly limiter: QueryLimiter;
@@ -48,7 +48,7 @@ export class ClickHouseAnalyticsRepository implements AnalyticsRepository {
     this.feedback = `${database}.user_feedback`;
   }
 
-  async rowsFor({ fromMs, toMs, scope, groupBy }: TimeRange & { scope: TenantScope; groupBy: AnalyticsGroup }): Promise<AnalyticsRows> {
+  async rowsFor({ fromMs, toMs, scope, groupBy }: TimeRange & { scope: TenantScope; groupBy: BreakdownGroup }): Promise<BreakdownRows> {
     const g = GROUPS[groupBy];
     const p: Params = { fromMs, toMs, toWithWindowMs: toMs + TRACE_WINDOW_MS, ...tenantParams(scope) };
     const inRange = "Timestamp >= fromUnixTimestamp64Milli({fromMs:Int64}) AND Timestamp < fromUnixTimestamp64Milli({toMs:Int64})";

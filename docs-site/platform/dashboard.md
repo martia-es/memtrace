@@ -49,7 +49,7 @@ Each span is a step: an LLM call, a tool, a retriever or an agent. Spans are col
 
 ## Overview
 
-The sidebar groups its pages in submenus. **Overview** opens **Summary**, **Compare**, **Analytics**, **Custom charts** and **Reports**; each one is its own page with its own link, so you can bookmark or share it. The time range applies to all of them: from 15 minutes to **1 year** (presets 15 min, 1 h, 6 h, 24 h, 7 d, 30 d, 90 d and 1 y, or a custom range of up to 365 days). Traces older than the [retention period](data-protection#how-long-traces-are-kept) of the agent no longer exist, so a longer range shows only what is kept. In **Errors**, the comparison with the previous period is hidden when that period is older than the retention.
+The sidebar groups its pages in submenus. **Overview** opens **Summary**, **Compare**, **Breakdown**, **Custom charts** and **Reports**; each one is its own page with its own link, so you can bookmark or share it. The time range applies to all of them: from 15 minutes to **1 year** (presets 15 min, 1 h, 6 h, 24 h, 7 d, 30 d, 90 d and 1 y, or a custom range of up to 365 days). Traces older than the [retention period](data-protection#how-long-traces-are-kept) of the agent no longer exist, so a longer range shows only what is kept. In **Errors**, the comparison with the previous period is hidden when that period is older than the retention.
 
 ### Summary
 
@@ -80,9 +80,9 @@ Puts two experiments side by side over the same time range. They are different a
 - **Cost per execution** and **Input vs output tokens** (for each agent, what share of its tokens is the prompt and what share is the answer).
 - Overlaid charts for executions, tokens and latency p95: A is a solid line, B a dashed one.
 
-### Analytics
+### Breakdown
 
-Every prompt version of your agent in one table, so you can decide what to promote without opening prompt after prompt. Choose how to group the rows with **Group by**:
+The same figures as **Summary**, split by prompt version or environment: every version of your agent in one table, so you can decide what to promote without opening prompt after prompt. Choose how to group the rows with **Group by**:
 
 - **Prompt version** (`weather-system v3`): one row per version that had traces in the range. The **Seen in** column lists the environments where it ran. Needs the agent to read its prompt with [`memtrace.prompts`](/library/prompts).
 - **Environment** (`dev`, `pre`, `pro`): one row per environment, with the prompt versions each one runs. Needs the agent to set its environment in the SDK configuration. Environments run different versions on purpose, so you can see an improvement in `pre` before promoting it to `pro`.

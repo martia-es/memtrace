@@ -100,7 +100,7 @@ Un usuario puede agrupar varias gráficas custom ya guardadas en un **informe** 
 - [x] Esquema de datos en ClickHouse, con migraciones versionadas
 - [x] API de consulta (Next.js) con acceso al almacén encapsulado detrás de un repositorio propio
 - [x] Dashboard (Quasar) que consume únicamente la API de consulta
-- [x] Overview › Analytics: todas las versiones de prompt (o todos los entornos) en una tabla con coste, errores con su margen del 95 %, latencia, tendencia de 7 días y 👍, y comparación de dos filas — [ADR-067](adrs/prompts/adr-067-prompt-registry-immutable-versions-and-tags.md) (actualización). **Pendiente**: agrupar por usuario (necesita `user.id` en los SDK)
+- [x] Overview › Breakdown: todas las versiones de prompt (o todos los entornos) en una tabla con coste, errores con su margen del 95 %, latencia, tendencia de 7 días y 👍, y comparación de dos filas — [ADR-067](adrs/prompts/adr-067-prompt-registry-immutable-versions-and-tags.md) (actualización). **Pendiente**: agrupar por usuario (necesita `user.id` en los SDK)
 - [x] Manifiestos de Kubernetes (`k8s/`) con las 5 piezas como servicios independientes
 - [x] Documentación y ejemplos de integración
 

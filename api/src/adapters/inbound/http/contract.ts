@@ -1448,8 +1448,8 @@ export interface PromptEvidenceResponse {
   versions: VersionEvidenceDto[];
 }
 
-/** Una fila de Overview › Analytics: una versión de prompt o un entorno. */
-export interface AnalyticsItemDto {
+/** Una fila de Overview › Breakdown: una versión de prompt o un entorno. */
+export interface BreakdownItemDto {
   key: string;
   /** entornos donde corrió una versión, o versiones que corrieron en un entorno */
   related: string[];
@@ -1473,11 +1473,11 @@ export interface AnalyticsItemDto {
   trend: { day: string; traces: number; errorTraces: number }[];
 }
 
-export interface AnalyticsResponse {
+export interface BreakdownResponse {
   groupBy: "prompt_version" | "environment";
   range: { from: string; to: string };
   /** más trazas primero */
-  items: AnalyticsItemDto[];
+  items: BreakdownItemDto[];
   unpricedTokens: number;
 }
 

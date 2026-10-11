@@ -2,7 +2,7 @@ import { permissionsOf } from "./permissions";
 import type { AlertEventsPageDto, AlertRuleDto, AlertsOverviewDto, AuditPageDto, BudgetViewDto, ChartCatalogEntryDto, NotificationsDto, OpenAlertsDto, PartnerClientDto, PartnerGrantDto, PartnershipDto, RetentionPolicyDto } from "@contract";
 import type {
   AddQueueItemsResponse,
-  AnalyticsResponse,
+  BreakdownResponse,
   InterAnnotatorAgreementResponse,
   JudgeHumanAgreementResponse,
   AnnotationQueueDetailResponse,
@@ -66,7 +66,7 @@ import type {
   TraceSummaryDto,
   TranscriptResponse,
 } from "@contract";
-import type { AnalyticsGroup, ListConversationsParams, ListSpansParams, ListTracesParams, RangeParams, SaveAnnotationBody, TraceApi, AddQueueItemsBody, AnnotationQueuePatchBody, NewAnnotationQueueBody, QueueLabelBody, AgreementScope } from "@/application/trace-api";
+import type { BreakdownGroup, ListConversationsParams, ListSpansParams, ListTracesParams, RangeParams, SaveAnnotationBody, TraceApi, AddQueueItemsBody, AnnotationQueuePatchBody, NewAnnotationQueueBody, QueueLabelBody, AgreementScope } from "@/application/trace-api";
 import {
   type AlertRuleBody,
   type BudgetBody,
@@ -701,11 +701,11 @@ export class FakeTraceApi implements TraceApi {
     if (!found) throw new Error(`no overview configured for ${experimentId}`);
     return found;
   }
-  analytics: AnalyticsResponse = { groupBy: "prompt_version", range: { from: "", to: "" }, items: [], unpricedTokens: 0 };
-  analyticsCalls: AnalyticsGroup[] = [];
-  async getAnalytics(p: RangeParams & { groupBy: AnalyticsGroup }): Promise<AnalyticsResponse> {
-    this.analyticsCalls.push(p.groupBy);
-    return { ...this.analytics, groupBy: p.groupBy };
+  breakdown: BreakdownResponse = { groupBy: "prompt_version", range: { from: "", to: "" }, items: [], unpricedTokens: 0 };
+  breakdownCalls: BreakdownGroup[] = [];
+  async getBreakdown(p: RangeParams & { groupBy: BreakdownGroup }): Promise<BreakdownResponse> {
+    this.breakdownCalls.push(p.groupBy);
+    return { ...this.breakdown, groupBy: p.groupBy };
   }
   revisions: RevisionsResponse = { items: [] };
   async listRevisions(_p: RangeParams): Promise<RevisionsResponse> {

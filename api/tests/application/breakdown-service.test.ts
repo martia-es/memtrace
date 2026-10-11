@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
-import { AnalyticsService } from "@/application/analytics-service";
-import type { AnalyticsRepository } from "@/application/ports/analytics-repository";
+import { BreakdownService } from "@/application/breakdown-service";
+import type { BreakdownRepository } from "@/application/ports/breakdown-repository";
 import { ValidationError } from "@/domain/errors";
 import { toPricingCatalog } from "@/domain/pricing";
 
 const scope = { serviceName: "agent" } as never;
-const repo = () => ({ rowsFor: vi.fn().mockResolvedValue({ groups: [], tokens: [], days: [] }) }) satisfies AnalyticsRepository;
-const service = (r: AnalyticsRepository) => new AnalyticsService(r, async () => toPricingCatalog([]), () => 10 * 86_400_000);
+const repo = () => ({ rowsFor: vi.fn().mockResolvedValue({ groups: [], tokens: [], days: [] }) }) satisfies BreakdownRepository;
+const service = (r: BreakdownRepository) => new BreakdownService(r, async () => toPricingCatalog([]), () => 10 * 86_400_000);
 
-describe("AnalyticsService", () => {
+describe("BreakdownService", () => {
   it("asks the repository for the chosen grouping over the resolved range", async () => {
     const r = repo();
     const a = await service(r).breakdown(scope, { groupBy: "environment" });

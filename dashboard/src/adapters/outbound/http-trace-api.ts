@@ -1,6 +1,6 @@
 import type {
   AddQueueItemsResponse,
-  AnalyticsResponse,
+  BreakdownResponse,
   InterAnnotatorAgreementResponse,
   JudgeHumanAgreementResponse,
   AnnotationQueueDetailResponse,
@@ -53,7 +53,7 @@ import type {
   TraceListResponse,
   TranscriptResponse,
 } from "@contract";
-import { ApiError, type AnalyticsGroup, type ListConversationsParams, type ListSpansParams, type ListTracesParams, type RangeParams, type SaveAnnotationBody, type TraceApi, type AddQueueItemsBody, type AnnotationQueuePatchBody, type NewAnnotationQueueBody, type QueueLabelBody, type AgreementScope, type QueueResultsParams } from "@/application/trace-api";
+import { ApiError, type BreakdownGroup, type ListConversationsParams, type ListSpansParams, type ListTracesParams, type RangeParams, type SaveAnnotationBody, type TraceApi, type AddQueueItemsBody, type AnnotationQueuePatchBody, type NewAnnotationQueueBody, type QueueLabelBody, type AgreementScope, type QueueResultsParams } from "@/application/trace-api";
 
 type Fetch = typeof fetch;
 type QueryValue = string | number | boolean | undefined;
@@ -215,8 +215,8 @@ export class HttpTraceApi implements TraceApi {
     return this.get<OverviewResponse>(`${this.baseUrl}/experiments/${encodeURIComponent(experimentId)}/metrics/overview`, { ...params }, signal);
   }
 
-  getAnalytics(params: RangeParams & { groupBy: AnalyticsGroup }, signal?: AbortSignal) {
-    return this.get<AnalyticsResponse>(`${this.scopedBase()}/analytics`, { ...params }, signal);
+  getBreakdown(params: RangeParams & { groupBy: BreakdownGroup }, signal?: AbortSignal) {
+    return this.get<BreakdownResponse>(`${this.scopedBase()}/breakdown`, { ...params }, signal);
   }
 
   listRevisions(params: RangeParams, signal?: AbortSignal) {
