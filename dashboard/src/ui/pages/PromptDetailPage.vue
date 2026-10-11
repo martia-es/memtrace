@@ -117,6 +117,25 @@ const fixTrace = typeof route.query.trace === "string" && route.query.tab === "f
 const replayTrace = ref<string | null>(typeof route.query.trace === "string" ? route.query.trace : null);
 const mode = ref<Mode>(legacy.mode ?? "text");
 const drawer = ref<Drawer | null>(legacy.drawer ?? null);
+// ancho del panel lateral: se arrastra por el borde izquierdo o se amplía con el botón
+const DRAWER_MIN = 480;
+const DRAWER_DEFAULT = 620;
+const drawerWidth = ref(DRAWER_DEFAULT);
+const drawerWide = computed(() => drawerWidth.value > DRAWER_DEFAULT);
+const clampDrawer = (w: number) => Math.max(DRAWER_MIN, Math.min(w, window.innerWidth - 40));
+function toggleDrawerWidth() {
+  drawerWidth.value = drawerWide.value ? DRAWER_DEFAULT : clampDrawer(Math.round(window.innerWidth * 0.8));
+}
+function startDrawerResize(e: PointerEvent) {
+  const move = (ev: PointerEvent) => (drawerWidth.value = clampDrawer(window.innerWidth - ev.clientX));
+  const stop = () => {
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", stop);
+  };
+  e.preventDefault();
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", stop);
+}
 const activeTab = computed(() => TAB_OF[mode.value]);
 const VIEW_TABS = [
   { id: "prompt", label: "Prompt" },
@@ -766,10 +785,12 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
 
       <template v-if="drawer">
         <div class="drawer-backdrop" data-testid="drawer-backdrop" @click="drawer = null" />
-        <aside class="drawer" role="dialog" aria-label="Rules, activity and dependencies" data-testid="drawer">
+        <aside class="drawer" role="dialog" aria-label="Rules, activity and dependencies" data-testid="drawer" :style="{ width: `min(${drawerWidth}px, 100vw)` }">
+          <div class="drawer-resize" role="separator" aria-orientation="vertical" aria-label="Resize panel" data-testid="drawer-resize" @pointerdown="startDrawerResize" @dblclick="toggleDrawerWidth" />
           <header class="drawer-head">
             <strong>{{ drawer === "rules" ? "Rules & approvals" : drawer === "activity" ? "Activity" : "Used by" }}</strong>
             <span class="grow" />
+            <Button variant="icon" :aria-label="drawerWide ? 'Narrow panel' : 'Widen panel'" data-testid="drawer-widen" @click="toggleDrawerWidth">{{ drawerWide ? "⇥" : "⇤" }}</Button>
             <Button variant="icon" aria-label="Close" data-testid="drawer-close" @click="drawer = null">×</Button>
           </header>
           <TabBar :tabs="drawerTabs" :model-value="drawer" @update:model-value="drawer = $event as Drawer" />
@@ -1828,6 +1849,16 @@ ul.plain {
   border-left: 1px solid var(--mt-line);
   box-shadow: -12px 0 32px rgba(10, 35, 33, 0.16);
 }
+.drawer-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.drawer-resize:hover { background: var(--mt-accent-soft); }
 .drawer-head {
   flex: none;
   display: flex;
