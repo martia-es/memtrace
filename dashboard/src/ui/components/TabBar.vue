@@ -53,7 +53,9 @@ defineEmits<{ "update:modelValue": [id: string] }>();
   color: var(--mt-ink);
 }
 .tab.active {
-  color: var(--mt-ink);
+  color: var(--mt-accent-text);
+  background: var(--mt-accent-soft);
+  border-radius: var(--mt-radius-sm) var(--mt-radius-sm) 0 0;
 }
 .tab:disabled {
   cursor: not-allowed;
@@ -65,11 +67,11 @@ defineEmits<{ "update:modelValue": [id: string] }>();
 .tab.active::after {
   content: "";
   position: absolute;
-  left: 8px;
-  right: 8px;
+  left: 0;
+  right: 0;
   bottom: -1px;
-  height: 2px;
-  border-radius: 2px;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
   background: var(--mt-accent);
 }
 .tab-count {
