@@ -31,6 +31,7 @@ async function setup(component: object, role: string, api: FakePromptApi, props:
     routes: [
       { path: "/e/:experimentId/prompts", name: "prompts", component: stub },
       { path: "/e/:experimentId/prompts/:promptId", name: "prompt", component: stub },
+      { path: "/e/:experimentId/conversations", name: "conversations", component: stub },
     ],
   });
   await router.push(`/e/exp-1/prompts${query}`);
@@ -325,7 +326,8 @@ describe("moving an environment behind an approval rule", () => {
   it("asks for approval instead of moving a gated environment", async () => {
     const api = gated();
     const { wrapper } = await openTags(api);
-    await chooseOption(wrapper.element, "[data-testid='env-pro'] .select-trigger", "v1 · first draft");
+    await wrapper.get("[data-testid='env-menu-pro']").trigger("click");
+    await chooseOption(wrapper.element, "[data-testid='env-panel-pro'] .select-trigger", "v1 · first draft");
     expect(wrapper.find("[data-testid='move-pro']").text()).toBe("Request approval");
     await wrapper.find("[data-testid='move-pro']").trigger("click");
     await tick();
@@ -339,7 +341,8 @@ describe("moving an environment behind an approval rule", () => {
   it("moves a stage without a rule directly", async () => {
     const api = gated();
     const { wrapper } = await openTags(api);
-    await chooseOption(wrapper.element, "[data-testid='env-pre'] .select-trigger", "v1 · first draft");
+    await wrapper.get("[data-testid='env-menu-pre']").trigger("click");
+    await chooseOption(wrapper.element, "[data-testid='env-panel-pre'] .select-trigger", "v1 · first draft");
     expect(wrapper.find("[data-testid='move-pre']").text()).toBe("Move");
     await wrapper.find("[data-testid='move-pre']").trigger("click");
     await tick();
@@ -357,7 +360,8 @@ describe("moving an environment behind an approval rule", () => {
       ],
     });
     const { wrapper } = await openTags(api);
-    await chooseOption(wrapper.element, "[data-testid='env-pro'] .select-trigger", "v1 · first draft");
+    await wrapper.get("[data-testid='env-menu-pro']").trigger("click");
+    await chooseOption(wrapper.element, "[data-testid='env-panel-pro'] .select-trigger", "v1 · first draft");
     expect(wrapper.find("[data-testid='move-pro']").text()).toBe("Move");
   });
 });

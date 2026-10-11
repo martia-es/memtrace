@@ -16,20 +16,19 @@ Variables are written `{{city}}`; MemTrace detects them when you save and lists 
 
 A prompt page has two columns.
 
-**On the left**, what is live: one card per environment (`dev`, `pre`, `pro`) with the version it runs and whether it is *up to date* or *N versions behind*. Next to a card that is behind, **Promote vN** moves that environment to the latest version (or **Request approval** when the step needs one). Below the cards, the list of **versions**: search by number (`12`) or a word of the message, each one grouped by month, with its tags, who created it and where it runs.
+**On the left**, what is live and where to change it. There is one card per environment (`dev`, `pre`, `pro`) with the version it runs, whether it is *up to date* or *N versions behind*, and what the agents report (*agent on v9*, or *no agent has reported it yet*). Next to a card that is behind, **Promote vN** moves that environment to the latest version (or **Request approval** when the step needs one). The **⋯** button of a card opens its options: the agent's state, a reason, **Point to…** any version and **remove the tag**. Below the cards, your **custom tags** as chips, and the list of **versions**: search by number (`12`) or a word of the message, each one grouped by month, with its tags, who created it and where it runs.
 
-**On the right**, the version you picked, with **Edit as new version** and four tabs:
+**On the right**, the version you picked, with **Edit as new version** and three tabs:
 
-- **Prompt**: the text, with numbered lines, highlighted `{{variables}}`, and below it the variables and the fragments the version includes.
-- **Changes**: the text diff against any other version, with how each one behaved.
-- **Behaviour**: what the version did on real traces (last 24 hours, 7 or 30 days).
-- **Test**: **Try it** and **Fix a failure** on the real agent.
+- **Prompt**: the text, with numbered lines, highlighted `{{variables}}`, and below it the variables, the fragments the version includes and a folded **Dependencies** map.
+- **Compare**: the text diff against any other version, and above it how each one behaved on real traces (last 24 hours, 7 or 30 days). **All versions side by side** unfolds the figures of every version, and **Open the traces in Conversations** takes you to the traces behind the numbers.
+- **Test**: run the real agent with **A message**, or start from **A failed trace**.
 
-Everything that is not about one version opens in a side panel, from **Rules & approvals** and **Used by** at the top: *Rules* (move a tag to any version, promotion policy and approvals), *Activity* (what really runs, tag moves and requests, newest first) and *Used by* (traces, agents and dependencies). Old links with `?tab=` still open the right view.
+Everything that is not about one version opens in a single side panel, **Release rules**, from the top (it shows how many requests are pending): the promotion policy, the approvals and the history of every tag move, newest first. Old links with `?tab=` still open the right view.
 
 To change a prompt, open a version and press **Edit as new version**. The new version remembers the one it started from, which is what **Compare** uses by default.
 
-**Changes** shows two versions side by side, line by line, with line numbers and a summary (*2 lines rewritten, 1 added*): red is what was removed, green what was added. You can compare the selected version with any other.
+**Compare** shows two versions side by side, line by line, with line numbers and a summary (*2 lines rewritten, 1 added*): red is what was removed, green what was added. You can compare the selected version with any other.
 
 ## Tags: which version runs where
 
@@ -39,7 +38,7 @@ A tag is a label that points to one version. The tags `dev`, `pre` and `pro` (th
 - Moving an **environment tag** (`dev`, `pre`, `pro`) needs `prompt:promote`, which the `technical` role has by default.
 - Each move is saved in the **history** of the prompt: from which version to which, who did it, when and the reason you wrote. The author is shown as their name (or email if they have no name).
 - A version can be retrieved by number (`3`) or by tag (`pro`), also through the [API](./api#prompts).
-- **A custom tag is a channel with your own name.** An agent follows it with `memtrace.prompts.get("weather-system", tag="canary")` and receives the version it points to, so moving the tag updates the agent without a redeploy. In **Rules & approvals → Custom tags**, each tag shows the agents that follow it (environment, running version, last report). A tag no agent has reported says so, with the line to paste in the agent and a **Copy** button. Names use lowercase letters, digits, `-` and `_`, start with a letter and have up to 32 characters; `dev`, `pre` and `pro` are environments and cannot be created here. The agent chooses its tag in its code; choosing it from this page is not available yet.
+- **A custom tag is a channel with your own name.** An agent follows it with `memtrace.prompts.get("weather-system", tag="canary")` and receives the version it points to, so moving the tag updates the agent without a redeploy. In the **Custom tags** row on the left, each tag is a chip with the number of agents that follow it; click it to see them (environment, running version, last report) and to move or remove it, and use **+ New tag** to tag the version you are looking at. A tag no agent has reported says so, with the line to paste in the agent and a **Copy** button. Names use lowercase letters, digits, `-` and `_`, start with a letter and have up to 32 characters; `dev`, `pre` and `pro` are environments and cannot be created here. The agent chooses its tag in its code; choosing it from this page is not available yet.
 
 ## Archive instead of delete
 
@@ -63,11 +62,11 @@ The [Python SDK](/library/prompts) reads the prompt of an environment with `memt
 
 ## What really runs
 
-The **Release** page starts with **In use right now**: for each environment, the version each agent reports to be using. *Up to date* means it runs the version its tag points to; *Catching up* means the tag moved and the agent has not picked it up yet (it takes up to 30 seconds, or longer if some replica is stale); *Fixed version* is an agent that asked for a version number instead of a tag; *Not reporting* means it has not reported for 15 minutes. In the version list, a version running somewhere says **Running in pro**. Agents report only when they read their prompt with the SDK.
+Each environment card on the left says what the agents report for it, and its **⋯** options give the detail: the version each agent reports to be using. *Up to date* means it runs the version its tag points to; *Catching up* means the tag moved and the agent has not picked it up yet (it takes up to 30 seconds, or longer if some replica is stale); *Fixed version* is an agent that asked for a version number instead of a tag; *Not reporting* means it has not reported for 15 minutes. In the version list, a version running somewhere says **Running in pro**. Agents report only when they read their prompt with the SDK.
 
 ## Traces of a version
 
-The **Traces** list in **Used by** shows the traces that used the selected version (or all versions), so you can open the conversation behind any number in Evidence. **Open in Conversations** takes the same search to the full list.
+**Open the traces in Conversations**, in **Compare**, takes you to the traces that used the selected version, so you can open the conversation behind any number in Evidence.
 
 The link also works the other way. A trace, a conversation and every item of an evaluation run show the **prompt and version** that produced them (`weather-system v2`), and clicking it opens that version here. In **Conversations**, `?prompt=weather-system&pv=2` filters the list to one version, and a *Prompt* column shows it on every row.
 
@@ -75,7 +74,7 @@ An agent only shows up when it reads the prompt with [`memtrace.prompts`](/libra
 
 ## Evidence: what each version did
 
-The **Evidence** page (**Open full evidence**) shows, for every version that had traffic in the last 24 hours, 7 or 30 days, what happened in the traces that used it:
+**All versions side by side**, in **Compare**, shows, for every version that had traffic in the last 24 hours, 7 or 30 days, what happened in the traces that used it:
 
 | Column | Meaning |
 |---|---|
@@ -89,7 +88,7 @@ The **Evidence** page (**Open full evidence**) shows, for every version that had
 
 Versions with fewer than 30 traces are marked **few traces**: their figures are only indicative. Below the table, **What failed most** adds up the main failure causes of all the versions.
 
-In **Compare**, above the text diff, the **behaviour** cards put two versions side by side, one card per metric with a bar for each version, and say what got *better*, *worse* or has *no change* (less than 5 % of movement is noise). When either version has fewer than 30 traces it warns that the differences may be chance. Use it with a similar period and traffic for both: a version that ran in a quiet week is not comparable with one that ran in a busy one.
+Above the text diff, the **behaviour** cards put two versions side by side, one card per metric with a bar for each version, and say what got *better*, *worse* or has *no change* (less than 5 % of movement is noise). When either version has fewer than 30 traces it warns that the differences may be chance. Use it with a similar period and traffic for both: a version that ran in a quiet week is not comparable with one that ran in a busy one.
 
 To see evaluator results per version, run `run_experiment` in the same process as the agent, reading the prompt with `memtrace.prompts`, so each item's trace carries the version it used. Seeing the evidence needs permission to read the agent's data (`prompt:read` and read access to the experiment).
 
@@ -201,7 +200,7 @@ Limits: a fragment cannot include another fragment; only published versions can 
 
 ## Dependencies and impact
 
-The **Dependencies** list in **Used by** answers "what is connected to this prompt?":
+The **Dependencies** map, folded in the **Prompt** tab, answers "what is connected to this prompt?":
 
 - **Agents that read it**, and what each one *reports serving* in every environment (the tag it follows or the fixed version it asked for, and when it was last seen). An agent linked but not using [`memtrace.prompts`](/library/prompts) shows *has not reported reading it yet*.
 - **Evaluated with**: the dataset and number of runs of its [promotion policy](#promotion-policy-evaluate-before-you-promote), or a note that it has none.

@@ -5,7 +5,6 @@ import { computed, defineComponent, h } from "vue";
 import { createMemoryHistory, createRouter } from "vue-router";
 import { ASSISTANT_API, CURRENT_EXPERIMENT, IDENTITY_API, PROMPT_API, TRACE_API } from "@/dependency-container";
 import { EMPTY_THEME, type ExperimentDto } from "@/application/identity-api";
-import PromptTraces from "@/ui/components/PromptTraces.vue";
 import ConversationsPage from "@/ui/pages/ConversationsPage.vue";
 import PromptDetailPage from "@/ui/pages/PromptDetailPage.vue";
 import PromptsPage from "@/ui/pages/PromptsPage.vue";
@@ -105,41 +104,13 @@ describe("opening a prompt from a link", () => {
   });
 });
 
-describe("all the traces of a prompt version (ADR-068)", () => {
-  const withTraces = () => {
-    const trace = new FakeTraceApi();
-    trace.pages = [{ items: [summary({ traceId: "a".repeat(32), rootSpanName: "turno uno", prompts: [W2] }), summary({ traceId: "b".repeat(32), rootSpanName: "turno dos", prompts: [W2] })], nextCursor: null }];
-    return trace;
-  };
-
-  it("lists the traces that used the selected version and asks the API for exactly that", async () => {
-    const trace = withTraces();
-    const { wrapper } = await mountAt(PromptTraces, "/e/exp-1/prompts/p1", { promptName: "weather-system", versions: [2, 1], selected: 2 }, { trace });
-    expect(trace.listCalls.at(-1)).toMatchObject({ promptName: "weather-system", promptVersion: 2 });
-    expect(wrapper.text()).toContain("turno uno");
-    expect(wrapper.text()).toContain("turno dos");
-    expect(wrapper.find("[data-testid='traces-count']").text()).toBe("2 traces.");
-  });
-
-  it("can show every version, and links the same search to the full list", async () => {
-    const trace = withTraces();
-    const { wrapper } = await mountAt(PromptTraces, "/e/exp-1/prompts/p1", { promptName: "weather-system", versions: [2, 1], selected: null }, { trace });
-    expect(trace.listCalls.at(-1)?.promptVersion).toBeUndefined();
+describe("the traces of a prompt version (ADR-068)", () => {
+  it("opens Compare on the version in the link and links the same search to Conversations", async () => {
+    const { wrapper } = await mountAt(PromptDetailPage, "/e/exp-1/prompts/p1?tab=traces&version=2", { promptId: "p1" });
+    expect(wrapper.find("[data-testid='pane-compare']").exists()).toBe(true);
     const href = wrapper.find("[data-testid='traces-open-all']").attributes("href")!;
     expect(href).toContain("group=flat");
     expect(href).toContain("prompt=weather-system");
-    expect(href).not.toContain("pv=");
-  });
-
-  it("explains how traces get here when there are none", async () => {
-    const { wrapper } = await mountAt(PromptTraces, "/e/exp-1/prompts/p1", { promptName: "weather-system", versions: [1], selected: 1 });
-    expect(wrapper.find("[data-testid='traces-empty']").text()).toContain("compile()");
-  });
-
-  it("is a tab of the prompt, and opens on the version in the link", async () => {
-    const trace = withTraces();
-    const { wrapper } = await mountAt(PromptDetailPage, "/e/exp-1/prompts/p1?tab=traces&version=2", { promptId: "p1" }, { trace });
-    expect(wrapper.find("[data-testid='pane-traces']").exists()).toBe(true);
-    expect(trace.listCalls.at(-1)).toMatchObject({ promptName: "weather-system", promptVersion: 2 });
+    expect(href).toContain("pv=2");
   });
 });

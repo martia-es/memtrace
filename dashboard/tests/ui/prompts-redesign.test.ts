@@ -21,6 +21,7 @@ async function setup(component: object, api: FakePromptApi, props: Record<string
     routes: [
       { path: "/e/:experimentId/prompts", name: "prompts", component: stub },
       { path: "/e/:experimentId/prompts/:promptId", name: "prompt", component: stub },
+      { path: "/e/:experimentId/conversations", name: "conversations", component: stub },
     ],
   });
   await router.push("/e/exp-1/prompts");
