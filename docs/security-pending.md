@@ -48,7 +48,7 @@ El agente debe enviar OTLP por HTTP a la pasarela: el Collector ya no acepta gRP
 | Secretos reales y gestor de secretos con rotación | Los `*-dev-only` son públicos | P1 |
 | Cifrado en reposo | Volúmenes y copias de ClickHouse y PostgreSQL | P1 |
 | Endurecer pods de ClickHouse y PostgreSQL | `runAsNonRoot`, `readOnlyRootFilesystem`, Pod Security `restricted` | P1 |
-| Jobs que aún usan la cuenta administradora de ClickHouse | `topic-extraction`, `model-pricing-sync`, `health-probe`, backfill, ajuste inicial del modelo | P1 |
+| Jobs que aún usan la cuenta administradora de ClickHouse | `topic-extraction`, `model-pricing-sync`, `model-quality-sync`, `health-probe`, backfill, ajuste inicial del modelo | P1 |
 | Alinear versiones de ClickHouse | Servidor 23.8, imagen del Job de migraciones 24.3 | P2 |
 | Escaneo de la cadena de suministro en CI | Dependencias, imágenes, SBOM | P2 |
 

@@ -39,6 +39,8 @@ describe.skipIf(!enabled)("least privilege (integration)", () => {
       await expect(repo.getOverview({ ...range, scope: SCOPE, bucketSeconds: 3600 })).resolves.toBeDefined(); // incluye span_topics FINAL y el JOIN
       await expect(repo.listErrorGroups({ ...range, scope: SCOPE })).resolves.toBeDefined();
       await expect(repo.getModelPricing()).resolves.toBeDefined();
+      await expect(repo.getModelQuality()).resolves.toBeDefined();
+      await expect(repo.listModelsInUse([SCOPE], range)).resolves.toBeDefined();
       await expect(repo.getTraceSpans(SCOPE, "0".repeat(32), 10)).resolves.toBeNull();
     });
 

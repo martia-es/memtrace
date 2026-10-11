@@ -3,7 +3,7 @@
 #   dashboard ──► api ──► postgres
 #                  │ └──► clickhouse (lectura y escritura de evaluación)
 #                  └────► otel-collector ──► clickhouse   (la API es el ÚNICO cliente del Collector)
-#   jobs (migraciones, backfill, topic-extraction, model-pricing, health-probe, retention-purge, alerts-evaluate) ──► postgres / clickhouse
+#   jobs (migraciones, backfill, topic-extraction, model-pricing, model-quality, health-probe, retention-purge, alerts-evaluate) ──► postgres / clickhouse
 #
 # IMPORTANTE: una NetworkPolicy solo vale si el CNI del clúster la aplica. El `kindnet` por defecto de kind puede no
 # hacerlo: `make netpol-check` lo comprueba. Aunque no se aplicara, el Collector rechaza lo que no lleve el token de la
@@ -84,7 +84,7 @@ spec:
             matchExpressions:
               - key: app
                 operator: In
-                values: [api, health-probe, topic-extraction, topic-extraction-fit-initial, model-pricing-sync, backfill-experiment-id, clickhouse-migrate, retention-purge, alerts-evaluate]
+                values: [api, health-probe, topic-extraction, topic-extraction-fit-initial, model-pricing-sync, model-quality-sync, backfill-experiment-id, clickhouse-migrate, retention-purge, alerts-evaluate]
       ports:
         - { protocol: TCP, port: 8123 }
         - { protocol: TCP, port: 9000 }
@@ -203,7 +203,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [clickhouse-migrate, postgres-migrate, backfill-experiment-id, topic-extraction, topic-extraction-fit-initial, model-pricing-sync, health-probe, retention-purge, alerts-evaluate]
+        values: [clickhouse-migrate, postgres-migrate, backfill-experiment-id, topic-extraction, topic-extraction-fit-initial, model-pricing-sync, model-quality-sync, health-probe, retention-purge, alerts-evaluate]
   policyTypes: [Egress]
   egress:
     - to:
@@ -218,7 +218,7 @@ spec:
       ports:
         - { protocol: TCP, port: 5432 }
 ---
-# 10) Salida a Internet de los jobs que la necesitan: descarga de modelos y precios (topic-extraction, model-pricing-sync)
+# 10) Salida a Internet de los jobs que la necesitan: descarga de modelos, precios y puntuaciones (topic-extraction, model-pricing-sync, model-quality-sync)
 #     sondeo de /health de los agentes (health-probe, con su protección SSRF) y envío de avisos por email (alerts-evaluate → Resend)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -230,7 +230,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [topic-extraction, topic-extraction-fit-initial, model-pricing-sync, health-probe, alerts-evaluate]
+        values: [topic-extraction, topic-extraction-fit-initial, model-pricing-sync, model-quality-sync, health-probe, alerts-evaluate]
   policyTypes: [Egress]
   egress:
     - to:

@@ -3,6 +3,7 @@ import { RepositoryUnavailableError } from "@/application/errors";
 import type { ConversationListQuery, RevisionSummary, SpanListQuery, TraceListQuery, TraceRepository, TraceSpans } from "@/application/ports/trace-repository";
 import type { ErrorGroupsResult } from "@/domain/error-categories";
 import type { ConversationCursor, ConversationSummary, ConversationUsage } from "@/domain/conversation";
+import type { ArenaModel } from "@/domain/model-quality";
 import type { ModelPricing } from "@/domain/pricing";
 import { previewOf, type SpanCursor, type SpanRecord } from "@/domain/span-row";
 import type { ChatSpanRecord } from "@/domain/transcript";
@@ -64,6 +65,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
   private readonly traceIndex: string;
   private readonly topics: string;
   private readonly pricing: string;
+  private readonly quality: string;
 
   private readonly limiter: QueryLimiter;
 
@@ -78,6 +80,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
     this.traceIndex = `${database}.otel_traces_trace_id_ts`;
     this.topics = `${database}.span_topics`;
     this.pricing = `${database}.model_pricing`;
+    this.quality = `${database}.model_quality`;
   }
 
   /** Catálogo de precios vigente (ADR-025): `FINAL` fuerza la deduplicación de `ReplacingMergeTree` en la lectura. */
@@ -95,6 +98,40 @@ export class ClickHouseTraceRepository implements TraceRepository {
       source: r.Source,
       updatedAtMs: num(r.updatedAtMs),
     }));
+  }
+
+  /** Puntuaciones de Arena vigentes (ADR-025, ampliación): catálogo global y público, como el de precios. */
+  async getModelQuality(): Promise<ArenaModel[]> {
+    const rows = await this.rows<{ ModelName: string; Organization: string; License: string; Rating: number; RatingLower: number; RatingUpper: number; VoteCount: number; Rank: number; publishedAtMs: number; updatedAtMs: number }>(
+      `SELECT ModelName, Organization, License, Rating, RatingLower, RatingUpper, VoteCount, Rank,
+              toUnixTimestamp64Milli(PublishedAt) AS publishedAtMs, toUnixTimestamp64Milli(UpdatedAt) AS updatedAtMs
+       FROM ${this.quality} FINAL WHERE Source = 'arena' AND Arena = 'text' ORDER BY ModelName`,
+      {},
+    );
+    return rows.map((r) => ({
+      modelName: r.ModelName,
+      organization: r.Organization,
+      license: r.License,
+      rating: num(r.Rating),
+      ratingLower: num(r.RatingLower),
+      ratingUpper: num(r.RatingUpper),
+      voteCount: num(r.VoteCount),
+      rank: num(r.Rank),
+      publishedAtMs: num(r.publishedAtMs),
+      updatedAtMs: num(r.updatedAtMs),
+    }));
+  }
+
+  /** Modelos con llamadas en el rango, **solo** de los experimentos dados. Sirve para saber cuáles de los del catálogo usa de verdad el agente. */
+  async listModelsInUse(scopes: TenantScope[], { fromMs, toMs }: TimeRange): Promise<string[]> {
+    if (scopes.length === 0) return [];
+    const { clause, params } = ClickHouseTraceRepository.range(fromMs, toMs);
+    const rows = await this.rows<{ model: string }>(
+      `SELECT DISTINCT ${attr("gen_ai.request.model")} AS model FROM ${this.spans}
+       WHERE ${clause} AND ExperimentId IN {experimentIds:Array(String)} AND ${attr("gen_ai.request.model")} != '' ORDER BY model LIMIT 500`,
+      { ...params, experimentIds: scopes.map((s) => tenantParams(s).tenantExperiment) },
+    );
+    return rows.map((r) => String(r.model));
   }
 
   /** `memtrace.step_type` distintos vistos en el rango, con conteo (ADR-027). */

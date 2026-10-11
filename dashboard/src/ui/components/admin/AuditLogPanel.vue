@@ -33,6 +33,7 @@ const ACTIONS: { value: string; label: string }[] = [
   { value: "alert.delete", label: "Deleted an alert" },
   { value: "budget.update", label: "Set the cost budget" },
   { value: "budget.delete", label: "Removed the cost budget" },
+  { value: "model_match.update", label: "Decided an Arena match for a model" },
   { value: "approval_exemption.grant", label: "Exempted an agent from an approval rule" },
   { value: "approval_exemption.revoke", label: "Brought back an approval rule for an agent" },
   { value: "partnership.create", label: "Added a partner" },
@@ -93,6 +94,8 @@ function detail(e: AuditEntryDto): string {
       return String(m.name ?? "");
     case "budget.update":
       return `$${m.monthlyUsd}/month, warn at ${m.warnPercent} %`;
+    case "model_match.update":
+      return `${e.targetId ?? ""}: ${m.decision === "confirm" ? `confirmed ${m.arenaName}` : m.decision === "reject" ? "rejected the candidates" : m.decision === "no_equivalent" ? "not listed by Arena" : "back to automatic"}`;
     default:
       return e.targetId ? `${e.targetType ?? ""} ${e.targetId}`.trim() : "";
   }

@@ -255,13 +255,25 @@ Unlike the endpoints above, this one isn't scoped to a single `{experimentId}` â
 | `DELETE /experiments/{experimentId}/budget` | Removes it (`404` if there is none). `alert:manage` |
 | `GET /alerts/open` | `{ items }`: the alerts firing now in every experiment you can read, for the bell. Not scoped to one experiment |
 
+## Model quality (ADR-025)
+
+The scores come from the Arena text leaderboard and are matched with the price catalog by name. See [Model pricing and quality](/platform/model-pricing). Decisions belong to the organization of the experiment.
+
+| Endpoint | Description |
+|---|---|
+| `GET /experiments/{experimentId}/model-quality` | `{ source: { name, board, category, license, url, publishedAt, syncedAt }, items: [{ modelId, modelKey, state, inUse, quality, candidate, candidateCount, via }], counts: { needsReview, pending, inUse } }`. `state` is `matched`, `candidate`, `none` or `no_equivalent`; `quality` is `{ arenaName, elo, ci, rank, votes, origin, stale }` (`origin` is `exact` or `confirmed`); `candidate` is the nearest entry to confirm. `items` has only the models that have something to show. `publishedAt` is `null` before the first sync. `inUse` is the last 30 days of this experiment. `experiment:read` |
+| `GET /experiments/{experimentId}/model-quality/candidates` | `{ items: [{ modelKey, model, inUse, candidates: [{ arenaName, elo, ci, rank, votes, reason }] }] }`: the models waiting for a decision, those in use first. Param: `scope` (`in_use`, the default, or `all`; `400` otherwise). `pricing:manage` |
+| `PUT /experiments/{experimentId}/model-quality/matches/{modelKey}` | Decides a model (`204`). Body: `{ decision: "confirm", arenaName }`, `{ decision: "reject", arenaNames }` (1 to 50 entries that Arena lists) or `{ decision: "no_equivalent" }`. `400` names the wrong field, or says the model is not in the catalog or the entry is not on the leaderboard. Applies to the whole organization and is recorded in the audit log as `model_match.update`. `pricing:manage` |
+| `DELETE /experiments/{experimentId}/model-quality/matches/{modelKey}` | Removes every decision for the model and goes back to the automatic result (`204`, `404` if there was none). `pricing:manage` |
+| `GET /model-quality/pending` | `{ total, items: [{ experimentId, modelKey, model, candidateCount }] }`: models in use that wait for a decision, in the agents where you have `pricing:manage`, for the bell. Not scoped to one experiment |
+
 ## Data protection (ADR-084)
 
 | Endpoint | Description |
 |---|---|
 | `GET, PUT /organizations/{organizationId}/retention` | Trace retention of the organization. `GET` returns `{ organizationId, defaultDays, minDays, maxDays, experiments: [{ experimentId, name, serviceName, overrideDays, effectiveDays }] }`. `PUT { days }` sets the organization period (a whole number from 1 to 365, `400` otherwise); an experiment's own period longer than the new one is removed. `retention:manage` (`org_admin`) |
 | `PUT /organizations/{organizationId}/experiments/{experimentId}/retention` | `{ days }` gives the experiment its own period, never longer than the organization's (`400`); `{ days: null }` goes back to the organization's. `404` if the experiment is not in that organization. `retention:manage` |
-| `GET /organizations/{organizationId}/audit` | Audit log, newest first: `{ items: [{ id, at, experimentId, actorUserId, actorLabel, action, targetType, targetId, metadata }], nextCursor }`. Params: `action` (`trace.view`, `conversation.view`, `data.export`, `retention.update`, `retention.purge`, `member.add`, `apikey.create`, `apikey.revoke`, `alert.create`, `alert.update`, `alert.delete`, `budget.update`, `budget.delete`, `partnership.create`, `partnership.revoke`, `partner_grant.create`, `partner_grant.revoke`, `partner.access`), `experimentId`, `actorUserId`, `from`, `to`, `limit` (1 to 200, 50 by default) and `cursor`. Identifiers only, never content. `audit:read` (`org_admin`) |
+| `GET /organizations/{organizationId}/audit` | Audit log, newest first: `{ items: [{ id, at, experimentId, actorUserId, actorLabel, action, targetType, targetId, metadata }], nextCursor }`. Params: `action` (`trace.view`, `conversation.view`, `data.export`, `retention.update`, `retention.purge`, `member.add`, `apikey.create`, `apikey.revoke`, `alert.create`, `alert.update`, `alert.delete`, `budget.update`, `budget.delete`, `model_match.update`, `partnership.create`, `partnership.revoke`, `partner_grant.create`, `partner_grant.revoke`, `partner.access`), `experimentId`, `actorUserId`, `from`, `to`, `limit` (1 to 200, 50 by default) and `cursor`. Identifiers only, never content. `audit:read` (`org_admin`) |
 | `GET /experiments/{experimentId}/export` | Streams the data of the experiment as JSON Lines (`application/x-ndjson`, one record per line, no guaranteed order). Params: `kind` (`traces`, `annotations`, `feedback` or `scores`), `from` and `to` (ISO 8601, both required, at most 31 days; `to` is exclusive). `400` for a bad request, `413` above 2,000,000 records. The export is recorded in the audit log **before** the first byte; if it cannot be recorded, nothing is exported. With `dryRun=1` it only validates and returns `{ rows, maxRows }`, without recording anything. `data:export` (`technical`) |
 
 ## SCIM 2.0

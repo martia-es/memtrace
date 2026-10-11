@@ -277,6 +277,69 @@ export interface ModelPricingResponse {
   items: ModelPricingDto[];
 }
 
+// ----- Calidad por modelo, de Arena (ADR-025, ampliación) -----
+
+export type ModelQualityState = "matched" | "candidate" | "none" | "no_equivalent";
+
+export interface ModelQualityScoreDto {
+  arenaName: string;
+  elo: number;
+  /** semi-anchura del intervalo de confianza: «± ci» */
+  ci: number;
+  rank: number;
+  votes: number;
+  /** `exact` lo casó el nombre; `confirmed` lo confirmó una persona */
+  origin: "exact" | "confirmed";
+  /** la entrada ya no está en el último leaderboard: la cifra es la última conocida */
+  stale: boolean;
+}
+
+export interface ModelQualityCandidateDto {
+  arenaName: string;
+  elo: number;
+  ci: number;
+  rank: number;
+  votes: number;
+  reason: string;
+}
+
+export interface ModelQualityItemDto {
+  /** id del catálogo de precios */
+  modelId: string;
+  modelKey: string;
+  state: ModelQualityState;
+  /** el modelo aparece en las trazas del agente (últimos 30 días) */
+  inUse: boolean;
+  quality: ModelQualityScoreDto | null;
+  /** el candidato más cercano, si `state` es `candidate` */
+  candidate: ModelQualityCandidateDto | null;
+  candidateCount: number;
+  /** si el id lleva prefijo de proveedor, la clave de la que hereda la puntuación */
+  via: string | null;
+}
+
+export interface ModelQualityResponse {
+  source: { name: string; board: string; category: string; license: string; url: string; publishedAt: string | null; syncedAt: string | null };
+  /** solo los modelos con algo que mostrar; los que no están aquí no tienen puntuación ni se usan */
+  items: ModelQualityItemDto[];
+  counts: { needsReview: number; pending: number; inUse: number };
+}
+
+export interface ModelQualityCandidatesResponse {
+  items: { modelKey: string; model: string; inUse: boolean; candidates: ModelQualityCandidateDto[] }[];
+}
+
+export type ModelMatchBody =
+  | { decision: "confirm"; arenaName: string }
+  | { decision: "reject"; arenaNames: string[] }
+  | { decision: "no_equivalent" };
+
+/** Modelos en uso que esperan una decisión: estado vivo para la campana, no un evento (ADR-094). */
+export interface ModelQualityPendingResponse {
+  total: number;
+  items: { experimentId: string; modelKey: string; model: string; candidateCount: number }[];
+}
+
 // ----- Custom metrics sobre spans definidos por el usuario (ADR-027) -----
 
 export interface StepKindDto {

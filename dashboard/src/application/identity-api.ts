@@ -6,6 +6,10 @@ import type {
   BudgetViewDto,
   ChartCatalogEntryDto,
   CustomMetricDefinitionDto,
+  ModelMatchBody,
+  ModelQualityCandidatesResponse,
+  ModelQualityPendingResponse,
+  ModelQualityResponse,
   NotificationsDto,
   OpenAlertsDto,
   PartnerClientDto,
@@ -246,6 +250,17 @@ export interface IdentityApi {
   listNotifications(signal?: AbortSignal): Promise<NotificationsDto>;
   /** «Marcar todo como leído»: lo que haya ahora deja de contar como nuevo. */
   markNotificationsRead(signal?: AbortSignal): Promise<void>;
+
+  /** Calidad (Arena) de cada modelo del catálogo de precios para este agente, con los candidatos pendientes y cuáles usa el agente (ADR-025). Basta `experiment:read`. */
+  getModelQuality(experimentId: string, signal?: AbortSignal): Promise<ModelQualityResponse>;
+  /** Los modelos con candidatos sin decidir y todos sus candidatos. Exige `pricing:manage`. */
+  listModelQualityCandidates(experimentId: string, scope: "in_use" | "all", signal?: AbortSignal): Promise<ModelQualityCandidatesResponse>;
+  /** Confirma, descarta o declara sin equivalente. Vale para toda la organización y queda en la auditoría. Exige `pricing:manage`. */
+  decideModelMatch(experimentId: string, modelKey: string, body: ModelMatchBody, signal?: AbortSignal): Promise<void>;
+  /** Quita las decisiones de un modelo: vuelve a lo automático. Exige `pricing:manage`. */
+  clearModelMatch(experimentId: string, modelKey: string, signal?: AbortSignal): Promise<void>;
+  /** Modelos en uso que esperan una decisión, para la pestaña «Models» de la campana (estado vivo, ADR-094). */
+  getModelQualityPending(signal?: AbortSignal): Promise<ModelQualityPendingResponse>;
 
   /** Gráficos custom guardados del experimento (ADR-027), más recientes primero. */
   listCustomMetrics(experimentId: string, signal?: AbortSignal): Promise<SavedCustomMetricDto[]>;

@@ -5,6 +5,7 @@ import type { ConversationListQuery, SpanListQuery, TraceListQuery, TraceReposit
 import type { ConversationCursor, ConversationSummary, ConversationUsage } from "@/domain/conversation";
 import type { ChatSpanRecord } from "@/domain/transcript";
 import type { MetricsOverview, MetricsQuery, ServiceUsage } from "@/domain/metrics";
+import type { ArenaModel } from "@/domain/model-quality";
 import type { ModelPricing } from "@/domain/pricing";
 import type { Span } from "@/domain/span";
 import type { SpanCursor, SpanRecord } from "@/domain/span-row";
@@ -84,6 +85,10 @@ export class FakeTraceRepository implements TraceRepository {
   services: string[] = [];
   usageByService: ServiceUsage[] = [];
   modelPricing: ModelPricing[] = [];
+  modelQuality: ArenaModel[] = [];
+  modelsInUse: string[] = [];
+  lastModelsInUseScopes: TenantScope[] = [];
+  modelsInUseCalls = 0;
   failWith?: Error;
 
   private check() {
@@ -162,6 +167,16 @@ export class FakeTraceRepository implements TraceRepository {
   async getModelPricing() {
     this.check();
     return this.modelPricing;
+  }
+  async getModelQuality() {
+    this.check();
+    return this.modelQuality;
+  }
+  async listModelsInUse(scopes: TenantScope[]) {
+    this.check();
+    this.lastModelsInUseScopes = scopes;
+    this.modelsInUseCalls++;
+    return this.modelsInUse;
   }
   errorGroups: ErrorGroupsResult = { groups: [], tracesWithErrors: 0, conversationsWithErrors: 0, totalTraces: 0, totalConversations: 0 };
   lastErrorQueries: (TimeRange & { scope: TenantScope })[] = [];

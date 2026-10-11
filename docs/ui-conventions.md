@@ -82,3 +82,11 @@ Tres modos de visualización: `bubble` (ventana flotante), `dock` (panel lateral
 - Una sección nueva = un hijo en `NAV` + una ruta con su `meta.section`.
 - Un control nuevo = primero buscar si ya existe en la tabla de componentes; si no, crearlo allí y añadirlo a esta tabla.
 - Un color nuevo = un token `--mt-*` con valor claro y oscuro; nunca un hex dentro de un componente.
+
+## 6. Costs › Model pricing: calidad y confirmación de coincidencias
+
+- La tabla de precios gana una columna **Quality · Arena Elo** (`domain/model-quality.ts` decide qué dice cada celda: puntuación, candidato, sin equivalente o no disponible). Una celda con candidato lleva el nombre de Arena y un botón «Confirm match →»; quien no puede decidir (`pricing:manage`) ve «Awaiting confirmation». Antes de la primera sincronización la columna no se pinta y los precios funcionan igual.
+- Los filtros «All models / In use / Needs review» son un `SegmentedControl` cuyo valor va en la query (`?show=in_use`, `?show=review`); «todos» no se escribe. «In use» se refiere al agente que se estaba mirando (el último o el primero legible), porque esta página no cuelga de un experimento.
+- El panel «Confirm Arena matches» (`ModelMatchDrawer`) es un panel lateral como el de las reglas de un prompt: se abre desde el banner, desde un botón de fila o con `?review=1` (el aviso de la campana), y al cerrar quita `?review`. Una decisión vale para toda la organización y se explica en el propio panel.
+- La pestaña **Models** de la campana solo aparece si hay modelos pendientes y cuenta como una unidad en el número de la campana. Es estado vivo (sin hora ni marca de leído) y no se envía por email.
+- Atribución obligatoria: bajo la tabla se nombra a Arena, se enlaza, se da la fecha del leaderboard y la licencia (CC BY 4.0), y se dice que el Elo mide preferencia en chat, no precisión en la tarea.

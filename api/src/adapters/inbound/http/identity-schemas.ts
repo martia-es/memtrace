@@ -92,3 +92,11 @@ export const organizationRetentionBody = z.object({ days: z.number() });
 
 /** Plazo propio de un experimento; `null` quita el override y vuelve al de la organización (ADR-084). */
 export const experimentRetentionBody = z.object({ days: z.number().nullable() });
+
+/** Decisión sobre qué entrada de Arena es un modelo del catálogo (ADR-025). Las entradas se validan contra el leaderboard en el servicio. */
+const arenaName = z.string().trim().min(1).max(300);
+export const modelMatchBody = z.discriminatedUnion("decision", [
+  z.object({ decision: z.literal("confirm"), arenaName }),
+  z.object({ decision: z.literal("reject"), arenaNames: z.array(arenaName).min(1).max(50) }),
+  z.object({ decision: z.literal("no_equivalent") }),
+]);

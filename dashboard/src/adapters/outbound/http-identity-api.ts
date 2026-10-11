@@ -1,4 +1,4 @@
-import type { AlertEventsPageDto, AlertRuleDto, AlertsOverviewDto, AuditPageDto, BudgetViewDto, ChartCatalogEntryDto, CustomMetricDefinitionDto, NotificationsDto, OpenAlertsDto, PartnerClientDto, PartnerGrantDto, PartnershipDto, RetentionPolicyDto, ScoreConfigDto } from "@contract";
+import type { AlertEventsPageDto, AlertRuleDto, AlertsOverviewDto, AuditPageDto, BudgetViewDto, ChartCatalogEntryDto, CustomMetricDefinitionDto, ModelMatchBody, ModelQualityCandidatesResponse, ModelQualityPendingResponse, ModelQualityResponse, NotificationsDto, OpenAlertsDto, PartnerClientDto, PartnerGrantDto, PartnershipDto, RetentionPolicyDto, ScoreConfigDto } from "@contract";
 import { ApiError } from "@/application/trace-api";
 import type {
   AlertRuleBody,
@@ -96,6 +96,26 @@ export class HttpIdentityApi implements IdentityApi {
 
   async markNotificationsRead(signal?: AbortSignal): Promise<void> {
     await this.post("/notifications/read", {}, signal);
+  }
+
+  getModelQuality(experimentId: string, signal?: AbortSignal): Promise<ModelQualityResponse> {
+    return this.get(`/experiments/${encodeURIComponent(experimentId)}/model-quality`, signal);
+  }
+
+  listModelQualityCandidates(experimentId: string, scope: "in_use" | "all", signal?: AbortSignal): Promise<ModelQualityCandidatesResponse> {
+    return this.get(`/experiments/${encodeURIComponent(experimentId)}/model-quality/candidates?scope=${scope}`, signal);
+  }
+
+  async decideModelMatch(experimentId: string, modelKey: string, body: ModelMatchBody, signal?: AbortSignal): Promise<void> {
+    await this.put(`/experiments/${encodeURIComponent(experimentId)}/model-quality/matches/${encodeURIComponent(modelKey)}`, body, signal);
+  }
+
+  async clearModelMatch(experimentId: string, modelKey: string, signal?: AbortSignal): Promise<void> {
+    await this.remove(`/experiments/${encodeURIComponent(experimentId)}/model-quality/matches/${encodeURIComponent(modelKey)}`, signal);
+  }
+
+  getModelQualityPending(signal?: AbortSignal): Promise<ModelQualityPendingResponse> {
+    return this.get("/model-quality/pending", signal);
   }
 
   getRetention(organizationId: string, signal?: AbortSignal): Promise<RetentionPolicyDto> {

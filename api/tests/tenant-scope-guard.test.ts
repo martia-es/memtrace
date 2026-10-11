@@ -17,7 +17,7 @@ const REPOSITORIES = [
   "clickhouse-breakdown-repository.ts",
 ];
 /** Métodos que no tocan datos de un tenant (catálogo global, ping) o son el ejecutor genérico de consultas ya construidas. */
-const EXEMPT = new Set(["constructor", "getModelPricing", "ping", "rows", "query", "range"]);
+const EXEMPT = new Set(["constructor", "getModelPricing", "getModelQuality", "ping", "rows", "query", "range"]);
 const SCOPED = /TENANT_SQL|tenantSqlFor\(|assertTenantScope\(|ExperimentId IN/;
 const TOUCHES_STORE = /this\.rows\(|this\.rows<|\.query\(|\.insert\(|this\.select\(|this\.listWhere\(|this\.insert\(/;
 

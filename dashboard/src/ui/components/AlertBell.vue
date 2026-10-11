@@ -19,9 +19,12 @@ const router = useRouter();
 const route = useRoute();
 const open = useAsync((signal) => api.listOpenAlerts(signal));
 const feed = useAsync((signal) => api.listNotifications(signal));
+// modelos en uso que esperan una decisión de calidad (ADR-025): estado vivo como las alertas, no un evento. Un fallo no molesta.
+const models = useAsync((signal) => api.getModelQualityPending(signal));
+const pendingModels = computed(() => models.data.value ?? { total: 0, items: [] });
 const items = computed(() => open.data.value?.items ?? []);
 
-type Tab = "all" | "firing" | "budget";
+type Tab = "all" | "firing" | "budget" | "models";
 const tab = ref<Tab>("all");
 const menu = ref<InstanceType<typeof Menu> | null>(null);
 
@@ -31,16 +34,18 @@ const earlier = computed(() => (feed.data.value?.items ?? []).filter((n) => !(n.
 const budgetItems = computed(() => earlier.value.filter((n) => n.kind.startsWith("budget_")));
 const unreadEarlier = computed(() => earlier.value.filter((n) => !n.read).length);
 // el número de la campana: lo que está roto ahora más lo nuevo que no ha visto
-const attention = computed(() => items.value.length + unreadEarlier.value);
+const attention = computed(() => items.value.length + unreadEarlier.value + (pendingModels.value.total > 0 ? 1 : 0));
 
-const showFiring = computed(() => tab.value !== "budget");
-const showEarlier = computed(() => tab.value !== "firing");
+const showFiring = computed(() => tab.value === "all" || tab.value === "firing");
+const showEarlier = computed(() => tab.value === "all" || tab.value === "budget");
+const showModels = computed(() => (tab.value === "all" || tab.value === "models") && pendingModels.value.total > 0);
 const earlierShown = computed(() => (tab.value === "budget" ? budgetItems.value : earlier.value));
-const empty = computed(() => (showFiring.value ? items.value.length === 0 : true) && (showEarlier.value ? earlierShown.value.length === 0 : true));
+const empty = computed(() => (showFiring.value ? items.value.length === 0 : true) && (showEarlier.value ? earlierShown.value.length === 0 : true) && !showModels.value);
 
 function refresh() {
   void open.run();
   void feed.run();
+  void models.run();
 }
 let timer: ReturnType<typeof setInterval> | undefined;
 onMounted(() => {
@@ -69,12 +74,23 @@ const emailCount = computed(() => {
   return Math.max(0, ...mine.map((n) => n.recipients));
 });
 const tabs = computed<Array<{ id: Tab; label: string; count: number }>>(() => [
-  { id: "all", label: "All", count: items.value.length + earlier.value.length },
+  { id: "all", label: "All", count: items.value.length + earlier.value.length + (pendingModels.value.total > 0 ? 1 : 0) },
   { id: "firing", label: "Firing", count: items.value.length },
   { id: "budget", label: "Budget", count: budgetItems.value.length },
+  ...(pendingModels.value.total > 0 ? [{ id: "models" as Tab, label: "Models", count: pendingModels.value.total }] : []),
 ]);
+/** «Review matches» lleva a Model pricing con el panel de confirmación abierto */
+function reviewModels() {
+  menu.value?.hide();
+  void router.push({ name: "model-pricing", query: { review: "1" } });
+}
+const modelNames = computed(() => {
+  const names = pendingModels.value.items.map((m) => m.model);
+  return names.length > 2 ? `${names.slice(0, 2).join(", ")} and ${names.length - 2} more` : names.join(" and ");
+});
 const label = computed(() => {
   if (items.value.length) return `${items.value.length} alerts firing`;
+  if (pendingModels.value.total) return `${pendingModels.value.total} models need a quality match`;
   return unreadEarlier.value ? `${unreadEarlier.value} new notifications` : "Alerts";
 });
 </script>
@@ -93,7 +109,23 @@ const label = computed(() => {
         </div>
         <TabBar class="tabs" :class="{ alarmed: items.length > 0 }" :tabs="tabs" :model-value="tab" @update:model-value="tab = $event as Tab" />
 
-        <p v-if="empty" class="none" data-testid="bell-empty">{{ tab === "budget" ? "No budget notices." : "No alerts firing." }}</p>
+        <p v-if="empty" class="none" data-testid="bell-empty">{{ tab === "budget" ? "No budget notices." : tab === "models" ? "No models are waiting." : "No alerts firing." }}</p>
+
+        <template v-if="showModels">
+          <p class="title">Needs a decision · {{ pendingModels.total }}</p>
+          <MenuItem data-testid="bell-models" @click="reviewModels">
+            <span class="icon t-info" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" /></svg>
+            </span>
+            <span class="item">
+              <span class="row"><span class="name">{{ pendingModels.total === 1 ? "A model you use needs a quality match" : `${pendingModels.total} models you use need a quality match` }}</span><span class="when">Pending</span></span>
+              <span class="now">{{ modelNames }} {{ pendingModels.total === 1 ? "has" : "have" }} Arena candidates. Their Quality cell stays empty until you choose.</span>
+              <span class="meta">Arena leaderboard · prices and costs are not affected</span>
+              <span class="cta">Review matches →</span>
+            </span>
+            <span class="dot" data-testid="bell-models-dot" aria-label="Needs a decision" />
+          </MenuItem>
+        </template>
 
         <template v-if="showFiring && items.length > 0">
           <p class="title">Firing now · {{ items.length }}</p>
@@ -132,6 +164,7 @@ const label = computed(() => {
         <div v-if="manageExperimentId" class="foot">
           <MenuItem class="manage" data-testid="bell-manage" @click="go(manageExperimentId)">Manage alerts</MenuItem>
           <span v-if="emailCount > 0" class="mail" data-testid="bell-email">Also sent by email to {{ emailCount }} {{ emailCount === 1 ? "address" : "addresses" }}</span>
+          <span v-else-if="tab === 'models'" class="mail" data-testid="bell-models-note">Model matches are not sent by email</span>
         </div>
       </Menu>
     </Button>
@@ -153,6 +186,7 @@ const label = computed(() => {
 .icon { width: 32px; height: 32px; flex: none; border-radius: 50%; background: var(--mt-soft); color: var(--mt-muted); display: flex; align-items: center; justify-content: center; align-self: flex-start; }
 .icon.t-error { background: var(--mt-err-bg, rgba(200, 40, 40, 0.1)); color: var(--mt-err-ink, #b42318); }
 .icon.t-ok { background: var(--mt-ok-bg); color: var(--mt-ok-ink); }
+.icon.t-info { background: var(--mt-accent-soft); color: var(--mt-accent-text); }
 .icon.t-warn { background: var(--mt-warn-bg); color: var(--mt-warn-ink); }
 .item { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; text-align: left; }
 .row { display: flex; align-items: baseline; gap: 8px; }

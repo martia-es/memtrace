@@ -29,6 +29,7 @@ export const PERMISSIONS = [
   "audit:read",
   "data:export",
   "alert:manage",
+  "pricing:manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -50,7 +51,7 @@ export const BUILT_IN_ROLES: Role[] = [
   {
     name: "technical",
     scope: "experiment",
-    permissions: ["experiment:read", "trace:read_technical", "annotation:write", "queue:manage", "queue:curate", "scoreconfig:manage", "dataset:write", "apikey:manage_own", "assistant:manage", "deploy:run", "prompt:read", "prompt:write", "prompt:promote", "prompt:approve", "catalog:manage", "data:export", "alert:manage"],
+    permissions: ["experiment:read", "trace:read_technical", "annotation:write", "queue:manage", "queue:curate", "scoreconfig:manage", "dataset:write", "apikey:manage_own", "assistant:manage", "deploy:run", "prompt:read", "prompt:write", "prompt:promote", "prompt:approve", "catalog:manage", "data:export", "alert:manage", "pricing:manage"],
   },
   { name: "business", scope: "experiment", permissions: ["experiment:read", "annotation:write", "prompt:read", "prompt:approve", "catalog:manage"] },
   /** Revisa el catálogo de asistentes (ADR-053): solo metadatos, ningún dato de trazas. Se asigna por grupo del IdP o a mano. */
