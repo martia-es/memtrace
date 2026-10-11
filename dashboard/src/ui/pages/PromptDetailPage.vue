@@ -783,9 +783,11 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
         </div>
       </div>
 
-      <template v-if="drawer">
-        <div class="drawer-backdrop" data-testid="drawer-backdrop" @click="drawer = null" />
-        <aside class="drawer" role="dialog" aria-label="Rules, activity and dependencies" data-testid="drawer" :style="{ width: `min(${drawerWidth}px, 100vw)` }">
+      <Transition name="drawer-fade">
+          <div v-if="drawer" class="drawer-backdrop" data-testid="drawer-backdrop" @click="drawer = null" />
+        </Transition>
+        <Transition name="drawer-slide">
+        <aside v-if="drawer" class="drawer" role="dialog" aria-label="Rules, activity and dependencies" data-testid="drawer" :style="{ width: `min(${drawerWidth}px, 100vw)` }">
           <div class="drawer-resize" role="separator" aria-orientation="vertical" aria-label="Resize panel" data-testid="drawer-resize" @pointerdown="startDrawerResize" @dblclick="toggleDrawerWidth" />
           <header class="drawer-head">
             <strong>{{ drawer === "rules" ? "Rules & approvals" : drawer === "activity" ? "Activity" : "Used by" }}</strong>
@@ -930,7 +932,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
             </div>
           </div>
         </aside>
-      </template>
+        </Transition>
     </template>
 
     <RequestApprovalModal
@@ -1852,6 +1854,17 @@ ul.plain {
   background: var(--mt-bg);
   border-left: 1px solid var(--mt-line);
   box-shadow: -12px 0 32px rgba(10, 35, 33, 0.16);
+}
+.drawer-fade-enter-active,
+.drawer-fade-leave-active { transition: opacity 0.2s ease; }
+.drawer-fade-enter-from,
+.drawer-fade-leave-to { opacity: 0; }
+/* solo entrada: al cerrar, el contenido ya no existe y deslizarlo vacío se vería roto */
+.drawer-slide-enter-active { transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.drawer-slide-enter-from { transform: translateX(100%); }
+@media (prefers-reduced-motion: reduce) {
+  .drawer-fade-enter-active, .drawer-fade-leave-active,
+  .drawer-slide-enter-active { transition: none; }
 }
 .drawer-resize {
   position: absolute;
