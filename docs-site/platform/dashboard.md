@@ -82,7 +82,7 @@ Puts two experiments side by side over the same time range. They are different a
 
 ### Breakdown
 
-The same figures as **Summary**, split by prompt version or environment: every version of your agent in one table, so you can decide what to promote without opening prompt after prompt. Choose how to group the rows with **Group by**:
+The same figures as **Summary**, split by prompt version or environment: every version of your agent in one table, so you can decide what to promote without opening prompt after prompt. Choose how to group the rows with the tabs at the top:
 
 - **Prompt version** (`weather-system v3`): one row per version that had traces in the range. The **Seen in** column lists the environments where it ran. Needs the agent to read its prompt with [`memtrace.prompts`](/library/prompts).
 - **Environment** (`dev`, `pre`, `pro`): one row per environment, with the prompt versions each one runs. Needs the agent to set its environment in the SDK configuration. Environments run different versions on purpose, so you can see an improvement in `pre` before promoting it to `pro`.

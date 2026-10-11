@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** Pestañas de una página de detalle (y de modales). Cada pestaña lleva data-testid="tab-<id>"; el slot `trailing` va al final de la barra. El estado vive en la URL (?tab=) para que se pueda enlazar y volver atrás. */
-defineProps<{ tabs: { id: string; label: string; count?: number | string }[]; modelValue: string }>();
+defineProps<{ tabs: { id: string; label: string; count?: number | string; disabled?: boolean }[]; modelValue: string }>();
 defineEmits<{ "update:modelValue": [id: string] }>();
 </script>
 
@@ -12,7 +12,8 @@ defineEmits<{ "update:modelValue": [id: string] }>();
       type="button"
       role="tab"
       class="tab"
-      :class="{ active: t.id === modelValue }"
+      :class="{ active: t.id === modelValue, disabled: t.disabled }"
+      :disabled="t.disabled"
       :aria-selected="t.id === modelValue"
       :data-testid="`tab-${t.id}`"
       @click="$emit('update:modelValue', t.id)"
@@ -53,6 +54,13 @@ defineEmits<{ "update:modelValue": [id: string] }>();
 }
 .tab.active {
   color: var(--mt-ink);
+}
+.tab:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.tab:disabled:hover {
+  color: var(--mt-muted);
 }
 .tab.active::after {
   content: "";

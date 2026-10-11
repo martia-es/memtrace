@@ -10,6 +10,7 @@ import ErrorBanner from "../components/ErrorBanner.vue";
 import LoadingState from "../components/LoadingState.vue";
 import PageHeader from "../components/PageHeader.vue";
 import Pill from "../components/Pill.vue";
+import TabBar from "../components/TabBar.vue";
 import { useAsync } from "../composables/useAsync";
 import { useFilters } from "../composables/useFilters";
 import { useTraceApi } from "../composables/useTraceApi";
@@ -26,15 +27,16 @@ const router = useRouter();
 const f = useFilters();
 const api = useTraceApi();
 
-const GROUPS: { id: BreakdownGroup | "user"; label: string; soon?: boolean }[] = [
+const TABS = [
   { id: "prompt_version", label: "Prompt version" },
   { id: "environment", label: "Environment" },
-  { id: "user", label: "User", soon: true },
+  // llega con el atributo de usuario final del SDK
+  { id: "user", label: "User", count: "Soon", disabled: true },
 ];
 
 const groupBy = computed<BreakdownGroup>(() => (route.query.groupBy === "environment" ? "environment" : "prompt_version"));
-function setGroup(id: BreakdownGroup | "user") {
-  if (id === "user") return;
+function setGroup(id: string) {
+  if (id !== "prompt_version" && id !== "environment") return;
   selected.value = [];
   void router.replace({ query: { ...route.query, groupBy: id } });
 }
@@ -94,22 +96,7 @@ const chartsRoute = computed(() => ({ name: "overview-charts", params: route.par
       </div>
     </PageHeader>
 
-    <div class="toolbar">
-      <span class="label">Group by</span>
-      <div class="seg" role="group" aria-label="Group by">
-        <Button
-          v-for="g in GROUPS"
-          :key="g.id"
-          :variant="g.id === groupBy ? 'primary' : 'secondary'"
-          :disabled="g.soon"
-          :aria-pressed="g.id === groupBy"
-          :data-testid="`group-${g.id}`"
-          @click="setGroup(g.id)"
-        >
-          {{ g.label }}<Pill v-if="g.soon" tone="highlight">Soon</Pill>
-        </Button>
-      </div>
-    </div>
+    <TabBar :tabs="TABS" :model-value="groupBy" aria-label="Group by" data-testid="group-tabs" @update:model-value="setGroup" />
 
     <ErrorBanner v-if="breakdown.error.value" :error="breakdown.error.value" @retry="breakdown.run()" />
     <LoadingState v-else-if="breakdown.loading.value && !breakdown.data.value" size="lg" />
@@ -235,22 +222,6 @@ const chartsRoute = computed(() => ({ name: "overview-charts", params: route.par
   clip: rect(0 0 0 0);
 }
 
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--mt-muted);
-}
-.seg {
-  display: inline-flex;
-  gap: 6px;
-}
 
 .insight {
   display: flex;
