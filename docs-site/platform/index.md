@@ -12,6 +12,7 @@ The MemTrace platform stores the traces your agents emit and lets you explore th
 
 <div class="mt-cards">
   <a class="mt-card" href="./getting-started"><span class="mt-card-tag">Start</span><strong>Run it locally</strong><span>Bring up the whole stack with Docker.</span></a>
+  <a class="mt-card" href="./improvement-cycle"><span class="mt-card-tag">Start</span><strong>Improvement cycle</strong><span>From a bad answer to a deployed fix in 30 minutes.</span></a>
   <a class="mt-card" href="./dashboard"><span class="mt-card-tag">Explore</span><strong>Dashboard</strong><span>Conversations, traces and spans.</span></a>
   <a class="mt-card" href="./access-control"><span class="mt-card-tag">Access</span><strong>Organizations & roles</strong><span>Who can see and do what.</span></a>
   <a class="mt-card" href="./evaluation"><span class="mt-card-tag">Quality</span><strong>Datasets & offline evals</strong><span>Compare experiments over datasets.</span></a>

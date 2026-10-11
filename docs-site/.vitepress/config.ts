@@ -39,6 +39,7 @@ export default defineConfig({
           items: [
             { text: "Overview", link: "/platform/" },
             { text: "Run it locally", link: "/platform/getting-started" },
+            { text: "Improvement cycle", link: "/platform/improvement-cycle" },
             { text: "Dashboard", link: "/platform/dashboard" },
             { text: "Alerts & budgets", link: "/platform/alerts" },
             { text: "Datasets & offline evals", link: "/platform/evaluation" },
