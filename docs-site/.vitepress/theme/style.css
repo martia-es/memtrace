@@ -138,6 +138,8 @@ body { font-size: 14px; letter-spacing: 0; }
 /* Sidebar: like the dashboard nav, active item is a turquoise tint */
 .VPSidebar { background: var(--mt-card) !important; border-right: 1px solid var(--mt-line); padding: calc(var(--vp-nav-height) + 14px) 10px 12px !important; }
 .VPSidebar .group + .group { border-top: 0; padding-top: 0; }
+/* VitePress's sticky "curtain" paints a band over the sidebar border under the top bar */
+.VPSidebar .curtain { display: none; }
 .VPSidebarItem.level-0 > .item > .text, .VPSidebarItem .text { font-size: 13px; }
 .VPSidebarItem.level-0 > .item > .text {
   font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--mt-muted);
