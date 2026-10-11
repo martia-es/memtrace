@@ -861,12 +861,11 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                       </li>
                     </ul>
                     <div v-else class="no-followers" :data-testid="`no-followers-${t.tag}`">
-                      <strong>No agent follows this tag yet</strong>
-                      <span>Paste this in the agent.</span>
-                      <div class="snippet">
+                      <span class="soft">No agent has reported this tag yet.</span>
+                      <span class="snippet">
                         <code>{{ snippetOf(t.tag) }}</code>
                         <button type="button" class="copy" @click="copySnippet(t.tag)">{{ copiedTag === t.tag ? "Copied" : "Copy" }}</button>
-                      </div>
+                      </span>
                     </div>
                   </div>
                   <p v-if="freeTags.length === 0" class="soft">No custom tags yet.</p>
@@ -1565,32 +1564,26 @@ h3 {
 }
 .no-followers {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: var(--mt-warn-bg);
-  color: var(--mt-ink);
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
 }
 .snippet {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
+  gap: 8px;
+  padding: 3px 8px;
   border-radius: 6px;
-  background: var(--mt-ink);
-  color: var(--mt-card);
+  background: var(--mt-accent-tint);
+  font-size: 12px;
 }
 .snippet code {
-  flex: 1;
-  min-width: 0;
-  overflow-x: auto;
   white-space: nowrap;
 }
 .snippet .copy {
   border: none;
   background: none;
-  color: inherit;
+  color: var(--mt-accent-text);
   font: inherit;
   font-weight: 700;
   cursor: pointer;
