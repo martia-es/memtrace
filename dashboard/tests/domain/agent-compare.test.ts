@@ -48,11 +48,11 @@ describe("agent comparison", () => {
   });
 
   it("summarises the comparison in a headline and counts", () => {
-    const mixed = compareVerdict(compareRows(overview({}), overview({ cost: 14, p50: 900, p95: 3600, errorRate: 0.04 })));
-    expect(mixed).toMatchObject({ better: 3, worse: 1, tone: "mixed", headline: "B is cheaper and faster, but failing more often" });
+    const mixed = compareVerdict(compareRows(overview({}), overview({ cost: 14, p50: 900, p95: 3600, errorRate: 0.04 })), "weather-assistant", "vueling_faqa");
+    expect(mixed).toMatchObject({ better: 3, worse: 1, tone: "mixed", headline: "vueling_faqa is cheaper and faster, but failing more often than weather-assistant" });
 
-    const same = compareVerdict(compareRows(overview({}), overview({})));
-    expect(same).toMatchObject({ better: 0, worse: 0, tone: "flat", headline: "No meaningful difference between A and B" });
+    const same = compareVerdict(compareRows(overview({}), overview({})), "weather-assistant", "vueling_faqa");
+    expect(same).toMatchObject({ better: 0, worse: 0, tone: "flat", headline: "No meaningful difference between vueling_faqa and weather-assistant" });
   });
 
   it("gives cost per execution only when there is a price and traffic", () => {

@@ -30,7 +30,7 @@ const emit = defineEmits<{ "update:agentBId": [id: string]; swap: []; retry: [] 
 const $q = useQuasar();
 
 const rows = computed(() => (props.a && props.b ? compareRows(props.a, props.b) : []));
-const verdict = computed(() => compareVerdict(rows.value));
+const verdict = computed(() => compareVerdict(rows.value, props.nameA, props.nameB));
 
 /** Half-width of the diverging track is 80 %: bigger changes are clipped so one outlier does not flatten the rest. */
 const TRACK_MAX = 0.8;
@@ -38,7 +38,7 @@ function bar(change: number | null): { left: string; width: string } {
   const w = (Math.min(Math.abs(change ?? 0), TRACK_MAX) / TRACK_MAX) * 50;
   return { left: `${(change ?? 0) < 0 ? 50 - w : 50}%`, width: `${w}%` };
 }
-const TONE_LABEL: Record<CompareTone, string> = { better: "better in B", worse: "worse in B", neutral: "neutral" };
+const toneLabel = (tone: CompareTone) => ({ better: `better in ${props.nameB}`, worse: `worse in ${props.nameB}`, neutral: "neutral" })[tone];
 
 const perExec = computed(() => {
   if (!props.a || !props.b) return null;
@@ -52,8 +52,8 @@ const perExec = computed(() => {
 const tokenMix = computed(() => {
   if (!props.a || !props.b) return [];
   return [
-    { id: "A", name: props.nameA, o: props.a },
-    { id: "B", name: props.nameB, o: props.b },
+    { id: "a", name: props.nameA, o: props.a },
+    { id: "b", name: props.nameB, o: props.b },
   ].map(({ id, name, o }) => {
     const total = Math.max(o.totals.inputTokens + o.totals.outputTokens, 1);
     const inputPct = Math.round((o.totals.inputTokens / total) * 100);
@@ -96,8 +96,8 @@ function lineOption(aValues: number[], bValues: number[], valueFormatter?: (v: n
     xAxis: { type: "category", boundaryGap: false, data: (props.a?.timeseries ?? []).map((p) => hour(p.bucketStart)), ...axis, splitLine: { show: false }, axisLine: { lineStyle: { color: c.grid } } },
     yAxis: { type: "value", ...axis, axisLabel: valueFormatter ? { ...axis.axisLabel, formatter: (v: number) => valueFormatter(v) } : axis.axisLabel },
     series: [
-      { name: `A · ${props.nameA}`, type: "line", smooth: 0.35, showSymbol: false, lineStyle: { width: 2.5, color: c.primary }, itemStyle: { color: c.primary }, data: aValues },
-      { name: `B · ${props.nameB}`, type: "line", smooth: 0.35, showSymbol: false, lineStyle: { width: 2.5, color: c.accent, type: "dashed" }, itemStyle: { color: c.accent }, data: bValues },
+      { name: props.nameA, type: "line", smooth: 0.35, showSymbol: false, lineStyle: { width: 2.5, color: c.primary }, itemStyle: { color: c.primary }, data: aValues },
+      { name: props.nameB, type: "line", smooth: 0.35, showSymbol: false, lineStyle: { width: 2.5, color: c.accent, type: "dashed" }, itemStyle: { color: c.accent }, data: bValues },
     ],
   };
 }
@@ -116,19 +116,19 @@ const charts = computed(() => {
   <div class="ac">
     <div class="ac-pick">
       <div class="ac-agent a">
-        <span class="ac-badge a">A</span>
-        <div class="ac-agent-text"><strong>{{ nameA }}</strong><span>Baseline · set with the agent selector above</span></div>
+        <span class="ac-dot a" aria-hidden="true" />
+        <div class="ac-agent-text"><strong>{{ nameA }}</strong><span>Selected experiment · change it with the selector at the top left</span></div>
       </div>
-      <Button variant="icon" size="sm" class="ac-swap" aria-label="Swap A and B" title="Swap A and B" :disabled="!agentBId" @click="emit('swap')">
+      <Button variant="icon" size="sm" class="ac-swap" aria-label="Swap the two experiments" title="Swap the two experiments" :disabled="!agentBId" @click="emit('swap')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7" /></svg>
       </Button>
       <div class="ac-agent b">
-        <span class="ac-badge b">B</span>
-        <div class="ac-agent-select"><span>Candidate</span><Select :model-value="agentBId" :options="options" placeholder="Choose an agent to compare" @update:model-value="emit('update:agentBId', $event)" /></div>
+        <span class="ac-dot b" aria-hidden="true" />
+        <div class="ac-agent-select"><span>Compare with</span><Select :model-value="agentBId" :options="options" placeholder="Choose an experiment to compare" @update:model-value="emit('update:agentBId', $event)" /></div>
       </div>
     </div>
 
-    <EmptyState v-if="!agentBId" icon="compare_arrows" title="Pick an agent to compare">Choose the candidate (B) above to compare it against {{ nameA }}.</EmptyState>
+    <EmptyState v-if="!agentBId" icon="compare_arrows" title="Pick an experiment to compare">Choose the second experiment above to see how it differs from {{ nameA }}.</EmptyState>
     <ErrorBanner v-else-if="error" :error="error" @retry="emit('retry')" />
     <LoadingState v-else-if="loading && !b" size="lg" />
 
@@ -148,14 +148,14 @@ const charts = computed(() => {
       <div class="ac-grid">
         <section class="ac-card ac-deltas">
           <div class="ac-card-head">
-            <h3>What changed from A to B</h3>
+            <h3>{{ nameB }} compared with {{ nameA }}</h3>
             <span class="ac-legend"><i class="better" />Better<i class="worse" />Worse<i class="neutral" />Neutral</span>
           </div>
-          <div class="ac-delta-row head"><span>Metric</span><span>A → B</span><span class="ac-axis"><span>◀ lower in B</span><span>higher in B ▶</span></span><span class="r">Change</span></div>
+          <div class="ac-delta-row head"><span>Metric</span><span>Values</span><span class="ac-axis"><span>◀ lower in {{ nameB }}</span><span>higher in {{ nameB }} ▶</span></span><span class="r">Change</span></div>
           <div v-for="r in rows" :key="r.key" class="ac-delta-row">
             <strong>{{ r.label }}</strong>
             <span class="ac-values">{{ r.a }} → <b>{{ r.b }}</b></span>
-            <div class="ac-track" role="img" :aria-label="`${r.label}: ${r.deltaText}, ${TONE_LABEL[r.tone]}`">
+            <div class="ac-track" role="img" :aria-label="`${r.label}: ${r.deltaText}, ${toneLabel(r.tone)}`">
               <i class="zero" />
               <i class="bar" :class="r.tone" :style="bar(r.change)" />
             </div>
@@ -167,13 +167,13 @@ const charts = computed(() => {
           <section v-if="perExec" class="ac-card">
             <h3>Cost per execution</h3>
             <div class="ac-perexec">
-              <div><span class="lbl">A</span><span class="old">{{ perExec.a }}</span></div>
+              <div><span class="lbl" :title="nameA">{{ nameA }}</span><span class="old">{{ perExec.a }}</span></div>
               <span class="arrow">→</span>
-              <div><span class="lbl b">B</span><span class="new">{{ perExec.b }}</span></div>
+              <div><span class="lbl b" :title="nameB">{{ nameB }}</span><span class="new">{{ perExec.b }}</span></div>
               <span class="grow" />
               <span class="ac-pill" :class="perExec.change === null || Math.abs(perExec.change) < 0.05 ? 'neutral' : perExec.change < 0 ? 'better' : 'worse'">{{ perExec.text }}</span>
             </div>
-            <p class="ac-note">Total in this range: {{ perExec.totalA }} for A, {{ perExec.totalB }} for B.</p>
+            <p class="ac-note">Total in this range: {{ perExec.totalA }} for {{ nameA }}, {{ perExec.totalB }} for {{ nameB }}.</p>
           </section>
 
           <section class="ac-card ac-grow">
@@ -183,7 +183,7 @@ const charts = computed(() => {
             </div>
             <div v-for="t in tokenMix" :key="t.id" class="ac-mix">
               <div class="ac-mix-head">
-                <span class="ac-badge sm" :class="t.id === 'A' ? 'a' : 'b'">{{ t.id }}</span>
+                <span class="ac-dot sm" :class="t.id" aria-hidden="true" />
                 <strong>{{ t.name }}</strong>
                 <span class="tot">{{ t.total }} total</span>
               </div>
@@ -193,7 +193,7 @@ const charts = computed(() => {
               </div>
               <span class="ac-note">{{ t.input }} input · {{ t.output }} output</span>
             </div>
-            <p class="ac-note">Each bar is 100% of that agent's tokens. A higher output share means longer answers.</p>
+            <p class="ac-note">Each bar is 100% of that experiment's tokens. A higher output share means longer answers.</p>
           </section>
         </div>
       </div>
@@ -202,7 +202,7 @@ const charts = computed(() => {
         <section v-for="ch in charts" :key="ch.title" class="ac-card">
           <div class="ac-card-head">
             <h3>{{ ch.title }}</h3>
-            <span class="ac-legend"><i class="line-a" />A<i class="line-b" />B</span>
+            <span class="ac-legend"><i class="line-a" />{{ nameA }}<i class="line-b" />{{ nameB }}</span>
           </div>
           <EChart :option="ch.option" height="190px" :label="`${ch.title} comparison`" />
         </section>
@@ -223,10 +223,10 @@ h3 { margin: 0; font-size: 14px; font-weight: 800; letter-spacing: -0.01em; }
 .ac-agent-text strong { font-size: 14px; }
 .ac-agent-text span, .ac-agent-select > span { font-size: 11.5px; color: var(--mt-muted); }
 .ac-agent-select { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.ac-badge { flex: none; width: 30px; height: 30px; border-radius: var(--mt-radius-sm); display: flex; align-items: center; justify-content: center; font-weight: 800; }
-.ac-badge.sm { width: 22px; height: 22px; font-size: 11px; border-radius: 5px; }
-.ac-badge.a { background: var(--mt-accent-soft); color: var(--mt-accent); }
-.ac-badge.b { background: var(--mt-highlight-soft); color: var(--mt-highlight-ink); }
+.ac-dot { flex: none; width: 12px; height: 12px; border-radius: 50%; }
+.ac-dot.sm { width: 9px; height: 9px; }
+.ac-dot.a { background: var(--mt-brand); }
+.ac-dot.b { background: var(--mt-highlight); }
 .ac-swap { align-self: center; flex: none; }
 .ac-swap:hover:not(:disabled) { color: var(--mt-ink); border-color: var(--mt-muted); }
 
@@ -256,6 +256,7 @@ h3 { margin: 0; font-size: 14px; font-weight: 800; letter-spacing: -0.01em; }
 .ac-legend i:first-child { margin-left: 0; }
 .ac-legend .better { background: var(--mt-ok); } .ac-legend .worse { background: var(--mt-err); } .ac-legend .neutral { background: var(--mt-faint); }
 .ac-legend .input { background: var(--mt-ink); } .ac-legend .output { background: var(--mt-muted); }
+.ac-legend { flex-wrap: wrap; }
 .ac-legend .line-a { width: 14px; height: 3px; background: var(--mt-brand); }
 .ac-legend .line-b { width: 14px; height: 0; border-top: 3px dashed var(--mt-highlight); border-radius: 0; background: none; }
 
@@ -278,7 +279,7 @@ h3 { margin: 0; font-size: 14px; font-weight: 800; letter-spacing: -0.01em; }
 
 .ac-perexec { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; }
 .ac-perexec > div { display: flex; flex-direction: column; }
-.ac-perexec .lbl { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: var(--mt-muted); }
+.ac-perexec .lbl { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: var(--mt-muted); }
 .ac-perexec .lbl.b { color: var(--mt-highlight-ink); }
 .ac-perexec .old { font-size: 22px; font-weight: 800; letter-spacing: -0.03em; color: var(--mt-muted); }
 .ac-perexec .new { font-size: 30px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
