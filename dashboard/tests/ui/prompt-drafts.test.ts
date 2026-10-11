@@ -131,12 +131,13 @@ describe("drafts in the prompt page (ADR-072)", () => {
   });
 
   it("never offers a draft as the target of a tag", async () => {
-    const { wrapper } = await open(withDraft(), "technical", "?tab=tags");
+    const { wrapper } = await open(withDraft(), "technical");
     await flushPromises();
-    const select = wrapper.find("[data-testid='env-pre'] .select-trigger");
+    await wrapper.get("[data-testid='env-menu-pre']").trigger("click");
+    const select = wrapper.find("[data-testid='env-panel-pre'] .select-trigger");
     select.element.dispatchEvent(new Event("click"));
     await flushPromises();
-    const options = [...wrapper.element.querySelectorAll("[data-testid='env-pre'] .select-option")].map((o) => o.textContent?.trim());
+    const options = [...wrapper.element.querySelectorAll("[data-testid='env-panel-pre'] .select-option")].map((o) => o.textContent?.trim());
     expect(options.join(" ")).not.toContain("v3");
     expect(options.join(" ")).toContain("v2");
   });

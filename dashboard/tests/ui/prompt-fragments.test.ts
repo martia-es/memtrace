@@ -20,6 +20,7 @@ async function mountPage(component: object, path: string, props: Record<string, 
     routes: [
       { path: "/e/:experimentId/prompts", name: "prompts", component: stub },
       { path: "/e/:experimentId/prompts/:promptId", name: "prompt", component: stub },
+      { path: "/e/:experimentId/conversations", name: "conversations", component: stub },
       { path: "/e/:experimentId/traces/:traceId", name: "trace", component: stub },
     ],
   });
