@@ -18,7 +18,9 @@ const me = { id: "user-1", email: "dev@memtrace.local", name: "Dev User", image:
 
 const organizations = [{ id: "org-1", name: "Acme", myRole: "org_admin" }];
 
-const experiments = [{ id: "exp-1", organizationId: "org-1", name: "Default Experiment", serviceName: "planner", myRole: "org_admin" }];
+// permisos del perfil technical (ADR-052): la UI decide por permiso, no por nombre de rol
+const technicalPermissions = ["experiment:read", "trace:read_technical", "annotation:write", "queue:manage", "queue:curate", "scoreconfig:manage", "dataset:write", "apikey:manage_own", "assistant:manage", "deploy:run", "prompt:read", "prompt:write", "prompt:promote", "prompt:approve", "catalog:manage", "data:export", "alert:manage", "pricing:manage"];
+const experiments = [{ id: "exp-1", organizationId: "org-1", name: "Default Experiment", serviceName: "planner", myRole: "technical", permissions: technicalPermissions }];
 
 const orgMembers = {
     "org-1": { members: [{ userId: me.id, email: me.email, name: me.name, role: "org_admin" }], pendingInvitations: [] },
@@ -347,7 +349,47 @@ const datasets = [
 const modelPricing = [
     { modelId: "gpt-5.4-mini", provider: "openai", inputPricePerToken: 0.00000025, outputPricePerToken: 0.000002, source: "litellm", updatedAt: "2026-10-04T03:00:00.000Z" },
     { modelId: "claude-haiku-4-5", provider: "anthropic", inputPricePerToken: 0.000001, outputPricePerToken: 0.000005, source: "litellm", updatedAt: "2026-10-04T03:00:00.000Z" },
+    { modelId: "claude-opus-4-7", provider: "anthropic", inputPricePerToken: 0.000005, outputPricePerToken: 0.000025, source: "litellm", updatedAt: "2026-10-04T03:00:00.000Z" },
+    { modelId: "claude-sonnet-4-5", provider: "anthropic", inputPricePerToken: 0.000003, outputPricePerToken: 0.000015, source: "litellm", updatedAt: "2026-10-04T03:00:00.000Z" },
+    { modelId: "gemini-3-flash-preview", provider: "vertex_ai", inputPricePerToken: 0.0000005, outputPricePerToken: 0.000003, source: "litellm", updatedAt: "2026-10-04T03:00:00.000Z" },
+    { modelId: "gpt-5.2", provider: "openai", inputPricePerToken: 0.00000175, outputPricePerToken: 0.000014, source: "litellm", updatedAt: "2026-10-04T03:00:00.000Z" },
+    { modelId: "azure/gpt-5.2", provider: "azure", inputPricePerToken: 0.00000175, outputPricePerToken: 0.000014, source: "litellm", updatedAt: "2026-10-04T03:00:00.000Z" },
+    { modelId: "mistral-large", provider: "mistral", inputPricePerToken: 0.000002, outputPricePerToken: 0.000006, source: "litellm", updatedAt: "2026-10-04T03:00:00.000Z" },
 ];
+// calidad por modelo de Arena (ADR-025): puntuaciones reales del leaderboard del 8 oct 2026; las decisiones viven en memoria
+const arenaScore = (arenaName, elo, rank, votes) => ({ arenaName, elo, ci: 4, rank, votes, origin: "exact", stale: false });
+const arenaEntries = {
+    "claude-opus-4-7": [1483, 15, 66315], "claude-sonnet-4-5-20250929": [1439, 79, 82735], "claude-sonnet-4-5-20250929-high-32k": [1435, 88, 83973],
+    "gemini-3-flash": [1466, 35, 31337], "gemini-3-flash (thinking-minimal)": [1442, 69, 91105], "gpt-5.2": [1412, 135, 83928],
+};
+const arenaCandidate = (arenaName, reason) => { const [elo, rank, votes] = arenaEntries[arenaName]; return { arenaName, elo, ci: 3, rank, votes, reason }; };
+const qualityCandidates = {
+    "claude-sonnet-4-5": [arenaCandidate("claude-sonnet-4-5-20250929", "Same name plus “20250929”"), arenaCandidate("claude-sonnet-4-5-20250929-high-32k", "Same release, high effort, 32k thinking")],
+    "gemini-3-flash-preview": [arenaCandidate("gemini-3-flash", "Same name without “preview”"), arenaCandidate("gemini-3-flash (thinking-minimal)", "Same name, minimal thinking")],
+};
+const qualityInUse = new Set(["claude-sonnet-4-5", "gpt-5.2"]);
+const qualityDecided = {}; // modelKey -> { decision: "confirm"|"no_equivalent"|"reject", arenaName? }
+const qualityItems = () => {
+    const out = [
+        { modelId: "claude-opus-4-7", modelKey: "claude-opus-4-7", state: "matched", inUse: false, quality: arenaScore("claude-opus-4-7", ...arenaEntries["claude-opus-4-7"]), candidate: null, candidateCount: 0, via: null },
+        { modelId: "gpt-5.2", modelKey: "gpt-5.2", state: "matched", inUse: true, quality: arenaScore("gpt-5.2", ...arenaEntries["gpt-5.2"]), candidate: null, candidateCount: 0, via: null },
+        { modelId: "azure/gpt-5.2", modelKey: "gpt-5.2", state: "matched", inUse: true, quality: arenaScore("gpt-5.2", ...arenaEntries["gpt-5.2"]), candidate: null, candidateCount: 0, via: "gpt-5.2" },
+    ];
+    for (const [key, list] of Object.entries(qualityCandidates)) {
+        const d = qualityDecided[key];
+        const inUse = qualityInUse.has(key);
+        if (d?.decision === "confirm") out.push({ modelId: key, modelKey: key, state: "matched", inUse, quality: { ...arenaScore(d.arenaName, ...arenaEntries[d.arenaName]), origin: "confirmed" }, candidate: null, candidateCount: 0, via: null });
+        else if (d?.decision === "no_equivalent") out.push({ modelId: key, modelKey: key, state: "no_equivalent", inUse, quality: null, candidate: null, candidateCount: 0, via: null });
+        else out.push({ modelId: key, modelKey: key, state: "candidate", inUse, quality: null, candidate: list[0], candidateCount: list.length, via: null });
+    }
+    return out;
+};
+const qualityUndecided = () => qualityItems().filter((i) => i.state === "candidate");
+const qualityOverview = () => ({
+    source: { name: "Arena", board: "text", category: "overall", license: "CC BY 4.0", url: "https://arena.ai", publishedAt: "2026-10-08T00:00:00.000Z", syncedAt: "2026-10-10T03:00:00.000Z" },
+    items: qualityItems(),
+    counts: { needsReview: qualityUndecided().length, pending: qualityUndecided().filter((i) => i.inUse).length, inUse: 2 },
+});
 const versionsOf = (datasetId) => [
     { id: `${datasetId}-v3`, major: 1, minor: 2, note: "Edited 2 items", createdByEmail: me.email, createdAt: "2026-10-02T09:00:00.000Z", itemCount: 3, addedCount: 0, modifiedCount: 2, removedCount: 0 },
     { id: `${datasetId}-v2`, major: 1, minor: 1, note: "Added an item", createdByEmail: me.email, createdAt: "2026-09-25T09:00:00.000Z", itemCount: 3, addedCount: 1, modifiedCount: 0, removedCount: 0 },
@@ -563,6 +605,30 @@ async function handler(req, res) {
     try {
         if (path === "/services" && method === "GET") return json(res, 200, services);
         if (path === "/model-pricing" && method === "GET") return json(res, 200, { items: modelPricing });
+        if (path === "/model-quality/pending" && method === "GET") {
+            const pending = qualityUndecided().filter((i) => i.inUse);
+            return json(res, 200, { total: pending.length, items: pending.map((i) => ({ experimentId: "exp-1", modelKey: i.modelKey, model: i.modelKey, candidateCount: i.candidateCount })) });
+        }
+        const qualityMatch = path.match(/^\/experiments\/([^/]+)\/model-quality(?:\/(candidates)|\/matches\/([^/]+))?$/);
+        if (qualityMatch) {
+            const [, , candidatesPart, keyPart] = qualityMatch;
+            if (method === "GET" && !keyPart && !candidatesPart) return json(res, 200, qualityOverview());
+            if (method === "GET" && candidatesPart) {
+                return json(res, 200, { items: qualityUndecided().map((i) => ({ modelKey: i.modelKey, model: i.modelId, inUse: i.inUse, candidates: qualityCandidates[i.modelKey] })) });
+            }
+            if (keyPart && method === "PUT") {
+                let raw = "";
+                for await (const chunk of req) raw += chunk;
+                qualityDecided[decodeURIComponent(keyPart)] = JSON.parse(raw);
+                res.writeHead(204).end();
+                return;
+            }
+            if (keyPart && method === "DELETE") {
+                delete qualityDecided[decodeURIComponent(keyPart)];
+                res.writeHead(204).end();
+                return;
+            }
+        }
 
         const experimentScopedMatch = path.match(/^\/experiments\/([^/]+)(\/.*)$/);
         if (experimentScopedMatch && method === "GET") {

@@ -1,5 +1,5 @@
 import { permissionsOf } from "./permissions";
-import type { AlertEventsPageDto, AlertRuleDto, AlertsOverviewDto, AuditPageDto, BudgetViewDto, ChartCatalogEntryDto, NotificationsDto, OpenAlertsDto, PartnerClientDto, PartnerGrantDto, PartnershipDto, RetentionPolicyDto } from "@contract";
+import type { AlertEventsPageDto, AlertRuleDto, AlertsOverviewDto, AuditPageDto, BudgetViewDto, ChartCatalogEntryDto, ModelMatchBody, ModelQualityCandidatesResponse, ModelQualityPendingResponse, ModelQualityResponse, NotificationsDto, OpenAlertsDto, PartnerClientDto, PartnerGrantDto, PartnershipDto, RetentionPolicyDto } from "@contract";
 import type {
   AddQueueItemsResponse,
   BreakdownResponse,
@@ -162,6 +162,30 @@ export class FakeIdentityApi implements IdentityApi {
   async markNotificationsRead(): Promise<void> {
     this.notificationCalls.push("read");
     this.notifications = { items: this.notifications.items.map((n) => ({ ...n, read: true })), unread: 0 };
+  }
+  modelQuality: ModelQualityResponse = { source: { name: "Arena", board: "text", category: "overall", license: "CC BY 4.0", url: "https://arena.ai", publishedAt: null, syncedAt: null }, items: [], counts: { needsReview: 0, pending: 0, inUse: 0 } };
+  modelQualityCandidates: ModelQualityCandidatesResponse = { items: [] };
+  modelQualityPending: ModelQualityPendingResponse = { total: 0, items: [] };
+  modelQualityCalls: Array<{ op: string; experimentId?: string; modelKey?: string; scope?: string; body?: ModelMatchBody }> = [];
+  modelQualityError: Error | null = null;
+  async getModelQuality(experimentId: string): Promise<ModelQualityResponse> {
+    this.modelQualityCalls.push({ op: "overview", experimentId });
+    if (this.modelQualityError) throw this.modelQualityError;
+    return this.modelQuality;
+  }
+  async listModelQualityCandidates(experimentId: string, scope: "in_use" | "all"): Promise<ModelQualityCandidatesResponse> {
+    this.modelQualityCalls.push({ op: "candidates", experimentId, scope });
+    return this.modelQualityCandidates;
+  }
+  async decideModelMatch(experimentId: string, modelKey: string, body: ModelMatchBody): Promise<void> {
+    this.modelQualityCalls.push({ op: "decide", experimentId, modelKey, body });
+    if (this.modelQualityError) throw this.modelQualityError;
+  }
+  async clearModelMatch(experimentId: string, modelKey: string): Promise<void> {
+    this.modelQualityCalls.push({ op: "clear", experimentId, modelKey });
+  }
+  async getModelQualityPending(): Promise<ModelQualityPendingResponse> {
+    return this.modelQualityPending;
   }
   retention: RetentionPolicyDto = { organizationId: "org-1", defaultDays: 30, minDays: 1, maxDays: 365, experiments: [] };
   retentionCalls: Array<{ scope: "organization" | "experiment"; id: string; days: number | null }> = [];
