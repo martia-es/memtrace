@@ -95,7 +95,7 @@ function joinPhrases(items: string[]): string {
   return items.length > 1 ? `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}` : (items[0] ?? "");
 }
 
-export function compareVerdict(rows: CompareRow[]): CompareVerdict {
+export function compareVerdict(rows: CompareRow[], nameA = "the first experiment", nameB = "the second experiment"): CompareVerdict {
   const better = rows.filter((r) => r.tone === "better");
   const worse = rows.filter((r) => r.tone === "worse");
   const neutral = rows.length - better.length - worse.length;
@@ -103,11 +103,11 @@ export function compareVerdict(rows: CompareRow[]): CompareVerdict {
   const good = phrases(better, "better");
   const bad = phrases(worse, "worse");
 
-  let headline = "No meaningful difference between A and B";
-  if (good.length && bad.length) headline = `B is ${joinPhrases(good)}, but ${joinPhrases(bad)}`;
-  else if (good.length) headline = `B is ${joinPhrases(good)}`;
-  else if (bad.length) headline = `B is ${joinPhrases(bad)}`;
-  headline = headline[0]!.toUpperCase() + headline.slice(1);
+  let headline = `No meaningful difference between ${nameB} and ${nameA}`;
+  if (good.length && bad.length) headline = `${nameB} is ${joinPhrases(good)}, but ${joinPhrases(bad)}`;
+  else if (good.length) headline = `${nameB} is ${joinPhrases(good)}`;
+  else if (bad.length) headline = `${nameB} is ${joinPhrases(bad)}`;
+  if (good.length || bad.length) headline += ` than ${nameA}`;
 
   const changed = [...better, ...worse].map((r) => `${r.label} ${r.a} → ${r.b} (${r.deltaText.replace(/^[▼▲] /, (m) => (m.startsWith("▼") ? "−" : "+"))})`);
   const detail = changed.length ? changed.join(" · ") : `Every metric moved less than ${NEUTRAL_THRESHOLD * 100}%.`;
