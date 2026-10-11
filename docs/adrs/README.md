@@ -35,7 +35,7 @@ Do **not** write one for a new screen, an endpoint that follows an existing patt
 | 021 | SDK Hands Its Tracer Provider to Auto-Instrumentors and Redacts Captured Content | [sdk/adr-021-sdk-explicit-tracer-provider-and-content-redaction.md](sdk/adr-021-sdk-explicit-tracer-provider-and-content-redaction.md) |
 | 022 | Topic Extraction with BERTopic, as an Async Enrichment Pipeline | [observability/adr-022-topic-extraction-bertopic.md](observability/adr-022-topic-extraction-bertopic.md) |
 | 024 | Per-Framework Integration Packages Under a Public `memtrace.<framework>` Namespace | [sdk/adr-024-per-framework-integration-packages.md](sdk/adr-024-per-framework-integration-packages.md) |
-| 025 | Model Pricing Catalog Synced from LiteLLM | [pricing/adr-025-model-pricing-catalog-sync.md](pricing/adr-025-model-pricing-catalog-sync.md) |
+| 025 | Model Pricing Catalog Synced from LiteLLM, with Arena Quality Scores | [pricing/adr-025-model-pricing-catalog-sync.md](pricing/adr-025-model-pricing-catalog-sync.md) |
 | 028 | Offline Evaluation as a Decoupled, Client-Side SDK Module | [evaluation/adr-028-offline-evaluation-decoupled-sdk.md](evaluation/adr-028-offline-evaluation-decoupled-sdk.md) |
 | 031 | Dataset Versioning — Immutable Snapshots, Semver, Stable Item Identity and Publish per Session | [datasets/adr-031-dataset-versioning.md](datasets/adr-031-dataset-versioning.md) |
 | 037 | Human Annotations — Storage in ClickHouse and Query API | [evaluation/adr-037-human-annotations-storage-and-api.md](evaluation/adr-037-human-annotations-storage-and-api.md) |
