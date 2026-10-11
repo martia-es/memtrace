@@ -7,9 +7,11 @@ DASH_IMAGE ?= docker.io/memtrace/dashboard:dev
 DOCS_IMAGE ?= docker.io/memtrace/docs:dev
 # Debe coincidir con la imagen del CronJob (k8s/81-model-pricing-sync.yaml)
 PRICING_IMAGE ?= localhost/memtrace/model-pricing:dev
+# Debe coincidir con la imagen del CronJob (k8s/86-model-quality-sync.yaml)
+QUALITY_IMAGE ?= localhost/memtrace/model-quality:dev
 
 .DEFAULT_GOAL := help
-.PHONY: help check up images dashboard api status forward logs query migrate backfill-experiment-id netpol-check migrate-postgres pricing-sync down reset db-reset dev-data docs weather weather-bg weather-stop weather-restart rag rag-bg rag-stop rag-restart
+.PHONY: help check up images dashboard api status forward logs query migrate backfill-experiment-id netpol-check migrate-postgres pricing-sync quality-sync down reset db-reset dev-data docs weather weather-bg weather-stop weather-restart rag rag-bg rag-stop rag-restart
 
 help: ## Muestra esta ayuda
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-10s %s\n", $$1, $$2}'
@@ -39,6 +41,7 @@ up: check ## Levanta todo en 1 solo comando (clúster, despliegue, migraciones y
 	kubectl rollout status deployment/dashboard -n $(NS) --timeout=300s
 	kubectl rollout status deployment/docs -n $(NS) --timeout=300s
 	@$(MAKE) --no-print-directory pricing-sync
+	@$(MAKE) --no-print-directory quality-sync
 	@pkill -f "kubectl port-forward" 2>/dev/null || true
 	@nohup kubectl port-forward svc/clickhouse 8123:8123 -n $(NS) >/dev/null 2>&1 &
 	@nohup kubectl port-forward svc/dashboard 8080:8080 -n $(NS) >/dev/null 2>&1 &
@@ -64,8 +67,9 @@ images: ## Construye las imágenes de la API, el dashboard y la documentación y
 	docker build -f dashboard/Dockerfile -t $(DASH_IMAGE) .
 	docker build -t $(DOCS_IMAGE) docs-site
 	docker build -t $(PRICING_IMAGE) analytics/model_pricing
+	docker build -t $(QUALITY_IMAGE) analytics/model_quality
 	@tmp=$$(mktemp -t memtrace-image.XXXXXX); \
-	for img in $(API_IMAGE) $(DASH_IMAGE) $(DOCS_IMAGE) $(PRICING_IMAGE); do \
+	for img in $(API_IMAGE) $(DASH_IMAGE) $(DOCS_IMAGE) $(PRICING_IMAGE) $(QUALITY_IMAGE); do \
 		docker save -o $$tmp $$img && kind load image-archive $$tmp --name $(CLUSTER) || { rm -f $$tmp; exit 1; }; \
 	done; rm -f $$tmp
 	@kubectl rollout restart deployment/api deployment/dashboard deployment/docs -n $(NS) 2>/dev/null || true
@@ -136,6 +140,13 @@ pricing-sync: ## Puebla la tabla de costes (model_pricing) ahora, sin esperar al
 	@kubectl wait --for=condition=complete job/model-pricing-sync-manual -n $(NS) --timeout=180s \
 		&& echo "Tabla de costes poblada" \
 		|| echo "Aviso: la sincronización de precios falló (¿sin red?). Reintenta con 'make pricing-sync'"
+
+quality-sync: ## Puebla la calidad por modelo (model_quality, de Arena) ahora, sin esperar al CronJob diario (no falla si no hay red)
+	@kubectl delete job model-quality-sync-manual -n $(NS) --ignore-not-found >/dev/null
+	@kubectl create job model-quality-sync-manual --from=cronjob/model-quality-sync -n $(NS) >/dev/null
+	@kubectl wait --for=condition=complete job/model-quality-sync-manual -n $(NS) --timeout=180s \
+		&& echo "Calidad por modelo poblada" \
+		|| echo "Aviso: la sincronización de calidad falló (¿sin red?). Reintenta con 'make quality-sync'"
 
 down: weather-stop ## Para el clúster conservando los datos (reanuda con 'make up')
 	@pkill -f "kubectl port-forward" 2>/dev/null || true

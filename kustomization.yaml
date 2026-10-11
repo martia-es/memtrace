@@ -17,6 +17,7 @@ resources:
   - k8s/70-docs.yaml
   - k8s/80-topic-extraction.yaml
   - k8s/81-model-pricing-sync.yaml
+  - k8s/86-model-quality-sync.yaml
   - k8s/82-health-probe.yaml
   - k8s/83-retention-purge.yaml
   - k8s/84-alerts-evaluate.yaml
@@ -38,6 +39,7 @@ configMapGenerator:
       - migrations/clickhouse/012_prompt_version.sql
       - migrations/clickhouse/013_trace_ttl_ceiling.sql
       - migrations/clickhouse/014_experiment_id.sql
+      - migrations/clickhouse/015_model_quality.sql
     options:
       disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
   - name: postgres-migrations
@@ -89,6 +91,7 @@ configMapGenerator:
       - migrations/postgres/045_approval_exemptions.sql
       - migrations/postgres/046_budget_notification_spent.sql
       - migrations/postgres/047_pr_gate.sql
+      - migrations/postgres/048_model_quality_matches.sql
     options:
       disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
   - name: clickhouse-config
