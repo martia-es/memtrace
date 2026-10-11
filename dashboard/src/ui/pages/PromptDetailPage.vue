@@ -659,7 +659,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                 <span class="muted">Compare</span>
                 <div class="bar-select"><Select v-model="selected" :options="allVersionOptions" data-testid="compare-version" /></div>
                 <span class="muted">with</span>
-                <div class="bar-select"><Select v-if="compareOptions.length > 0" v-model="compareWith" :options="compareOptions" data-testid="compare-with" /></div>
+                <div v-if="compareOptions.length > 0" class="bar-select"><Select v-model="compareWith" :options="compareOptions" data-testid="compare-with" /></div>
                 <span v-else class="muted">nothing: this is the first version</span>
                 <span class="grow" />
                 <template v-if="compareVersion">
