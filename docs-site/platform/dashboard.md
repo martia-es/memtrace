@@ -12,7 +12,7 @@ The sidebar has five entries, plus **Settings** at the bottom:
 | **Conversations** | Browse and read what your assistants did |
 | **Review** | Your inbox of conversations waiting for a human review |
 | **Evaluations** | Datasets and their runs |
-| **Costs** | Price per model |
+| **Costs** | Price and quality score per model, see [Model pricing and quality](/platform/model-pricing) |
 
 The **experiment** selector at the top of the sidebar switches between the agents you have access to. The badge next to **Review** is the number of items waiting for review.
 

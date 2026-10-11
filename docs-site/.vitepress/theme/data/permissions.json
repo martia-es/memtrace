@@ -221,6 +221,16 @@
       ]
     },
     {
+      "id": "pricing:manage",
+      "group": "Metrics",
+      "description": "Decide which Arena entry is the same model as one in the price catalog, so its quality score shows next to the price.",
+      "unlocks": [
+        "Confirming a match, or saying that none of the candidates is right",
+        "Marking a model as one that Arena does not list, so it stops being offered",
+        "Getting the notice in the bell when a model your agent uses is waiting for a decision"
+      ]
+    },
+    {
       "id": "retention:manage",
       "group": "Data protection",
       "description": "Choose how many days traces are kept, for the organization and for each experiment.",
@@ -302,7 +312,8 @@
         "prompt:approve",
         "catalog:manage",
         "data:export",
-        "alert:manage"
+        "alert:manage",
+        "pricing:manage"
       ]
     },
     {
@@ -437,6 +448,10 @@
     {
       "label": "Create, change and delete the alerts and the monthly cost budget of an agent",
       "permission": "alert:manage"
+    },
+    {
+      "label": "Confirm which Arena entry is the same model as one in the price catalog",
+      "permission": "pricing:manage"
     },
     {
       "label": "Change how long traces are kept, for the organization and for each experiment",
