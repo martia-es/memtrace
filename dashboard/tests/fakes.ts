@@ -2,6 +2,7 @@ import { permissionsOf } from "./permissions";
 import type { AlertEventsPageDto, AlertRuleDto, AlertsOverviewDto, AuditPageDto, BudgetViewDto, ChartCatalogEntryDto, NotificationsDto, OpenAlertsDto, PartnerClientDto, PartnerGrantDto, PartnershipDto, RetentionPolicyDto } from "@contract";
 import type {
   AddQueueItemsResponse,
+  AnalyticsResponse,
   InterAnnotatorAgreementResponse,
   JudgeHumanAgreementResponse,
   AnnotationQueueDetailResponse,
@@ -65,7 +66,7 @@ import type {
   TraceSummaryDto,
   TranscriptResponse,
 } from "@contract";
-import type { ListConversationsParams, ListSpansParams, ListTracesParams, RangeParams, SaveAnnotationBody, TraceApi, AddQueueItemsBody, AnnotationQueuePatchBody, NewAnnotationQueueBody, QueueLabelBody, AgreementScope } from "@/application/trace-api";
+import type { AnalyticsGroup, ListConversationsParams, ListSpansParams, ListTracesParams, RangeParams, SaveAnnotationBody, TraceApi, AddQueueItemsBody, AnnotationQueuePatchBody, NewAnnotationQueueBody, QueueLabelBody, AgreementScope } from "@/application/trace-api";
 import {
   type AlertRuleBody,
   type BudgetBody,
@@ -699,6 +700,12 @@ export class FakeTraceApi implements TraceApi {
     const found = this.overviewByExperiment[experimentId];
     if (!found) throw new Error(`no overview configured for ${experimentId}`);
     return found;
+  }
+  analytics: AnalyticsResponse = { groupBy: "prompt_version", range: { from: "", to: "" }, items: [], unpricedTokens: 0 };
+  analyticsCalls: AnalyticsGroup[] = [];
+  async getAnalytics(p: RangeParams & { groupBy: AnalyticsGroup }): Promise<AnalyticsResponse> {
+    this.analyticsCalls.push(p.groupBy);
+    return { ...this.analytics, groupBy: p.groupBy };
   }
   revisions: RevisionsResponse = { items: [] };
   async listRevisions(_p: RangeParams): Promise<RevisionsResponse> {

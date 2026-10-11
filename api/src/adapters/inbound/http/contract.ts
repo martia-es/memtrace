@@ -1448,6 +1448,39 @@ export interface PromptEvidenceResponse {
   versions: VersionEvidenceDto[];
 }
 
+/** Una fila de Overview › Analytics: una versión de prompt o un entorno. */
+export interface AnalyticsItemDto {
+  key: string;
+  /** entornos donde corrió una versión, o versiones que corrieron en un entorno */
+  related: string[];
+  traces: number;
+  errorTraces: number;
+  /** 0..1 */
+  errorRate: number;
+  /** semiancho del intervalo del 95 % de `errorRate` (0..1) */
+  errorMargin: number;
+  p95Ms: number | null;
+  inputTokens: number;
+  outputTokens: number;
+  /** null si ningún modelo tiene precio */
+  costUsd: number | null;
+  costPerTraceUsd: number | null;
+  /** false: algún modelo no tiene precio, así que `costUsd` es un mínimo */
+  costComplete: boolean;
+  thumbsUpRate: number | null;
+  ratedTraces: number;
+  /** últimos 7 días (UTC), el más antiguo primero */
+  trend: { day: string; traces: number; errorTraces: number }[];
+}
+
+export interface AnalyticsResponse {
+  groupBy: "prompt_version" | "environment";
+  range: { from: string; to: string };
+  /** más trazas primero */
+  items: AnalyticsItemDto[];
+  unpricedTokens: number;
+}
+
 export interface PromptListResponse {
   items: PromptSummaryDto[];
 }

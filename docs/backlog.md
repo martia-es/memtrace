@@ -26,7 +26,7 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 | R1 | [ ] | Despliegues (ADR-064) | GitLab/Bitbucket, aprobaciones en PRO, promoción entre entornos, botón de rollback, alerta de desviación | M |
 | R2 | [ ] | Aprobaciones (ADR-076) | Aviso por email a aprobadores, aprobadores por grupo/rol del IdP, reasignar, delegación | M |
 | R3 | [ ] | Registro de agentes | Agentes remotos observados (`memtrace.peer_agent`) | B |
-| R4 | [ ] | Prompts — evidencia (ADR-069) | Anotaciones humanas, serie temporal por versión, cohortes de tráfico | M |
+| R4 | [ ] | Prompts — evidencia (ADR-069) | Anotaciones humanas, cohortes de tráfico (la serie temporal de errores por versión ya está en Overview › Analytics) | M |
 | R11 | [ ] | Prompts — lista | Columna «Errors 7d» por prompt (tasa de error de la versión en `pro`): requiere devolverla en la lista, hoy solo está en la evidencia de cada prompt | B |
 | R12 | [ ] | Prompts — tags libres | Elegir desde la UI qué tag sigue cada agente (columna *Follows* en «Used by»): hoy la tag va en el código (`tag=`). Exige un binding por agente que el SDK lea al refrescar: modelo de datos y contrato del SDK, ADR que amplíe 067/068. Propuesta de UI en la pantalla 69 del lienzo (solo la parte de seguidores está hecha) | M |
 | R5 | [ ] | Prompts — otros | Límites de coste/latencia en la promoción, permiso propio para la política, edición in situ de borradores, fragmentos anidados, límite de ejecuciones del playground | B |
@@ -42,7 +42,7 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 | M2 | [ ] | Trazas | Búsqueda por contenido (texto de entrada/salida) y comparación de dos trazas lado a lado | M | M |
 | M3 | [ ] | Datasets | Importar CSV ya está (soltar el fichero en Datasets); faltan JSONL, `.xlsx`, añadir a un dataset existente y detectar duplicados o casi duplicados. Otras ideas del rediseño: carpetas (`dataset_folders` + `datasets.folder_id`), renombrar y duplicar datasets, columnas extra desde `metadata` | M | S |
 | M4 | [ ] | Evaluaciones | Intervalos de confianza al comparar runs (con pocos items, un +3 % puede ser ruido) | M | S |
-| M5 | [ ] | Costes | Coste por usuario, por conversación y por versión de prompt; tendencia con proyección | M | M |
+| M5 | [~] | Costes | En curso: hecho el coste por versión de prompt y por entorno en Overview › Analytics ([ADR-067](adrs/prompts/adr-067-prompt-registry-immutable-versions-and-tags.md), actualización); el coste por conversación ya está en Conversations. Faltan el coste por usuario (atributo `user.id` en los SDK y migración) y la tendencia con proyección | M | M |
 | M6 | [ ] | Gobierno | Simplificar u ocultar por defecto «quién puede llamar a cada entorno» si no se usa (ver sección 5) | B | S |
 | M8 | [x] | Dashboard | Hecho (ADR-084, actualización): la API acepta hasta 365 días, presets 90 d y 1 y, rango propio de hasta un año; el periodo anterior de Errores respeta la retención efectiva del agente | M | M |
 | M7 | [x] | Documentación | Hecho (`docs-site/platform/improvement-cycle.md`): guía «ciclo de mejora en 30 minutos»: traza → fallo → dataset → prompt → eval → deploy | M | S |
@@ -79,3 +79,4 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 | 2026-10-10 | Se descartan F3 (evaluación online), R7 (alertas de satisfacción y satisfacción por versión) y R10 (webhooks y alertas de calidad online); se elimina Q4 |
 | 2026-10-11 | F5 hecho (ADR-064, fase 3): check de GitHub con el veredicto de la evaluación |
 | 2026-10-11 | M7 hecho: guía «ciclo de mejora en 30 minutos» en docs-site |
+| 2026-10-11 | M5 en curso: Overview › Analytics agrupa por versión de prompt y por entorno, con coste, errores con su margen del 95 % y tendencia |

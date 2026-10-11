@@ -1,5 +1,6 @@
 import type {
   AddQueueItemsResponse,
+  AnalyticsResponse,
   InterAnnotatorAgreementResponse,
   JudgeHumanAgreementResponse,
   AnnotationQueueDetailResponse,
@@ -51,6 +52,8 @@ import type {
   TraceListResponse,
   TranscriptResponse,
 } from "@contract";
+
+export type AnalyticsGroup = AnalyticsResponse["groupBy"];
 
 export interface RangeParams {
   from: string;
@@ -205,6 +208,8 @@ export interface TraceApi {
   getOverview(params: RangeParams & { service?: string }, signal?: AbortSignal): Promise<OverviewResponse>;
   /** igual que getOverview pero para un experimento explícito, sin depender del scoping por setExperimentId (comparativa entre agentes) */
   getOverviewForExperiment(experimentId: string, params: RangeParams & { service?: string }, signal?: AbortSignal): Promise<OverviewResponse>;
+  /** Overview › Analytics: trazas por versión de prompt o por entorno, con coste, errores con su margen y tendencia. */
+  getAnalytics(params: RangeParams & { groupBy: AnalyticsGroup }, signal?: AbortSignal): Promise<AnalyticsResponse>;
   listServices(params: RangeParams, signal?: AbortSignal): Promise<ServicesResponse>;
   /** Commits (versiones del código) vistos en trazas del experimento, el más reciente primero (ADR-065). */
   listRevisions(params: RangeParams, signal?: AbortSignal): Promise<RevisionsResponse>;

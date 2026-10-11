@@ -43,6 +43,7 @@ export const router = createRouter({
         // Overview: una sola página con varias vistas; cada una tiene su URL y su entrada de submenú (ADR-059)
         { path: "overview", name: "overview", component: metricsPage, beforeEnter: legacyOverviewTab, meta: { title: "Overview", section: "overview", view: "summary" } },
         { path: "overview/compare", name: "overview-compare", component: metricsPage, meta: { title: "Compare", section: "compare", view: "compare" } },
+        { path: "overview/analytics", name: "overview-analytics", component: () => import("./pages/AnalyticsPage.vue"), meta: { title: "Analytics", section: "analytics" } },
         { path: "overview/charts", name: "overview-charts", component: metricsPage, meta: { title: "Custom charts", section: "charts", view: "charts" } },
         { path: "overview/catalog", name: "overview-catalog", component: () => import("./pages/ChartCatalogPage.vue"), meta: { title: "Data catalog", section: "catalog" } },
         { path: "alerts", name: "alerts", component: () => import("./pages/AlertsPage.vue"), meta: { title: "Alerts", section: "alerts", timeRange: false } },
