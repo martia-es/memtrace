@@ -1,0 +1,41 @@
+name: Helm chart
+
+# ADR-096: el chart de Helm es la instalación de producción y `k8s/` + Kustomize la de desarrollo. Este job impide que se
+# separen: renderiza los dos y compara objeto a objeto, y comprueba que las migraciones copiadas al chart están al día.
+on:
+  pull_request:
+    paths:
+      - "deploy/helm/**"
+      - "k8s/**"
+      - "kustomization.yaml"
+      - "migrations/**"
+      - "scripts/check-helm-parity.py"
+      - ".github/workflows/helm-chart.yml"
+  push:
+    branches: [main]
+    paths:
+      - "deploy/helm/**"
+      - "k8s/**"
+      - "kustomization.yaml"
+      - "migrations/**"
+
+permissions:
+  contents: read
+
+jobs:
+  parity:
+    name: Chart matches Kustomize
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.2
+      - name: Lint
+        run: helm lint deploy/helm/memtrace
+      - name: Secrets de Kustomize (vacíos: solo se renderiza)
+        run: |
+          mkdir -p k8s/secrets
+          touch k8s/secrets/identity-oauth.env k8s/secrets/resend.env
+      - name: Chart vs Kustomize
+        run: python3 scripts/check-helm-parity.py

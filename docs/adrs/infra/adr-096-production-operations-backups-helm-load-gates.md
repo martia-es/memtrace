@@ -47,6 +47,16 @@ The three needs are separate pieces of work, but they share one decision: what M
 - **The restore test is real**: `make restore-test` restores the latest Postgres dump into `restore_check` and the latest ClickHouse backup into a `restore_check` database (`restore_database_mapping`), compares per-table counts and drops it. Verified on a live cluster: 48 Postgres tables and 11 ClickHouse tables matched.
 - The sidecar must set `CLICKHOUSE_PORT=9000` explicitly: the Service named `clickhouse` makes Kubernetes inject `CLICKHOUSE_PORT=tcp://...`, which the tool reads as a number.
 
+### Update (step 2, Helm chart implemented)
+
+- **The chart is generated from the manifests in `k8s/` and checked against them.** `scripts/check-helm-parity.py` (CI job `helm-chart.yml`) renders Kustomize and the chart with default values and compares every object, so the two install paths cannot drift. Migrations and `k8s/config/` are copied into the chart (`scripts/sync-helm-chart.sh`) because Helm reads only inside the chart; the same check fails if the copies are stale.
+- **Migrations are one Job per release revision, not Helm hooks.** With a `post-install` hook, `helm install --wait` waits for the Collector, which needs the ClickHouse users that the hook creates, and times out (observed). Jobs named `<name>-<revision>` with `ttlSecondsAfterFinished` stay valid for upgrades because the migrations are idempotent.
+- **`--wait` is still not usable**: the `topic-model` PVC stays `Pending` until its first consumer (`WaitForFirstConsumer`), and Helm waits for every PVC. The docs say to check with `kubectl rollout status`.
+- **Secrets**: generated on first install and preserved on upgrade through `lookup`; with `secrets.create: false` the operator provides Secrets with the same names and keys, which is how External Secrets or Sealed Secrets plug in without a chart change.
+- **External databases** replace the StatefulSet with an `ExternalName` Service of the same name, so no other manifest changes. ClickHouse backups are disabled in that mode; NetworkPolicies must be adjusted by the operator.
+- Out of the chart on purpose: the `backfill-experiment-id` Job (one-off for data older than migration 013) and the `Namespace`.
+- Verified on kind: clean install, upgrade to revision 2 (passwords kept, new migration Jobs, old ones removed), backups and restore tests from the chart's own CronJobs.
+
 ## Alternatives Considered
 
 | Decision | Alternative | Why not |

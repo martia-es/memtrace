@@ -1,6 +1,84 @@
-# Operations: backups and restore
+# Operations: install and backups
 
-How to keep your MemTrace data safe and prove you can get it back. MemTrace keeps traces in ClickHouse and everything else (users, datasets, prompts, evaluations, alerts, audit log) in Postgres, so a backup covers both.
+How to install MemTrace on a real Kubernetes cluster, and how to keep its data safe and prove you can get it back.
+
+## Install with Helm
+
+`make up` is for your laptop. For a shared cluster, use the Helm chart in `deploy/helm/memtrace`. It installs the same pieces: ClickHouse, Postgres, the Collector, the API, the dashboard and the docs.
+
+You need a cluster with a default StorageClass, Helm 3, and the MemTrace images in a registry the cluster can pull from (build them with `make images` and push them, or use your CI).
+
+1. Write a `my-values.yaml` with what is yours:
+
+```yaml
+publicUrl: https://memtrace.example.com
+images:
+  api:       { repository: registry.example.com/memtrace/api, tag: "1.0.0" }
+  dashboard: { repository: registry.example.com/memtrace/dashboard, tag: "1.0.0" }
+  docs:      { repository: registry.example.com/memtrace/docs, tag: "1.0.0" }
+  # modelPricing, modelQuality and topicExtraction work the same way
+storage:
+  className: fast-ssd          # empty = the cluster default
+  clickhouse: { size: 100Gi }
+ingress:
+  enabled: true
+  className: nginx
+  host: memtrace.example.com
+  tls: { secretName: memtrace-tls }
+secrets:
+  oauth:                       # Google / Microsoft login
+    googleClientId: "..."
+    googleClientSecret: "..."
+  resend:
+    apiKey: "..."
+    emailFrom: "MemTrace <invites@example.com>"
+```
+
+2. Install it:
+
+```bash
+helm install memtrace deploy/helm/memtrace -n memtrace --create-namespace -f my-values.yaml
+kubectl -n memtrace rollout status deployment/api
+```
+
+Do not add `--wait`: one volume stays `Pending` until its first job runs, and Helm would wait for it.
+
+The database migrations run as jobs on every install and upgrade (`kubectl -n memtrace get jobs`). To upgrade, change the values or the image tags and run `helm upgrade` with the same `-f`.
+
+### Passwords and secrets
+
+By default the chart **generates** the passwords (ClickHouse, Postgres and the internal ingest token) the first time and keeps them on every upgrade. Read one with:
+
+```bash
+kubectl -n memtrace get secret clickhouse-credentials -o jsonpath='{.data.password}' | base64 -d
+```
+
+If you manage secrets elsewhere (External Secrets, Sealed Secrets, Vault), set `secrets.create: false` and create these Secrets in the namespace yourself:
+
+| Secret | Keys |
+|---|---|
+| `clickhouse-credentials` | `password`, `writer-password`, `retention-password`, `reader-password`, `collector-password` |
+| `postgres-credentials` | `password` |
+| `ingest-internal` | `token` |
+| `identity-oauth-credentials` | `AUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MICROSOFT_APPLICATION_ID`, `MICROSOFT_TENANT_ID`, `MICROSOFT_CLIENT_SECRET` |
+| `resend-credentials` | `RESEND_API_KEY`, `EMAIL_FROM` |
+| `github-app-credentials` (optional) | `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_WEBHOOK_SECRET` |
+| `backup-s3` (optional) | `bucket`, `prefix`, `region`, `endpoint`, `access-key-id`, `secret-access-key` |
+
+### Use a managed database
+
+Set `clickhouse.external.host` and/or `postgres.external.host` and the chart does not deploy that database. Its `clickhouse` / `postgres` Service becomes an alias to your host, so nothing else changes. Two things to know:
+
+- ClickHouse backups (below) are turned off for an external ClickHouse: use your provider's backups.
+- The network policies only know the databases of the chart. Set `networkPolicy.enabled: false`, or add rules for your host.
+
+### Network policies
+
+They are on by default and need a network plugin that enforces them (Calico, Cilium). Set `networkPolicy.ingressNamespace` to the namespace of your ingress controller and `networkPolicy.internalCidrs` to your cluster's pod and service ranges, so the API cannot reach them.
+
+## Backups and restore
+
+MemTrace keeps traces in ClickHouse and everything else (users, datasets, prompts, evaluations, alerts, audit log) in Postgres, so a backup covers both.
 
 ## What runs by default
 
@@ -21,7 +99,7 @@ make backup
 
 ## Send backups to a bucket (S3 or compatible)
 
-Create a Secret called `backup-s3` in the `memtrace` namespace. As soon as it exists, both jobs upload every backup to the bucket as well (AWS S3, MinIO, Cloudflare R2, etc.).
+With Helm, set `backup.s3.bucket`, `accessKeyId`, `secretAccessKey` (and `region`, `prefix`, `endpoint`) in your values and the chart creates the Secret. Otherwise create a Secret called `backup-s3` in the `memtrace` namespace. As soon as it exists, both jobs upload every backup to the bucket as well (AWS S3, MinIO, Cloudflare R2, etc.).
 
 ```bash
 kubectl -n memtrace create secret generic backup-s3 \

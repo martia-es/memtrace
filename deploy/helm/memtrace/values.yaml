@@ -1,0 +1,152 @@
+# Valores por defecto del chart de MemTrace (ADR-096). Reproducen lo que despliega `kustomization.yaml` en kind, salvo los
+# secretos: aquí se generan al azar en la primera instalación y se conservan en las siguientes.
+# Guía de uso: docs-site/platform/operations.md
+
+# URL pública desde la que se abre el dashboard (la usa el login federado: AUTH_URL). Con ingress: https://<host>
+publicUrl: http://localhost:8080
+
+imagePullPolicy: IfNotPresent   # las imágenes `memtrace/*` solo existen en el registro que tú indiques (ver `images`)
+
+# Imágenes. `memtrace/*` y `localhost/memtrace/*` son las que construye `make images`: en producción cámbialas por las de tu
+# registro (repository: registry.example.com/memtrace/api, tag: 1.2.3).
+images:
+  api:
+    repository: memtrace/api
+    tag: dev
+  awsCli:
+    repository: amazon/aws-cli
+    tag: 2.17.40
+  busybox:
+    repository: busybox
+    tag: '1.36'
+  clickhouse:
+    repository: clickhouse/clickhouse-server
+    tag: 23.8-alpine
+  clickhouseBackup:
+    repository: altinity/clickhouse-backup
+    tag: 2.5.20
+  clickhouseMigrate:
+    repository: clickhouse/clickhouse-server
+    tag: 24.3-alpine
+  curl:
+    repository: curlimages/curl
+    tag: 8.9.1
+  dashboard:
+    repository: memtrace/dashboard
+    tag: dev
+  docs:
+    repository: memtrace/docs
+    tag: dev
+  modelPricing:
+    repository: localhost/memtrace/model-pricing
+    tag: dev
+  modelQuality:
+    repository: localhost/memtrace/model-quality
+    tag: dev
+  otelCollector:
+    repository: otel/opentelemetry-collector-contrib
+    tag: 0.96.0
+  postgres:
+    repository: postgres
+    tag: 16-alpine
+  topicExtraction:
+    repository: localhost/memtrace/topic-extraction
+    tag: dev
+
+# Disco de cada almacén. `className` vacío usa la StorageClass por defecto del clúster.
+storage:
+  className: ""
+  clickhouse: { size: 10Gi }
+  postgres: { size: 5Gi }
+  collectorQueue: { size: 2Gi }
+  backups: { size: 5Gi }
+  topicModel: { size: 1Gi }
+
+resources:
+  api:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+  collector:
+    limits:
+      cpu: '1'
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+  dashboard:
+    limits:
+      cpu: 200m
+      memory: 128Mi
+    requests:
+      cpu: 20m
+      memory: 32Mi
+
+# Bases de datos. Por defecto corren dentro del clúster (un solo pod cada una). Con `external.host` no se despliega el pod:
+# el Service `clickhouse` / `postgres` pasa a ser un ExternalName hacia ese host y las copias de ClickHouse se desactivan.
+# Con una base externa, ajusta también `networkPolicy` (las reglas apuntan a los pods del chart) o desactívala.
+clickhouse:
+  external:
+    host: ""
+postgres:
+  external:
+    host: ""
+
+# Secretos. Con `create: true` el chart crea los Secret con estos valores; cada valor vacío se genera al azar la primera vez
+# y se conserva al actualizar. Con `create: false` los creas tú (External Secrets, Sealed Secrets...) con los mismos nombres y
+# claves; la lista completa está en docs-site/platform/operations.md.
+secrets:
+  create: true
+  clickhouse:
+    password: ""
+    writerPassword: ""
+    retentionPassword: ""
+    readerPassword: ""
+    collectorPassword: ""
+  postgres:
+    password: ""
+  ingestToken: ""
+  oauth:                      # login federado (ADR-013); AUTH_SECRET se genera si lo dejas vacío
+    authSecret: ""
+    googleClientId: ""
+    googleClientSecret: ""
+    microsoftApplicationId: ""
+    microsoftTenantId: ""
+    microsoftClientSecret: ""
+  resend:                     # emails de invitación y alertas (ADR-014)
+    apiKey: ""
+    emailFrom: ""
+  githubApp:                  # despliegues desde MemTrace (ADR-064); solo se crea si das `appId`
+    appId: ""
+    privateKey: ""
+    webhookSecret: ""
+
+# Copias de seguridad (ADR-096). Siempre al volumen `backups`; con `s3.bucket` también a un bucket S3 o compatible.
+backup:
+  enabled: true
+  s3:
+    bucket: ""
+    prefix: memtrace
+    region: ""
+    endpoint: ""              # solo para almacenamiento no AWS (MinIO, R2...)
+    accessKeyId: ""
+    secretAccessKey: ""
+
+# Acceso desde fuera. El dashboard hace de proxy de /api, así que un solo host basta (también para la ingesta de trazas).
+ingress:
+  enabled: false
+  className: ""
+  host: ""
+  docsHost: ""                # opcional: publica también la documentación
+  annotations: {}
+  tls:
+    secretName: ""
+
+# NetworkPolicy (default-deny + reglas por pieza). Necesita un CNI que las aplique (Calico, Cilium...).
+networkPolicy:
+  enabled: true
+  ingressNamespace: ingress-nginx          # namespace del controlador de ingress, que puede llegar al dashboard
+  internalCidrs: [10.244.0.0/16, 10.96.0.0/12]   # CIDR de pods y servicios del clúster: la API y los jobs no salen hacia ellos

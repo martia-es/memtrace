@@ -1,0 +1,183 @@
+{{- if not .Values.clickhouse.external.host }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: clickhouse
+  namespace: {{ .Release.Namespace }}
+spec:
+  serviceName: clickhouse
+  replicas: 1
+  selector:
+    matchLabels:
+      app: clickhouse
+  template:
+    metadata:
+      labels:
+        app: clickhouse
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmaps.yaml") . | sha256sum }}
+    spec:
+      containers:
+      - name: clickhouse
+        image: {{ include "memtrace.image" .Values.images.clickhouse }}
+        ports:
+        - containerPort: 8123
+          name: http
+        - containerPort: 9000
+          name: native
+        env:
+        - name: CLICKHOUSE_USER
+          value: "default"
+        # Permite al Job de migraciones crear el usuario de escritura de la API (ADR-045)
+        - name: CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT
+          value: "1"
+        - name: CLICKHOUSE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: clickhouse-credentials
+              key: password
+        readinessProbe:
+          httpGet:
+            path: /ping
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /ping
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/clickhouse
+        - name: config
+          mountPath: /etc/clickhouse-server/config.d/low-footprint.xml
+          subPath: clickhouse-low-footprint.xml
+      # Sidecar de copias de seguridad (ADR-096): comparte el disco de datos con ClickHouse y expone su API en 7171, que solo
+      # alcanzan los CronJob de k8s/87-backup.yaml (NetworkPolicy). Las copias van al volumen `backups`, no al disco de datos:
+      # una copia en el mismo disco no protege de perderlo. Si existe el Secret `backup-s3` se suben también al bucket.
+      - name: clickhouse-backup
+        image: {{ include "memtrace.image" .Values.images.clickhouseBackup }}
+        command:
+        - sh
+        - -ec
+        - |
+          # `create` enlaza (hardlink) las partes en <disco>/backup: es instantáneo pero vive en el mismo disco, así que no protege
+          # de perderlo. `upload` es lo que saca la copia: al bucket S3 si hay `backup-s3`; si no, al volumen `backups` (copia real).
+          if [ -n "${S3_BUCKET:-}" ]; then
+            export REMOTE_STORAGE=s3 S3_PATH="${S3_PREFIX:-memtrace}/clickhouse" S3_ACCESS_KEY="$AWS_ACCESS_KEY_ID" S3_SECRET_KEY="$AWS_SECRET_ACCESS_KEY"
+            [ -z "${S3_ENDPOINT:-}" ] || export S3_FORCE_PATH_STYLE=true
+          else
+            mkdir -p /backups/clickhouse
+            export REMOTE_STORAGE=custom
+            export USE_RESUMABLE_STATE=false   # el estado reanudable no existe con almacén custom
+            # los comandos custom no pasan por un shell: cada uno es un script con el nombre de la copia como argumento
+            printf '%s\n' '[ -n "$1" ] && rm -rf "/backups/clickhouse/$1" && cp -a "/var/lib/clickhouse/backup/$1" "/backups/clickhouse/$1"' > /tmp/upload.sh
+            printf '%s\n' '[ -n "$1" ] && rm -rf "/var/lib/clickhouse/backup/$1" && cp -a "/backups/clickhouse/$1" "/var/lib/clickhouse/backup/$1"' > /tmp/download.sh
+            printf '%s\n' '[ -n "$1" ] && rm -rf "/backups/clickhouse/$1"' > /tmp/delete.sh   # nunca con el nombre vacío: borraría todas las copias
+            export CUSTOM_UPLOAD_COMMAND='sh /tmp/upload.sh {{ "{{ .backupName }}" }}'
+            export CUSTOM_DOWNLOAD_COMMAND='sh /tmp/download.sh {{ "{{ .backupName }}" }}'
+            export CUSTOM_DELETE_COMMAND='sh /tmp/delete.sh {{ "{{ .backupName }}" }}'
+            export CUSTOM_LIST_COMMAND='true'   # la caducidad de las copias del volumen la aplica el CronJob (k8s/87-backup.yaml)
+          fi
+          exec clickhouse-backup server
+        ports:
+        - containerPort: 7171
+          name: backup-api
+        env:
+        - name: CLICKHOUSE_HOST
+          value: "127.0.0.1"
+        # Kubernetes inyecta CLICKHOUSE_PORT=tcp://ip:8123 por el Service `clickhouse` y la herramienta lo lee como número
+        - name: CLICKHOUSE_PORT
+          value: "9000"
+        - name: CLICKHOUSE_USERNAME
+          value: "default"
+        - name: CLICKHOUSE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: clickhouse-credentials
+              key: password
+        - name: API_LISTEN
+          value: "0.0.0.0:7171"
+        - name: API_USERNAME
+          value: "backup"
+        - name: API_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: clickhouse-credentials
+              key: password
+        - name: BACKUPS_TO_KEEP_LOCAL
+          value: "7"   # una al día = 7 días; en el bucket la caducidad la decide su regla de ciclo de vida
+        - name: S3_BUCKET
+          valueFrom: { secretKeyRef: { name: backup-s3, key: bucket, optional: true } }
+        - name: S3_ENDPOINT
+          valueFrom: { secretKeyRef: { name: backup-s3, key: endpoint, optional: true } }
+        - name: S3_PREFIX
+          valueFrom: { secretKeyRef: { name: backup-s3, key: prefix, optional: true } }
+        - name: S3_REGION
+          valueFrom: { secretKeyRef: { name: backup-s3, key: region, optional: true } }
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom: { secretKeyRef: { name: backup-s3, key: access-key-id, optional: true } }
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom: { secretKeyRef: { name: backup-s3, key: secret-access-key, optional: true } }
+        readinessProbe:
+          tcpSocket:
+            port: backup-api
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/clickhouse
+        - name: backups
+          mountPath: /backups
+      volumes:
+      - name: backups
+        persistentVolumeClaim:
+          claimName: backups
+      - name: config
+        configMap:
+          name: clickhouse-config   # kustomize le añade un hash: cambiar la config reinicia el pod
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      {{- with $.Values.storage.className }}
+      storageClassName: {{ . | quote }}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.storage.clickhouse.size }}
+{{- end }}
+---
+{{- if .Values.clickhouse.external.host }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: clickhouse
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: ExternalName
+  externalName: {{ .Values.clickhouse.external.host | quote }}
+{{- else }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: clickhouse
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8123
+    targetPort: 8123
+    name: http
+  - port: 9000
+    targetPort: 9000
+    name: native
+  - port: 7171
+    targetPort: 7171
+    name: backup-api
+  selector:
+    app: clickhouse
+{{- end }}

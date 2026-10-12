@@ -1,0 +1,46 @@
+{{- if .Values.ingress.enabled }}
+# Un solo host para el dashboard: hace de proxy de /api, incluida la ingesta de trazas (/api/v1/ingest).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: memtrace
+  namespace: {{ .Release.Namespace }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
+  {{- if .Values.ingress.tls.secretName }}
+  tls:
+    - secretName: {{ .Values.ingress.tls.secretName | quote }}
+      hosts:
+        - {{ required "ingress.host es obligatorio con ingress.enabled" .Values.ingress.host | quote }}
+        {{- if .Values.ingress.docsHost }}
+        - {{ .Values.ingress.docsHost | quote }}
+        {{- end }}
+  {{- end }}
+  rules:
+    - host: {{ required "ingress.host es obligatorio con ingress.enabled" .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dashboard
+                port: { number: 8080 }
+    {{- if .Values.ingress.docsHost }}
+    - host: {{ .Values.ingress.docsHost | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: docs
+                port: { number: 8080 }
+    {{- end }}
+{{- end }}

@@ -1,0 +1,61 @@
+# Dashboard (pieza 5): nginx sirve la SPA y reenvía /api a la API (mismo origen, sin CORS).
+# La imagen `memtrace/dashboard:dev` se construye y carga en el clúster con `make images`.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dashboard
+  template:
+    metadata:
+      labels:
+        app: dashboard
+    spec:
+      containers:
+      - name: dashboard
+        image: {{ include "memtrace.image" .Values.images.dashboard }}
+        imagePullPolicy: {{ .Values.imagePullPolicy }}
+        env:
+        - name: API_UPSTREAM
+          value: http://api:3001
+        ports:
+        - containerPort: 8080
+          name: http
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 15
+        resources:
+{{- toYaml .Values.resources.dashboard | nindent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+      securityContext:
+        runAsNonRoot: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: http
+  selector:
+    app: dashboard
+
