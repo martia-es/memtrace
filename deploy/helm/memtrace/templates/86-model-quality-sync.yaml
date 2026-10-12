@@ -1,0 +1,38 @@
+# Worker de sincronización de la calidad por modelo, del leaderboard público de Arena (ADR-025, ampliación).
+# Si la descarga falla o el fichero no tiene la forma esperada, el job termina con error y la tabla queda como estaba.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: model-quality-sync
+  namespace: {{ .Release.Namespace }}
+spec:
+  schedule: "30 3 * * *" # diario a las 03:30, después del catálogo de precios
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: model-quality-sync
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: model-quality-sync
+              image: {{ include "memtrace.image" .Values.images.modelQuality }}
+              imagePullPolicy: Never
+              env:
+                - name: CLICKHOUSE_HOST
+                  value: clickhouse
+                - name: CLICKHOUSE_PORT
+                  value: "8123"
+                - name: CLICKHOUSE_USER
+                  value: default
+                - name: CLICKHOUSE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: clickhouse-credentials
+                      key: password
+                - name: CLICKHOUSE_DATABASE
+                  value: memtrace
+

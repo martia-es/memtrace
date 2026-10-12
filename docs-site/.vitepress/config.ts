@@ -50,7 +50,7 @@ export default defineConfig({
             { text: "Data protection", link: "/platform/data-protection" },
             { text: "Assistants catalog", link: "/platform/assistants" },
             { text: "Set up deploys", link: "/platform/deploy-setup" },
-            { text: "Backups & restore", link: "/platform/operations" },
+            { text: "Install & backups", link: "/platform/operations" },
             { text: "Query API", link: "/platform/api" },
             { text: "Architecture", link: "/platform/architecture" },
           ],

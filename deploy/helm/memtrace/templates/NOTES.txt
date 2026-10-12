@@ -1,0 +1,22 @@
+MemTrace instalado en el namespace {{ .Release.Namespace }}. Comprueba el arranque (no uses --wait: el PVC topic-model espera a su primer uso):
+  kubectl -n {{ .Release.Namespace }} rollout status deployment/api deployment/otel-collector
+
+Las migraciones de ClickHouse y Postgres corren como hooks tras la instalación y cada actualización:
+  kubectl -n {{ .Release.Namespace }} get jobs
+  kubectl -n {{ .Release.Namespace }} logs job/clickhouse-migrate job/postgres-migrate
+
+{{- if .Values.ingress.enabled }}
+Dashboard: {{ .Values.publicUrl }}
+{{- else }}
+Sin ingress: abre el dashboard con
+  kubectl -n {{ .Release.Namespace }} port-forward svc/dashboard 8080:8080
+{{- end }}
+{{- if .Values.secrets.create }}
+
+Las credenciales no indicadas se han generado al azar y se conservan al actualizar. Para leer una:
+  kubectl -n {{ .Release.Namespace }} get secret clickhouse-credentials -o jsonpath='{.data.password}' | base64 -d
+{{- end }}
+{{- if .Values.backup.enabled }}
+
+Copias de seguridad cada noche al volumen `backups`{{ if .Values.backup.s3.bucket }} y al bucket {{ .Values.backup.s3.bucket }}{{ end }}.
+{{- end }}

@@ -1,0 +1,26 @@
+# Migraciones y configuración que en Kustomize genera `configMapGenerator` (ver kustomization.yaml). Los ficheros viven en
+# `migrations/` y `files/` de este chart: `scripts/sync-helm-chart.sh` los copia desde la raíz y el CI comprueba que coinciden.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clickhouse-migrations
+  namespace: {{ .Release.Namespace }}
+data:
+{{ (.Files.Glob "migrations/clickhouse/*").AsConfig | indent 2 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-migrations
+  namespace: {{ .Release.Namespace }}
+data:
+{{ (.Files.Glob "migrations/postgres/*").AsConfig | indent 2 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clickhouse-config
+  namespace: {{ .Release.Namespace }}
+data:
+  clickhouse-low-footprint.xml: |
+{{ .Files.Get "files/clickhouse-low-footprint.xml" | indent 4 }}

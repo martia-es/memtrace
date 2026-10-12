@@ -1,0 +1,37 @@
+# Worker de sincronización del catálogo de precios por modelo (ADR-025).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: model-pricing-sync
+  namespace: {{ .Release.Namespace }}
+spec:
+  schedule: "0 3 * * *" # diario a las 03:00
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: model-pricing-sync
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: model-pricing-sync
+              image: {{ include "memtrace.image" .Values.images.modelPricing }}
+              imagePullPolicy: Never
+              env:
+                - name: CLICKHOUSE_HOST
+                  value: clickhouse
+                - name: CLICKHOUSE_PORT
+                  value: "8123"
+                - name: CLICKHOUSE_USER
+                  value: default
+                - name: CLICKHOUSE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: clickhouse-credentials
+                      key: password
+                - name: CLICKHOUSE_DATABASE
+                  value: memtrace
+

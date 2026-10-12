@@ -1,0 +1,67 @@
+# Worker de extracción de temáticas (ADR-022). El fit inicial del modelo NO ocurre aquí:
+# se hace a mano (ver analytics/README.md) y se guarda en el PVC que este CronJob monta.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: topic-model
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  {{- with $.Values.storage.className }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.storage.topicModel.size }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: topic-extraction
+  namespace: {{ .Release.Namespace }}
+spec:
+  schedule: "0 * * * *" # cada hora
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: topic-extraction
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: topic-extraction
+              image: {{ include "memtrace.image" .Values.images.topicExtraction }}
+              imagePullPolicy: Never
+              env:
+                # numba (usado por UMAP/BERTopic) necesita un directorio de caché JIT escribible por el usuario 1000
+                - name: NUMBA_CACHE_DIR
+                  value: /tmp/numba-cache
+                # sentence-transformers descarga el modelo de embeddings a $HF_HOME; sin HOME escribible (usuario 1000) falla
+                - name: HF_HOME
+                  value: /tmp/hf-cache
+                - name: CLICKHOUSE_HOST
+                  value: clickhouse
+                - name: CLICKHOUSE_PORT
+                  value: "8123"
+                - name: CLICKHOUSE_USER
+                  value: default
+                - name: CLICKHOUSE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: clickhouse-credentials
+                      key: password
+                - name: CLICKHOUSE_DATABASE
+                  value: memtrace
+                - name: TOPIC_MODEL_PATH
+                  value: /model/bertopic
+              volumeMounts:
+                - name: topic-model
+                  mountPath: /model
+          volumes:
+            - name: topic-model
+              persistentVolumeClaim:
+                claimName: topic-model
+
