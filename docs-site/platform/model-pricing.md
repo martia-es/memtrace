@@ -6,7 +6,7 @@
 
 | Column | Where it comes from |
 |---|---|
-| **Input** and **Output** | Price per million tokens, synced every day from the public [LiteLLM](https://github.com/BerriAI/litellm) catalog. MemTrace uses these prices to compute the cost of every call you see in conversations and traces. |
+| **Input** and **Output** | Price per million tokens, synced every day from the public [LiteLLM](https://github.com/BerriAI/litellm) catalog. MemTrace uses these prices to compute the cost of every call you see in conversations and traces. A model name with a date or a provider prefix, such as `gpt-5.2-2025-12-11`, uses the price of `gpt-5.2`; variants such as `mini` or `high` are not assumed to cost the same. |
 | **Quality · Arena Elo** | The Elo score of the model on the [Arena](https://arena.ai) text leaderboard (overall), synced every day. |
 
 A quality cell shows the **Elo**, its margin (**±4** means the real score is probably within 4 points), a bar to compare it with the other models, and the **rank** on the leaderboard (**#15** is the fifteenth).
