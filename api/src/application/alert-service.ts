@@ -5,6 +5,7 @@ import {
   evaluateBudget,
   monthKey,
   monthStart,
+  projectMonthEnd,
   validateAlertRule,
   validateCostBudget,
   type AlertEvent,
@@ -32,7 +33,13 @@ export interface BudgetView {
   spentUsd: number;
   percent: number;
   projectedUsd: number | null;
-  /** coste de cada día del mes con dato, del primero al de hoy */
+}
+
+/** Lo gastado en el mes natural, haya o no presupuesto. */
+export interface MonthCost {
+  month: string;
+  spentUsd: number;
+  projectedUsd: number | null;
   daily: Array<{ day: string; costUsd: number }>;
 }
 
@@ -50,6 +57,7 @@ export interface AlertsOverview {
   rules: AlertRuleWithStatus[];
   events: AlertEvent[];
   budget: BudgetView | null;
+  monthCost: MonthCost;
 }
 
 const RECENT_EVENTS = 20;
@@ -69,8 +77,8 @@ export class AlertService {
   ) {}
 
   async overview(experimentId: string): Promise<AlertsOverview> {
-    const [rules, events, budget] = await Promise.all([this.repo.listRules(experimentId), this.repo.listEvents(experimentId, RECENT_EVENTS), this.budgetView(experimentId)]);
-    return { rules, events: events.items, budget };
+    const [rules, events, budget, monthCost] = await Promise.all([this.repo.listRules(experimentId), this.repo.listEvents(experimentId, RECENT_EVENTS), this.budgetView(experimentId), this.monthCost(experimentId)]);
+    return { rules, events: events.items, budget, monthCost };
   }
 
   listEvents(experimentId: string, options: { limit?: number; cursor?: string } = {}) {
@@ -126,11 +134,18 @@ export class AlertService {
     if (!budget) return null;
     const now = this.now();
     const first = monthStart(now);
-    const daily = await this.repo.dailyCostBetween(experimentId, DAY(first), DAY(now));
-    const spentUsd = daily.reduce((sum, d) => sum + d.costUsd, 0);
+    const { spentUsd } = await this.monthCost(experimentId);
     // la misma regla del evaluador, sin avisos previos: aquí solo interesa el porcentaje y la previsión
     const evaluation: BudgetEvaluation = evaluateBudget(budget, spentUsd, now, new Set());
-    return { budget, month: monthKey(now), spentUsd, percent: evaluation.percent, projectedUsd: evaluation.projectedUsd, daily };
+    return { budget, month: monthKey(now), spentUsd, percent: evaluation.percent, projectedUsd: evaluation.projectedUsd };
+  }
+
+  /** El coste diario guardado del mes y su previsión; el evaluador lo mantiene al día para todos los agentes activos. */
+  async monthCost(experimentId: string): Promise<MonthCost> {
+    const now = this.now();
+    const daily = await this.repo.dailyCostBetween(experimentId, DAY(monthStart(now)), DAY(now));
+    const spentUsd = daily.reduce((sum, d) => sum + d.costUsd, 0);
+    return { month: monthKey(now), spentUsd, projectedUsd: projectMonthEnd(spentUsd, now), daily };
   }
 
   async setBudget(ref: ExperimentRef, actor: Actor, body: Record<string, unknown>): Promise<BudgetView> {

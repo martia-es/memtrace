@@ -11,7 +11,7 @@ const withStatus = (r: AlertRuleDto, state: "ok" | "firing" | "no_data" | null, 
   status: state ? { state, since: "", lastValue, lastCheckedAt: null, lastNotifiedAt: null } : null,
 });
 const budget = (percent: number, over: Partial<BudgetViewDto["budget"]> = {}): BudgetViewDto => ({
-  budget: { experimentId: "exp-1", monthlyUsd: 100, warnPercent: 80, recipients: [], enabled: true, updatedAt: "", ...over }, month: "2026-10-01", spentUsd: percent, percent, projectedUsd: null, daily: [],
+  budget: { experimentId: "exp-1", monthlyUsd: 100, warnPercent: 80, recipients: [], enabled: true, updatedAt: "", ...over }, month: "2026-10-01", spentUsd: percent, percent, projectedUsd: null,
 });
 
 describe("goalOf", () => {

@@ -104,7 +104,7 @@ describe("AlertService budget", () => {
     expect(view.budget).toMatchObject({ monthlyUsd: 100, warnPercent: 80, recipients: ["fin@example.com"] });
     expect(view.projectedUsd).toBeCloseTo((40 * 31) / 9.5, 4);
     // el coste de cada día del mes, del más antiguo al más reciente, sin el mes anterior
-    expect(view.daily).toEqual([{ day: "2026-10-02", costUsd: 10 }, { day: "2026-10-10", costUsd: 30 }]);
+    expect((await service.monthCost("exp1")).daily).toEqual([{ day: "2026-10-02", costUsd: 10 }, { day: "2026-10-10", costUsd: 30 }]);
     expect(entries[0]).toMatchObject({ action: "budget.update", targetType: "budget" });
     expect(entries[0]!.metadata).toMatchObject({ monthlyUsd: 100, recipients: 1 });
   });
@@ -125,6 +125,23 @@ describe("AlertService budget", () => {
     await service.deleteBudget(ref, actor);
     expect(entries.map((e) => e.action)).toEqual(["budget.update", "budget.delete"]);
     expect(await service.budgetView("exp1")).toBeNull();
+  });
+});
+
+describe("AlertService month cost", () => {
+  it("gives the spend and the month-end forecast with or without a budget", async () => {
+    const { service, repo } = setup();
+    await repo.upsertDailyCost("exp1", "2026-10-02", 10);
+    await repo.upsertDailyCost("exp1", "2026-10-10", 30);
+    const cost = await service.monthCost("exp1");
+    expect(cost).toMatchObject({ month: "2026-10-01", spentUsd: 40 });
+    expect(cost.projectedUsd).toBeCloseTo((40 * 31) / 9.5, 4);
+    expect((await service.overview("exp1")).budget).toBeNull();
+    expect((await service.overview("exp1")).monthCost.spentUsd).toBe(40);
+  });
+
+  it("does not forecast without spend", async () => {
+    expect((await setup().service.monthCost("exp1")).projectedUsd).toBeNull();
   });
 });
 

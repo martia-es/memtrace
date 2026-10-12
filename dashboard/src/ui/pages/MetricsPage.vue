@@ -168,6 +168,11 @@ const goalChips = computed<Record<string, GoalChip>>(() => {
 });
 // la previsión de coste es del mes natural y vive en el presupuesto (ADR-086): sin presupuesto activo no hay tarjeta
 const costBudget = computed(() => (goalsData.data.value?.budget?.budget.enabled ? goalsData.data.value.budget : null));
+// con o sin presupuesto, mientras haya gasto este mes; sin gasto ni presupuesto no hay nada que dibujar
+const monthCost = computed(() => {
+  const cost = goalsData.data.value?.monthCost;
+  return cost && (costBudget.value || cost.spentUsd > 0) ? cost : null;
+});
 const costNow = ref(new Date());
 watch(() => goalsData.data.value, () => (costNow.value = new Date()));
 const goToAlerts = () => router.push({ name: "alerts", params: { experimentId: experimentId.value } });
@@ -519,7 +524,7 @@ function swapAgents() {
             </Card>
           </div>
 
-          <CostTrendCard v-if="costBudget" :view="costBudget" :now="costNow" />
+          <CostTrendCard v-if="monthCost" :cost="monthCost" :budget-usd="costBudget?.budget.monthlyUsd ?? null" :now="costNow" :can-set-budget="can('alert:manage')" @set-budget="goToAlerts" />
 
           <ErrorOverviewCard v-if="errorOverview.data.value && errorOverview.data.value.categories.length" :overview="errorOverview.data.value" @view="goToErrors" />
 

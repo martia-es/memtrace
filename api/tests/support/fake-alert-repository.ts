@@ -120,6 +120,11 @@ export class FakeAlertRepository implements AlertRepository {
   async daysWithCost(experimentId: string, from: string, to: string) {
     return new Set([...(this.dailyCost.get(experimentId)?.keys() ?? [])].filter((d) => d >= from && d <= to));
   }
+  trackedExperiments: Array<{ experimentId: string; serviceName: string }> = [];
+  costRefreshedAt = new Map<string, Date>();
+  async listCostTrackedExperiments() {
+    return this.trackedExperiments.map((e) => ({ ...e, costRefreshedAt: this.costRefreshedAt.get(e.experimentId) ?? null }));
+  }
   async dailyCostBetween(experimentId: string, from: string, to: string) {
     return [...(this.dailyCost.get(experimentId) ?? [])].filter(([d]) => d >= from && d <= to).sort(([a], [b]) => a.localeCompare(b)).map(([day, costUsd]) => ({ day, costUsd }));
   }

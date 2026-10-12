@@ -10,7 +10,7 @@ import { ApiError } from "@/application/trace-api";
 import AlertsPage from "@/ui/pages/AlertsPage.vue";
 import AlertBell from "@/ui/components/AlertBell.vue";
 import { permissionsOf } from "../permissions";
-import { FakeIdentityApi, FakeTraceApi } from "../fakes";
+import { FakeIdentityApi, FakeTraceApi, NO_MONTH_COST } from "../fakes";
 import { chooseOption } from "./select";
 
 // Pantalla de alertas, presupuesto, historial y campana (ADR-086)
@@ -23,7 +23,7 @@ const rule = (over: Partial<AlertRuleDto> = {}): AlertRuleDto => ({
 const status = (state: "ok" | "firing" | "no_data", lastValue: number | null = 9) => ({ state, since: new Date(Date.now() - 3 * 60_000).toISOString(), lastValue, lastCheckedAt: null, lastNotifiedAt: null });
 const event = (id: string, over: Partial<AlertEventDto> = {}): AlertEventDto => ({ id, ruleId: "r1", experimentId: "exp-1", at: new Date(Date.now() - 60_000).toISOString(), kind: "fired", value: 9, threshold: 5, emailed: 1, ...over });
 const budgetView = (over: Partial<BudgetViewDto> = {}): BudgetViewDto => ({
-  budget: { experimentId: "exp-1", monthlyUsd: 100, warnPercent: 80, recipients: ["fin@example.com"], enabled: true, updatedAt: "" }, month: "2026-10-01", spentUsd: 40, percent: 40, projectedUsd: 120, daily: [], ...over,
+  budget: { experimentId: "exp-1", monthlyUsd: 100, warnPercent: 80, recipients: ["fin@example.com"], enabled: true, updatedAt: "" }, month: "2026-10-01", spentUsd: 40, percent: 40, projectedUsd: 120, ...over,
 });
 const chart = (id: string, name: string, over: Record<string, unknown> = {}): SavedCustomMetricDto => ({
   id, name, createdAt: "", definition: { chartType: "number", stepTypes: ["guardrail"], metric: "count", metricAttribute: null, filters: [], groupByAttribute: null, ...over } as never,
@@ -82,6 +82,7 @@ describe("the alerts page", () => {
       ],
       events: [],
       budget: null,
+      monthCost: NO_MONTH_COST,
     };
     await openPage(api);
     const text = (id: string) => q(id)!.textContent!.replace(/\s+/g, " ");
@@ -100,7 +101,7 @@ describe("the alerts page", () => {
 
   it("counts only the active alerts that are firing", async () => {
     const api = new Api();
-    api.alerts = { rules: [{ rule: rule(), status: status("firing") }, { rule: rule({ id: "r4", enabled: false }), status: status("firing") }, { rule: rule({ id: "r6" }), status: status("ok") }], events: [], budget: null };
+    api.alerts = { rules: [{ rule: rule(), status: status("firing") }, { rule: rule({ id: "r4", enabled: false }), status: status("firing") }, { rule: rule({ id: "r6" }), status: status("ok") }], events: [], budget: null, monthCost: NO_MONTH_COST };
     await openPage(api);
     expect(q("firing-count")!.textContent).toContain("1 alert is firing right now");
     expect(q("firing-count")!.textContent).toContain("Too many errors");
@@ -114,7 +115,7 @@ describe("the alerts page", () => {
     document.body.innerHTML = "";
 
     const api = new Api();
-    api.alerts = { rules: [{ rule: rule(), status: status("ok") }], events: [], budget: budgetView() };
+    api.alerts = { rules: [{ rule: rule(), status: status("ok") }], events: [], budget: budgetView(), monthCost: NO_MONTH_COST };
     await openPage(api, "business");
     expect(q("new-alert")).toBeNull();
     expect(q("set-budget")).toBeNull();
@@ -247,7 +248,7 @@ describe("the alerts page", () => {
 
   it("edits an existing alert with its current values, and the Active switch pauses it", async () => {
     const api = new Api();
-    api.alerts = { rules: [{ rule: rule({ reminderMinutes: 60, recipients: ["a@x.io", "b@x.io"] }), status: status("ok") }], events: [], budget: null };
+    api.alerts = { rules: [{ rule: rule({ reminderMinutes: 60, recipients: ["a@x.io", "b@x.io"] }), status: status("ok") }], events: [], budget: null, monthCost: NO_MONTH_COST };
     await openPage(api);
     buttons("Edit")[0]!.click();
     await flushPromises();
@@ -265,7 +266,7 @@ describe("the alerts page", () => {
 
   it("deleting needs a second click, and 'Keep' cancels it", async () => {
     const api = new Api();
-    api.alerts = { rules: [{ rule: rule(), status: status("ok") }], events: [], budget: null };
+    api.alerts = { rules: [{ rule: rule(), status: status("ok") }], events: [], budget: null, monthCost: NO_MONTH_COST };
     await openPage(api);
     buttons("Delete")[0]!.click();
     await flushPromises();
@@ -290,7 +291,7 @@ describe("the alerts page", () => {
 
     it("shows the spend, the forecast and who is emailed", async () => {
       const api = new Api();
-      api.alerts = { rules: [], events: [], budget: budgetView({ spentUsd: 85.5, percent: 85.5, projectedUsd: 190.25 }) };
+      api.alerts = { rules: [], events: [], budget: budgetView({ spentUsd: 85.5, percent: 85.5, projectedUsd: 190.25 }), monthCost: NO_MONTH_COST };
       await openPage(api);
       const text = q("alert-budget")!.textContent!.replace(/\s+/g, " ");
       expect(text).toContain("$85.50");
@@ -303,7 +304,7 @@ describe("the alerts page", () => {
 
     it("says when the month is over budget, and never draws more than a full bar", async () => {
       const api = new Api();
-      api.alerts = { rules: [], events: [], budget: budgetView({ spentUsd: 250, percent: 250, projectedUsd: 400 }) };
+      api.alerts = { rules: [], events: [], budget: budgetView({ spentUsd: 250, percent: 250, projectedUsd: 400 }), monthCost: NO_MONTH_COST };
       await openPage(api);
       expect(q("alert-budget")!.textContent).toContain("Exceeded");
       expect(q("alert-budget")!.querySelector<HTMLElement>(".fill")!.style.width).toBe("100%");
@@ -311,7 +312,7 @@ describe("the alerts page", () => {
 
     it("explains the missing forecast early in the month, and a budget nobody is emailed about", async () => {
       const api = new Api();
-      api.alerts = { rules: [], events: [], budget: budgetView({ projectedUsd: null, budget: { ...budgetView().budget, recipients: [] } }) };
+      api.alerts = { rules: [], events: [], budget: budgetView({ projectedUsd: null, budget: { ...budgetView().budget, recipients: [] } }), monthCost: NO_MONTH_COST };
       await openPage(api);
       expect(q("forecast")!.textContent).toContain("appears from the third day");
       expect(q("forecast")!.textContent).toContain("Nobody is emailed");
@@ -347,7 +348,7 @@ describe("the alerts page", () => {
 
     it("removes it after a confirmation", async () => {
       const api = new Api();
-      api.alerts = { rules: [], events: [], budget: budgetView() };
+      api.alerts = { rules: [], events: [], budget: budgetView(), monthCost: NO_MONTH_COST };
       await openPage(api);
       buttons("Remove budget")[0]!.click();
       await flushPromises();
@@ -366,6 +367,7 @@ describe("the alerts page", () => {
         rules: [{ rule: rule(), status: status("ok") }],
         events: [event("3", { kind: "resolved", value: 2 }), event("2", { kind: "reminder", emailed: 0 }), event("1", { ruleId: "gone", kind: "fired", emailed: 0 })],
         budget: null,
+        monthCost: NO_MONTH_COST,
       };
       await openPage(api);
       const rows = [...q("alert-history")!.querySelectorAll("[data-testid='history-row']")].map((r) => r.textContent!.replace(/\s+/g, " ").trim());
@@ -385,7 +387,7 @@ describe("the alerts page", () => {
 
     it("loads older pages when there are more", async () => {
       const api = new Api();
-      api.alerts = { rules: [], events: Array.from({ length: 20 }, (_, i) => event(String(100 - i))), budget: null };
+      api.alerts = { rules: [], events: Array.from({ length: 20 }, (_, i) => event(String(100 - i))), budget: null, monthCost: NO_MONTH_COST };
       api.olderEvents = { items: [event("50", { kind: "resolved" })], nextCursor: null };
       await openPage(api);
       expect(q("older")).not.toBeNull();
@@ -407,6 +409,7 @@ describe("the alerts page", () => {
       ],
       events: [],
       budget: null,
+      monthCost: NO_MONTH_COST,
     };
     await openPage(api);
     const order = () => [...document.body.querySelectorAll("[data-testid^='rule-']")].map((r) => r.getAttribute("data-testid"));
@@ -425,7 +428,7 @@ describe("the alerts page", () => {
 
   it("the switch pauses and resumes an alert without touching the rest of the rule", async () => {
     const api = new Api();
-    api.alerts = { rules: [{ rule: rule(), status: status("ok") }], events: [], budget: null };
+    api.alerts = { rules: [{ rule: rule(), status: status("ok") }], events: [], budget: null, monthCost: NO_MONTH_COST };
     await openPage(api);
     q("alert-switch")!.click();
     await flushPromises();
@@ -435,14 +438,14 @@ describe("the alerts page", () => {
 
   it("hides the switch from someone who cannot manage alerts", async () => {
     const api = new Api();
-    api.alerts = { rules: [{ rule: rule(), status: status("ok") }], events: [], budget: null };
+    api.alerts = { rules: [{ rule: rule(), status: status("ok") }], events: [], budget: null, monthCost: NO_MONTH_COST };
     await openPage(api, "business");
     expect(q("alert-switch")).toBeNull();
   });
 
   it("groups the history by day", async () => {
     const api = new Api();
-    api.alerts = { rules: [{ rule: rule(), status: status("ok") }], events: [event("2"), event("1", { at: new Date(Date.now() - 86_400_000).toISOString() })], budget: null };
+    api.alerts = { rules: [{ rule: rule(), status: status("ok") }], events: [event("2"), event("1", { at: new Date(Date.now() - 86_400_000).toISOString() })], budget: null, monthCost: NO_MONTH_COST };
     await openPage(api);
     const days = [...q("alert-history")!.querySelectorAll(".day-title")].map((d) => d.textContent);
     expect(days).toEqual(["Today", "Yesterday"]);

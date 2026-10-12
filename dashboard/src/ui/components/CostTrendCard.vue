@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import type { BreakdownResponse } from "@contract";
+import type { BreakdownResponse, MonthCostDto } from "@contract";
 import { costTrendOf, type CostTrendState } from "@/domain/cost-trend";
 import { formatCostUsd } from "@/domain/format";
 import { useAsync } from "../composables/useAsync";
@@ -9,24 +9,24 @@ import { useTraceApi } from "../composables/useTraceApi";
 import Card from "./Card.vue";
 import Pill from "./Pill.vue";
 import SegmentedControl from "./SegmentedControl.vue";
-import type { BudgetViewDto } from "@contract";
 
 /**
  * Overview › Summary: gasto del mes, previsión a fin de mes y en qué se va. El mes es siempre el natural (no sigue al rango del
  * Overview) porque el presupuesto es mensual. La previsión es la misma regla que el aviso por email (ADR-086).
  */
-const props = defineProps<{ view: BudgetViewDto; now: Date }>();
+const props = defineProps<{ cost: MonthCostDto; budgetUsd: number | null; now: Date; canSetBudget: boolean }>();
+defineEmits<{ setBudget: [] }>();
 
 const route = useRoute();
 const router = useRouter();
 const api = useTraceApi();
-const trend = computed(() => costTrendOf(props.view, props.now));
+const trend = computed(() => costTrendOf(props.cost, props.budgetUsd === null ? null : { monthlyUsd: props.budgetUsd }, props.now));
 
 // ---- gráfica: x en días desde el inicio del mes, y en USD
 const W = 700, H = 300, LEFT = 44, RIGHT = 684, TOP = 16, BOTTOM = 272;
 const yMax = computed(() => {
   const t = trend.value;
-  const top = Math.max(t.monthlyUsd, t.projectedUsd ?? 0, t.spentUsd) * 1.1 || 1;
+  const top = Math.max(t.monthlyUsd ?? 0, t.projectedUsd ?? 0, t.spentUsd) * 1.1 || 1;
   const step = 10 ** Math.floor(Math.log10(top / 4));
   const nice = [1, 2, 2.5, 5, 10].map((m) => m * step).find((s) => top / s <= 5) ?? step * 10;
   return Math.ceil(top / nice) * nice;
@@ -46,11 +46,13 @@ const end = computed(() => (trend.value.projectedUsd === null ? null : { x: X(tr
 const cross = computed(() => (trend.value.crossDay === null ? null : X(trend.value.crossDay - 0.5)));
 
 const usd = (v: number | null) => formatCostUsd(v) ?? "$0";
+const budgetOf = computed(() => trend.value.monthlyUsd);
 const STATES: Record<CostTrendState, { tone: "ok" | "warn" | "error" | "neutral"; label: string }> = {
   on_track: { tone: "ok", label: "On track" },
   forecast: { tone: "warn", label: "Forecast over budget" },
   exceeded: { tone: "error", label: "Exceeded" },
   early: { tone: "neutral", label: "Too early to project" },
+  no_budget: { tone: "neutral", label: "No budget set" },
 };
 const state = computed(() => STATES[trend.value.state]);
 const summary = computed(() => {
@@ -58,9 +60,10 @@ const summary = computed(() => {
   if (t.state === "exceeded") return `Spent ${usd(t.spentUsd)} of ${usd(t.monthlyUsd)}: the budget is already used up.`;
   if (t.state === "forecast") return `At this pace the month ends at ${usd(t.projectedUsd)}, ${usd(t.overUsd)} over the budget${t.crossLabel ? `, crossing it around ${t.crossLabel}` : ""}.`;
   if (t.state === "early") return "The projection starts after three days of spend.";
+  if (t.state === "no_budget") return `At this pace the month ends at ${usd(t.projectedUsd)}. Set a monthly budget to be warned before it is exceeded.`;
   return `At this pace the month ends at ${usd(t.projectedUsd)}, within the ${usd(t.monthlyUsd)} budget.`;
 });
-const chartLabel = computed(() => `Cumulative spend this month: ${usd(trend.value.spentUsd)} so far${trend.value.projectedUsd === null ? "" : `, projected ${usd(trend.value.projectedUsd)} at month end`}, against a ${usd(trend.value.monthlyUsd)} budget`);
+const chartLabel = computed(() => `Cumulative spend this month: ${usd(trend.value.spentUsd)} so far${trend.value.projectedUsd === null ? "" : `, projected ${usd(trend.value.projectedUsd)} at month end`}, ${budgetOf.value === null ? ", with no budget set" : `, against a ${usd(budgetOf.value)} budget`}`);
 
 // ---- en qué se va: el mismo reparto que Overview › Breakdown, del día 1 a hoy
 type Group = BreakdownResponse["groupBy"];
@@ -71,7 +74,7 @@ const GROUPS = [
 ];
 const groupBy = ref<Group>("user");
 const setGroup = (g: unknown) => { if (GROUPS.some((o) => o.value === g)) groupBy.value = g as Group; };
-const split = useAsync((signal) => api.getBreakdown({ from: new Date(`${props.view.month.slice(0, 10)}T00:00:00Z`).toISOString(), to: props.now.toISOString(), groupBy: groupBy.value }, signal));
+const split = useAsync((signal) => api.getBreakdown({ from: new Date(`${props.cost.month.slice(0, 10)}T00:00:00Z`).toISOString(), to: props.now.toISOString(), groupBy: groupBy.value }, signal));
 watch(groupBy, () => void split.run(), { immediate: true });
 const SHOWN = 4;
 const rows = computed(() => {
@@ -105,7 +108,7 @@ const groupLabel = computed(() => GROUPS.find((g) => g.value === groupBy.value)!
       <div class="stats">
         <div class="stat"><span class="label">SPENT, DAY {{ Math.ceil(trend.elapsedDays) }} OF {{ trend.daysInMonth }}</span><strong data-testid="cost-spent">{{ usd(trend.spentUsd) }}</strong></div>
         <div class="stat" :class="trend.state"><span class="label">PROJECTED AT MONTH END</span><strong data-testid="cost-projected">{{ trend.projectedUsd === null ? "–" : usd(trend.projectedUsd) }}</strong></div>
-        <div class="stat"><span class="label">BUDGET</span><strong>{{ usd(trend.monthlyUsd) }}</strong></div>
+        <div class="stat"><span class="label">BUDGET</span><strong v-if="budgetOf !== null">{{ usd(budgetOf) }}</strong><strong v-else class="none">None</strong><a v-if="budgetOf === null && canSetBudget" class="link" data-testid="cost-set-budget" @click="$emit('setBudget')">Set a budget →</a></div>
       </div>
       <p class="summary" data-testid="cost-summary">{{ summary }}</p>
 
@@ -116,8 +119,10 @@ const groupLabel = computed(() => GROUPS.find((g) => g.value === groupBy.value)!
         </g>
         <rect v-for="b in bars" :key="b.key" :x="b.x" :y="b.y" width="14" :height="b.h" rx="2" class="bar" />
         <rect v-if="trend.projection.length" :x="today.x" :y="TOP" :width="RIGHT - today.x" :height="BOTTOM - TOP" class="future" />
-        <line :x1="LEFT" :y1="Y(trend.monthlyUsd)" :x2="RIGHT" :y2="Y(trend.monthlyUsd)" class="budget" />
-        <text :x="LEFT + 6" :y="Y(trend.monthlyUsd) - 6" class="budget-label">Budget {{ usd(trend.monthlyUsd) }}</text>
+        <template v-if="budgetOf !== null">
+          <line :x1="LEFT" :y1="Y(budgetOf)" :x2="RIGHT" :y2="Y(budgetOf)" class="budget" />
+          <text :x="LEFT + 6" :y="Y(budgetOf) - 6" class="budget-label">Budget {{ usd(budgetOf) }}</text>
+        </template>
         <polyline v-if="trend.projection.length" :points="points(trend.projection)" class="projection" />
         <polyline :points="points(trend.spent)" class="spent" />
         <template v-if="trend.projection.length">
@@ -129,11 +134,11 @@ const groupLabel = computed(() => GROUPS.find((g) => g.value === groupBy.value)!
           <circle :cx="end.x" :cy="end.y" r="5" class="end-dot" />
           <text :x="end.x - 10" :y="end.y - 12" text-anchor="end" class="end-label">{{ usd(trend.projectedUsd) }} projected</text>
         </template>
-        <circle v-if="cross !== null" :cx="cross" :cy="Y(trend.monthlyUsd)" r="4" class="cross-dot" />
+        <circle v-if="cross !== null && budgetOf !== null" :cx="cross" :cy="Y(budgetOf)" r="4" class="cross-dot" />
         <text v-for="x in xLabels" :key="x.label" :x="x.x" :y="H - 8" text-anchor="middle" class="axis">{{ x.label }}</text>
       </svg>
       <div class="legend" aria-hidden="true">
-        <span><i class="key spent-key" />Spent</span><span><i class="key proj-key" />Projected</span><span><i class="key budget-key" />Budget</span><span><i class="key bar-key" />Per day</span>
+        <span><i class="key spent-key" />Spent</span><span><i class="key proj-key" />Projected</span><span v-if="budgetOf !== null"><i class="key budget-key" />Budget</span><span><i class="key bar-key" />Per day</span>
       </div>
     </Card>
 
@@ -163,6 +168,8 @@ const groupLabel = computed(() => GROUPS.find((g) => g.value === groupBy.value)!
 .stat { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: var(--mt-radius-sm); background: var(--mt-soft-2); }
 .stat .label { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: var(--mt-muted); }
 .stat strong { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
+.stat strong.none { color: var(--mt-muted); }
+.stat .link { font-size: 12px; }
 .stat.forecast { background: var(--mt-warn-bg); }
 .stat.forecast .label, .stat.forecast strong { color: var(--mt-warn-ink); }
 .stat.exceeded { background: var(--mt-err-bg); }

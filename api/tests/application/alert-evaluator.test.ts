@@ -213,6 +213,44 @@ describe("alert rules", () => {
   });
 });
 
+describe("daily cost of agents without a budget", () => {
+  // «Spend this month» dibuja el gasto y su previsión también sin presupuesto (ADR-086, actualización)
+  const track = () => { repo.trackedExperiments = [{ experimentId: "exp1", serviceName: "weather" }]; };
+
+  it("fills in the month so far for an agent that has no budget, and sends no email", async () => {
+    track();
+    source.costs["2026-10-10"] = 7;
+    expect(await evaluator().run()).toMatchObject({ costRefreshed: 1, budgets: 0, budgetNotices: 0, failed: 0 });
+    expect([...new Set(source.costCalls)].sort()).toEqual(Array.from({ length: 10 }, (_, i) => `2026-10-${String(i + 1).padStart(2, "0")}`));
+    expect(repo.dailyCost.get("exp1")!.get("2026-10-10")).toBe(7);
+    expect(mail.budgets).toHaveLength(0);
+  });
+
+  it("renews it at most every half hour", async () => {
+    track();
+    await evaluator().run();
+    repo.costRefreshedAt.set("exp1", T0);
+    source.costCalls = [];
+    clock = at(10);
+    expect(await evaluator().run()).toMatchObject({ costRefreshed: 0 });
+    expect(source.costCalls).toEqual([]);
+    clock = at(31);
+    expect(await evaluator().run()).toMatchObject({ costRefreshed: 1 });
+    expect([...new Set(source.costCalls)].sort()).toEqual(["2026-10-09", "2026-10-10"]);
+  });
+
+  it("keeps going when one agent fails", async () => {
+    repo.trackedExperiments = [{ experimentId: "exp1", serviceName: "weather" }, { experimentId: "exp2", serviceName: "other" }];
+    const original = source.cost.bind(source);
+    source.cost = async (scope: { experimentId: string }, from: Date) => {
+      if (scope.experimentId === "exp1") throw new Error("clickhouse down");
+      return original(scope, from);
+    };
+    expect(await evaluator().run()).toMatchObject({ costRefreshed: 1, failed: 1 });
+    expect(repo.dailyCost.get("exp2")?.size).toBe(10);
+  });
+});
+
 describe("cost budgets", () => {
   // octubre de 2026 (31 días); «hoy» es el día 10
   const budgetOf = async (over: Record<string, unknown> = {}) =>
