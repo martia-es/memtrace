@@ -14,6 +14,12 @@ export function traceThread(roots: SpanNodeDto[]): IoBlock[] {
   const blocks: IoBlock[] = [];
   const collect = (node: SpanNodeDto) => {
     const nodeIo = spanIo(node);
+    // a span that carries the whole conversation in order (Pydantic AI `all_messages`) already contains what its model
+    // and tool spans exchanged: reading them too would repeat every message
+    if (nodeIo.ordered) {
+      blocks.push(...nodeIo.ordered);
+      return;
+    }
     blocks.push(...(nodeIo.ordered ?? [...nodeIo.input, ...nodeIo.output]));
     for (const child of node.children ?? []) collect(child);
   };
