@@ -90,3 +90,10 @@ Tres modos de visualización: `bubble` (ventana flotante), `dock` (panel lateral
 - El panel «Confirm Arena matches» (`ModelMatchDrawer`) es un panel lateral como el de las reglas de un prompt: se abre desde el banner, desde un botón de fila o con `?review=1` (el aviso de la campana), y al cerrar quita `?review`. Una decisión vale para toda la organización y se explica en el propio panel.
 - La pestaña **Models** de la campana solo aparece si hay modelos pendientes y cuenta como una unidad en el número de la campana. Es estado vivo (sin hora ni marca de leído) y no se envía por email.
 - Atribución obligatoria: bajo la tabla se nombra a Arena, se enlaza, se da la fecha del leaderboard y la licencia (CC BY 4.0), y se dice que el Elo mide preferencia en chat, no precisión en la tarea.
+
+## 9. Overview › Breakdown: comparar en pares
+
+- La página es **una sola `Card` blanca** sobre fondo `--mt-soft-2`: cabecera con «Group by» (`SegmentedControl`), aviso, huecos A/B, tabla y comparación dentro de la misma tarjeta. Sin `TabBar` ni segunda tarjeta.
+- Se compara **siempre de dos en dos**: A (base) y B (candidata). Los huecos están encima de la tabla y el siguiente libre se resalta con el acento; cada fila lleva un círculo punteado con la letra que recibiría (`A` o `B`) y se rellena al elegirla. Clic en una fila elegida la libera; con A y B puestas, una tercera sustituye a B. No hay checkboxes: el límite se lee en la propia interfaz.
+- La comparación aparece sola al tener A y B (sin botón intermedio); antes se ven cuatro huecos vacíos con «Pick A and B above…». Con una sola fila esa fila es A, no se puede elegir y se explica cómo conseguir un segundo valor (`breakdown-guide`).
+- Patrón reutilizable para cualquier comparación por pares: huecos con rol (Baseline / Candidate) + pista de qué falta + estado vacío explicado.

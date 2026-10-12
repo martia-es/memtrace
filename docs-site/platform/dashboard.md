@@ -82,15 +82,17 @@ Puts two experiments side by side over the same time range. They are different a
 
 ### Breakdown
 
-The same figures as **Summary**, split by prompt version or environment: every version of your agent in one table, so you can decide what to promote without opening prompt after prompt. Choose how to group the rows with the tabs at the top:
+The same figures as **Summary**, split by prompt version or environment: every version of your agent in one table, so you can decide what to promote without opening prompt after prompt. Choose how to group the rows with **Group by** at the top of the card:
 
-- **Prompt version** (`weather-system v3`): one row per version that had traces in the range. The **Seen in** column lists the environments where it ran. Needs the agent to read its prompt with [`memtrace.prompts`](/library/prompts).
+- **Prompt version** (`weather-system v3`): one row per version that had traces in the range. The **Runs in** column lists the environments where it ran. Needs the agent to read its prompt with [`memtrace.prompts`](/library/prompts).
 - **Environment** (`dev`, `pre`, `pro`): one row per environment, with the prompt versions each one runs. Needs the agent to set its environment in the SDK configuration. Environments run different versions on purpose, so you can see an improvement in `pre` before promoting it to `pro`.
 - **User** is coming: it will need the SDK to send a pseudonymous user id with each trace.
 
 Each row shows its traces, error rate, p95 latency, cost per trace, total cost, a 7-day error trend and the 👍 rate from [user feedback](/library/feedback). The number after **±** is the 95 % margin of the error rate. When the margins of two rows overlap, the difference may be noise, so do not act on it. Rows with fewer than 20 traces are dimmed. Costs marked **≥** are a minimum, because some model has no price in the [price catalog](/platform/dashboard); the page says how many tokens are left without price. Traces from the prompt playground do not count.
 
-A banner at the top appears only when the worst and best rows are far enough apart to be reliable. **Tick two rows** to compare them: you get the change in errors, latency, cost and 👍 rate, each with a note on how far to trust it. **Open in Custom charts** goes to the chart builder, and **Export CSV** downloads the table with the raw figures.
+Breakdown always compares **two at a time**: a baseline (**A**) against a candidate (**B**). Two slots above the table show what is still missing. Click a row to set it as A, then click another to set it as B; the dotted circle in each row shows the letter it would get. Click a picked row again to clear it, or click a third row to replace B. As soon as both are set you get the change in errors, latency, cost and 👍 rate from A to B, each with a note on how far to trust it. With a single version there is nothing to compare, so the page says how to get a second one.
+
+A banner appears only when the worst and best rows are far enough apart to be reliable; **Compare with…** on it fills A and B for you. **Open in Custom charts** goes to the chart builder, and **Export CSV** downloads the table with the raw figures.
 
 ### Custom charts
 

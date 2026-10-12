@@ -79,7 +79,7 @@ A commit without a passing evaluation cannot be deployed, except by someone with
 
 ## 8. Close the loop
 
-Wait for real traffic and compare the new version with the old one: errors, latency and cost, in the prompt's **Behaviour** tab or, for all versions at once, in [Overview › Breakdown](./dashboard#breakdown). Tick the two versions to see how far to trust the difference. If an [alert or budget](./alerts) fires, you will hear about it without looking.
+Wait for real traffic and compare the new version with the old one: errors, latency and cost, in the prompt's **Behaviour** tab or, for all versions at once, in [Overview › Breakdown](./dashboard#breakdown). Click the two versions (A, then B) to see how far to trust the difference. If an [alert or budget](./alerts) fires, you will hear about it without looking.
 
 ## If a step does not work
 
