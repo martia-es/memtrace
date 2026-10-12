@@ -1,0 +1,162 @@
+# Copias de seguridad de Postgres (ADR-096). Una vez al día (02:30 UTC) `pg_dump` en formato custom comprimido.
+#
+# Destino:
+#   - Siempre, el volumen `backups` (aquí un PVC del propio clúster: protege de un error de datos o de un borrado, NO de perder
+#     el disco del nodo). Se conservan BACKUP_RETENTION_DAYS días.
+#   - Además, un bucket S3 (o compatible: MinIO, R2...) si existe el Secret `backup-s3` (ver docs-site/platform/operations.md).
+#     En el bucket la caducidad la decide una regla de ciclo de vida del propio bucket, no este job.
+#
+# Lanzarla ya:         kubectl -n memtrace create job --from=cronjob/postgres-backup backup-now
+# Comprobar la última: make restore-test   (restaura en una base temporal y compara; ver el CronJob postgres-restore-check)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backups
+  namespace: memtrace
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+  namespace: memtrace
+spec:
+  schedule: "30 2 * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 3000
+      template:
+        metadata:
+          labels:
+            app: postgres-backup
+        spec:
+          restartPolicy: Never
+          # el volumen es RWO: este pod, el de restore-check y el de clickhouse-backup comparten nodo (un solo nodo aquí)
+          initContainers:
+            - name: dump
+              image: postgres:16-alpine
+              command:
+                - sh
+                - -ec
+                - |
+                  mkdir -p /backups/postgres
+                  out="/backups/postgres/memtrace_identity-$(date -u +%Y%m%dT%H%M%SZ).dump"
+                  pg_dump -h postgres -U memtrace -d memtrace_identity -Fc -f "$out.tmp"
+                  mv "$out.tmp" "$out"   # un .tmp nunca se confunde con una copia completa
+                  pg_restore --list "$out" > /dev/null   # el fichero se puede leer
+                  echo "$out" > /backups/postgres/.last
+                  find /backups/postgres -name '*.dump' -mtime "+${BACKUP_RETENTION_DAYS}" -delete
+                  ls -lh /backups/postgres
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-credentials
+                      key: password
+                - name: BACKUP_RETENTION_DAYS
+                  value: "7"
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+          containers:
+            - name: upload
+              image: amazon/aws-cli:2.17.40
+              command:
+                - sh
+                - -ec
+                - |
+                  if [ -z "${S3_BUCKET:-}" ]; then echo "backup-s3 no configurado: la copia se queda en el volumen"; exit 0; fi
+                  f="$(cat /backups/postgres/.last)"
+                  aws ${S3_ENDPOINT:+--endpoint-url "$S3_ENDPOINT"} s3 cp "$f" "s3://${S3_BUCKET}/${S3_PREFIX:-memtrace}/postgres/$(basename "$f")"
+              env:
+                - name: S3_BUCKET
+                  valueFrom: { secretKeyRef: { name: backup-s3, key: bucket, optional: true } }
+                - name: S3_ENDPOINT
+                  valueFrom: { secretKeyRef: { name: backup-s3, key: endpoint, optional: true } }
+                - name: S3_PREFIX
+                  valueFrom: { secretKeyRef: { name: backup-s3, key: prefix, optional: true } }
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom: { secretKeyRef: { name: backup-s3, key: access-key-id, optional: true } }
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom: { secretKeyRef: { name: backup-s3, key: secret-access-key, optional: true } }
+                - name: AWS_DEFAULT_REGION
+                  valueFrom: { secretKeyRef: { name: backup-s3, key: region, optional: true } }
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+                  readOnly: true
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: backups
+---
+# Comprobación de restauración (ADR-096): una copia solo vale si se ha restaurado alguna vez. Suspendida: no se ejecuta sola,
+# la lanza `make restore-test`. Restaura la última copia en la base temporal `restore_check`, la compara con la real y la borra.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-restore-check
+  namespace: memtrace
+spec:
+  schedule: "0 0 1 1 *"
+  suspend: true
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            app: postgres-restore-check
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: restore-check
+              image: postgres:16-alpine
+              command:
+                - sh
+                - -ec
+                - |
+                  last="$(cat /backups/postgres/.last)"
+                  echo "Restaurando $last en restore_check"
+                  psql -h postgres -U memtrace -d postgres -v ON_ERROR_STOP=1 -c 'DROP DATABASE IF EXISTS restore_check' -c 'CREATE DATABASE restore_check'
+                  trap "psql -h postgres -U memtrace -d postgres -c 'DROP DATABASE IF EXISTS restore_check'" EXIT
+                  pg_restore -h postgres -U memtrace -d restore_check --exit-on-error "$last"
+                  tables="select table_name from information_schema.tables where table_schema='public' and table_type='BASE TABLE' order by 1"
+                  live="$(psql -h postgres -U memtrace -d memtrace_identity -At -c "$tables")"
+                  restored="$(psql -h postgres -U memtrace -d restore_check -At -c "$tables")"
+                  [ "$live" = "$restored" ] || { echo "FALLO: las tablas de la copia no coinciden con las reales"; exit 1; }
+                  printf '%-40s %10s %10s\n' tabla copia real
+                  total=0
+                  for t in $live; do
+                    c="$(psql -h postgres -U memtrace -d restore_check -At -c "select count(*) from \"$t\"")"
+                    r="$(psql -h postgres -U memtrace -d memtrace_identity -At -c "select count(*) from \"$t\"")"
+                    printf '%-40s %10s %10s\n' "$t" "$c" "$r"
+                    total=$((total + c))
+                  done
+                  [ "$total" -gt 0 ] || { echo "FALLO: la copia restaurada está vacía"; exit 1; }
+                  echo "OK: copia restaurada (las diferencias de filas son cambios posteriores a la copia)"
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-credentials
+                      key: password
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+                  readOnly: true
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: backups

@@ -105,7 +105,7 @@ spec:
             matchExpressions:
               - key: app
                 operator: In
-                values: [api, health-probe, backfill-experiment-id, postgres-migrate, retention-purge, alerts-evaluate]
+                values: [api, health-probe, backfill-experiment-id, postgres-migrate, retention-purge, alerts-evaluate, postgres-backup, postgres-restore-check]
       ports:
         - { protocol: TCP, port: 5432 }
 ---
@@ -231,6 +231,41 @@ spec:
       - key: app
         operator: In
         values: [topic-extraction, topic-extraction-fit-initial, model-pricing-sync, model-quality-sync, health-probe, alerts-evaluate]
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.244.0.0/16, 10.96.0.0/12]
+---
+# 11) Copias de seguridad de Postgres (ADR-096): solo hablan con Postgres; el de copia sale además a Internet para subir al bucket S3
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-backup
+  namespace: memtrace
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [postgres-backup, postgres-restore-check]
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app: postgres }
+      ports:
+        - { protocol: TCP, port: 5432 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-backup-internet
+  namespace: memtrace
+spec:
+  podSelector:
+    matchLabels: { app: postgres-backup }
   policyTypes: [Egress]
   egress:
     - to:
