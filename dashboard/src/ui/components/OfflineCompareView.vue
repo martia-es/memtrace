@@ -8,6 +8,7 @@ import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
 import ErrorBanner from "./ErrorBanner.vue";
 import Select from "./Select.vue";
+import NoiseVerdict from "./NoiseVerdict.vue";
 import Pill from "./Pill.vue";
 import DataTable from "./DataTable.vue";
 import Card from "./Card.vue";
@@ -60,7 +61,18 @@ const loaded = useAsync<Loaded | null>(async (signal) => {
   }
   return { pairing: pairItems(da.items, db.items), latA: summarizeTelemetry(da.items), latB: summarizeTelemetry(db.items), diff };
 });
-watch([idA, idB], () => void loaded.run(), { immediate: true });
+/** Veredicto frente al ruido de cada evaluador (ADR-097). Es un añadido: si falla, la comparación se ve igual que antes. */
+const noise = useAsync(async (signal) => {
+  if (!idA.value || !idB.value || idA.value === idB.value) return null;
+  return api.compareRunsNoise(idA.value, idB.value, signal);
+});
+const verdictFor = (name: string) => noise.data.value?.evaluators.find((e) => e.name === name) ?? null;
+/** El color de la diferencia solo cuenta si supera el ruido: dentro del ruido no hay evidencia de que sea real. */
+function deltaTone(d: { name: string; delta: number | null }): "neutral" | "ok" | "error" {
+  if (d.delta === null || d.delta === 0 || verdictFor(d.name)?.verdict === "within") return "neutral";
+  return d.delta > 0 ? "ok" : "error";
+}
+watch([idA, idB], () => { void loaded.run(); void noise.run(); }, { immediate: true });
 
 const changes = computed<DatasetItemChangeDto[]>(() => loaded.data.value?.diff?.changes ?? []);
 const flips = computed(() => (loaded.data.value ? itemFlips(loaded.data.value.pairing.paired) : []));
@@ -164,7 +176,10 @@ const netVerdict = computed(() => (regressions.value === 0 && improvements.value
             <div class="bar-row"><div class="track"><div class="fill a" :style="{ width: barWidth(d.a, d) }" /></div><span class="val">{{ fmt(d.a, d.isRate) }}</span></div>
             <div class="bar-row"><div class="track"><div class="fill b" :class="tone(d.delta)" :style="{ width: barWidth(d.b, d) }" /></div><span class="val">{{ fmt(d.b, d.isRate) }}</span></div>
           </div>
-          <Pill :tone="d.delta === null || d.delta === 0 ? 'neutral' : d.delta > 0 ? 'ok' : 'error'" class="delta-pill">{{ d.delta !== null && d.delta !== 0 ? (d.delta > 0 ? "▲ " : "▼ ") : "" }}{{ fmtDelta(d.delta, d.isRate) }}</Pill>
+          <div class="delta-cell">
+            <Pill :tone="deltaTone(d)" class="delta-pill">{{ d.delta !== null && d.delta !== 0 ? (d.delta > 0 ? "▲ " : "▼ ") : "" }}{{ fmtDelta(d.delta, d.isRate) }}</Pill>
+            <NoiseVerdict v-if="verdictFor(d.name)" :comparison="verdictFor(d.name)!" />
+          </div>
         </div>
         <p v-if="!deltas.length" class="hint">Neither run has numeric or boolean evaluators.</p>
       </Card>
@@ -279,7 +294,7 @@ h3 .hint { font-weight: 400; }
 .fill.b.up { background: var(--mt-ok); }
 .fill.b.down { background: var(--mt-err); }
 
-.metric { display: grid; grid-template-columns: 170px 1fr 92px; align-items: center; gap: 16px; padding: 10px 0; border-top: 1px solid var(--mt-line-2); }
+.metric { display: grid; grid-template-columns: 170px 1fr 230px; align-items: center; gap: 16px; padding: 10px 0; border-top: 1px solid var(--mt-line-2); }
 .metric:first-of-type { border-top: 0; }
 .metric-name { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
 .metric-name strong { font-size: 13px; overflow-wrap: anywhere; }
@@ -288,7 +303,8 @@ h3 .hint { font-weight: 400; }
 .track { flex: 1; height: 10px; border-radius: 5px; background: var(--mt-soft); overflow: hidden; }
 .fill { height: 100%; border-radius: 5px; transition: width 0.4s ease; }
 .val { width: 64px; text-align: right; font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.delta-pill { justify-self: end; font-size: 13px; padding: 4px 10px; }
+.delta-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }
+.delta-pill { font-size: 13px; padding: 4px 10px; }
 
 .outcomes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .outcome { display: flex; flex-direction: column; gap: 2px; padding: 12px 16px; border-radius: var(--mt-radius-lg); background: var(--mt-soft); }
@@ -306,7 +322,6 @@ h3 .hint { font-weight: 400; }
 
 @media (max-width: 720px) {
   .metric { grid-template-columns: 1fr; gap: 8px; }
-  .delta-pill { justify-self: start; }
   .outcomes { grid-template-columns: 1fr; }
 }
 </style>

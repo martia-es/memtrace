@@ -6,6 +6,7 @@ import { useQuasar } from "quasar";
 import { useRoute, useRouter } from "vue-router";
 import { formatDateTime, formatPercent } from "@/domain/format";
 import { aggregateTone, aggregatePillTone, aggregateValueLabel } from "@/domain/evaluation";
+import { groupRuns } from "../run-groups";
 import { buildOfflineSeries, offlineEvalChartOption, summarizeEvaluators, type EvaluatorSummary } from "../offline-eval-chart-option";
 import EChart from "../components/EChart.vue";
 import EmptyState from "../components/EmptyState.vue";
@@ -55,7 +56,7 @@ const metricNames = computed(() => {
 });
 
 const filtered = computed(() => {
-  const all = runs.data.value?.items ?? [];
+  const all = groupRuns(runs.data.value?.items ?? []);
   const q = search.value.trim().toLowerCase();
   return all.filter((r) => (!q || r.name.toLowerCase().includes(q) || r.datasetName.toLowerCase().includes(q)) && (!datasetId.value || r.datasetId === datasetId.value));
 });
@@ -158,7 +159,7 @@ function openRun(run: RunListItemDto) {
                 :aria-label="`Select ${r.name} to compare`"
                 @change="togglePick(r)" />
             </td>
-            <td class="name">{{ r.name }}</td>
+            <td class="name">{{ r.name }} <Pill v-if="r.executions > 1" tone="info" :title="`${r.executions} of ${r.expected} executions of the same run: the row shows their mean`" data-testid="executions-pill">× {{ r.executions }}</Pill></td>
             <td class="muted">{{ r.datasetName }} <span class="mono faint">v{{ r.versionMajor }}.{{ r.versionMinor }}</span></td>
             <td @click.stop><CommitLink :revision="r.revision" :repo="repo" :dirty="r.revisionDirty" /></td>
             <td class="muted">{{ formatDateTime(r.createdAt) }}</td>

@@ -3,6 +3,7 @@ import type { RunListItemDto } from "@contract";
 import { computed, ref } from "vue";
 import type { RangeParams } from "@/application/trace-api";
 import { selectOfflineRuns, type EvaluatorTargets } from "../offline-eval-chart-option";
+import { groupRuns } from "../run-groups";
 import { useAsync } from "../composables/useAsync";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTraceApi } from "../composables/useTraceApi";
@@ -49,8 +50,10 @@ const datasetSelection = computed({
 });
 
 /** Tendencia: respeta el rango de la página. Run/Compare: todas las runs completadas, para poder elegir una antigua como baseline. */
-const inRange = computed(() => selectOfflineRuns(runs.data.value?.items ?? [], props.range, datasetId.value));
-const allCompleted = computed(() => selectOfflineRuns(runs.data.value?.items ?? [], { from: new Date(0).toISOString(), to: new Date(8.64e15).toISOString() }, datasetId.value));
+/** Un run lanzado con `repeats=N` cuenta como un solo run (la media de sus ejecuciones, ADR-097). */
+const grouped = computed(() => groupRuns(runs.data.value?.items ?? []));
+const inRange = computed(() => selectOfflineRuns(grouped.value, props.range, datasetId.value));
+const allCompleted = computed(() => selectOfflineRuns(grouped.value, { from: new Date(0).toISOString(), to: new Date(8.64e15).toISOString() }, datasetId.value));
 
 const seedIds = ref<[string, string] | null>(props.compareIds ?? null);
 function openCompare(ids: [string, string]) {

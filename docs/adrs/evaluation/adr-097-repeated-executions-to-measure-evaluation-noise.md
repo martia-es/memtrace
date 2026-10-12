@@ -67,6 +67,16 @@ For each (dataset version, evaluator, judge) in a group of N ≥ 2 executions:
 * The shared conformance scenario `eval-run-repeat.json` pins the request both SDKs send.
 * Not yet done: the dashboard grouping, the noise and the verdict (step 2).
 
+### Update (step 2, noise and verdict in the dashboard)
+
+* **The statistics live in the API** (`domain/evaluation-noise.ts`, pure and unit-tested), so the dashboard only renders and the PR gate can reuse it later. `EvaluationNoiseService` reads the executions of a run's group and computes two things, exposed as `GET /experiments/{id}/runs/{runId}/variability` and `GET /experiments/{id}/runs/noise?baseline=&candidate=`.
+* **Only completed executions count**: one that is still uploading would give a half aggregate. A group with executions missing reports `completed < total`.
+* **Noise is combined when both sides were repeated**: pooled by degrees of freedom, `σ² = Σ(n−1)σᵢ² / Σ(n−1)`. A single execution has no noise of its own and borrows the other side's, which is why a repeated baseline is enough to judge a one-off candidate.
+* **Numeric item instability** uses a tolerance: a score is unstable when its executions spread by more than 10 % of the largest absolute value seen for that evaluator. Booleans are unstable when they are not all equal.
+* **Lists show a group as one row** (`ui/run-groups.ts`): the first execution, with the mean of the finished ones, `× N` and *running* until all `repeats` are in. Compare runs and the run view receive that row; the API resolves the whole group from any of its ids.
+* A failing noise request does not break *Compare runs*: the deltas show as before, without verdicts. A delta only loses its colour when the verdict is *within noise*; *not measured* keeps today's behaviour.
+* The proposals were agreed on the design canvas (boards 71 and 72) before implementing; the *Variability* view is a tab of the run view, built with the shared `TabBar`.
+
 ## Alternatives Considered
 
 | Alternative | Why not |

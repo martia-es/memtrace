@@ -50,7 +50,9 @@ import type {
   DatasetVersionDto,
   DatasetVersionsListResponse,
   RunListItemDto,
+  RunNoiseComparisonResponse,
   RunsListResponse,
+  RunVariabilityResponse,
   ScoreAggregateDto,
   ExperimentUsageResponse,
   ModelPricingResponse,
@@ -523,7 +525,7 @@ export function datasetItemDto(overrides: Partial<DatasetItemDto> = {}): Dataset
 }
 
 export function datasetRunSummary(overrides: Partial<DatasetRunSummaryDto> = {}): DatasetRunSummaryDto {
-  return { id: "run-1", name: "toy-agent-v1", versionMajor: 1, versionMinor: 0, itemCount: 3, status: "completed", createdAt: "2026-09-30T22:45:54Z", revision: null, revisionDirty: null, aggregates: [scoreAggregate()], ...overrides };
+  return { id: "run-1", name: "toy-agent-v1", versionMajor: 1, versionMinor: 0, itemCount: 3, status: "completed", createdAt: "2026-09-30T22:45:54Z", revision: null, revisionDirty: null, runGroup: null, aggregates: [scoreAggregate()], ...overrides };
 }
 
 export function runListItem(overrides: Partial<RunListItemDto> = {}): RunListItemDto {
@@ -837,6 +839,19 @@ export class FakeTraceApi implements TraceApi {
   runs: RunsListResponse = { items: [] };
   async listRuns(): Promise<RunsListResponse> {
     return this.runs;
+  }
+  // ---- ruido de las evaluaciones (ADR-097) ----
+  runVariability: RunVariabilityResponse | Error = { group: null, executions: [], evaluators: [], instability: [], unstableItems: [] };
+  async getRunVariability(): Promise<RunVariabilityResponse> {
+    if (this.runVariability instanceof Error) throw this.runVariability;
+    return this.runVariability;
+  }
+  noiseComparison: RunNoiseComparisonResponse | Error = { baseline: { runId: "a", executions: 1 }, candidate: { runId: "b", executions: 1 }, evaluators: [] };
+  noiseComparisonCalls: Array<[string, string]> = [];
+  async compareRunsNoise(baselineId: string, candidateId: string): Promise<RunNoiseComparisonResponse> {
+    this.noiseComparisonCalls.push([baselineId, candidateId]);
+    if (this.noiseComparison instanceof Error) throw this.noiseComparison;
+    return this.noiseComparison;
   }
   // ---- acuerdo juez-humano / inter-anotador (ADR-040) ----
   judgeHumanAgreement: JudgeHumanAgreementResponse | Error = { scope: { type: "run", id: "run-1", traceTargets: 0 }, metrics: [], unmatched: { judgeOnly: [], humanOnly: [] } };

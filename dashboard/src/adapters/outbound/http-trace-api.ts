@@ -44,7 +44,9 @@ import type {
   TraceAnnotationsResponse,
   OverviewResponse,
   ProblemDetails,
+  RunNoiseComparisonResponse,
   RunsListResponse,
+  RunVariabilityResponse,
   RevisionsResponse,
   ServicesResponse,
   SpanListResponse,
@@ -336,6 +338,14 @@ export class HttpTraceApi implements TraceApi {
 
   getDatasetRun(datasetId: string, runId: string, signal?: AbortSignal) {
     return this.get<DatasetRunDetailResponse>(`${this.scopedBase()}/datasets/${encodeURIComponent(datasetId)}/runs/${encodeURIComponent(runId)}`, {}, signal);
+  }
+
+  getRunVariability(runId: string, signal?: AbortSignal) {
+    return this.get<RunVariabilityResponse>(`${this.scopedBase()}/runs/${encodeURIComponent(runId)}/variability`, {}, signal);
+  }
+
+  compareRunsNoise(baselineId: string, candidateId: string, signal?: AbortSignal) {
+    return this.get<RunNoiseComparisonResponse>(`${this.scopedBase()}/runs/noise`, { baseline: baselineId, candidate: candidateId }, signal);
   }
 
   private async get<T>(fullPath: string, query: Record<string, QueryValue>, signal?: AbortSignal): Promise<T> {

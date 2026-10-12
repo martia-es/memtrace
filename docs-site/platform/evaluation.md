@@ -42,6 +42,26 @@ Click any item in a run's table to open a panel on the right with its input, exp
 
 Latency, tokens and cost come from the trace of each item, not from the run itself. A figure is absent when the item has no trace, or when the trace has expired.
 
+### Is the difference real? Noise and repeated runs
+
+A +5 between two runs is not necessarily an improvement. An agent and an LLM judge are not deterministic, so running the **same** code twice can give 70 % and then 75 %. Compare runs tells you how much of a difference could be chance, **if** you measured it.
+
+You measure it from your code, by running the experiment more than once in the same call (`repeats=3`, see [Measure the noise of an evaluation](/library/evaluation#measure-the-noise-of-an-evaluation)). The executions run under identical conditions, so any difference between them is noise.
+
+A run with repetitions appears as **one row** in **Evaluations → Runs**, marked `× 3`, showing the mean of its executions. In **Compare runs**, each evaluator gets a verdict next to its difference:
+
+| Verdict | What it means |
+|---|---|
+| **Above noise** | The difference is larger than twice the standard error of the measured noise (about 95 % sure it is not luck). It is coloured green or red by direction. |
+| **Within noise** | The difference is smaller. Repeating the run could give the opposite sign, so it is not coloured. |
+| **Not measured** | There is no noise to compare with. The difference is shown as before, with a hint. |
+
+The small chart next to the verdict shows the same thing: the grey band is the noise and the dot is the difference. A dot outside the band is a real change.
+
+The noise comes from whichever run was repeated (or from both, combined). It is only used when both runs share the **dataset and its version** and the **same judge** for that evaluator; otherwise the verdict is **Not measured**, because the noise of one setup says nothing about another.
+
+Open a run and choose the **Variability** tab to see its executions side by side: each evaluator's result in every execution, the mean, the noise (±), and the **unstable items**, which are the items whose result is not the same in every execution. Fix or remove those first: they are the ones that make the evaluation unreliable. A run with a single execution shows how to measure its noise instead. With fewer than three executions the noise is a rough estimate, and the page says so.
+
 ### Judge changes
 
 Each judge score stores the judge's model and prompt fingerprint (see [Which judge produced a score](/library/evaluation#which-judge-produced-a-score)). When an evaluator's judge differs from the previous run's:
