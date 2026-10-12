@@ -22,7 +22,7 @@ export type {
 } from "./eval/types.js";
 export { presidioRedactor, textHook, maskRanges, DEFAULT_ENTITIES } from "./pii.js";
 export type { PresidioOptions } from "./pii.js";
-// building blocks for integrations (`@memtrace/sdk/langchain`, `@memtrace/sdk/openai-agents`, or your own)
+// building blocks for integrations (`@memtrace-ai/sdk/langchain`, `@memtrace-ai/sdk/openai-agents`, or your own)
 export { llmAttributes, retrievedChunks, sanitize as sanitizeAttributes } from "./attributes.js";
 export type { Attributes, LlmCall } from "./attributes.js";
 export { noteRetrieved } from "./eval/retrievalScope.js";

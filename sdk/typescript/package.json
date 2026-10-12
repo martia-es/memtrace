@@ -1,8 +1,26 @@
 {
-  "name": "@memtrace/sdk",
+  "name": "@memtrace-ai/sdk",
   "version": "0.1.0",
   "description": "MemTrace SDK for TypeScript: traces, prompts, feedback and evaluation of AI agents",
+  "keywords": [
+    "memtrace",
+    "llm",
+    "observability",
+    "tracing",
+    "opentelemetry",
+    "agents"
+  ],
   "license": "MIT",
+  "homepage": "https://github.com/martia-es/memtrace/tree/main/sdk/typescript#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/martia-es/memtrace.git",
+    "directory": "sdk/typescript"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -32,9 +50,10 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "tsup src/index.ts src/langchain.ts src/openai-agents.ts --format esm,cjs --dts --clean --external @memtrace/sdk --external @langchain/core --external @openai/agents",
+    "build": "tsup src/index.ts src/langchain.ts src/openai-agents.ts --format esm,cjs --dts --clean --external @memtrace-ai/sdk --external @langchain/core --external @openai/agents",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepublishOnly": "npm run typecheck && npm run build && npm test"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",

@@ -1,16 +1,16 @@
 # TypeScript SDK
 
-`@memtrace/sdk` is the TypeScript / Node.js (18+) SDK. It sends the same traces as the [Python SDK](./), with the same attribute names,
+`@memtrace-ai/sdk` is the TypeScript / Node.js (18+) SDK. It sends the same traces as the [Python SDK](./), with the same attribute names,
 masking, environment variables and prompt, feedback and evaluation features, so one MemTrace project can mix agents written in both.
 
 ```bash
-npm install @memtrace/sdk
+npm install @memtrace-ai/sdk
 ```
 
 ## Trace an agent
 
 ```ts
-import { initTracer, withStep, traceLlmCall, session, shutdown } from "@memtrace/sdk";
+import { initTracer, withStep, traceLlmCall, session, shutdown } from "@memtrace-ai/sdk";
 
 initTracer({ serviceName: "my-agent" });      // MEMTRACE_* variables configure the rest, see Configuration
 
@@ -34,15 +34,15 @@ are recorded only with `MEMTRACE_CAPTURE_CONTENT=true`, and secrets are masked e
 
 | Framework | Import | Notes |
 |---|---|---|
-| LangChain.js, LangGraph.js | `import { MemTraceCallbackHandler } from "@memtrace/sdk/langchain"` | Pass it in `callbacks`. `thread_id` is the conversation |
-| OpenAI Agents SDK | `import { enableOpenAIAgentsInstrumentation } from "@memtrace/sdk/openai-agents"` | Call once after `initTracer`. The trace's `groupId` is the conversation |
+| LangChain.js, LangGraph.js | `import { MemTraceCallbackHandler } from "@memtrace-ai/sdk/langchain"` | Pass it in `callbacks`. `thread_id` is the conversation |
+| OpenAI Agents SDK | `import { enableOpenAIAgentsInstrumentation } from "@memtrace-ai/sdk/openai-agents"` | Call once after `initTracer`. The trace's `groupId` is the conversation |
 
 Install the framework yourself (`@langchain/core`, `@openai/agents`): they are optional peer dependencies.
 
 ## Feedback, prompts and evaluation
 
 ```ts
-import { feedback, prompts, runExperiment, exactMatch } from "@memtrace/sdk";
+import { feedback, prompts, runExperiment, exactMatch } from "@memtrace-ai/sdk";
 
 await feedback(traceId, "up", { endUserId: "u-9" });           // see User feedback
 
@@ -69,7 +69,7 @@ docker run -p 5002:3000 mcr.microsoft.com/presidio-analyzer
 ```
 
 ```ts
-import { initTracer, presidioRedactor } from "@memtrace/sdk";
+import { initTracer, presidioRedactor } from "@memtrace-ai/sdk";
 initTracer({ redact: await presidioRedactor({ language: "es", url: "http://localhost:5002" }) });
 ```
 

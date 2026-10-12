@@ -1,7 +1,7 @@
 /**
  * LangChain.js / LangGraph.js callback handler (ADR-024, ADR-095): turns the runs LangChain reports into MemTrace steps.
  *
- *     import { MemTraceCallbackHandler } from "@memtrace/sdk/langchain";
+ *     import { MemTraceCallbackHandler } from "@memtrace-ai/sdk/langchain";
  *     await chain.invoke(input, { callbacks: [new MemTraceCallbackHandler()] });
  *
  * Inside a `withStep`, its spans hang from it. Needs `@langchain/core` (a peer dependency). Same attributes as the Python handler.
@@ -9,7 +9,7 @@
 import { BaseCallbackHandler } from "@langchain/core/callbacks/base";
 import {
   capture, capturesContent, endRun, llmAttributes, noteRetrieved, retrievedChunks, sc, startRun, type Attributes, type LlmCall,
-} from "@memtrace/sdk";
+} from "@memtrace-ai/sdk";
 
 type Meta = Record<string, any> | undefined;
 type Serialized = { id?: string[]; name?: string } | undefined;

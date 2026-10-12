@@ -1,4 +1,4 @@
-# @memtrace/sdk
+# @memtrace-ai/sdk
 
 MemTrace SDK for TypeScript / Node.js (>= 18). Same contract as the Python SDK ([ADR-095](../../docs/adrs/sdk/adr-095-multi-language-sdk-contract.md)):
 both run the scenarios in [`../conformance`](../conformance).
@@ -7,7 +7,7 @@ both run the scenarios in [`../conformance`](../conformance).
 end-user feedback, the prompt registry, offline evaluation, client-side PII masking and the LangChain.js / OpenAI Agents integrations.
 
 ```ts
-import { initTracer, withStep, traceLlmCall, session, shutdown } from "@memtrace/sdk";
+import { initTracer, withStep, traceLlmCall, session, shutdown } from "@memtrace-ai/sdk";
 
 initTracer({ serviceName: "my-agent" });          // MEMTRACE_* variables configure the rest
 
@@ -28,7 +28,7 @@ the arguments and the result. Secrets are masked (`****`) before anything leaves
 ## Feedback
 
 ```ts
-import { currentTraceId, feedback, withStep } from "@memtrace/sdk";
+import { currentTraceId, feedback, withStep } from "@memtrace-ai/sdk";
 
 const traceId = await withStep("turn", "chain", async () => { /* answer */ return currentTraceId(); });
 await feedback(traceId!, "up", { endUserId: "u-9" });   // needs MEMTRACE_API_URL (with the experiment id) and MEMTRACE_API_KEY
@@ -37,7 +37,7 @@ await feedback(traceId!, "up", { endUserId: "u-9" });   // needs MEMTRACE_API_UR
 ## Prompts
 
 ```ts
-import { prompts } from "@memtrace/sdk";
+import { prompts } from "@memtrace-ai/sdk";
 
 const weather = await prompts.get("weather-system");    // follows the tag named like MEMTRACE_ENVIRONMENT; fails at startup if it does not exist
 const system = weather.compile({ city });               // per request: in memory, no network; stamps the version on the current step
@@ -54,7 +54,7 @@ To let MemTrace's playground try a version in the real agent (`MEMTRACE_ALLOW_PR
 ## Evaluation
 
 ```ts
-import { runExperiment, exactMatch, Correctness, RecallAtK, MemTraceResultsSink } from "@memtrace/sdk";
+import { runExperiment, exactMatch, Correctness, RecallAtK, MemTraceResultsSink } from "@memtrace-ai/sdk";
 
 const result = await runExperiment({
   data: { datasetId: "ds-1", version: "2.1" },   // a MemTrace dataset (results upload to it), or a .json/.jsonl path, or plain rows
@@ -84,7 +84,7 @@ docker run -p 5002:3000 mcr.microsoft.com/presidio-analyzer
 ```
 
 ```ts
-import { initTracer, presidioRedactor } from "@memtrace/sdk";
+import { initTracer, presidioRedactor } from "@memtrace-ai/sdk";
 
 initTracer({ redact: await presidioRedactor({ language: "es", url: "http://localhost:5002" }) });  // or PRESIDIO_ANALYZER_URL
 ```
@@ -100,7 +100,7 @@ Both are optional peer dependencies, imported from their own subpath so the core
 
 ```ts
 // LangChain.js and LangGraph.js (npm i @langchain/core)
-import { MemTraceCallbackHandler } from "@memtrace/sdk/langchain";
+import { MemTraceCallbackHandler } from "@memtrace-ai/sdk/langchain";
 await graph.invoke(input, { callbacks: [new MemTraceCallbackHandler()], configurable: { thread_id: "conversation-42" } });
 ```
 
@@ -109,7 +109,7 @@ spans hang from it. Unlike Python's auto-instrumentation, there is no global swi
 
 ```ts
 // OpenAI Agents SDK (npm i @openai/agents)
-import { enableOpenAIAgentsInstrumentation } from "@memtrace/sdk/openai-agents";
+import { enableOpenAIAgentsInstrumentation } from "@memtrace-ai/sdk/openai-agents";
 enableOpenAIAgentsInstrumentation();             // after initTracer; { keepOpenAIExport: false } to stop sending traces to OpenAI
 ```
 
