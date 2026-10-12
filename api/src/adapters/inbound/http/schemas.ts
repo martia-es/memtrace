@@ -212,6 +212,8 @@ export const submitDatasetRunBody = z
     complete: z.boolean().default(true),
     /** commit del código que se evalúa (ADR-065); el SDK lo manda si lo encuentra */
     revision: z.object({ sha: z.string().regex(/^[0-9a-fA-F]{7,64}$/), dirty: z.boolean().nullable().default(null) }).nullable().default(null),
+    /** ejecución `index` de un run lanzado con `repeats=total` (ADR-097); sin él, una sola ejecución */
+    runGroup: z.object({ id: z.string().uuid(), index: z.number().int().min(1), total: z.number().int().min(2).max(10) }).refine((g) => g.index <= g.total, { message: "index must not exceed total", path: ["index"] }).nullable().default(null),
   })
   .refine((b) => b.items.length > 0 || !b.complete, { message: "items must not be empty for a completed run", path: ["items"] });
 

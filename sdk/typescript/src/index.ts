@@ -15,9 +15,9 @@ export { RecallAtK, MRR, HitRate, recallAtK, reciprocalRank } from "./eval/retri
 export { Correctness, Faithfulness, LLMJudgeEvaluator } from "./eval/judges.js";
 export { InMemoryDatasetSource, LocalFileDatasetSource, MemTraceDatasetSource } from "./eval/datasets.js";
 export { MemTraceResultsSink } from "./eval/sink.js";
-export { ExperimentResult } from "./eval/types.js";
+export { ExperimentResult, RepeatedExperimentResult } from "./eval/types.js";
 export type {
-  DatasetSource, EvalItem, EvalItemResult, Evaluator, EvaluatorArgs, EvaluatorLike, IncrementalResultsSink, LLMClient, LLMReply,
+  DatasetSource, EvalItem, EvalItemResult, Evaluator, EvaluatorArgs, EvaluatorLike, IncrementalResultsSink, LLMClient, LLMReply, RepeatedScoreSummary, RunRepeat,
   ResultsSink, RetrievedChunk, Score, ScoreDataType, ScoreSource, ScoreSummary, TaskFunction,
 } from "./eval/types.js";
 export { presidioRedactor, textHook, maskRanges, DEFAULT_ENTITIES } from "./pii.js";

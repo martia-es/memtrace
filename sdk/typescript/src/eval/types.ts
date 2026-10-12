@@ -45,8 +45,18 @@ export interface ScoreSummary {
   average?: number;
 }
 
+/**
+ * Execution `index` (1..`total`) of an experiment launched with `repeats: total` (ADR-097). All executions of one call share
+ * `groupId`: same code, dataset version and evaluators, so any difference between them is noise, not a change you made.
+ */
+export interface RunRepeat {
+  groupId: string;
+  index: number;
+  total: number;
+}
+
 export class ExperimentResult {
-  constructor(readonly name: string, readonly items: EvalItemResult[], readonly datasetVersion?: string) {}
+  constructor(readonly name: string, readonly items: EvalItemResult[], readonly datasetVersion?: string, readonly repeat?: RunRepeat) {}
 
   /** Items whose task threw (they have no scores). */
   get errorCount(): number {
@@ -110,7 +120,8 @@ export interface ResultsSink {
  * arrive as soon as they finish, NOT in dataset order, each with its position.
  */
 export interface IncrementalResultsSink {
-  start(args: { name: string; datasetVersion?: string }): Promise<void> | void;
+  /** With `repeats > 1` it is called once per execution and also receives `repeat` (ADR-097). */
+  start(args: { name: string; datasetVersion?: string; repeat?: RunRepeat }): Promise<void> | void;
   add(index: number, result: EvalItemResult): Promise<void> | void;
   finish(result: ExperimentResult): Promise<void> | void;
 }
@@ -139,3 +150,36 @@ export interface LLMClient {
 
 export const isIncremental = (sink: unknown): sink is IncrementalResultsSink =>
   typeof sink === "object" && sink !== null && "start" in sink && "add" in sink && "finish" in sink;
+
+/** One evaluator across the executions of a repeated run (ADR-097): each execution's aggregate, their mean and their noise. */
+export interface RepeatedScoreSummary {
+  name: string;
+  dataType: ScoreDataType;
+  /** Pass rate (boolean) or average (numeric) of each execution; `undefined` where the evaluator produced nothing. */
+  values: Array<number | undefined>;
+  mean?: number;
+  /** Sample standard deviation of `values`: how much the result moves when nothing changes. Needs 2+ values; rough with 2 or 3. */
+  noise?: number;
+}
+
+/** The outcome of `runExperiment({ repeats: N })` with N > 1: N executions under identical conditions (ADR-097). */
+export class RepeatedExperimentResult {
+  constructor(readonly name: string, readonly executions: ExperimentResult[], readonly datasetVersion?: string) {}
+
+  /** Per-evaluator mean and noise across executions, computed locally. Categorical evaluators are skipped. */
+  summary(): RepeatedScoreSummary[] {
+    const perExecution = this.executions.map((e) => new Map(e.summary().map((s) => [JSON.stringify([s.name, s.dataType]), s])));
+    const keys = new Map<string, { name: string; dataType: ScoreDataType }>();
+    for (const e of this.executions) for (const s of e.summary()) keys.set(JSON.stringify([s.name, s.dataType]), { name: s.name, dataType: s.dataType });
+    return [...keys.entries()]
+      .filter(([, k]) => k.dataType !== "categorical")
+      .sort(([, a], [, b]) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+      .map(([key, { name, dataType }]) => {
+        const values = perExecution.map((m) => { const s = m.get(key); return s === undefined ? undefined : dataType === "boolean" ? s.passRate : s.average; });
+        const present = values.filter((v): v is number => v !== undefined);
+        const mean = present.length > 0 ? present.reduce((a, b) => a + b, 0) / present.length : undefined;
+        const noise = present.length >= 2 && mean !== undefined ? Math.sqrt(present.reduce((a, v) => a + (v - mean) ** 2, 0) / (present.length - 1)) : undefined;
+        return { name, dataType, values, mean, noise };
+      });
+  }
+}

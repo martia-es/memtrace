@@ -44,7 +44,7 @@ export async function POST(request: Request, context: { params: Promise<{ experi
     const dataset = await identityRepository.getDataset(datasetId);
     if (!dataset || dataset.experimentId !== experimentId) return problem(404, "Not Found", "Dataset not found");
 
-    const { name, items, datasetVersion, complete, revision } = await parseJsonOrThrow(submitDatasetRunBody, request);
+    const { name, items, datasetVersion, complete, revision, runGroup } = await parseJsonOrThrow(submitDatasetRunBody, request);
     const run = await getEvaluation().submitDatasetRun(
       access.scope,
       datasetId,
@@ -60,6 +60,7 @@ export async function POST(request: Request, context: { params: Promise<{ experi
       datasetVersion,
       complete,
       revision ? { sha: revision.sha.toLowerCase(), dirty: revision.dirty } : null,
+      runGroup,
     );
     void getPrGate().onRunChanged(experimentId, run); // check del PR (ADR-064 fase 3): efecto secundario, no frena la subida
     return json(toDatasetRunSummaryDto(run), 201);

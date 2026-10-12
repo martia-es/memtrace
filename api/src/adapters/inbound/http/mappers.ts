@@ -393,7 +393,7 @@ export function groupAggregatesByRun(aggregates: ScoreAggregate[]): Map<string, 
 }
 
 export function toDatasetRunSummaryDto(run: DatasetRun, aggregates: ScoreAggregateDto[] = []): DatasetRunSummaryDto {
-  return { id: run.id, name: run.name, versionMajor: run.versionMajor, versionMinor: run.versionMinor, itemCount: run.itemCount, status: run.status, createdAt: run.createdAt, revision: run.revision, revisionDirty: run.revisionDirty, aggregates };
+  return { id: run.id, name: run.name, versionMajor: run.versionMajor, versionMinor: run.versionMinor, itemCount: run.itemCount, status: run.status, createdAt: run.createdAt, revision: run.revision, revisionDirty: run.revisionDirty, runGroup: run.runGroup, aggregates };
 }
 
 export function toDatasetRunsListResponse(runs: DatasetRun[], aggregatesByRun: Map<string, ScoreAggregateDto[]>): DatasetRunsListResponse {

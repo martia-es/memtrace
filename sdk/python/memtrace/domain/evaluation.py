@@ -71,6 +71,20 @@ class ScoreSummary:
 
 
 @dataclass(frozen=True)
+class RunRepeat:
+    """Execution `index` (1..`total`) of an experiment launched with `repeats=total` (ADR-097).
+
+    All executions of one `run_experiment(..., repeats=N)` call share `group_id`: they ran the same
+    code against the same dataset version with the same evaluators, so any difference between
+    them is noise, not a change you made.
+    """
+
+    group_id: str
+    index: int
+    total: int
+
+
+@dataclass(frozen=True)
 class ExperimentResult:
     """The full outcome of one `run_experiment()` call: one dataset, one agent version.
 
@@ -82,6 +96,8 @@ class ExperimentResult:
     name: str
     items: List[EvalItemResult]
     dataset_version: Optional[str] = None
+    # Set only on the executions of a `repeats > 1` call (ADR-097); None for a plain single execution.
+    repeat: Optional[RunRepeat] = None
 
     @property
     def error_count(self) -> int:
@@ -104,3 +120,48 @@ class ExperimentResult:
                 average = sum(numbers) / len(numbers) if numbers else None
             summaries.append(ScoreSummary(name=name, data_type=data_type, count=len(scores), pass_rate=pass_rate, average=average))
         return summaries
+
+
+@dataclass(frozen=True)
+class RepeatedScoreSummary:
+    """One evaluator across the executions of a repeated run (ADR-097).
+
+    `values` holds each execution's aggregate (pass rate or average; `None` where the evaluator
+    produced nothing). `noise` is their sample standard deviation: how much the result moves when
+    nothing changes. It needs at least two values and is a rough estimate with only two or three.
+    """
+
+    name: str
+    data_type: ScoreDataType
+    values: Tuple[Optional[float], ...]
+    mean: Optional[float]
+    noise: Optional[float]
+
+
+@dataclass(frozen=True)
+class RepeatedExperimentResult:
+    """The outcome of `run_experiment(..., repeats=N)` with N > 1: N executions under identical conditions (ADR-097)."""
+
+    name: str
+    executions: List[ExperimentResult]
+    dataset_version: Optional[str] = None
+
+    def summary(self) -> List[RepeatedScoreSummary]:
+        """Per-evaluator mean and noise across executions — computed locally, no MemTrace needed."""
+        per_execution = [{(s.name, s.data_type): s for s in e.summary()} for e in self.executions]
+        keys = sorted({k for m in per_execution for k in m}, key=lambda k: k[0])
+        out = []
+        for name, data_type in keys:
+            if data_type == "categorical":
+                continue
+            values = tuple(
+                (m[(name, data_type)].pass_rate if data_type == "boolean" else m[(name, data_type)].average) if (name, data_type) in m else None
+                for m in per_execution
+            )
+            present = [v for v in values if v is not None]
+            mean = sum(present) / len(present) if present else None
+            noise = None
+            if len(present) >= 2 and mean is not None:
+                noise = (sum((v - mean) ** 2 for v in present) / (len(present) - 1)) ** 0.5
+            out.append(RepeatedScoreSummary(name=name, data_type=data_type, values=values, mean=mean, noise=noise))
+        return out

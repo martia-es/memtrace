@@ -63,7 +63,11 @@ class IncrementalResultsSink(Protocol):
 
     def start(self, *, name: str, dataset_version: Optional[str]) -> None:
         """Called once, before the first item runs. May raise: the experiment then aborts
-        without spending a single agent call."""
+        without spending a single agent call.
+
+        With `repeats > 1` it is called once per execution and also receives `repeat=RunRepeat(...)`
+        (ADR-097). A sink used with `repeats > 1` must accept that keyword; `run_experiment` refuses to
+        start otherwise. Sinks never used with repetitions need no change."""
         ...
 
     def add(self, index: int, item_result: EvalItemResult) -> None:

@@ -10,7 +10,7 @@ const V1_0: DatasetVersion = { id: "ver-1", datasetId: "ds-1", major: 1, minor: 
 const V1_1: DatasetVersion = { ...V1_0, id: "ver-2", minor: 1 };
 
 function run(over: Partial<DatasetRun> = {}): DatasetRun {
-  return { id: "run-1", datasetId: "ds-1", datasetVersionId: "ver-1", versionMajor: 1, versionMinor: 0, name: "r", itemCount: 0, status: "running", createdAt: "2026-09-30T00:00:00Z", revision: null, revisionDirty: null, ...over };
+  return { id: "run-1", datasetId: "ds-1", datasetVersionId: "ver-1", versionMajor: 1, versionMinor: 0, name: "r", itemCount: 0, status: "running", createdAt: "2026-09-30T00:00:00Z", revision: null, revisionDirty: null, runGroup: null, ...over };
 }
 
 // Solo implementa lo que EvaluationService realmente llama: no tiene sentido escribir un fake
@@ -46,6 +46,20 @@ describe("EvaluationService.submitDatasetRun", () => {
     const created = await new EvaluationService(identity, fakeScores(async () => {})).submitDatasetRun(SCOPE, "ds-1", "r", ITEMS, "1.0", true, { sha, dirty: false });
     expect(received).toEqual({ sha, dirty: false });
     expect(created).toMatchObject({ revision: sha, revisionDirty: false });
+  });
+
+  it("records which execution of a repeated run this is (ADR-097)", async () => {
+    let received: unknown = "unset";
+    const identity = fakeIdentity({
+      createDatasetRun: async (id, datasetId, datasetVersionId, name, itemCount, status, _revision, runGroup) => {
+        received = runGroup;
+        return run({ id, datasetId, datasetVersionId, name, itemCount, status, runGroup: runGroup ?? null });
+      },
+    });
+    const group = { id: "7d9f6c44-0f5a-4d6e-9d0e-2d1c5a2b9e11", index: 2, total: 3 };
+    const created = await new EvaluationService(identity, fakeScores(async () => {})).submitDatasetRun(SCOPE, "ds-1", "r", ITEMS, "1.0", true, null, group);
+    expect(received).toEqual(group);
+    expect(created.runGroup).toEqual(group);
   });
 
   it("inserts scores in ClickHouse before creating the Postgres run record, with the same id", async () => {

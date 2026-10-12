@@ -77,6 +77,23 @@ def test_run_records_the_evaluated_commit(monkeypatch):
     assert api.calls[0][1]["revision"] == {"sha": "a" * 40, "dirty": False}
 
 
+def test_an_execution_of_a_repeated_run_opens_its_run_inside_the_group():
+    api = _FakeApi()
+    result = _result(1, version="2.1")
+    from dataclasses import replace
+    from memtrace.domain.evaluation import RunRepeat
+
+    group = "7d9f6c44-0f5a-4d6e-9d0e-2d1c5a2b9e11"
+    _sink(api).save(replace(result, repeat=RunRepeat(group_id=group, index=2, total=3)))
+    assert api.calls[0][1]["runGroup"] == {"id": group, "index": 2, "total": 3}
+
+
+def test_a_single_execution_sends_no_run_group():
+    api = _FakeApi()
+    _sink(api).save(_result(1, version="2.1"))
+    assert "runGroup" not in api.calls[0][1]
+
+
 def test_save_opens_the_run_with_its_version_then_uploads_and_completes_it():
     api = _FakeApi()
     sink = _sink(api)

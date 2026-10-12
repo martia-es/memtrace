@@ -5,7 +5,7 @@ import type { ScoreRepository } from "@/application/ports/score-repository";
 import type { DatasetRunItemSubmission } from "@/domain/evaluation";
 import { parseDatasetVersionSpec } from "@/domain/dataset-version";
 import { ValidationError } from "@/domain/errors";
-import type { DatasetRun, RunRevision } from "@/domain/identity";
+import type { DatasetRun, RunGroup, RunRevision } from "@/domain/identity";
 
 /** El run existe pero ya no admite más items (ya está `completed`). */
 export class DatasetRunClosedError extends Error {
@@ -42,13 +42,14 @@ export class EvaluationService {
     datasetVersion: string,
     complete = true,
     revision: RunRevision | null = null,
+    runGroup: RunGroup | null = null,
   ): Promise<DatasetRun> {
     const { major, minor } = parseDatasetVersionSpec(datasetVersion, "datasetVersion");
     const version = (await this.identityRepository.listDatasetVersions(datasetId)).find((v) => v.major === major && v.minor === minor);
     if (!version) throw new ValidationError(`dataset ${datasetId} has no version ${datasetVersion}`, { datasetVersion: "unknown version" });
     const runId = randomUUID();
     await this.scoreRepository.insertScores(scope, runId, items, 0);
-    const run = await this.identityRepository.createDatasetRun(runId, datasetId, version.id, name, items.length, complete ? "completed" : "running", revision);
+    const run = await this.identityRepository.createDatasetRun(runId, datasetId, version.id, name, items.length, complete ? "completed" : "running", revision, runGroup);
     if (complete) await this.summarize(scope, runId);
     return run;
   }

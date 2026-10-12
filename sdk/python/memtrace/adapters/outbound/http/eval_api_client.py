@@ -20,7 +20,7 @@ import re
 from typing import Any, Dict, Iterable, List, Optional
 
 from memtrace.config import settings
-from memtrace.domain.evaluation import EvalItem, EvalItemResult, ExperimentResult, Score
+from memtrace.domain.evaluation import EvalItem, EvalItemResult, ExperimentResult, RunRepeat, Score
 
 logger = logging.getLogger("memtrace")
 
@@ -122,7 +122,7 @@ class MemTraceResultsSink:
         """Id of the `dataset_run` created by the last run, e.g. to build a dashboard link."""
         self._pending: List[Dict[str, Any]] = []
 
-    def start(self, *, name: str, dataset_version: Optional[str]) -> None:
+    def start(self, *, name: str, dataset_version: Optional[str], repeat: Optional[RunRepeat] = None) -> None:
         version = self._version or dataset_version
         if not version or not _VERSION_RE.match(version):
             raise ValueError(
@@ -132,6 +132,8 @@ class MemTraceResultsSink:
         self._version = version
         self._pending = []
         body: Dict[str, Any] = {"name": name, "datasetVersion": version, "complete": False, "items": []}
+        if repeat is not None:  # one of N executions of the same run (ADR-097): the API groups them by `id`
+            body["runGroup"] = {"id": repeat.group_id, "index": repeat.index, "total": repeat.total}
         revision, dirty = settings.revision
         if revision:  # the commit that was evaluated (ADR-065); the API lets the deploy gate ask for it
             body["revision"] = {"sha": revision, "dirty": dirty}
@@ -152,7 +154,7 @@ class MemTraceResultsSink:
         self._flush(complete=True)
 
     def save(self, result: ExperimentResult) -> None:
-        self.start(name=result.name, dataset_version=result.dataset_version)
+        self.start(name=result.name, dataset_version=result.dataset_version, repeat=result.repeat)
         for index, item_result in enumerate(result.items):
             self.add(index, item_result)
         self.finish(result)

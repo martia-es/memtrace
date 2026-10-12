@@ -1,7 +1,7 @@
 import pytest
 
 from memtrace.application.experiment_runner import ResultsUploadError, run_experiment
-from memtrace.domain.evaluation import EvalItem, Score
+from memtrace.domain.evaluation import EvalItem, ExperimentResult, RepeatedExperimentResult, Score
 from tests.fakes import FakeDatasetSource, FakeIncrementalSink, FakeResultsSink
 
 ITEMS = [
@@ -271,3 +271,90 @@ def test_item_scope_trace_id_is_recorded_even_when_task_fails():
 def test_without_item_scope_trace_id_is_none():
     result = run_experiment(data=ITEMS, task=_echo_task, evaluators=[_ExactMatch()], name="plain")
     assert all(r.trace_id is None for r in result.items)
+
+
+# --- repeats (ADR-097) -------------------------------------------------------------------------------------------
+
+def _flaky_every_other_call():
+    calls = {"n": 0}
+
+    def task(*, item: EvalItem):
+        calls["n"] += 1
+        return item.expected_output if calls["n"] % 3 else "wrong"   # now and then the agent gets one wrong
+
+    return task, calls
+
+
+def test_repeats_defaults_to_one_and_returns_a_plain_result():
+    result = run_experiment(data=ITEMS, task=_echo_task, evaluators=[_ExactMatch()], name="once")
+    assert isinstance(result, ExperimentResult)
+    assert result.repeat is None
+
+
+def test_repeats_runs_the_whole_experiment_n_times_and_returns_each_execution():
+    task, calls = _flaky_every_other_call()
+    result = run_experiment(data=ITEMS, task=task, evaluators=[_ExactMatch()], name="noisy", repeats=3, max_workers=1)
+
+    assert isinstance(result, RepeatedExperimentResult)
+    assert len(result.executions) == 3
+    assert calls["n"] == 3 * len(ITEMS)
+    groups = {e.repeat.group_id for e in result.executions}
+    assert len(groups) == 1
+    assert [e.repeat.index for e in result.executions] == [1, 2, 3]
+    assert {e.repeat.total for e in result.executions} == {3}
+
+
+def test_the_dataset_is_read_once_so_every_execution_sees_the_same_items():
+    source = FakeDatasetSource(ITEMS)
+    run_experiment(data=source, task=_echo_task, evaluators=[_ExactMatch()], name="same-data", repeats=3)
+    assert source.fetch_calls == 1
+
+
+def test_an_incremental_sink_is_started_once_per_execution_with_its_repeat_info():
+    sink = FakeIncrementalSink()
+    run_experiment(data=ITEMS, task=_echo_task, evaluators=[_ExactMatch()], name="grouped", sink=sink, repeats=2)
+    assert sink.events.count("start") == 2
+    assert [r.index for r in sink.repeats_seen] == [1, 2]
+    assert sink.repeats_seen[0].group_id == sink.repeats_seen[1].group_id
+
+
+def test_a_single_execution_does_not_pass_repeat_to_the_sink():
+    sink = FakeIncrementalSink()
+    run_experiment(data=ITEMS, task=_echo_task, evaluators=[_ExactMatch()], name="plain", sink=sink)
+    assert sink.repeats_seen == [None]
+
+
+def test_a_custom_sink_that_cannot_take_repeat_is_refused_before_spending_any_call():
+    class OldSink:
+        def start(self, *, name, dataset_version): ...
+        def add(self, index, item_result): ...
+        def finish(self, result): ...
+
+    calls = []
+    with pytest.raises(ValueError, match="repeat"):
+        run_experiment(data=ITEMS, task=lambda *, item: calls.append(1), evaluators=[], name="x", sink=OldSink(), repeats=2)
+    assert calls == []
+    # the same sink still works for a single execution
+    run_experiment(data=ITEMS, task=_echo_task, evaluators=[], name="x", sink=OldSink())
+
+
+@pytest.mark.parametrize("bad", [0, -1, 11, 2.5, True, "3"])
+def test_repeats_outside_1_to_10_is_rejected(bad):
+    with pytest.raises(ValueError, match="repeats"):
+        run_experiment(data=ITEMS, task=_echo_task, evaluators=[], name="x", repeats=bad)
+
+
+def test_summary_gives_each_evaluators_mean_and_noise_across_executions():
+    # execution 1: both right (1.0) · execution 2: one wrong (0.5) · execution 3: both right (1.0)
+    outputs = iter(["4", "Paris", "wrong", "Paris", "4", "Paris"])
+    result = run_experiment(data=ITEMS, task=lambda *, item: next(outputs), evaluators=[_ExactMatch()], name="n", repeats=3, max_workers=1)
+    [summary] = result.summary()
+    assert summary.name == "exact_match"
+    assert summary.values == (1.0, 0.5, 1.0)
+    assert summary.mean == pytest.approx(5 / 6)
+    assert summary.noise == pytest.approx(0.28867513, rel=1e-5)   # sample standard deviation of (1, .5, 1)
+
+
+def test_noise_is_none_when_it_cannot_be_estimated():
+    one = RepeatedExperimentResult(name="n", executions=[run_experiment(data=ITEMS, task=_echo_task, evaluators=[_ExactMatch()], name="n")])
+    assert one.summary()[0].noise is None
