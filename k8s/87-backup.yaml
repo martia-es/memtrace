@@ -160,3 +160,140 @@ spec:
             - name: backups
               persistentVolumeClaim:
                 claimName: backups
+---
+# Copias de seguridad de ClickHouse (ADR-096): una vez al día (02:45 UTC) pide una copia a la API del sidecar `clickhouse-backup`
+# (k8s/20-clickhouse.yaml), espera a que termine y, si hay `backup-s3`, la sube al bucket.
+# Lanzarla ya: `make backup`.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: clickhouse-backup
+  namespace: memtrace
+spec:
+  schedule: "45 2 * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 3000
+      template:
+        metadata:
+          labels:
+            app: clickhouse-backup
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: backup
+              image: curlimages/curl:8.9.1
+              command:
+                - sh
+                - -ec
+                - |
+                  api=http://clickhouse:7171
+                  # espera a que termine la operación en curso y falla si no acabó bien
+                  wait_done() {
+                    for i in $(seq 1 300); do
+                      last="$(curl -fsS -u "backup:$PW" "$api/backup/status" | tail -n 1)"
+                      case "$last" in
+                        *'"status":"success"'*) return 0 ;;
+                        *'"status":"error"'*) echo "FALLO: $last"; return 1 ;;
+                      esac
+                      sleep 5
+                    done
+                    echo "FALLO: la operación no terminó a tiempo"; return 1
+                  }
+                  name="clickhouse-$(date -u +%Y%m%dT%H%M%SZ)"
+                  curl -fsS -u "backup:$PW" -X POST "$api/backup/create?name=$name"; echo
+                  wait_done
+                  # sacar la copia del disco de ClickHouse: al bucket S3 o, si no hay `backup-s3`, al volumen `backups`
+                  curl -fsS -u "backup:$PW" -X POST "$api/backup/upload/$name"; echo
+                  wait_done
+                  echo "OK: $name"
+                  # caducidad de las copias del volumen (con S3 la decide la regla de ciclo de vida del bucket)
+                  find /backups/clickhouse -mindepth 1 -maxdepth 1 -type d -mtime "+${BACKUP_RETENTION_DAYS}" -exec rm -rf {} +
+                  ls -1 /backups/clickhouse
+              env:
+                - name: PW
+                  valueFrom:
+                    secretKeyRef:
+                      name: clickhouse-credentials
+                      key: password
+                - name: BACKUP_RETENTION_DAYS
+                  value: "7"
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: backups
+---
+# Comprobación de restauración de ClickHouse (suspendida; la lanza `make restore-test`): restaura la última copia local en la base
+# temporal `restore_check` (restore_database_mapping), compara con `memtrace` y la borra. No toca la base real.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: clickhouse-restore-check
+  namespace: memtrace
+spec:
+  schedule: "0 0 1 1 *"
+  suspend: true
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            app: clickhouse-restore-check
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: restore-check
+              image: curlimages/curl:8.9.1
+              command:
+                - sh
+                - -ec
+                - |
+                  api=http://clickhouse:7171
+                  ch() { curl -fsS --user "default:$PW" "http://clickhouse:8123/" --data-binary "$1"; }
+                  wait_done() {
+                    for i in $(seq 1 300); do
+                      last="$(curl -fsS -u "backup:$PW" "$api/backup/status" | tail -n 1)"
+                      case "$last" in
+                        *'"status":"success"'*) return 0 ;;
+                        *'"status":"error"'*) echo "FALLO: $last"; return 1 ;;
+                      esac
+                      sleep 5
+                    done
+                    return 1
+                  }
+                  name="$(curl -fsS -u "backup:$PW" "$api/backup/list/local" | tail -n 1 | sed 's/.*"name":"\([^"]*\)".*/\1/')"
+                  [ -n "$name" ] || { echo "FALLO: no hay copias locales"; exit 1; }
+                  echo "Restaurando $name en restore_check"
+                  ch 'DROP DATABASE IF EXISTS restore_check SYNC'
+                  trap "ch 'DROP DATABASE IF EXISTS restore_check SYNC'" EXIT
+                  curl -fsS -u "backup:$PW" -X POST "$api/backup/restore/$name?restore_database_mapping=memtrace:restore_check&tables=memtrace.*"; echo
+                  wait_done
+                  tables="$(ch "SELECT name FROM system.tables WHERE database = 'restore_check' AND engine NOT IN ('View','MaterializedView') ORDER BY name")"
+                  [ -n "$tables" ] || { echo "FALLO: la copia restaurada no tiene tablas"; exit 1; }
+                  printf '%-40s %10s %10s\n' tabla copia real
+                  total=0
+                  for t in $tables; do
+                    c="$(ch "SELECT count() FROM restore_check.\`$t\`")"
+                    r="$(ch "SELECT count() FROM memtrace.\`$t\`")"
+                    printf '%-40s %10s %10s\n' "$t" "$c" "$r"
+                    total=$((total + c))
+                  done
+                  [ "$total" -gt 0 ] || { echo "FALLO: la copia restaurada está vacía"; exit 1; }
+                  echo "OK: copia restaurada (las diferencias de filas son datos posteriores a la copia)"
+              env:
+                - name: PW
+                  valueFrom:
+                    secretKeyRef:
+                      name: clickhouse-credentials
+                      key: password

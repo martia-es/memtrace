@@ -88,6 +88,16 @@ spec:
       ports:
         - { protocol: TCP, port: 8123 }
         - { protocol: TCP, port: 9000 }
+    # API del sidecar de copias de seguridad (ADR-096) y, para comprobar la restauración, HTTP
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [clickhouse-backup, clickhouse-restore-check]
+      ports:
+        - { protocol: TCP, port: 7171 }
+        - { protocol: TCP, port: 8123 }
 ---
 # 5) PostgreSQL: la API y los jobs que leen el almacén de identidad
 apiVersion: networking.k8s.io/v1
@@ -257,6 +267,26 @@ spec:
             matchLabels: { app: postgres }
       ports:
         - { protocol: TCP, port: 5432 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: clickhouse-backup
+  namespace: memtrace
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [clickhouse-backup, clickhouse-restore-check]
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app: clickhouse }
+      ports:
+        - { protocol: TCP, port: 7171 }
+        - { protocol: TCP, port: 8123 }
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
