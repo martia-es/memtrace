@@ -11,7 +11,7 @@ const withStatus = (r: AlertRuleDto, state: "ok" | "firing" | "no_data" | null, 
   status: state ? { state, since: "", lastValue, lastCheckedAt: null, lastNotifiedAt: null } : null,
 });
 const budget = (percent: number, over: Partial<BudgetViewDto["budget"]> = {}): BudgetViewDto => ({
-  budget: { experimentId: "exp-1", monthlyUsd: 100, warnPercent: 80, recipients: [], enabled: true, updatedAt: "", ...over }, month: "2026-10-01", spentUsd: percent, percent, projectedUsd: null,
+  budget: { experimentId: "exp-1", monthlyUsd: 100, warnPercent: 80, recipients: [], enabled: true, updatedAt: "", ...over }, month: "2026-10-01", spentUsd: percent, percent, projectedUsd: null, daily: [],
 });
 
 describe("goalOf", () => {
@@ -36,6 +36,10 @@ describe("budgetGoalOf", () => {
   it("is null without a budget or with a paused one", () => {
     expect(budgetGoalOf(null)).toBeNull();
     expect(budgetGoalOf(budget(10, { enabled: false }))).toBeNull();
+  });
+  it("turns amber when the forecast passes the budget even if the spend is low", () => {
+    expect(budgetGoalOf({ ...budget(40), projectedUsd: 120 })).toMatchObject({ tone: "warn", label: "Forecast over", projectedUsd: 120 });
+    expect(budgetGoalOf({ ...budget(40), projectedUsd: 90 })).toMatchObject({ tone: "ok" });
   });
   it("uses the budget's own warning percentage for amber and 100 % for red", () => {
     expect(budgetGoalOf(budget(40))).toMatchObject({ tone: "ok" });

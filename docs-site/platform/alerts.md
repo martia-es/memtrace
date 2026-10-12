@@ -70,6 +70,8 @@ Recent means the last 14 days, up to 30 notifications: alerts that fired or came
 
 ## Monthly cost budget
 
+The budget has its own view in **Overview › Summary**: [Spend this month](/platform/dashboard#summary) draws the spend so far and the forecast to the end of the month.
+
 An agent can have a monthly budget in USD. You choose the warning percentage (80 % by default) and who is emailed. You get **one email per month and level**:
 
 | Level | When |

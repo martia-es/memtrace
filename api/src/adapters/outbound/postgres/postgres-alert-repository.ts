@@ -363,6 +363,14 @@ export class PostgresAlertRepository implements AlertRepository {
     return new Set(rows.map((r) => r.day));
   }
 
+  async dailyCostBetween(experimentId: string, from: string, to: string): Promise<Array<{ day: string; costUsd: number }>> {
+    const { rows } = await this.pool.query<{ day: string; cost: number }>(
+      `SELECT to_char(day, 'YYYY-MM-DD') AS day, cost_usd AS cost FROM experiment_daily_cost WHERE experiment_id = $1 AND day BETWEEN $2 AND $3 ORDER BY day`,
+      [experimentId, from, to],
+    );
+    return rows.map((r) => ({ day: r.day, costUsd: Number(r.cost) }));
+  }
+
   async spentBetween(experimentId: string, from: string, to: string): Promise<number> {
     const { rows } = await this.pool.query<{ total: number | null }>(`SELECT sum(cost_usd) AS total FROM experiment_daily_cost WHERE experiment_id = $1 AND day BETWEEN $2 AND $3`, [experimentId, from, to]);
     return Number(rows[0]?.total ?? 0);

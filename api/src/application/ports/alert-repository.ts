@@ -75,6 +75,8 @@ export interface AlertRepository {
   upsertDailyCost(experimentId: string, day: string, costUsd: number): Promise<void>;
   /** Días del rango `[from, to]` (YYYY-MM-DD) que ya tienen coste guardado. */
   daysWithCost(experimentId: string, from: string, to: string): Promise<Set<string>>;
+  /** Coste de cada día guardado entre esos días, ambos incluidos, del más antiguo al más reciente. */
+  dailyCostBetween(experimentId: string, from: string, to: string): Promise<Array<{ day: string; costUsd: number }>>;
   /** Suma del coste diario guardado entre esos días, ambos incluidos. */
   spentBetween(experimentId: string, from: string, to: string): Promise<number>;
 }

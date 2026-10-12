@@ -24,9 +24,14 @@ const rule = (over: Partial<AlertRuleDto>): AlertRuleDto => ({
   minSamples: 10, reminderMinutes: null, recipients: [], enabled: true, createdAt: "", updatedAt: "", ...over,
 });
 const status = (state: "ok" | "firing", lastValue: number) => ({ state, since: "", lastValue, lastCheckedAt: null, lastNotifiedAt: null });
-const budget: BudgetViewDto = { budget: { experimentId: "exp-1", monthlyUsd: 95, warnPercent: 80, recipients: [], enabled: true, updatedAt: "" }, month: "2026-10-01", spentUsd: 38.72, percent: 40.8, projectedUsd: 74 };
+const budget: BudgetViewDto = { budget: { experimentId: "exp-1", monthlyUsd: 95, warnPercent: 80, recipients: [], enabled: true, updatedAt: "" }, month: "2026-10-01", spentUsd: 38.72, percent: 40.8, projectedUsd: 74, daily: [] };
 
 async function open(identity: FakeIdentityApi, role = "technical") {
+  const { wrapper, router } = await openWithTrace(identity, role);
+  return { wrapper, router };
+}
+
+async function openWithTrace(identity: FakeIdentityApi, role = "technical") {
   const trace = new FakeTraceApi();
   trace.overview = overview;
   const router = createRouter({
@@ -44,7 +49,7 @@ async function open(identity: FakeIdentityApi, role = "technical") {
   const exp = { id: "exp-1", organizationId: "org-1", name: "Weather", serviceName: "weather", myRole: role, permissions: permissionsOf(role), organizationTheme: EMPTY_THEME };
   const wrapper = mount(Host, { global: { plugins: [[Quasar, { plugins: { Dark, Notify } }], router], provide: { [TRACE_API as symbol]: trace, [IDENTITY_API as symbol]: identity, [CURRENT_EXPERIMENT as symbol]: computed(() => exp) } } });
   await flushPromises();
-  return { wrapper, router };
+  return { wrapper, router, trace };
 }
 
 describe("Overview goals", () => {
@@ -89,5 +94,29 @@ describe("Overview goals", () => {
     const { wrapper } = await open(new FakeIdentityApi(), "business");
     expect(wrapper.find('[data-testid="goals-welcome"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="goal-cost"]').exists()).toBe(false);
+  });
+
+  it("shows the spend this month with its forecast and where it goes, only when there is a budget", async () => {
+    const identity = new FakeIdentityApi();
+    const daily = Array.from({ length: 6 }, (_, i) => ({ day: `2026-10-${String(i + 1).padStart(2, "0")}`, costUsd: 5 }));
+    identity.alerts = { rules: [], events: [], budget: { ...budget, spentUsd: 30, percent: 31.6, projectedUsd: 120, daily } };
+    const { wrapper, trace } = await openWithTrace(identity);
+    expect(wrapper.get('[data-testid="cost-state"]').text()).toContain("Forecast over budget");
+    expect(wrapper.get('[data-testid="cost-spent"]').text()).toBe("$30.00");
+    expect(wrapper.get('[data-testid="cost-projected"]').text()).toBe("$120.00");
+    expect(wrapper.get('[data-testid="cost-summary"]').text()).toContain("$25.00 over the budget");
+    // el KPI de coste también avisa de la previsión
+    expect(wrapper.get('[data-testid="goal-cost"]').text()).toContain("Forecast over");
+    expect(wrapper.get('[data-testid="goal-line-cost"]').text()).toContain("projected $120.00");
+    // el reparto sale del mismo endpoint de Breakdown, del día 1 a hoy, por usuario
+    expect(trace.breakdownCalls).toEqual(["user"]);
+    expect(wrapper.get('[data-testid="cost-split-empty"]').text()).toContain("memtrace.user");
+    await wrapper.get('[data-testid="cost-group-environment"]').trigger("click");
+    await flushPromises();
+    expect(trace.breakdownCalls).toEqual(["user", "environment"]);
+
+    identity.alerts = { rules: [], events: [], budget: null };
+    const none = await openWithTrace(identity);
+    expect(none.wrapper.find('[data-testid="cost-trend"]').exists()).toBe(false);
   });
 });

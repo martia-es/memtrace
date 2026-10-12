@@ -143,7 +143,7 @@ export class FakeIdentityApi implements IdentityApi {
   async setBudget(_experimentId: string, body: BudgetBody): Promise<BudgetViewDto> {
     this.alertCalls.push({ op: "setBudget", body });
     if (this.alertError) throw this.alertError;
-    const view: BudgetViewDto = { budget: { experimentId: "exp-1", ...body, updatedAt: "2026-10-10T00:00:00.000Z" }, month: "2026-10-01", spentUsd: 0, percent: 0, projectedUsd: null };
+    const view: BudgetViewDto = { budget: { experimentId: "exp-1", ...body, updatedAt: "2026-10-10T00:00:00.000Z" }, month: "2026-10-01", spentUsd: 0, percent: 0, projectedUsd: null, daily: [] };
     this.alerts = { ...this.alerts, budget: view };
     return view;
   }

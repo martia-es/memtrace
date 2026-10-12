@@ -54,15 +54,18 @@ export interface BudgetGoal {
   label: string;
   spentUsd: number;
   monthlyUsd: number;
+  /** previsión a fin de mes; null antes del tercer día */
+  projectedUsd: number | null;
 }
 
 /** El objetivo de coste es el presupuesto mensual; su aviso es el porcentaje que ya tiene configurado. */
 export function budgetGoalOf(view: BudgetViewDto | null): BudgetGoal | null {
   if (!view || !view.budget.enabled) return null;
   const { percent, budget, spentUsd } = view;
-  const base = { spentUsd, monthlyUsd: budget.monthlyUsd };
+  const base = { spentUsd, monthlyUsd: budget.monthlyUsd, projectedUsd: view.projectedUsd };
   if (percent >= 100) return { ...base, tone: "error", label: "Over goal" };
   if (percent >= budget.warnPercent) return { ...base, tone: "warn", label: "Close" };
+  if (view.projectedUsd !== null && view.projectedUsd >= budget.monthlyUsd) return { ...base, tone: "warn", label: "Forecast over" };
   return { ...base, tone: "ok", label: "On track" };
 }
 

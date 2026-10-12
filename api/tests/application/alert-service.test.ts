@@ -103,6 +103,8 @@ describe("AlertService budget", () => {
     expect(view).toMatchObject({ month: "2026-10-01", spentUsd: 40, percent: 40 });
     expect(view.budget).toMatchObject({ monthlyUsd: 100, warnPercent: 80, recipients: ["fin@example.com"] });
     expect(view.projectedUsd).toBeCloseTo((40 * 31) / 9.5, 4);
+    // el coste de cada día del mes, del más antiguo al más reciente, sin el mes anterior
+    expect(view.daily).toEqual([{ day: "2026-10-02", costUsd: 10 }, { day: "2026-10-10", costUsd: 30 }]);
     expect(entries[0]).toMatchObject({ action: "budget.update", targetType: "budget" });
     expect(entries[0]!.metadata).toMatchObject({ monthlyUsd: 100, recipients: 1 });
   });

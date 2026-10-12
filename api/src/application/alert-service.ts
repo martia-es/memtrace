@@ -32,6 +32,8 @@ export interface BudgetView {
   spentUsd: number;
   percent: number;
   projectedUsd: number | null;
+  /** coste de cada día del mes con dato, del primero al de hoy */
+  daily: Array<{ day: string; costUsd: number }>;
 }
 
 /** Lo que enseña la campana: los avisos recientes y cuántos no ha leído esta persona (ADR-094). */
@@ -124,10 +126,11 @@ export class AlertService {
     if (!budget) return null;
     const now = this.now();
     const first = monthStart(now);
-    const spentUsd = await this.repo.spentBetween(experimentId, DAY(first), DAY(now));
+    const daily = await this.repo.dailyCostBetween(experimentId, DAY(first), DAY(now));
+    const spentUsd = daily.reduce((sum, d) => sum + d.costUsd, 0);
     // la misma regla del evaluador, sin avisos previos: aquí solo interesa el porcentaje y la previsión
     const evaluation: BudgetEvaluation = evaluateBudget(budget, spentUsd, now, new Set());
-    return { budget, month: monthKey(now), spentUsd, percent: evaluation.percent, projectedUsd: evaluation.projectedUsd };
+    return { budget, month: monthKey(now), spentUsd, percent: evaluation.percent, projectedUsd: evaluation.projectedUsd, daily };
   }
 
   async setBudget(ref: ExperimentRef, actor: Actor, body: Record<string, unknown>): Promise<BudgetView> {

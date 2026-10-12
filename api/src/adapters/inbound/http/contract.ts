@@ -1672,6 +1672,8 @@ export interface BudgetViewDto {
   spentUsd: number;
   percent: number;
   projectedUsd: number | null;
+  /** coste de cada día del mes con dato (YYYY-MM-DD, UTC), del primero al de hoy */
+  daily: Array<{ day: string; costUsd: number }>;
 }
 
 export interface AlertsOverviewDto {
