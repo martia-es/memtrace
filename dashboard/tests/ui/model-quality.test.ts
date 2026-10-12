@@ -177,10 +177,9 @@ describe("filters", () => {
 });
 
 describe("the banner", () => {
-  it("counts the models without a score, how many are in the traces, and leads to the review", async () => {
+  it("counts the models you use that have no score, and leads to the review", async () => {
     await openPage();
-    expect(text("quality-banner")).toContain("2 models have no quality score yet");
-    expect(text("quality-banner")).toContain("1 is in your traces");
+    expect(text("quality-banner")).toContain("1 model you use has no quality score yet");
     expect(text("quality-banner")).toContain("Prices and costs are not affected");
     await click("review-matches");
     expect(q("match-drawer")).not.toBeNull();
@@ -189,10 +188,18 @@ describe("the banner", () => {
   it("says who can decide to a person who cannot, and offers no button", async () => {
     api.role = "business";
     await openPage();
-    expect(text("quality-banner")).toContain("Someone with the technical profile can confirm them");
+    expect(text("quality-banner")).toContain("Someone with the technical profile can confirm it");
     expect(q("review-matches")).toBeNull();
     expect(q("confirm-claude-sonnet-4-5")).toBeNull();
     expect(text("quality-claude-sonnet-4-5")).toContain("Awaiting confirmation");
+  });
+
+  it("stays quiet when only models you do not use wait for a match, and the Needs review view still lists them", async () => {
+    api.modelQuality = response({ counts: { needsReview: 185, pending: 0, inUse: 2 } });
+    await openPage();
+    expect(q("quality-banner")).toBeNull();
+    const scope = document.body.querySelector("[aria-label='Models to show']")!;
+    expect(scope.textContent).toContain("185");
   });
 
   it("is not there when every model has a decision", async () => {
@@ -275,6 +282,20 @@ describe("confirming matches", () => {
     await click("match-confirm-claude-sonnet-4-5");
     expect(text("match-error-claude-sonnet-4-5")).toContain("Missing permission: pricing:manage");
     expect(q("match-card-claude-sonnet-4-5")).not.toBeNull();
+  });
+
+  it("shows 20 models at a time and the rest on demand", async () => {
+    const many = Array.from({ length: 45 }, (_, i) => ({ modelKey: `model-${String(i).padStart(2, "0")}`, model: `model-${i}`, inUse: true, candidates: [candidate(`model-${i}-2025`, 1400, "Same name plus a date")] }));
+    api.modelQualityCandidates = { items: many };
+    await openPage("?review=1");
+    const cards = () => document.body.querySelectorAll("[data-testid^='match-card-']").length;
+    expect(cards()).toBe(20);
+    expect(text("match-more")).toContain("Show 20 more (25 left)");
+    await click("match-more");
+    expect(cards()).toBe(40);
+    await click("match-more");
+    expect(cards()).toBe(45);
+    expect(q("match-more")).toBeNull();
   });
 
   it("says there is nothing to confirm when no model is waiting", async () => {

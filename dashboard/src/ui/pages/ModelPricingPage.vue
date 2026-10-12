@@ -187,13 +187,13 @@ const items = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, 
       It is used to compute the cost of every LLM span in the trace and conversation views.
     </p>
 
-    <section v-if="qualityAvailable && counts.needsReview > 0" class="banner" data-testid="quality-banner">
+    <section v-if="qualityAvailable && counts.pending > 0" class="banner" data-testid="quality-banner">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" /></svg>
       <span class="banner-text">
-        <b>{{ counts.needsReview }} {{ counts.needsReview === 1 ? "model has" : "models have" }} no quality score yet.</b>
-        Arena lists {{ counts.needsReview === 1 ? "it" : "them" }} under different names, so you pick which entry is the same model<template v-if="counts.pending > 0"> ({{ counts.pending }} {{ counts.pending === 1 ? "is" : "are" }} in your traces)</template>.
+        <b>{{ counts.pending }} {{ counts.pending === 1 ? "model you use has" : "models you use have" }} no quality score yet.</b>
+        Arena lists {{ counts.pending === 1 ? "it" : "them" }} under {{ counts.pending === 1 ? "a different name" : "different names" }}, so you pick which entry is the same model.
         <template v-if="canDecide">You can also do it from the button on each row.</template>
-        <template v-else>Someone with the technical profile can confirm them.</template>
+        <template v-else>Someone with the technical profile can confirm {{ counts.pending === 1 ? "it" : "them" }}.</template>
         Prices and costs are not affected.
       </span>
       <Button v-if="canDecide" variant="primary" data-testid="review-matches" @click="review()">Review matches</Button>
