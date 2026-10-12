@@ -35,7 +35,11 @@ const done = reactive<Record<string, true>>({});
 const groups = computed(() => (list.data.value?.items ?? []).filter((g) => !done[g.modelKey]));
 const inUse = computed(() => groups.value.filter((g) => g.inUse));
 const others = computed(() => groups.value.filter((g) => !g.inUse));
-const shown = computed(() => (tab.value === "in_use" ? inUse.value : others.value));
+const PAGE = 20;
+const limit = ref(PAGE);
+const all = computed(() => (tab.value === "in_use" ? inUse.value : others.value));
+const shown = computed(() => all.value.slice(0, limit.value));
+const hidden = computed(() => Math.max(0, all.value.length - limit.value));
 const tabs = computed(() => [
   { value: "in_use", label: "In use", count: inUse.value.length },
   { value: "others", label: "Others", count: others.value.length },
@@ -100,7 +104,7 @@ const noEquivalent = (g: Group) => void settle(g, { decision: "no_equivalent" },
             Arena lists models under its own names. Choose the entry that is the same model as yours, so its Elo shows in Model pricing. This only sets where the quality score comes from; nothing changes in how your agent runs.
           </p>
           <div class="tabs">
-            <SegmentedControl :options="tabs" :model-value="tab" size="sm" aria-label="Models to review" @update:model-value="tab = $event as 'in_use' | 'others'" />
+            <SegmentedControl :options="tabs" :model-value="tab" size="sm" aria-label="Models to review" @update:model-value="tab = $event as 'in_use' | 'others'; limit = PAGE" />
             <span class="hint">“In use” = seen in your traces, last 30 days</span>
           </div>
         </header>
@@ -154,6 +158,7 @@ const noEquivalent = (g: Group) => void settle(g, { decision: "no_equivalent" },
               <span class="saved">Saved; later syncs keep it</span>
             </footer>
           </section>
+          <Button v-if="hidden > 0" class="more" data-testid="match-more" @click="limit += PAGE">Show {{ Math.min(PAGE, hidden) }} more ({{ hidden }} left)</Button>
         </div>
 
         <footer class="foot">
@@ -185,7 +190,7 @@ h2 { margin: 0; font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
 .hint { font-size: 12px; color: var(--mt-muted); }
 .body { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 24px; display: flex; flex-direction: column; gap: 14px; }
 
-.card { border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); background: var(--mt-bg); overflow: hidden; }
+.card { flex: none; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); background: var(--mt-bg); overflow: hidden; }
 .card-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--mt-soft); border-bottom: 1px solid var(--mt-line); }
 .label { font-size: 12px; color: var(--mt-muted); }
 .model { font-size: 13px; }
@@ -203,6 +208,7 @@ h2 { margin: 0; font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
 .error { margin: 6px 16px 0; color: var(--mt-err-ink); font-size: 12.5px; }
 .actions { display: flex; align-items: center; gap: 12px; padding: 10px 16px 14px; flex-wrap: wrap; }
 .grow { flex: 1; }
+.more { align-self: center; flex: none; }
 .saved { font-size: 11px; color: var(--mt-muted); }
 .foot { flex: none; display: flex; align-items: center; gap: 10px; padding: 12px 24px; border-top: 1px solid var(--mt-line); background: var(--mt-soft); color: var(--mt-muted); font-size: 12px; line-height: 1.4; }
 .foot svg { flex: none; }

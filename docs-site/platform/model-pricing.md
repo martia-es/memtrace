@@ -35,7 +35,7 @@ Arena and LiteLLM do not always call a model the same. MemTrace shows a score wi
 
 ## Confirm a match
 
-Click **Confirm match →** on a row, or **Review matches** in the blue banner. A panel opens with one card per model:
+Click **Confirm match →** on a row, or **Review matches** in the blue banner (it appears only when a model your agent uses is waiting). A panel opens with one card per model:
 
 - **Your model** is the name in the price catalog.
 - Under **Arena lists it as…** you see each candidate with its Elo, rank and votes. The one with the closest name is selected and marked **CLOSEST NAME**; pick another one if it is the right one.
@@ -45,7 +45,7 @@ Click **Confirm match →** on a row, or **Review matches** in the blue banner. 
 
 This only decides where the quality score comes from. It does not change how your agent runs or how its cost is computed. A decision applies to **the whole organization**, stays when the daily sync runs again, and is recorded in the [audit log](/platform/data-protection#the-audit-log). You need the `pricing:manage` permission, which the `technical` profile has.
 
-The panel starts with the models **in use**, the ones that appear in the traces of your agent in the last 30 days. **Others** are models that have a candidate but that your agent does not call.
+The panel starts with the models **in use**, the ones that appear in the traces of your agent in the last 30 days. **Others** are models that have a candidate but that your agent does not call; there can be hundreds, so the panel shows 20 at a time.
 
 ## The In use and Needs review views
 
