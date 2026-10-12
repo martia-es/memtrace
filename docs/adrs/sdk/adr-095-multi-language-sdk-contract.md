@@ -14,7 +14,7 @@ F6 adds a TypeScript SDK with the same scope as the Python one, and more framewo
 
 1. **The contract is the list below, and Python is its reference implementation.** `sdk/python/memtrace/domain/semconv.py` stays the source of the attribute names. Changing the contract means changing Python first and updating this ADR (or superseding it).
 2. **A language-neutral conformance suite** lives in `sdk/conformance/`: JSON fixtures (`scenario → expected spans and HTTP requests`). Each SDK runs the same fixtures in its own test suite, with an in-memory span exporter and a mocked HTTP transport. A new SDK is "done" when it passes them all.
-3. **One repository, one folder per language**: `sdk/python/`, `sdk/typescript/`. The npm package is `@memtrace/sdk`; the PyPI one stays `memtrace-ai`. Versions are independent; a contract change bumps the minor of both.
+3. **One repository, one folder per language**: `sdk/python/`, `sdk/typescript/`. The npm package is `@memtrace-ai/sdk`; the PyPI one stays `memtrace-ai`. Versions are independent; a contract change bumps the minor of both.
 4. **No LLM vendor in the core of any SDK.** Judges and `propose_fix` depend on a minimal `LLMClient` (`complete(system, prompt, model?) → text | LLMReply`, optional `model`), as in [ADR-029](../README.md#retired-adrs) for Python. TypeScript has the same interface; vendor adapters (Anthropic today) are optional extras and are never the default.
 5. **Personal-data masking has two layers in both languages** ([ADR-084](../storage/adr-084-data-protection-retention-masking-audit-and-export.md)): fixed formats in the Collector (always on), and an opt-in client layer for names and free text. Python runs Presidio and spaCy in the process; TypeScript, which has no Presidio engine, asks a Presidio analyzer service (the official image) and applies the same `****` mask locally, so it detects the same entities with the same models. The fixtures fix only the output (`****`), not the engine.
 
@@ -74,4 +74,4 @@ Behaviour that is the same in both is fixed by the conformance scenarios; these 
 
 * **Positive**: a divergence fails in CI instead of showing up as a missing dashboard column; adding a third language or framework adapter has a clear acceptance test; the contract is written down in one place.
 * **Negative**: every contract change touches both SDKs and the fixtures; the TypeScript PII path depends on a service that Python does not need, and the fixtures cannot prove both detect the same entities.
-* **Follow-up**: build `sdk/conformance/` from the Python behaviour before writing the TypeScript SDK; add `@memtrace/sdk` publishing and CI when the first TypeScript piece lands.
+* **Follow-up**: build `sdk/conformance/` from the Python behaviour before writing the TypeScript SDK; add `@memtrace-ai/sdk` publishing and CI when the first TypeScript piece lands.

@@ -17,7 +17,7 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@memtrace/sdk": [
+      "@memtrace-ai/sdk": [
         "./src/index.ts"
       ]
     }

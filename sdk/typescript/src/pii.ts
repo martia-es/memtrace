@@ -2,7 +2,7 @@
  * Optional anonymization of personal data (PII) before spans leave the process (ADR-021, ADR-084, ADR-095). Plugs into
  * `initTracer({ redact })`, like `memtrace.pii` in the Python SDK.
  *
- *     import { initTracer, presidioRedactor } from "@memtrace/sdk";
+ *     import { initTracer, presidioRedactor } from "@memtrace-ai/sdk";
  *     initTracer({ redact: await presidioRedactor({ language: "es", url: "http://localhost:5002" }) });
  *
  * Presidio has no JavaScript engine, so `presidioRedactor` asks a Presidio **analyzer service** (the official

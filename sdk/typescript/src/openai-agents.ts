@@ -2,13 +2,13 @@
  * Tracing processor for the OpenAI Agents SDK for JavaScript (ADR-095): turns its traces and spans into MemTrace steps, with the
  * same attributes as the Python integration.
  *
- *     import { enableOpenAIAgentsInstrumentation } from "@memtrace/sdk/openai-agents";
+ *     import { enableOpenAIAgentsInstrumentation } from "@memtrace-ai/sdk/openai-agents";
  *     enableOpenAIAgentsInstrumentation();   // after initTracer
  *
  * Needs `@openai/agents` (a peer dependency).
  */
 import { addTraceProcessor, setTraceProcessors, type Span, type Trace, type TracingProcessor } from "@openai/agents";
-import { capture, capturesContent, endRun, llmAttributes, sc, startRun, type Attributes } from "@memtrace/sdk";
+import { capture, capturesContent, endRun, llmAttributes, sc, startRun, type Attributes } from "@memtrace-ai/sdk";
 
 export const FRAMEWORK = "openai-agents";
 

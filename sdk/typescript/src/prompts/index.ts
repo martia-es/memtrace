@@ -1,7 +1,7 @@
 /**
  * Prompts of the MemTrace registry, versioned and tagged per environment (ADR-067, ADR-068).
  *
- *     import { prompts } from "@memtrace/sdk";
+ *     import { prompts } from "@memtrace-ai/sdk";
  *     const weather = await prompts.get("weather-system");   // follows the tag named like MEMTRACE_ENVIRONMENT
  *     const system = weather.compile({ city });               // per request: in memory, no network
  *
