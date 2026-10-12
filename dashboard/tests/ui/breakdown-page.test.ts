@@ -28,6 +28,7 @@ async function open(trace: FakeTraceApi, query = "") {
     { path: "/e/:experimentId/overview/breakdown", name: "overview-breakdown", component: { template: "<div />" } },
     { path: "/e/:experimentId/overview/charts", name: "overview-charts", component: { template: "<div />" } },
     { path: "/model-pricing", name: "model-pricing", component: { template: "<div />" } },
+    { path: "/prompts", name: "prompts", component: { template: "<div />" } },
   ] });
   await router.push(`/e/exp-1/overview/breakdown${query}`);
   await router.isReady();
@@ -59,30 +60,73 @@ describe("Breakdown page", () => {
     expect(q("breakdown-insight")?.textContent).toContain("weather-system v3 fails 9.4% of the time");
   });
 
-  it("compares two ticked rows, and says when they run in different places", async () => {
+  it("tells what to do before anything is picked: two empty slots and a hint", async () => {
+    const trace = new FakeTraceApi();
+    trace.breakdown = { groupBy: "prompt_version", range: { from: "", to: "" }, unpricedTokens: 0, items: [item("a v1"), item("b v1")] };
+    await open(trace);
+    expect(q("slot-A")?.textContent).toContain("Click a row to set the baseline");
+    expect(q("slot-B")?.textContent).toContain("Then click a second row");
+    expect(q("pair-hint")?.textContent).toContain("first the baseline (A), then the candidate (B)");
+    expect(q("breakdown-compare")).toBeNull();
+    expect(q("breakdown-compare-empty")).toBeTruthy();
+    expect(q("pick-a v1")!.textContent).toContain("A");
+  });
+
+  it("fills A then B and compares them, and says when they run in different places", async () => {
     const trace = new FakeTraceApi();
     trace.breakdown = { groupBy: "environment", range: { from: "", to: "" }, unpricedTokens: 0, items: [item("pro"), item("pre", { related: ["weather-system v4"], errorRate: 0.016, errorMargin: 0.009, p95Ms: 2200 })] };
     await open(trace, "?groupBy=environment");
     expect(q("breakdown-compare")).toBeNull();
-    q<HTMLInputElement>("pick-pro")!.click();
-    q<HTMLInputElement>("pick-pre")!.click();
+    q<HTMLButtonElement>("pick-pro")!.click();
     await flushPromises();
+    expect(q("slot-A")?.textContent).toContain("pro");
+    expect(q("pair-hint")?.textContent).toContain("Now pick the candidate (B)");
+    q<HTMLButtonElement>("pick-pre")!.click();
+    await flushPromises();
+    expect(q("slot-B")?.textContent).toContain("pre");
     expect(q("breakdown-compare")).toBeTruthy();
     expect(q("delta-ERRORS")?.textContent).toContain("Ranges do not overlap: reliable");
     expect(q("delta-P95 LATENCY")?.textContent).toContain("faster");
     expect(q("compare-differs")?.textContent).toContain("Run different versions");
   });
 
-  it("keeps only the last two ticked rows", async () => {
+  it("clicking a picked row clears it, and a third row replaces B", async () => {
     const trace = new FakeTraceApi();
     trace.breakdown = { groupBy: "prompt_version", range: { from: "", to: "" }, unpricedTokens: 0, items: [item("a v1"), item("b v1"), item("c v1")] };
     await open(trace);
     for (const k of ["a v1", "b v1", "c v1"]) {
-      q<HTMLInputElement>(`pick-${k}`)!.click();
+      q<HTMLButtonElement>(`pick-${k}`)!.click();
       await flushPromises();
     }
-    expect(q<HTMLInputElement>("pick-a v1")!.checked).toBe(false);
-    expect(q("breakdown-compare")?.textContent).toContain("b v1");
+    expect(q<HTMLButtonElement>("pick-a v1")!.getAttribute("aria-pressed")).toBe("true");
+    expect(q<HTMLButtonElement>("pick-b v1")!.getAttribute("aria-pressed")).toBe("false");
+    expect(q("breakdown-compare")?.textContent).toContain("c v1");
+    q<HTMLButtonElement>("pick-a v1")!.click();
+    await flushPromises();
+    expect(q("slot-A")?.textContent).toContain("Click a row to set the baseline");
+    expect(q("breakdown-compare")).toBeNull();
+  });
+
+  it("picks the pair from the warning: best as A, worst as B", async () => {
+    const trace = new FakeTraceApi();
+    trace.breakdown = { groupBy: "prompt_version", range: { from: "", to: "" }, unpricedTokens: 0, items: [item("v3"), item("v4", { errorRate: 0.018, errorMargin: 0.019 })] };
+    await open(trace);
+    q("insight-compare")!.click();
+    await flushPromises();
+    expect(q("slot-A")?.textContent).toContain("v4");
+    expect(q("slot-B")?.textContent).toContain("v3");
+    expect(q("breakdown-compare")).toBeTruthy();
+  });
+
+  it("with a single version nothing can be picked and it explains how to get a second one", async () => {
+    const trace = new FakeTraceApi();
+    trace.breakdown = { groupBy: "prompt_version", range: { from: "", to: "" }, unpricedTokens: 0, items: [item("system-prompt v3", { related: ["dev"] })] };
+    await open(trace);
+    expect(q("slot-A")?.textContent).toContain("system-prompt v3");
+    expect(q("slot-B")?.textContent).toContain("No second version yet");
+    expect(q<HTMLButtonElement>("pick-system-prompt v3")!.disabled).toBe(true);
+    expect(q("breakdown-guide")?.textContent).toContain("You need a second version to compare");
+    expect(q("breakdown-compare")).toBeNull();
   });
 
   it("dims versions with too few traces and flags unpriced tokens", async () => {
