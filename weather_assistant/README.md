@@ -82,6 +82,7 @@ uv run pytest
 uv run python evals/run_eval.py                       # evaluadores de código
 uv run python evals/run_eval.py --judge               # + LLM-as-judge contra la respuesta ideal
 uv run python evals/run_eval.py --min-pass-rate 0.9   # código de salida 1 si baja de ahí (CI)
+uv run python evals/run_eval.py --repeats 3           # 3 ejecuciones del mismo run: mide el ruido de la evaluación
 ```
 
 Para guardarlo todo en MemTrace (trazas, dataset y run con scores), define en el `.env` de la raíz las variables de la cabecera de `run_eval.py`: `WEATHER_ASSISTANT_MEMTRACE_HEADERS`, `WEATHER_ASSISTANT_SERVICE_NAME` (el del experimento), `MEMTRACE_API_URL` y `MEMTRACE_API_KEY`. Con ellas, `run_eval.py` crea el dataset y sube el run; `--dataset-id` repite sobre uno existente y `--local` desactiva la subida.

@@ -7,6 +7,7 @@ El LLM es el real (`WEATHER_ASSISTANT_MODEL`, necesita `GOOGLE_API_KEY`); el tie
     uv run python evals/run_eval.py                  # solo evaluadores de código
     uv run python evals/run_eval.py --judge          # + LLM-as-judge contra la respuesta ideal
     uv run python evals/run_eval.py --name v2 --workers 2
+    uv run python evals/run_eval.py --repeats 3      # 3 ejecuciones del mismo run: mide cuánto ruido tiene la evaluación
 
 Guardado en MemTrace (trazas + dataset + run con sus scores) cuando están definidas:
 
@@ -86,6 +87,7 @@ def main() -> int:
     parser.add_argument("--dataset-id", help="dataset de MemTrace sobre el que ejecutar (por defecto se crea uno)")
     parser.add_argument("--mock", action="store_true", help="sin LLM: la tarea devuelve la respuesta esperada y las llamadas esperadas, así que todo pasa (prueba del gate de despliegue)")
     parser.add_argument("--local", action="store_true", help="no subir nada a MemTrace; usa dataset.jsonl y deja el resultado en memoria")
+    parser.add_argument("--repeats", type=int, default=1, help="ejecuta el experimento N veces (1-10) en la misma llamada para medir el ruido de la evaluación; multiplica el tiempo y los tokens por N")
     parser.add_argument("--min-pass-rate", type=float, default=None, help="sale con código 1 si algún evaluador booleano queda por debajo")
     args = parser.parse_args()
 
@@ -134,14 +136,20 @@ def main() -> int:
         evaluators=evaluators,
         name=args.name,
         max_workers=args.workers,
+        repeats=args.repeats,
     )
+    repeated = args.repeats > 1
+    executions = result.executions if repeated else [result]
+    first = executions[0]
     if traced:
         memtrace.flush()
     else:
         print("Trazas desactivadas: falta WEATHER_ASSISTANT_MEMTRACE_HEADERS.")
 
     failures = 0
-    for row in result.items:
+    if repeated:
+        print(f"{len(executions)} ejecuciones; el detalle de fallos es el de la primera.")
+    for row in first.items:
         if row.error:
             failures += 1
             print(f"ERROR  {row.item.input!r}: {row.error}")
@@ -152,8 +160,17 @@ def main() -> int:
             details = "; ".join(f"{s.name}: {s.comment}" for s in failed)
             print(f"FAIL   [{row.item.metadata['category']}] {row.item.input!r}\n         -> {row.output!r}\n         {details}")
 
-    print(f"\ndataset {result.dataset_version}  items {len(result.items)}  con fallos {failures}  errores {result.error_count}")
+    print(f"\ndataset {result.dataset_version}  items {len(first.items)}  con fallos {failures}  errores {first.error_count}")
     below = False
+    if repeated:
+        # con repeticiones, la tasa de cada evaluador es la media de las ejecuciones y se informa de su ruido (ADR-097)
+        print(f"  {'evaluador':<16} {'media':>6}  {'ruido':>7}  por ejecución")
+        for s in result.summary():
+            noise = f"±{s.noise * 100:.1f} pp" if s.noise is not None and s.data_type == "boolean" else (f"±{s.noise:.2f}" if s.noise is not None else "-")
+            print(f"  {s.name:<16} {s.mean:>6.2f}  {noise:>7}  {', '.join('-' if v is None else f'{v:.2f}' for v in s.values)}")
+            if args.min_pass_rate is not None and s.data_type == "boolean" and s.mean is not None and s.mean < args.min_pass_rate:
+                below = True
+        return 1 if below else 0
     for s in result.summary():
         value = s.pass_rate if s.pass_rate is not None else s.average
         print(f"  {s.name:<16} {value:.2f}  (n={s.count})" if value is not None else f"  {s.name:<16} -  (n={s.count})")

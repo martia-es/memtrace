@@ -40,6 +40,9 @@ jobs:
       # EVAL_MOCK=true (repo variable): no LLM, the task answers what the dataset expects, so every evaluator passes.
       # Useful to try the deploy gate without Gemini quota; needs no GOOGLE_API_KEY.
       EVAL_MOCK: ${{ vars.EVAL_MOCK }}
+      # EVAL_REPEATS (repo variable, 1-10, default 1): ejecuta la evaluación N veces en la misma llamada para medir su ruido (ADR-097).
+      # Multiplica el tiempo y los tokens por N; el gate de despliegue juzga cada ejecución como un run.
+      EVAL_REPEATS: ${{ vars.EVAL_REPEATS }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -54,4 +57,4 @@ jobs:
         run: |
           MOCK=""
           if [ "$EVAL_MOCK" = "true" ]; then MOCK="--mock"; fi
-          uv run python evals/run_eval.py $MOCK --name "${MEMTRACE_GIT_SHA::7}" --dataset-id "$MEMTRACE_DATASET_ID" --min-pass-rate 0.8
+          uv run python evals/run_eval.py $MOCK --repeats "${EVAL_REPEATS:-1}" --name "${MEMTRACE_GIT_SHA::7}" --dataset-id "$MEMTRACE_DATASET_ID" --min-pass-rate 0.8
