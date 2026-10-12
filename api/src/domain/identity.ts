@@ -227,6 +227,15 @@ export interface DatasetRun {
   revision: string | null;
   /** el árbol tenía cambios sin commitear; null = no se sabe (el commit vino del CI) */
   revisionDirty: boolean | null;
+  /** ejecución repetida de un run (ADR-097); null = una sola ejecución */
+  runGroup: RunGroup | null;
+}
+
+/** Ejecución `index` (1..total) de un run lanzado con `repeats=total` (ADR-097). Todas comparten `id`. */
+export interface RunGroup {
+  id: string;
+  index: number;
+  total: number;
 }
 
 /** Commit evaluado, tal como lo manda el SDK al abrir un run. */

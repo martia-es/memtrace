@@ -62,7 +62,7 @@ describe("http scenarios", () => {
           item: { input: i.input, expectedOutput: i.expectedOutput }, output: i.output, traceId: i.traceId,
           scores: i.scores.map((s: any) => ({ name: s.name, value: s.value, dataType: s.dataType })),
         }));
-        await new MemTraceResultsSink(call.datasetId, http).save(new ExperimentResult(call.runName, items, call.datasetVersion));
+        await new MemTraceResultsSink(call.datasetId, http).save(new ExperimentResult(call.runName, items, call.datasetVersion, call.repeat));
       } else {
         const fetched = await new HttpPromptClient(http).fetch(call.name, call.tag, call.version, call.etag ?? null);
         result = fetched && { version: fetched.version.version, content: fetched.version.content, variables: fetched.version.variables, etag: fetched.etag };

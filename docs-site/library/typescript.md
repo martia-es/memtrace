@@ -57,6 +57,7 @@ These behave as described in [User feedback](./feedback), [Prompts](./prompts) a
 - Evaluators and the judges receive one object (`{ input, output, expectedOutput, metadata }`). A judge takes **your** model through an
   `LLMClient` (`complete({ system, prompt, model? })`); there is no default provider.
 - To let MemTrace's [playground](./prompts) try a version in the real agent, mount `prompts.promptOverrideMiddleware()` after your body parser.
+- `runExperiment({ ..., repeats: 3 })` runs the experiment three times in one call and returns a `RepeatedExperimentResult` (`executions`, and `summary()` with each evaluator's `values`, `mean` and `noise`). See [Measure the noise of an evaluation](./evaluation).
 - There is no OTLP/gRPC, which the platform does not accept anyway.
 
 ## Personal data

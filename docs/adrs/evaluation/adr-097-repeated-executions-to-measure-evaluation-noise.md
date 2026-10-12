@@ -58,6 +58,15 @@ For each (dataset version, evaluator, judge) in a group of N ≥ 2 executions:
 * Making the PR gate depend on the verdict (compare against `main`, backlog F5): this ADR provides the number; changing the gate's contract is its own decision.
 * Statistical tests beyond the rule of section 3, and parallel execution of repetitions.
 
+### Update (step 1, SDK and storage implemented)
+
+* `repeats` is in `run_experiment` (Python) and `runExperiment` (TypeScript). The dataset is read once and the executions run sequentially in one call; `repeats` outside 1-10 is rejected.
+* The return type depends on `repeats`: `ExperimentResult` for 1, `RepeatedExperimentResult` (`executions`, `summary()` with `values`, `mean`, `noise`) for 2-10. In TypeScript the overloads follow the literal value of `repeats`.
+* The API accepts `runGroup: {id, index, total}` when a run is opened (migration `049_run_group.sql`: `run_group_id`, `repeat_index`, `repeat_total`, with a check that all three are set or none, and a unique index on (group, index)) and returns it on every run summary.
+* A custom Python `IncrementalResultsSink` that does not accept `repeat=` in `start()` is refused up front when `repeats > 1`. TypeScript cannot inspect a destructured parameter, so a sink that ignores `repeat` simply does not group the executions.
+* The shared conformance scenario `eval-run-repeat.json` pins the request both SDKs send.
+* Not yet done: the dashboard grouping, the noise and the verdict (step 2).
+
 ## Alternatives Considered
 
 | Alternative | Why not |

@@ -56,6 +56,9 @@ Change a scenario only when the contract changes (update the ADR in the same cha
 }
 ```
 
+`evalRun` takes an optional `repeat` (`groupId`, `index`, `total`): the execution of a run launched with `repeats=total`
+(ADR-097), which the sink sends as `runGroup: {id, index, total}` when opening the run and omits otherwise.
+
 `json` is compared **exactly** (an unset optional field must be omitted, `null` must be sent as `null`); `query` and `headers`
 only check the listed keys; header names are case-insensitive.
 

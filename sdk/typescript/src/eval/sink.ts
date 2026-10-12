@@ -1,6 +1,6 @@
 import { HttpClient, type HttpOptions } from "../http/client.js";
 import { resolveRevision } from "../config.js";
-import type { EvalItemResult, ExperimentResult, IncrementalResultsSink, Score } from "./types.js";
+import type { EvalItemResult, ExperimentResult, IncrementalResultsSink, RunRepeat, Score } from "./types.js";
 
 const VERSION = /^\d+\.\d+$/;
 const MAX_BATCH = 1000; // the API caps a batch at 1000 items
@@ -49,7 +49,7 @@ export class MemTraceResultsSink implements IncrementalResultsSink {
     this.http = new HttpClient(options);
   }
 
-  async start({ name, datasetVersion }: { name: string; datasetVersion?: string }): Promise<void> {
+  async start({ name, datasetVersion, repeat }: { name: string; datasetVersion?: string; repeat?: RunRepeat }): Promise<void> {
     const version = this.version ?? datasetVersion;
     if (!version || !VERSION.test(version)) {
       throw new Error(
@@ -60,6 +60,7 @@ export class MemTraceResultsSink implements IncrementalResultsSink {
     this.version = version;
     this.pending = [];
     const body: Record<string, unknown> = { name, datasetVersion: version, complete: false, items: [] };
+    if (repeat) body.runGroup = { id: repeat.groupId, index: repeat.index, total: repeat.total }; // one of N executions of the same run (ADR-097)
     const { sha, dirty } = resolveRevision();
     if (sha) body.revision = { sha, dirty: dirty ?? null }; // the commit that was evaluated (ADR-065)
     const reply = await this.http.request("POST", `/datasets/${this.datasetId}/runs`, { json: body });
@@ -79,7 +80,7 @@ export class MemTraceResultsSink implements IncrementalResultsSink {
 
   /** One-shot upload of a finished result. */
   async save(result: ExperimentResult): Promise<void> {
-    await this.start({ name: result.name, datasetVersion: result.datasetVersion });
+    await this.start({ name: result.name, datasetVersion: result.datasetVersion, repeat: result.repeat });
     result.items.forEach((item, index) => this.pending.push({ itemIndex: index, ...serializeItem(item) }));
     await this.finish(result);
   }

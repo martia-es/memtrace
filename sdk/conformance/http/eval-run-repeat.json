@@ -1,0 +1,95 @@
+{
+  "description": "An execution of a run launched with repeats=3 opens its run inside the group (id, index, total) so the dashboard can tell which executions belong together (ADR-097).",
+  "env": {
+    "MEMTRACE_GIT_SHA": "0123456789abcdef0123456789abcdef01234567"
+  },
+  "baseUrl": "http://memtrace.test",
+  "apiKey": "mtk_x",
+  "call": {
+    "op": "evalRun",
+    "datasetId": "ds-1",
+    "runName": "my-run",
+    "datasetVersion": "1.0",
+    "items": [
+      {
+        "input": "q0",
+        "expectedOutput": "4",
+        "output": "4",
+        "traceId": "abc",
+        "scores": [
+          {
+            "name": "exact_match",
+            "value": true,
+            "dataType": "boolean"
+          }
+        ]
+      }
+    ],
+    "repeat": {
+      "groupId": "7d9f6c44-0f5a-4d6e-9d0e-2d1c5a2b9e11",
+      "index": 2,
+      "total": 3
+    }
+  },
+  "respond": {
+    "status": 201,
+    "json": {
+      "id": "run-1",
+      "status": "running"
+    }
+  },
+  "expect": {
+    "requests": [
+      {
+        "method": "POST",
+        "path": "/datasets/ds-1/runs",
+        "headers": {
+          "authorization": "Bearer mtk_x"
+        },
+        "json": {
+          "name": "my-run",
+          "datasetVersion": "1.0",
+          "complete": false,
+          "items": [],
+          "revision": {
+            "sha": "0123456789abcdef0123456789abcdef01234567",
+            "dirty": null
+          },
+          "runGroup": {
+            "id": "7d9f6c44-0f5a-4d6e-9d0e-2d1c5a2b9e11",
+            "index": 2,
+            "total": 3
+          }
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/datasets/ds-1/runs/run-1/items",
+        "json": {
+          "complete": true,
+          "items": [
+            {
+              "itemIndex": 0,
+              "input": "q0",
+              "expectedOutput": "4",
+              "output": "4",
+              "traceId": "abc",
+              "error": null,
+              "scores": [
+                {
+                  "name": "exact_match",
+                  "value": "true",
+                  "dataType": "boolean",
+                  "source": "code",
+                  "comment": null,
+                  "judgeModel": null,
+                  "judgePromptHash": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

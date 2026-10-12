@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  Faithfulness, MemTraceResultsSink, flush, ResultsUploadError, contains, evaluator, exactMatch, initTracer, recordRetrievedChunks, runExperiment,
+  ExperimentResult, Faithfulness, MemTraceResultsSink, RepeatedExperimentResult, flush, ResultsUploadError, contains, evaluator, exactMatch, initTracer, recordRetrievedChunks, runExperiment,
   shutdown, withStep, MRR, type IncrementalResultsSink,
 } from "../src/index.js";
 import { FixProposalError, suggestFix } from "../src/prompts/fix.js";
@@ -104,6 +104,60 @@ describe("runExperiment", () => {
     const error = await runExperiment({ data: [{ input: "a" }], task: agent, evaluators: [], name: "x", sink }).catch((e) => e);
     expect(error).toBeInstanceOf(ResultsUploadError);
     expect(error.result.items).toHaveLength(1);
+  });
+});
+
+describe("runExperiment repeats (ADR-097)", () => {
+  const rows = [{ input: "a", expectedOutput: "echo a" }, { input: "b", expectedOutput: "echo b" }];
+
+  it("defaults to one execution and returns a plain result", async () => {
+    const result = await runExperiment({ data: rows, task: agent, evaluators: [exactMatch], name: "once", sink: null });
+    expect(result).toBeInstanceOf(ExperimentResult);
+    expect(result.repeat).toBeUndefined();
+  });
+
+  it("runs the whole experiment N times, reading the data once, and groups the executions", async () => {
+    let fetches = 0;
+    const source = { fetch: () => { fetches++; return rows; } };
+    let calls = 0;
+    const result = await runExperiment({ data: source, task: (i) => { calls++; return agent(i); }, evaluators: [exactMatch], name: "noisy", sink: null, repeats: 3 });
+    expect(result).toBeInstanceOf(RepeatedExperimentResult);
+    expect(fetches).toBe(1);
+    expect(calls).toBe(3 * rows.length);
+    expect(result.executions.map((e) => e.repeat?.index)).toEqual([1, 2, 3]);
+    expect(new Set(result.executions.map((e) => e.repeat?.groupId)).size).toBe(1);
+    expect(new Set(result.executions.map((e) => e.repeat?.total))).toEqual(new Set([3]));
+  });
+
+  it("starts an incremental sink once per execution, with repeat only when there are several", async () => {
+    const starts: unknown[] = [];
+    const sink: IncrementalResultsSink = { start: (args) => { starts.push(args.repeat); }, add: () => {}, finish: () => {} };
+    await runExperiment({ data: rows, task: agent, evaluators: [], name: "g", sink, repeats: 2 });
+    expect(starts).toHaveLength(2);
+    expect(starts.map((r) => (r as { index: number }).index)).toEqual([1, 2]);
+    starts.length = 0;
+    await runExperiment({ data: rows, task: agent, evaluators: [], name: "g", sink });
+    expect(starts).toEqual([undefined]);
+  });
+
+  it.each([0, -1, 11, 2.5, Number.NaN])("rejects repeats=%s", async (bad) => {
+    await expect(runExperiment({ data: rows, task: agent, evaluators: [], name: "x", sink: null, repeats: bad })).rejects.toThrow("repeats");
+  });
+
+  it("summarises each evaluator's mean and noise across executions", async () => {
+    // execution 1: both right (1) · execution 2: one wrong (0.5) · execution 3: both right (1)
+    const outputs = ["echo a", "echo b", "wrong", "echo b", "echo a", "echo b"];
+    let n = 0;
+    const result = await runExperiment({ data: rows, task: () => outputs[n++], evaluators: [exactMatch], name: "n", sink: null, repeats: 3, maxWorkers: 1 });
+    const [summary] = result.summary();
+    expect(summary).toMatchObject({ name: "exact_match", values: [1, 0.5, 1] });
+    expect(summary!.mean).toBeCloseTo(5 / 6);
+    expect(summary!.noise).toBeCloseTo(0.28867513, 6);   // sample standard deviation of (1, .5, 1)
+  });
+
+  it("has no noise to report from a single execution", () => {
+    const one = new RepeatedExperimentResult("n", [new ExperimentResult("n", [{ item: { input: "a" }, scores: [{ name: "m", value: true, dataType: "boolean" }] }])]);
+    expect(one.summary()[0]!.noise).toBeUndefined();
   });
 });
 

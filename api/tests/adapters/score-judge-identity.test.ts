@@ -27,6 +27,17 @@ describe("judge identity on scores (ADR-043)", () => {
     expect(() => submitDatasetRunBody.parse({ ...body, revision: { sha: "not-a-sha" } })).toThrow();
   });
 
+  it("accepts which execution of a repeated run this is and defaults it to null (ADR-097)", () => {
+    const body = { name: "r", datasetVersion: "1.0", items: [{ input: "q", scores: [] }] };
+    const group = { id: "7d9f6c44-0f5a-4d6e-9d0e-2d1c5a2b9e11", index: 2, total: 3 };
+    expect(submitDatasetRunBody.parse(body).runGroup).toBeNull();
+    expect(submitDatasetRunBody.parse({ ...body, runGroup: group }).runGroup).toEqual(group);
+    expect(() => submitDatasetRunBody.parse({ ...body, runGroup: { ...group, total: 1 } })).toThrow();   // un grupo tiene al menos 2
+    expect(() => submitDatasetRunBody.parse({ ...body, runGroup: { ...group, total: 11 } })).toThrow();  // y como mucho 10
+    expect(() => submitDatasetRunBody.parse({ ...body, runGroup: { ...group, index: 4 } })).toThrow();   // index <= total
+    expect(() => submitDatasetRunBody.parse({ ...body, runGroup: { ...group, id: "not-a-uuid" } })).toThrow();
+  });
+
   it("writes JudgeModel/JudgePromptHash and the typed ValueNum on eval_scores, and the item text once on eval_items", async () => {
     const inserted: Record<string, Array<Record<string, unknown>>> = {};
     const writeClient = { insert: async (args: { table: string; values: Array<Record<string, unknown>> }) => void (inserted[args.table] = args.values) } as unknown as ClickHouseClient;

@@ -630,6 +630,8 @@ export interface DatasetRunSummaryDto {
   revision: string | null;
   /** el árbol tenía cambios sin commitear; null = no se sabe */
   revisionDirty: boolean | null;
+  /** ejecución `index` de `total` de un run con repeticiones (ADR-097); null = una sola ejecución */
+  runGroup: { id: string; index: number; total: number } | null;
   aggregates: ScoreAggregateDto[];
 }
 

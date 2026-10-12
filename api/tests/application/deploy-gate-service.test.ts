@@ -11,7 +11,7 @@ import type { ScoreConfig } from "@/domain/score-config";
 const SHA = "3a08213f9b1c2d4e5f60718293a4b5c6d7e8f901";
 const run = (over: Partial<DatasetRunWithDataset> = {}): DatasetRunWithDataset => ({
   id: "r1", datasetId: "d1", datasetVersionId: "v1", versionMajor: 1, versionMinor: 0, name: "weather", itemCount: 5, status: "completed",
-  createdAt: "2026-10-07T10:00:00Z", revision: SHA, revisionDirty: null, datasetName: "D", ...over,
+  createdAt: "2026-10-07T10:00:00Z", revision: SHA, revisionDirty: null, runGroup: null, datasetName: "D", ...over,
 });
 const aggregate = (over: Partial<ScoreAggregate> = {}): ScoreAggregate => ({ datasetRunId: "r1", name: "exact_match", dataType: "boolean", passRate: 0.9, average: null, count: 5, judges: [], ...over });
 

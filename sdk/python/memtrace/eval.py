@@ -41,7 +41,16 @@ from memtrace.application.eval_ports import (
 from memtrace.application.experiment_runner import ResultsUploadError
 from memtrace.application.experiment_runner import run_experiment as _execute_experiment
 from memtrace.application.retrieval_metrics import MRR, HitRate, RecallAtK
-from memtrace.domain.evaluation import EvalItem, EvalItemResult, ExperimentResult, Score, ScoreSummary
+from memtrace.domain.evaluation import (
+    EvalItem,
+    EvalItemResult,
+    ExperimentResult,
+    RepeatedExperimentResult,
+    RepeatedScoreSummary,
+    RunRepeat,
+    Score,
+    ScoreSummary,
+)
 from memtrace.domain.model import StepType
 
 __all__ = [
@@ -61,6 +70,9 @@ __all__ = [
     "EvalItem",
     "EvalItemResult",
     "ExperimentResult",
+    "RepeatedExperimentResult",
+    "RepeatedScoreSummary",
+    "RunRepeat",
     "Score",
     "ScoreSummary",
 ]
@@ -96,8 +108,15 @@ def run_experiment(
     max_workers: int = 4,
     base_url: Optional[str] = None,
     api_key: Optional[str] = None,
-) -> ExperimentResult:
+    repeats: int = 1,
+) -> Union[ExperimentResult, RepeatedExperimentResult]:
     """Runs `task` against every item of `data` and scores each output with `evaluators`.
+
+    `repeats` (1-10, default 1): run the whole experiment that many times in this one call, under identical
+    conditions, to measure how much the result moves when nothing changes (the noise of the evaluation,
+    ADR-097). With the default you get an `ExperimentResult` as always; with `repeats=3` a
+    `RepeatedExperimentResult` (`.executions`, and `.summary()` with each evaluator's mean and noise). Each
+    execution is uploaded as its own run and the dashboard groups them. Costs `repeats` times the time and tokens.
 
     `data`: a dataset id (`str`, fetched from MemTrace's query API), a `pathlib.Path` to a local
     `.json`/`.jsonl` file, a `DatasetSource`, or a plain iterable of
@@ -139,6 +158,7 @@ def run_experiment(
         sink=resolved_sink,
         max_workers=max_workers,
         item_scope=_tracing_item_scope(),
+        repeats=repeats,
     )
 
 

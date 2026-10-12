@@ -15,7 +15,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 import memtrace
 from memtrace.adapters.outbound.http.eval_api_client import MemTraceResultsSink
 from memtrace.adapters.outbound.http.prompt_client import HttpPromptClient
-from memtrace.domain.evaluation import EvalItem, EvalItemResult, ExperimentResult, Score
+from memtrace.domain.evaluation import EvalItem, EvalItemResult, ExperimentResult, RunRepeat, Score
 
 ROOT = Path(__file__).resolve().parents[2] / "conformance"
 
@@ -146,8 +146,12 @@ def _call(call: Dict[str, Any], scenario: Dict[str, Any], transport) -> Any:
                 scores=[Score(name=s["name"], value=s["value"], data_type=s["dataType"]) for s in i.get("scores", [])])
             for i in call["items"]
         ]
+        repeat = call.get("repeat")
         MemTraceResultsSink(call["datasetId"], base_url=base, api_key=key, transport=transport).save(
-            ExperimentResult(name=call["runName"], items=items, dataset_version=call["datasetVersion"]))
+            ExperimentResult(
+                name=call["runName"], items=items, dataset_version=call["datasetVersion"],
+                repeat=RunRepeat(group_id=repeat["groupId"], index=repeat["index"], total=repeat["total"]) if repeat else None,
+            ))
         return None
     raise AssertionError(f"unknown call {op!r}")
 

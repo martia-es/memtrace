@@ -34,7 +34,7 @@ import type {
   FontPreset,
   User,
 } from "@/domain/identity";
-import { ASSISTANT_DISPLAY_MODES, type RunRevision } from "@/domain/identity";
+import { ASSISTANT_DISPLAY_MODES, type RunGroup, type RunRevision } from "@/domain/identity";
 
 const API_KEY_PREFIX = "mtk_";
 const RADIUS_PRESETS = new Set<RadiusPreset>(["sharp", "soft", "round"]);
@@ -1018,13 +1018,13 @@ export class PostgresIdentityRepository implements IdentityRepository {
     }
   }
 
-  async createDatasetRun(id: string, datasetId: string, datasetVersionId: string, name: string, itemCount: number, status: DatasetRunStatus, revision: RunRevision | null = null): Promise<DatasetRun> {
+  async createDatasetRun(id: string, datasetId: string, datasetVersionId: string, name: string, itemCount: number, status: DatasetRunStatus, revision: RunRevision | null = null, runGroup: RunGroup | null = null): Promise<DatasetRun> {
     const { rows } = await this.pool.query<DatasetRunRow>(
-      `INSERT INTO dataset_runs (id, dataset_id, dataset_version_id, name, item_count, status, revision, revision_dirty) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING dataset_runs.id, dataset_runs.dataset_id, dataset_runs.dataset_version_id, dataset_runs.name, dataset_runs.item_count, dataset_runs.status, dataset_runs.created_at, dataset_runs.revision, dataset_runs.revision_dirty,
+      `INSERT INTO dataset_runs (id, dataset_id, dataset_version_id, name, item_count, status, revision, revision_dirty, run_group_id, repeat_index, repeat_total) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING dataset_runs.id, dataset_runs.dataset_id, dataset_runs.dataset_version_id, dataset_runs.name, dataset_runs.item_count, dataset_runs.status, dataset_runs.created_at, dataset_runs.revision, dataset_runs.revision_dirty, dataset_runs.run_group_id, dataset_runs.repeat_index, dataset_runs.repeat_total,
                  (SELECT major FROM dataset_versions WHERE id = $3) AS major,
                  (SELECT minor FROM dataset_versions WHERE id = $3) AS minor`,
-      [id, datasetId, datasetVersionId, name, itemCount, status, revision?.sha ?? null, revision?.dirty ?? null],
+      [id, datasetId, datasetVersionId, name, itemCount, status, revision?.sha ?? null, revision?.dirty ?? null, runGroup?.id ?? null, runGroup?.index ?? null, runGroup?.total ?? null],
     );
     const row = rows[0];
     if (!row) throw new Error("failed to insert dataset run");
@@ -1041,7 +1041,7 @@ export class PostgresIdentityRepository implements IdentityRepository {
 
   async listDatasetRuns(datasetId: string): Promise<DatasetRun[]> {
     const { rows } = await this.pool.query<DatasetRunRow>(
-      `SELECT r.id, r.dataset_id, r.dataset_version_id, v.major, v.minor, r.name, r.item_count, r.status, r.created_at, r.revision, r.revision_dirty
+      `SELECT r.id, r.dataset_id, r.dataset_version_id, v.major, v.minor, r.name, r.item_count, r.status, r.created_at, r.revision, r.revision_dirty, r.run_group_id, r.repeat_index, r.repeat_total
          FROM dataset_runs r JOIN dataset_versions v ON v.id = r.dataset_version_id
         WHERE r.dataset_id = $1
         ORDER BY r.created_at DESC`,
@@ -1052,7 +1052,7 @@ export class PostgresIdentityRepository implements IdentityRepository {
 
   async getDatasetRun(runId: string): Promise<DatasetRun | null> {
     const { rows } = await this.pool.query<DatasetRunRow>(
-      `SELECT r.id, r.dataset_id, r.dataset_version_id, v.major, v.minor, r.name, r.item_count, r.status, r.created_at, r.revision, r.revision_dirty
+      `SELECT r.id, r.dataset_id, r.dataset_version_id, v.major, v.minor, r.name, r.item_count, r.status, r.created_at, r.revision, r.revision_dirty, r.run_group_id, r.repeat_index, r.repeat_total
          FROM dataset_runs r JOIN dataset_versions v ON v.id = r.dataset_version_id
         WHERE r.id = $1`,
       [runId],
@@ -1073,9 +1073,12 @@ export class PostgresIdentityRepository implements IdentityRepository {
       created_at: string;
       revision: string | null;
       revision_dirty: boolean | null;
+      run_group_id: string | null;
+      repeat_index: number | null;
+      repeat_total: number | null;
       dataset_name: string;
     }>(
-      `SELECT r.id, r.dataset_id, r.dataset_version_id, v.major, v.minor, r.name, r.item_count, r.status, r.created_at, r.revision, r.revision_dirty, d.name AS dataset_name
+      `SELECT r.id, r.dataset_id, r.dataset_version_id, v.major, v.minor, r.name, r.item_count, r.status, r.created_at, r.revision, r.revision_dirty, r.run_group_id, r.repeat_index, r.repeat_total, d.name AS dataset_name
          FROM dataset_runs r
          JOIN dataset_versions v ON v.id = r.dataset_version_id
          JOIN datasets d ON d.id = r.dataset_id
@@ -1177,6 +1180,9 @@ interface DatasetRunRow {
   created_at: string;
   revision: string | null;
   revision_dirty: boolean | null;
+  run_group_id: string | null;
+  repeat_index: number | null;
+  repeat_total: number | null;
 }
 
 function toDatasetRun(row: DatasetRunRow): DatasetRun {
@@ -1192,6 +1198,7 @@ function toDatasetRun(row: DatasetRunRow): DatasetRun {
     createdAt: row.created_at,
     revision: row.revision,
     revisionDirty: row.revision_dirty,
+    runGroup: row.run_group_id && row.repeat_index && row.repeat_total ? { id: row.run_group_id, index: row.repeat_index, total: row.repeat_total } : null,
   };
 }
 

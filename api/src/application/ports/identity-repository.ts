@@ -4,6 +4,7 @@ import type {
   Dataset,
   DatasetItem,
   DatasetRun,
+  RunGroup,
   RunRevision,
   DatasetRunStatus,
   DatasetRunWithDataset,
@@ -156,7 +157,7 @@ export interface IdentityRepository {
    * genera el caller (`EvaluationService`) para poder escribir en ClickHouse con el mismo id antes
    * de crear este registro, y así no dejar un `dataset_run` huérfano si ClickHouse falla.
    * `datasetVersionId` es la versión de la que salieron los items, que declara siempre el SDK (ADR-034). */
-  createDatasetRun(id: string, datasetId: string, datasetVersionId: string, name: string, itemCount: number, status: DatasetRunStatus, revision?: RunRevision | null): Promise<DatasetRun>;
+  createDatasetRun(id: string, datasetId: string, datasetVersionId: string, name: string, itemCount: number, status: DatasetRunStatus, revision?: RunRevision | null, runGroup?: RunGroup | null): Promise<DatasetRun>;
   /** Sube `itemCount` al tamaño total conocido del run (nunca lo reduce: un lote reenviado es idempotente)
    * y, si `completed`, lo marca como completado. Devuelve null si el run no existe. */
   updateDatasetRunProgress(runId: string, itemCount: number, completed: boolean): Promise<DatasetRun | null>;

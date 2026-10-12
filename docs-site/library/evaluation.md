@@ -276,6 +276,29 @@ for s in result.summary():      # one entry per evaluator
 
 `pass_rate` is the share of `True` for boolean evaluators, and `average` the mean for numeric ones. Categorical evaluators have neither.
 
+## Measure the noise of an evaluation
+
+An agent and an LLM judge are not deterministic: running the **same** code on the **same** dataset twice can give 70 % and then 75 %. Before you read a +5 between two runs as an improvement, you need to know how much the result moves when nothing changes. Ask for repetitions:
+
+```python
+result = run_experiment(
+    data="<dataset_id>", task=my_agent, evaluators=[exact_match], name="prompt-v7",
+    repeats=3,          # default 1: one execution, no extra cost
+)
+
+for s in result.summary():                       # one entry per boolean or numeric evaluator
+    print(s.name, s.values, s.mean, s.noise)     # e.g. exact_match (0.88, 0.92, 0.90) 0.90 0.02
+```
+
+With `repeats=3` the whole experiment runs three times, one after another, in the same call: same code, same dataset version, same evaluators. That is what makes the executions comparable: any difference between them is chance, not something you changed.
+
+- `repeats` goes from 1 to 10. It multiplies the time and the tokens by that number, so ask for it only when you want the measurement. With the default nothing changes.
+- You get a `RepeatedExperimentResult` instead of an `ExperimentResult`: `result.executions` holds one `ExperimentResult` per execution, and `result.summary()` gives each evaluator's value per execution (`values`), their `mean` and the `noise`.
+- `noise` is the standard deviation of the per-execution results. With two or three executions it is a rough estimate; more repeats make it steadier.
+- The dataset is read once, so every execution sees exactly the same items.
+- Uploaded to MemTrace, each execution is its own run, and they are linked by a shared group.
+- A custom `IncrementalResultsSink` used with `repeats > 1` must accept `repeat=` in `start()`; `run_experiment` refuses to start otherwise, before it spends any call.
+
 ## Latency, tokens and cost
 
 Call `memtrace.init_tracer()` before `run_experiment`. Every item then runs inside its own trace (an `eval.item` span), and the trace id is saved with the result. The platform reads latency, tokens and cost from that trace. Cost needs a model with a known price.

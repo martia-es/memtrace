@@ -62,8 +62,10 @@ class FakeDatasetSource:
 
     def __init__(self, items: Iterable[EvalItem]):
         self._items = list(items)
+        self.fetch_calls = 0
 
     def fetch(self) -> Iterable[EvalItem]:
+        self.fetch_calls += 1
         return list(self._items)
 
 
@@ -87,11 +89,12 @@ class FakeIncrementalSink:
         self.finished: Optional[ExperimentResult] = None
         self._fail = {"add": fail_add, "finish": fail_finish, "start": fail_start}
 
-    def start(self, *, name, dataset_version):
+    def start(self, *, name, dataset_version, repeat=None):
         if self._fail["start"]:
             raise RuntimeError("api down")
         self.events.append("start")
         self.started_with = (name, dataset_version)
+        self.repeats_seen = getattr(self, "repeats_seen", []) + [repeat]
 
     def add(self, index, item_result):
         self.events.append("add")
