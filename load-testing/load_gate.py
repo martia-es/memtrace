@@ -56,11 +56,11 @@ class Cluster:
         return self.kubectl("exec", "-i", "postgres-0", "--", "psql", "-U", "memtrace", "-d", "memtrace_identity",
                             "-At", "-v", "ON_ERROR_STOP=1", "-f", "-", input_text=sql)
 
-    def clickhouse(self, query):
+    def clickhouse(self, query, check=True):
         pw = sh("kubectl", "-n", self.ns, "get", "secret", "clickhouse-credentials", "-o", "jsonpath={.data.password}")
         pw = subprocess.run(["base64", "-d"], input=pw, capture_output=True, text=True).stdout
         return self.kubectl("exec", "clickhouse-0", "-c", "clickhouse", "--", "clickhouse-client", "--password", pw,
-                            "--query", query)
+                            "--query", query, check=check)
 
     def forward(self, target, local, remote):
         p = subprocess.Popen(["kubectl", "-n", self.ns, "port-forward", target, f"{local}:{remote}"],
@@ -162,7 +162,8 @@ async def send_load(creds, agents, rounds, burst_spans, api_port):
 def wait_for_spans(cl, service, expected, timeout):
     deadline, seen = time.time() + timeout, 0
     while time.time() < deadline:
-        seen = int(cl.clickhouse(f"SELECT count() FROM memtrace.otel_traces WHERE ServiceName = '{service}'") or 0)
+        out = cl.clickhouse(f"SELECT count() FROM memtrace.otel_traces WHERE ServiceName = '{service}'", check=False)
+        seen = int(out) if out.isdigit() else 0   # ClickHouse caído: nada ha llegado
         if seen >= expected:
             break
         time.sleep(2)
@@ -215,7 +216,11 @@ def main():
         print(f"Carga: {a.agents} agentes × {a.rounds} rondas contra {a.namespace} (servicio {creds['service']})")
         expected, rejected, started = asyncio.run(send_load(creds, a.agents, a.rounds, a.burst_spans, API_PORT))
         seen, landed_at = wait_for_spans(cl, creds["service"], expected, a.wait)
-        p95, p50 = query_p95(creds, API_PORT, a.query_samples)
+        try:
+            p95, p50 = query_p95(creds, API_PORT, a.query_samples)
+        except Exception as e:   # la API no responde (p. ej. ClickHouse caído): cuenta como incumplimiento, no como fallo del script
+            print(f"La API de consulta falló: {e}")
+            p95 = p50 = 999999.0
         rss = collector_rss_mb(COLLECTOR_METRICS_PORT)
     finally:
         cl.close()

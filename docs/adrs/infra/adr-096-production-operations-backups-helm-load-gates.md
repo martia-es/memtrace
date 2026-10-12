@@ -63,7 +63,8 @@ The three needs are separate pieces of work, but they share one decision: what M
 - **No login needed**: the gate inserts a user (`technical` profile), organization, experiment, API key and an Auth.js session straight into Postgres and calls the query API with that session cookie. This is what makes it usable in CI. It is also a coupling: if the identity schema or the session cookie name change, the gate breaks and must follow.
 - **Loss is measured exactly**: a wrapper around the SDK's OTLP exporter counts the spans handed to it; the gate then counts rows in ClickHouse for that run's unique service name. Ingest rate comes from a pause-free burst, because the simulated agents sleep and would measure themselves.
 - **Collector memory** is read from its own metrics (`otelcol_process_memory_rss` on :8888) because kind has no metrics-server.
-- **Thresholds are provisional.** They are set at roughly a third of the local baseline for throughput and with generous ceilings for latency and memory (`load-testing/thresholds.json`), measured on a laptop only. They must be revisited after the first nightly runs on GitHub-hosted runners, whose numbers are unknown.
+- **Thresholds are provisional.** They are set well below the local baseline (1,000-6,000 spans/s; the spread comes from polling ClickHouse every few seconds, so the figure is a floor) and with generous ceilings for latency and memory (`load-testing/thresholds.json`), measured on a laptop only. They must be revisited after the first nightly runs on GitHub-hosted runners, whose numbers are unknown.
+- **Verified to fail**: with ClickHouse scaled to zero the gate reports 225 lost spans, a failing ingest rate and a failing query check, and exits 1; with strict thresholds it fails on each one.
 - Runs by `workflow_dispatch` and nightly (`load-gate.yml`), as decided; `make load-gate` runs it against any cluster.
 
 ## Alternatives Considered

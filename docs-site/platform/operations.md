@@ -169,11 +169,11 @@ It needs `kubectl` access and the Python SDK (`pip install -e sdk/python`). It c
 | What it measures | How | Default limit |
 |---|---|---|
 | **Lost spans** | Spans the SDK sent minus spans found in ClickHouse after up to 90 s | 0 |
-| **Ingest rate** | A burst of 3,000 spans with no pauses, until every one is stored | at least 300 spans/s |
+| **Ingest rate** | A burst of 3,000 spans with no pauses, until every one is stored. It is checked every few seconds, so treat it as a floor, not a precise speed | at least 300 spans/s |
 | **Query speed** | p95 of the Overview endpoint over 40 calls | at most 500 ms |
 | **Collector memory** | Resident memory of the Collector after the run | at most 600 MB |
 
-The limits live in `load-testing/thresholds.json`. They were set with a wide margin over a laptop run (about 1,100 spans/s, 30-45 ms, 170 MB), so they catch a real regression and not a slow machine. Tighten them once you know your cluster's normal numbers, or pass `--thresholds my-limits.json`.
+The limits live in `load-testing/thresholds.json`. They were set with a wide margin over a laptop run (1,000 to 6,000 spans/s depending on the run, 30-45 ms, 140-170 MB), so they catch a real regression and not a slow machine. Tighten them once you know your cluster's normal numbers, or pass `--thresholds my-limits.json`.
 
 Useful options:
 
