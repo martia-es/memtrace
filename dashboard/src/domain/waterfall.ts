@@ -1,4 +1,5 @@
 import type { SpanNodeDto } from "@contract";
+import { matchesFilter, type SpanFilter } from "./trace-summary";
 
 export interface WaterfallRow {
   node: SpanNodeDto;
@@ -12,14 +13,25 @@ export interface WaterfallRow {
 
 const MIN_BAR_PCT = 0.4;
 
-/** Aplana el árbol en filas de la cascada (recorrido en profundidad, iterativo). */
-export function buildRows(roots: SpanNodeDto[], totalMs: number, collapsed: ReadonlySet<string>): WaterfallRow[] {
+/**
+ * Aplana el árbol en filas de la cascada (recorrido en profundidad, iterativo). Con un `filter` distinto de `all` la
+ * cascada pasa a ser una lista plana de los spans que lo cumplen, en el orden de la traza.
+ */
+export function buildRows(roots: SpanNodeDto[], totalMs: number, collapsed: ReadonlySet<string>, filter: SpanFilter = "all"): WaterfallRow[] {
   const total = totalMs > 0 ? totalMs : 1;
   const rows: WaterfallRow[] = [];
   const stack: { node: SpanNodeDto; depth: number }[] = [...roots].reverse().map((node) => ({ node, depth: 0 }));
+  const flat = filter !== "all";
 
   while (stack.length > 0) {
     const { node, depth } = stack.pop()!;
+    if (flat) {
+      for (let i = node.children.length - 1; i >= 0; i--) stack.push({ node: node.children[i]!, depth: 0 });
+      if (!matchesFilter(node, filter)) continue;
+      const left = clamp((node.offsetMs / total) * 100, 0, 100 - MIN_BAR_PCT);
+      rows.push({ node, depth: 0, hasChildren: false, collapsed: false, leftPct: left, widthPct: clamp((node.durationMs / total) * 100, MIN_BAR_PCT, 100 - left) });
+      continue;
+    }
     const isCollapsed = collapsed.has(node.spanId);
     const leftPct = clamp((node.offsetMs / total) * 100, 0, 100 - MIN_BAR_PCT);
     const widthPct = clamp((node.durationMs / total) * 100, MIN_BAR_PCT, 100 - leftPct);
@@ -77,7 +89,8 @@ export function ancestorIds(roots: SpanNodeDto[], spanId: string): string[] {
     }
   }
   const chain: string[] = [];
-  for (let id = parentOf.get(spanId); id !== undefined; id = parentOf.get(id)) chain.push(id);
+  // a corrupt trace can repeat a span id: stop at the first repeat instead of walking a cycle forever
+  for (let id = parentOf.get(spanId); id !== undefined && !chain.includes(id); id = parentOf.get(id)) chain.push(id);
   return chain;
 }
 

@@ -3,17 +3,45 @@ import type { SpanNodeDto } from "@contract";
 import { computed, ref, watch } from "vue";
 import { formatCostUsd, formatDuration } from "@/domain/format";
 import { kindMeta } from "@/domain/meta";
-import { axisTicks, buildRows, parentIds } from "@/domain/waterfall";
+import { guardrailGroups, type SpanFilter } from "@/domain/trace-summary";
+import { ancestorIds, axisTicks, buildRows, parentIds } from "@/domain/waterfall";
+import Pill from "./Pill.vue";
 
-const props = defineProps<{ roots: SpanNodeDto[]; totalMs: number; selectedId: string | null }>();
+const props = withDefaults(
+  defineProps<{
+    roots: SpanNodeDto[];
+    totalMs: number;
+    selectedId: string | null;
+    filter?: SpanFilter;
+    /** fold the guardrail checks of each guardrail step into one row (they stay one click away) */
+    groupGuardrails?: boolean;
+    /** the span to flag as the slowest step */
+    slowestId?: string | null;
+  }>(),
+  { filter: "all", groupGuardrails: true, slowestId: null },
+);
 defineEmits<{ select: [spanId: string] }>();
 
 const INDENT = 16;
-const collapsed = ref<Set<string>>(new Set());
-// a new trace starts expanded
-watch(() => props.roots, () => (collapsed.value = new Set()));
+const groups = computed(() => guardrailGroups(props.roots));
+// a group is folded unless a check failed or the selected span is inside it
+const foldedGroups = (): Set<string> => {
+  const keep = new Set(props.selectedId ? ancestorIds(props.roots, props.selectedId) : []);
+  return new Set([...groups.value].filter(([id, g]) => g.failed === 0 && !keep.has(id)).map(([id]) => id));
+};
+const collapsed = ref<Set<string>>(props.groupGuardrails ? foldedGroups() : new Set());
+// a new trace starts expanded, with the guardrail checks folded
+watch(() => props.roots, () => (collapsed.value = props.groupGuardrails ? foldedGroups() : new Set()));
+watch(
+  () => props.groupGuardrails,
+  (on) => {
+    const next = new Set(collapsed.value);
+    for (const id of groups.value.keys()) (on ? next.add(id) : next.delete(id));
+    collapsed.value = next;
+  },
+);
 
-const rows = computed(() => buildRows(props.roots, props.totalMs, collapsed.value));
+const rows = computed(() => buildRows(props.roots, props.totalMs, collapsed.value, props.filter));
 const ticks = computed(() => axisTicks(props.totalMs, 4));
 const toggle = (spanId: string) => {
   const next = new Set(collapsed.value);
@@ -73,6 +101,8 @@ defineExpose({ collapseAll: () => (collapsed.value = new Set(parentIds(props.roo
             <span class="name mono" :class="{ err: r.node.status.code === 'error' }" :title="r.node.name">{{ r.node.name }}</span>
             <span v-if="subLabel(r.node)" class="sub muted">{{ subLabel(r.node) }}</span>
           </span>
+          <Pill v-if="r.collapsed && groups.get(r.node.spanId)" tone="ok" class="tag" data-testid="guardrail-group">{{ groups.get(r.node.spanId)!.total }} checks passed</Pill>
+          <Pill v-if="r.node.spanId === slowestId" tone="warn" class="tag" data-testid="slowest-tag">Slowest</Pill>
         </span>
         <span class="track" :title="`${formatDuration(r.node.offsetMs)} → ${formatDuration(r.node.offsetMs + r.node.durationMs)}`">
           <span v-for="t in ticks" :key="t.pct" class="grid" :style="{ left: `${t.pct}%` }" />
@@ -227,6 +257,9 @@ defineExpose({ collapseAll: () => (collapsed.value = new Set(parentIds(props.roo
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.tag {
+  flex: none;
 }
 .name.err,
 .dur.err {

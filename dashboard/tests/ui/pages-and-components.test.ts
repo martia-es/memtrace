@@ -248,6 +248,36 @@ describe("TraceDetailPage", () => {
     expect(inspector).toContain("TimeoutError: 30000 ms"); // el error encabeza la salida
   });
 
+  it("summarises the technical trace and filters the waterfall by kind", async () => {
+    const { wrapper } = await open();
+    const overview = wrapper.get('[data-testid="trace-overview"]').text();
+    expect(overview).toContain("Model calls");
+    expect(overview).toContain("Slowest step");
+    expect(wrapper.findAll('[role="treeitem"]')).toHaveLength(3);
+    await wrapper.get('[data-testid="filter-error"]').trigger("click");
+    expect(wrapper.findAll('[role="treeitem"]').map((r) => r.text())).toEqual([expect.stringContaining("tool.add_baggage")]);
+  });
+
+  it("shows how the reply was built between the last user message and the reply, linking each step to the trace", async () => {
+    const { wrapper, router } = await open(`/traces/${T}?tab=conversation`);
+    const steps = wrapper.findAll('[data-testid="conversation-step"]');
+    expect(steps.map((s) => s.classes().find((c) => c.startsWith("kind-")))).toEqual(["kind-reply", "kind-tool"]);
+    const text = wrapper.get('[data-testid="thread"]').text();
+    expect(text.indexOf("Reserva mi vuelo")).toBeLessThan(text.indexOf("How the answer was built"));
+    expect(text).toContain("TimeoutError: 30000 ms");
+
+    await wrapper.get('[data-testid="open-in-trace"]').trigger("click");
+    await flushPromises();
+    expect(router.currentRoute.value.query).toMatchObject({ span: "c2" });
+    expect(router.currentRoute.value.query.tab).toBeUndefined();
+  });
+
+  it("does not offer the link to the technical trace to a business profile", async () => {
+    const { wrapper } = await open(`/traces/${T}`, () => {}, "business");
+    expect(wrapper.find('[data-testid="conversation-step"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="open-in-trace"]').exists()).toBe(false);
+  });
+
   it("reads the conversation like a chat on its own tab, keeping the technical trace as the default", async () => {
     const { wrapper, router } = await open();
     expect(wrapper.find('[data-testid="thread"]').exists()).toBe(false);

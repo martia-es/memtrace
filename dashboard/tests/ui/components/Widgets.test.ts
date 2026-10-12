@@ -125,7 +125,7 @@ describe("raw <button> elements", () => {
     // disparadores de menú o de popover con aspecto propio
     "ExperimentSelect.vue", "FilterBar.vue", "FilterPill.vue", "LiveControl.vue", "UserMenu.vue",
     // filas y tarjetas pulsables (la fila entera es el botón)
-    "ConversationTree.vue", "ErrorOverviewCard.vue", "SpanTree.vue", "TraceTimeline.vue", "OfflineTrendView.vue", "MetricsPage.vue",
+    "ConversationTree.vue", "ConversationSteps.vue", "TraceOverviewBar.vue", "ErrorOverviewCard.vue", "SpanTree.vue", "TraceTimeline.vue", "OfflineTrendView.vue", "MetricsPage.vue",
     "CustomChartsPanel.vue", "DatasetsPage.vue", "PromptFixFromFailure.vue", "PromptFragmentPicker.vue", "PromptDetailPage.vue", "PromptVersionList.vue",
     // controles específicos: cabecera ordenable, respuestas con atajo de teclado, filtro quitable, selector de modo del chat, botones de proveedor OAuth, maqueta
     "ModelPricingPage.vue", "AnnotationQueueReviewPage.vue", "ConversationsPage.vue", "AssistantModeSwitch.vue", "AssistantChatDock.vue", "LoginPage.vue", "OrganizationAppearance.vue",

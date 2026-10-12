@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import type { IoBlock } from "@/domain/span-io";
+import { structuredRows } from "@/domain/structured-view";
 import MessageBlock from "./MessageBlock.vue";
+import StructuredData from "./StructuredData.vue";
 import SegmentedControl from "./SegmentedControl.vue";
 import Pill from "./Pill.vue";
 import Button from "./Button.vue";
@@ -16,6 +18,8 @@ const props = defineProps<{
   emptyHint: string;
 }>();
 
+// tool arguments and results (JSON objects) read as a table; chat messages keep their own rendering
+const tableOf = (b: IoBlock) => (b.structured && (b.role === "other" || b.role === "tool") ? structuredRows(b.text) : null);
 const mode = ref<"text" | "json">("text");
 const MODE_OPTIONS = [{ value: "text", label: "Text" }, { value: "json", label: "JSON" }];
 const collapsed = ref(false);
@@ -52,7 +56,10 @@ async function copy() {
       <p v-if="blocks.length === 0" class="empty">{{ emptyHint }}</p>
       <pre v-else-if="mode === 'json'" class="block mono json">{{ json }}</pre>
       <template v-else>
-        <MessageBlock v-for="(b, i) in blocks" :key="i" :block="b" />
+        <template v-for="(b, i) in blocks" :key="i">
+          <StructuredData v-if="tableOf(b)" :rows="tableOf(b)!" />
+          <MessageBlock v-else :block="b" />
+        </template>
       </template>
     </div>
   </section>

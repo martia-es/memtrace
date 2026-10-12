@@ -1,16 +1,20 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import type { Turn } from "@/domain/review-thread";
 
 /**
  * A conversation read like a chat (ADR-048): the user on the right, the assistant on the left, tool calls as quiet
  * one-liners and tool data folded away. `answerLabel` names the reply the viewer is looking at, when there is one.
+ * The `steps` slot goes right after the user's last message, where the assistant started working on the reply.
  */
-defineProps<{ turns: Turn[]; answerLabel?: string }>();
+const props = defineProps<{ turns: Turn[]; answerLabel?: string }>();
+const stepsAt = computed(() => props.turns.map((t) => t.kind).lastIndexOf("user") + 1);
 </script>
 
 <template>
   <div class="thread" data-testid="thread">
     <template v-for="(turn, i) in turns" :key="i">
+      <slot v-if="i === stepsAt" name="steps" />
       <div v-if="turn.kind === 'user'" class="turn user">
         <span class="who">User</span>
         <p>{{ turn.text }}</p>
@@ -36,6 +40,7 @@ defineProps<{ turns: Turn[]; answerLabel?: string }>();
         <p>{{ turn.text }}</p>
       </div>
     </template>
+    <slot v-if="stepsAt >= turns.length" name="steps" />
     <slot />
   </div>
 </template>
