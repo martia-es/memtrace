@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { buildOfflineSeries, judgeChangeNotices, offlineAttention, offlineVerdict, passFailChartOption, selectOfflineRuns, summarizeEvaluators } from "@/ui/offline-eval-chart-option";
 
 function run(id: string, createdAt: string, over: Partial<RunListItemDto> = {}): RunListItemDto {
-  return { id, name: id, versionMajor: 1, versionMinor: 0, itemCount: 2, status: "completed", createdAt, revision: null, revisionDirty: null, aggregates: [], datasetId: "d1", datasetName: "D1", ...over };
+  return { id, name: id, versionMajor: 1, versionMinor: 0, itemCount: 2, status: "completed", createdAt, revision: null, revisionDirty: null, runGroup: null, aggregates: [], datasetId: "d1", datasetName: "D1", ...over };
 }
 const range = { from: "2026-01-01T00:00:00Z", to: "2026-12-31T00:00:00Z" };
 

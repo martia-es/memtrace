@@ -20,6 +20,7 @@ import { UserFeedbackService } from "@/application/user-feedback-service";
 import { ClickHouseUserFeedbackRepository } from "@/adapters/outbound/clickhouse/clickhouse-user-feedback-repository";
 import { DatasetPromotionService } from "@/application/dataset-promotion-service";
 import { EvaluationService } from "@/application/evaluation-service";
+import { EvaluationNoiseService } from "@/application/evaluation-noise-service";
 import { ExternalAccessService } from "@/application/external-access-service";
 import { AuditService } from "@/application/audit-service";
 import { PartnershipService } from "@/application/partnership-service";
@@ -74,6 +75,7 @@ const globalForContainer = globalThis as unknown as {
   __memtracePartnerships?: PartnershipService;
   __memtraceExternalAccess?: { externalRepository: ExternalIdentityRepository; externalAccessService: ExternalAccessService };
   __memtraceEvaluation?: EvaluationService;
+  __memtraceEvaluationNoise?: EvaluationNoiseService;
   __memtraceScoreRepository?: ClickHouseScoreRepository;
   __memtracePostgresPool?: Pool;
   __memtraceAnnotation?: AnnotationService;
@@ -180,6 +182,14 @@ export function getEvaluation(): EvaluationService {
     globalForContainer.__memtraceEvaluation = new EvaluationService(getIdentity().identityRepository, getScoreRepository());
   }
   return globalForContainer.__memtraceEvaluation;
+}
+
+/** Ruido de las evaluaciones y comparación de runs contra él (ADR-097). Solo lee. */
+export function getEvaluationNoise(): EvaluationNoiseService {
+  if (!globalForContainer.__memtraceEvaluationNoise) {
+    globalForContainer.__memtraceEvaluationNoise = new EvaluationNoiseService(getIdentity().identityRepository, getScoreRepository());
+  }
+  return globalForContainer.__memtraceEvaluationNoise;
 }
 
 /** Para leer scores directamente (detalle de una ejecución) sin pasar por `EvaluationService`, que solo expone el caso de uso de escritura. */

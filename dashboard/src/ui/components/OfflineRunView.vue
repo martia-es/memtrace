@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { DatasetRunItemResultDto, RunListItemDto } from "@contract";
-import { computed, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { aggregateTone, aggregateValueLabel } from "@/domain/evaluation";
 import { formatDuration, formatDateTime } from "@/domain/format";
@@ -13,6 +13,8 @@ import KpiCard from "./KpiCard.vue";
 import Select from "./Select.vue";
 import Button from "./Button.vue";
 import Pill from "./Pill.vue";
+import RunVariability from "./RunVariability.vue";
+import TabBar from "./TabBar.vue";
 import DataTable from "./DataTable.vue";
 import Card from "./Card.vue";
 
@@ -24,6 +26,10 @@ const router = useRouter();
 
 const runOptions = computed(() => [...props.runs].reverse().map((r) => ({ label: `${offlineRunLabel(r)} · ${formatDateTime(r.createdAt)}`, value: r.id })));
 const current = computed(() => props.runs.find((r) => r.id === props.runId) ?? props.runs[props.runs.length - 1] ?? null);
+
+const section = ref<"summary" | "variability">("summary");
+const repeated = computed(() => (current.value as { executions?: number } | null)?.executions ?? 1);
+const sectionTabs = computed(() => [{ id: "summary", label: "Summary" }, { id: "variability", label: "Variability", ...(repeated.value > 1 ? { count: repeated.value } : {}) }]);
 
 const detail = useAsync((signal) => api.getDatasetRun(current.value!.datasetId, current.value!.id, signal));
 const latency = computed(() => (detail.data.value ? summarizeTelemetry(detail.data.value.items) : null));
@@ -59,6 +65,11 @@ function openFull() {
 
     <p class="hint">{{ current.datasetName }} · dataset v{{ current.versionMajor }}.{{ current.versionMinor }} · {{ current.itemCount }} items · {{ formatDateTime(current.createdAt) }}</p>
 
+    <TabBar :tabs="sectionTabs" :model-value="section" @update:model-value="section = $event as 'summary' | 'variability'" />
+
+    <RunVariability v-if="section === 'variability'" :run-id="current.id" />
+
+    <template v-else>
     <ErrorBanner v-if="detail.error.value" :error="detail.error.value" @retry="detail.run()" />
 
     <div class="kpi-row">
@@ -96,6 +107,7 @@ function openFull() {
       </DataTable>
       <p v-if="problemItems.length > SHOWN" class="hint">Showing {{ SHOWN }}; open the full item list for the rest.</p>
     </Card>
+    </template>
   </div>
 </template>
 

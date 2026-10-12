@@ -649,6 +649,48 @@ export interface RunsListResponse {
   items: RunListItemDto[];
 }
 
+/** Ruido de una evaluación (ADR-097): lo que valió un evaluador en cada ejecución de un run con `repeats=N`. */
+export interface EvaluatorNoiseDto {
+  name: string;
+  dataType: "boolean" | "numeric";
+  /** tasa de acierto (booleano) o media (numérico) de cada ejecución; null si no la hubo */
+  values: Array<number | null>;
+  mean: number | null;
+  /** desviación típica entre ejecuciones; null con menos de dos. Aproximada con 2 o 3 */
+  noise: number | null;
+}
+
+export interface RunVariabilityResponse {
+  /** null = una sola ejecución (`repeats=1`) */
+  group: { id: string; total: number; completed: number } | null;
+  executions: Array<{ runId: string; index: number; status: "running" | "completed"; createdAt: string; aggregates: ScoreAggregateDto[] }>;
+  evaluators: EvaluatorNoiseDto[];
+  /** por evaluador: items cuyo resultado no es el mismo en todas las ejecuciones */
+  instability: Array<{ evaluator: string; unstable: number; total: number }>;
+  unstableItems: Array<{ itemIndex: number; input: unknown; evaluator: string; outcomes: Array<string | null> }>;
+}
+
+export type NoiseVerdictDto = "above" | "within" | "not_measured";
+
+export interface RunNoiseComparisonResponse {
+  baseline: { runId: string; executions: number };
+  candidate: { runId: string; executions: number };
+  evaluators: Array<{
+    name: string;
+    dataType: "boolean" | "numeric";
+    baseline: number | null;
+    candidate: number | null;
+    /** candidate - baseline; 0-1 para booleanos */
+    delta: number | null;
+    /** lo que la diferencia debe superar para no ser ruido; null si no se pudo medir */
+    margin: number | null;
+    noise: number | null;
+    verdict: NoiseVerdictDto;
+    /** por qué no hay veredicto */
+    reason: "no_repetitions" | "dataset_changed" | "judge_changed" | "no_values" | null;
+  }>;
+}
+
 /** Latencia, tokens y coste de un item, leídos de su traza al consultar (ADR-044); no se guardan con el item. */
 export interface ItemTelemetryDto {
   latencyMs: number;

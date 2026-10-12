@@ -43,7 +43,9 @@ import type {
   ModelPricingResponse,
   TraceAnnotationsResponse,
   OverviewResponse,
+  RunNoiseComparisonResponse,
   RunsListResponse,
+  RunVariabilityResponse,
   RevisionsResponse,
   ServicesResponse,
   SpanListResponse,
@@ -266,6 +268,10 @@ export interface TraceApi {
   listRuns(signal?: AbortSignal): Promise<RunsListResponse>;
   /** detalle de una ejecución: metadatos + items con sus scores */
   getDatasetRun(datasetId: string, runId: string, signal?: AbortSignal): Promise<DatasetRunDetailResponse>;
+  /** qué valió cada evaluador en cada ejecución de un run con `repeats=N`, cuánto varía y qué items cambian (ADR-097) */
+  getRunVariability(runId: string, signal?: AbortSignal): Promise<RunVariabilityResponse>;
+  /** compara dos runs evaluador a evaluador contra el ruido medido: por encima, dentro o sin medir (ADR-097) */
+  compareRunsNoise(baselineId: string, candidateId: string, signal?: AbortSignal): Promise<RunNoiseComparisonResponse>;
 }
 
 /** Error de la API (RFC 7807) o de conexión (`status === 0`). */
