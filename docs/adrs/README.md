@@ -70,6 +70,7 @@ Do **not** write one for a new screen, an endpoint that follows an existing patt
 | 094 | In-app Notification Feed Derived from Alert History | [observability/adr-094-in-app-notification-feed.md](observability/adr-094-in-app-notification-feed.md) |
 | 095 | Multi-Language SDK Contract: Python Is the Reference, a Shared Conformance Suite Keeps TypeScript Aligned | [sdk/adr-095-multi-language-sdk-contract.md](sdk/adr-095-multi-language-sdk-contract.md) |
 | 096 | Production Operations: Backups, Helm Chart and Load Gates | [infra/adr-096-production-operations-backups-helm-load-gates.md](infra/adr-096-production-operations-backups-helm-load-gates.md) |
+| 097 | Repeated Executions of a Run to Measure Evaluation Noise | [evaluation/adr-097-repeated-executions-to-measure-evaluation-noise.md](evaluation/adr-097-repeated-executions-to-measure-evaluation-noise.md) |
 
 ## Retired ADRs
 
