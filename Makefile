@@ -178,6 +178,9 @@ restore-test: ## Restaura la última copia de Postgres y de ClickHouse en bases 
 	@kubectl wait --for=condition=complete job/restore-test-ch -n $(NS) --timeout=900s || { kubectl logs job/restore-test-ch -n $(NS); exit 1; }
 	@kubectl logs job/restore-test-ch -n $(NS)
 
+load-gate: ## Puerta de rendimiento (ADR-096): manda carga al clúster y falla si se pierden spans o se superan los umbrales (load-testing/thresholds.json)
+	$(PYTHON) load-testing/load_gate.py --namespace $(NS)
+
 db-reset: ## BORRA las tablas de Postgres y ClickHouse (conserva el clúster) y relanza las migraciones (pide confirmación)
 	@read -p "Esto borra TODAS las tablas de Postgres y ClickHouse (trazas, datasets, usuarios...). ¿Seguro? [y/N] " ans; \
 	if [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]; then \

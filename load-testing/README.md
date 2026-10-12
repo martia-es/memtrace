@@ -1,5 +1,7 @@
 # Agent Load Testing
 
+> **Puerta de rendimiento (ADR-096)**: `make load-gate` (o `python3 load-testing/load_gate.py`) manda carga por la pasarela de ingesta con una API key propia, cuenta los spans perdidos y falla si se superan los umbrales de `thresholds.json`. Guía en [docs-site/platform/operations.md](../docs-site/platform/operations.md). Lo de abajo es el generador de carga manual original.
+
 Simula múltiples agentes de IA generando trazas reales en ClickHouse.
 
 ## Uso

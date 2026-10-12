@@ -1,6 +1,6 @@
-# Operations: install and backups
+# Operations: install, backups and performance
 
-How to install MemTrace on a real Kubernetes cluster, and how to keep its data safe and prove you can get it back.
+How to install MemTrace on a real Kubernetes cluster, how to keep its data safe and prove you can get it back, and how to check that it keeps up with your traffic.
 
 ## Install with Helm
 
@@ -155,3 +155,36 @@ Stop the Collector (`kubectl -n memtrace scale deployment/otel-collector --repli
 - **Backups protect against loss, not downtime.** Each database runs as a single instance. If it is down, MemTrace is down until it is back.
 - **Disk space.** Backups live in a 5 Gi volume by default. Resize the `backups` PersistentVolumeClaim if your traces are large.
 - **A failed backup is visible.** `kubectl -n memtrace get jobs` shows the last runs; a failed one keeps its logs (`kubectl -n memtrace logs job/<name>`).
+
+## Check performance (load gate)
+
+Before you trust a cluster with real traffic, or after changing its size, run the load gate. It sends traces the way a real agent does (SDK, then the API gateway, the Collector and ClickHouse), queries the API as a user would, and fails if something is below the bar.
+
+```bash
+make load-gate            # against the cluster `kubectl` points to, namespace memtrace
+```
+
+It needs `kubectl` access and the Python SDK (`pip install -e sdk/python`). It creates its own test user, organization, experiment and API key directly in Postgres, so it does not need a login and never touches your own data.
+
+| What it measures | How | Default limit |
+|---|---|---|
+| **Lost spans** | Spans the SDK sent minus spans found in ClickHouse after up to 90 s | 0 |
+| **Ingest rate** | A burst of 3,000 spans with no pauses, until every one is stored | at least 300 spans/s |
+| **Query speed** | p95 of the Overview endpoint over 40 calls | at most 500 ms |
+| **Collector memory** | Resident memory of the Collector after the run | at most 600 MB |
+
+The limits live in `load-testing/thresholds.json`. They were set with a wide margin over a laptop run (about 1,100 spans/s, 30-45 ms, 170 MB), so they catch a real regression and not a slow machine. Tighten them once you know your cluster's normal numbers, or pass `--thresholds my-limits.json`.
+
+Useful options:
+
+| Option | Use |
+|---|---|
+| `--agents 100 --rounds 10` | More simulated agents and rounds |
+| `--burst-spans 20000` | A bigger burst for the ingest rate |
+| `--report result.json` | Save the numbers as JSON |
+| `--no-fail` | Only measure, for setting your own limits |
+| `--cleanup` | Delete what earlier runs left (their organizations and traces) |
+
+Each run leaves an experiment called `Load gate <id>` and its traces. They show up in the organization list of the test user only, but run `--cleanup` when you are done.
+
+In GitHub, the same check runs every night and on demand (the **Load gate** workflow). It installs MemTrace with the Helm chart on a temporary cluster and keeps the report as an artifact.

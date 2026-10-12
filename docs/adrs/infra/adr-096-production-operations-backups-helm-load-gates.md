@@ -57,6 +57,15 @@ The three needs are separate pieces of work, but they share one decision: what M
 - Out of the chart on purpose: the `backfill-experiment-id` Job (one-off for data older than migration 013) and the `Namespace`.
 - Verified on kind: clean install, upgrade to revision 2 (passwords kept, new migration Jobs, old ones removed), backups and restore tests from the chart's own CronJobs.
 
+### Update (step 3, load gate implemented)
+
+- **`load-testing/load_gate.py` drives the existing simulated agents** (`agent_load_test.py`) but replaces its measurement: that script sent unauthenticated OTLP to the Collector, which ADR-090 closed, and never checked that anything arrived. The gate goes through the API ingest gateway with a real API key, so it also exercises ADR-085.
+- **No login needed**: the gate inserts a user (`technical` profile), organization, experiment, API key and an Auth.js session straight into Postgres and calls the query API with that session cookie. This is what makes it usable in CI. It is also a coupling: if the identity schema or the session cookie name change, the gate breaks and must follow.
+- **Loss is measured exactly**: a wrapper around the SDK's OTLP exporter counts the spans handed to it; the gate then counts rows in ClickHouse for that run's unique service name. Ingest rate comes from a pause-free burst, because the simulated agents sleep and would measure themselves.
+- **Collector memory** is read from its own metrics (`otelcol_process_memory_rss` on :8888) because kind has no metrics-server.
+- **Thresholds are provisional.** They are set at roughly a third of the local baseline for throughput and with generous ceilings for latency and memory (`load-testing/thresholds.json`), measured on a laptop only. They must be revisited after the first nightly runs on GitHub-hosted runners, whose numbers are unknown.
+- Runs by `workflow_dispatch` and nightly (`load-gate.yml`), as decided; `make load-gate` runs it against any cluster.
+
 ## Alternatives Considered
 
 | Decision | Alternative | Why not |
