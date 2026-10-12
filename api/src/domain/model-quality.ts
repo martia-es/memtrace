@@ -99,8 +99,11 @@ export function modelKey(name: string): string {
 /** Dos claves son «iguales» aunque cambie la puntuación: `claude-3-5-sonnet` y `claude-3.5-sonnet`. */
 export const squash = (key: string): string => key.replace(/[^a-z0-9]/g, "");
 
-/** La clave sin esfuerzo, tamaño ni fecha. Número de fichas quitadas incluido, para ordenar candidatos por cercanía. */
-export function candidateBase(key: string): { base: string; removed: number } {
+/**
+ * La clave sin esfuerzo, tamaño ni fecha. Número de fichas quitadas incluido, para ordenar candidatos por cercanía.
+ * Con `datesOnly` solo quita la fecha: es lo que se puede asumir sin cambiar el precio (`gpt-5.2-2025-12-11` → `gpt-5.2`).
+ */
+export function candidateBase(key: string, datesOnly = false): { base: string; removed: number } {
   const tokens = key.split("-").filter(Boolean);
   const start = tokens.length;
   for (;;) {
@@ -114,6 +117,7 @@ export function candidateBase(key: string): { base: string; removed: number } {
     if (isDate3) tokens.splice(n - 3, 3);
     else if (isDate2) tokens.splice(n - 2, 2);
     else if (COMPACT_DATE.test(last) || (MMDD.test(last) && n > 2)) tokens.pop();
+    else if (datesOnly) break;
     else if (SIZE_TOKEN.test(last)) tokens.pop();
     else if (MODE_TOKENS.has(last)) {
       tokens.pop();
