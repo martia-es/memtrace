@@ -66,7 +66,7 @@ describe("reading alerts", () => {
     state.permissions = ["experiment:read"];
     const response = await alerts.GET(send("GET"), exp);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ rules: [], events: [], budget: null });
+    expect(await response.json()).toEqual({ rules: [], events: [], budget: null, monthCost: { month: expect.any(String), spentUsd: 0, projectedUsd: null, daily: [] } });
     expect((await events.GET(new Request("http://x/"), exp)).status).toBe(200);
     expect((await budget.GET(send("GET"), exp)).status).toBe(200);
   });

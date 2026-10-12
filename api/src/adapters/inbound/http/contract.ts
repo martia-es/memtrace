@@ -1672,6 +1672,15 @@ export interface BudgetViewDto {
   spentUsd: number;
   percent: number;
   projectedUsd: number | null;
+}
+
+/** El gasto del mes natural de un agente, con o sin presupuesto (ADR-086, actualización). */
+export interface MonthCostDto {
+  /** primer día del mes (UTC) */
+  month: string;
+  spentUsd: number;
+  /** previsión a fin de mes al ritmo actual; null antes del tercer día o sin gasto */
+  projectedUsd: number | null;
   /** coste de cada día del mes con dato (YYYY-MM-DD, UTC), del primero al de hoy */
   daily: Array<{ day: string; costUsd: number }>;
 }
@@ -1680,6 +1689,7 @@ export interface AlertsOverviewDto {
   rules: AlertRuleWithStatusDto[];
   events: AlertEventDto[];
   budget: BudgetViewDto | null;
+  monthCost: MonthCostDto;
 }
 
 export interface AlertEventsPageDto {

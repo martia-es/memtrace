@@ -1,5 +1,5 @@
 import { permissionsOf } from "./permissions";
-import type { AlertEventsPageDto, AlertRuleDto, AlertsOverviewDto, AuditPageDto, BudgetViewDto, ChartCatalogEntryDto, ModelMatchBody, ModelQualityCandidatesResponse, ModelQualityPendingResponse, ModelQualityResponse, NotificationsDto, OpenAlertsDto, PartnerClientDto, PartnerGrantDto, PartnershipDto, RetentionPolicyDto } from "@contract";
+import type { AlertEventsPageDto, AlertRuleDto, AlertsOverviewDto, MonthCostDto, AuditPageDto, BudgetViewDto, ChartCatalogEntryDto, ModelMatchBody, ModelQualityCandidatesResponse, ModelQualityPendingResponse, ModelQualityResponse, NotificationsDto, OpenAlertsDto, PartnerClientDto, PartnerGrantDto, PartnershipDto, RetentionPolicyDto } from "@contract";
 import type {
   AddQueueItemsResponse,
   BreakdownResponse,
@@ -108,7 +108,7 @@ export class FakeIdentityApi implements IdentityApi {
   async updateOrganizationTheme(organizationId: string, theme: OrganizationThemeDto): Promise<OrganizationDto> {
     return { id: organizationId, name: "org", myRole: "org_admin", permissions: permissionsOf("org_admin"), theme };
   }
-  alerts: AlertsOverviewDto = { rules: [], events: [], budget: null };
+  alerts: AlertsOverviewDto = { rules: [], events: [], budget: null, monthCost: NO_MONTH_COST };
   alertCalls: Array<{ op: string; id?: string; body?: unknown }> = [];
   /** si se pone, crear o cambiar una regla / el presupuesto falla con este error (p. ej. un 400 con campos) */
   alertError: Error | null = null;
@@ -121,7 +121,7 @@ export class FakeIdentityApi implements IdentityApi {
     this.alertCalls.push({ op: "create", body });
     if (this.alertError) throw this.alertError;
     const rule: AlertRuleDto = { ...body, id: `rule-${this.alerts.rules.length + 1}`, experimentId: "exp-1", createdAt: "2026-10-10T00:00:00.000Z", updatedAt: "2026-10-10T00:00:00.000Z" };
-    this.alerts = { ...this.alerts, rules: [...this.alerts.rules, { rule, status: null }] };
+    this.alerts = { ...this.alerts, rules: [...this.alerts.rules, { rule, status: null }], monthCost: NO_MONTH_COST };
     return rule;
   }
   async updateAlertRule(_experimentId: string, ruleId: string, body: AlertRuleBody): Promise<AlertRuleDto> {
@@ -129,12 +129,12 @@ export class FakeIdentityApi implements IdentityApi {
     if (this.alertError) throw this.alertError;
     const current = this.alerts.rules.find((r) => r.rule.id === ruleId)!.rule;
     const rule = { ...current, ...body };
-    this.alerts = { ...this.alerts, rules: this.alerts.rules.map((r) => (r.rule.id === ruleId ? { rule, status: null } : r)) };
+    this.alerts = { ...this.alerts, rules: this.alerts.rules.map((r) => (r.rule.id === ruleId ? { rule, status: null } : r)), monthCost: NO_MONTH_COST };
     return rule;
   }
   async deleteAlertRule(_experimentId: string, ruleId: string): Promise<void> {
     this.alertCalls.push({ op: "delete", id: ruleId });
-    this.alerts = { ...this.alerts, rules: this.alerts.rules.filter((r) => r.rule.id !== ruleId) };
+    this.alerts = { ...this.alerts, rules: this.alerts.rules.filter((r) => r.rule.id !== ruleId), monthCost: NO_MONTH_COST };
   }
   async listAlertEvents(_experimentId: string, cursor?: string): Promise<AlertEventsPageDto> {
     this.alertCalls.push({ op: "events", id: cursor });
@@ -143,13 +143,13 @@ export class FakeIdentityApi implements IdentityApi {
   async setBudget(_experimentId: string, body: BudgetBody): Promise<BudgetViewDto> {
     this.alertCalls.push({ op: "setBudget", body });
     if (this.alertError) throw this.alertError;
-    const view: BudgetViewDto = { budget: { experimentId: "exp-1", ...body, updatedAt: "2026-10-10T00:00:00.000Z" }, month: "2026-10-01", spentUsd: 0, percent: 0, projectedUsd: null, daily: [] };
-    this.alerts = { ...this.alerts, budget: view };
+    const view: BudgetViewDto = { budget: { experimentId: "exp-1", ...body, updatedAt: "2026-10-10T00:00:00.000Z" }, month: "2026-10-01", spentUsd: 0, percent: 0, projectedUsd: null };
+    this.alerts = { ...this.alerts, budget: view, monthCost: NO_MONTH_COST };
     return view;
   }
   async deleteBudget(): Promise<void> {
     this.alertCalls.push({ op: "deleteBudget" });
-    this.alerts = { ...this.alerts, budget: null };
+    this.alerts = { ...this.alerts, budget: null, monthCost: NO_MONTH_COST };
   }
   async listOpenAlerts(): Promise<OpenAlertsDto> {
     return this.openAlerts;
@@ -545,6 +545,8 @@ export function datasetRunItem(overrides: Partial<DatasetRunItemResultDto> = {})
 }
 
 /** Implementación en memoria del puerto: prueba la UI sin red. */
+export const NO_MONTH_COST: MonthCostDto = { month: "2026-10-01", spentUsd: 0, projectedUsd: null, daily: [] };
+
 export class FakeTraceApi implements TraceApi {
   pages: TraceListResponse[] = [{ items: [], nextCursor: null }];
   listCalls: ListTracesParams[] = [];

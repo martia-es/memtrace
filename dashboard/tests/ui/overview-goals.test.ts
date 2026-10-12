@@ -8,7 +8,7 @@ import { CURRENT_EXPERIMENT, IDENTITY_API, TRACE_API } from "@/dependency-contai
 import { EMPTY_THEME } from "@/application/identity-api";
 import MetricsPage from "@/ui/pages/MetricsPage.vue";
 import { permissionsOf } from "../permissions";
-import { FakeIdentityApi, FakeTraceApi } from "../fakes";
+import { FakeIdentityApi, FakeTraceApi, NO_MONTH_COST } from "../fakes";
 
 // Objetivos en el Overview (M1): errores, latencia y coste con semáforo, y los objetivos de partida en la primera visita
 vi.mock("@/ui/components/EChart.vue", () => ({ default: { name: "EChart", template: "<div class=\"echart-stub\" />" } }));
@@ -24,7 +24,7 @@ const rule = (over: Partial<AlertRuleDto>): AlertRuleDto => ({
   minSamples: 10, reminderMinutes: null, recipients: [], enabled: true, createdAt: "", updatedAt: "", ...over,
 });
 const status = (state: "ok" | "firing", lastValue: number) => ({ state, since: "", lastValue, lastCheckedAt: null, lastNotifiedAt: null });
-const budget: BudgetViewDto = { budget: { experimentId: "exp-1", monthlyUsd: 95, warnPercent: 80, recipients: [], enabled: true, updatedAt: "" }, month: "2026-10-01", spentUsd: 38.72, percent: 40.8, projectedUsd: 74, daily: [] };
+const budget: BudgetViewDto = { budget: { experimentId: "exp-1", monthlyUsd: 95, warnPercent: 80, recipients: [], enabled: true, updatedAt: "" }, month: "2026-10-01", spentUsd: 38.72, percent: 40.8, projectedUsd: 74 };
 
 async function open(identity: FakeIdentityApi, role = "technical") {
   const { wrapper, router } = await openWithTrace(identity, role);
@@ -59,6 +59,7 @@ describe("Overview goals", () => {
       rules: [{ rule: rule({}), status: status("firing", 7) }, { rule: rule({ id: "r2", metric: "latency_p95", threshold: 5000 }), status: status("ok", 2700) }],
       events: [],
       budget,
+      monthCost: NO_MONTH_COST,
     };
     const { wrapper } = await open(identity);
     expect(wrapper.get('[data-testid="goal-errors"]').text()).toContain("Over goal");
@@ -72,7 +73,7 @@ describe("Overview goals", () => {
 
   it("invites to set a monthly budget when there is none and the person can manage alerts", async () => {
     const identity = new FakeIdentityApi();
-    identity.alerts = { rules: [{ rule: rule({}), status: status("ok", 1) }], events: [], budget: null };
+    identity.alerts = { rules: [{ rule: rule({}), status: status("ok", 1) }], events: [], budget: null, monthCost: NO_MONTH_COST };
     const { wrapper } = await open(identity);
     expect(wrapper.get('[data-testid="goal-cost"]').text()).toContain("No goal");
     expect(wrapper.get('[data-testid="goal-line-cost"]').text()).toContain("Set a monthly budget");
@@ -99,7 +100,7 @@ describe("Overview goals", () => {
   it("shows the spend this month with its forecast and where it goes, only when there is a budget", async () => {
     const identity = new FakeIdentityApi();
     const daily = Array.from({ length: 6 }, (_, i) => ({ day: `2026-10-${String(i + 1).padStart(2, "0")}`, costUsd: 5 }));
-    identity.alerts = { rules: [], events: [], budget: { ...budget, spentUsd: 30, percent: 31.6, projectedUsd: 120, daily } };
+    identity.alerts = { rules: [], events: [], budget: { ...budget, spentUsd: 30, percent: 31.6, projectedUsd: 120 }, monthCost: { month: "2026-10-01", spentUsd: 30, projectedUsd: 120, daily } };
     const { wrapper, trace } = await openWithTrace(identity);
     expect(wrapper.get('[data-testid="cost-state"]').text()).toContain("Forecast over budget");
     expect(wrapper.get('[data-testid="cost-spent"]').text()).toBe("$30.00");
@@ -115,8 +116,31 @@ describe("Overview goals", () => {
     await flushPromises();
     expect(trace.breakdownCalls).toEqual(["user", "environment"]);
 
-    identity.alerts = { rules: [], events: [], budget: null };
+    identity.alerts = { rules: [], events: [], budget: null, monthCost: NO_MONTH_COST };
     const none = await openWithTrace(identity);
     expect(none.wrapper.find('[data-testid="cost-trend"]').exists()).toBe(false);
+  });
+
+  it("draws the spend without a budget, and offers to set one only to who can manage alerts", async () => {
+    const identity = new FakeIdentityApi();
+    const daily = Array.from({ length: 6 }, (_, i) => ({ day: `2026-10-${String(i + 1).padStart(2, "0")}`, costUsd: 5 }));
+    identity.alerts = { rules: [], events: [], budget: null, monthCost: { month: "2026-10-01", spentUsd: 30, projectedUsd: 120, daily } };
+    const { wrapper, router } = await open(identity);
+    expect(wrapper.get('[data-testid="cost-state"]').text()).toContain("No budget set");
+    expect(wrapper.get('[data-testid="cost-projected"]').text()).toBe("$120.00");
+    expect(wrapper.get('[data-testid="cost-summary"]').text()).toContain("Set a monthly budget");
+    await wrapper.get('[data-testid="cost-set-budget"]').trigger("click");
+    await flushPromises();
+    expect(router.currentRoute.value.name).toBe("alerts");
+
+    const business = await open(identity, "business");
+    expect(business.wrapper.find('[data-testid="cost-trend"]').exists()).toBe(true);
+    expect(business.wrapper.find('[data-testid="cost-set-budget"]').exists()).toBe(false);
+  });
+
+  it("shows nothing when there is neither a budget nor any spend this month", async () => {
+    const identity = new FakeIdentityApi();
+    const { wrapper } = await open(identity);
+    expect(wrapper.find('[data-testid="cost-trend"]').exists()).toBe(false);
   });
 });

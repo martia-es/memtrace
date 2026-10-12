@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import type { AlertRepository, AlertRuleWithStatus, EvaluableBudget, EvaluableRule, NewAlertEvent, OpenAlert } from "@/application/ports/alert-repository";
+import type { AlertRepository, AlertRuleWithStatus, CostTrackedExperiment, EvaluableBudget, EvaluableRule, NewAlertEvent, OpenAlert } from "@/application/ports/alert-repository";
 import type { AlertEvent, AppNotification, AlertRule, AlertRuleInput, AlertStatus, BudgetLevel, CostBudget, CostBudgetInput } from "@/domain/alert";
 
 type Ts = Date | string;
@@ -348,6 +348,15 @@ export class PostgresAlertRepository implements AlertRepository {
         [experimentId, month, level, level === notified ? emailed : 0, level === notified ? (spentUsd ?? null) : null],
       );
     }
+  }
+
+  async listCostTrackedExperiments(): Promise<CostTrackedExperiment[]> {
+    const { rows } = await this.pool.query<{ id: string; service_name: string; refreshed_at: Date | null }>(
+      `SELECT e.id, e.service_name, (SELECT max(c.updated_at) FROM experiment_daily_cost c WHERE c.experiment_id = e.id) AS refreshed_at
+         FROM experiments e
+        WHERE e.lifecycle = 'active' AND NOT EXISTS (SELECT 1 FROM cost_budgets b WHERE b.experiment_id = e.id AND b.enabled)`,
+    );
+    return rows.map((r) => ({ experimentId: r.id, serviceName: r.service_name, costRefreshedAt: r.refreshed_at }));
   }
 
   async upsertDailyCost(experimentId: string, day: string, costUsd: number): Promise<void> {

@@ -1,9 +1,11 @@
 import type { AlertMetricSource } from "@/application/ports/alert-metric-source";
-import type { AlertRepository, EvaluableBudget, EvaluableRule } from "@/application/ports/alert-repository";
+import type { AlertRepository, CostTrackedExperiment, EvaluableBudget, EvaluableRule } from "@/application/ports/alert-repository";
 import type { EmailSender } from "@/application/ports/email-sender";
 import { DAILY_EMAIL_CAP_PER_ORGANIZATION, evaluateBudget, evaluateRule, formatAlertValue, monthKey, monthStart, type AlertStatus } from "@/domain/alert";
 
 const DAY_MS = 86_400_000;
+/** Un agente sin presupuesto no avisa de nada, así que su coste de hoy se renueva cada media hora y no en cada pasada. */
+const COST_REFRESH_MS = 30 * 60_000;
 const day = (d: Date) => d.toISOString().slice(0, 10);
 const startOfUtcDay = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 
@@ -14,6 +16,8 @@ export interface EvaluationSummary {
   reminders: number;
   budgets: number;
   budgetNotices: number;
+  /** agentes sin presupuesto cuyo coste diario se ha renovado en esta pasada */
+  costRefreshed: number;
   failed: number;
 }
 
@@ -45,7 +49,7 @@ export class AlertEvaluator {
 
   async run(): Promise<EvaluationSummary> {
     const now = this.now();
-    const summary: EvaluationSummary = { rules: 0, fired: 0, resolved: 0, reminders: 0, budgets: 0, budgetNotices: 0, failed: 0 };
+    const summary: EvaluationSummary = { rules: 0, fired: 0, resolved: 0, reminders: 0, budgets: 0, budgetNotices: 0, costRefreshed: 0, failed: 0 };
     this.source.reset();
 
     for (const item of await this.repo.listEvaluableRules()) {
@@ -68,6 +72,17 @@ export class AlertEvaluator {
       } catch (error) {
         summary.failed += 1;
         console.error(`[alerts] budget of ${item.budget.experimentId} failed:`, error);
+      }
+    }
+
+    for (const item of await this.repo.listCostTrackedExperiments()) {
+      if (item.costRefreshedAt && now.getTime() - item.costRefreshedAt.getTime() < COST_REFRESH_MS) continue;
+      try {
+        await this.refreshDailyCost(item.experimentId, item.serviceName, now);
+        summary.costRefreshed += 1;
+      } catch (error) {
+        summary.failed += 1;
+        console.error(`[alerts] daily cost of ${item.experimentId} failed:`, error);
       }
     }
     return summary;
@@ -108,13 +123,13 @@ export class AlertEvaluator {
     return result.event;
   }
 
-  /** Renueva el coste de hoy, de ayer y de los días del mes que falten, y avisa si toca. Devuelve si salió un aviso. */
-  private async evaluateBudgetOf({ budget, experiment }: EvaluableBudget, now: Date): Promise<boolean> {
+  /** Renueva el coste de hoy, de ayer y de los días del mes que falten; es lo que dibuja «Spend this month», con o sin presupuesto. */
+  private async refreshDailyCost(experimentId: string, serviceName: string, now: Date): Promise<void> {
     const today = startOfUtcDay(now);
     const first = monthStart(now);
     const yesterday = new Date(today.getTime() - DAY_MS);
 
-    const have = await this.repo.daysWithCost(budget.experimentId, day(first), day(today));
+    const have = await this.repo.daysWithCost(experimentId, day(first), day(today));
     const toRefresh: Date[] = [];
     for (let d = first; d.getTime() <= today.getTime(); d = new Date(d.getTime() + DAY_MS)) {
       const recent = d.getTime() >= yesterday.getTime();
@@ -122,8 +137,15 @@ export class AlertEvaluator {
     }
     for (const d of toRefresh) {
       const end = new Date(Math.min(d.getTime() + DAY_MS, now.getTime()));
-      await this.repo.upsertDailyCost(budget.experimentId, day(d), await this.source.cost({ experimentId: budget.experimentId, serviceName: experiment.serviceName }, d, end));
+      await this.repo.upsertDailyCost(experimentId, day(d), await this.source.cost({ experimentId, serviceName }, d, end));
     }
+  }
+
+  /** Renueva el coste y avisa si toca. Devuelve si salió un aviso. */
+  private async evaluateBudgetOf({ budget, experiment }: EvaluableBudget, now: Date): Promise<boolean> {
+    await this.refreshDailyCost(budget.experimentId, experiment.serviceName, now);
+    const today = startOfUtcDay(now);
+    const first = monthStart(now);
 
     const spent = await this.repo.spentBetween(budget.experimentId, day(first), day(today));
     const month = monthKey(now);
