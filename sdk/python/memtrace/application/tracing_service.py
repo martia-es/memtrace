@@ -6,7 +6,7 @@ import uuid
 from contextlib import contextmanager
 from typing import Any, Iterator, Mapping, Optional, Sequence, Union
 
-from memtrace.application.context import current_run_id, get_session_id
+from memtrace.application.context import current_run_id, get_session_id, get_user_id
 from memtrace.application.ports import SpanPort
 from memtrace.application.retrieval_capture import note_retrieved
 from memtrace.application.run_lifecycle import RunLifecycleGuard
@@ -89,7 +89,7 @@ class TracingService:
         parent = self._registry.get(parent_run_id) if parent_run_id else None
         # a None value must not override default attributes (e.g. the active session)
         explicit = {k: v for k, v in (attributes or {}).items() if v is not None}
-        attrs = {**step_start_attributes(step_type, get_session_id()), **explicit}
+        attrs = {**step_start_attributes(step_type, get_session_id(), get_user_id()), **explicit}
         self._registry.add(run_id, self._port.start_span(name, attrs, parent))
         return run_id
 

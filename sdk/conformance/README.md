@@ -16,6 +16,7 @@ Change a scenario only when the contract changes (update the ADR in the same cha
   "init": { "serviceName": "conf-agent" },          // the span exporter is an in-memory one
   "actions": [                                      // executed in order
     { "op": "session", "id": "conv-42", "actions": [ ... ] },
+    { "op": "user", "id": "user-7", "actions": [ ... ] },   // enduser.id on every span inside
     { "op": "step", "name": "turn", "type": "chain", "actions": [ ... ], "fail": "message" },
     { "op": "llm", "provider": "anthropic", "model": "claude-x", "inputTokens": 7, "outputTokens": 3,
       "responseModel": "...", "finishReasons": ["end_turn"], "temperature": 0.2,

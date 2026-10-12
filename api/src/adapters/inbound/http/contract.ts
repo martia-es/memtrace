@@ -1537,7 +1537,7 @@ export interface BreakdownItemDto {
 }
 
 export interface BreakdownResponse {
-  groupBy: "prompt_version" | "environment";
+  groupBy: "prompt_version" | "environment" | "user";
   range: { from: string; to: string };
   /** más trazas primero */
   items: BreakdownItemDto[];

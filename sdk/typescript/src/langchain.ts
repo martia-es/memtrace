@@ -101,6 +101,7 @@ export class MemTraceCallbackHandler extends BaseCallbackHandler {
       [sc.MEMTRACE_METADATA]: Object.keys(md).length > 0 ? capture(md) ?? undefined : undefined,
       // `thread_id` is the LangGraph conversation identifier
       [sc.GEN_AI_CONVERSATION_ID]: md.session_id ?? md.conversation_id ?? md.thread_id,
+      [sc.ENDUSER_ID]: md.user_id,
       // the graph's own root run has no `langgraph_*` keys, only `ls_integration`
       [sc.MEMTRACE_FRAMEWORK]: md.ls_integration === "langgraph" || Object.keys(md).some((k) => k.startsWith("langgraph_")) ? "langgraph" : "langchain",
     };

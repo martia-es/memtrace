@@ -130,7 +130,7 @@ const csvCell = (v: string | number | null) => {
 
 /** CSV de la tabla, con las cifras sin formatear para poder explotarlas en una hoja de cálculo. */
 export function breakdownCsv(groupBy: BreakdownGroup, items: BreakdownItem[]): string {
-  const head = [groupBy === "environment" ? "environment" : "prompt_version", "traces", "error_traces", "error_rate", "error_margin_95", "p95_ms", "cost_usd", "cost_per_trace_usd", "cost_complete", "thumbs_up_rate", "rated_traces"];
+  const head = [groupBy, "traces", "error_traces", "error_rate", "error_margin_95", "p95_ms", "cost_usd", "cost_per_trace_usd", "cost_complete", "thumbs_up_rate", "rated_traces"];
   const rows = items.map((i) => [i.key, i.traces, i.errorTraces, i.errorRate, i.errorMargin, i.p95Ms, i.costUsd, i.costPerTraceUsd, i.costComplete, i.thumbsUpRate, i.ratedTraces]);
   return [head, ...rows].map((r) => r.map((c) => csvCell(c as string | number | null)).join(",")).join("\n");
 }

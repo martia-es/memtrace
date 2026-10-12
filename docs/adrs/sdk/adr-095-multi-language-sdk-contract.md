@@ -35,7 +35,7 @@ F6 adds a TypeScript SDK with the same scope as the Python one, and more framewo
 | `memtrace.playground` | The span belongs to a playground run (excluded from evidence) |
 | `memtrace.span.expired`, `memtrace.redaction_failed` | Set by the SDK when it closes a stale span or cannot mask content |
 
-Sessions: the active session id goes in `gen_ai.conversation.id` on **every** span of the process, including those made by third-party instrumentation (`SessionSpanProcessor`). Evaluation opens one root span named `eval.item` per item.
+Sessions: the active session id goes in `gen_ai.conversation.id` on **every** span of the process, including those made by third-party instrumentation (`SessionSpanProcessor`). The active end user (`user(id)`) goes in `enduser.id` the same way (OpenTelemetry general attribute, not `user.id`); LangChain `metadata.user_id` also sets it. Evaluation opens one root span named `eval.item` per item.
 
 **Content capture**: masked keys and truncation follow `MEMTRACE_REDACT_KEYS`, `MEMTRACE_CAPTURE_CONTENT` and `MEMTRACE_MAX_CONTENT_LENGTH` ([ADR-021](adr-021-sdk-explicit-tracer-provider-and-content-redaction.md)).
 

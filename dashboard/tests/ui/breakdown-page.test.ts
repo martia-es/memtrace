@@ -148,8 +148,14 @@ describe("Breakdown page", () => {
     expect(q("breakdown-empty")?.textContent).toContain("environment=");
   });
 
-  it("offers User as a coming tab, disabled", async () => {
-    await open(new FakeTraceApi());
-    expect(q<HTMLButtonElement>("tab-user")!.disabled).toBe(true);
+  it("groups by user and explains how to get data when the table is empty", async () => {
+    const trace = new FakeTraceApi();
+    const router = await open(trace);
+    expect(q<HTMLButtonElement>("tab-user")!.disabled).toBeFalsy();
+    q("tab-user")!.click();
+    await flushPromises();
+    expect(router.currentRoute.value.query.groupBy).toBe("user");
+    expect(trace.breakdownCalls).toEqual(["prompt_version", "user"]);
+    expect(q("breakdown-empty")?.textContent).toContain("memtrace.user");
   });
 });

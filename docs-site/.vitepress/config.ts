@@ -21,6 +21,7 @@ export default defineConfig({
             { text: "Quickstart", link: "/library/quickstart" },
             { text: "Tracing steps", link: "/library/tracing" },
             { text: "Conversations", link: "/library/conversations" },
+            { text: "Users", link: "/library/users" },
             { text: "Integrations", link: "/library/integrations" },
             { text: "TypeScript SDK", link: "/library/typescript" },
             { text: "Bring your own backend", link: "/library/bring-your-own-backend" },

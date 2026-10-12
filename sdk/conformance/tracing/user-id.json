@@ -1,0 +1,60 @@
+{
+  "description": "The active user id is enduser.id on every span opened inside it, next to the session id.",
+  "init": {
+    "serviceName": "conf-agent"
+  },
+  "actions": [
+    {
+      "op": "user",
+      "id": "user-7",
+      "actions": [
+        {
+          "op": "session",
+          "id": "conv-42",
+          "actions": [
+            {
+              "op": "step",
+              "name": "turn",
+              "type": "chain",
+              "actions": [
+                {
+                  "op": "step",
+                  "name": "inner",
+                  "type": "tool"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "op": "step",
+      "name": "outside",
+      "type": "chain"
+    }
+  ],
+  "expect": {
+    "spans": [
+      {
+        "name": "turn",
+        "attributes": {
+          "enduser.id": "user-7",
+          "gen_ai.conversation.id": "conv-42"
+        }
+      },
+      {
+        "name": "inner",
+        "attributes": {
+          "enduser.id": "user-7"
+        }
+      },
+      {
+        "name": "outside",
+        "absent": [
+          "enduser.id"
+        ]
+      }
+    ]
+  }
+}

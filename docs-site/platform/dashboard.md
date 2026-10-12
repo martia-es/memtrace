@@ -86,7 +86,7 @@ The same figures as **Summary**, split by prompt version or environment: every v
 
 - **Prompt version** (`weather-system v3`): one row per version that had traces in the range. The **Runs in** column lists the environments where it ran. Needs the agent to read its prompt with [`memtrace.prompts`](/library/prompts).
 - **Environment** (`dev`, `pre`, `pro`): one row per environment, with the prompt versions each one runs. Needs the agent to set its environment in the SDK configuration. Environments run different versions on purpose, so you can see an improvement in `pre` before promoting it to `pro`.
-- **User** is coming: it will need the SDK to send a pseudonymous user id with each trace.
+- **User** (`user-7`): one row per end user, so you can see what each one costs. Needs the agent to wrap each request in [`memtrace.user(...)`](/library/users) with an opaque id. The **Runs in** column lists the environments where that user was served.
 
 Each row shows its traces, error rate, p95 latency, cost per trace, total cost, a 7-day error trend and the 👍 rate from [user feedback](/library/feedback). The number after **±** is the 95 % margin of the error rate. When the margins of two rows overlap, the difference may be noise, so do not act on it. Rows with fewer than 20 traces are dimmed. Costs marked **≥** are a minimum, because some model has no price in the [price catalog](/platform/dashboard); the page says how many tokens are left without price. Traces from the prompt playground do not count.
 

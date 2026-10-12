@@ -22,6 +22,7 @@ const DEFAULT_ENDPOINT = "http://localhost:4318";
 interface Store {
   span?: Span;
   sessionId?: string;
+  userId?: string;
 }
 const storage = new AsyncLocalStorage<Store>();
 
@@ -43,13 +44,15 @@ interface Active {
 }
 let active: Active | undefined;
 
-/** Tags spans made by third-party instrumentation with the active `session()` id. */
+/** Tags spans made by third-party instrumentation with the active `session()` and `user()` ids. */
 class SessionSpanProcessor implements SpanProcessor {
   onStart(span: Span): void {
-    const sessionId = storage.getStore()?.sessionId;
-    // spans made through this SDK already resolve their own conversation id
+    const { sessionId, userId } = storage.getStore() ?? {};
+    // spans made through this SDK already resolve their own conversation and user ids
     const scope = (span as unknown as { instrumentationScope?: { name: string } }).instrumentationScope;
-    if (sessionId && scope?.name !== TRACER_NAME) span.setAttribute(sc.GEN_AI_CONVERSATION_ID, sessionId);
+    if (scope?.name === TRACER_NAME) return;
+    if (sessionId) span.setAttribute(sc.GEN_AI_CONVERSATION_ID, sessionId);
+    if (userId) span.setAttribute(sc.ENDUSER_ID, userId);
   }
   onEnd(): void {}
   forceFlush(): Promise<void> { return Promise.resolve(); }
@@ -146,6 +149,15 @@ export function session<T>(sessionId: string, fn: () => T): T {
   return storage.run({ ...storage.getStore(), sessionId }, fn);
 }
 
+/** Attributes the spans created in `fn` to one end user (`enduser.id`), to see cost per user. */
+export function user<T>(userId: string, fn: () => T): T {
+  return storage.run({ ...storage.getStore(), userId }, fn);
+}
+
+export function currentUserId(): string | undefined {
+  return storage.getStore()?.userId;
+}
+
 export function currentSessionId(): string | undefined {
   return storage.getStore()?.sessionId;
 }
@@ -192,7 +204,7 @@ export function withStep<T>(name: string, stepType: StepType, fn: (step: Step) =
   try {
     const parent = store?.span ? trace.setSpan(ROOT_CONTEXT, store.span) : ROOT_CONTEXT;
     span = current.tracer.startSpan(name, {}, parent);
-    setAttributes(span, { ...stepStartAttributes(stepType, store?.sessionId), ...attributes });
+    setAttributes(span, { ...stepStartAttributes(stepType, store?.sessionId, store?.userId), ...attributes });
   } catch {
     return fn({ setAttributes: () => {} });
   }
@@ -299,7 +311,7 @@ export function startRun(name: string, stepType: StepType = "chain", options: St
     const store = storage.getStore();
     const parent = (options.parentRunId ? runs.get(options.parentRunId)?.span : undefined) ?? store?.span;
     const span = current.tracer.startSpan(name, {}, parent ? trace.setSpan(ROOT_CONTEXT, parent) : ROOT_CONTEXT);
-    setAttributes(span, { ...stepStartAttributes(stepType, store?.sessionId), ...options.attributes });
+    setAttributes(span, { ...stepStartAttributes(stepType, store?.sessionId, store?.userId), ...options.attributes });
     runs.set(runId, { span, startedAt: Date.now() });
   } catch { /* never throws */ }
   return runId;

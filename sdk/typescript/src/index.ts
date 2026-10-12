@@ -1,4 +1,4 @@
-export { initTracer, flush, annotateCurrent, onShutdown, shutdown, session, currentSessionId, currentTraceId, withStep, traceStep, traceLlmCall, recordRetrievedChunks, isTracing, startRun, endRun, annotateRun, expireStaleRuns, activeRuns, capture, capturesContent } from "./tracer.js";
+export { initTracer, flush, annotateCurrent, onShutdown, shutdown, session, currentSessionId, user, currentUserId, currentTraceId, withStep, traceStep, traceLlmCall, recordRetrievedChunks, isTracing, startRun, endRun, annotateRun, expireStaleRuns, activeRuns, capture, capturesContent } from "./tracer.js";
 export type { InitOptions, Step, LlmCallOptions, StartRunOptions } from "./tracer.js";
 export { sc } from "./semconv.js";
 export type { StepType } from "./semconv.js";

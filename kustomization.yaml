@@ -41,6 +41,7 @@ configMapGenerator:
       - migrations/clickhouse/013_trace_ttl_ceiling.sql
       - migrations/clickhouse/014_experiment_id.sql
       - migrations/clickhouse/015_model_quality.sql
+      - migrations/clickhouse/016_user_id.sql
     options:
       disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
   - name: postgres-migrations

@@ -47,6 +47,9 @@ def _run_actions(actions: List[Dict[str, Any]]) -> None:
         if op == "session":
             with memtrace.session(action["id"]):
                 _run_actions(action.get("actions", []))
+        elif op == "user":
+            with memtrace.user(action["id"]):
+                _run_actions(action.get("actions", []))
         elif op == "step":
             with memtrace.trace_step_context(action["name"], action.get("type", "chain")):
                 _run_actions(action.get("actions", []))

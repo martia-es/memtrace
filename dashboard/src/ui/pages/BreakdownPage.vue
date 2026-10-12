@@ -30,14 +30,15 @@ const api = useTraceApi();
 const GROUPS = [
   { value: "prompt_version", label: "Prompt version", testid: "tab-prompt_version" },
   { value: "environment", label: "Environment", testid: "tab-environment" },
-  // llega con el atributo de usuario final del SDK
-  { value: "user", label: "User", count: "Soon", disabled: true, testid: "tab-user" },
+  { value: "user", label: "User", testid: "tab-user" },
 ];
 
-const groupBy = computed<BreakdownGroup>(() => (route.query.groupBy === "environment" ? "environment" : "prompt_version"));
+const GROUP_IDS: readonly BreakdownGroup[] = ["prompt_version", "environment", "user"];
+const groupBy = computed<BreakdownGroup>(() => GROUP_IDS.find((g) => g === route.query.groupBy) ?? "prompt_version");
 function setGroup(id: unknown) {
-  if (id !== "prompt_version" && id !== "environment") return;
-  void router.replace({ query: { ...route.query, groupBy: id } });
+  const group = GROUP_IDS.find((g) => g === id);
+  if (!group) return;
+  void router.replace({ query: { ...route.query, groupBy: group } });
 }
 
 const breakdown = useAsync((signal) => api.getBreakdown({ ...f.resolve(), groupBy: groupBy.value }, signal));
@@ -46,8 +47,8 @@ watch([() => f.rangeSig.value, groupBy], () => void breakdown.run(), { immediate
 const items = computed<BreakdownItem[]>(() => breakdown.data.value?.items ?? []);
 const insight = computed(() => findInsight(items.value));
 const relatedLabel = computed(() => (groupBy.value === "environment" ? "Prompt versions" : "Runs in"));
-const nameLabel = computed(() => (groupBy.value === "environment" ? "Environment" : "Prompt version"));
-const noun = computed(() => (groupBy.value === "environment" ? "environment" : "version"));
+const nameLabel = computed(() => ({ prompt_version: "Prompt version", environment: "Environment", user: "User" })[groupBy.value]);
+const noun = computed(() => ({ prompt_version: "version", environment: "environment", user: "user" })[groupBy.value]);
 
 // A es la base y B la candidata: la comparación va de A a B. Con una sola fila no hay nada que elegir, esa fila es A.
 const keyA = ref<string | null>(null);
@@ -115,11 +116,12 @@ const few = (i: BreakdownItem) => i.traces < MIN_TRACES;
 const errorText = (i: BreakdownItem) => formatPercent(i.errorRate);
 const marginText = (i: BreakdownItem) => `±${(i.errorMargin * 100).toFixed(1)}`;
 
-const emptyHint = computed(() =>
-  groupBy.value === "environment"
-    ? "Environments show up when the agent sets one in its SDK configuration (environment=…)."
-    : "Versions show up when the agent reads its prompt with memtrace.prompts.",
-);
+const EMPTY_HINTS: Record<BreakdownGroup, string> = {
+  prompt_version: "Versions show up when the agent reads its prompt with memtrace.prompts.",
+  environment: "Environments show up when the agent sets one in its SDK configuration (environment=…).",
+  user: "Users show up when the agent wraps each request in memtrace.user(user_id). Use an opaque id, not an email.",
+};
+const emptyHint = computed(() => EMPTY_HINTS[groupBy.value]);
 
 function exportCsv() {
   const blob = new Blob([breakdownCsv(groupBy.value, items.value)], { type: "text/csv;charset=utf-8" });
@@ -267,6 +269,7 @@ const chartsRoute = computed(() => ({ name: "overview-charts", params: route.par
             <strong>You need a second {{ noun }} to compare</strong>
             <span class="muted">
               <template v-if="groupBy === 'environment'">Run the agent in another environment (environment=… in its SDK configuration) and it will show up here as candidate B.</template>
+              <template v-else-if="groupBy === 'user'">Another user will show up here as candidate B as soon as the agent serves them (memtrace.user(user_id)).</template>
               <template v-else>Publish a new version of the prompt and it will show up here as candidate B. Until then there is nothing to compare.</template>
             </span>
           </div>

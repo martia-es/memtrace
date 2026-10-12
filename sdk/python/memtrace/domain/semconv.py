@@ -3,6 +3,8 @@
 GEN_AI_OPERATION_NAME = "gen_ai.operation.name"
 GEN_AI_PROVIDER_NAME = "gen_ai.provider.name"
 GEN_AI_CONVERSATION_ID = "gen_ai.conversation.id"
+# end user of the agent (OpenTelemetry general attribute); an opaque id, never an email or a name
+ENDUSER_ID = "enduser.id"
 GEN_AI_REQUEST_MODEL = "gen_ai.request.model"
 GEN_AI_REQUEST_TEMPERATURE = "gen_ai.request.temperature"
 GEN_AI_REQUEST_MAX_TOKENS = "gen_ai.request.max_tokens"
