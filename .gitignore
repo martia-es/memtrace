@@ -7,3 +7,6 @@ weather_assistant/uvicorn.log
 examples/.env.*
 scripts/entra-groups-check.env
 rag_assistant/uvicorn.log
+
+# Caché de Python del generador de carga
+load-testing/__pycache__/
