@@ -17,7 +17,7 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 | F6 | [x] | **SDK por framework + TypeScript** | Hecho ([ADR-095](adrs/sdk/adr-095-multi-language-sdk-contract.md)): LangGraph, OpenAI Agents SDK (Python) y SDK TypeScript con paridad (trazas, feedback, prompts, evaluación, PII con servicio Presidio, LangChain.js y OpenAI Agents JS), todos contra las mismas escenarios de conformidad. Pendiente de publicar en npm | M | L | — | sdk |
 | F7 | [x] | **Auditoría y exportación** | Hecho (ADR-084): registro de aperturas de contenido, exportaciones y cambios de acceso/configuración, y exportación JSON Lines | M | M | — | identity |
 | F9 | [x] | **Gateway de ingesta que valide `service.name`** | Hecho ([ADR-085](adrs/identity/adr-085-ingest-gateway-validates-service-name.md)): cada recurso debe llevar el `service.name` del experimento de la key o la petición se rechaza con 403. Leer la cabecera de una petición de 21 MiB cuesta 0,012 ms | A | M | — | identity |
-| F8 | [ ] | **Operación en producción** | Backups de ClickHouse/Postgres, despliegue fuera de kind (Helm), pruebas de carga en CI | M | L | — | infra |
+| F8 | [~] | **Operación en producción** | Backups de ClickHouse/Postgres, despliegue fuera de kind (Helm), pruebas de carga en CI. En curso: decisiones fijadas en [ADR-096](adrs/infra/adr-096-production-operations-backups-helm-load-gates.md); falta implementar (1) backups, (2) Helm, (3) gate de carga | M | L | — | infra |
 
 ## 2. Pendientes ya anotados en el roadmap
 
@@ -82,3 +82,4 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 | 2026-10-11 | F5 hecho (ADR-064, fase 3): check de GitHub con el veredicto de la evaluación |
 | 2026-10-11 | M7 hecho: guía «ciclo de mejora en 30 minutos» en docs-site |
 | 2026-10-11 | M5 en curso: Overview › Breakdown agrupa por versión de prompt y por entorno, con coste, errores con su margen del 95 % y tendencia |
+| 2026-10-12 | F8 en curso: ADR-096 fija backups a S3, chart de Helm y gate de carga a demanda |
