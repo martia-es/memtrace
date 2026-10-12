@@ -7,7 +7,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { InMemorySpanExporter, type ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import { afterEach, describe, expect, it } from "vitest";
-import { flush, initTracer, session, shutdown, traceLlmCall, withStep } from "../src/index.js";
+import { flush, initTracer, session, shutdown, user, traceLlmCall, withStep } from "../src/index.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "conformance");
 
@@ -53,6 +53,8 @@ function run(actions: Action[]): void {
   for (const action of actions) {
     if (action.op === "session") {
       session(action.id as string, () => run(action.actions ?? []));
+    } else if (action.op === "user") {
+      user(action.id as string, () => run(action.actions ?? []));
     } else if (action.op === "step") {
       withStep(action.name as string, action.type ?? "chain", () => {
         run(action.actions ?? []);

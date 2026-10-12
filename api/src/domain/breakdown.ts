@@ -2,11 +2,11 @@ import { costOf, type PricingCatalog } from "./pricing";
 import type { TimeRange } from "./time-range";
 
 /**
- * Cómo se agrupan las trazas en Overview › Breakdown. `user` llega con el atributo de usuario final del SDK (pendiente).
+ * Cómo se agrupan las trazas en Overview › Breakdown. `user` agrupa por el atributo `enduser.id` que el SDK pone dentro de `user(...)`.
  * Dos filas de grupos distintos no son siempre comparables (cada agente hace cosas distintas); las vistas de entorno y de
  * versión sí lo son a propósito: un entorno corre otra versión para ver la mejora antes de promoverla.
  */
-export const BREAKDOWN_GROUPS = ["prompt_version", "environment"] as const;
+export const BREAKDOWN_GROUPS = ["prompt_version", "environment", "user"] as const;
 export type BreakdownGroup = (typeof BREAKDOWN_GROUPS)[number];
 
 /** Días de la serie de errores de cada fila. */

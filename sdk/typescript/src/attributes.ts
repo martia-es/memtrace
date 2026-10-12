@@ -43,11 +43,12 @@ export function normalizeProvider(provider?: string, model?: string): string | u
   return MODEL_PREFIX_PROVIDERS.find(([prefix]) => name.startsWith(prefix))?.[1];
 }
 
-export function stepStartAttributes(stepType: StepType, sessionId?: string): Attributes {
+export function stepStartAttributes(stepType: StepType, sessionId?: string, userId?: string): Attributes {
   return {
     [sc.MEMTRACE_STEP_TYPE]: stepType,
     [sc.GEN_AI_OPERATION_NAME]: OPERATION_BY_STEP_TYPE[stepType],
     [sc.GEN_AI_CONVERSATION_ID]: sessionId,
+    [sc.ENDUSER_ID]: userId,
   };
 }
 

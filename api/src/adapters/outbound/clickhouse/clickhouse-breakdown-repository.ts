@@ -26,6 +26,7 @@ const MAX_RELATED = 20;
 const GROUPS: Record<BreakdownGroup, { key: string; present: string; related: string }> = {
   prompt_version: { key: VERSION_LABEL, present: "PromptName != ''", related: `groupUniqArrayIf(${MAX_RELATED})(${ENVIRONMENT}, ${ENVIRONMENT} != '')` },
   environment: { key: ENVIRONMENT, present: `${ENVIRONMENT} != ''`, related: `groupUniqArrayIf(${MAX_RELATED})(${VERSION_LABEL}, PromptName != '')` },
+  user: { key: "UserId", present: "UserId != ''", related: `groupUniqArrayIf(${MAX_RELATED})(${ENVIRONMENT}, ${ENVIRONMENT} != '')` },
 };
 
 /**

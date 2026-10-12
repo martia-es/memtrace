@@ -55,12 +55,13 @@ def infer_step_type(attributes: Mapping[str, Any]) -> Optional[str]:
     return _STEP_TYPE_BY_TRACELOOP_KIND.get(kind) if isinstance(kind, str) else None
 
 
-def step_start_attributes(step_type: Union[StepType, str], session_id: Optional[str] = None) -> Attributes:
+def step_start_attributes(step_type: Union[StepType, str], session_id: Optional[str] = None, user_id: Optional[str] = None) -> Attributes:
     kind = step_type_value(step_type)
     return {
         sc.MEMTRACE_STEP_TYPE: kind,
         sc.GEN_AI_OPERATION_NAME: OPERATION_BY_STEP_TYPE.get(kind),
         sc.GEN_AI_CONVERSATION_ID: session_id,
+        sc.ENDUSER_ID: user_id,
     }
 
 
