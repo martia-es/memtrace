@@ -39,6 +39,14 @@ The three needs are separate pieces of work, but they share one decision: what M
 - It measures lost traces (must be zero with the persistent queue), ingest rate, p95 of the query API and Collector memory against thresholds kept in a versioned file.
 - It runs by `workflow_dispatch` and nightly, **not on every PR**: it needs a full stack and is slow. Thresholds are set from a measured baseline before the job is allowed to fail.
 
+### Update (step 1, backups implemented)
+
+- **ClickHouse backups run as a sidecar** (`clickhouse-backup` in the `clickhouse-0` pod, `k8s/20-clickhouse.yaml`) because the tool needs the data disk. A CronJob drives it through its authenticated API (7171, reachable only by the backup jobs through NetworkPolicy). `BACKUP ... TO S3` was ruled out: ClickHouse 23.8 does not support it reliably.
+- **`create` is a hardlink on the data disk, so it cannot write to another volume** (`invalid cross-device link`). The copy that survives losing the disk is made by `upload`: to S3 when the `backup-s3` Secret exists, otherwise a real copy to the `backups` volume through the tool's `custom` remote storage. Local hardlinked copies stay 7 days on the data disk.
+- **Expiry of the volume copies is done by the CronJob**, not by the tool: its `custom` list command did not parse in testing, and a delete with an empty name would have wiped the directory (the delete script refuses an empty name). In S3 the bucket lifecycle rule decides.
+- **The restore test is real**: `make restore-test` restores the latest Postgres dump into `restore_check` and the latest ClickHouse backup into a `restore_check` database (`restore_database_mapping`), compares per-table counts and drops it. Verified on a live cluster: 48 Postgres tables and 11 ClickHouse tables matched.
+- The sidecar must set `CLICKHOUSE_PORT=9000` explicitly: the Service named `clickhouse` makes Kubernetes inject `CLICKHOUSE_PORT=tcp://...`, which the tool reads as a number.
+
 ## Alternatives Considered
 
 | Decision | Alternative | Why not |

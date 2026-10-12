@@ -88,6 +88,16 @@ spec:
       ports:
         - { protocol: TCP, port: 8123 }
         - { protocol: TCP, port: 9000 }
+    # API del sidecar de copias de seguridad (ADR-096) y, para comprobar la restauración, HTTP
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [clickhouse-backup, clickhouse-restore-check]
+      ports:
+        - { protocol: TCP, port: 7171 }
+        - { protocol: TCP, port: 8123 }
 ---
 # 5) PostgreSQL: la API y los jobs que leen el almacén de identidad
 apiVersion: networking.k8s.io/v1
@@ -105,7 +115,7 @@ spec:
             matchExpressions:
               - key: app
                 operator: In
-                values: [api, health-probe, backfill-experiment-id, postgres-migrate, retention-purge, alerts-evaluate]
+                values: [api, health-probe, backfill-experiment-id, postgres-migrate, retention-purge, alerts-evaluate, postgres-backup, postgres-restore-check]
       ports:
         - { protocol: TCP, port: 5432 }
 ---
@@ -231,6 +241,61 @@ spec:
       - key: app
         operator: In
         values: [topic-extraction, topic-extraction-fit-initial, model-pricing-sync, model-quality-sync, health-probe, alerts-evaluate]
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.244.0.0/16, 10.96.0.0/12]
+---
+# 11) Copias de seguridad de Postgres (ADR-096): solo hablan con Postgres; el de copia sale además a Internet para subir al bucket S3
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-backup
+  namespace: memtrace
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [postgres-backup, postgres-restore-check]
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app: postgres }
+      ports:
+        - { protocol: TCP, port: 5432 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: clickhouse-backup
+  namespace: memtrace
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [clickhouse-backup, clickhouse-restore-check]
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app: clickhouse }
+      ports:
+        - { protocol: TCP, port: 7171 }
+        - { protocol: TCP, port: 8123 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-backup-internet
+  namespace: memtrace
+spec:
+  podSelector:
+    matchLabels: { app: postgres-backup }
   policyTypes: [Egress]
   egress:
     - to:

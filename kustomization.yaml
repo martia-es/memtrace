@@ -22,6 +22,7 @@ resources:
   - k8s/83-retention-purge.yaml
   - k8s/84-alerts-evaluate.yaml
   - k8s/85-backfill-experiment-id.yaml
+  - k8s/87-backup.yaml
 configMapGenerator:
   - name: clickhouse-migrations
     files:

@@ -161,6 +161,23 @@ reset: ## BORRA el clúster y TODOS los datos (pide confirmación)
 		echo "Cancelado"; \
 	fi
 
+backup: ## Copia de seguridad de Postgres y ClickHouse ahora (sin esperar a los CronJob nocturnos) y espera a que terminen
+	-@kubectl delete job backup-now backup-now-ch -n $(NS) --ignore-not-found >/dev/null
+	kubectl create job --from=cronjob/postgres-backup backup-now -n $(NS)
+	kubectl create job --from=cronjob/clickhouse-backup backup-now-ch -n $(NS)
+	kubectl wait --for=condition=complete job/backup-now job/backup-now-ch -n $(NS) --timeout=900s
+	@kubectl logs job/backup-now -n $(NS) --all-containers
+	@kubectl logs job/backup-now-ch -n $(NS)
+
+restore-test: ## Restaura la última copia de Postgres y de ClickHouse en bases temporales y las compara con las reales (no toca los datos)
+	-@kubectl delete job restore-test restore-test-ch -n $(NS) --ignore-not-found >/dev/null
+	kubectl create job --from=cronjob/postgres-restore-check restore-test -n $(NS)
+	@kubectl wait --for=condition=complete job/restore-test -n $(NS) --timeout=900s || { kubectl logs job/restore-test -n $(NS); exit 1; }
+	@kubectl logs job/restore-test -n $(NS) | tail -n 8
+	kubectl create job --from=cronjob/clickhouse-restore-check restore-test-ch -n $(NS)
+	@kubectl wait --for=condition=complete job/restore-test-ch -n $(NS) --timeout=900s || { kubectl logs job/restore-test-ch -n $(NS); exit 1; }
+	@kubectl logs job/restore-test-ch -n $(NS)
+
 db-reset: ## BORRA las tablas de Postgres y ClickHouse (conserva el clúster) y relanza las migraciones (pide confirmación)
 	@read -p "Esto borra TODAS las tablas de Postgres y ClickHouse (trazas, datasets, usuarios...). ¿Seguro? [y/N] " ans; \
 	if [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]; then \
