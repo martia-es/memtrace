@@ -1,0 +1,56 @@
+name: Load gate
+
+# ADR-096: puerta de rendimiento. Levanta MemTrace con el chart de Helm en un kind efímero, manda una carga fija por el
+# camino de un agente real y falla si se pierden spans o se superan los umbrales de load-testing/thresholds.json.
+# No corre en cada PR (necesita un clúster completo y tarda): a demanda y cada noche.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 4 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  load-gate:
+    name: Ingest, query and memory thresholds
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.2
+      - uses: helm/kind-action@v1
+        with:
+          cluster_name: memtrace-load
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build the API image and load it into kind
+        run: |
+          docker build -t memtrace/api:dev api
+          kind load docker-image memtrace/api:dev --name memtrace-load
+      - name: Install MemTrace with the Helm chart
+        run: |
+          helm install memtrace deploy/helm/memtrace -n memtrace --create-namespace
+          kubectl -n memtrace rollout status statefulset/clickhouse statefulset/postgres --timeout=300s
+          kubectl -n memtrace wait --for=condition=complete job/clickhouse-migrate-1 job/postgres-migrate-1 --timeout=300s
+          kubectl -n memtrace rollout status deployment/api deployment/otel-collector --timeout=300s
+      - name: Run the gate
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e sdk/python
+          python load-testing/load_gate.py --namespace memtrace --report load-gate-report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: load-gate-report
+          path: load-gate-report.json
+          if-no-files-found: ignore
+      - name: Cluster state on failure
+        if: failure()
+        run: |
+          kubectl -n memtrace get pods
+          kubectl -n memtrace logs deployment/otel-collector --tail=100 || true
+          kubectl -n memtrace logs deployment/api --tail=100 || true

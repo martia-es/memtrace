@@ -1,0 +1,6 @@
+{
+  "max_spans_lost": 0,
+  "min_spans_per_second": 300,
+  "max_query_p95_ms": 500,
+  "max_collector_rss_mb": 600
+}
