@@ -36,8 +36,8 @@ One trace is one run of your agent. The Traces list shows the root span, input a
 
 A trace has two tabs:
 
-- **Conversation** reads the messages like a chat: what the user asked, which tools the assistant used and what it answered, without ids or raw JSON.
-- **Technical trace** is the span tree with timings and, next to it, the selected span's input, output and metadata. This is the default.
+- **Conversation** reads the messages like a chat: what the user asked and what the assistant answered, without ids or raw JSON. Between the two, **How the answer was built** lists the steps behind the reply: the guardrails it passed, the passages it retrieved from the knowledge base (with their source and score, and a *Low match* flag under 0.5), the tools it called (what it asked and what it returned, or what went wrong) and the reply it wrote. Retrievals, tools and failed steps start open; **Expand all** opens the rest. If you can see the technical trace, each step links to its span with **Open in technical trace**. Passage text and tool data appear only when [content capture](/library/configuration#privacy-and-content-capture) is on.
+- **Technical trace** is the span tree with timings and, next to it, the selected span's input, output and metadata. This is the default. A strip on top sums up the trace (spans, model calls with tokens and cost, tools, guardrails, errors) and points to the **slowest step**. The chips filter the tree to one kind of step (model calls, tools, retrieval, guardrails or errors), and **Group guardrails** folds the checks of each guardrail into one row. A tool's arguments and result are shown as a table (a list of objects becomes a small table); switch the panel to **JSON** for the raw data.
 
 **Annotate**, **Add to queue** and **Add to dataset** are available from the header.
 

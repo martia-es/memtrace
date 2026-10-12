@@ -3,11 +3,15 @@ import TopbarSlot from "../components/TopbarSlot.vue";
 import { computed, ref, useTemplateRef, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { formatCostUsd, formatCount, formatDateTime, formatDuration, shortId } from "@/domain/format";
+import { conversationSteps } from "@/domain/conversation-steps";
 import { conversationTurns } from "@/domain/review-thread";
+import { traceSummary, type SpanFilter } from "@/domain/trace-summary";
 import { promptsUsedBy } from "@/domain/prompt-playground";
 import { traceThread } from "@/domain/trace-thread";
 import { findNode, firstErrorNode } from "@/domain/waterfall";
+import ConversationSteps from "../components/ConversationSteps.vue";
 import ConversationThread from "../components/ConversationThread.vue";
+import TraceOverviewBar from "../components/TraceOverviewBar.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import SpanInspector from "../components/SpanInspector.vue";
 import SpanTree from "../components/SpanTree.vue";
@@ -75,6 +79,21 @@ const viewTabs = computed(() => [
 ]);
 const setTab = (value: "conversation" | "trace") => void router.replace({ query: { ...route.query, tab: value === "trace" ? undefined : value } });
 const turns = computed(() => conversationTurns(traceThread(roots.value)));
+
+// ---- the conversation shows how the reply was built (guardrails, retrieved passages, tool calls) between the last
+// user message and the reply; the tool lines and data blobs the messages carry are replaced by those steps ----
+const steps = computed(() => conversationSteps(roots.value));
+const shownTurns = computed(() => {
+  if (!steps.value.length) return turns.value;
+  const lastUser = turns.value.map((t) => t.kind).lastIndexOf("user");
+  return turns.value.filter((t, i) => i <= lastUser || (t.kind !== "action" && t.kind !== "data"));
+});
+const openSpanInTrace = (spanId: string) => void router.replace({ query: { ...route.query, tab: undefined, span: spanId } });
+
+// ---- technical trace: summary, filters and folded guardrail checks ----
+const summary = computed(() => traceSummary(roots.value, trace.data.value?.durationMs ?? 0));
+const spanFilter = ref<SpanFilter>("all");
+const groupGuardrails = ref(true);
 
 // ---- human annotation (ADR-037) ----
 const annotating = ref(false);
@@ -194,11 +213,25 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
       </div>
 
       <Card as="section" padding="none" block v-if="tab === 'conversation'" class="thread-card" aria-label="Conversation">
-        <ConversationThread v-if="turns.length" :turns="turns" />
+        <ConversationThread v-if="turns.length" :turns="shownTurns">
+          <template v-if="steps.length" #steps>
+            <ConversationSteps :steps="steps" :can-open-trace="canTechnical" @open-span="openSpanInTrace" />
+          </template>
+        </ConversationThread>
         <p v-else class="muted empty-thread">This trace has no message content saved. Enable <code>MEMTRACE_CAPTURE_CONTENT=true</code> on the agent to read the conversation here.</p>
       </Card>
 
-      <div v-else class="cols">
+      <TraceOverviewBar
+        v-if="tab === 'trace'"
+        v-model:filter="spanFilter"
+        v-model:group-guardrails="groupGuardrails"
+        :summary="summary"
+        :tokens="trace.data.value.totalTokens"
+        :cost-usd="trace.data.value.totalCostUsd"
+        @select-slowest="select"
+      />
+
+      <div v-if="tab === 'trace'" class="cols">
         <Card as="section" padding="none" block class="tree-card" aria-label="Span tree">
           <div class="tree-head">
             <h2>Spans</h2>
@@ -209,7 +242,16 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
               <span class="mono muted meta">{{ formatDuration(trace.data.value.durationMs) }}</span>
             </div>
           </div>
-          <SpanTree ref="treeRef" :roots="roots" :total-ms="trace.data.value.durationMs" :selected-id="selectedNode?.spanId ?? null" @select="select" />
+          <SpanTree
+            ref="treeRef"
+            :roots="roots"
+            :total-ms="trace.data.value.durationMs"
+            :selected-id="selectedNode?.spanId ?? null"
+            :filter="spanFilter"
+            :group-guardrails="groupGuardrails"
+            :slowest-id="summary.slowest?.spanId ?? null"
+            @select="select"
+          />
         </Card>
 
         <SpanInspector v-if="selectedNode" :node="selectedNode" :empty-hint="hint" />
