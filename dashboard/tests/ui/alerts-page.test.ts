@@ -23,7 +23,7 @@ const rule = (over: Partial<AlertRuleDto> = {}): AlertRuleDto => ({
 const status = (state: "ok" | "firing" | "no_data", lastValue: number | null = 9) => ({ state, since: new Date(Date.now() - 3 * 60_000).toISOString(), lastValue, lastCheckedAt: null, lastNotifiedAt: null });
 const event = (id: string, over: Partial<AlertEventDto> = {}): AlertEventDto => ({ id, ruleId: "r1", experimentId: "exp-1", at: new Date(Date.now() - 60_000).toISOString(), kind: "fired", value: 9, threshold: 5, emailed: 1, ...over });
 const budgetView = (over: Partial<BudgetViewDto> = {}): BudgetViewDto => ({
-  budget: { experimentId: "exp-1", monthlyUsd: 100, warnPercent: 80, recipients: ["fin@example.com"], enabled: true, updatedAt: "" }, month: "2026-10-01", spentUsd: 40, percent: 40, projectedUsd: 120, ...over,
+  budget: { experimentId: "exp-1", monthlyUsd: 100, warnPercent: 80, recipients: ["fin@example.com"], enabled: true, updatedAt: "" }, month: "2026-10-01", spentUsd: 40, percent: 40, projectedUsd: 120, daily: [], ...over,
 });
 const chart = (id: string, name: string, over: Record<string, unknown> = {}): SavedCustomMetricDto => ({
   id, name, createdAt: "", definition: { chartType: "number", stepTypes: ["guardrail"], metric: "count", metricAttribute: null, filters: [], groupByAttribute: null, ...over } as never,

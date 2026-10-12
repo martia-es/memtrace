@@ -17,6 +17,7 @@ import CustomChartsPanel from "../components/CustomChartsPanel.vue";
 import MetricReportView from "../components/MetricReportView.vue";
 import ReportCard from "../components/ReportCard.vue";
 import ErrorOverviewCard from "../components/ErrorOverviewCard.vue";
+import CostTrendCard from "../components/CostTrendCard.vue";
 import EChart from "../components/EChart.vue";
 import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
@@ -161,10 +162,14 @@ const goalChips = computed<Record<string, GoalChip>>(() => {
   const lat = goalOf("latency_p95", overview.rules);
   if (lat) chips.latency = { tone: lat.tone, label: lat.label, line: `Goal ${limitText("latency_p95", overview.rules.find((r) => r.rule.metric === "latency_p95" && r.rule.enabled)!.rule.threshold)}${measured(lat, (v) => formatDuration(v))}` };
   const cost = budgetGoalOf(overview.budget);
-  if (cost) chips.cost = { tone: cost.tone, label: cost.label, line: `${formatCostUsd(cost.spentUsd) ?? "$0"} of ${formatCostUsd(cost.monthlyUsd) ?? "$0"} this month` };
+  if (cost) chips.cost = { tone: cost.tone, label: cost.label, line: `${formatCostUsd(cost.spentUsd) ?? "$0"} of ${formatCostUsd(cost.monthlyUsd) ?? "$0"} this month${cost.projectedUsd === null ? "" : ` · projected ${formatCostUsd(cost.projectedUsd) ?? "$0"}`}` };
   else if (can("alert:manage")) chips.cost = { tone: "neutral", label: "No goal", line: "Set a monthly budget →" };
   return chips;
 });
+// la previsión de coste es del mes natural y vive en el presupuesto (ADR-086): sin presupuesto activo no hay tarjeta
+const costBudget = computed(() => (goalsData.data.value?.budget?.budget.enabled ? goalsData.data.value.budget : null));
+const costNow = ref(new Date());
+watch(() => goalsData.data.value, () => (costNow.value = new Date()));
 const goToAlerts = () => router.push({ name: "alerts", params: { experimentId: experimentId.value } });
 
 // primera visita (M1): sin ningún objetivo, una explicación y un botón que activa los de partida
@@ -513,6 +518,8 @@ function swapAgents() {
               </button>
             </Card>
           </div>
+
+          <CostTrendCard v-if="costBudget" :view="costBudget" :now="costNow" />
 
           <ErrorOverviewCard v-if="errorOverview.data.value && errorOverview.data.value.categories.length" :overview="errorOverview.data.value" @view="goToErrors" />
 
