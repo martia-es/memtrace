@@ -1,0 +1,54 @@
+# Mantenimiento de `otel_traces` tras el cambio a ReplacingMergeTree (ADR-099), cada hora:
+#  - compacta los días cerrados (una sola parte por partición): es lo que hace que las lecturas con `final = 1` no cuesten más que sin
+#    él (medido con 17,8 M de spans: sin compactar, de 5 a 10 veces más y varias agotaban la memoria de un ClickHouse de 3 GB);
+#  - borra la tabla anterior al cambio (`otel_traces_pre_dedup`) a los 7 días de haberse verificado el cambio.
+# Idempotente y acotado (50 particiones por pasada). Misma imagen que la API. Para lanzarlo a mano: `make compact`.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: maintain-otel-traces
+  namespace: {{ .Release.Namespace }}
+spec:
+  schedule: "17 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: maintain-otel-traces
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: maintain
+              image: {{ include "memtrace.image" .Values.images.api }}
+              imagePullPolicy: {{ .Values.imagePullPolicy }}
+              command: ["node", "worker/maintain-otel-traces.cjs"]
+              env:
+                # OPTIMIZE y DROP: el usuario `default` (el mismo que usa el Job de migraciones)
+                - name: CLICKHOUSE_URL
+                  value: http://clickhouse:8123
+                - name: CLICKHOUSE_USER
+                  value: default
+                - name: CLICKHOUSE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: clickhouse-credentials
+                      key: password
+                - name: CLICKHOUSE_DATABASE
+                  value: memtrace
+                - name: MAINTAIN_KEEP_PREVIOUS_DAYS
+                  value: "7"
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities: { drop: ["ALL"] }
+              resources:
+                requests: { cpu: 25m, memory: 64Mi }
+                limits: { memory: 256Mi }
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000

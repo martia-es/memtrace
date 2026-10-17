@@ -28,6 +28,7 @@ resources:
   - k8s/85-backfill-experiment-id.yaml
   - k8s/87-backup.yaml
   - k8s/88-dedupe-otel-traces.yaml
+  - k8s/89-maintain-otel-traces.yaml
 configMapGenerator:
   - name: clickhouse-migrations
     files:

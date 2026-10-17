@@ -68,7 +68,7 @@ API, dashboard, docs, Collector, health-probe and backfill drop all capabilities
 - `kubectl port-forward` bypasses policies by design; it still reaches ClickHouse and Postgres for development.
 - StatefulSets (ClickHouse, Postgres) and the Python jobs are not hardened beyond what they had: their images start as root and drop privileges, so `runAsNonRoot` and `drop: ALL` need testing on a cluster first.
 - The topic-extraction, model-pricing and health-probe jobs and the backfill still connect as `default`; they need their own users.
-- ClickHouse is deployed at 23.8 while the migration Job image is 24.3; align them.
+- (Update 2026-10-17: ClickHouse is deployed at 24.3 since ADR-099; the Collector 0.96 exporter and the grants were re-checked on it.) ClickHouse is deployed at 23.8 while the migration Job image is 24.3; align them.
 
 ## Consequences
 

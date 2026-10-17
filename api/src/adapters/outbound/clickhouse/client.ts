@@ -5,8 +5,16 @@ import { createClient, type ClickHouseClient } from "@clickhouse/client";
  * ClickHouse las funde en segundo plano; con `final = 1` aplica FINAL a las tablas donde existe (ReplacingMergeTree) y lo ignora en
  * las demás. La sintaxis `FROM tabla FINAL` fallaría contra `otel_traces` antes de su cambio de motor (MergeTree: ILLEGAL_FINAL), y así
  * la API funciona igual antes, durante y después del cambio.
+ *
+ * Los otros dos ajustes son los que hacen que FINAL no cueste caro (medido con 17,8 M de spans):
+ * - `do_not_merge_across_partitions_select_final`: la identidad del span siempre cae en una partición (copias del mismo span tienen la
+ *   misma hora), así que no hace falta fundir entre particiones;
+ * - `use_skip_indexes_if_final`: sin él, FINAL desactiva los índices de salto y la consulta de una traza por TraceId lee todo.
+ * Con `final = 1` a secas, las consultas tardaban de 5 a 10 veces más y varias agotaban la memoria de un ClickHouse de 3 GB; con los
+ * tres ajustes, sobre una tabla compactada (ver `maintain-otel-traces`) y ClickHouse 24.3, el coste medido fue nulo. En 23.8 sigue
+ * siendo correcto, pero de 1,2 a 4 veces más lento: por eso el chart usa 24.3.
  */
-export const DEDUPED_READS = { final: 1 } as const;
+export const DEDUPED_READS = { final: 1, do_not_merge_across_partitions_select_final: 1, use_skip_indexes_if_final: 1 } as const;
 
 export interface ClickHouseConfig {
   url: string;

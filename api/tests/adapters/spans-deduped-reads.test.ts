@@ -8,8 +8,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const DIR = join(__dirname, "..", "..", "src", "adapters", "outbound", "clickhouse");
-// el borrado y el relleno del experimento operan sobre la tabla, no leen para mostrar; el Job de cambio no es una lectura de la API
-const EXEMPT = new Set(["experiment-id-backfill.ts", "otel-traces-dedupe.ts", "client.ts"]);
+// el borrado y el relleno del experimento operan sobre la tabla, no leen para mostrar; el Job de cambio y el de mantenimiento no son lecturas de la API (miran system.parts)
+const EXEMPT = new Set(["experiment-id-backfill.ts", "otel-traces-dedupe.ts", "otel-traces-maintenance.ts", "client.ts"]);
 
 const sources = readdirSync(DIR)
   .filter((f) => f.endsWith(".ts") && !EXEMPT.has(f))
@@ -29,6 +29,6 @@ describe("reads of spans are deduplicated (ADR-099)", () => {
 
   it("final = 1 is the setting, not the FROM ... FINAL syntax that fails on a MergeTree table", () => {
     const client = readFileSync(join(DIR, "client.ts"), "utf8");
-    expect(client).toMatch(/DEDUPED_READS = \{ final: 1 \}/);
+    expect(client).toMatch(/DEDUPED_READS = \{ final: 1, do_not_merge_across_partitions_select_final: 1, use_skip_indexes_if_final: 1 \}/);
   });
 });

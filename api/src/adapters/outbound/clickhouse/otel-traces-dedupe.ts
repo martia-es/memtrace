@@ -18,9 +18,18 @@ export interface DedupeOptions {
   catchupHours: number;
   /** Espera tras el intercambio para que terminen las inserciones asíncronas que aún apuntaban a la tabla antigua. */
   settleMs: number;
+  /** Tope de filas por orden INSERT ... SELECT: más allá, la hora se parte en trozos por hash de TraceId. */
+  maxRowsPerChunk: number;
   log: (message: string) => void;
   sleep: (ms: number) => Promise<void>;
 }
+
+/**
+ * Ajustes de cada copia. Recalcular las columnas MATERIALIZED (conversación, usuario, prompt...) de un bloque grande consume mucha
+ * memoria: una copia de un día entero agotó los 2,7 GB de un ClickHouse de 3 GB. Con bloques pequeños y pocos hilos el consumo es
+ * pequeño y constante, a costa de algo de tiempo.
+ */
+const COPY_SETTINGS = { max_insert_block_size: "65536", min_insert_block_size_rows: "65536", min_insert_block_size_bytes: "33554432", max_threads: "2" } as const;
 
 export type DedupeStatus = "already-deduplicated" | "completed" | "resumed";
 
@@ -48,6 +57,7 @@ export class OtelTracesDedupe {
     this.options = {
       catchupHours: 24,
       settleMs: 10_000,
+      maxRowsPerChunk: 500_000,
       log: (m) => console.log(`[dedupe] ${m}`),
       sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
       ...options,
@@ -120,11 +130,37 @@ export class OtelTracesDedupe {
 
   private async copyHistory(): Promise<number> {
     const days = await this.rows<{ d: string }>(`SELECT toString(toDate(Timestamp)) AS d FROM ${this.database}.otel_traces GROUP BY d ORDER BY d`);
-    this.options.log(`copying ${days.length} day(s) of history to otel_traces_v2`);
+    this.options.log(`copying ${days.length} day(s) of history to otel_traces_v2, in chunks of at most ${this.options.maxRowsPerChunk} rows`);
     for (const { d } of days) {
-      await this.command(`INSERT INTO ${this.database}.otel_traces_v2 SELECT * FROM ${this.database}.otel_traces WHERE toDate(Timestamp) = {d:Date}`, { d });
+      const rows = await this.copyRange("otel_traces", "otel_traces_v2", "toDate(Timestamp) = {d:Date}", { d });
+      this.options.log(`  ${d}: ${rows} rows`);
     }
     return days.length;
+  }
+
+  /**
+   * Copia `where` de `from` a `to` por horas y, si una hora tiene más de `maxRowsPerChunk` filas, por trozos según el hash de TraceId.
+   * Cada orden es pequeña (memoria acotada) y, como las copias se solapan sin daño, repetir una es seguro.
+   */
+  private async copyRange(from: string, to: string, where: string, params: Record<string, unknown>): Promise<number> {
+    const hours = await this.rows<{ h: string; n: string }>(
+      `SELECT toString(toStartOfHour(Timestamp)) AS h, count() AS n FROM ${this.database}.${from} WHERE ${where} GROUP BY h ORDER BY h`,
+      params,
+    );
+    let copied = 0;
+    for (const { h, n } of hours) {
+      const count = Number(n);
+      const chunks = Math.max(1, Math.ceil(count / this.options.maxRowsPerChunk));
+      for (let k = 0; k < chunks; k++) {
+        await this.command(
+          `INSERT INTO ${this.database}.${to} SELECT * FROM ${this.database}.${from} WHERE ${where} AND toStartOfHour(Timestamp) = toDateTime({h:String})${chunks > 1 ? " AND cityHash64(TraceId) % {chunks:UInt32} = {k:UInt32}" : ""}`,
+          { ...params, h, chunks, k },
+          COPY_SETTINGS,
+        );
+      }
+      copied += count;
+    }
+    return copied;
   }
 
   /**
@@ -136,7 +172,7 @@ export class OtelTracesDedupe {
     const where = `Timestamp >= toDateTime64({since:String}, 9) - INTERVAL {hours:UInt32} HOUR`;
     let counts = { old: 0, new: 0 };
     for (let attempt = 1; attempt <= 3; attempt++) {
-      await this.command(`INSERT INTO ${this.database}.otel_traces SELECT * FROM ${this.database}.${oldTable} WHERE ${where}`, window);
+      await this.copyRange(oldTable, "otel_traces", where, window);
       counts = {
         old: await this.count(`SELECT uniqExact(${KEY}) AS n FROM ${this.database}.${oldTable} WHERE ${where}`, window),
         new: await this.count(`SELECT uniqExact(${KEY}) AS n FROM ${this.database}.otel_traces WHERE ${where}`, window),
@@ -189,7 +225,7 @@ export class OtelTracesDedupe {
     return result.json<T>();
   }
 
-  private async command(query: string, params: Record<string, unknown> = {}): Promise<void> {
-    await this.client.command({ query, query_params: params });
+  private async command(query: string, params: Record<string, unknown> = {}, settings?: Record<string, string>): Promise<void> {
+    await this.client.command({ query, query_params: params, ...(settings ? { clickhouse_settings: settings } : {}) });
   }
 }

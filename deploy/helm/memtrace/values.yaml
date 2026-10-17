@@ -21,7 +21,7 @@ images:
     tag: '1.36'
   clickhouse:
     repository: clickhouse/clickhouse-server
-    tag: 23.8-alpine
+    tag: 24.3-alpine
   clickhouseBackup:
     repository: altinity/clickhouse-backup
     tag: 2.5.20

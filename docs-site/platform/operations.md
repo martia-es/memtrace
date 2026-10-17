@@ -191,6 +191,10 @@ kubectl -n memtrace scale deployment/otel-collector-writer --replicas=4
 
 **At-least-once delivery, without duplicates you can see.** To never lose a trace, a retry can write the same one twice (a killed pod, an agent that retries after a timeout). MemTrace stores each span once: copies are folded in the background and every read collapses them, so counts, costs and error rates are not inflated.
 
+**ClickHouse version.** MemTrace runs ClickHouse 24.3. If you point it at your own or a managed ClickHouse (`clickhouse.external.host`), use 24.3 or newer: reading without duplicates is as fast as before there, and several times slower on 23.8.
+
+**Housekeeping.** A job runs every hour (`maintain-otel-traces`) that compacts the days that no longer receive data, which keeps reads fast, and removes the previous traces table seven days after the swap below (`make compact` runs it now).
+
 **Upgrading an installation that already has data.** The release creates a second table for traces and a Job (`dedupe-otel-traces`) swaps it in **without stopping ingestion**: it copies the history, swaps the two tables, and picks up what arrived meanwhile. Check it with `kubectl -n memtrace logs job/dedupe-otel-traces`. The previous table is kept as `otel_traces_pre_dedup` in case you need to go back, and uses disk until you remove it (`make dedupe-cleanup` locally; with Helm, `DROP TABLE memtrace.otel_traces_pre_dedup` once you have checked your data). A very large traces table takes time to copy: do it in a quiet hour.
 
 **Upgrading from a version without Kafka.** The old single Collector kept a queue on a volume (`otel-collector-queue`). Wait until it is empty (the metric `otelcol_exporter_queue_size` was 0), upgrade, and then delete the volume: `kubectl -n memtrace delete pvc otel-collector-queue`.
