@@ -25,3 +25,7 @@ Without volumes, ClickHouse loses all data when its pod restarts, and the Collec
   - Batches older than `max_elapsed_time` (1h) are dropped; persistence bounds loss but is not a guarantee against long outages.
   - The 2Gi queue volume can fill during long outages under heavy traffic; no alerting in Phase 1.
   - The queue only protects Collector to ClickHouse. If the Collector is down, the SDK's in-memory batch queue drops spans by design (agents must never block).
+
+## Update (2026-10-17): the single-replica Collector is superseded by ADR-098 once implemented
+
+The negative consequences above (a single Collector owns the queue volume, scaling out needs another design, the queue only protects Collector to ClickHouse) are the problem [ADR-098](adr-098-durable-ingestion-pipeline-with-broker.md) solves: the pending data moves into a replicated broker and both Collector tiers keep no state. Until that lands this ADR describes what runs. Item 1 (ClickHouse volume) is unchanged; items 2 to 4 (Collector queue, `Recreate`, retries) stop applying to the ingestion path when the broker is in place, and this ADR will then be marked `Superseded by ADR-098` for them.

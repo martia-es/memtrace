@@ -71,6 +71,8 @@ Do **not** write one for a new screen, an endpoint that follows an existing patt
 | 095 | Multi-Language SDK Contract: Python Is the Reference, a Shared Conformance Suite Keeps TypeScript Aligned | [sdk/adr-095-multi-language-sdk-contract.md](sdk/adr-095-multi-language-sdk-contract.md) |
 | 096 | Production Operations: Backups, Helm Chart and Load Gates | [infra/adr-096-production-operations-backups-helm-load-gates.md](infra/adr-096-production-operations-backups-helm-load-gates.md) |
 | 097 | Repeated Executions of a Run to Measure Evaluation Noise | [evaluation/adr-097-repeated-executions-to-measure-evaluation-noise.md](evaluation/adr-097-repeated-executions-to-measure-evaluation-noise.md) |
+| 098 | Durable Ingestion Pipeline: Dedicated Ingest Service, Broker Between Collectors, Prometheus and Grafana | [infra/adr-098-durable-ingestion-pipeline-with-broker.md](infra/adr-098-durable-ingestion-pipeline-with-broker.md) |
+| 099 | Deduplicated Span Storage with ReplacingMergeTree | [storage/adr-099-deduplicated-span-storage.md](storage/adr-099-deduplicated-span-storage.md) |
 
 ## Retired ADRs
 
