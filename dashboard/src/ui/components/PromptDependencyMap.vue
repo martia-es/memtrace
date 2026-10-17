@@ -8,6 +8,7 @@ import { usePromptApi } from "../composables/usePromptApi";
 import EmptyState from "./EmptyState.vue";
 import EnvFlag from "./EnvFlag.vue";
 import Pill from "./Pill.vue";
+import { t, tp } from "../i18n";
 
 /**
  * Mapa de dependencias de un prompt (ADR-074): los agentes que lo leen y qué sirve cada uno por entorno, el dataset con el que
@@ -29,23 +30,23 @@ const wires = (n: number): number[] => Array.from({ length: n }, (_, i) => ((i +
 <template>
   <div class="map" data-testid="dependency-map">
     <p v-if="map.error.value" class="problem" role="alert">{{ describeApiError(map.error.value) }}</p>
-    <p v-else-if="!data" class="soft">Loading…</p>
-    <EmptyState v-else-if="empty" icon="hub" title="Nothing depends on this yet">Link it to an agent, give it a promotion policy or include a fragment, and it shows up here.</EmptyState>
+    <p v-else-if="!data" class="soft">{{ t("promptDependencyMap.loading") }}</p>
+    <EmptyState v-else-if="empty" icon="hub" :title="t('promptDependencyMap.nothing_depends_on_this_yet')">{{ t("promptDependencyMap.link_it_to_an_agent_give") }}</EmptyState>
     <template v-else>
       <div class="flow">
         <div class="col">
-          <span class="eyebrow">FRAGMENTS IT INCLUDES</span>
+          <span class="eyebrow">{{ t("promptDependencyMap.fragments_it_includes") }}</span>
           <section v-if="data.includes.length > 0" class="stack" data-testid="map-includes">
             <article v-for="i in data.includes" :key="i.name + i.ref" class="item" :class="{ out: i.outdated }">
               <b class="mono">{{ i.name }}@{{ i.ref }}</b>
               <span class="line">
-                <span>pinned to <b class="mono">v{{ i.pinned }}</b></span>
-                <Pill v-if="i.outdated" tone="highlight">now v{{ i.current }}</Pill>
-                <Pill v-else tone="ok">current</Pill>
+                <span>{{ t("promptDependencyMap.pinned_to") + " " }}<b class="mono">v{{ i.pinned }}</b></span>
+                <Pill v-if="i.outdated" tone="highlight">{{ t("promptDependencyMap.now_v_version", { version: i.current }) }}</Pill>
+                <Pill v-else tone="ok">{{ t("promptDependencyMap.current") }}</Pill>
               </span>
             </article>
           </section>
-          <p v-else class="soft empty">No fragments.</p>
+          <p v-else class="soft empty">{{ t("promptDependencyMap.no_fragments") }}</p>
         </div>
 
         <svg class="wires" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
@@ -53,9 +54,9 @@ const wires = (n: number): number[] => Array.from({ length: n }, (_, i) => ((i +
         </svg>
 
         <div class="node">
-          <span class="eyebrow tint">{{ kind === "prompt" ? "THIS PROMPT" : "THIS FRAGMENT" }}</span>
+          <span class="eyebrow tint">{{ kind === "prompt" ? t("promptDependencyMap.this_prompt") : t("promptDependencyMap.this_fragment") }}</span>
           <b v-if="name" class="node-name">{{ name }}</b>
-          <span v-if="latest > 0" class="mono node-latest">latest v{{ latest }}</span>
+          <span v-if="latest > 0" class="mono node-latest">{{ t("promptDependencyMap.latest_v_version", { version: latest }) }}</span>
         </div>
 
         <svg class="wires" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
@@ -64,16 +65,16 @@ const wires = (n: number): number[] => Array.from({ length: n }, (_, i) => ((i +
 
         <div class="col">
           <template v-if="kind === 'prompt'">
-            <span class="eyebrow">AGENTS THAT READ IT</span>
+            <span class="eyebrow">{{ t("promptDependencyMap.agents_that_read_it") }}</span>
             <section class="stack" data-testid="map-agents">
-              <p v-if="data.agents.length === 0" class="soft">No agent is linked. Link one from the prompt's settings.</p>
+              <p v-if="data.agents.length === 0" class="soft">{{ t("promptDependencyMap.no_agent_is_linked_link_one") }}</p>
               <article v-for="a in data.agents" :key="a.experimentId" class="item" :data-testid="`map-agent-${a.name}`">
                 <span class="agent-head">
                   <b>{{ a.name }}</b>
-                  <span v-if="lastSeen(a.serving)" class="soft">seen {{ formatRelativeTime(lastSeen(a.serving)!, now) }}</span>
+                  <span v-if="lastSeen(a.serving)" class="soft">{{ t("promptDependencyMap.seen_when", { when: formatRelativeTime(lastSeen(a.serving)!, now) }) }}</span>
                 </span>
-                <span v-if="a.serving.length === 0" class="soft">has not reported reading it yet</span>
-                <span v-for="s in servingOf(a.serving)" :key="s.environment" class="serving" :title="s.tag ? `follows “${s.tag}”` : 'fixed version'">
+                <span v-if="a.serving.length === 0" class="soft">{{ t("promptDependencyMap.has_not_reported_reading_it_yet") }}</span>
+                <span v-for="s in servingOf(a.serving)" :key="s.environment" class="serving" :title="s.tag ? t('promptDependencyMap.follows_tag', { tag: s.tag }) : t('promptDependencyMap.fixed_version')">
                   <EnvFlag :env="s.environment || 'none'" />
                   <b class="mono">v{{ s.version }}</b>
                   <b v-if="latest > 0" class="pill" :class="servingStatus(s, tagVersions, latest).state" :data-testid="`map-status-${a.name}-${s.environment}`">{{ servingStatus(s, tagVersions, latest).label }}</b>
@@ -82,11 +83,11 @@ const wires = (n: number): number[] => Array.from({ length: n }, (_, i) => ((i +
             </section>
           </template>
           <template v-else>
-            <span class="eyebrow">PROMPTS THAT INCLUDE IT</span>
+            <span class="eyebrow">{{ t("promptDependencyMap.prompts_that_include_it") }}</span>
             <section class="stack" data-testid="map-used-by">
-              <p v-if="data.usedBy.length === 0" class="soft">None yet.</p>
+              <p v-if="data.usedBy.length === 0" class="soft">{{ t("promptDependencyMap.none_yet") }}</p>
               <article v-for="u in data.usedBy" :key="u.promptId" class="item">
-                <span class="line"><b>{{ u.name }}</b> <span class="soft">v{{ u.version }}</span><Pill v-if="u.outdated" tone="highlight">behind</Pill></span>
+                <span class="line"><b>{{ u.name }}</b> <span class="soft">v{{ u.version }}</span><Pill v-if="u.outdated" tone="highlight">{{ t("promptDependencyMap.behind") }}</Pill></span>
               </article>
             </section>
           </template>
@@ -100,16 +101,16 @@ const wires = (n: number): number[] => Array.from({ length: n }, (_, i) => ((i +
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><ellipse cx="12" cy="6" rx="7" ry="3" /><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3" /></svg>
           </span>
           <div class="ds-body">
-            <span class="eyebrow">EVALUATED WITH</span>
-            <p v-if="!data.dataset" class="soft">No promotion policy: any version can be promoted without an evaluation.</p>
+            <span class="eyebrow">{{ t("promptDependencyMap.evaluated_with") }}</span>
+            <p v-if="!data.dataset" class="soft">{{ t("promptDependencyMap.no_promotion_policy_any_version_can") }}</p>
             <p v-else>
-              <b>{{ data.dataset.name }}</b> · {{ data.dataset.requiredRuns }} {{ data.dataset.requiredRuns === 1 ? "run" : "runs" }} must pass before <b class="mono">pre</b> or <b class="mono">pro</b>
+              <b>{{ data.dataset.name }}</b> · {{ tp("promptDependencyMap.runs", data.dataset.requiredRuns) }} <b class="mono">{{ t("promptDependencyMap.pre") }}</b>{{ " " + t("promptDependencyMap.or") + " " }}<b class="mono">{{ t("promptDependencyMap.pro") }}</b>
             </p>
           </div>
-          <router-link v-if="data.dataset" class="ghost-link" :to="{ name: 'dataset', params: { experimentId: data.dataset.experimentId, datasetId: data.dataset.id } }">Open dataset</router-link>
+          <router-link v-if="data.dataset" class="ghost-link" :to="{ name: 'dataset', params: { experimentId: data.dataset.experimentId, datasetId: data.dataset.id } }">{{ t("promptDependencyMap.open_dataset") }}</router-link>
         </section>
       </template>
-      <p class="soft">Fragments flow into the prompt, the prompt flows to the agents that read it. Outdated fragments are marked in coral.</p>
+      <p class="soft">{{ t("promptDependencyMap.fragments_flow_into_the_prompt_the") }}</p>
     </template>
   </div>
 </template>
