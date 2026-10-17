@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory, type RouteLocationNormalized } from "vue-router";
+import { watch } from "vue";
 import { getContainer } from "@/dependency-container";
+import { locale, routeTitle } from "./i18n";
 
 const metricsPage = () => import("./pages/MetricsPage.vue");
 const queuesPage = () => import("./pages/AnnotationQueuesPage.vue");
@@ -72,9 +74,11 @@ export const router = createRouter({
   ],
 });
 
-router.afterEach((to) => {
-  document.title = `${String(to.meta.title ?? "MemTrace")} · MemTrace`;
-});
+const setDocumentTitle = (meta: Record<string | symbol, unknown>) => {
+  document.title = `${routeTitle(meta.title)} · MemTrace`;
+};
+router.afterEach((to) => setDocumentTitle(to.meta));
+watch(locale, () => setDocumentTitle(router.currentRoute.value.meta));
 
 // Sesión + scoping por experimento (ADR-013): sin sesión -> /login; con experimentId en la ruta -> se
 // fija en el TraceApi compartido antes de que las páginas disparen ninguna petición.

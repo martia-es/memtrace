@@ -64,6 +64,12 @@ export function tp(key: string, count: number, params?: Params): string {
   return t(`${key}.${rule}` as MessageKey, { count, ...params });
 }
 
+/** Título de una ruta (su `meta.title` está en inglés): la versión traducida si hay clave, o el propio texto. */
+export function routeTitle(title: unknown): string {
+  const key = `routeTitle.${String(title)}`;
+  return typeof title === "string" && key in en ? t(key as MessageKey) : String(title ?? "MemTrace");
+}
+
 /** Locale for `Intl`/`toLocale*` calls: the English variant a screen already used, or es-ES when Spanish is active. */
 export const dateLocale = (english = "en-US"): string => (locale.value === "es" ? "es-ES" : english);
 

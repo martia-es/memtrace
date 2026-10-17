@@ -20,7 +20,7 @@ import { liveSeconds, liveUpdatedAt, requestRefresh, setRefreshSeconds } from ".
 import { useTopbar } from "../composables/useTopbar";
 import Button from "../components/Button.vue";
 import { useSettingsNav, withGroupHeaders } from "../composables/useSettingsNav";
-import { t, type MessageKey } from "../i18n";
+import { routeTitle, t, type MessageKey } from "../i18n";
 
 const route = useRoute();
 const router = useRouter();
@@ -271,7 +271,7 @@ function switchExperiment(experimentId: string | null) {
     <div class="main-col">
       <header class="topbar">
         <div ref="topbarLeft" class="topbar-left">
-          <span v-if="leftCount === 0" class="topbar-title">{{ route.meta.title }}</span>
+          <span v-if="leftCount === 0" class="topbar-title">{{ routeTitle(route.meta.title) }}</span>
         </div>
         <div ref="topbarRight" class="topbar-right" />
         <div v-if="currentExperimentId && navCanRead && route.meta.timeRange !== false" class="topbar-filters">
