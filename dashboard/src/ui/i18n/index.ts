@@ -1,5 +1,6 @@
 import { ref, watch } from "vue";
 import { Lang } from "quasar";
+import { setTranslator } from "@/domain/translate";
 import en from "./en";
 import es from "./es";
 
@@ -52,6 +53,9 @@ export function t(key: MessageKey, params?: Record<string, string | number>): st
   const message = CATALOGS[locale.value][key] ?? en[key] ?? key;
   return params ? message.replace(/\{(\w+)\}/g, (whole, name: string) => (name in params ? String(params[name]) : whole)) : message;
 }
+
+// el dominio traduce a través de este puerto (domain/translate.ts)
+setTranslator((key, params) => t(key as MessageKey, params));
 
 /** Plural pair: the catalog holds `<key>.one` and `<key>.other`; `{count}` is filled in automatically. */
 export function tp(key: string, count: number, params?: Record<string, string | number>): string {

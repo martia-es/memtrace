@@ -1,5 +1,6 @@
 import type { BreakdownItemDto, BreakdownResponse } from "@contract";
 import { formatCostUsd, formatDuration, formatPercent } from "./format";
+import { tr } from "./translate";
 
 /** Con menos trazas que esto las cifras de una fila son ruido: se atenúa y no entra en los avisos. */
 export const MIN_TRACES = 20;
@@ -38,57 +39,57 @@ export function compareBreakdown(a: BreakdownItem, b: BreakdownItem): DeltaCell[
   const errDiff = b.errorRate - a.errorRate;
   const overlap = Math.abs(errDiff) <= a.errorMargin + b.errorMargin;
   const errors: DeltaCell = {
-    label: "ERRORS",
+    label: tr("breakdown.errors"),
     from: formatPercent(a.errorRate),
     to: formatPercent(b.errorRate),
-    delta: errDiff === 0 ? "No change" : signed(errDiff, points(errDiff)),
+    delta: errDiff === 0 ? tr("breakdown.no_change") : signed(errDiff, points(errDiff)),
     tone: overlap || few || errDiff === 0 ? "neutral" : errDiff < 0 ? "ok" : "error",
-    note: few ? "Too few traces to trust" : overlap ? "Ranges overlap: may be noise" : "Ranges do not overlap: reliable",
+    note: few ? tr("breakdown.too_few_traces_to_trust") : overlap ? tr("breakdown.ranges_overlap_may_be_noise") : tr("breakdown.ranges_do_not_overlap_reliable"),
   };
 
   let latency: DeltaCell;
   if (a.p95Ms === null || b.p95Ms === null) {
-    latency = { label: "P95 LATENCY", from: "–", to: "–", delta: "–", tone: "neutral", note: "No latency recorded" };
+    latency = { label: tr("breakdown.p95_latency"), from: "–", to: "–", delta: "–", tone: "neutral", note: tr("breakdown.no_latency_recorded") };
   } else {
     const d = b.p95Ms - a.p95Ms;
     latency = {
-      label: "P95 LATENCY",
+      label: tr("breakdown.p95_latency"),
       from: formatDuration(a.p95Ms),
       to: formatDuration(b.p95Ms),
-      delta: d === 0 ? "No change" : signed(d, formatDuration(Math.abs(d))),
+      delta: d === 0 ? tr("breakdown.no_change") : signed(d, formatDuration(Math.abs(d))),
       tone: d === 0 ? "neutral" : d < 0 ? "ok" : "error",
-      note: d === 0 || a.p95Ms === 0 ? "" : `${percentChange(a.p95Ms, b.p95Ms)} % ${d < 0 ? "faster" : "slower"}`,
+      note: d === 0 || a.p95Ms === 0 ? "" : tr(d < 0 ? "breakdown.percent_faster" : "breakdown.percent_slower", { percent: percentChange(a.p95Ms, b.p95Ms) }),
     };
   }
 
   let cost: DeltaCell;
   if (a.costPerTraceUsd === null || b.costPerTraceUsd === null) {
-    cost = { label: "COST PER TRACE", from: formatCostUsd(a.costPerTraceUsd) ?? "–", to: formatCostUsd(b.costPerTraceUsd) ?? "–", delta: "–", tone: "neutral", note: "No price for one of the models" };
+    cost = { label: tr("breakdown.cost_per_trace"), from: formatCostUsd(a.costPerTraceUsd) ?? "–", to: formatCostUsd(b.costPerTraceUsd) ?? "–", delta: "–", tone: "neutral", note: tr("breakdown.no_price_for_one_of_the") };
   } else {
     const d = b.costPerTraceUsd - a.costPerTraceUsd;
     cost = {
-      label: "COST PER TRACE",
+      label: tr("breakdown.cost_per_trace"),
       from: formatCostUsd(a.costPerTraceUsd)!,
       to: formatCostUsd(b.costPerTraceUsd)!,
-      delta: d === 0 ? "No change" : signed(d, formatCostUsd(Math.abs(d))!),
+      delta: d === 0 ? tr("breakdown.no_change") : signed(d, formatCostUsd(Math.abs(d))!),
       tone: d === 0 ? "neutral" : d < 0 ? "ok" : "error",
-      note: d === 0 || a.costPerTraceUsd === 0 ? "" : `${percentChange(a.costPerTraceUsd, b.costPerTraceUsd)} % ${d < 0 ? "cheaper" : "more expensive"}`,
+      note: d === 0 || a.costPerTraceUsd === 0 ? "" : tr(d < 0 ? "breakdown.percent_cheaper" : "breakdown.percent_more_expensive", { percent: percentChange(a.costPerTraceUsd, b.costPerTraceUsd) }),
     };
   }
 
   let rating: DeltaCell;
   if (a.thumbsUpRate === null || b.thumbsUpRate === null) {
-    rating = { label: "👍 RATE", from: a.thumbsUpRate === null ? "–" : formatPercent(a.thumbsUpRate), to: b.thumbsUpRate === null ? "–" : formatPercent(b.thumbsUpRate), delta: "–", tone: "neutral", note: "Nobody rated one of them" };
+    rating = { label: tr("breakdown.rate"), from: a.thumbsUpRate === null ? "–" : formatPercent(a.thumbsUpRate), to: b.thumbsUpRate === null ? "–" : formatPercent(b.thumbsUpRate), delta: "–", tone: "neutral", note: tr("breakdown.nobody_rated_one_of_them") };
   } else {
     const d = b.thumbsUpRate - a.thumbsUpRate;
     const fewRatings = a.ratedTraces < MIN_RATINGS || b.ratedTraces < MIN_RATINGS;
     rating = {
-      label: "👍 RATE",
+      label: tr("breakdown.rate"),
       from: formatPercent(a.thumbsUpRate),
       to: formatPercent(b.thumbsUpRate),
-      delta: d === 0 ? "No change" : signed(d, points(d)),
+      delta: d === 0 ? tr("breakdown.no_change") : signed(d, points(d)),
       tone: fewRatings || d === 0 ? "neutral" : d > 0 ? "ok" : "error",
-      note: fewRatings ? "Few ratings: confirm with more traffic" : `Based on ${a.ratedTraces + b.ratedTraces} ratings`,
+      note: fewRatings ? tr("breakdown.few_ratings_confirm_with_more_traffic") : tr("breakdown.based_on_count_ratings", { count: a.ratedTraces + b.ratedTraces }),
     };
   }
   return [errors, latency, cost, rating];

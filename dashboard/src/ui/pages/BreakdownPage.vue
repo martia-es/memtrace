@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import type { MessageKey } from "../i18n";
 import Button from "../components/Button.vue";
 import Card from "../components/Card.vue";
 import DataTable from "../components/DataTable.vue";
@@ -15,6 +16,7 @@ import { useFilters } from "../composables/useFilters";
 import { useTraceApi } from "../composables/useTraceApi";
 import { breakdownCsv, compareBreakdown, findInsight, MIN_TRACES, sparkPath, trendRates, type BreakdownGroup, type BreakdownItem } from "@/domain/breakdown";
 import { formatCostUsd, formatCount, formatDuration, formatPercent } from "@/domain/format";
+import { t } from "../i18n";
 
 /**
  * Overview › Breakdown: todas las versiones de prompt (o todos los entornos) del agente en una sola tabla, para decidir qué
@@ -28,9 +30,9 @@ const f = useFilters();
 const api = useTraceApi();
 
 const GROUPS = [
-  { value: "prompt_version", label: "Prompt version", testid: "tab-prompt_version" },
-  { value: "environment", label: "Environment", testid: "tab-environment" },
-  { value: "user", label: "User", testid: "tab-user" },
+  { value: "prompt_version", get label() { return t("breakdownPage.prompt_version"); }, testid: "tab-prompt_version" },
+  { value: "environment", get label() { return t("breakdownPage.environment"); }, testid: "tab-environment" },
+  { value: "user", get label() { return t("breakdownPage.user"); }, testid: "tab-user" },
 ];
 
 const GROUP_IDS: readonly BreakdownGroup[] = ["prompt_version", "environment", "user"];
@@ -46,9 +48,11 @@ watch([() => f.rangeSig.value, groupBy], () => void breakdown.run(), { immediate
 
 const items = computed<BreakdownItem[]>(() => breakdown.data.value?.items ?? []);
 const insight = computed(() => findInsight(items.value));
-const relatedLabel = computed(() => (groupBy.value === "environment" ? "Prompt versions" : "Runs in"));
-const nameLabel = computed(() => ({ prompt_version: "Prompt version", environment: "Environment", user: "User" })[groupBy.value]);
+const relatedLabel = computed(() => (groupBy.value === "environment" ? t("breakdownPage.prompt_versions") : t("breakdownPage.runs_in")));
+const nameLabel = computed(() => ({ prompt_version: t("breakdownPage.prompt_version"), environment: t("breakdownPage.environment"), user: t("breakdownPage.user") })[groupBy.value]);
 const noun = computed(() => ({ prompt_version: "version", environment: "environment", user: "user" })[groupBy.value]);
+/** Frase por tipo de elemento: el género y el plural cambian según el idioma, así que cada uno lleva su clave. */
+const byNoun = (prefix: string) => t(`${prefix}.${noun.value}` as MessageKey);
 
 // A es la base y B la candidata: la comparación va de A a B. Con una sola fila no hay nada que elegir, esa fila es A.
 const keyA = ref<string | null>(null);
@@ -83,30 +87,30 @@ watch([items, groupBy], () => {
 watch(groupBy, clear);
 
 const compared = computed(() => (itemA.value && itemB.value ? { a: itemA.value, b: itemB.value, cells: compareBreakdown(itemA.value, itemB.value) } : null));
-const PLACEHOLDER_CELLS = ["ERRORS", "P95 LATENCY", "COST PER TRACE", "👍 RATE"];
+const PLACEHOLDER_CELLS = computed(() => [t("breakdownPage.errors"), t("breakdownPage.p95_latency"), t("breakdownPage.cost_per_trace"), t("breakdownPage.rate2")]);
 
-const slotSummary = (i: BreakdownItem) => `${i.related.length ? `${i.related.join(", ")} · ` : ""}${formatCount(i.traces)} traces · ${formatPercent(i.errorRate)} errors`;
+const slotSummary = (i: BreakdownItem) => `${i.related.length ? `${i.related.join(", ")} · ` : ""}${t("breakdownPage.traces_traces_errors_errors", { traces: formatCount(i.traces), errors: formatPercent(i.errorRate) })}`;
 const slots = computed(() => [
   {
     letter: "A",
-    role: "Baseline",
+    role: t("breakdownPage.baseline"),
     item: itemA.value,
-    empty: "Click a row to set the baseline",
+    empty: t("breakdownPage.click_a_row_to_set_the"),
     next: !itemA.value,
   },
   {
     letter: "B",
-    role: "Candidate",
+    role: t("breakdownPage.candidate"),
     item: itemB.value,
-    empty: only.value ? `No second ${noun.value} yet` : itemA.value ? `Now click another row to set the candidate` : "Then click a second row",
+    empty: only.value ? byNoun("breakdownPage.noSecond") : itemA.value ? t("breakdownPage.now_click_another_row_to_set") : t("breakdownPage.then_click_a_second_row"),
     next: !!itemA.value && !itemB.value && !only.value,
   },
 ]);
 const hint = computed(() => {
-  if (only.value) return `You need a second ${noun.value} to compare.`;
-  if (compared.value) return `Showing what changes from A to B.`;
-  if (itemA.value) return "Now pick the candidate (B).";
-  return "Pick two rows: first the baseline (A), then the candidate (B).";
+  if (only.value) return byNoun("breakdownPage.needSecond") + ".";
+  if (compared.value) return t("breakdownPage.showing_what_changes_from_a_to");
+  if (itemA.value) return t("breakdownPage.now_pick_the_candidate_b");
+  return t("breakdownPage.pick_two_rows_first_the_baseline");
 });
 
 const sparkMax = computed(() => Math.max(0.05, ...items.value.flatMap((i) => trendRates(i))));
@@ -116,12 +120,13 @@ const few = (i: BreakdownItem) => i.traces < MIN_TRACES;
 const errorText = (i: BreakdownItem) => formatPercent(i.errorRate);
 const marginText = (i: BreakdownItem) => `±${(i.errorMargin * 100).toFixed(1)}`;
 
-const EMPTY_HINTS: Record<BreakdownGroup, string> = {
-  prompt_version: "Versions show up when the agent reads its prompt with memtrace.prompts.",
-  environment: "Environments show up when the agent sets one in its SDK configuration (environment=…).",
-  user: "Users show up when the agent wraps each request in memtrace.user(user_id). Use an opaque id, not an email.",
-};
-const emptyHint = computed(() => EMPTY_HINTS[groupBy.value]);
+const emptyHint = computed(() =>
+  ({
+    prompt_version: t("breakdownPage.versions_show_up_when_the_agent"),
+    environment: t("breakdownPage.environments_show_up_when_the_agent"),
+    user: t("breakdownPage.users_show_up_when_the_agent"),
+  })[groupBy.value],
+);
 
 function exportCsv() {
   const blob = new Blob([breakdownCsv(groupBy.value, items.value)], { type: "text/csv;charset=utf-8" });
@@ -137,10 +142,10 @@ const chartsRoute = computed(() => ({ name: "overview-charts", params: route.par
 
 <template>
   <div class="page" data-testid="breakdown-page">
-    <PageHeader :crumbs="[{ label: 'Overview' }, { label: 'Breakdown' }]" icon="M3 3v18h18M7 14l4-4 3 3 5-6" title="Breakdown">
+    <PageHeader :crumbs="[{ label: t('nav.overview') }, { label: t('nav.breakdown') }]" icon="M3 3v18h18M7 14l4-4 3 3 5-6" :title="t('breakdownPage.breakdown')">
       <div class="actions">
-        <Button variant="link" :to="chartsRoute" data-testid="open-charts">Open in Custom charts →</Button>
-        <Button variant="secondary" :disabled="items.length === 0" data-testid="export-csv" @click="exportCsv">Export CSV</Button>
+        <Button variant="link" :to="chartsRoute" data-testid="open-charts">{{ t("breakdownPage.open_in_custom_charts") }}</Button>
+        <Button variant="secondary" :disabled="items.length === 0" data-testid="export-csv" @click="exportCsv">{{ t("breakdownPage.export_csv") }}</Button>
       </div>
     </PageHeader>
 
@@ -150,31 +155,31 @@ const chartsRoute = computed(() => ({ name: "overview-charts", params: route.par
     <Card v-else padding="none" block class="main-card">
       <header class="head">
         <div class="head-text">
-          <h2>Compare {{ noun }}s</h2>
-          <p class="muted">Always two at a time: a baseline (A) against a candidate (B).</p>
+          <h2>{{ byNoun("breakdownPage.compareHeading") }}</h2>
+          <p class="muted">{{ t("breakdownPage.always_two_at_a_time_a") }}</p>
         </div>
-        <span class="group-label">GROUP BY</span>
-        <SegmentedControl :options="GROUPS" :model-value="groupBy" aria-label="Group by" data-testid="group-tabs" @update:model-value="setGroup" />
+        <span class="group-label">{{ t("breakdownPage.group_by") }}</span>
+        <SegmentedControl :options="GROUPS" :model-value="groupBy" :aria-label="t('breakdownPage.group_by2')" data-testid="group-tabs" @update:model-value="setGroup" />
       </header>
 
-      <EmptyState v-if="items.length === 0" icon="bar_chart" title="Nothing to analyse yet" data-testid="breakdown-empty">
-        No traces in this range. {{ emptyHint }}
+      <EmptyState v-if="items.length === 0" icon="bar_chart" :title="t('breakdownPage.nothing_to_analyse_yet')" data-testid="breakdown-empty">
+        {{ t("breakdownPage.no_traces_in_this_range") }} {{ emptyHint }}
       </EmptyState>
 
       <template v-else>
         <div v-if="breakdown.data.value && breakdown.data.value.unpricedTokens > 0" class="note" data-testid="breakdown-unpriced">
-          {{ formatCount(breakdown.data.value.unpricedTokens) }} tokens use a model with no price, so costs marked ≥ are a minimum.
-          <router-link :to="{ name: 'model-pricing' }">See model pricing →</router-link>
+          {{ t("breakdownPage.count_tokens_use_a_model_with", { count: formatCount(breakdown.data.value.unpricedTokens) }) }}
+          <router-link :to="{ name: 'model-pricing' }">{{ t("breakdownPage.see_model_pricing") }}</router-link>
         </div>
 
         <div v-if="insight && !only" class="insight" data-testid="breakdown-insight">
           <span class="insight-dot" aria-hidden="true">!</span>
           <span class="insight-text">
-            <strong>{{ insight.worst.key }} fails {{ errorText(insight.worst) }} of the time</strong>
-            against {{ errorText(insight.best) }} in {{ insight.best.key }}.
-            <span class="muted">Their ranges do not overlap, so the difference is reliable.</span>
+            <strong>{{ t("breakdownPage.key_fails_percent_of_the_time", { key: insight.worst.key, percent: errorText(insight.worst) }) }}</strong>
+            {{ t("breakdownPage.against_percent_in_key", { percent: errorText(insight.best), key: insight.best.key }) }}
+            <span class="muted">{{ t("breakdownPage.their_ranges_do_not_overlap_so") }}</span>
           </span>
-          <Button variant="secondary" size="sm" data-testid="insight-compare" @click="compareInsight">Compare with {{ insight.best.key }} →</Button>
+          <Button variant="secondary" size="sm" data-testid="insight-compare" @click="compareInsight">{{ t("breakdownPage.compare_with_key", { key: insight.best.key }) }}</Button>
         </div>
 
         <div class="pair" data-testid="breakdown-pair">
@@ -191,23 +196,23 @@ const chartsRoute = computed(() => ({ name: "overview-charts", params: route.par
           </div>
           <div class="pair-side">
             <span class="pair-hint" data-testid="pair-hint">{{ hint }}</span>
-            <Button v-if="!only && (keyA || keyB)" variant="link" size="sm" data-testid="clear-pair" @click="clear">Clear</Button>
+            <Button v-if="!only && (keyA || keyB)" variant="link" size="sm" data-testid="clear-pair" @click="clear">{{ t("breakdownPage.clear") }}</Button>
           </div>
         </div>
 
         <DataTable class="breakdown" sticky nowrap bare>
           <thead>
             <tr>
-              <th class="pick">Set</th>
+              <th class="pick">{{ t("breakdownPage.set") }}</th>
               <th>{{ nameLabel }}</th>
               <th>{{ relatedLabel }}</th>
-              <th class="num">Traces</th>
-              <th class="num">Errors (±95 %)</th>
+              <th class="num">{{ t("breakdownPage.traces") }}</th>
+              <th class="num">{{ t("breakdownPage.errors_95") }}</th>
               <th class="num">p95</th>
-              <th class="num">Cost / trace</th>
-              <th class="num">Total cost</th>
-              <th>Errors, 7 days</th>
-              <th class="num">👍 rate</th>
+              <th class="num">{{ t("breakdownPage.cost_trace") }}</th>
+              <th class="num">{{ t("breakdownPage.total_cost") }}</th>
+              <th>{{ t("breakdownPage.errors_7_days") }}</th>
+              <th class="num">{{ t("breakdownPage.rate") }}</th>
             </tr>
           </thead>
           <tbody>
@@ -226,8 +231,8 @@ const chartsRoute = computed(() => ({ name: "overview-charts", params: route.par
                   :class="{ set: !!letterOf(i.key), a: letterOf(i.key) === 'A', b: letterOf(i.key) === 'B' }"
                   :disabled="!!only"
                   :aria-pressed="!!letterOf(i.key)"
-                  :aria-label="letterOf(i.key) ? `${i.key} is ${letterOf(i.key)}. Click to clear it` : `Set ${i.key} as ${nextLetter}`"
-                  :title="letterOf(i.key) ? 'Click to clear' : `Set as ${nextLetter}`"
+                  :aria-label="letterOf(i.key) ? t('breakdownPage.key_is_letter_click_to_clear', { key: i.key, letter: letterOf(i.key) }) : t('breakdownPage.set_key_as_letter', { key: i.key, letter: nextLetter })"
+                  :title="letterOf(i.key) ? t('breakdownPage.click_to_clear') : t('breakdownPage.set_as_letter', { letter: nextLetter })"
                   :data-testid="`pick-${i.key}`"
                   @click.stop="pick(i.key)"
                 >
@@ -237,7 +242,7 @@ const chartsRoute = computed(() => ({ name: "overview-charts", params: route.par
               <td class="name">
                 <span v-if="letterOf(i.key)" class="badge" :class="`badge-${letterOf(i.key).toLowerCase()}`" aria-hidden="true">{{ letterOf(i.key) }}</span>
                 <span class="key">{{ i.key }}</span>
-                <Pill v-if="few(i)" tone="warn">few traces</Pill>
+                <Pill v-if="few(i)" tone="warn">{{ t("breakdownPage.few_traces") }}</Pill>
               </td>
               <td>
                 <span class="chips">
@@ -253,7 +258,7 @@ const chartsRoute = computed(() => ({ name: "overview-charts", params: route.par
               <td class="num">{{ formatCostUsd(i.costPerTraceUsd) ?? "–" }}</td>
               <td class="num muted">{{ i.costUsd === null ? "–" : `${i.costComplete ? "" : "≥ "}${formatCostUsd(i.costUsd)}` }}</td>
               <td>
-                <svg class="spark" width="110" height="26" viewBox="0 0 110 26" role="img" :aria-label="`Error rate over the last 7 days for ${i.key}`">
+                <svg class="spark" width="110" height="26" viewBox="0 0 110 26" role="img" :aria-label="t('breakdownPage.error_rate_over_the_last_7', { key: i.key })">
                   <path :d="spark(i)" fill="none" :stroke="isBad(i) ? 'var(--mt-err-ink)' : 'var(--mt-accent)'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
                 </svg>
               </td>
@@ -262,26 +267,26 @@ const chartsRoute = computed(() => ({ name: "overview-charts", params: route.par
           </tbody>
         </DataTable>
         <p class="foot muted">
-          The ± is the 95 % margin: when two ranges overlap, the difference may be noise. Rows with fewer than {{ MIN_TRACES }} traces are dimmed.
+          {{ t("breakdownPage.the_is_the_95_margin_when", { min: MIN_TRACES }) }}
         </p>
 
         <section v-if="only" class="guide" data-testid="breakdown-guide">
           <div class="guide-text">
-            <strong>You need a second {{ noun }} to compare</strong>
+            <strong>{{ byNoun("breakdownPage.needSecond") }}</strong>
             <span class="muted">
-              <template v-if="groupBy === 'environment'">Run the agent in another environment (environment=… in its SDK configuration) and it will show up here as candidate B.</template>
-              <template v-else-if="groupBy === 'user'">Another user will show up here as candidate B as soon as the agent serves them (memtrace.user(user_id)).</template>
-              <template v-else>Publish a new version of the prompt and it will show up here as candidate B. Until then there is nothing to compare.</template>
+              <template v-if="groupBy === 'environment'">{{ t("breakdownPage.run_the_agent_in_another_environment") }}</template>
+              <template v-else-if="groupBy === 'user'">{{ t("breakdownPage.another_user_will_show_up_here") }}</template>
+              <template v-else>{{ t("breakdownPage.publish_a_new_version_of_the") }}</template>
             </span>
           </div>
-          <Button v-if="groupBy === 'prompt_version'" variant="primary" :to="{ name: 'prompts' }" data-testid="guide-prompts">Open Prompts</Button>
+          <Button v-if="groupBy === 'prompt_version'" variant="primary" :to="{ name: 'prompts' }" data-testid="guide-prompts">{{ t("breakdownPage.open_prompts") }}</Button>
         </section>
 
         <section v-else-if="compared" class="compare" data-testid="breakdown-compare">
           <div class="compare-head">
-            <span class="tag tag-a">A</span><strong>{{ compared.a.key }}</strong><span class="muted">against</span><span class="tag tag-b">B</span><strong>{{ compared.b.key }}</strong>
+            <span class="tag tag-a">A</span><strong>{{ compared.a.key }}</strong><span class="muted">{{ t("breakdownPage.against") }}</span><span class="tag tag-b">B</span><strong>{{ compared.b.key }}</strong>
             <Pill v-if="compared.a.related.join() !== compared.b.related.join()" tone="info" data-testid="compare-differs">
-              {{ groupBy === "environment" ? "Run different versions" : "Seen in different environments" }}
+              {{ groupBy === "environment" ? t("breakdownPage.run_different_versions") : t("breakdownPage.seen_in_different_environments") }}
             </Pill>
           </div>
           <div class="cells">
@@ -295,14 +300,14 @@ const chartsRoute = computed(() => ({ name: "overview-charts", params: route.par
         </section>
 
         <section v-else class="compare idle" data-testid="breakdown-compare-empty">
-          <span class="compare-title">What changes between the two {{ noun }}s</span>
+          <span class="compare-title">{{ byNoun("breakdownPage.whatChanges") }}</span>
           <div class="cells">
             <div v-for="l in PLACEHOLDER_CELLS" :key="l" class="cell ghost">
               <span class="cell-label">{{ l }}</span>
               <span class="cell-delta muted">–</span>
             </div>
           </div>
-          <span class="muted compare-note">Pick A and B above and the numbers appear here.</span>
+          <span class="muted compare-note">{{ t("breakdownPage.pick_a_and_b_above_and") }}</span>
         </section>
       </template>
     </Card>

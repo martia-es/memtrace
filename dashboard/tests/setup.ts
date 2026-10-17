@@ -1,3 +1,6 @@
+// registra el traductor del dominio (en inglés por defecto)
+import "@/ui/i18n";
+
 // Las pruebas parten con la actualización automática desactivada; las que la necesitan la activan explícitamente
 localStorage.setItem("memtrace.refresh", "0");
 
