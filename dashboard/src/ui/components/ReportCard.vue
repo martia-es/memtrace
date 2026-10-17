@@ -6,6 +6,7 @@ import type { MetricReportDto, MetricReportSummaryDto } from "@/application/iden
 import { useIdentityApi } from "../composables/useIdentityApi";
 import Spinner from "./Spinner.vue";
 import Card from "./Card.vue";
+import { t } from "../i18n";
 
 const props = defineProps<{ experimentId: string; report: MetricReportSummaryDto }>();
 
@@ -50,7 +51,7 @@ function kind(c: { definition: { chartType: ChartKind } }): ChartKind {
   <Card as="router-link" padding="none" block :to="{ name: 'overview-report', params: { experimentId, reportId: report.id } }" class="report-card" data-testid="report-link">
     <div class="preview" :class="{ empty: !loading && !charts.length }">
       <Spinner v-if="loading" size="sm" />
-      <span v-else-if="!charts.length" class="preview-empty">No charts yet</span>
+      <span v-else-if="!charts.length" class="preview-empty">{{ t("reportCard.no_charts_yet") }}</span>
       <div v-for="c in charts" v-else :key="c.customMetricId" class="mini" :style="boxStyle(c)">
         <div v-if="kind(c) === 'bar'" class="mini-bars">
           <i v-for="(h, i) in BARS" :key="i" :style="{ height: `${h}%` }" />
@@ -68,7 +69,7 @@ function kind(c: { definition: { chartType: ChartKind } }): ChartKind {
       <div class="name">{{ report.name }}</div>
       <div class="meta">
         <span>{{ loading ? "…" : `${charts.length} ${charts.length === 1 ? "chart" : "charts"}` }}</span>
-        <span>Updated {{ formatDateTime(report.updatedAt) }}</span>
+        <span>{{ t("reportCard.updated_when", { when: formatDateTime(report.updatedAt) }) }}</span>
       </div>
     </div>
   </Card>

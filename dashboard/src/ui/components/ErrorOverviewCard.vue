@@ -5,6 +5,7 @@ import { formatCount } from "@/domain/format";
 import { formatRelativeTime } from "../i18n/format";
 import { errorTrend, impactLabel } from "@/domain/error-overview";
 import Card from "./Card.vue";
+import { t } from "../i18n";
 
 const props = defineProps<{ overview: ErrorOverviewResponse }>();
 defineEmits<{ view: [] }>();
@@ -32,12 +33,12 @@ const rows = computed(() => {
 </script>
 
 <template>
-  <Card as="section" padding="none" class="card" aria-label="What is going wrong" data-testid="error-overview">
+  <Card as="section" padding="none" class="card" :aria-label="t('errorOverviewCard.what_is_going_wrong')" data-testid="error-overview">
     <div class="head">
-      <h2>What is going wrong</h2>
+      <h2>{{ t("errorOverviewCard.what_is_going_wrong") }}</h2>
       <span class="count-badge">{{ rows.length }}</span>
       <span class="spacer" />
-      <a class="link" @click="$emit('view')">View failed conversations →</a>
+      <a class="link" @click="$emit('view')">{{ t("errorOverviewCard.view_failed_conversations") }}</a>
     </div>
 
     <div v-for="c in rows" :key="c.id" data-testid="error-category">
@@ -47,7 +48,7 @@ const rows = computed(() => {
         </span>
         <span class="text">
           <strong>{{ c.title }}</strong>
-          <span>{{ c.impact }} · last seen {{ c.last }}</span>
+          <span>{{ c.impact }} · {{ t("errorOverviewCard.last_seen_when", { when: c.last }) }}</span>
         </span>
         <span class="share" aria-hidden="true"><span class="track"><span class="fill" :class="c.severity" :style="{ width: `${c.share}%` }" /></span></span>
         <span class="trend" :class="c.trend?.kind" data-testid="error-trend">{{ c.trend?.label ?? "" }}</span>
@@ -57,17 +58,17 @@ const rows = computed(() => {
 
       <div v-if="open === c.id" class="detail">
         <div class="col">
-          <span class="label">What happened</span>
+          <span class="label">{{ t("errorOverviewCard.what_happened") }}</span>
           <p>{{ c.explanation }}</p>
         </div>
         <div class="col">
-          <span class="label">What to do</span>
+          <span class="label">{{ t("errorOverviewCard.what_to_do") }}</span>
           <p>{{ c.action }}</p>
         </div>
         <div class="col">
-          <span class="label">Involved</span>
+          <span class="label">{{ t("errorOverviewCard.involved") }}</span>
           <p class="chips"><span v-for="a in c.affected" :key="`${a.kind}:${a.name}`" class="chip">{{ a.name }}</span></p>
-          <span v-if="c.sample" class="label tech">Technical detail</span>
+          <span v-if="c.sample" class="label tech">{{ t("errorOverviewCard.technical_detail") }}</span>
           <code v-if="c.sample" class="sample">{{ c.sample }}</code>
         </div>
       </div>

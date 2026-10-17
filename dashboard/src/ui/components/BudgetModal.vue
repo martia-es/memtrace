@@ -10,6 +10,7 @@ import Checkbox from "./Checkbox.vue";
 import FormField from "./FormField.vue";
 import Modal from "./Modal.vue";
 import TextInput from "./TextInput.vue";
+import { t } from "../i18n";
 
 /** Presupuesto mensual de coste del agente (ADR-086): cuánto, a qué porcentaje avisar y a quién. */
 const props = defineProps<{ experimentId: string; budget: BudgetViewDto | null }>();
@@ -52,25 +53,25 @@ async function save() {
 </script>
 
 <template>
-  <Modal :title="budget ? 'Edit monthly budget' : 'Set a monthly budget'" @close="emit('close')">
+  <Modal :title="budget ? t('budgetModal.edit_monthly_budget') : t('budgetModal.set_a_monthly_budget')" @close="emit('close')">
     <form class="form" data-testid="budget-form" @submit.prevent="save">
-      <p class="intro">You get an email once per month at each level: when the spend reaches the warning, when it exceeds the budget, and when the pace of the month points to exceeding it.</p>
-      <FormField label="Budget per month (USD)" :error="errors.monthlyUsd">
-        <TextInput v-model="form.monthlyUsd" type="number" aria-label="Monthly budget" placeholder="500" autofocus />
+      <p class="intro">{{ t("budgetModal.you_get_an_email_once_per") }}</p>
+      <FormField :label="t('budgetModal.budget_per_month_usd')" :error="errors.monthlyUsd">
+        <TextInput v-model="form.monthlyUsd" type="number" :aria-label="t('budgetModal.monthly_budget')" placeholder="500" autofocus />
       </FormField>
-      <FormField label="Warn me at (% of the budget)" :error="errors.warnPercent">
-        <TextInput v-model="form.warnPercent" type="number" aria-label="Warning percentage" />
+      <FormField :label="t('budgetModal.warn_me_at_of_the_budget')" :error="errors.warnPercent">
+        <TextInput v-model="form.warnPercent" type="number" :aria-label="t('budgetModal.warning_percentage')" />
       </FormField>
-      <FormField label="Email" :error="errors.recipients" hint="One address per line, up to 10.">
-        <TextInput v-model="form.recipients" multiline :rows="3" placeholder="finance@example.com" aria-label="Recipients" />
+      <FormField :label="t('budgetModal.email')" :error="errors.recipients" :hint="t('budgetModal.one_address_per_line_up_to')">
+        <TextInput v-model="form.recipients" multiline :rows="3" :placeholder="t('budgetModal.finance_example_com')" :aria-label="t('budgetModal.recipients')" />
       </FormField>
-      <Checkbox v-model="form.enabled" variant="switch">Active</Checkbox>
-      <p class="note">The cost is an estimate from the price catalog; a model without a price counts as zero.</p>
+      <Checkbox v-model="form.enabled" variant="switch">{{ t("budgetModal.active") }}</Checkbox>
+      <p class="note">{{ t("budgetModal.the_cost_is_an_estimate_from") }}</p>
       <p v-if="generalError" class="general" role="alert">{{ generalError }}</p>
     </form>
     <template #footer>
-      <Button @click="emit('close')">Cancel</Button>
-      <Button variant="primary" :loading="saving" :disabled="!canSave" data-testid="budget-save" @click="save">Save budget</Button>
+      <Button @click="emit('close')">{{ t("budgetModal.cancel") }}</Button>
+      <Button variant="primary" :loading="saving" :disabled="!canSave" data-testid="budget-save" @click="save">{{ t("budgetModal.save_budget") }}</Button>
     </template>
   </Modal>
 </template>

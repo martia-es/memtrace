@@ -16,6 +16,7 @@ import ToggleChip from "../components/ToggleChip.vue";
 import { EVENT_LABEL, GAUGE_LIMIT_AT, budgetTone, conditionText, emailedText, formatValue, gaugeFill, stateOf } from "../alert-format";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { usePermissions } from "../composables/usePermissions";
+import { t, tp, dateLocale } from "../i18n";
 
 /**
  * Overview › Alerts (ADR-086): lo que se está rompiendo arriba, las reglas con su valor frente al límite, el presupuesto mensual
@@ -86,10 +87,10 @@ const counts = computed(() => {
   return { all: all.length, firing: all.filter(isFiring).length, healthy: all.filter((r) => !isFiring(r) && !isPaused(r)).length, paused: all.filter(isPaused).length };
 });
 const FILTERS: ReadonlyArray<{ key: Filter; label: string }> = [
-  { key: "all", label: "All" },
-  { key: "firing", label: "Firing" },
-  { key: "healthy", label: "Healthy" },
-  { key: "paused", label: "Paused" },
+  { key: "all", get label() { return t("alertsPage.all"); } },
+  { key: "firing", get label() { return t("alertsPage.firing"); } },
+  { key: "healthy", get label() { return t("alertsPage.healthy"); } },
+  { key: "paused", get label() { return t("alertsPage.paused"); } },
 ];
 /** Lo que se está rompiendo va arriba; lo pausado, abajo. */
 const rank = (r: AlertRuleWithStatusDto) => (isFiring(r) ? 0 : isPaused(r) ? 2 : 1);
@@ -109,7 +110,7 @@ const visible = computed(() =>
 const firingNames = computed(() => (rules.value ?? []).filter(isFiring).map((r) => r.rule.name));
 
 const gaugeOf = (item: AlertRuleWithStatusDto) => (item.rule.enabled && item.status ? gaugeFill(item.status.lastValue, item.rule.threshold) : null);
-const recipientsText = (n: number) => (n === 0 ? "In the app only" : `${n} address${n === 1 ? "" : "es"}`);
+const recipientsText = (n: number) => (n === 0 ? t("alertsPage.in_the_app_only") : tp("alertsPage.addresses", n));
 
 async function saved() {
   editing.value = null;
@@ -174,20 +175,20 @@ const history = computed(() => {
   const yesterday = new Date(now.value - 86_400_000).toDateString();
   for (const e of events.value) {
     const d = new Date(e.at);
-    const day = d.toDateString() === today ? "Today" : d.toDateString() === yesterday ? "Yesterday" : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+    const day = d.toDateString() === today ? t("alertsPage.today") : d.toDateString() === yesterday ? t("time.yesterday") : d.toLocaleDateString(dateLocale("en-GB"), { day: "numeric", month: "short", year: "numeric" });
     const last = groups[groups.length - 1];
     if (last && last.day === day) last.events.push(e);
     else groups.push({ day, events: [e] });
   }
   return groups;
 });
-const EVENT_VERB: Record<AlertEventDto["kind"], string> = { fired: "went over its limit", reminder: "is still over its limit", resolved: "is back to normal" };
+const EVENT_VERB = (kind: AlertEventDto["kind"]): string => ({ fired: t("alertsPage.went_over_its_limit"), reminder: t("alertsPage.is_still_over_its_limit"), resolved: t("alertsPage.is_back_to_normal") })[kind];
 </script>
 
 <template>
   <div class="page">
-    <PageHeader :crumbs="[{ label: 'Overview' }, { label: 'Alerts' }]" icon="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" title="Alerts">
-      <Button v-if="can('alert:manage')" variant="primary" data-testid="new-alert" @click="editing = 'new'">New alert</Button>
+    <PageHeader :crumbs="[{ label: t('nav.overview') }, { label: t('nav.alerts') }]" icon="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" :title="t('nav.alerts')">
+      <Button v-if="can('alert:manage')" variant="primary" data-testid="new-alert" @click="editing = 'new'">{{ t("alertsPage.new_alert") }}</Button>
     </PageHeader>
 
     <p v-if="error" class="banner" role="alert">{{ error }}</p>
@@ -198,28 +199,28 @@ const EVENT_VERB: Record<AlertEventDto["kind"], string> = { fired: "went over it
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 8v5M12 17h.01" /></svg>
       </span>
       <div class="firing-text">
-        <strong>{{ counts.firing === 1 ? "1 alert is firing right now" : `${counts.firing} alerts are firing right now` }}</strong>
-        <span>{{ firingNames.join(", ") }} {{ counts.firing === 1 ? "is" : "are" }} over {{ counts.firing === 1 ? "its" : "their" }} limit.</span>
+        <strong>{{ tp("alertsPage.firingNow", counts.firing) }}</strong>
+        <span>{{ tp("alertsPage.overLimit", counts.firing, { names: firingNames.join(", ") }) }}</span>
       </div>
     </section>
 
     <div class="grid">
       <section class="rules" data-testid="alert-rules">
         <div class="rules-head">
-          <h2>Your alerts</h2>
-          <div class="chips" role="group" aria-label="Filter alerts">
+          <h2>{{ t("alertsPage.your_alerts") }}</h2>
+          <div class="chips" role="group" :aria-label="t('alertsPage.filter_alerts')">
             <ToggleChip v-for="f in FILTERS" :key="f.key" :pressed="filter === f.key" :count="counts[f.key]" @click="filter = f.key">{{ f.label }}</ToggleChip>
           </div>
-          <span class="muted every">Checked every 5 minutes</span>
+          <span class="muted every">{{ t("alertsPage.checked_every_5_minutes") }}</span>
         </div>
-        <p v-if="!can('alert:manage')" class="muted">You can see them; changing them needs the alert permission.</p>
+        <p v-if="!can('alert:manage')" class="muted">{{ t("alertsPage.you_can_see_them_changing_them") }}</p>
 
-        <p v-if="rules === null" class="muted">Loading…</p>
+        <p v-if="rules === null" class="muted">{{ t("alertsPage.loading") }}</p>
         <p v-else-if="rules.length === 0" class="empty" data-testid="no-alerts">
-          No alerts yet.
-          <template v-if="can('alert:manage')"> Start with one on the error rate or the latency, so you hear about a problem before your users do.</template>
+          {{ t("alertsPage.no_alerts_yet") }}
+          <template v-if="can('alert:manage')"> {{ t("alertsPage.start_with_one_on_the_error") }}</template>
         </p>
-        <p v-else-if="visible.length === 0" class="empty">No alerts in this view.</p>
+        <p v-else-if="visible.length === 0" class="empty">{{ t("alertsPage.no_alerts_in_this_view") }}</p>
 
         <article v-for="item in visible" :key="item.rule.id" class="rule" :class="{ firing: isFiring(item), paused: isPaused(item) }" :data-testid="`rule-${item.rule.id}`">
           <span class="rule-icon" :class="`t-${stateOf(item.rule, item.status).tone}`" aria-hidden="true">
@@ -236,13 +237,13 @@ const EVENT_VERB: Record<AlertEventDto["kind"], string> = { fired: "went over it
             </div>
             <span class="muted">{{ conditionText(item.rule, chartName(item.rule)) }}</span>
             <span class="faint">
-              <template v-if="item.status && item.rule.enabled">since {{ when(item.status.since) }} · </template>{{ recipientsText(item.rule.recipients.length) }}
+              <template v-if="item.status && item.rule.enabled">{{ t('alertsPage.since_when', { when: when(item.status.since) }) }} · </template>{{ recipientsText(item.rule.recipients.length) }}
             </span>
           </div>
           <div class="rule-now">
             <div class="now-line">
               <span class="now" :class="{ bad: isFiring(item) }">{{ item.status && item.rule.enabled ? formatValue(item.rule.metric, item.status.lastValue) : "—" }}</span>
-              <span class="muted">limit {{ formatValue(item.rule.metric, item.rule.threshold) }}</span>
+              <span class="muted">{{ t('alertsPage.limit_value', { value: formatValue(item.rule.metric, item.rule.threshold) }) }}</span>
             </div>
             <div v-if="gaugeOf(item) !== null" class="gauge" aria-hidden="true">
               <div class="gauge-fill" :class="{ bad: isFiring(item) }" :style="{ width: `${gaugeOf(item)}%` }" />
@@ -250,48 +251,48 @@ const EVENT_VERB: Record<AlertEventDto["kind"], string> = { fired: "went over it
             </div>
           </div>
           <div v-if="can('alert:manage')" class="actions">
-            <Switch :on="item.rule.enabled" :aria-label="`${item.rule.enabled ? 'Pause' : 'Resume'} ${item.rule.name}`" data-testid="alert-switch" @click="toggle(item)" />
-            <Button size="sm" @click="editing = item.rule">Edit</Button>
-            <Button v-if="confirmDelete !== item.rule.id" size="sm" variant="link" @click="confirmDelete = item.rule.id">Delete</Button>
+            <Switch :on="item.rule.enabled" :aria-label="t(item.rule.enabled ? 'alertsPage.pause_name' : 'alertsPage.resume_name', { name: item.rule.name })" data-testid="alert-switch" @click="toggle(item)" />
+            <Button size="sm" @click="editing = item.rule">{{ t("alertsPage.edit") }}</Button>
+            <Button v-if="confirmDelete !== item.rule.id" size="sm" variant="link" @click="confirmDelete = item.rule.id">{{ t("alertsPage.delete") }}</Button>
             <template v-else>
-              <Button size="sm" variant="danger" data-testid="confirm-delete" @click="remove(item.rule.id)">Delete for good</Button>
-              <Button size="sm" variant="link" @click="confirmDelete = null">Keep</Button>
+              <Button size="sm" variant="danger" data-testid="confirm-delete" @click="remove(item.rule.id)">{{ t("alertsPage.delete_for_good") }}</Button>
+              <Button size="sm" variant="link" @click="confirmDelete = null">{{ t("alertsPage.keep") }}</Button>
             </template>
           </div>
         </article>
-        <p v-if="rules && rules.length > 0" class="muted">The vertical mark on each bar is the limit. Firing alerts stay at the top.</p>
+        <p v-if="rules && rules.length > 0" class="muted">{{ t("alertsPage.the_vertical_mark_on_each_bar") }}</p>
       </section>
 
       <Card block class="section" data-testid="alert-budget">
-        <h2>Monthly cost budget</h2>
-        <p class="sub">An estimate from the price catalog. You are warned once a month at each level.</p>
+        <h2>{{ t("alertsPage.monthly_cost_budget") }}</h2>
+        <p class="sub">{{ t("alertsPage.an_estimate_from_the_price_catalog") }}</p>
         <template v-if="!budget">
-          <p class="nobudget" data-testid="no-budget">No budget set. Without one, nobody is warned when this agent starts costing more than expected.</p>
-          <Button v-if="can('alert:manage')" variant="primary" data-testid="set-budget" @click="editingBudget = true">Set a budget</Button>
+          <p class="nobudget" data-testid="no-budget">{{ t("alertsPage.no_budget_set_without_one_nobody") }}</p>
+          <Button v-if="can('alert:manage')" variant="primary" data-testid="set-budget" @click="editingBudget = true">{{ t("alertsPage.set_a_budget") }}</Button>
         </template>
         <template v-else>
           <div class="spend">
             <span class="amount">{{ formatValue("cost", budget.spentUsd) }}</span>
-            <span class="muted">of {{ formatValue("cost", budget.budget.monthlyUsd) }} this month ({{ Math.round(budget.percent) }} %)</span>
-            <Pill v-if="!budget.budget.enabled" tone="neutral">Paused</Pill>
-            <Pill v-else-if="budget.percent >= 100" tone="error" dot>Exceeded</Pill>
-            <Pill v-else-if="budget.percent >= budget.budget.warnPercent" tone="warn" dot>Warning</Pill>
+            <span class="muted">{{ t('alertsPage.of_budget_this_month_percent', { budget: formatValue("cost", budget.budget.monthlyUsd), percent: Math.round(budget.percent) }) }}</span>
+            <Pill v-if="!budget.budget.enabled" tone="neutral">{{ t("alertsPage.paused") }}</Pill>
+            <Pill v-else-if="budget.percent >= 100" tone="error" dot>{{ t("alertsPage.exceeded") }}</Pill>
+            <Pill v-else-if="budget.percent >= budget.budget.warnPercent" tone="warn" dot>{{ t("alertsPage.warning") }}</Pill>
           </div>
-          <div class="bar" role="progressbar" :aria-valuenow="Math.round(budget.percent)" aria-valuemin="0" aria-valuemax="100" aria-label="Budget used">
+          <div class="bar" role="progressbar" :aria-valuenow="Math.round(budget.percent)" aria-valuemin="0" aria-valuemax="100" :aria-label="t('alertsPage.budget_used')">
             <div class="fill" :class="`t-${budgetTone(budget.percent, budget.budget.warnPercent)}`" :style="{ width: `${percentBar}%` }" />
-            <div class="mark" :style="{ left: `${budget.budget.warnPercent}%` }" :title="`Warning at ${budget.budget.warnPercent} %`" />
+            <div class="mark" :style="{ left: `${budget.budget.warnPercent}%` }" :title="t('alertsPage.warning_at_percent', { percent: budget.budget.warnPercent })" />
           </div>
           <p class="muted" data-testid="forecast">
-            <template v-if="budget.projectedUsd !== null">At this pace the month ends at <strong>{{ formatValue("cost", budget.projectedUsd) }}</strong>.</template>
-            <template v-else>The forecast appears from the third day of the month.</template>
-            {{ budget.budget.recipients.length ? `Emails go to ${budget.budget.recipients.length} address${budget.budget.recipients.length === 1 ? "" : "es"}.` : "Nobody is emailed: add an address to be warned." }}
+            <template v-if="budget.projectedUsd !== null">{{ t('alertsPage.at_this_pace_the_month_ends') }} <strong>{{ formatValue("cost", budget.projectedUsd) }}</strong>.</template>
+            <template v-else>{{ t("alertsPage.the_forecast_appears_from_the_third") }}</template>
+            {{ budget.budget.recipients.length ? tp("alertsPage.emailsGo", budget.budget.recipients.length) : t("alertsPage.nobody_is_emailed_add_an_address") }}
           </p>
           <div v-if="can('alert:manage')" class="actions start">
-            <Button size="sm" data-testid="set-budget" @click="editingBudget = true">Edit</Button>
-            <Button v-if="!confirmBudgetDelete" size="sm" variant="link" @click="confirmBudgetDelete = true">Remove budget</Button>
+            <Button size="sm" data-testid="set-budget" @click="editingBudget = true">{{ t("alertsPage.edit") }}</Button>
+            <Button v-if="!confirmBudgetDelete" size="sm" variant="link" @click="confirmBudgetDelete = true">{{ t("alertsPage.remove_budget") }}</Button>
             <template v-else>
-              <Button size="sm" variant="danger" data-testid="confirm-budget-delete" @click="removeBudget">Remove for good</Button>
-              <Button size="sm" variant="link" @click="confirmBudgetDelete = false">Keep</Button>
+              <Button size="sm" variant="danger" data-testid="confirm-budget-delete" @click="removeBudget">{{ t("alertsPage.remove_for_good") }}</Button>
+              <Button size="sm" variant="link" @click="confirmBudgetDelete = false">{{ t("alertsPage.keep") }}</Button>
             </template>
           </div>
         </template>
@@ -299,8 +300,8 @@ const EVENT_VERB: Record<AlertEventDto["kind"], string> = { fired: "went over it
     </div>
 
     <Card block class="section" data-testid="alert-history">
-      <h2>History</h2>
-      <p v-if="events.length === 0" class="empty">Nothing has fired yet.</p>
+      <h2>{{ t("alertsPage.history") }}</h2>
+      <p v-if="events.length === 0" class="empty">{{ t("alertsPage.nothing_has_fired_yet") }}</p>
       <div v-for="g in history" :key="g.day" class="day">
         <span class="day-title">{{ g.day }}</span>
         <div v-for="e in g.events" :key="e.id" class="event" data-testid="history-row">
@@ -310,13 +311,13 @@ const EVENT_VERB: Record<AlertEventDto["kind"], string> = { fired: "went over it
               <path v-else d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01" />
             </svg>
           </span>
-          <span><span class="strong">{{ ruleName(e.ruleId) }}</span> <span class="muted">{{ EVENT_VERB[e.kind] }}</span></span>
-          <span class="event-value"><span class="strong">{{ formatValue(metricOf(e.ruleId), e.value) }}</span> <span class="muted">vs {{ formatValue(metricOf(e.ruleId), e.threshold) }}</span></span>
+          <span><span class="strong">{{ ruleName(e.ruleId) }}</span> <span class="muted">{{ EVENT_VERB(e.kind) }}</span></span>
+          <span class="event-value"><span class="strong">{{ formatValue(metricOf(e.ruleId), e.value) }}</span> <span class="muted">{{ t('alertsPage.vs_value', { value: formatValue(metricOf(e.ruleId), e.threshold) }) }}</span></span>
           <span class="muted event-mail">{{ emailedText(e.emailed, rules?.find((r) => r.rule.id === e.ruleId)?.rule.recipients.length ?? null) }}</span>
           <span class="faint event-when" :title="e.at">{{ when(e.at) }}</span>
         </div>
       </div>
-      <Button v-if="nextCursor" :loading="loadingMore" data-testid="older" @click="showOlder">Show older</Button>
+      <Button v-if="nextCursor" :loading="loadingMore" data-testid="older" @click="showOlder">{{ t("alertsPage.show_older") }}</Button>
     </Card>
 
     <AlertRuleModal v-if="editing" :experiment-id="experimentId" :rule="editing === 'new' ? undefined : editing" :charts="charts" @close="editing = null" @saved="saved" />

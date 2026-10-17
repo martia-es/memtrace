@@ -63,6 +63,9 @@ export function tp(key: string, count: number, params?: Record<string, string | 
   return t(`${key}.${rule}` as MessageKey, { count, ...params });
 }
 
+/** Locale for `Intl`/`toLocale*` calls: the English variant a screen already used, or es-ES when Spanish is active. */
+export const dateLocale = (english = "en-US"): string => (locale.value === "es" ? "es-ES" : english);
+
 export function useI18n() {
   return { t, tp, locale, locales: LOCALES, setLocale: (value: Locale) => (locale.value = value) };
 }
