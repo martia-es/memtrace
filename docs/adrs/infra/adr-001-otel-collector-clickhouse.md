@@ -49,3 +49,5 @@ Chosen option: **Option 2**.
 - ADR-002: where and how these components run locally.
 - ADR-003: who owns the ClickHouse schema.
 - ADR-005: persistence of storage and of the Collector queue.
+- ADR-098: a broker between two stateless Collector tiers replaces the single Collector with a local queue once implemented. The choice of the Collector as the ingestion engine stands; only its topology changes.
+- ADR-099: deduplicated span storage (`ReplacingMergeTree`) for the duplicates that at-least-once delivery produces.
