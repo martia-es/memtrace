@@ -102,6 +102,7 @@ Una vez ejecutado `make up`, tendrás acceso directo a:
   * **Contraseña:** `memtrace-dev-only`
   * **Base de Datos:** `memtrace`
 * 📡 **Endpoint de ingesta OTLP/HTTP:** `http://localhost:8080/api/v1/ingest` (con una API key; el Collector ya no se expone fuera del clúster)
+* 📈 **Grafana y Prometheus (opcional):** `make monitoring` → [http://localhost:3000](http://localhost:3000) (salud del pipeline de ingesta; guía en `docs-site/platform/operations.md`)
 
 ### Probar con trazas
 

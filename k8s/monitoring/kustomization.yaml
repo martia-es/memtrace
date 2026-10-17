@@ -1,0 +1,23 @@
+# Monitoring opcional (ADR-098): Prometheus y Grafana. No forma parte de `kustomization.yaml` de la raíz: se despliega con
+# `make monitoring` (kubectl apply -k k8s/monitoring) y se quita con `make monitoring-down`.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: memtrace
+resources:
+  - 10-prometheus.yaml
+  - 20-grafana.yaml
+  - 30-network-policies.yaml
+configMapGenerator:
+  - name: prometheus-config
+    files:
+      - prometheus.yml=config/prometheus.yml
+  - name: prometheus-rules
+    files:
+      - alerts.yaml=config/alerts.yaml
+  - name: grafana-provisioning
+    files:
+      - datasource.yaml=config/grafana-datasource.yaml
+      - dashboards.yaml=config/grafana-dashboards.yaml
+  - name: grafana-dashboards
+    files:
+      - pipeline.json=config/pipeline.json

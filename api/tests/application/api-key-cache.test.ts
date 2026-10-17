@@ -108,4 +108,40 @@ describe("CachedApiKeyResolver (ADR-098)", () => {
     expect(() => new CachedApiKeyResolver(source, { ttlMs: 10, staleMs: 5, maxEntries: 1 })).toThrow();
     expect(() => new CachedApiKeyResolver(source, { ttlMs: 1, staleMs: 5, maxEntries: 0 })).toThrow();
   });
+
+  it("reports what it did, so the service can measure it", async () => {
+    const events: string[] = [];
+    let down = false;
+    const { cache, advance } = setup(async () => {
+      if (down) throw new Error("postgres down");
+      return ACCESS;
+    }, { onEvent: (e) => events.push(e) });
+    await cache.resolve("k"); // miss
+    await cache.resolve("k"); // hit
+    advance(31_000);
+    down = true;
+    await cache.resolve("k"); // stale: la fuente falla y se acepta lo recordado
+    await expect(cache.resolve("never")).rejects.toThrow(); // failure
+    expect(events).toEqual(["miss", "hit", "stale", "failure"]);
+  });
+
+  it("exposes how many keys it remembers and whether the source answers", async () => {
+    let down = false;
+    const { cache, advance } = setup(async () => {
+      if (down) throw new Error("postgres down");
+      return ACCESS;
+    });
+    expect(cache.size).toBe(0);
+    await cache.resolve("a");
+    expect(cache.size).toBe(1);
+    expect(cache.sourceHealthy).toBe(true);
+    down = true;
+    advance(31_000);
+    await cache.resolve("a");
+    expect(cache.sourceHealthy).toBe(false);
+    down = false;
+    advance(6_000);
+    await cache.resolve("a");
+    expect(cache.sourceHealthy).toBe(true);
+  });
 });

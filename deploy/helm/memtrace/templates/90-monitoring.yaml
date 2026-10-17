@@ -1,0 +1,374 @@
+{{- if .Values.monitoring.enabled }}
+# Monitoring opcional (ADR-098): Prometheus y Grafana. Equivale a `k8s/monitoring/` en Kustomize.
+# Prometheus (ADR-098): lee las métricas del pipeline de ingesta, evalúa las reglas de alerta (config/alerts.yaml) y guarda
+# 15 días. Es opcional: `make monitoring` lo despliega junto a Grafana. Sin descubrimiento por la API de Kubernetes (ver
+# config/prometheus.yml): no lleva ServiceAccount con permisos ni salida hacia el servidor de la API.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: prometheus
+  namespace: {{ .Release.Namespace }}
+spec:
+  serviceName: prometheus
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/91-monitoring-config.yaml") . | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+      containers:
+      - name: prometheus
+        image: {{ include "memtrace.image" .Values.images.prometheus }}
+        args:
+        - --config.file=/etc/prometheus/prometheus.yml
+        - --storage.tsdb.path=/prometheus
+        - --storage.tsdb.retention.time=15d
+        - --storage.tsdb.retention.size=4GB   # por debajo del disco (5Gi): si se llena, Prometheus se para
+        - --web.listen-address=:9090
+        ports:
+        - containerPort: 9090
+          name: http
+        readinessProbe:
+          httpGet:
+            path: /-/ready
+            port: http
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /-/healthy
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        resources:
+{{- toYaml .Values.resources.prometheus | nindent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+        - name: config
+          mountPath: /etc/prometheus
+        - name: rules
+          mountPath: /etc/prometheus-rules
+        - name: data
+          mountPath: /prometheus
+      volumes:
+      - name: config
+        configMap:
+          name: prometheus-config
+      - name: rules
+        configMap:
+          name: prometheus-rules
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      {{- with $.Values.storage.className }}
+      storageClassName: {{ . | quote }}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.storage.prometheus.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: ClusterIP
+  ports:
+  - port: 9090
+    targetPort: 9090
+    name: http
+  selector:
+    app: prometheus
+---
+# Services sin IP propia: el DNS devuelve la IP de cada pod, de modo que Prometheus mide cada réplica y no una al azar
+# detrás de un Service normal (con varias réplicas, las series se mezclarían y rate() daría valores sin sentido).
+apiVersion: v1
+kind: Service
+metadata:
+  name: ingest-metrics
+  namespace: {{ .Release.Namespace }}
+spec:
+  clusterIP: None
+  ports:
+  - port: 3002
+    targetPort: 3002
+    name: metrics
+  selector:
+    app: ingest
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector-metrics
+  namespace: {{ .Release.Namespace }}
+spec:
+  clusterIP: None
+  ports:
+  - port: 8888
+    targetPort: 8888
+    name: metrics
+  selector:
+    app: otel-collector
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: clickhouse-metrics
+  namespace: {{ .Release.Namespace }}
+spec:
+  clusterIP: None
+  ports:
+  - port: 9363
+    targetPort: 9363
+    name: metrics
+  selector:
+    app: clickhouse
+---
+# Grafana (ADR-098): paneles de salud del pipeline, ya provistos (config/pipeline.json). NO sale por el ingress: se abre
+# con `make grafana` (port-forward). Los dashboards y el origen de datos se leen de ficheros, no se editan en la interfaz.
+# La contraseña de admin se genera al azar la primera vez (Secret `grafana-admin`) y se conserva al actualizar.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  {{- with .Values.storage.className }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.storage.grafana.size }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate            # el PVC es RWO: no pueden coexistir dos pods
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/91-monitoring-config.yaml") . | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 472
+        runAsGroup: 472
+        fsGroup: 472
+      containers:
+      - name: grafana
+        image: {{ include "memtrace.image" .Values.images.grafana }}
+        env:
+        - name: GF_SECURITY_ADMIN_USER
+          valueFrom: { secretKeyRef: { name: grafana-admin, key: user } }
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          valueFrom: { secretKeyRef: { name: grafana-admin, key: password } }
+        - name: GF_USERS_ALLOW_SIGN_UP
+          value: "false"
+        - name: GF_AUTH_ANONYMOUS_ENABLED
+          value: "false"
+        - name: GF_SECURITY_DISABLE_GRAVATAR
+          value: "true"
+        # sin llamadas hacia fuera: ni telemetría, ni comprobar versiones, ni noticias
+        - name: GF_ANALYTICS_REPORTING_ENABLED
+          value: "false"
+        - name: GF_ANALYTICS_CHECK_FOR_UPDATES
+          value: "false"
+        - name: GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES
+          value: "false"
+        - name: GF_NEWS_NEWS_FEED_ENABLED
+          value: "false"
+        ports:
+        - containerPort: 3000
+          name: http
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: http
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 20
+        resources:
+{{- toYaml .Values.resources.grafana | nindent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/grafana
+        - name: provisioning
+          mountPath: /etc/grafana/provisioning
+        - name: dashboards
+          mountPath: /etc/grafana/dashboards
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: grafana-data
+      - name: provisioning
+        configMap:
+          name: grafana-provisioning
+          items:
+          - key: datasource.yaml
+            path: datasources/datasource.yaml
+          - key: dashboards.yaml
+            path: dashboards/dashboards.yaml
+      - name: dashboards
+        configMap:
+          name: grafana-dashboards
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3000
+    targetPort: 3000
+    name: http
+  selector:
+    app: grafana
+---
+# Red del monitoring (ADR-098), sobre la denegación por defecto de k8s/05-network-policies.yaml. Las políticas se SUMAN: las de
+# aquí solo añaden lo que hace falta y no tocan las del núcleo.
+#
+#   grafana ──► prometheus ──► ingest :3002 /metrics
+#                         ├──► otel-collector :8888
+#                         └──► clickhouse :9363
+#
+# Grafana no tiene ninguna entrada: se abre con `kubectl port-forward` (que no pasa por estas políticas). Si lo expones con
+# un ingress, añade una política que permita al controlador llegar al puerto 3000.
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: prometheus
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels: { app: prometheus }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: grafana }
+      ports:
+        - { protocol: TCP, port: 9090 }
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app: ingest }
+      ports:
+        - { protocol: TCP, port: 3002 }
+    - to:
+        - podSelector:
+            matchLabels: { app: otel-collector }
+      ports:
+        - { protocol: TCP, port: 8888 }
+    - to:
+        - podSelector:
+            matchLabels: { app: clickhouse }
+      ports:
+        - { protocol: TCP, port: 9363 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: grafana
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels: { app: grafana }
+  policyTypes: [Ingress, Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app: prometheus }
+      ports:
+        - { protocol: TCP, port: 9090 }
+---
+# Prometheus puede leer las métricas de cada pieza, solo en su puerto de métricas
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: scrape-ingest
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels: { app: ingest }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: prometheus }
+      ports:
+        - { protocol: TCP, port: 3002 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: scrape-otel-collector
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels: { app: otel-collector }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: prometheus }
+      ports:
+        - { protocol: TCP, port: 8888 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: scrape-clickhouse
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels: { app: clickhouse }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: prometheus }
+      ports:
+        - { protocol: TCP, port: 9363 }
+{{- end }}
+{{- end }}

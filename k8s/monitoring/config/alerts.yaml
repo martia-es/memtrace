@@ -1,0 +1,95 @@
+# Reglas de alerta del pipeline de ingesta (ADR-098). Prometheus las evalúa y las muestra en su pestaña Alerts y en Grafana.
+# No se envían a ningún sitio: el encaminamiento (Alertmanager, correo, Slack) lo pone quien opera la instalación.
+# Las alertas de lag y de disco del broker llegan con el broker (fase 3 del ADR-098).
+groups:
+  - name: memtrace-pipeline
+    rules:
+      - alert: TargetDown
+        expr: up{job=~"ingest|otel-collector|clickhouse"} == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "{{ $labels.job }} no responde a Prometheus ({{ $labels.instance }})"
+          description: "Prometheus no puede leer las métricas de {{ $labels.job }} desde hace 2 minutos: el pod está caído o no es alcanzable."
+
+      - alert: IngestNoInstances
+        expr: absent(up{job="ingest"} == 1)
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "Ninguna réplica de ingest está viva"
+          description: "Los agentes no pueden enviar trazas: el SDK reintenta y, tras 2.048 spans pendientes, descarta."
+
+      - alert: IngestHighErrorRate
+        expr: |
+          sum(rate(memtrace_ingest_requests_total{code=~"5.."}[5m]))
+            / sum(rate(memtrace_ingest_requests_total[5m])) > 0.05
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "Más del 5 % de las peticiones de ingesta fallan con 5xx"
+          description: "Mira memtrace_ingest_rejections_total{reason=\"identity_unavailable\"} (Postgres) y memtrace_ingest_forward_total{outcome!=\"ok\"} (Collector)."
+
+      - alert: IngestIdentityStoreDown
+        expr: min(memtrace_ingest_identity_store_up) == 0
+        for: 1m
+        labels: { severity: warning }
+        annotations:
+          summary: "ingest no puede validar API keys contra Postgres"
+          description: "Mientras dure, solo se aceptan las keys validadas en los últimos 10 minutos. El valor se actualiza cuando llega tráfico."
+
+      - alert: IngestServingStaleKeys
+        expr: sum(rate(memtrace_ingest_key_cache_total{result="stale"}[5m])) > 0
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "ingest acepta keys de su memoria porque Postgres no responde"
+          description: "Una key revocada en este tiempo puede seguir funcionando hasta que vuelva Postgres."
+
+      - alert: IngestCollectorFailing
+        expr: sum(rate(memtrace_ingest_forward_total{outcome!="ok"}[5m])) > 0
+        for: 3m
+        labels: { severity: critical }
+        annotations:
+          summary: "ingest no consigue entregar al Collector"
+          description: "outcome=collector_unreachable: el Collector no contesta; collector_status: contesta con un error (memoria, ClickHouse)."
+
+      - alert: CollectorExportFailing
+        expr: sum(rate(otelcol_exporter_send_failed_spans[5m])) > 0
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "El Collector no puede escribir spans en ClickHouse"
+          description: "Los lotes se reintentan hasta 1 hora desde la cola en disco; pasado ese tiempo se descartan."
+
+      - alert: CollectorRefusingData
+        expr: sum(rate(otelcol_receiver_refused_spans[5m])) > 0
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "El Collector rechaza spans (memoria)"
+          description: "El limitador de memoria está activo: ingest recibe errores y el SDK reintenta."
+
+      - alert: CollectorQueueFilling
+        expr: max(otelcol_exporter_queue_size / otelcol_exporter_queue_capacity) > 0.8
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "La cola del Collector supera el 80 %"
+          description: "ClickHouse escribe más despacio de lo que llegan los datos, o está caído."
+
+      - alert: CollectorMemoryHigh
+        expr: max(otelcol_process_memory_rss) > 0.85 * 1024 * 1024 * 1024
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "El Collector usa más del 85 % de su límite de memoria (1 GiB)"
+          description: "Cerca de este punto el limitador de memoria empieza a rechazar datos."
+
+      - alert: ClickHouseDiskLow
+        expr: min(ClickHouseAsyncMetrics_DiskAvailable_default / ClickHouseAsyncMetrics_DiskTotal_default) < 0.2
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "A ClickHouse le queda menos del 20 % de disco"
+          description: "Revisa la retención de las trazas (ADR-084) o amplía el volumen."

@@ -1,0 +1,38 @@
+# Prometheus de MemTrace (ADR-098). Sin descubrimiento por la API de Kubernetes: no necesita permisos ni salida hacia el
+# servidor de la API. Cada objetivo se descubre por DNS a través de un Service sin IP propia (`*-metrics`), que devuelve la
+# IP de TODOS sus pods: con varias réplicas se mide cada una, y no una al azar a través del Service normal.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus-rules/alerts.yaml
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Servicio de ingesta (ADR-098): peticiones por código, rechazos, latencia, caché de keys, estado de Postgres
+  - job_name: ingest
+    dns_sd_configs:
+      - names: ["ingest-metrics"]
+        type: A
+        port: 3002
+        refresh_interval: 15s
+
+  # Collector: spans aceptados, rechazados, enviados y fallidos; tamaño de la cola; memoria
+  - job_name: otel-collector
+    dns_sd_configs:
+      - names: ["otel-collector-metrics"]
+        type: A
+        port: 8888
+        refresh_interval: 15s
+
+  # ClickHouse: su endpoint de Prometheus (k8s/config/clickhouse-low-footprint.xml)
+  - job_name: clickhouse
+    dns_sd_configs:
+      - names: ["clickhouse-metrics"]
+        type: A
+        port: 9363
+        refresh_interval: 15s

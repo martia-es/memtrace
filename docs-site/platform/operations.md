@@ -156,6 +156,33 @@ Stop the Collector (`kubectl -n memtrace scale deployment/otel-collector --repli
 - **Disk space.** Backups live in a 5 Gi volume by default. Resize the `backups` PersistentVolumeClaim if your traces are large.
 - **A failed backup is visible.** `kubectl -n memtrace get jobs` shows the last runs; a failed one keeps its logs (`kubectl -n memtrace logs job/<name>`).
 
+## Monitoring (Prometheus and Grafana)
+
+An optional add-on that lets you **see** the ingestion pipeline instead of reading logs: how many traces arrive, how many are refused and why, how long they take, whether the Collector can write to ClickHouse, and whether the identity database answers. It is off by default.
+
+```bash
+make monitoring       # local cluster: deploys Prometheus and Grafana and opens Grafana
+make monitoring-down  # removes them
+```
+
+Grafana opens at `http://localhost:3000` (user `admin`, password `memtrace-grafana-dev-only` in a local cluster) with the dashboard **MemTrace · Pipeline de ingesta** already loaded. Prometheus is at `http://localhost:9090`; its **Alerts** page shows which alert rules are firing.
+
+With Helm, turn it on with `--set monitoring.enabled=true`. The chart generates the Grafana admin password the first time and keeps it (read it with `kubectl -n memtrace get secret grafana-admin -o jsonpath='{.data.password}' | base64 -d`); set `secrets.grafana.password` to choose it.
+
+What you get:
+
+| Piece | What it shows |
+|---|---|
+| Dashboard | Requests per second by status code, latency (p50, p95, p99), refusals by reason, deliveries to the Collector, API key cache, spans accepted and written by the Collector, its queue and memory, free disk in ClickHouse |
+| Alert rules | A pod that does not answer, no `ingest` replica alive, more than 5 % of requests failing, `ingest` unable to reach Postgres or the Collector, the Collector unable to write to ClickHouse, its queue above 80 %, ClickHouse below 20 % free disk |
+
+Good to know:
+
+- **Alerts are evaluated and shown, not sent.** Prometheus has no Alertmanager here: to get an email or a Slack message, add one and point it at Prometheus. The alerts of [Alerts and budgets](/platform/alerts) in the app are a different thing: they are about your agents' quality, not about the platform.
+- **Grafana is not published by the ingress.** Open it with `kubectl -n memtrace port-forward svc/grafana 3000:3000`. If you publish it, add a network policy that lets your ingress controller reach port 3000.
+- **Data is kept 15 days** in a 5 Gi volume for Prometheus and a 1 Gi volume for Grafana (`storage.prometheus.size`, `storage.grafana.size`). They are monitoring data, not part of the backups.
+- **Postgres status updates with traffic.** The "Postgres seen from ingest" tile and its alert change when requests arrive, because that is when `ingest` talks to Postgres.
+
 ## Check performance (load gate)
 
 Before you trust a cluster with real traffic, or after changing its size, run the load gate. It sends traces the way a real agent does (SDK, then the ingest service, the Collector and ClickHouse), queries the API as a user would, and fails if something is below the bar.

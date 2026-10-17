@@ -14,4 +14,13 @@
     <background_common_pool_size>4</background_common_pool_size>                        <!-- 8 -->
     <max_thread_pool_free_size>32</max_thread_pool_free_size>                            <!-- 1000: el pool global no devuelve hilos tras una ráfaga y el contenedor se queda cerca del tope -->
     <max_active_parts_loading_thread_pool_size>8</max_active_parts_loading_thread_pool_size>       <!-- 64, solo al arrancar -->
+    <!-- Métricas para Prometheus (ADR-098): solo se leen si se despliega el monitoring (`make monitoring`); una política de red
+         limita el puerto a Prometheus. -->
+    <prometheus>
+        <endpoint>/metrics</endpoint>
+        <port>9363</port>
+        <metrics>true</metrics>
+        <events>true</events>
+        <asynchronous_metrics>true</asynchronous_metrics>
+    </prometheus>
 </clickhouse>

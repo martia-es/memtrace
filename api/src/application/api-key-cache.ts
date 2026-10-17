@@ -19,6 +19,8 @@ export interface ApiKeyCacheOptions {
   /** Tras un fallo de la fuente no se vuelve a intentar durante este tiempo: así no cada petición espera al tiempo de espera. */
   failureBackoffMs?: number;
   now?: () => number;
+  /** Para medir: `hit` (sin preguntar), `miss` (se preguntó a la fuente), `stale` (la fuente falló y se aceptó lo recordado), `failure` (falló y no había nada). */
+  onEvent?: (event: "hit" | "miss" | "stale" | "failure") => void;
 }
 
 /**
@@ -53,11 +55,18 @@ export class CachedApiKeyResolver {
     const id = createHash("sha256").update(plaintext).digest("hex");
     const cached = this.entries.get(id);
     const at = this.now();
-    if (cached && at - cached.at < this.options.ttlMs) return cached.access;
+    if (cached && at - cached.at < this.options.ttlMs) {
+      this.options.onEvent?.("hit");
+      return cached.access;
+    }
 
     // la fuente falló hace poco: sin reintentar, se sirve lo recordado o se rechaza enseguida
     if (this.sourceDown && at < this.sourceDown.until) {
-      if (cached && at - cached.at < this.options.staleMs) return cached.access;
+      if (cached && at - cached.at < this.options.staleMs) {
+        this.options.onEvent?.("stale");
+        return cached.access;
+      }
+      this.options.onEvent?.("failure");
       throw this.sourceDown.error;
     }
 
@@ -69,15 +78,30 @@ export class CachedApiKeyResolver {
     try {
       const access = await pending;
       this.sourceDown = undefined;
+      this.options.onEvent?.("miss");
       if (access) this.remember(id, access, at);
       else this.entries.delete(id);
       return access;
     } catch (error) {
       this.sourceDown = { until: this.now() + (this.options.failureBackoffMs ?? 5_000), error };
-      if (cached && at - cached.at < this.options.staleMs) return cached.access;
+      if (cached && at - cached.at < this.options.staleMs) {
+        this.options.onEvent?.("stale");
+        return cached.access;
+      }
+      this.options.onEvent?.("failure");
       throw error;
     }
   };
+
+  /** Cuántas keys recuerda ahora. */
+  get size(): number {
+    return this.entries.size;
+  }
+
+  /** `false` desde que la fuente falló hasta que vuelve a responder. */
+  get sourceHealthy(): boolean {
+    return this.sourceDown === undefined;
+  }
 
   private remember(id: string, access: ApiKeyAccess, at: number) {
     this.entries.delete(id); // reinsertar la mueve al final: el primero de la lista es el más antiguo

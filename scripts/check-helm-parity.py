@@ -13,7 +13,7 @@ import argparse, filecmp, glob, os, re, subprocess, sys
 import yaml
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-HASHED = re.compile(r"\b(identity-oauth-credentials|resend-credentials|clickhouse-config)-[a-z0-9]{10}\b")
+HASHED = re.compile(r"\b(identity-oauth-credentials|resend-credentials|clickhouse-config|prometheus-config|prometheus-rules|grafana-provisioning|grafana-dashboards)-[a-z0-9]{10}\b")
 # El chart no incluye estos recursos a propósito (ver deploy/helm/memtrace/README.md)
 NOT_IN_CHART = {("Namespace", "memtrace"), ("Job", "backfill-experiment-id")}
 # Los Secret los crea el chart con valores propios: solo se comprueba que existen
@@ -53,28 +53,8 @@ def normalise(d):
     return d
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--helm", default="helm")
-    ap.add_argument("--kubectl", default="kubectl")
-    a = ap.parse_args()
-    bad = []
-
-    for src, dst in (("migrations/clickhouse", "deploy/helm/memtrace/migrations/clickhouse"),
-                     ("migrations/postgres", "deploy/helm/memtrace/migrations/postgres"),
-                     ("k8s/config", "deploy/helm/memtrace/files")):
-        s, d = sorted(os.listdir(f"{ROOT}/{src}")), sorted(os.listdir(f"{ROOT}/{dst}"))
-        s = [f for f in s if not f.startswith(".")]
-        if s != d:
-            bad.append(f"{dst}: faltan o sobran ficheros respecto a {src} (ejecuta scripts/sync-helm-chart.sh): {set(s) ^ set(d)}")
-            continue
-        for f in s:
-            if not filecmp.cmp(f"{ROOT}/{src}/{f}", f"{ROOT}/{dst}/{f}", shallow=False):
-                bad.append(f"{dst}/{f} difiere de {src}/{f} (ejecuta scripts/sync-helm-chart.sh)")
-
-    kust = load(run([a.kubectl, "kustomize", "."]))
-    helm = load(run([a.helm, "template", "memtrace", "deploy/helm/memtrace", "--namespace", "memtrace"]))
-    for k in sorted(kust.keys() - helm.keys() - NOT_IN_CHART):
+def compare(kust, helm, bad, not_in_chart):
+    for k in sorted(kust.keys() - helm.keys() - not_in_chart):
         bad.append(f"{k[0]}/{k[1]}: está en Kustomize y falta en el chart")
     for k in sorted(helm.keys() - kust.keys()):
         if k[0] == "Secret" or k == ("Ingress", "memtrace"):
@@ -89,6 +69,40 @@ def main():
             import difflib
             diff = "\n".join(list(difflib.unified_diff(ax, ay, "kustomize", "helm", lineterm="", n=1))[:30])
             bad.append(f"{k[0]}/{k[1]} difiere:\n{diff}")
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--helm", default="helm")
+    ap.add_argument("--kubectl", default="kubectl")
+    a = ap.parse_args()
+    bad = []
+
+    for src, dst in (("migrations/clickhouse", "deploy/helm/memtrace/migrations/clickhouse"),
+                     ("migrations/postgres", "deploy/helm/memtrace/migrations/postgres"),
+                     ("k8s/config", "deploy/helm/memtrace/files"),
+                     ("k8s/monitoring/config", "deploy/helm/memtrace/files/monitoring")):
+        # solo ficheros: `files/` también contiene la carpeta `monitoring/`, que se compara en su propia pareja
+        s = sorted(f for f in os.listdir(f"{ROOT}/{src}") if os.path.isfile(f"{ROOT}/{src}/{f}"))
+        d = sorted(f for f in os.listdir(f"{ROOT}/{dst}") if os.path.isfile(f"{ROOT}/{dst}/{f}"))
+        s = [f for f in s if not f.startswith(".")]
+        if s != d:
+            bad.append(f"{dst}: faltan o sobran ficheros respecto a {src} (ejecuta scripts/sync-helm-chart.sh): {set(s) ^ set(d)}")
+            continue
+        for f in s:
+            if not filecmp.cmp(f"{ROOT}/{src}/{f}", f"{ROOT}/{dst}/{f}", shallow=False):
+                bad.append(f"{dst}/{f} difiere de {src}/{f} (ejecuta scripts/sync-helm-chart.sh)")
+
+    kust = load(run([a.kubectl, "kustomize", "."]))
+    helm = load(run([a.helm, "template", "memtrace", "deploy/helm/memtrace", "--namespace", "memtrace"]))
+    compare(kust, helm, bad, NOT_IN_CHART)
+
+    # Monitoring opcional (ADR-098): `k8s/monitoring` frente a lo que el chart añade con `monitoring.enabled=true`
+    mon_kust = load(run([a.kubectl, "kustomize", "k8s/monitoring"]))
+    helm_on = load(run([a.helm, "template", "memtrace", "deploy/helm/memtrace", "--namespace", "memtrace", "--set", "monitoring.enabled=true"]))
+    compare(mon_kust, {k: v for k, v in helm_on.items() if k not in helm}, bad, set())
+    kust = {**kust, **mon_kust}
+    helm = helm_on
 
     if bad:
         print("\n\n".join(bad))
