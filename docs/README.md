@@ -13,6 +13,7 @@ Un documento por propósito. Antes de crear uno nuevo, comprueba si el contenido
 | Ver el flujo de las colas de revisión | [annotation-queues-e2e-flow.md](annotation-queues-e2e-flow.md) | Propuesta de rediseño |
 | Usar la marca (colores, tono, logo) | [brand.md](brand.md) | Sí |
 | Consultar el diseño técnico original de la Fase 1 | [archive/phase_1_design.md](archive/phase_1_design.md) | No, histórico |
+| Discutir el diseño de la Fase 2 (Mem) | [phase_2_design.md](phase_2_design.md) | Borrador |
 | Aprender a **usar** la librería o la plataforma | [docs-site/](../docs-site/) | Sí, es la documentación de usuario |
 
 ## Dónde va cada cosa nueva
