@@ -475,6 +475,44 @@ describe("DatasetDetailPage — spreadsheet editing (ADR-041)", () => {
     expect(wrapper.get('[data-testid="status-bar"]').text()).toContain("1 change since v2.1");
   });
 
+  it("shows a conversation as readable text, keeps the saved messages and edits them in the details", async () => {
+    const api = new FakeTraceApi();
+    const input = [{ role: "system", content: "Eres un asistente del tiempo." }, { role: "user", content: "¿Qué tiempo hace en Bilbao?" }];
+    const expected = [{ role: "assistant", content: "Nublado, 18 grados" }];
+    api.datasetById = { "ds-1": datasetDto() };
+    api.datasetVersions = { "ds-1": { items: [datasetVersionDto({ major: 2, minor: 1 })] } };
+    api.datasetItems = { "ds-1": { items: [datasetItemDto({ id: "c1", input, expectedOutput: expected })] } };
+    const { wrapper } = await setup(DatasetDetailPage, api, "/datasets/ds-1");
+
+    const cellA = wrapper.get('textarea[aria-label^="Input of row 1"]');
+    expect((cellA.element as HTMLTextAreaElement).value).toBe("¿Qué tiempo hace en Bilbao?");
+    expect(cellA.attributes("readonly")).toBeDefined();
+    expect((wrapper.get('textarea[aria-label^="Expected output of row 1"]').element as HTMLTextAreaElement).value).toBe("Nublado, 18 grados");
+    expect(wrapper.get('[data-testid="status-bar"]').text()).toContain("1 conversation shown as text");
+    expect(wrapper.find(".publish-bar").exists()).toBe(false);
+
+    await cellA.trigger("focus");
+    expect(wrapper.get('[data-testid="formula-bar"]').text()).toContain("chat · 2");
+
+    await cellA.trigger("click");
+    const body = document.body;
+    expect(body.textContent).toContain("Eres un asistente del tiempo.");
+    expect(body.textContent).toContain("The dataset stores the messages exactly as they were captured");
+
+    (body.querySelector('[data-testid="tab-json"]') as HTMLElement).click();
+    await flushPromises();
+    const json = body.querySelector("#item-input-json textarea, textarea#item-input-json") as HTMLTextAreaElement;
+    expect(JSON.parse(json.value)).toEqual(input);
+    json.value = JSON.stringify([{ role: "user", content: "¿Y en Sevilla?" }]);
+    json.dispatchEvent(new Event("input"));
+    await flushPromises();
+
+    expect(wrapper.find(".publish-bar").text()).toContain("1 unpublished change");
+    await wrapper.find(".publish-bar .mt-btn.v-primary").trigger("click");
+    await flushPromises();
+    expect(api.commitDatasetChangesCalls[0]!.changes.update).toEqual([{ id: "c1", input: [{ role: "user", content: "¿Y en Sevilla?" }] }]);
+  });
+
   it("deleting only marks the row until published, and Discard restores it", async () => {
     const { api, wrapper } = await openEditor();
     await wrapper.find('button[aria-label="Delete"]').trigger("click");

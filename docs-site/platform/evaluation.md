@@ -10,6 +10,8 @@ To create a dataset, use **+ New dataset**, or drop a `.csv` file on the page (o
 
 Open a dataset to edit its items in the **Items** tab. It works like a spreadsheet: columns have letters (A Input, B Expected output, C Last edit) and rows have numbers, the selected cell is shown in the name box (for example `B3`) and its full text in the formula bar above the grid, and the status bar below counts items and changes since the current version. Enter moves down, Shift+Enter adds a line break, and you can paste rows copied from Excel or Sheets. The blank last row adds an item.
 
+When an item holds a conversation (a list of messages, as when you promote a trace), the cell shows a `chat · N` chip and the last user message (the input) or the last assistant message (the expected output) as plain text instead of raw JSON. Click it, or press **Edit in details** in the formula bar, to read every message by role. The dataset still stores the messages exactly as they were captured; to change them, open the **JSON as saved** tab in the item details. Formats the dashboard does not recognise keep showing as editable JSON.
+
 Nothing is saved until you press **Publish**. Everything changed in that session becomes **one** new version, with an automatic summary such as "Added 3 · Edited 2 · Removed 1". There is no manual "create version" step.
 
 Versioning:

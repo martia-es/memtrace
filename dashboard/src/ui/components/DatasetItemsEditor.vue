@@ -5,11 +5,14 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { onBeforeRouteLeave } from "vue-router";
 import { useQuasar } from "quasar";
 import { formatDateTime } from "@/domain/format";
+import { conversationPreview, type ConversationPreview } from "@/domain/conversation-preview";
 import { blankRow, buildCommit, isDirty, nextVersionLabel, pasteGrid, parseClipboardGrid, rowProblem, rowState, rowsFromItems, summarize, type DraftRow } from "../dataset-draft";
 import Modal from "./Modal.vue";
 import { useTraceApi } from "../composables/useTraceApi";
 import Button from "./Button.vue";
 import Checkbox from "./Checkbox.vue";
+import MessageBlock from "./MessageBlock.vue";
+import TabBar from "./TabBar.vue";
 import Card from "./Card.vue";
 import Pill from "./Pill.vue";
 
@@ -29,6 +32,7 @@ const itemsById = computed(() => new Map(props.items.map((i) => [i.id, i])));
 const search = ref("");
 const selected = ref<Set<string>>(new Set());
 const detailKey = ref<string | null>(null);
+const detailTab = ref<"messages" | "json" | "metadata">("metadata");
 // celda con el foco (como la celda seleccionada de una hoja): alimenta la caja de nombre, la barra de fórmulas y el resaltado de cabeceras
 const active = ref<{ key: string; col: 0 | 1 } | null>(null);
 const COLUMN_LETTERS = ["A", "B", "C"] as const;
@@ -46,7 +50,25 @@ const activeLabel = computed(() => {
   const at = visibleRows.value.indexOf(row);
   return at < 0 ? "" : `${COLUMN_LETTERS[active.value.col]}${at + 1}`;
 });
-const activeText = computed(() => (!activeRow.value || !active.value ? "" : active.value.col === 0 ? activeRow.value.input : activeRow.value.expected));
+// una celda con conversación se ve como texto y se edita en el detalle: el JSON guardado no se reescribe desde la vista
+const previewOf = (row: DraftRow, col: 0 | 1): ConversationPreview | null => conversationPreview(col === 0 ? row.input : row.expected, col === 0 ? "input" : "expected");
+const activePreview = computed(() => (!activeRow.value || !active.value ? null : previewOf(activeRow.value, active.value.col)));
+const activeText = computed(() => {
+  if (!activeRow.value || !active.value) return "";
+  if (activePreview.value) return activePreview.value.summary;
+  return active.value.col === 0 ? activeRow.value.input : activeRow.value.expected;
+});
+const detailPreviews = computed(() => (detailRow.value ? { input: previewOf(detailRow.value, 0), expected: previewOf(detailRow.value, 1) } : null));
+const detailTabs = computed(() => {
+  const hasChat = !!(detailPreviews.value?.input || detailPreviews.value?.expected);
+  return [...(hasChat ? [{ id: "messages", label: "Messages" }, { id: "json", label: "JSON as saved" }] : []), { id: "metadata", label: "Metadata" }];
+});
+const chatCount = computed(() => rows.value.filter((r) => !r.removed && rowState(r) !== "empty" && (previewOf(r, 0) || previewOf(r, 1))).length);
+
+function openDetails(row: DraftRow, tab?: "messages" | "json" | "metadata") {
+  detailKey.value = row.key;
+  detailTab.value = tab ?? (previewOf(row, 0) || previewOf(row, 1) ? "messages" : "metadata");
+}
 const itemCount = computed(() => rows.value.filter((r) => rowState(r) !== "empty" && !r.removed).length);
 
 // el servidor solo "gana" sobre el borrador si no hay cambios sin publicar
@@ -204,7 +226,11 @@ defineExpose({ dirty });
     <div class="formula-bar" data-testid="formula-bar">
       <span class="name-box mono" aria-label="Selected cell">{{ activeLabel || "–" }}</span>
       <span class="fx" aria-hidden="true">fx</span>
-      <output class="formula" aria-label="Content of the selected cell">{{ activeText }}</output>
+      <output class="formula" aria-label="Content of the selected cell">
+        <Pill v-if="activePreview" tone="accent" class="chat-chip">chat · {{ activePreview.count }}</Pill>
+        {{ activeText }}
+      </output>
+      <Button v-if="activeRow && activePreview" size="sm" class="formula-action" @click="openDetails(activeRow)">Edit in details</Button>
     </div>
 
     <Card padding="none" block class="table-card">
@@ -234,7 +260,22 @@ defineExpose({ dirty });
             </td>
             <td class="idx mono muted" :class="{ 'row-on': active?.key === row.key }">{{ rowState(row) === "empty" ? "+" : i + 1 }}</td>
             <td v-for="col in [0, 1] as const" :key="col" class="edit-cell">
+              <div v-if="previewOf(row, col)" class="chat-cell">
+                <Pill tone="accent" class="chat-chip">chat · {{ previewOf(row, col)!.count }}</Pill>
+                <textarea
+                  :data-cell="`${row.key}:${col}`"
+                  class="cell-input"
+                  rows="1"
+                  readonly
+                  :value="previewOf(row, col)!.summary"
+                  :aria-label="`${col === 0 ? 'Input' : 'Expected output'} of row ${i + 1}, a conversation of ${previewOf(row, col)!.count} messages. Open details to edit`"
+                  @focus="active = { key: row.key, col }"
+                  @click="openDetails(row, 'messages')"
+                  @keydown="onKeydown($event, row, col)"
+                ></textarea>
+              </div>
               <textarea
+                v-else
                 :data-cell="`${row.key}:${col}`"
                 class="cell-input"
                 rows="1"
@@ -264,7 +305,7 @@ defineExpose({ dirty });
                   <Button variant="icon" v-if="rowState(row) === 'modified'" title="Undo changes to this row" aria-label="Undo changes to this row" @click="revert(row)">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6M3.5 13a9 9 0 1 0 2.6-6.4L3 9" /></svg>
                   </Button>
-                  <Button variant="icon" title="Details (metadata, audit)" aria-label="Details" @click="detailKey = row.key">
+                  <Button variant="icon" title="Details (metadata, audit)" aria-label="Details" @click="openDetails(row)">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
                   </Button>
                   <Button variant="icon" title="Duplicate" aria-label="Duplicate" @click="duplicate(row)">
@@ -284,6 +325,7 @@ defineExpose({ dirty });
     <div class="status-bar muted" data-testid="status-bar">
       <span>{{ itemCount }} item{{ itemCount === 1 ? "" : "s" }}</span>
       <span v-if="activeLabel">Selection: {{ activeLabel }}</span>
+      <span v-if="chatCount">{{ chatCount }} conversation{{ chatCount === 1 ? "" : "s" }} shown as text</span>
       <span class="spacer" />
       <span v-if="dirty" class="modified">{{ changeCount }} change{{ changeCount === 1 ? "" : "s" }} since v{{ version?.major ?? 1 }}.{{ version?.minor ?? 0 }}</span>
       <span v-else>No changes since v{{ version?.major ?? 1 }}.{{ version?.minor ?? 0 }}</span>
@@ -302,18 +344,37 @@ defineExpose({ dirty });
       <Button variant="primary" :disabled="publishing || summary.problems > 0" @click="publish">{{ publishing ? "Publishing…" : `Publish ${nextLabel}` }}</Button>
     </Card>
 
-    <Modal v-if="detailRow" title="Item details" @close="detailKey = null">
+    <Modal v-if="detailRow" title="Item details" :wide="detailTabs.length > 1" @close="detailKey = null">
       <div class="modal-form">
-        <label class="field-label" for="item-metadata">Metadata (JSON object, optional)</label>
-        <TextInput id="item-metadata" v-model="detailRow.metadata" multiline mono :rows="5" placeholder='{"source": "manual"}' />
-        <div v-if="rowProblem(detailRow)" class="problem-text">{{ rowProblem(detailRow) }}</div>
-        <template v-if="detailRow.id && itemsById.get(detailRow.id)">
-          <label class="field-label">Audit</label>
-          <p class="muted audit">
-            Added by {{ itemsById.get(detailRow.id)!.createdByEmail }} · {{ formatDateTime(itemsById.get(detailRow.id)!.createdAt) }}<br />
-            <template v-if="itemsById.get(detailRow.id)!.updatedByEmail">Last edited by {{ itemsById.get(detailRow.id)!.updatedByEmail }} · {{ formatDateTime(itemsById.get(detailRow.id)!.updatedAt!) }}</template>
-            <template v-else>Never edited</template>
-          </p>
+        <TabBar v-if="detailTabs.length > 1" v-model="detailTab" :tabs="detailTabs" />
+        <template v-if="detailTab === 'messages' && detailPreviews">
+          <template v-for="side in ([['input', 'Input'], ['expected', 'Expected output']] as const)" :key="side[0]">
+            <template v-if="detailPreviews[side[0]]">
+              <label class="field-label">{{ side[1] }} · {{ detailPreviews[side[0]]!.count }} message{{ detailPreviews[side[0]]!.count === 1 ? "" : "s" }}</label>
+              <MessageBlock v-for="(block, n) in detailPreviews[side[0]]!.blocks" :key="n" :block="block" />
+            </template>
+          </template>
+          <p class="muted audit">The dataset stores the messages exactly as they were captured. This view only changes how they are shown. Edit them in the JSON tab.</p>
+        </template>
+        <template v-else-if="detailTab === 'json'">
+          <label class="field-label" for="item-input-json">Input</label>
+          <TextInput id="item-input-json" v-model="detailRow.input" multiline mono :rows="6" />
+          <label class="field-label" for="item-expected-json">Expected output</label>
+          <TextInput id="item-expected-json" v-model="detailRow.expected" multiline mono :rows="6" />
+          <div v-if="rowProblem(detailRow)" class="problem-text">{{ rowProblem(detailRow) }}</div>
+        </template>
+        <template v-else>
+          <label class="field-label" for="item-metadata">Metadata (JSON object, optional)</label>
+          <TextInput id="item-metadata" v-model="detailRow.metadata" multiline mono :rows="5" placeholder='{"source": "manual"}' />
+          <div v-if="rowProblem(detailRow)" class="problem-text">{{ rowProblem(detailRow) }}</div>
+          <template v-if="detailRow.id && itemsById.get(detailRow.id)">
+            <label class="field-label">Audit</label>
+            <p class="muted audit">
+              Added by {{ itemsById.get(detailRow.id)!.createdByEmail }} · {{ formatDateTime(itemsById.get(detailRow.id)!.createdAt) }}<br />
+              <template v-if="itemsById.get(detailRow.id)!.updatedByEmail">Last edited by {{ itemsById.get(detailRow.id)!.updatedByEmail }} · {{ formatDateTime(itemsById.get(detailRow.id)!.updatedAt!) }}</template>
+              <template v-else>Never edited</template>
+            </p>
+          </template>
         </template>
         <Button variant="primary" @click="detailKey = null">Done</Button>
       </div>
@@ -494,6 +555,30 @@ th.col-on {
   outline: 2px solid var(--mt-accent);
   outline-offset: -1px;
   background: var(--mt-card);
+}
+.chat-cell {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+.chat-cell .chat-chip {
+  flex: none;
+  margin-top: 6px;
+  font-family: var(--mt-mono);
+  font-size: 10.5px;
+}
+.chat-cell .cell-input {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.formula-action {
+  flex: none;
+  align-self: center;
+  margin: 0 8px;
 }
 .cell-input:disabled {
   text-decoration: line-through;
