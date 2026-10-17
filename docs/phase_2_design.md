@@ -100,7 +100,7 @@ El grafo queda el último a propósito: es la parte más cara y la menos probada
 | Q2 | ¿Dónde se calculan los embeddings? | Modelo local (Sentence Transformers) o proveedor externo | Alto: un proveedor externo envía contenido de trazas a un tercero, lo que toca los «flujos hacia terceros» pendientes en `security-pending.md` |
 | Q3 | ¿Cómo entra el conocimiento al agente? | Fragmento versionado en el prompt existente, o prompt propio de «aprendizajes» | Medio. Recomendación: fragmento, para reutilizar ADR-073 y el mapa de dependencias |
 | Q4 | ¿Qué es «éxito» o «fallo» de una traza? | Cualquier span fallido (como hoy), feedback 👍/👎, resultado de evaluadores, o combinación | Medio. Condiciona todo el análisis; hoy «error» es cualquier span fallido |
-| Q5 | ¿Quién revisa los candidatos? | Cola de revisión como las de anotación (negocio etiqueta, `technical` promueve), o directamente el flujo de aprobaciones | Medio. Encaja con [annotation-queue-roles](../.claude/) |
+| Q5 | ¿Quién revisa los candidatos? | Cola de revisión como las de anotación (negocio etiqueta, `technical` promueve), o directamente el flujo de aprobaciones | Medio. Encaja con la regla actual: negocio etiqueta, solo `technical` promueve |
 | Q6 | ¿Cómo se atribuye una mejora a un aprendizaje? | Comparar versiones con y sin el fragmento, con repeticiones para medir ruido | Alto para 2.3. Sin atribución fiable, Mem no puede demostrar su valor |
 | Q7 | ¿Qué volumen de trazas hace falta para que un patrón sea fiable? | Umbral mínimo como el aviso de muestra pequeña (<30 trazas) de ADR-069 | Medio |
 | Q8 | ¿Se aplica algo sin revisión humana alguna vez? | No (recomendado), o solo en `dev` | Alto en confianza; decide si hay modo automático |
