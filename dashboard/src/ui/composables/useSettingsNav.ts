@@ -10,7 +10,8 @@ export interface SettingsSection {
   label: string;
   /** path de un icono de 24x24 */
   icon: string;
-  group: "Workspace" | "Governance" | "Organization";
+  /** Cabecera del grupo, ya traducida: dos secciones con el mismo texto comparten cabecera. */
+  group: string;
   count?: number;
 }
 export interface SettingsNav {

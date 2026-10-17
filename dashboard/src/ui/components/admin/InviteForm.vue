@@ -3,6 +3,7 @@ import TextInput from "@/ui/components/TextInput.vue";
 import { ref } from "vue";
 import Select from "../Select.vue";
 import Button from "../Button.vue";
+import { t } from "../../i18n";
 
 /**
  * Invitación inline por email (sin modal): el texto de ayuda dice exactamente qué rol recibe la persona.
@@ -31,9 +32,9 @@ function submit() {
     <h4 class="invite-title">{{ props.title }}</h4>
     <p class="adm-hint">{{ props.help }}</p>
     <div class="adm-form-row">
-      <TextInput v-model="email" type="email" placeholder="Email of the person to invite" aria-label="Email" />
+      <TextInput v-model="email" type="email" :placeholder="t('inviteForm.email_of_the_person_to_invite')" :aria-label="t('inviteForm.email')" />
       <Select v-if="roleOptions" v-model="role" :options="roleOptions" />
-      <Button variant="primary" type="submit" :disabled="sending || !email.trim()">Send invitation</Button>
+      <Button variant="primary" type="submit" :disabled="sending || !email.trim()">{{ t("inviteForm.send_invitation") }}</Button>
     </div>
   </form>
 </template>

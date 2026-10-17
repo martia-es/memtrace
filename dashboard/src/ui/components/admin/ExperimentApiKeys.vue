@@ -5,6 +5,7 @@ import type { ApiKeyDto, ExperimentDto } from "@/application/identity-api";
 import { useIdentityApi } from "../../composables/useIdentityApi";
 import { formatDate, notifyErrorWith } from "../../composables/useAdminDirectory";
 import Button from "../Button.vue";
+import { t } from "../../i18n";
 
 /**
  * API keys de un experimento (ADR-013). Una clave identifica al experimento cuando un agente envía trazas.
@@ -25,7 +26,7 @@ async function load() {
   try {
     keys.value = await api.listApiKeys(props.experiment.id);
   } catch (error) {
-    notifyErrorWith($q.notify, "Could not load API keys", error);
+    notifyErrorWith($q.notify, t("experimentApiKeys.could_not_load_api_keys"), error);
   } finally {
     loading.value = false;
   }
@@ -39,7 +40,7 @@ async function generate() {
     revealed.value = created.plaintext;
     keys.value = await api.listApiKeys(props.experiment.id);
   } catch (error) {
-    notifyErrorWith($q.notify, "Could not create API key", error);
+    notifyErrorWith($q.notify, t("experimentApiKeys.could_not_create_api_key"), error);
   } finally {
     generating.value = false;
   }
@@ -50,7 +51,7 @@ async function revoke(keyId: string) {
     await api.revokeApiKey(props.experiment.id, keyId);
     keys.value = await api.listApiKeys(props.experiment.id);
   } catch (error) {
-    notifyErrorWith($q.notify, "Could not revoke API key", error);
+    notifyErrorWith($q.notify, t("experimentApiKeys.could_not_revoke_api_key"), error);
   }
 }
 
@@ -64,47 +65,46 @@ MEMTRACE_CAPTURE_CONTENT="true"`;
 
 function copy(text: string) {
   void navigator.clipboard.writeText(text);
-  $q.notify({ message: "Copied", timeout: 1200, position: "bottom" });
+  $q.notify({ message: t("experimentApiKeys.copied"), timeout: 1200, position: "bottom" });
 }
 </script>
 
 <template>
   <div class="api-keys">
     <p class="adm-hint">
-      An API key lets your agent send traces to <strong>{{ experiment.name }}</strong>. Keys are tied to this experiment only.
-      The full value is shown once, right after you create it: copy it then.
+      {{ t("experimentApiKeys.an_api_key_lets_your_agent") + " " }}<strong>{{ experiment.name }}</strong>{{ t("experimentApiKeys.keys_are_tied_to_this_experiment") }}
     </p>
 
     <div v-if="revealed" class="adm-card revealed">
-      <p class="revealed-title">New key created. Copy it now, it won't be shown again.</p>
+      <p class="revealed-title">{{ t("experimentApiKeys.new_key_created_copy_it_now") }}</p>
       <div class="adm-snippet">
         <pre>{{ envSnippet(revealed) }}</pre>
-        <Button @click="copy(envSnippet(revealed))">Copy</Button>
+        <Button @click="copy(envSnippet(revealed))">{{ t("experimentApiKeys.copy") }}</Button>
       </div>
-      <Button size="sm" @click="revealed = null" class="dismiss">I've copied it</Button>
+      <Button size="sm" @click="revealed = null" class="dismiss">{{ t("experimentApiKeys.i_ve_copied_it") }}</Button>
     </div>
 
     <div class="toolbar-row">
-      <h4 class="adm-section-title">Active keys ({{ keys.length }})</h4>
-      <Button variant="primary" v-if="canManage" :disabled="generating" @click="generate">Create API key</Button>
+      <h4 class="adm-section-title">{{ t("experimentApiKeys.active_keys_count", { count: keys.length }) }}</h4>
+      <Button variant="primary" v-if="canManage" :disabled="generating" @click="generate">{{ t("experimentApiKeys.create_api_key") }}</Button>
     </div>
 
     <ul v-if="keys.length" class="adm-list">
       <li v-for="k in keys" :key="k.id" class="adm-item">
         <div class="adm-item-main">
           <span class="adm-item-title mono">{{ k.keyPrefix }}…</span>
-          <span class="adm-item-meta">created {{ formatDate(k.createdAt) }} · last used {{ formatDate(k.lastUsedAt) }}</span>
+          <span class="adm-item-meta">{{ t("experimentApiKeys.created_created_last_used_used", { created: formatDate(k.createdAt), used: formatDate(k.lastUsedAt) }) }}</span>
         </div>
-        <Button variant="danger" v-if="canManage" @click="revoke(k.id)">Revoke</Button>
+        <Button variant="danger" v-if="canManage" @click="revoke(k.id)">{{ t("experimentApiKeys.revoke") }}</Button>
       </li>
     </ul>
     <p v-else-if="!loading" class="adm-empty">
-      No API keys yet.
-      <template v-if="canManage">Create one, then follow the <em>Connect</em> tab to configure your agent.</template>
-      <template v-else>An experiment admin needs to create one.</template>
+      {{ t("experimentApiKeys.no_api_keys_yet") }}
+      <template v-if="canManage">{{ t("experimentApiKeys.create_one_then_follow_the") + " " }}<em>{{ t("experimentApiKeys.connect") }}</em>{{ " " + t("experimentApiKeys.tab_to_configure_your_agent") }}</template>
+      <template v-else>{{ t("experimentApiKeys.an_experiment_admin_needs_to_create") }}</template>
     </p>
 
-    <p v-if="!canManage && keys.length" class="adm-hint">You can only see and revoke the keys you created.</p>
+    <p v-if="!canManage && keys.length" class="adm-hint">{{ t("experimentApiKeys.you_can_only_see_and_revoke") }}</p>
   </div>
 </template>
 

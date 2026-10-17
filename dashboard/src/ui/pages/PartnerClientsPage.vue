@@ -10,6 +10,7 @@ import PageHeader from "../components/PageHeader.vue";
 import EmptyState from "../components/EmptyState.vue";
 import Button from "../components/Button.vue";
 import Pill from "../components/Pill.vue";
+import { t } from "../i18n";
 
 /**
  * Home de la consultora (ADR-091): los clientes que le han dado acceso, con los experimentos y el rol concedidos. Solo
@@ -26,7 +27,7 @@ onMounted(async () => {
   try {
     [clients.value, myOrganizations.value] = await Promise.all([api.listPartnerClients(), api.listOrganizations()]);
   } catch (error) {
-    notifyErrorWith($q.notify, "Could not load your clients", error);
+    notifyErrorWith($q.notify, t("partnerClientsPage.could_not_load_your_clients"), error);
   } finally {
     loaded.value = true;
   }
@@ -34,24 +35,24 @@ onMounted(async () => {
 
 function copy(text: string) {
   void navigator.clipboard?.writeText(text);
-  $q.notify({ message: "Copied", timeout: 1200, position: "bottom" });
+  $q.notify({ message: t("partnerClientsPage.copied"), timeout: 1200, position: "bottom" });
 }
 </script>
 
 <template>
   <q-page>
     <div class="adm-page">
-      <PageHeader :crumbs="[{ label: 'MemTrace' }, { label: 'Clients' }]" icon="M4 5h16v11H9l-5 4z" title="Clients" />
+      <PageHeader :crumbs="[{ label: 'MemTrace' }, { label: 'Clients' }]" icon="M4 5h16v11H9l-5 4z" :title="t('partnerClientsPage.clients')" />
 
       <div class="adm-head">
         <div>
-          <h2 class="adm-title">Clients that gave you access</h2>
-          <p class="adm-sub">You only see what each client granted you, and they can take it back at any time. Your access is recorded in their audit log.</p>
+          <h2 class="adm-title">{{ t("partnerClientsPage.clients_that_gave_you_access") }}</h2>
+          <p class="adm-sub">{{ t("partnerClientsPage.you_only_see_what_each_client") }}</p>
         </div>
       </div>
 
-      <EmptyState v-if="loaded && !clients.length" icon="apartment" title="No client has given you access yet">
-        Ask the client's admin to add your organization as a partner (Admin › their organization › Partners) using the id below, and then give you access.
+      <EmptyState v-if="loaded && !clients.length" icon="apartment" :title="t('partnerClientsPage.no_client_has_given_you_access')">
+        {{ t("partnerClientsPage.ask_the_client_s_admin_to") }}
       </EmptyState>
 
       <ul v-else class="clients">
@@ -67,13 +68,13 @@ function copy(text: string) {
       </ul>
 
       <div v-if="myOrganizations.length" class="adm-card">
-        <h3 class="adm-section-title">Your organization id</h3>
-        <p class="adm-hint">Give it to a client so they can add you as a partner. It is not secret, and on its own it grants nothing.</p>
+        <h3 class="adm-section-title">{{ t("partnerClientsPage.your_organization_id") }}</h3>
+        <p class="adm-hint">{{ t("partnerClientsPage.give_it_to_a_client_so") }}</p>
         <ul class="ids">
           <li v-for="o in myOrganizations" :key="o.id">
             <span>{{ o.name }}</span>
             <code>{{ o.id }}</code>
-            <Button @click="copy(o.id)">Copy</Button>
+            <Button @click="copy(o.id)">{{ t("partnerClientsPage.copy") }}</Button>
           </li>
         </ul>
       </div>

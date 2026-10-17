@@ -6,6 +6,7 @@ import { describeApiError } from "@/application/describe-api-error";
 import { ApiError } from "@/application/trace-api";
 import Button from "../Button.vue";
 import FormField from "../FormField.vue";
+import { dateLocale, t } from "../../i18n";
 
 /**
  * Exportar los datos de un experimento (ADR-084) en JSON Lines: un tipo de dato y un rango de hasta 31 días por descarga.
@@ -16,10 +17,10 @@ const props = defineProps<{ experiment: ExperimentDto }>();
 const api = useIdentityApi();
 
 const KINDS = [
-  { value: "traces", label: "Traces", hint: "Every span, with its attributes and prompts if content capture is on" },
-  { value: "annotations", label: "Human annotations", hint: "The labels people put on traces" },
-  { value: "feedback", label: "End-user feedback", hint: "Thumbs up and down from the people using the agent" },
-  { value: "scores", label: "Evaluation scores", hint: "Results of the offline evaluations" },
+  { value: "traces", get label() { return t("experimentExport.traces"); }, get hint() { return t("experimentExport.every_span_with_its_attributes_and"); } },
+  { value: "annotations", get label() { return t("experimentExport.human_annotations"); }, get hint() { return t("experimentExport.the_labels_people_put_on_traces"); } },
+  { value: "feedback", get label() { return t("experimentExport.end_user_feedback"); }, get hint() { return t("experimentExport.thumbs_up_and_down_from_the"); } },
+  { value: "scores", get label() { return t("experimentExport.evaluation_scores"); }, get hint() { return t("experimentExport.results_of_the_offline_evaluations"); } },
 ];
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
@@ -54,33 +55,32 @@ async function check() {
 
 <template>
   <div class="adm-card export">
-    <h3 class="adm-section-title">Export data</h3>
+    <h3 class="adm-section-title">{{ t("experimentExport.export_data") }}</h3>
     <p class="adm-hint">
-      Download the data of <strong>{{ experiment.name }}</strong> as a JSON Lines file (one record per line). Up to 31 days per file.
-      Every export is recorded in the organization's audit log. Personal data was already masked before it was stored.
+      {{ t("experimentExport.download_the_data_of") + " " }}<strong>{{ experiment.name }}</strong>{{ " " + t("experimentExport.as_a_json_lines_file_one") }}
     </p>
 
     <div class="row">
-      <FormField label="What">
-        <select v-model="kind" aria-label="Kind of data" @change="ready = null">
+      <FormField :label="t('experimentExport.what')">
+        <select v-model="kind" :aria-label="t('experimentExport.kind_of_data')" @change="ready = null">
           <option v-for="k in KINDS" :key="k.value" :value="k.value">{{ k.label }}</option>
         </select>
       </FormField>
-      <FormField label="From">
-        <input v-model="from" type="date" aria-label="From date" @change="ready = null" />
+      <FormField :label="t('experimentExport.from')">
+        <input v-model="from" type="date" :aria-label="t('experimentExport.from_date')" @change="ready = null" />
       </FormField>
-      <FormField label="To (included)">
-        <input v-model="to" type="date" aria-label="To date" @change="ready = null" />
+      <FormField :label="t('experimentExport.to_included')">
+        <input v-model="to" type="date" :aria-label="t('experimentExport.to_date')" @change="ready = null" />
       </FormField>
-      <Button variant="primary" :loading="checking" :disabled="!from || !to" @click="check">Prepare export</Button>
+      <Button variant="primary" :loading="checking" :disabled="!from || !to" @click="check">{{ t("experimentExport.prepare_export") }}</Button>
     </div>
     <p class="adm-hint">{{ hint }}</p>
 
     <p v-if="error" class="err" role="alert">{{ error }}</p>
     <div v-if="ready" class="ready">
-      <span>{{ ready.rows.toLocaleString("en-US") }} record{{ ready.rows === 1 ? "" : "s" }} ready.</span>
-      <a v-if="ready.rows > 0" class="download" :href="ready.url" download>Download</a>
-      <span v-else class="adm-hint">Nothing in that range.</span>
+      <span>{{ ready.rows === 1 ? t("experimentExport.count_record_ready", { count: ready.rows.toLocaleString(dateLocale("en-US")) }) : t("experimentExport.count_records_ready", { count: ready.rows.toLocaleString(dateLocale("en-US")) }) }}</span>
+      <a v-if="ready.rows > 0" class="download" :href="ready.url" download>{{ t("experimentExport.download") }}</a>
+      <span v-else class="adm-hint">{{ t("experimentExport.nothing_in_that_range") }}</span>
     </div>
   </div>
 </template>

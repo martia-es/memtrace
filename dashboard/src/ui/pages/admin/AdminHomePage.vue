@@ -10,6 +10,7 @@ import EmptyState from "../../components/EmptyState.vue";
 import Modal from "../../components/Modal.vue";
 import Button from "../../components/Button.vue";
 import Pill from "../../components/Pill.vue";
+import { t } from "../../i18n";
 
 /** Nivel 1 del área de admin: las organizaciones. Cada tarjeta lleva a su organización (nivel 2). */
 const api = useIdentityApi();
@@ -40,7 +41,7 @@ async function createOrganization() {
     showCreate.value = false;
     await dir.reload();
   } catch (error) {
-    notifyErrorWith($q.notify, "Could not create organization", error);
+    notifyErrorWith($q.notify, t("adminHomePage.could_not_create_organization"), error);
   } finally {
     creating.value = false;
   }
@@ -50,26 +51,26 @@ async function createOrganization() {
 <template>
   <q-page>
     <div class="adm-page">
-      <PageHeader :crumbs="[{ label: 'MemTrace' }, { label: 'Admin' }]" icon="M4 5h16v11H9l-5 4z" title="Admin" />
+      <PageHeader :crumbs="[{ label: 'MemTrace' }, { label: 'Admin' }]" icon="M4 5h16v11H9l-5 4z" :title="t('adminHomePage.admin')" />
 
       <div class="adm-head">
         <div>
-          <h2 class="adm-title">Organizations</h2>
+          <h2 class="adm-title">{{ t("adminHomePage.organizations") }}</h2>
           <p class="adm-sub">
-            An organization groups its experiments. Each experiment is one agent's traces, with its own API keys, score configs and members.
+            {{ t("adminHomePage.an_organization_groups_its_experiments_e") }}
           </p>
         </div>
         <div class="adm-form-row">
-          <Button :to="{ name: 'partner-clients' }">Clients</Button>
-          <Button :to="{ name: 'admin-members' }">All members</Button>
-          <Button variant="primary" @click="showCreate = true" class="mt-new">+ New organization</Button>
+          <Button :to="{ name: 'partner-clients' }">{{ t("adminHomePage.clients") }}</Button>
+          <Button :to="{ name: 'admin-members' }">{{ t("adminHomePage.all_members") }}</Button>
+          <Button variant="primary" @click="showCreate = true" class="mt-new">{{ t("adminHomePage.new_organization") }}</Button>
         </div>
       </div>
 
-      <p v-if="dir.loadError.value" class="adm-hint">Could not load: {{ dir.loadError.value }}</p>
+      <p v-if="dir.loadError.value" class="adm-hint">{{ t("adminHomePage.could_not_load_error", { error: dir.loadError.value }) }}</p>
 
-      <EmptyState v-else-if="!dir.loading.value && !dir.organizations.value.length" icon="apartment" title="You don't have access to any organization yet">
-        Create an organization to get started. You'll become its first org_admin.
+      <EmptyState v-else-if="!dir.loading.value && !dir.organizations.value.length" icon="apartment" :title="t('adminHomePage.you_don_t_have_access_to')">
+        {{ t("adminHomePage.create_an_organization_to_get_started") }}
       </EmptyState>
 
       <ul v-else class="org-grid">
@@ -79,23 +80,23 @@ async function createOrganization() {
             <div class="org-main">
               <span class="org-name">{{ o.name }}</span>
               <span class="org-stats">
-                {{ experimentCount.get(o.id) ?? 0 }} experiment(s)
-                <template v-if="canManageOrg(o)"> · {{ memberCount(o.id) }} member(s)</template>
+                {{ t("adminHomePage.count_experiment_s", { count: experimentCount.get(o.id) ?? 0 }) }}
+                <template v-if="canManageOrg(o)"> · {{ t('adminHomePage.count_member_s', { count: memberCount(o.id) }) }}</template>
               </span>
             </div>
-            <Pill tone="accent" v-if="canManageOrg(o)">org_admin</Pill>
-            <Pill v-else>via experiment</Pill>
+            <Pill tone="accent" v-if="canManageOrg(o)">{{ t("adminHomePage.org_admin") }}</Pill>
+            <Pill v-else>{{ t("adminHomePage.via_experiment") }}</Pill>
             <span class="chevron" aria-hidden="true">›</span>
           </router-link>
         </li>
       </ul>
     </div>
 
-    <Modal v-if="showCreate" title="New organization" @close="showCreate = false">
+    <Modal v-if="showCreate" :title="t('adminHomePage.new_organization2')" @close="showCreate = false">
       <form class="adm-form" @submit.prevent="createOrganization">
-        <p class="adm-hint">Creating it makes you its first org_admin, with access to all of its experiments.</p>
-        <TextInput v-model="newName" placeholder="Organization name, e.g. Acme" autofocus />
-        <Button variant="primary" type="submit" :disabled="creating || !newName.trim()">Create organization</Button>
+        <p class="adm-hint">{{ t("adminHomePage.creating_it_makes_you_its_first") }}</p>
+        <TextInput v-model="newName" :placeholder="t('adminHomePage.organization_name_e_g_acme')" autofocus />
+        <Button variant="primary" type="submit" :disabled="creating || !newName.trim()">{{ t("adminHomePage.create_organization") }}</Button>
       </form>
     </Modal>
   </q-page>

@@ -20,6 +20,7 @@ import { hasPermission } from "../../composables/usePermissions";
 import { useSettingsNav, type SettingsSection } from "../../composables/useSettingsNav";
 import Button from "../../components/Button.vue";
 import Pill from "../../components/Pill.vue";
+import { t } from "../../i18n";
 
 /** Nivel 2: una organización. Secciones en el menú lateral (`?tab=` en la URL): experimentos siempre; el resto solo para org_admin. */
 const props = defineProps<{ organizationId: string }>();
@@ -54,14 +55,14 @@ const ICONS = {
   appearance: "M4 20c3 0 5-1 5-4a3 3 0 0 1 6 0c0 3-4 4-11 4zM15 10l5-6",
 };
 const sections = computed<SettingsSection[]>(() => {
-  const list: SettingsSection[] = [{ id: "experiments", label: "Experiments", icon: ICONS.experiments, group: "Workspace", count: orgExperiments.value.length }];
+  const list: SettingsSection[] = [{ id: "experiments", label: t("adminOrganizationPage.experiments"), icon: ICONS.experiments, group: t("adminOrganizationPage.workspace"), count: orgExperiments.value.length }];
   if (isOrgAdmin.value) {
-    list.push({ id: "members", label: "Members", icon: ICONS.members, group: "Workspace", count: (orgMembers.value?.members.length ?? 0) + (orgMembers.value?.pendingInvitations.length ?? 0) });
-    list.push({ id: "approvals", label: "Approvals", icon: ICONS.approvals, group: "Governance" });
-    if (canRetention.value || canAudit.value) list.push({ id: "data", label: "Data protection", icon: ICONS.data, group: "Governance" });
-    list.push({ id: "partners", label: "Partners", icon: ICONS.partners, group: "Organization" });
-    list.push({ id: "identity", label: "Identity", icon: ICONS.identity, group: "Organization" });
-    list.push({ id: "appearance", label: "Appearance", icon: ICONS.appearance, group: "Organization" });
+    list.push({ id: "members", label: t("adminOrganizationPage.members"), icon: ICONS.members, group: t("adminOrganizationPage.workspace"), count: (orgMembers.value?.members.length ?? 0) + (orgMembers.value?.pendingInvitations.length ?? 0) });
+    list.push({ id: "approvals", label: t("adminOrganizationPage.approvals"), icon: ICONS.approvals, group: t("adminOrganizationPage.governance") });
+    if (canRetention.value || canAudit.value) list.push({ id: "data", label: t("adminOrganizationPage.data_protection"), icon: ICONS.data, group: t("adminOrganizationPage.governance") });
+    list.push({ id: "partners", label: t("adminOrganizationPage.partners"), icon: ICONS.partners, group: t("adminOrganizationPage.organization") });
+    list.push({ id: "identity", label: t("adminOrganizationPage.identity"), icon: ICONS.identity, group: t("adminOrganizationPage.organization") });
+    list.push({ id: "appearance", label: t("adminOrganizationPage.appearance"), icon: ICONS.appearance, group: t("adminOrganizationPage.organization") });
   }
   return list;
 });
@@ -96,7 +97,7 @@ async function createExperiment() {
     showCreate.value = false;
     await dir.reload();
   } catch (error) {
-    notifyErrorWith($q.notify, "Could not create experiment", error);
+    notifyErrorWith($q.notify, t("adminOrganizationPage.could_not_create_experiment"), error);
   } finally {
     creating.value = false;
   }
@@ -106,10 +107,10 @@ async function createExperiment() {
 async function inviteOrgAdmin({ email }: { email: string }) {
   try {
     await api.addOrgAdmin(props.organizationId, email);
-    $q.notify({ message: "Invitation sent", color: "positive", timeout: 2500 });
+    $q.notify({ message: t("adminOrganizationPage.invitation_sent"), color: "positive", timeout: 2500 });
     await dir.reload();
   } catch (error) {
-    notifyErrorWith($q.notify, "Could not invite", error);
+    notifyErrorWith($q.notify, t("adminOrganizationPage.could_not_invite"), error);
   }
 }
 </script>
@@ -120,27 +121,27 @@ async function inviteOrgAdmin({ email }: { email: string }) {
       <PageHeader
         :crumbs="[{ label: 'MemTrace' }, { label: 'Admin', to: { name: 'admin' } }, { label: organization?.name ?? 'Organization' }]"
         icon="M3 21h18M5 21V7l7-4 7 4v14"
-        :title="organization?.name ?? 'Organization'"
+        :title="organization?.name ?? t('adminOrganizationPage.organization')"
       />
 
       <p v-if="loaded && !organization" class="adm-empty">
-        This organization doesn't exist or you don't have access to it.
-        <router-link :to="{ name: 'admin' }">Back to organizations</router-link>
+        {{ t("adminOrganizationPage.this_organization_doesn_t_exist_or") }}
+        <router-link :to="{ name: 'admin' }">{{ t("adminOrganizationPage.back_to_organizations") }}</router-link>
       </p>
 
       <template v-else-if="organization">
         <p class="adm-sub">
-          <template v-if="isOrgAdmin">As org_admin you manage every experiment here and who can invite others.</template>
-          <template v-else>You have access to the experiments below through your own membership. Only an org_admin can change the organization.</template>
+          <template v-if="isOrgAdmin">{{ t("adminOrganizationPage.as_org_admin_you_manage_every") }}</template>
+          <template v-else>{{ t("adminOrganizationPage.you_have_access_to_the_experiments") }}</template>
         </p>
 
         <section v-if="tab === 'experiments'" class="adm-card panel">
           <div class="adm-toolbar">
             <div>
-              <h3 class="adm-section-title">Experiments</h3>
-              <p class="adm-hint">An experiment is one agent. Open one to connect it, manage its keys, score configs and members.</p>
+              <h3 class="adm-section-title">{{ t("adminOrganizationPage.experiments") }}</h3>
+              <p class="adm-hint">{{ t("adminOrganizationPage.an_experiment_is_one_agent_open") }}</p>
             </div>
-            <Button variant="primary" v-if="isOrgAdmin" @click="showCreate = true" class="mt-new">+ New experiment</Button>
+            <Button variant="primary" v-if="isOrgAdmin" @click="showCreate = true" class="mt-new">{{ t("adminOrganizationPage.new_experiment") }}</Button>
           </div>
 
           <ul v-if="orgExperiments.length" class="adm-list">
@@ -148,7 +149,7 @@ async function inviteOrgAdmin({ email }: { email: string }) {
               <router-link class="adm-item" :to="{ name: 'admin-experiment', params: { expId: e.id } }">
                 <div class="adm-item-main">
                   <span class="adm-item-title">{{ e.name }}</span>
-                  <span class="adm-item-meta">service.name: <span class="mono">{{ e.serviceName }}</span></span>
+                  <span class="adm-item-meta">{{ t("adminOrganizationPage.service_name") + " " }}<span class="mono">{{ e.serviceName }}</span></span>
                 </div>
                 <Pill :tone="roleTone(e.myRole)">{{ ROLE_LABEL[e.myRole] }}</Pill>
                 <span class="chevron" aria-hidden="true">›</span>
@@ -156,19 +157,19 @@ async function inviteOrgAdmin({ email }: { email: string }) {
             </li>
           </ul>
           <p v-else class="adm-empty">
-            No experiments yet.
-            <template v-if="isOrgAdmin">Create the first one, named after the agent's <span class="mono">service.name</span>.</template>
+            {{ t("adminOrganizationPage.no_experiments_yet") }}
+            <template v-if="isOrgAdmin">{{ t("adminOrganizationPage.create_the_first_one_named_after") + " " }}<span class="mono">service.name</span>.</template>
           </p>
         </section>
 
         <section v-if="tab === 'members' && isOrgAdmin" class="panel">
           <div class="adm-card">
-            <h3 class="adm-section-title">Organization admins</h3>
-            <p class="adm-hint">org_admins have access to all experiments in this organization.</p>
+            <h3 class="adm-section-title">{{ t("adminOrganizationPage.organization_admins") }}</h3>
+            <p class="adm-hint">{{ t("adminOrganizationPage.org_admins_have_access_to_all") }}</p>
             <MemberList :data="orgMembers" />
           </div>
           <InviteForm
-            title="Invite an org_admin"
+            :title="t('adminOrganizationPage.invite_an_org_admin')"
             help="The invited person gets access to every experiment here. If they don't have an account yet, they'll receive an email to sign in with Google or Microsoft."
             @invite="inviteOrgAdmin"
           />
@@ -176,10 +177,9 @@ async function inviteOrgAdmin({ email }: { email: string }) {
 
         <section v-if="tab === 'approvals' && isOrgAdmin" class="panel">
           <div class="adm-card">
-            <h3 class="adm-section-title">Approvals for prompt changes</h3>
+            <h3 class="adm-section-title">{{ t("adminOrganizationPage.approvals_for_prompt_changes") }}</h3>
             <p class="adm-hint">
-              Decide which changes to a prompt need a second opinion before they happen, and from whom. It is optional and set per step: for example,
-              one technical person to move <span class="mono">dev</span>, a technical and a business person to reach <span class="mono">pro</span>.
+              {{ t("adminOrganizationPage.decide_which_changes_to_a_prompt") + " " }}<span class="mono">{{ t("adminOrganizationPage.dev") }}</span>{{ t("adminOrganizationPage.a_technical_and_a_business_person") + " " }}<span class="mono">{{ t("adminOrganizationPage.pro") }}</span>.
             </p>
             <ApprovalRulesPanel :scope="{ type: 'organization', id: organizationId }" />
           </div>
@@ -204,17 +204,15 @@ async function inviteOrgAdmin({ email }: { email: string }) {
       </template>
     </div>
 
-    <Modal v-if="showCreate" title="New experiment (agent)" @close="showCreate = false">
+    <Modal v-if="showCreate" :title="t('adminOrganizationPage.new_experiment_agent')" @close="showCreate = false">
       <form class="adm-form" @submit.prevent="createExperiment">
         <p class="adm-hint">
-          An experiment is one agent: it appears in the <router-link :to="{ name: 'assistants' }">Assistants catalog</router-link> as soon as you create it, with you as its owner.
-          The <span class="mono">service.name</span> must be the same value the agent uses in <span class="mono">MEMTRACE_SERVICE_NAME</span>.
-          The display name is only for this dashboard.
+          {{ t("adminOrganizationPage.an_experiment_is_one_agent_it") + " " }}<router-link :to="{ name: 'assistants' }">{{ t("adminOrganizationPage.assistants_catalog") }}</router-link>{{ " " + t("adminOrganizationPage.as_soon_as_you_create_it") + " " }}<span class="mono">service.name</span>{{ " " + t("adminOrganizationPage.must_be_the_same_value_the") + " " }}<span class="mono">MEMTRACE_SERVICE_NAME</span>{{ t("adminOrganizationPage.the_display_name_is_only_for") }}
         </p>
-        <TextInput mono v-model="serviceName" placeholder="service.name, e.g. support-agent" autofocus @input="onServiceInput" />
-        <TextInput v-model="displayName" placeholder="Display name" @input="displayTouched = true" />
-        <TextInput multiline v-model="description" :rows="2" placeholder="What does this agent do, and for whom? (optional)" />
-        <Button variant="primary" type="submit" :disabled="creating || !serviceName.trim() || !displayName.trim()">Create experiment</Button>
+        <TextInput mono v-model="serviceName" :placeholder="t('adminOrganizationPage.service_name_e_g_support_agent')" autofocus @input="onServiceInput" />
+        <TextInput v-model="displayName" :placeholder="t('adminOrganizationPage.display_name')" @input="displayTouched = true" />
+        <TextInput multiline v-model="description" :rows="2" :placeholder="t('adminOrganizationPage.what_does_this_agent_do_and')" />
+        <Button variant="primary" type="submit" :disabled="creating || !serviceName.trim() || !displayName.trim()">{{ t("adminOrganizationPage.create_experiment") }}</Button>
       </form>
     </Modal>
   </q-page>
