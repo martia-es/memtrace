@@ -8,6 +8,7 @@
 import { PostgresIdentityRepository } from "@/adapters/outbound/postgres/postgres-identity-repository";
 import { configFromEnv as postgresConfigFromEnv, createPool } from "@/adapters/outbound/postgres/client";
 import { createIngestGateway } from "@/adapters/inbound/http/ingest-gateway";
+import { MetricsRegistry } from "@/adapters/inbound/http/metrics";
 import { createIngestServer } from "@/adapters/inbound/http/node-server";
 import { CachedApiKeyResolver } from "@/application/api-key-cache";
 
@@ -18,6 +19,7 @@ const number = (name: string, fallback: number) => {
   return value;
 };
 
+let ready = true;
 const port = number("PORT", 3002);
 const host = env.HOSTNAME ?? "0.0.0.0";
 
@@ -31,12 +33,30 @@ const pool = createPool(postgresConfigFromEnv(env), {
 // un cliente ocioso que Postgres cierra emite `error`; sin este manejador el proceso caería
 pool.on("error", (error) => console.error("[ingest] postgres pool error", error));
 
+// Métricas para Prometheus (ADR-098): lo que hace falta para saber si la ingesta está sana sin mirar los logs
+const metrics = new MetricsRegistry();
+const SECONDS = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10];
+const requests = metrics.counter("memtrace_ingest_requests_total", "Requests answered, by HTTP status code.");
+const duration = metrics.histogram("memtrace_ingest_request_duration_seconds", "Time to answer an ingest request.", SECONDS);
+const rejections = metrics.counter("memtrace_ingest_rejections_total", "Requests refused, by reason.");
+const forwards = metrics.counter("memtrace_ingest_forward_total", "Calls to the Collector, by outcome.");
+const forwardDuration = metrics.histogram("memtrace_ingest_forward_duration_seconds", "Time the Collector took to answer.", SECONDS);
+const forwardedBytes = metrics.counter("memtrace_ingest_forwarded_bytes_total", "Bytes of OTLP sent to the Collector.");
+const keyCache = metrics.counter("memtrace_ingest_key_cache_total", "API key lookups: hit, miss, stale (identity store down, remembered key accepted) or failure.");
+
 const identity = new PostgresIdentityRepository(pool);
 const keys = new CachedApiKeyResolver((plaintext) => identity.resolveApiKey(plaintext), {
+  onEvent: (result) => keyCache.inc({ result }),
   ttlMs: number("INGEST_KEY_CACHE_TTL_SECONDS", 30) * 1000,
   staleMs: number("INGEST_KEY_CACHE_STALE_SECONDS", 600) * 1000,
   maxEntries: number("INGEST_KEY_CACHE_MAX_ENTRIES", 10_000),
 });
+
+metrics.gauge("memtrace_ingest_key_cache_entries", "API keys remembered right now.", () => keys.size);
+metrics.gauge("memtrace_ingest_identity_store_up", "1 while the identity store (Postgres) answers, 0 from its last failure until it answers again.", () => (keys.sourceHealthy ? 1 : 0));
+metrics.gauge("memtrace_ingest_ready", "1 while the service accepts traffic, 0 while draining.", () => (ready ? 1 : 0));
+metrics.gauge("process_resident_memory_bytes", "Resident memory of the process.", () => process.memoryUsage().rss);
+metrics.gauge("process_start_time_seconds", "Start time of the process, in seconds since the epoch.", () => Math.floor(Date.now() / 1000 - process.uptime()));
 
 const collectorToken = env.INGEST_INTERNAL_TOKEN;
 if (!collectorToken) console.warn("[ingest] INGEST_INTERNAL_TOKEN is not set: the Collector will reject the traces (ADR-090)");
@@ -50,10 +70,25 @@ const gateway = createIngestGateway({
   perExperimentLimitPerMinute: number("INGEST_RATE_LIMIT_PER_MINUTE", 600),
   invalidKeyLimitPerMinute: number("INGEST_INVALID_KEY_LIMIT_PER_MINUTE", 30),
   forwardTimeoutMs: number("INGEST_FORWARD_TIMEOUT_MS", 10_000),
+  onEvent: (event) => {
+    if (event.kind === "rejected") return rejections.inc({ reason: event.reason });
+    forwards.inc({ outcome: event.outcome });
+    forwardDuration.observe(event.seconds);
+    forwardedBytes.inc({}, event.bytes);
+  },
 });
 
-let ready = true;
-const server = createIngestServer({ ingest: gateway, isReady: () => ready });
+const server = createIngestServer({
+  ingest: async (request) => {
+    const started = process.hrtime.bigint();
+    const response = await gateway(request);
+    requests.inc({ code: String(response.status) });
+    duration.observe(Number(process.hrtime.bigint() - started) / 1e9);
+    return response;
+  },
+  isReady: () => ready,
+  metrics: () => metrics.render(),
+});
 
 // `last_used_at` se actualiza sin esperar; si Postgres falla justo entonces no debe tumbar el proceso
 process.on("unhandledRejection", (reason) => console.error("[ingest] unhandled rejection", reason));

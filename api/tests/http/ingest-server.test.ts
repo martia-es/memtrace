@@ -7,7 +7,8 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { gzipSync } from "node:zlib";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { createIngestGateway } from "@/adapters/inbound/http/ingest-gateway";
+import { createIngestGateway, type IngestEvent } from "@/adapters/inbound/http/ingest-gateway";
+import { MetricsRegistry } from "@/adapters/inbound/http/metrics";
 import { createIngestServer, INGEST_PATH } from "@/adapters/inbound/http/node-server";
 import { CachedApiKeyResolver } from "@/application/api-key-cache";
 
@@ -21,6 +22,9 @@ let received: Array<{ headers: Record<string, string | string[] | undefined>; bo
 let collectorStatus = 200;
 let postgresDown = false;
 let ready = true;
+let events: IngestEvent[] = [];
+const registry = new MetricsRegistry();
+registry.counter("probe_total", "Probe.").inc({ ok: "yes" });
 
 const listen = (server: Server) => new Promise<string>((resolve) => server.listen(0, "127.0.0.1", () => resolve(`http://127.0.0.1:${(server.address() as AddressInfo).port}`)));
 const close = (server: Server) => new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); });
@@ -53,8 +57,9 @@ beforeAll(async () => {
     perExperimentLimitPerMinute: 600,
     invalidKeyLimitPerMinute: 30,
     forwardTimeoutMs: 2_000,
+    onEvent: (e) => events.push(e),
   });
-  ingest = createIngestServer({ ingest: gateway, isReady: () => ready });
+  ingest = createIngestServer({ ingest: gateway, isReady: () => ready, metrics: () => registry.render() });
   ingestUrl = await listen(ingest);
 });
 afterAll(async () => {
@@ -62,6 +67,7 @@ afterAll(async () => {
   await close(collector);
 });
 beforeEach(() => {
+  events = [];
   received = [];
   collectorStatus = 200;
   postgresDown = false;
@@ -160,5 +166,59 @@ describe("health routes", () => {
     const res = await fetch(`${ingestUrl}${INGEST_PATH}`);
     expect(res.status).toBe(405);
     expect(res.headers.get("allow")).toBe("POST");
+  });
+});
+
+describe("metrics", () => {
+  it("serves /metrics in the Prometheus text format", async () => {
+    const res = await fetch(`${ingestUrl}/metrics`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/plain; version=0.0.4");
+    expect(await res.text()).toContain('probe_total{ok="yes"} 1');
+  });
+
+  it("is not reachable through the public ingest path and does not exist without a registry", async () => {
+    expect((await fetch(`${ingestUrl}/api/v1/ingest/metrics`)).status).toBe(404);
+    const bare = createIngestServer({ ingest: async () => new Response("x"), isReady: () => true });
+    const url = await listen(bare);
+    try {
+      expect((await fetch(`${url}/metrics`)).status).toBe(404);
+    } finally {
+      await close(bare);
+    }
+  });
+
+  it("reports the outcome of each request: forwarded, or rejected with its reason", async () => {
+    await post(body);
+    await post(body, { authorization: "Bearer nope" });
+    await post(body, { authorization: "Bearer good", "content-type": "text/plain" });
+    postgresDown = true;
+    await post(body, { authorization: "Bearer never-seen" });
+    expect(events.map((e) => (e.kind === "rejected" ? e.reason : `forwarded:${e.outcome}`))).toEqual(["forwarded:ok", "invalid_key", "unsupported_media", "identity_unavailable"]);
+    const forwarded = events[0]!;
+    expect(forwarded.kind === "forwarded" && forwarded.bytes).toBeGreaterThan(0);
+  });
+
+  it("reports an unreachable Collector", async () => {
+    const lonely = createIngestServer({
+      ingest: createIngestGateway({
+        resolveApiKey: async () => ACCESS,
+        collectorUrl: "http://127.0.0.1:1",
+        maxBodyBytes: 1024 * 1024,
+        maxDecompressedBytes: 1024 * 1024,
+        perExperimentLimitPerMinute: 600,
+        invalidKeyLimitPerMinute: 30,
+        forwardTimeoutMs: 2_000,
+        onEvent: (e) => events.push(e),
+      }),
+      isReady: () => true,
+    });
+    const url = await listen(lonely);
+    try {
+      await fetch(`${url}${INGEST_PATH}`, { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer good" }, body });
+      expect(events.map((e) => (e.kind === "forwarded" ? e.outcome : e.reason))).toEqual(["collector_unreachable"]);
+    } finally {
+      await close(lonely);
+    }
   });
 });

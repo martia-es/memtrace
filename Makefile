@@ -12,7 +12,7 @@ PRICING_IMAGE ?= localhost/memtrace/model-pricing:dev
 QUALITY_IMAGE ?= localhost/memtrace/model-quality:dev
 
 .DEFAULT_GOAL := help
-.PHONY: help check up images dashboard api ingest status forward logs query migrate backfill-experiment-id netpol-check migrate-postgres pricing-sync quality-sync down reset db-reset dev-data docs weather weather-bg weather-stop weather-restart rag rag-bg rag-stop rag-restart
+.PHONY: help check up images dashboard api ingest monitoring monitoring-down status forward logs query migrate backfill-experiment-id netpol-check migrate-postgres pricing-sync quality-sync down reset db-reset dev-data docs weather weather-bg weather-stop weather-restart rag rag-bg rag-stop rag-restart
 
 help: ## Muestra esta ayuda
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-10s %s\n", $$1, $$2}'
@@ -100,6 +100,21 @@ api: ## Reconstruye y despliega solo la API (más rápido que make images)
 ingest: ## Reconstruye y despliega solo el servicio de ingesta (ADR-098); queda también en http://localhost:3002
 	$(call redeploy,ingest,$(INGEST_IMAGE),docker build --target ingest -t $(INGEST_IMAGE) api,3002:3002)
 	@echo "Ingesta actualizada: los SDK siguen enviando a http://localhost:8080/api/v1/ingest"
+
+monitoring: ## Despliega Prometheus y Grafana (opcional, ADR-098) y abre Grafana en http://localhost:3000 (admin / memtrace-grafana-dev-only)
+	kubectl apply -k k8s/monitoring
+	kubectl rollout status statefulset/prometheus -n $(NS) --timeout=300s
+	kubectl rollout status deployment/grafana -n $(NS) --timeout=300s
+	@pkill -f "kubectl port-forward svc/grafana " 2>/dev/null || true
+	@pkill -f "kubectl port-forward svc/prometheus " 2>/dev/null || true
+	@nohup kubectl port-forward svc/grafana 3000:3000 -n $(NS) >/dev/null 2>&1 &
+	@nohup kubectl port-forward svc/prometheus 9090:9090 -n $(NS) >/dev/null 2>&1 &
+	@echo "Grafana: http://localhost:3000 (dashboard «MemTrace · Pipeline de ingesta»)  ·  Prometheus y sus alertas: http://localhost:9090/alerts"
+
+monitoring-down: ## Quita Prometheus y Grafana. Los datos de Prometheus (PVC data-prometheus-0) se conservan: bórralos a mano si no los quieres
+	-@pkill -f "kubectl port-forward svc/grafana " 2>/dev/null
+	-@pkill -f "kubectl port-forward svc/prometheus " 2>/dev/null
+	kubectl delete -k k8s/monitoring --ignore-not-found
 
 docs: ## Reconstruye y despliega solo la documentación (más rápido que make images)
 	$(call redeploy,docs,$(DOCS_IMAGE),docker build -t $(DOCS_IMAGE) docs-site,8081:8080)

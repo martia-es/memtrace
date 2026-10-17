@@ -1,0 +1,53 @@
+{{- if .Values.monitoring.enabled }}
+# Configuración de Prometheus y Grafana: en Kustomize la genera `configMapGenerator` (k8s/monitoring/kustomization.yaml). Los
+# ficheros viven en `files/monitoring/` de este chart: `scripts/sync-helm-chart.sh` los copia desde k8s/monitoring/config.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: {{ .Release.Namespace }}
+data:
+  prometheus.yml: |
+{{ .Files.Get "files/monitoring/prometheus.yml" | indent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules
+  namespace: {{ .Release.Namespace }}
+data:
+  alerts.yaml: |
+{{ .Files.Get "files/monitoring/alerts.yaml" | indent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-provisioning
+  namespace: {{ .Release.Namespace }}
+data:
+  datasource.yaml: |
+{{ .Files.Get "files/monitoring/grafana-datasource.yaml" | indent 4 }}
+  dashboards.yaml: |
+{{ .Files.Get "files/monitoring/grafana-dashboards.yaml" | indent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: {{ .Release.Namespace }}
+data:
+  pipeline.json: |
+{{ .Files.Get "files/monitoring/pipeline.json" | indent 4 }}
+{{- if .Values.secrets.create }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-admin
+  namespace: {{ .Release.Namespace }}
+type: Opaque
+stringData:
+  user: admin
+  password: {{ include "memtrace.secretValue" (dict "ctx" . "secret" "grafana-admin" "key" "password" "given" .Values.secrets.grafana.password) | quote }}
+{{- end }}
+{{- end }}

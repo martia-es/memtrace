@@ -37,6 +37,9 @@ images:
   docs:
     repository: memtrace/docs
     tag: dev
+  grafana:
+    repository: grafana/grafana
+    tag: 11.2.0
   ingest:
     repository: memtrace/ingest
     tag: dev
@@ -52,6 +55,9 @@ images:
   postgres:
     repository: postgres
     tag: 16-alpine
+  prometheus:
+    repository: prom/prometheus
+    tag: v2.53.2
   topicExtraction:
     repository: localhost/memtrace/topic-extraction
     tag: dev
@@ -61,6 +67,8 @@ storage:
   className: ""
   clickhouse: { size: 10Gi }
   postgres: { size: 5Gi }
+  prometheus: { size: 5Gi }     # solo con monitoring.enabled
+  grafana: { size: 1Gi }        # idem
   collectorQueue: { size: 2Gi }
   backups: { size: 5Gi }
   topicModel: { size: 1Gi }
@@ -87,6 +95,13 @@ resources:
     requests:
       cpu: 20m
       memory: 32Mi
+  grafana:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
   ingest:
     limits:
       cpu: 500m
@@ -94,6 +109,13 @@ resources:
     requests:
       cpu: 50m
       memory: 64Mi
+  prometheus:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
 
 # Bases de datos. Por defecto corren dentro del clúster (un solo pod cada una). Con `external.host` no se despliega el pod:
 # el Service `clickhouse` / `postgres` pasa a ser un ExternalName hacia ese host y las copias de ClickHouse se desactivan.
@@ -119,6 +141,8 @@ secrets:
   postgres:
     password: ""
   ingestToken: ""
+  grafana:                    # solo con monitoring.enabled; vacía = al azar
+    password: ""
   oauth:                      # login federado (ADR-013); AUTH_SECRET se genera si lo dejas vacío
     authSecret: ""
     googleClientId: ""
@@ -144,6 +168,12 @@ backup:
     endpoint: ""              # solo para almacenamiento no AWS (MinIO, R2...)
     accessKeyId: ""
     secretAccessKey: ""
+
+# Monitoring opcional (ADR-098): Prometheus (métricas del pipeline y reglas de alerta) y Grafana (paneles). Grafana NO sale por el
+# ingress: ábrelo con `kubectl -n <ns> port-forward svc/grafana 3000:3000`. En local suele ir apagado; en la nube, encendido.
+# Las alertas se evalúan y se ven en Prometheus y Grafana; enviarlas a un canal (Alertmanager) lo configuras tú.
+monitoring:
+  enabled: false
 
 # Acceso desde fuera. El dashboard hace de proxy de /api, así que un solo host basta (también para la ingesta de trazas).
 ingress:

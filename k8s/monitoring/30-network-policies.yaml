@@ -1,0 +1,105 @@
+# Red del monitoring (ADR-098), sobre la denegación por defecto de k8s/05-network-policies.yaml. Las políticas se SUMAN: las de
+# aquí solo añaden lo que hace falta y no tocan las del núcleo.
+#
+#   grafana ──► prometheus ──► ingest :3002 /metrics
+#                         ├──► otel-collector :8888
+#                         └──► clickhouse :9363
+#
+# Grafana no tiene ninguna entrada: se abre con `kubectl port-forward` (que no pasa por estas políticas). Si lo expones con
+# un ingress, añade una política que permita al controlador llegar al puerto 3000.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: prometheus
+  namespace: memtrace
+spec:
+  podSelector:
+    matchLabels: { app: prometheus }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: grafana }
+      ports:
+        - { protocol: TCP, port: 9090 }
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app: ingest }
+      ports:
+        - { protocol: TCP, port: 3002 }
+    - to:
+        - podSelector:
+            matchLabels: { app: otel-collector }
+      ports:
+        - { protocol: TCP, port: 8888 }
+    - to:
+        - podSelector:
+            matchLabels: { app: clickhouse }
+      ports:
+        - { protocol: TCP, port: 9363 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: grafana
+  namespace: memtrace
+spec:
+  podSelector:
+    matchLabels: { app: grafana }
+  policyTypes: [Ingress, Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app: prometheus }
+      ports:
+        - { protocol: TCP, port: 9090 }
+---
+# Prometheus puede leer las métricas de cada pieza, solo en su puerto de métricas
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: scrape-ingest
+  namespace: memtrace
+spec:
+  podSelector:
+    matchLabels: { app: ingest }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: prometheus }
+      ports:
+        - { protocol: TCP, port: 3002 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: scrape-otel-collector
+  namespace: memtrace
+spec:
+  podSelector:
+    matchLabels: { app: otel-collector }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: prometheus }
+      ports:
+        - { protocol: TCP, port: 8888 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: scrape-clickhouse
+  namespace: memtrace
+spec:
+  podSelector:
+    matchLabels: { app: clickhouse }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: prometheus }
+      ports:
+        - { protocol: TCP, port: 9363 }

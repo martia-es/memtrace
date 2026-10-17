@@ -1,0 +1,131 @@
+# Grafana (ADR-098): paneles de salud del pipeline, ya provistos (config/pipeline.json). NO sale por el ingress: se abre
+# con `make grafana` (port-forward). Los dashboards y el origen de datos se leen de ficheros, no se editan en la interfaz.
+# Credencial de desarrollo local: en un entorno compartido cámbiala (el chart de Helm genera una al azar).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-admin
+  namespace: memtrace
+type: Opaque
+stringData:
+  user: admin
+  password: "memtrace-grafana-dev-only"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data
+  namespace: memtrace
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: memtrace
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate            # el PVC es RWO: no pueden coexistir dos pods
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 472
+        runAsGroup: 472
+        fsGroup: 472
+      containers:
+      - name: grafana
+        image: grafana/grafana:11.2.0
+        env:
+        - name: GF_SECURITY_ADMIN_USER
+          valueFrom: { secretKeyRef: { name: grafana-admin, key: user } }
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          valueFrom: { secretKeyRef: { name: grafana-admin, key: password } }
+        - name: GF_USERS_ALLOW_SIGN_UP
+          value: "false"
+        - name: GF_AUTH_ANONYMOUS_ENABLED
+          value: "false"
+        - name: GF_SECURITY_DISABLE_GRAVATAR
+          value: "true"
+        # sin llamadas hacia fuera: ni telemetría, ni comprobar versiones, ni noticias
+        - name: GF_ANALYTICS_REPORTING_ENABLED
+          value: "false"
+        - name: GF_ANALYTICS_CHECK_FOR_UPDATES
+          value: "false"
+        - name: GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES
+          value: "false"
+        - name: GF_NEWS_NEWS_FEED_ENABLED
+          value: "false"
+        ports:
+        - containerPort: 3000
+          name: http
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: http
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 20
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "50m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/grafana
+        - name: provisioning
+          mountPath: /etc/grafana/provisioning
+        - name: dashboards
+          mountPath: /etc/grafana/dashboards
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: grafana-data
+      - name: provisioning
+        configMap:
+          name: grafana-provisioning
+          items:
+          - key: datasource.yaml
+            path: datasources/datasource.yaml
+          - key: dashboards.yaml
+            path: dashboards/dashboards.yaml
+      - name: dashboards
+        configMap:
+          name: grafana-dashboards
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: memtrace
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3000
+    targetPort: 3000
+    name: http
+  selector:
+    app: grafana
