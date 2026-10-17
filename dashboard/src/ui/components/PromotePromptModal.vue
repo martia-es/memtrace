@@ -11,6 +11,7 @@ import TextInput from "./TextInput.vue";
 import Button from "./Button.vue";
 import Checkbox from "./Checkbox.vue";
 import FormField from "./FormField.vue";
+import { t, tp } from "../i18n";
 
 /**
  * Promoción de una versión a un entorno protegido (ADR-070). Antes de mover el tag dice si hay una evaluación exitosa de
@@ -47,12 +48,12 @@ async function send() {
   fieldErrors.value = {};
   try {
     await api.moveTag(props.promptId, props.tag, props.version, props.reason, gate.value?.allowed ? null : bypassReason.value.trim());
-    $q.notify({ message: `"${props.tag}" now points to v${props.version}`, color: "positive", timeout: 3000 });
+    $q.notify({ message: t("promotePromptModal.tag_now_points_to_v_version", { tag: props.tag, version: props.version }), color: "positive", timeout: 3000 });
     emit("moved");
     emit("close");
   } catch (error) {
     fieldErrors.value = (error as { fields?: Record<string, string> }).fields ?? {};
-    $q.notify({ message: `Could not promote: ${describeApiError(error as Error)}`, color: "negative", timeout: 5000 });
+    $q.notify({ message: t("promotePromptModal.could_not_promote_error", { error: describeApiError(error as Error) }), color: "negative", timeout: 5000 });
   } finally {
     sending.value = false;
   }
@@ -60,55 +61,55 @@ async function send() {
 </script>
 
 <template>
-  <Modal :title="`Promote v${version} to ${tag}`" medium @close="emit('close')">
+  <Modal :title="t('promotePromptModal.promote_v_version_to_tag', { version, tag })" medium @close="emit('close')">
     <div class="promote" data-testid="promote-modal">
-      <p v-if="preview.loading.value && !preview.data.value" class="muted">Checking the evaluation of v{{ version }}…</p>
+      <p v-if="preview.loading.value && !preview.data.value" class="muted">{{ t("promotePromptModal.checking_the_evaluation_of_v_version", { version }) }}</p>
       <p v-else-if="preview.error.value" class="problem" role="alert" data-testid="promote-error">{{ describeApiError(preview.error.value) }}</p>
       <template v-else-if="gate && verdict">
         <dl class="facts">
-          <dt>Evaluation</dt>
+          <dt>{{ t("promotePromptModal.evaluation") }}</dt>
           <dd><StatusChip :tone="verdict.tone" :label="verdict.label" data-testid="promote-verdict" /></dd>
           <template v-if="gate.requiredRuns > 1">
-            <dt>Runs needed</dt>
-            <dd>{{ gate.requiredRuns }} passing in a row</dd>
+            <dt>{{ t("promotePromptModal.runs_needed") }}</dt>
+            <dd>{{ t("promotePromptModal.count_passing_in_a_row", { count: gate.requiredRuns }) }}</dd>
           </template>
         </dl>
         <p class="reason" data-testid="promote-reason">{{ gate.reason }}</p>
         <section v-if="impact.data.value?.impact" class="impact" data-testid="promote-impact">
-          <span class="eyebrow">WHO RECEIVES IT</span>
+          <span class="eyebrow">{{ t("promotePromptModal.who_receives_it") }}</span>
           <ul v-if="affected.length > 0">
-            <li v-for="a in affected" :key="a.experimentId + a.environment" :data-testid="`impact-${a.name}`"><b>{{ a.name }}</b> in {{ a.environment }}: v{{ a.from }} → v{{ a.to }}</li>
+            <li v-for="a in affected" :key="a.experimentId + a.environment" :data-testid="`impact-${a.name}`"><b>{{ a.name }}</b> {{ t("promotePromptModal.in_environment_v_from_v_to", { environment: a.environment, from: a.from, to: a.to }) }}</li>
           </ul>
-          <p v-else class="muted" data-testid="impact-none">No agent follows "{{ tag }}" right now, or they already run v{{ version }}: nothing changes when you move it.</p>
-          <p v-if="impact.data.value.impact.pinned > 0" class="muted">{{ impact.data.value.impact.pinned }} agent {{ impact.data.value.impact.pinned === 1 ? "uses" : "use" }} a fixed version and will not notice.</p>
+          <p v-else class="muted" data-testid="impact-none">{{ t("promotePromptModal.no_agent_follows_tag_right_now", { tag, version }) }}</p>
+          <p v-if="impact.data.value.impact.pinned > 0" class="muted">{{ tp("promptPromote.fixed", impact.data.value.impact.pinned) }}</p>
           <p v-if="impact.data.value.impact.willBeBehind.length > 0" class="muted" data-testid="impact-behind">
-            {{ impact.data.value.impact.willBeBehind.map((p) => p.name).join(", ") }} include this fragment through "{{ tag }}": they keep their text and will show as behind until rebuilt.
+            {{ impact.data.value.impact.willBeBehind.map((p) => p.name).join(", ") }} {{ t("promotePromptModal.include_this_fragment_through_tag_they", { tag }) }}
           </p>
         </section>
         <ul v-if="gate.runs.some((r) => r.failures.length)" class="failures" data-testid="promote-failures">
           <template v-for="r in gate.runs" :key="r.runId">
             <li v-for="f in r.failures" :key="r.runId + f.evaluator">
-              <template v-if="f.incomplete"><b>{{ f.evaluator }}</b> scored only {{ f.incomplete.scored }} of {{ f.incomplete.items }} items <span class="muted">(the rest failed to run, so its pass rate says nothing about the run)</span></template>
-              <template v-else><b>{{ f.evaluator }}</b> {{ f.passRate === null ? "has no results" : `${Math.round(f.passRate * 100)}%` }} <span class="muted">(target {{ Math.round(f.target * 100) }}%)</span></template>
+              <template v-if="f.incomplete"><b>{{ f.evaluator }}</b> {{ t("promotePromptModal.scored_only_scored_of_items_items", { scored: f.incomplete.scored, items: f.incomplete.items }) }} <span class="muted">{{ t("promotePromptModal.the_rest_failed_to_run_so") }}</span></template>
+              <template v-else><b>{{ f.evaluator }}</b> {{ f.passRate === null ? t('promotePromptModal.has_no_results') : `${Math.round(f.passRate * 100)}%` }} <span class="muted">{{ t('promotePromptModal.target_percent', { percent: Math.round(f.target * 100) }) }}</span></template>
             </li>
           </template>
         </ul>
 
         <template v-if="!gate.allowed && gate.verdict !== 'policy_incomplete'">
-          <p class="hint">Run the offline evaluation on the policy's dataset with the agent reading v{{ version }} (<code>memtrace.prompts</code>), then come back.</p>
+          <p class="hint">{{ t("promotePromptModal.run_the_offline_evaluation_on_the", { version }) }}<code>memtrace.prompts</code>{{ t("promotePromptModal.then_come_back") }}</p>
         </template>
         <template v-if="!gate.allowed">
-          <Checkbox v-if="canBypass" class="bypass" v-model="bypassing" data-testid="bypass-toggle"> Promote anyway (emergency)</Checkbox>
-          <p v-else class="hint" data-testid="no-bypass">Skipping the evaluation needs the governance permission.</p>
-          <FormField label="Why? It stays in the history of this prompt." v-if="bypassing">
+          <Checkbox v-if="canBypass" class="bypass" v-model="bypassing" data-testid="bypass-toggle">{{ " " + t("promotePromptModal.promote_anyway_emergency") }}</Checkbox>
+          <p v-else class="hint" data-testid="no-bypass">{{ t("promotePromptModal.skipping_the_evaluation_needs_the_govern") }}</p>
+          <FormField :label="t('promotePromptModal.why_it_stays_in_the_history')" v-if="bypassing">
             <TextInput v-model="bypassReason" multiline :rows="2" :invalid="!!fieldErrors.bypassReason" data-testid="bypass-reason" />
             <span v-if="fieldErrors.bypassReason" class="field-error">{{ fieldErrors.bypassReason }}</span>
           </FormField>
         </template>
       </template>
       <div class="actions">
-        <Button @click="emit('close')">Cancel</Button>
-        <Button variant="primary" :disabled="!canSend" data-testid="promote-confirm" @click="send">{{ sending ? "Promoting…" : gate && !gate.allowed ? "Promote anyway" : "Promote" }}</Button>
+        <Button @click="emit('close')">{{ t("promotePromptModal.cancel") }}</Button>
+        <Button variant="primary" :disabled="!canSend" data-testid="promote-confirm" @click="send">{{ sending ? t("promotePromptModal.promoting") : gate && !gate.allowed ? t("promotePromptModal.promote_anyway") : t("promotePromptModal.promote") }}</Button>
       </div>
     </div>
   </Modal>

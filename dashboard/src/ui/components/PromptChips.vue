@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { useRoute } from "vue-router";
 import type { PromptRefDto } from "@contract";
 import Pill from "./Pill.vue";
+import { t } from "../i18n";
 
 /**
  * Las versiones de prompt del registro que usó una traza, conversación o item de evaluación (ADR-068). Cada una enlaza a esa
@@ -22,7 +23,7 @@ const to = (p: PromptRefDto) => ({ name: "prompts", params: { experimentId: Stri
       :key="`${p.name}@${p.version}`"
       :to="to(p)"
       class="prompt-chip"
-      :title="`Prompt ${p.name}, version ${p.version}: open it`"
+      :title="t('promptChips.prompt_name_version_version_open_it', { name: p.name, version: p.version })"
       :data-testid="`prompt-chip-${p.name}-${p.version}`"
       @click.stop
     ><Pill>{{ p.name }} <b>v{{ p.version }}</b></Pill></router-link>

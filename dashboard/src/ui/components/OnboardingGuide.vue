@@ -2,6 +2,7 @@
 import { ref, computed } from "vue";
 import { useQuasar } from "quasar";
 import { useIdentityApi } from "../composables/useIdentityApi";
+import { t } from "../i18n";
 
 const props = defineProps<{ serviceName: string; experimentId: string }>();
 
@@ -33,7 +34,7 @@ async function generateApiKey() {
     generatedApiKey.value = created.plaintext;
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    $q.notify({ message: `No se pudo generar la API key: ${detail}`, color: "negative", timeout: 4000 });
+    $q.notify({ message: t("onboardingGuide.could_not_generate_the_api_key", { detail }), color: "negative", timeout: 4000 });
   } finally {
     generatingApiKey.value = false;
   }
@@ -253,28 +254,28 @@ const guide = computed(() => {
   <Card padding="none" block class="onboarding">
     <div class="intro">
       <q-icon name="forum" size="32px" class="intro-icon" />
-      <div class="intro-title">No traces detected yet</div>
-      <div class="intro-sub">Follow this guide to start tracing your application.</div>
+      <div class="intro-title">{{ t("onboardingGuide.no_traces_detected_yet") }}</div>
+      <div class="intro-sub">{{ t("onboardingGuide.follow_this_guide_to_start_tracing") }}</div>
     </div>
 
     <div class="pickers">
       <div class="picker">
-        <span class="picker-label">Framework</span>
+        <span class="picker-label">{{ t("onboardingGuide.framework") }}</span>
         <SegmentedControl :options="FRAMEWORKS.map((fw) => ({ value: fw.id, label: fw.label }))" :model-value="selectedFramework" @update:model-value="selectedFramework = $event as typeof selectedFramework" />
       </div>
 
       <div class="picker">
-        <span class="picker-label">Language</span>
+        <span class="picker-label">{{ t("onboardingGuide.language") }}</span>
         <SegmentedControl :options="LANGUAGES.map((l) => ({ value: l.id, label: l.label }))" :model-value="selectedLanguage" @update:model-value="selectedLanguage = $event as typeof selectedLanguage" />
       </div>
     </div>
 
     <ol class="steps">
       <li class="step">
-        <span class="step-label">Install</span>
+        <span class="step-label">{{ t("onboardingGuide.install") }}</span>
         <div class="snippet">
           <pre><code>{{ guide.install }}</code></pre>
-          <Button variant="icon" size="sm" class="copy" title="Copy" @click="copy(guide.install, 'install')">
+          <Button variant="icon" size="sm" class="copy" :title="t('onboardingGuide.copy')" @click="copy(guide.install, 'install')">
             <q-icon :name="copiedKey === 'install' ? 'check' : 'content_copy'" size="15px" />
           </Button>
         </div>
@@ -282,27 +283,27 @@ const guide = computed(() => {
 
       <li class="step">
         <div class="step-header">
-          <span class="step-label">Set environment variables</span>
+          <span class="step-label">{{ t("onboardingGuide.set_environment_variables") }}</span>
           <Button class="generate-key-btn" :disabled="generatingApiKey" @click="generateApiKey">
-            {{ generatedApiKey ? "Generate another API key" : "Generate API key" }}
+            {{ generatedApiKey ? t("onboardingGuide.generate_another_api_key") : t("onboardingGuide.generate_api_key") }}
           </Button>
         </div>
         <p v-if="generatedApiKey" class="key-warning">
-          Copy it now — it won't be shown in full again. If you leave this screen you'll need to generate a new one.
+          {{ t("onboardingGuide.copy_it_now_it_won_t") }}
         </p>
         <div class="snippet">
           <pre><code>{{ guide.env }}</code></pre>
-          <Button variant="icon" size="sm" class="copy" title="Copy" @click="copy(guide.env, 'env')">
+          <Button variant="icon" size="sm" class="copy" :title="t('onboardingGuide.copy')" @click="copy(guide.env, 'env')">
             <q-icon :name="copiedKey === 'env' ? 'check' : 'content_copy'" size="15px" />
           </Button>
         </div>
       </li>
 
       <li class="step">
-        <span class="step-label">Instrument your agent</span>
+        <span class="step-label">{{ t("onboardingGuide.instrument_your_agent") }}</span>
         <div class="snippet">
           <pre><code>{{ guide.example }}</code></pre>
-          <Button variant="icon" size="sm" class="copy" title="Copy" @click="copy(guide.example, 'example')">
+          <Button variant="icon" size="sm" class="copy" :title="t('onboardingGuide.copy')" @click="copy(guide.example, 'example')">
             <q-icon :name="copiedKey === 'example' ? 'check' : 'content_copy'" size="15px" />
           </Button>
         </div>

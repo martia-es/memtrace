@@ -2,6 +2,8 @@
 import { computed } from "vue";
 import type { ApprovalRuleDto } from "@contract";
 import { describeRule, profileLabel, STEP_MODE_LABEL, type StepMode } from "@/domain/approvals";
+import { t } from "../i18n";
+import { lazyMessages } from "../../domain/translate";
 
 /**
  * El recorrido de un cambio de prompt (ADR-076), de izquierda a derecha: publicar una versión y mover cada entorno. Cada
@@ -27,7 +29,7 @@ const props = defineProps<{ steps: FlowStep[]; names: Record<string, string>; te
 interface Need { key: string; kind: "role" | "person"; mark: string; label: string; tag: string }
 
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "?";
-const SUBTITLE: Record<string, string> = { publish: "A new version becomes available only after review.", dev: "First environment, for trying changes.", pre: "Close to production.", pro: "What your users get." };
+const SUBTITLE: Record<string, string> = lazyMessages({ publish: "approvalFlowChart.a_new_version_becomes_available_only", dev: "approvalFlowChart.first_environment_for_trying_changes", pre: "approvalFlowChart.close_to_production", pro: "approvalFlowChart.what_your_users_get" });
 
 /** Los nodos de un paso: cuántas personas de cada perfil y las personas obligatorias, marcando lo que viene de la organización. */
 function needsOf(step: FlowStep): Need[] {
@@ -38,14 +40,14 @@ function needsOf(step: FlowStep): Need[] {
       const key = `role:${r.role}`;
       if (!inherited && seen.has(key)) continue;
       seen.add(key);
-      out.push({ key: key + inherited, kind: "role", mark: profileLabel(r.role)[0]!, label: `${r.min} ${profileLabel(r.role)}`, tag: inherited ? "organization" : "any person" });
+      out.push({ key: key + inherited, kind: "role", mark: profileLabel(r.role)[0]!, label: `${r.min} ${profileLabel(r.role)}`, tag: inherited ? t("approvalFlowChart.organization") : t("approvalFlowChart.any_person") });
     }
     for (const id of rule?.approvers ?? []) {
       const key = `approver:${id}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      const name = props.names[id] ?? "Someone";
-      out.push({ key, kind: "person", mark: initials(name), label: name, tag: inherited ? "organization" : "always" });
+      const name = props.names[id] ?? t("approvalFlowChart.someone");
+      out.push({ key, kind: "person", mark: initials(name), label: name, tag: inherited ? t("approvalFlowChart.organization") : t("approvalFlowChart.always") });
     }
   }
   return out;
@@ -55,20 +57,20 @@ const cards = computed(() =>
   props.steps.map((step) => {
     const needs = needsOf(step);
     const env = step.action === "publish" ? "publish" : step.stage;
-    return { step, needs, env, id: `${step.action}-${step.stage || "publish"}`, title: step.action === "publish" ? step.label : step.label, sub: SUBTITLE[env] ?? "An environment of your assistant." };
+    return { step, needs, env, id: `${step.action}-${step.stage || "publish"}`, title: step.action === "publish" ? step.label : step.label, sub: SUBTITLE[env] ?? t("approvalFlowChart.an_environment_of_your_assistant") };
   }),
 );
 </script>
 
 <template>
-  <ol class="flow" role="group" aria-label="Who has to approve each step">
+  <ol class="flow" role="group" :aria-label="t('approvalFlowChart.who_has_to_approve_each_step')">
     <li v-for="(c, i) in cards" :key="c.id" class="stop">
       <span v-if="i > 0" class="arrow" aria-hidden="true">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
       </span>
       <div class="card" :class="{ open: c.step.open, none: c.needs.length === 0 }" :data-testid="`${testPrefix}-${c.id}`">
         <div class="top">
-          <span class="env" :class="`env-${c.env === 'publish' ? 'publish' : ['dev', 'pre', 'pro'].includes(c.env) ? c.env : 'other'}`">{{ c.env === "publish" ? "PUBLISH" : c.env }}</span>
+          <span class="env" :class="`env-${c.env === 'publish' ? 'publish' : ['dev', 'pre', 'pro'].includes(c.env) ? c.env : 'other'}`">{{ c.env === "publish" ? t("approvalFlowChart.publish") : c.env }}</span>
           <span class="count" :class="{ off: c.needs.length === 0 }">{{ c.needs.length === 0 ? "No approval" : `${c.needs.length} approval${c.needs.length > 1 ? "s" : ""}` }}</span>
         </div>
         <div class="head">
@@ -76,7 +78,7 @@ const cards = computed(() =>
           <span class="sub">{{ c.sub }}</span>
         </div>
         <ul class="needs">
-          <li v-if="c.needs.length === 0" class="empty">Nobody has to approve. Whoever can do this does it straight away.</li>
+          <li v-if="c.needs.length === 0" class="empty">{{ t("approvalFlowChart.nobody_has_to_approve_whoever_can") }}</li>
           <li v-for="n in c.needs" :key="n.key" class="need">
             <span class="mark" :class="n.kind">{{ n.mark }}</span>
             <span class="label">{{ n.label }}</span>
@@ -85,7 +87,7 @@ const cards = computed(() =>
         </ul>
         <!-- los datos de siempre, para quien los lea como texto -->
         <span class="sr" data-testid="rule-summary">{{ describeRule(c.step.rule, names) }}</span>
-        <span v-if="c.step.floor" class="floor" data-testid="rule-floor">Organization: {{ describeRule(c.step.floor, names) }}</span>
+        <span v-if="c.step.floor" class="floor" data-testid="rule-floor">{{ t("approvalFlowChart.organization_rule", { rule: describeRule(c.step.floor, names) }) }}</span>
         <span v-if="c.step.mode" class="mode" :class="c.step.mode" data-testid="rule-mode">{{ STEP_MODE_LABEL[c.step.mode] }}</span>
         <div v-if="$slots.actions" class="actions"><slot name="actions" :step="c.step" /></div>
       </div>

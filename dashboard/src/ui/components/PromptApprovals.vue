@@ -14,6 +14,7 @@ import StatusChip from "./StatusChip.vue";
 import TextInput from "./TextInput.vue";
 import Button from "./Button.vue";
 import Card from "./Card.vue";
+import { t, tp } from "../i18n";
 
 /**
  * Pestaña Approvals de un prompt (ADR-076): qué exige hoy cada paso y las solicitudes abiertas y pasadas. Quien puede
@@ -61,67 +62,67 @@ async function act(request: ApprovalRequestDto, run: () => Promise<unknown>, don
 }
 
 const decide = (r: ApprovalRequestDto, decision: "approve" | "reject") =>
-  act(r, () => api.decideApproval(r.id, decision, (comments.value[r.id] ?? "").trim()), decision === "approve" ? "Your approval is recorded" : "Request rejected");
-const cancel = (r: ApprovalRequestDto) => act(r, () => api.cancelApproval(r.id), "Request cancelled");
-const retry = (r: ApprovalRequestDto) => act(r, () => api.executeApproval(r.id), "Done");
-const addApprover = (r: ApprovalRequestDto) => act(r, () => api.addApprover(r.id, adding.value[r.id]!), "Approver added");
+  act(r, () => api.decideApproval(r.id, decision, (comments.value[r.id] ?? "").trim()), decision === "approve" ? t("promptApprovals.your_approval_is_recorded") : t("promptApprovals.request_rejected"));
+const cancel = (r: ApprovalRequestDto) => act(r, () => api.cancelApproval(r.id), t("promptApprovals.request_cancelled"));
+const retry = (r: ApprovalRequestDto) => act(r, () => api.executeApproval(r.id), t("promptApprovals.done"));
+const addApprover = (r: ApprovalRequestDto) => act(r, () => api.addApprover(r.id, adding.value[r.id]!), t("promptApprovals.approver_added"));
 
 const isMine = (r: ApprovalRequestDto) => userId.value !== null && r.requestedBy === userId.value;
 const live = (r: ApprovalRequestDto) => r.status === "pending" || r.status === "approved";
 const addable = (r: ApprovalRequestDto) => directory.value.filter((p) => p.userId !== r.requestedBy && !r.extraApprovers.includes(p.userId) && !(r.rule?.approvers ?? []).includes(p.userId));
-const who = (r: ApprovalRequestDto, id: string | null) => (id ? (r.people[id] ?? names.value[id] ?? "Someone") : "Someone");
+const who = (r: ApprovalRequestDto, id: string | null) => (id ? (r.people[id] ?? names.value[id] ?? t("promptApprovals.someone")) : t("promptApprovals.someone"));
 </script>
 
 <template>
   <div class="approvals" data-testid="approvals-tab">
     <section class="rules" data-testid="approval-summary">
-      <h3>Who has to approve</h3>
-      <p v-if="!anyRule" class="muted" data-testid="no-rules">Nothing: changes to this prompt happen without a review. An organization admin can turn approvals on in Admin → organization → Approvals.</p>
+      <h3>{{ t("promptApprovals.who_has_to_approve") }}</h3>
+      <p v-if="!anyRule" class="muted" data-testid="no-rules">{{ t("promptApprovals.nothing_changes_to_this_prompt_happen") }}</p>
       <ApprovalFlowChart v-else :steps="ruleSteps" :names="names" test-prefix="summary" />
     </section>
 
     <section>
-      <h3>Approval history</h3>
-      <p v-if="info.loading.value && !info.data.value" class="muted">Loading…</p>
-      <p v-else-if="requests.length === 0" class="muted" data-testid="no-requests">No requests yet.</p>
+      <h3>{{ t("promptApprovals.approval_history") }}</h3>
+      <p v-if="info.loading.value && !info.data.value" class="muted">{{ t("promptApprovals.loading") }}</p>
+      <p v-else-if="requests.length === 0" class="muted" data-testid="no-requests">{{ t("promptApprovals.no_requests_yet") }}</p>
       <ul v-else class="list">
         <Card as="li" padding="sm" gap="sm" v-for="r in requests" :key="r.id" class="card" :data-testid="`request-${r.id}`">
           <header>
             <b data-testid="request-title">{{ requestTitle(r) }}</b>
             <StatusChip :tone="REQUEST_STATUS[r.status].tone" :label="REQUEST_STATUS[r.status].label" />
-            <span class="muted">by {{ who(r, r.requestedBy) }} · {{ formatDateTime(r.createdAt) }}</span>
-            <span v-if="live(r)" class="muted">· {{ daysLeft(r, now) }} day(s) left</span>
+            <span class="muted">{{ t('promptApprovals.by_name_when', { name: who(r, r.requestedBy), when: formatDateTime(r.createdAt) }) }}</span>
+            <span v-if="live(r)" class="muted">{{ tp("promptApprovals.daysLeft", daysLeft(r, now)) }}</span>
           </header>
           <p v-if="r.note" class="note">“{{ r.note }}”</p>
 
           <ul v-if="live(r)" class="progress" data-testid="request-progress">
             <li v-for="p in progressLines(r)" :key="p.label" :class="{ done: p.done }">{{ p.label }} {{ p.have }}/{{ p.need }}</li>
-            <li v-for="name in waitingOn(r)" :key="name" class="wait">Waiting for {{ name }}</li>
+            <li v-for="name in waitingOn(r)" :key="name" class="wait">{{ t('promptApprovals.waiting_for_name', { name }) }}</li>
           </ul>
-          <p v-if="r.status === 'approved' && r.executionError" class="problem" data-testid="request-exec-error">Approved, but it could not be carried out yet: {{ r.executionError }}</p>
+          <p v-if="r.status === 'approved' && r.executionError" class="problem" data-testid="request-exec-error">{{ t("promptApprovals.approved_but_it_could_not_be", { error: r.executionError }) }}</p>
 
           <ul v-if="r.decisions.length" class="decisions">
             <li v-for="d in r.decisions" :key="d.userId">
-              <b>{{ who(r, d.userId) }}</b> {{ d.decision === "approve" ? "approved" : "rejected" }}<template v-if="d.comment">: “{{ d.comment }}”</template>
+              <b>{{ who(r, d.userId) }}</b> {{ d.decision === "approve" ? t("promptApprovals.approved") : t("promptApprovals.rejected") }}<template v-if="d.comment">: “{{ d.comment }}”</template>
             </li>
           </ul>
 
           <div v-if="canDecideNow(r, userId)" class="decide" data-testid="decide">
-            <TextInput v-model="comments[r.id]" placeholder="Comment (optional)" :data-testid="`comment-${r.id}`" />
-            <Button variant="primary" :disabled="busy === r.id" data-testid="approve" @click="decide(r, 'approve')">Approve</Button>
-            <Button :disabled="busy === r.id" data-testid="reject" @click="decide(r, 'reject')">Reject</Button>
+            <TextInput v-model="comments[r.id]" :placeholder="t('promptApprovals.comment_optional')" :data-testid="`comment-${r.id}`" />
+            <Button variant="primary" :disabled="busy === r.id" data-testid="approve" @click="decide(r, 'approve')">{{ t("promptApprovals.approve") }}</Button>
+            <Button :disabled="busy === r.id" data-testid="reject" @click="decide(r, 'reject')">{{ t("promptApprovals.reject") }}</Button>
           </div>
 
           <div v-if="live(r) && (isMine(r) || canDecideNow(r, userId))" class="more">
             <template v-if="r.status === 'pending' && addable(r).length > 0">
-              <select v-model="adding[r.id]" :aria-label="'Add an approver'" :data-testid="`add-select-${r.id}`">
-                <option :value="undefined">Add an approver…</option>
+              <select v-model="adding[r.id]" :aria-label="t('promptApprovals.add_an_approver')" :data-testid="`add-select-${r.id}`">
+                <option :value="undefined">{{ t("promptApprovals.add_an_approver2") }}</option>
                 <option v-for="p in addable(r)" :key="p.userId" :value="p.userId">{{ p.name }} · {{ p.roles.map(profileLabel).join(", ") }}</option>
               </select>
-              <Button :disabled="!adding[r.id] || busy === r.id" data-testid="add-approver" @click="addApprover(r)">Add</Button>
+              <Button :disabled="!adding[r.id] || busy === r.id" data-testid="add-approver" @click="addApprover(r)">{{ t("promptApprovals.add") }}</Button>
             </template>
-            <Button v-if="r.status === 'approved' && isMine(r)" :disabled="busy === r.id" data-testid="retry" @click="retry(r)">Try again</Button>
-            <Button v-if="isMine(r)" :disabled="busy === r.id" data-testid="cancel" @click="cancel(r)">Cancel request</Button>
+            <Button v-if="r.status === 'approved' && isMine(r)" :disabled="busy === r.id" data-testid="retry" @click="retry(r)">{{ t("promptApprovals.try_again") }}</Button>
+            <Button v-if="isMine(r)" :disabled="busy === r.id" data-testid="cancel" @click="cancel(r)">{{ t("promptApprovals.cancel_request") }}</Button>
           </div>
         </Card>
       </ul>
