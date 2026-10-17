@@ -8,6 +8,7 @@ import { parseCategories, parseTargetPercent } from "../score-config-form";
 import Modal from "./Modal.vue";
 import Select from "./Select.vue";
 import Button from "./Button.vue";
+import { t } from "../i18n";
 
 /** Formulario de nueva score config (ADR-036), compartido por Admin → Score configs y el panel de anotación (ADR-037). */
 const props = defineProps<{ experimentId: string }>();
@@ -17,9 +18,9 @@ const api = useIdentityApi();
 const $q = useQuasar();
 
 const TYPE_OPTIONS = [
-  { label: "Numeric (range)", value: "numeric" as const },
-  { label: "Boolean (yes / no)", value: "boolean" as const },
-  { label: "Categorical (labels)", value: "categorical" as const },
+  { label: t("newScoreConfigModal.numeric_range"), value: "numeric" as const },
+  { label: t("newScoreConfigModal.boolean_yes_no"), value: "boolean" as const },
+  { label: t("newScoreConfigModal.categorical_labels"), value: "categorical" as const },
 ];
 
 const saving = ref(false);
@@ -49,7 +50,7 @@ async function create() {
     emit("close");
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    $q.notify({ message: `Could not create score config: ${detail}`, color: "negative", timeout: 4000 });
+    $q.notify({ message: t("newScoreConfigModal.could_not_create_score_config_detail", { detail }), color: "negative", timeout: 4000 });
   } finally {
     saving.value = false;
   }
@@ -57,24 +58,24 @@ async function create() {
 </script>
 
 <template>
-  <Modal title="New score config" @close="emit('close')">
+  <Modal :title="t('newScoreConfigModal.new_score_config')" @close="emit('close')">
     <form class="modal-form" @submit.prevent="create">
-      <TextInput v-model="form.name" placeholder="Name (e.g. tone)" autofocus />
+      <TextInput v-model="form.name" :placeholder="t('newScoreConfigModal.name_e_g_tone')" autofocus />
       <Select v-model="form.dataType" :options="TYPE_OPTIONS" />
       <div v-if="form.dataType === 'numeric'" class="range-row">
-        <TextInput v-model="form.min" type="number" step="any" placeholder="Min" />
-        <TextInput v-model="form.max" type="number" step="any" placeholder="Max" />
+        <TextInput v-model="form.min" type="number" step="any" :placeholder="t('newScoreConfigModal.min')" />
+        <TextInput v-model="form.max" type="number" step="any" :placeholder="t('newScoreConfigModal.max')" />
       </div>
       <template v-if="form.dataType === 'boolean'">
-        <TextInput v-model="form.target" type="number" step="any" min="1" max="100" placeholder="Target pass rate in % (optional, default 80)" />
-        <p class="hint">Evaluators with this name are judged against this target in Evaluations → Trends.</p>
+        <TextInput v-model="form.target" type="number" step="any" min="1" max="100" :placeholder="t('newScoreConfigModal.target_pass_rate_in_optional_default')" />
+        <p class="hint">{{ t("newScoreConfigModal.evaluators_with_this_name_are_judged") }}</p>
       </template>
       <template v-if="form.dataType === 'categorical'">
-        <TextInput multiline v-model="form.categories" :rows="4" placeholder="One category per line (at least 2)&#10;bad=0&#10;ok=1&#10;good=2" />
-        <p class="hint">Optional <code>=number</code> after a label gives it a value, used for correlation with judge scores.</p>
+        <TextInput multiline v-model="form.categories" :rows="4" :placeholder="t('newScoreConfigModal.one_category_per_line_at_least')" />
+        <p class="hint">{{ t("newScoreConfigModal.optional") + " " }}<code>{{ t("newScoreConfigModal.number") }}</code>{{ " " + t("newScoreConfigModal.after_a_label_gives_it_a") }}</p>
       </template>
-      <TextInput multiline v-model="form.description" :rows="2" placeholder="Guideline shown to the annotator (optional)" />
-      <Button class="self-start" variant="primary" type="submit" :disabled="saving || !canCreate">Create</Button>
+      <TextInput multiline v-model="form.description" :rows="2" :placeholder="t('newScoreConfigModal.guideline_shown_to_the_annotator_optiona')" />
+      <Button class="self-start" variant="primary" type="submit" :disabled="saving || !canCreate">{{ t("newScoreConfigModal.create") }}</Button>
     </form>
   </Modal>
 </template>

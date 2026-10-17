@@ -6,11 +6,12 @@ import StatusBadge from "./StatusBadge.vue";
 import SpanTree from "./SpanTree.vue";
 import Pill from "./Pill.vue";
 import { t, tp } from "../i18n";
+import { tr } from "../../domain/translate";
 
 const props = defineProps<{ turns: TraceDetailResponse[]; selectedTraceId: string | null; selectedSpanId: string | null }>();
 const emit = defineEmits<{ select: [traceId: string, spanId: string] }>();
 
-const rootName = (t: TraceDetailResponse) => t.roots.find((r) => !r.orphan)?.name ?? t.roots[0]?.name ?? "Trace";
+const rootName = (t: TraceDetailResponse) => t.roots.find((r) => !r.orphan)?.name ?? t.roots[0]?.name ?? tr("conversationTree.trace");
 
 const collapsed = ref<Set<string>>(new Set());
 const toggle = (traceId: string) => {
@@ -55,9 +56,9 @@ const summary = computed(() => {
           <span class="run-pills">
             <StatusBadge :status="t.status" />
             <Pill>{{ formatDuration(t.durationMs) }}</Pill>
-            <Pill v-if="t.totalTokens">{{ formatCount(t.totalTokens) }} tok</Pill>
+            <Pill v-if="t.totalTokens">{{ tr("conversationTree.count_tok", { count: formatCount(t.totalTokens) }) }}</Pill>
             <Pill v-if="t.totalCostUsd">{{ formatCostUsd(t.totalCostUsd) }}</Pill>
-            <Pill tone="error" v-if="t.errorCount">{{ t.errorCount }} err</Pill>
+            <Pill tone="error" v-if="t.errorCount">{{ tr("conversationTree.count_err", { count: t.errorCount }) }}</Pill>
           </span>
         </button>
         <div v-show="!collapsed.has(t.traceId)" class="run-body">

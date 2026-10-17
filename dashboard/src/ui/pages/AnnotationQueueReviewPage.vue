@@ -21,6 +21,7 @@ import { numericChoices } from "../score-config-form";
 import Button from "../components/Button.vue";
 import LoadingState from "../components/LoadingState.vue";
 import Card from "../components/Card.vue";
+import { t } from "../i18n";
 
 /**
  * Pantalla de revisión (ADR-039): a un lado la traza (mismos componentes que el detalle de traza), al otro la
@@ -121,7 +122,7 @@ async function submit() {
     await api.completeAnnotationQueueItem(props.queueId, item.value.id, labels);
     await loadNext();
   } catch (error) {
-    notifyError("Could not save the review", error);
+    notifyError(t("annotationQueueReviewPage.could_not_save_the_review"), error);
   } finally {
     busy.value = false;
   }
@@ -134,7 +135,7 @@ async function skip() {
     await api.skipAnnotationQueueItem(props.queueId, item.value.id);
     await loadNext();
   } catch (error) {
-    notifyError("Could not skip the item", error);
+    notifyError(t("annotationQueueReviewPage.could_not_skip_the_item"), error);
   } finally {
     busy.value = false;
   }
@@ -147,7 +148,7 @@ async function markUnreviewable() {
     await api.markAnnotationQueueItemUnreviewable(props.queueId, item.value.id);
     await loadNext();
   } catch (error) {
-    notifyError("Could not mark item as unreviewable", error);
+    notifyError(t("annotationQueueReviewPage.could_not_mark_item_as_unreviewable"), error);
   } finally {
     busy.value = false;
   }
@@ -166,11 +167,11 @@ const progress = computed(() => queue.value?.progress);
 <template>
   <div class="page">
     <Card as="header" padding="none" block class="head">
-      <Button variant="link" class="crumb" @click="back">← Review</Button>
+      <Button variant="link" class="crumb" @click="back">{{ t("annotationQueueReviewPage.review") }}</Button>
       <span class="muted">/</span>
-      <h1>{{ queue?.name ?? "Queue" }}</h1>
+      <h1>{{ queue?.name ?? t("annotationQueueReviewPage.queue") }}</h1>
       <div v-if="progress" class="progress-wrap">
-        <span class="muted counts" data-testid="progress">{{ progress.completed }} done · {{ progress.pending }} pending</span>
+        <span class="muted counts" data-testid="progress">{{ t("annotationQueueReviewPage.done_done_pending_pending", { done: progress.completed, pending: progress.pending }) }}</span>
         <div class="bar" aria-hidden="true"><div class="bar-fill" :style="{ width: `${Math.round((progress.completed / Math.max(1, progress.completed + progress.pending + progress.skipped)) * 100)}%` }" /></div>
       </div>
     </Card>
@@ -178,34 +179,34 @@ const progress = computed(() => queue.value?.progress);
     <ErrorBanner v-if="loadError" :error="loadError" @retry="loadError = null; loadNext()" />
     <LoadingState v-else-if="!queue" size="lg" />
 
-    <EmptyState v-else-if="finished" icon="task_alt" title="Nothing left to review here">
-      You have reviewed everything this queue has for you.
-      <div class="q-mt-md"><Button variant="primary" @click="back">Back to queues</Button></div>
+    <EmptyState v-else-if="finished" icon="task_alt" :title="t('annotationQueueReviewPage.nothing_left_to_review_here')">
+      {{ t("annotationQueueReviewPage.you_have_reviewed_everything_this_queue") }}
+      <div class="q-mt-md"><Button variant="primary" @click="back">{{ t("annotationQueueReviewPage.back_to_queues") }}</Button></div>
     </EmptyState>
 
     <div v-else-if="item" class="cols">
-      <Card as="section" padding="none" block class="main" aria-label="Item to review">
+      <Card as="section" padding="none" block class="main" :aria-label="t('annotationQueueReviewPage.item_to_review')">
         <template v-if="item.targetType === 'trace'">
           <ErrorBanner v-if="trace.error.value && !traceGone" :error="trace.error.value" @retry="trace.run()" />
           <p v-else-if="traceGone" class="gone" data-testid="trace-gone">
-            This trace is no longer available (it may have been deleted by retention). Skip it; an admin can mark it unreviewable.
+            {{ t("annotationQueueReviewPage.this_trace_is_no_longer_available") }}
           </p>
           <LoadingState v-else-if="!trace.data.value" size="md" />
           <template v-else>
-            <h2 class="section-title">Conversation</h2>
+            <h2 class="section-title">{{ t("annotationQueueReviewPage.conversation") }}</h2>
             <ConversationThread :turns="turns" answer-label="Reply to review">
               <div v-if="turns.length && !hasAnswer" class="no-answer" data-testid="no-answer">
                 <q-icon name="warning" size="18px" />
                 <span v-if="trace.data.value && trace.data.value.errorCount > 0" data-testid="agent-failed">
-                  The agent failed before replying to the last message (see the error in the technical trace). There is nothing to review: skip it or mark it unreviewable.
+                  {{ t("annotationQueueReviewPage.the_agent_failed_before_replying_to") }}
                 </span>
-                <span v-else>The assistant's final reply was not captured in this trace. Skip it or mark it unreviewable.</span>
+                <span v-else>{{ t("annotationQueueReviewPage.the_assistant_s_final_reply_was") }}</span>
               </div>
-              <p v-if="!turns.length" class="gone">This trace has no content saved. Skip it or check the technical view.</p>
+              <p v-if="!turns.length" class="gone">{{ t("annotationQueueReviewPage.this_trace_has_no_content_saved") }}</p>
             </ConversationThread>
 
             <Button variant="link" v-if="can('trace:read_technical')" :aria-expanded="showTrace" data-testid="trace-toggle" @click="showTrace = !showTrace">
-              {{ showTrace ? "Hide technical trace" : "Show technical trace" }}
+              {{ showTrace ? t("annotationQueueReviewPage.hide_technical_trace") : t("annotationQueueReviewPage.show_technical_trace") }}
             </Button>
             <div v-if="showTrace && can('trace:read_technical')" class="trace-cols" data-testid="technical-trace">
               <SpanTree :roots="roots" :total-ms="trace.data.value.durationMs" :selected-id="selectedNode?.spanId ?? null" @select="(id: string) => (selectedSpan = id)" />
@@ -214,17 +215,17 @@ const progress = computed(() => queue.value?.progress);
           </template>
         </template>
         <p v-else class="gone">
-          Run item #{{ item.itemIndex }} of run <span class="mono">{{ shortId(item.datasetRunId ?? "") }}</span>. Review its input and output in the run's detail.
+          {{ t('annotationQueueReviewPage.run_item_index_of_run', { index: item.itemIndex }) }} <span class="mono">{{ shortId(item.datasetRunId ?? "") }}</span>{{ t("annotationQueueReviewPage.review_its_input_and_output_in") }}
         </p>
       </Card>
 
-      <Card as="aside" padding="none" block class="rubric" aria-label="Rubric" data-testid="rubric">
-        <h2 class="section-title">Your review</h2>
+      <Card as="aside" padding="none" block class="rubric" :aria-label="t('annotationQueueReviewPage.rubric')" data-testid="rubric">
+        <h2 class="section-title">{{ t("annotationQueueReviewPage.your_review") }}</h2>
         <p v-if="queue.instructions" class="instructions"><q-icon name="info" size="16px" /> {{ queue.instructions }}</p>
         <section v-for="r in rubric" :key="r.configId" class="criterion" data-testid="rubric-config">
           <h3>
             {{ r.config.name }}
-            <span v-if="r.required" class="req">required</span>
+            <span v-if="r.required" class="req">{{ t("annotationQueueReviewPage.required") }}</span>
             <q-icon v-if="drafts[r.configId]?.value" name="check_circle" size="16px" class="done" />
           </h3>
           <p v-if="r.config.description" class="help">{{ r.config.description }}</p>
@@ -247,24 +248,24 @@ const progress = computed(() => queue.value?.progress);
             step="any"
             :min="r.config.minValue ?? undefined"
             :max="r.config.maxValue ?? undefined"
-            :aria-label="`${r.config.name} value`" />
-          <Button variant="link" v-if="!openNotes[r.configId]" @click="openNotes[r.configId] = true">+ Add note</Button>
+            :aria-label="t('annotationQueueReviewPage.name_value', { name: r.config.name })" />
+          <Button variant="link" v-if="!openNotes[r.configId]" @click="openNotes[r.configId] = true">{{ t("annotationQueueReviewPage.add_note") }}</Button>
           <TextInput
             v-if="openNotes[r.configId] && drafts[r.configId]"
             v-model="drafts[r.configId]!.comment"
             multiline
             :rows="2"
             maxlength="5000"
-            placeholder="Optional note for this criterion"
-            :aria-label="`${r.config.name} note`"
+            :placeholder="t('annotationQueueReviewPage.optional_note_for_this_criterion')"
+            :aria-label="t('annotationQueueReviewPage.name_note', { name: r.config.name })"
           />
         </section>
         <div class="buttons">
-          <Button size="sm" :disabled="busy" data-testid="mark-unreviewable" @click="markUnreviewable">Mark unreviewable</Button>
-          <Button size="sm" :disabled="busy" data-testid="skip" @click="skip">Skip</Button>
+          <Button size="sm" :disabled="busy" data-testid="mark-unreviewable" @click="markUnreviewable">{{ t("annotationQueueReviewPage.mark_unreviewable") }}</Button>
+          <Button size="sm" :disabled="busy" data-testid="skip" @click="skip">{{ t("annotationQueueReviewPage.skip") }}</Button>
           <Button variant="primary" :disabled="busy || !ready" data-testid="submit" @click="submit">Submit &amp; next</Button>
         </div>
-        <p class="hint">Keys 1–9 pick an answer for the first open criterion · Enter submits</p>
+        <p class="hint">{{ t("annotationQueueReviewPage.keys_1_9_pick_an_answer") }}</p>
       </Card>
     </div>
   </div>

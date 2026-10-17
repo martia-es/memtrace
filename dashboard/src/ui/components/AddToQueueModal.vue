@@ -7,6 +7,7 @@ import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
 import Button from "./Button.vue";
 import Radio from "./Radio.vue";
+import { t } from "../i18n";
 
 /**
  * Mete esta traza, o items de un run, en una cola de revisión existente (ADR-039). Las colas se crean en Review (solo admins).
@@ -38,11 +39,11 @@ async function add() {
       ? { fromRun: { datasetRunId: props.run.datasetRunId, ...(mode.value === "sample" ? { sample: { size: sampleSize.value } } : {}) } }
       : { traceIds: [props.traceId!] };
     const result = await api.addAnnotationQueueItems(selected.value, body);
-    const seed = result.sample ? ` · sample seed ${result.sample.seed}` : "";
-    $q.notify({ message: result.added ? `Added ${result.added} to the queue${result.duplicates ? ` (${result.duplicates} already there)` : ""}${seed}` : "Already in that queue", color: result.added ? "positive" : "info", timeout: 4000 });
+    const seed = result.sample ? ` · ${t("addToQueueModal.sample_seed_seed", { seed: result.sample.seed })}` : "";
+    $q.notify({ message: result.added ? `${t("addToQueueModal.added_count_to_the_queue", { count: result.added })}${result.duplicates ? ` (${t("addToQueueModal.count_already_there", { count: result.duplicates })})` : ""}${seed}` : t("addToQueueModal.already_in_that_queue"), color: result.added ? "positive" : "info", timeout: 4000 });
     emit("close");
   } catch (error) {
-    $q.notify({ message: `Could not add ${subject.value}: ${error instanceof Error ? error.message : String(error)}`, color: "negative", timeout: 4000 });
+    $q.notify({ message: `${t("addToQueueModal.could_not_add_subject", { subject: subject.value })}: ${error instanceof Error ? error.message : String(error)}`, color: "negative", timeout: 4000 });
   } finally {
     saving.value = false;
   }
@@ -50,23 +51,23 @@ async function add() {
 </script>
 
 <template>
-  <Modal title="Add to review queue" @close="emit('close')">
+  <Modal :title="t('addToQueueModal.add_to_review_queue')" @close="emit('close')">
     <ErrorBanner v-if="queues.error.value" :error="queues.error.value" @retry="queues.run()" />
-    <p v-else-if="queues.data.value && !items.length" class="muted" data-testid="no-queues">There are no review queues yet. An experiment admin can create one in Review.</p>
+    <p v-else-if="queues.data.value && !items.length" class="muted" data-testid="no-queues">{{ t("addToQueueModal.there_are_no_review_queues_yet") }}</p>
     <form v-else class="form" @submit.prevent="add">
       <fieldset v-if="run" class="how" data-testid="run-selection">
         <label>
           <Radio v-model="mode" name="mode" value="sample" />
-          Random sample of
-          <input v-model.number="sampleSize" class="size" type="number" min="1" :max="Math.min(run.itemCount, MAX_ALL)" aria-label="Sample size" :disabled="mode !== 'sample'" />
-          of {{ run.itemCount }} items
+          {{ t("addToQueueModal.random_sample_of") }}
+          <input v-model.number="sampleSize" class="size" type="number" min="1" :max="Math.min(run.itemCount, MAX_ALL)" :aria-label="t('addToQueueModal.sample_size')" :disabled="mode !== 'sample'" />
+          {{ t("addToQueueModal.of_count_items", { count: run.itemCount }) }}
         </label>
-        <Radio :class="{ off: !canSendAll }" v-model="mode" name="mode" value="all" :disabled="!canSendAll"> All {{ run.itemCount }} items{{ canSendAll ? "" : ` (more than ${MAX_ALL}: send a sample)` }}</Radio>
-        <p class="muted">A random sample is what makes the judge-vs-human agreement representative; labeling only the items the judge failed would bias it.</p>
+        <Radio :class="{ off: !canSendAll }" v-model="mode" name="mode" value="all" :disabled="!canSendAll"> {{ t("addToQueueModal.all_count_items", { count: run.itemCount }) }}{{ canSendAll ? "" : ` ${t("addToQueueModal.more_than_max_send_a_sample", { max: MAX_ALL })}` }}</Radio>
+        <p class="muted">{{ t("addToQueueModal.a_random_sample_is_what_makes") }}</p>
       </fieldset>
       <Radio v-for="q in items" :key="q.id" class="option" v-model="selected" name="queue" :value="q.id"> <span class="name">{{ q.name }}</span>
-        <span class="muted">{{ q.progress.pending }} pending</span></Radio>
-      <Button variant="primary" type="submit" :disabled="!selected || saving">Add</Button>
+        <span class="muted">{{ t('addToQueueModal.count_pending', { count: q.progress.pending }) }}</span></Radio>
+      <Button variant="primary" type="submit" :disabled="!selected || saving">{{ t("addToQueueModal.add") }}</Button>
     </form>
   </Modal>
 </template>

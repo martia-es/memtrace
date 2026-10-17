@@ -20,6 +20,7 @@ import Pill from "./Pill.vue";
 import { aggregatePillTone } from "@/domain/evaluation";
 import LoadingState from "./LoadingState.vue";
 import TabBar from "./TabBar.vue";
+import { t } from "../i18n";
 
 /** Progreso, trabajo por revisor, rúbrica y items de una cola (ADR-039). Los admins pueden cambiar `requiredAnnotations` y retirar items del reparto. */
 const props = defineProps<{ queueId: string; canManage: boolean; initialTab?: "summary" | "results" | "settings" }>();
@@ -42,7 +43,7 @@ const judgeMetrics = computed(() => judgeAgreement.data.value?.metrics ?? []);
 const required = ref<number | null>(null);
 // el perfil técnico (admin) trabaja por pestañas (ADR-050); quien solo revisa ve el resumen de siempre
 type Tab = "summary" | "results" | "settings";
-const TABS: Array<{ id: Tab; label: string }> = [{ id: "summary", label: "Summary" }, { id: "results", label: "Results" }, { id: "settings", label: "Settings" }];
+const TABS: Array<{ id: Tab; label: string }> = [{ id: "summary", get label() { return t("queueDetailModal.summary"); } }, { id: "results", get label() { return t("queueDetailModal.results"); } }, { id: "settings", get label() { return t("common.settings"); } }];
 const tab = ref<Tab>(props.initialTab ?? "summary");
 const showSummary = computed(() => !props.canManage || tab.value === "summary");
 const showSettings = computed(() => !props.canManage || tab.value === "settings");
@@ -53,7 +54,7 @@ if (props.canManage) {
   api
     .listReviewerCandidates()
     .then((r) => (members.value = r.candidates))
-    .catch((error) => notifyError("Could not load members", error));
+    .catch((error) => notifyError(t("queueDetailModal.could_not_load_members"), error));
 }
 const currentReviewers = computed(() => assigned.value ?? detail.data.value?.reviewerIds ?? []);
 const reviewersChanged = computed(() => {
@@ -82,7 +83,7 @@ async function saveReviewers() {
     assigned.value = null;
     await reload();
   } catch (error) {
-    notifyError("Could not update the reviewers", error);
+    notifyError(t("queueDetailModal.could_not_update_the_reviewers"), error);
   }
 }
 
@@ -93,7 +94,7 @@ async function saveRequired() {
     required.value = null;
     await reload();
   } catch (error) {
-    notifyError("Could not update the queue", error);
+    notifyError(t("queueDetailModal.could_not_update_the_queue"), error);
   }
 }
 
@@ -102,15 +103,15 @@ async function markUnreviewable(item: QueueItemDto) {
     await api.markAnnotationQueueItemUnreviewable(props.queueId, item.id);
     await reload();
   } catch (error) {
-    notifyError("Could not mark the item", error);
+    notifyError(t("queueDetailModal.could_not_mark_the_item"), error);
   }
 }
 
-const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${shortId(item.traceId ?? "")}` : `Run ${shortId(item.datasetRunId ?? "")} · item ${item.itemIndex}`);
+const label = (item: QueueItemDto) => (item.targetType === "trace" ? t("queueDetailModal.trace_id", { id: shortId(item.traceId ?? "") }) : t("queueDetailModal.run_id_item_index", { id: shortId(item.datasetRunId ?? ""), index: item.itemIndex }));
 </script>
 
 <template>
-  <Modal :title="detail.data.value?.name ?? 'Queue'" wide @close="emit('close')">
+  <Modal :title="detail.data.value?.name ?? t('queueDetailModal.queue')" wide @close="emit('close')">
     <ErrorBanner v-if="detail.error.value" :error="detail.error.value" @retry="detail.run()" />
     <LoadingState v-else-if="!detail.data.value" size="md" />
 
@@ -122,66 +123,66 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
       <QueueResults v-if="canManage && tab === 'results'" :queue-id="queueId" @close="emit('close')" />
 
       <section v-if="showSummary">
-        <h3>Progress</h3>
+        <h3>{{ t("queueDetailModal.progress") }}</h3>
         <div class="bar" role="progressbar" :aria-valuenow="percent" aria-valuemin="0" aria-valuemax="100"><div class="fill" :style="{ width: `${percent}%` }" /></div>
         <p class="muted">
-          {{ detail.data.value.progress.completed }} completed · {{ detail.data.value.progress.pending }} pending · {{ detail.data.value.progress.skipped }} unreviewable
+          {{ t("queueDetailModal.completed_completed_pending_pending_skip", { completed: detail.data.value.progress.completed, pending: detail.data.value.progress.pending, skipped: detail.data.value.progress.skipped }) }}
         </p>
-        <p v-if="!canManage" class="muted">Reviews required per item: <strong>{{ detail.data.value.requiredAnnotations }}</strong></p>
+        <p v-if="!canManage" class="muted">{{ t("queueDetailModal.reviews_required_per_item") + " " }}<strong>{{ detail.data.value.requiredAnnotations }}</strong></p>
       </section>
 
       <section v-if="canManage && showSettings">
-        <h3>Reviews required per item</h3>
+        <h3>{{ t("queueDetailModal.reviews_required_per_item2") }}</h3>
         <div class="req-row">
           <TextInput
             :model-value="required ?? detail.data.value.requiredAnnotations"
             type="number"
             min="1"
             max="10"
-            aria-label="Reviews required per item"
+            :aria-label="t('queueDetailModal.reviews_required_per_item2')"
             @input="required = Number(($event.target as HTMLInputElement).value)" />
-          <Button size="sm" :disabled="required === null || required === detail.data.value.requiredAnnotations" @click="saveRequired">Apply</Button>
+          <Button size="sm" :disabled="required === null || required === detail.data.value.requiredAnnotations" @click="saveRequired">{{ t("queueDetailModal.apply") }}</Button>
         </div>
-        <p class="muted">Raising it reopens items that were already completed; lowering it can complete them.</p>
+        <p class="muted">{{ t("queueDetailModal.raising_it_reopens_items_that_were") }}</p>
       </section>
 
       <section v-if="showSettings">
-        <h3>Rubric</h3>
+        <h3>{{ t("queueDetailModal.rubric") }}</h3>
         <ul class="plain">
           <li v-for="c in detail.data.value.configs" :key="c.id">
             <strong>{{ c.name }}</strong> <span class="muted">{{ describeScale(c) }}</span>
-            <Pill v-if="detail.data.value.rubric.find((r) => r.configId === c.id)?.required">required</Pill>
-            <Pill v-if="c.archivedAt" tone="warn">archived</Pill>
+            <Pill v-if="detail.data.value.rubric.find((r) => r.configId === c.id)?.required">{{ t("queueDetailModal.required") }}</Pill>
+            <Pill v-if="c.archivedAt" tone="warn">{{ t("queueDetailModal.archived") }}</Pill>
           </li>
         </ul>
       </section>
 
       <section v-if="canManage && showSettings">
-        <h3>Who can annotate</h3>
-        <p class="muted">Only these people can pull and label items. Removing someone keeps what they already labeled.</p>
+        <h3>{{ t("queueDetailModal.who_can_annotate") }}</h3>
+        <p class="muted">{{ t("queueDetailModal.only_these_people_can_pull_and") }}</p>
         <Checkbox v-for="m in members" :key="m.userId" class="req-row" :model-value="currentReviewers" :value="m.userId" @update:model-value="assigned = $event as string[]"> {{ m.name ?? m.email }} <span class="muted">{{ m.email }}</span></Checkbox>
-        <Button size="sm" :disabled="!reviewersChanged || !currentReviewers.length" @click="saveReviewers">Apply</Button>
-        <p v-if="currentReviewers.length < detail.data.value.requiredAnnotations" class="muted">At least {{ detail.data.value.requiredAnnotations }} reviewers are needed.</p>
+        <Button size="sm" :disabled="!reviewersChanged || !currentReviewers.length" @click="saveReviewers">{{ t("queueDetailModal.apply") }}</Button>
+        <p v-if="currentReviewers.length < detail.data.value.requiredAnnotations" class="muted">{{ t("queueDetailModal.at_least_count_reviewers_are_needed", { count: detail.data.value.requiredAnnotations }) }}</p>
       </section>
 
       <section v-if="showSummary">
-        <h3>Progress by reviewer</h3>
-        <p v-if="!detail.data.value.reviewers.length" class="muted">Nobody has started reviewing yet.</p>
+        <h3>{{ t("queueDetailModal.progress_by_reviewer") }}</h3>
+        <p v-if="!detail.data.value.reviewers.length" class="muted">{{ t("queueDetailModal.nobody_has_started_reviewing_yet") }}</p>
         <ul v-else class="plain">
           <li v-for="r in detail.data.value.reviewers" :key="r.userId" data-testid="reviewer-row">
-            <strong>{{ r.name ?? "Former member" }}</strong>
-            <span class="muted">{{ r.completed }} done · {{ r.skipped }} skipped · {{ r.inProgress }} in progress</span>
+            <strong>{{ r.name ?? t("queueDetailModal.former_member") }}</strong>
+            <span class="muted">{{ t("queueDetailModal.done_done_skipped_skipped_inprogress_in", { done: r.completed, skipped: r.skipped, inProgress: r.inProgress }) }}</span>
           </li>
         </ul>
       </section>
 
       <section v-if="showSummary">
-        <h3>Agreement between reviewers</h3>
+        <h3>{{ t("queueDetailModal.agreement_between_reviewers") }}</h3>
         <InterAnnotatorAgreement :queue-id="queueId" />
       </section>
 
       <section v-if="showSummary && hasRunItems && judgeMetrics.length" data-testid="queue-verdict">
-        <h3>Judge verdict</h3>
+        <h3>{{ t("queueDetailModal.judge_verdict") }}</h3>
         <ul class="plain">
           <li v-for="m in judgeMetrics" :key="m.name">
             <strong>{{ m.name }}</strong>
@@ -193,8 +194,8 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
       <JudgeHumanAgreement v-if="showSummary && hasRunItems" :scope="{ queueId }" />
 
       <section v-if="showSettings">
-        <h3>Items</h3>
-        <p v-if="!(items.data.value?.items.length ?? 0)" class="muted">The queue is empty. Add traces from this page or from a trace's detail.</p>
+        <h3>{{ t("queueDetailModal.items") }}</h3>
+        <p v-if="!(items.data.value?.items.length ?? 0)" class="muted">{{ t("queueDetailModal.the_queue_is_empty_add_traces") }}</p>
         <ul v-else class="plain items">
           <li v-for="item in items.data.value!.items" :key="item.id" data-testid="queue-item-row">
             <router-link
@@ -214,8 +215,8 @@ const label = (item: QueueItemDto) => (item.targetType === "trace" ? `Trace ${sh
               Run {{ shortId(item.datasetRunId) }} · item {{ item.itemIndex }}
             </router-link>
             <span v-else class="mono">{{ label(item) }}</span>
-            <Pill :tone="item.status === 'completed' ? 'ok' : item.status === 'skipped' ? 'warn' : 'neutral'">{{ item.status === "skipped" ? "unreviewable" : item.status }}</Pill>
-            <Button class="push" size="sm" v-if="canManage && item.status !== 'skipped'" @click="markUnreviewable(item)">Mark unreviewable</Button>
+            <Pill :tone="item.status === 'completed' ? 'ok' : item.status === 'skipped' ? 'warn' : 'neutral'">{{ item.status === "skipped" ? t("queueDetailModal.unreviewable") : item.status }}</Pill>
+            <Button class="push" size="sm" v-if="canManage && item.status !== 'skipped'" @click="markUnreviewable(item)">{{ t("queueDetailModal.mark_unreviewable") }}</Button>
           </li>
         </ul>
       </section>

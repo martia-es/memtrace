@@ -4,6 +4,7 @@ import { setTranslator } from "@/domain/translate";
 import en from "./en";
 import es from "./es";
 
+export type Params = Record<string, string | number | boolean | null | undefined>;
 export type Locale = "en" | "es";
 export type MessageKey = keyof typeof en;
 
@@ -49,16 +50,16 @@ watch(
 );
 
 /** Translates `key` into the active locale, replacing `{name}` placeholders. Falls back to English, then to the key. */
-export function t(key: MessageKey, params?: Record<string, string | number>): string {
+export function t(key: MessageKey, params?: Params): string {
   const message = CATALOGS[locale.value][key] ?? en[key] ?? key;
-  return params ? message.replace(/\{(\w+)\}/g, (whole, name: string) => (name in params ? String(params[name]) : whole)) : message;
+  return params ? message.replace(/\{(\w+)\}/g, (whole, name: string) => (name in params ? String(params[name] ?? "") : whole)) : message;
 }
 
 // el dominio traduce a través de este puerto (domain/translate.ts)
 setTranslator((key, params) => t(key as MessageKey, params));
 
 /** Plural pair: the catalog holds `<key>.one` and `<key>.other`; `{count}` is filled in automatically. */
-export function tp(key: string, count: number, params?: Record<string, string | number>): string {
+export function tp(key: string, count: number, params?: Params): string {
   const rule = new Intl.PluralRules(locale.value).select(count) === "one" ? "one" : "other";
   return t(`${key}.${rule}` as MessageKey, { count, ...params });
 }
