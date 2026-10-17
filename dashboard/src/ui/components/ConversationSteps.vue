@@ -4,6 +4,7 @@ import type { ConversationStep } from "@/domain/conversation-steps";
 import { formatCostUsd, formatCount, formatDuration } from "@/domain/format";
 import Pill from "./Pill.vue";
 import Button from "./Button.vue";
+import { t, tp } from "../i18n";
 
 /**
  * How a reply was built, step by step and without JSON: guardrails passed, passages retrieved, tools called and the reply
@@ -31,33 +32,33 @@ const summary = computed(() => {
   const tools = props.steps.filter((s) => s.kind === "tool").length;
   const parts = [`${props.steps.length} ${props.steps.length === 1 ? "step" : "steps"}`];
   if (passages) parts.push(`${passages} ${passages === 1 ? "passage" : "passages"}`);
-  if (tools) parts.push(`${tools} tool ${tools === 1 ? "call" : "calls"}`);
+  if (tools) parts.push(tp("conversationSteps.toolCalls", tools));
   return parts.join(" · ");
 });
 
 const ICON: Record<ConversationStep["kind"], string> = { guardrails: "verified_user", retrieval: "search", tool: "build", reply: "auto_awesome" };
 const title = (s: ConversationStep): string => {
-  if (s.kind === "guardrails") return s.failed ? "Blocked the message" : "Checked the message";
-  if (s.kind === "retrieval") return "Searched the knowledge base";
-  if (s.kind === "tool") return `Called ${s.label}`;
-  return "Wrote the reply";
+  if (s.kind === "guardrails") return s.failed ? t("conversationSteps.blocked_the_message") : t("conversationSteps.checked_the_message");
+  if (s.kind === "retrieval") return t("conversationSteps.searched_the_knowledge_base");
+  if (s.kind === "tool") return t("conversationSteps.called_name", { name: s.label });
+  return t("conversationSteps.wrote_the_reply");
 };
 const detail = (s: ConversationStep): string => {
   if (s.kind === "guardrails") return s.failed ? (s.error ?? "") : `${s.checks.map((c) => c.name.toLowerCase()).join(", ")}: all passed`;
-  if (s.kind === "retrieval") return s.chunks.length ? `${s.chunks.length} ${s.chunks.length === 1 ? "passage" : "passages"} found` : "No passages saved for this search";
+  if (s.kind === "retrieval") return s.chunks.length ? tp("conversationSteps.passages", s.chunks.length) : t("conversationSteps.no_passages_saved_for_this_search");
   if (s.kind === "tool") return s.failed ? (s.error ?? "") : "";
-  return [s.model, s.tokens ? `${formatCount(s.tokens)} tokens` : null, formatCostUsd(s.costUsd)].filter(Boolean).join(" · ");
+  return [s.model, s.tokens ? t("conversationSteps.count_tokens", { count: formatCount(s.tokens) }) : null, formatCostUsd(s.costUsd)].filter(Boolean).join(" · ");
 };
 const pct = (score: number) => Math.round(Math.min(Math.max(score, 0), 1) * 100);
 </script>
 
 <template>
-  <section class="steps" aria-label="How the answer was built" data-testid="conversation-steps">
+  <section class="steps" :aria-label="t('conversationSteps.how_the_answer_was_built')" data-testid="conversation-steps">
     <div class="intro">
-      <span class="label">How the answer was built</span>
+      <span class="label">{{ t("conversationSteps.how_the_answer_was_built") }}</span>
       <span class="summary">{{ summary }}</span>
       <span class="rule" />
-      <Button variant="link" data-testid="steps-toggle-all" @click="allOpen ? closeAll() : openAll()">{{ allOpen ? "Collapse all" : "Expand all" }}</Button>
+      <Button variant="link" data-testid="steps-toggle-all" @click="allOpen ? closeAll() : openAll()">{{ allOpen ? t("conversationSteps.collapse_all") : t("conversationSteps.expand_all") }}</Button>
     </div>
 
     <ol class="list">
@@ -70,7 +71,7 @@ const pct = (score: number) => Math.round(Math.min(Math.max(score, 0), 1) * 100)
           <button type="button" class="head" :aria-expanded="open.has(s.spanId)" @click="toggle(s.spanId)">
             <span class="title">{{ title(s) }}</span>
             <code v-if="s.kind === 'tool'" class="fn">{{ s.name }}</code>
-            <Pill v-if="s.kind === 'tool'" :tone="s.failed ? 'error' : 'ok'">{{ s.failed ? "Failed" : "OK" }}</Pill>
+            <Pill v-if="s.kind === 'tool'" :tone="s.failed ? 'error' : 'ok'">{{ s.failed ? t("conversationSteps.failed") : t("conversationSteps.ok") }}</Pill>
             <span class="detail" :class="{ err: s.failed }">{{ detail(s) }}</span>
             <span class="time mono">{{ formatDuration(s.durationMs) }}</span>
             <q-icon name="expand_more" size="18px" class="chev" />
@@ -84,17 +85,17 @@ const pct = (score: number) => Math.round(Math.min(Math.max(score, 0), 1) * 100)
             </template>
 
             <template v-else-if="s.kind === 'retrieval'">
-              <p v-if="s.query" class="query">Query <code>{{ s.query }}</code></p>
+              <p v-if="s.query" class="query">{{ t("conversationSteps.query") }} <code>{{ s.query }}</code></p>
               <ul v-if="s.chunks.length" class="chunks">
                 <li v-for="c in s.chunks" :key="c.rank" class="chunk" :class="{ low: c.score !== null && c.score < LOW_SCORE }" data-testid="step-chunk">
                   <div class="chunk-body">
                     <span class="source">{{ c.source ?? `Passage ${c.rank}` }}</span>
-                    <span class="text">{{ c.text || "The text of this passage was not saved." }}</span>
+                    <span class="text">{{ c.text || t("conversationSteps.the_text_of_this_passage_was") }}</span>
                   </div>
                   <div v-if="c.score !== null" class="score">
                     <span class="bar"><span :style="{ width: `${pct(c.score)}%` }" /></span>
                     <span class="mono">{{ c.score.toFixed(2) }}</span>
-                    <Pill v-if="c.score < LOW_SCORE" tone="warn">Low match</Pill>
+                    <Pill v-if="c.score < LOW_SCORE" tone="warn">{{ t("conversationSteps.low_match") }}</Pill>
                   </div>
                 </li>
               </ul>
@@ -104,23 +105,23 @@ const pct = (score: number) => Math.round(Math.min(Math.max(score, 0), 1) * 100)
             <template v-else-if="s.kind === 'tool'">
               <div class="pair">
                 <div>
-                  <span class="cap">What it asked</span>
+                  <span class="cap">{{ t("conversationSteps.what_it_asked") }}</span>
                   <dl v-if="s.asked.length" class="kv"><template v-for="f in s.asked" :key="f.key"><dt>{{ f.key }}</dt><dd>{{ f.value }}</dd></template></dl>
-                  <p v-else class="muted">Nothing saved.</p>
+                  <p v-else class="muted">{{ t("conversationSteps.nothing_saved") }}</p>
                 </div>
                 <div>
-                  <span class="cap">{{ s.failed ? "What went wrong" : "What it returned" }}</span>
+                  <span class="cap">{{ s.failed ? t("conversationSteps.what_went_wrong") : t("conversationSteps.what_it_returned") }}</span>
                   <p v-if="s.failed" class="err-text">{{ s.error }}</p>
                   <dl v-else-if="s.returned.length" class="kv"><template v-for="f in s.returned" :key="f.key"><dt>{{ f.key }}</dt><dd>{{ f.value }}</dd></template></dl>
                   <p v-else-if="s.returnedText" class="plain">{{ s.returnedText }}</p>
-                  <p v-else class="muted">Nothing saved.</p>
+                  <p v-else class="muted">{{ t("conversationSteps.nothing_saved") }}</p>
                 </div>
               </div>
             </template>
 
             <p v-else-if="s.failed" class="err-text">{{ s.error }}</p>
 
-            <Button v-if="canOpenTrace" variant="link" class="to-trace" data-testid="open-in-trace" @click="emit('open-span', s.spanId)">Open in technical trace →</Button>
+            <Button v-if="canOpenTrace" variant="link" class="to-trace" data-testid="open-in-trace" @click="emit('open-span', s.spanId)">{{ t("conversationSteps.open_in_technical_trace") }}</Button>
           </div>
         </div>
       </li>

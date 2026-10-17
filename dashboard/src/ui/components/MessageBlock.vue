@@ -2,11 +2,12 @@
 import { ref } from "vue";
 import type { IoBlock } from "@/domain/span-io";
 import Button from "./Button.vue";
+import { t } from "../i18n";
 
 defineProps<{ block: IoBlock }>();
 
 const roleName = (role: IoBlock["role"]) =>
-  ({ user: "User", assistant: "AI", system: "System", tool: "Tool", error: "Error", other: "Content" })[role];
+  ({ user: t("messageBlock.user"), assistant: t("messageBlock.ai"), system: t("messageBlock.system"), tool: t("messageBlock.tool"), error: t("messageBlock.error"), other: t("messageBlock.content") })[role];
 
 const roleIcon = (role: IoBlock["role"]) =>
   ({ user: "person", assistant: "smart_toy", system: "settings", tool: "build", error: "error", other: "notes" })[role];
@@ -44,7 +45,7 @@ async function copyCall(i: number, name: string, args: Record<string, unknown>) 
       </span>
       <span class="role">{{ roleName(block.role) }}</span>
       <span v-if="block.label.toLowerCase() !== roleName(block.role).toLowerCase() && block.label !== block.role" class="tag mono">{{ block.label }}</span>
-      <Button variant="icon" size="sm" v-if="!block.hideText && block.text" class="copy-btn" aria-label="Copy" @click="copyText(block.text)">
+      <Button variant="icon" size="sm" v-if="!block.hideText && block.text" class="copy-btn" :aria-label="t('messageBlock.copy')" @click="copyText(block.text)">
         <q-icon :name="copiedText ? 'check' : 'content_copy'" size="12px" />
       </Button>
     </header>
@@ -52,7 +53,7 @@ async function copyCall(i: number, name: string, args: Record<string, unknown>) 
     <div v-if="!block.hideText" class="body">
       <pre v-if="block.structured" class="text mono">{{ block.text }}</pre>
       <p v-else-if="block.text" class="text">{{ block.text }}</p>
-      <p v-else class="text muted">Empty message</p>
+      <p v-else class="text muted">{{ t("messageBlock.empty_message") }}</p>
     </div>
 
     <div v-for="(c, i) in block.calls" :key="i" class="call">
@@ -60,7 +61,7 @@ async function copyCall(i: number, name: string, args: Record<string, unknown>) 
         <q-icon name="bolt" size="13px" class="call-icon" />
         <span class="fn mono">{{ c.name }}</span>
         <span v-if="c.id" class="chip mono">{{ c.id }}</span>
-        <Button variant="icon" size="sm" class="copy-btn" aria-label="Copy call" @click="copyCall(i, c.name, c.args)">
+        <Button variant="icon" size="sm" class="copy-btn" :aria-label="t('messageBlock.copy_call')" @click="copyCall(i, c.name, c.args)">
           <q-icon :name="copiedCall === i ? 'check' : 'content_copy'" size="12px" />
         </Button>
       </div>

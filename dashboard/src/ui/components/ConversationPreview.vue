@@ -4,6 +4,7 @@ import TraceTimeline from "./TraceTimeline.vue";
 import Button from "./Button.vue";
 import LoadingState from "./LoadingState.vue";
 import Card from "./Card.vue";
+import { t } from "../i18n";
 
 /**
  * Panel de vista previa de la lista de Conversations (ADR-048): permite leer una conversación o una traza sin
@@ -88,16 +89,16 @@ onBeforeUnmount(stopDrag);
 </script>
 
 <template>
-  <Card as="aside" padding="none" block class="preview" :class="{ dragging }" :style="{ width: `${width}px` }" aria-label="Preview">
+  <Card as="aside" padding="none" block class="preview" :class="{ dragging }" :style="{ width: `${width}px` }" :aria-label="t('conversationPreview.preview')">
     <div
       class="resize"
       role="separator"
       aria-orientation="vertical"
-      aria-label="Resize preview"
+      :aria-label="t('conversationPreview.resize_preview')"
       :aria-valuenow="width"
       :aria-valuemin="MIN_WIDTH"
       tabindex="0"
-      title="Drag to resize · double-click to reset"
+      :title="t('conversationPreview.drag_to_resize_double_click_to')"
       data-testid="preview-resize"
       @pointerdown.prevent="startDrag"
       @dblclick="reset"
@@ -106,9 +107,9 @@ onBeforeUnmount(stopDrag);
     />
     <header class="head">
       <div class="head-top">
-        <span class="eyebrow">PREVIEW</span>
-        <Button variant="link" data-testid="preview-open" @click="$emit('open')">{{ openLabel ?? "Open full view" }} ↗</Button>
-        <Button variant="icon" size="sm" class="close" aria-label="Close preview" data-testid="preview-close" @click="$emit('close')">✕</Button>
+        <span class="eyebrow">{{ t("conversationPreview.preview2") }}</span>
+        <Button variant="link" data-testid="preview-open" @click="$emit('open')">{{ openLabel ?? t("conversationPreview.open_full_view") }} ↗</Button>
+        <Button variant="icon" size="sm" class="close" :aria-label="t('conversationPreview.close_preview')" data-testid="preview-close" @click="$emit('close')">✕</Button>
       </div>
       <h2 class="title" :title="title">{{ title }}</h2>
       <span class="sub mono">{{ subtitle }}</span>
@@ -118,12 +119,12 @@ onBeforeUnmount(stopDrag);
       <LoadingState v-if="loading" size="md" />
       <template v-else-if="messages.length">
         <div v-for="(m, i) in messages" :key="i" class="bubble" :class="m.role">
-          <span class="who">{{ m.role === "user" ? "USER" : "ASSISTANT" }}</span>
+          <span class="who">{{ m.role === "user" ? t("conversationPreview.user") : t("conversationPreview.assistant") }}</span>
           <p>{{ m.text }}</p>
           <TraceTimeline v-if="m.role === 'assistant' && m.traceId" :key="m.traceId" :trace-id="m.traceId" />
         </div>
       </template>
-      <p v-else class="state muted">{{ emptyHint ?? "No content was captured for this item." }}</p>
+      <p v-else class="state muted">{{ emptyHint ?? t("conversationPreview.no_content_was_captured_for_this") }}</p>
     </div>
 
     <footer class="foot">
@@ -132,9 +133,9 @@ onBeforeUnmount(stopDrag);
         <span class="v mono">{{ s.v }}</span>
       </div>
       <div v-if="showActions" class="actions" :title="actionsHint">
-        <Button variant="primary" data-testid="preview-annotate" :disabled="actionsDisabled" @click="$emit('annotate')">Annotate</Button>
-        <Button data-testid="preview-add-to-queue" :disabled="actionsDisabled" @click="$emit('addToQueue')">Add to queue</Button>
-        <Button data-testid="preview-add-to-dataset" :disabled="actionsDisabled" @click="$emit('addToDataset')">Add to dataset</Button>
+        <Button variant="primary" data-testid="preview-annotate" :disabled="actionsDisabled" @click="$emit('annotate')">{{ t("conversationPreview.annotate") }}</Button>
+        <Button data-testid="preview-add-to-queue" :disabled="actionsDisabled" @click="$emit('addToQueue')">{{ t("conversationPreview.add_to_queue") }}</Button>
+        <Button data-testid="preview-add-to-dataset" :disabled="actionsDisabled" @click="$emit('addToDataset')">{{ t("conversationPreview.add_to_dataset") }}</Button>
       </div>
     </footer>
   </Card>

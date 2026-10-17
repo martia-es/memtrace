@@ -7,6 +7,7 @@ import { genAiRows, spanIo, type IoBlock } from "@/domain/span-io";
 import IoPanel from "./IoPanel.vue";
 import Card from "./Card.vue";
 import SegmentedControl from "./SegmentedControl.vue";
+import { t } from "../i18n";
 
 const props = defineProps<{ node: SpanNodeDto; emptyHint: string }>();
 
@@ -32,7 +33,7 @@ const cur = computed(() => {
   const n = props.node;
   const io = spanIo(n);
   const chat = n.content?.inputMessages !== undefined;
-  const output: IoBlock[] = n.status.code === "error" ? [{ label: "error", text: n.status.message || "The span ended with an error", structured: false, role: "error" }, ...io.output] : io.output;
+  const output: IoBlock[] = n.status.code === "error" ? [{ label: "error", text: n.status.message || t("spanInspector.the_span_ended_with_an_error"), structured: false, role: "error" }, ...io.output] : io.output;
   const g = n.genAi;
   const tokens = g && (g.totalTokens ?? (g.inputTokens ?? 0) + (g.outputTokens ?? 0));
   const stat = (k: string, v: string | null) => (v ? { k, v } : null);
@@ -41,11 +42,11 @@ const cur = computed(() => {
     if (!raw) return [];
     try {
       const parsed = JSON.parse(raw) as unknown;
-      if (Array.isArray(parsed)) return [["Tags", parsed.map(String).join(", ")]] as [string, string][];
+      if (Array.isArray(parsed)) return [[t("spanInspector.tags"), parsed.map(String).join(", ")]] as [string, string][];
     } catch {
       // fallback
     }
-    return [["Tags", raw]] as [string, string][];
+    return [[t("spanInspector.tags"), raw]] as [string, string][];
   })();
 
   return {
@@ -55,9 +56,9 @@ const cur = computed(() => {
     inBadge: chat ? `${io.input.length} ${io.input.length === 1 ? "message" : "messages"}` : n.content?.toolArguments !== undefined ? "arguments" : "input",
     outBadge: n.status.code === "error" ? "error" : n.content?.outputMessages !== undefined ? "response" : n.content?.toolResult !== undefined ? "result" : "output",
     stats: [
-      stat("Duration", formatDuration(n.durationMs)),
-      stat("Tokens", tokens ? formatCount(tokens) : null),
-      stat("Cost", formatCostUsd(n.costUsd)),
+      stat(t("spanInspector.duration"), formatDuration(n.durationMs)),
+      stat(t("spanInspector.tokens"), tokens ? formatCount(tokens) : null),
+      stat(t("spanInspector.cost"), formatCostUsd(n.costUsd)),
     ].filter((s): s is { k: string; v: string } => s !== null),
     modelChip: g?.responseModel ?? g?.requestModel ?? g?.toolName ?? null,
     providerChip: g?.provider ?? null,
@@ -67,11 +68,11 @@ const cur = computed(() => {
       ...genAiRows(n),
       ...parseMetadataRows(n.attributes["memtrace.metadata"]),
       ...metaTags,
-      ["Service", n.serviceName],
-      ["Start time", formatDateTime(n.startTime)],
-      ["Offset", `+${formatDuration(n.offsetMs)}`],
-      ["Span ID", n.spanId],
-      ["Parent", n.parentSpanId ?? "–"],
+      [t("spanInspector.service"), n.serviceName],
+      [t("spanInspector.start_time"), formatDateTime(n.startTime)],
+      [t("spanInspector.offset"), `+${formatDuration(n.offsetMs)}`],
+      [t("spanInspector.span_id"), n.spanId],
+      [t("spanInspector.parent"), n.parentSpanId ?? "–"],
     ] as [string, string | number][],
   };
 });
@@ -79,14 +80,14 @@ const cur = computed(() => {
 type Tab = "attrs" | "events" | "meta";
 const tab = ref<Tab>("attrs");
 const tabs = computed(() => [
-  { key: "attrs" as const, label: "Attributes", count: cur.value.attrs.length },
-  { key: "events" as const, label: "Events", count: cur.value.events.length },
-  { key: "meta" as const, label: "Metadata", count: cur.value.meta.length },
+  { key: "attrs" as const, label: t("spanInspector.attributes"), count: cur.value.attrs.length },
+  { key: "events" as const, label: t("spanInspector.events"), count: cur.value.events.length },
+  { key: "meta" as const, label: t("spanInspector.metadata"), count: cur.value.meta.length },
 ]);
 </script>
 
 <template>
-  <Card as="section" padding="none" block class="inspector" aria-label="Selected span details">
+  <Card as="section" padding="none" block class="inspector" :aria-label="t('spanInspector.selected_span_details')">
     <div class="head">
       <span class="kind-box" :style="{ background: cur.kind.bg }"><q-icon :name="cur.kind.icon" :style="{ color: cur.kind.color }" size="16px" /></span>
       <div class="title">
@@ -97,7 +98,7 @@ const tabs = computed(() => [
         </div>
         <span class="muted">
           {{ cur.kind.label }} · start +{{ formatDuration(node.offsetMs) }} ·
-          <span class="st" :class="node.status.code">{{ node.status.code === "ok" ? "OK" : node.status.code === "error" ? "Error" : "No status" }}</span>
+          <span class="st" :class="node.status.code">{{ node.status.code === "ok" ? t("spanInspector.ok") : node.status.code === "error" ? t("spanInspector.error") : t("spanInspector.no_status") }}</span>
         </span>
       </div>
       <div class="stats">
@@ -106,14 +107,14 @@ const tabs = computed(() => [
     </div>
 
     <div class="body">
-      <div class="slot"><IoPanel title="Input" :badge="cur.inBadge" :blocks="cur.io.input" :json="cur.io.inputJson" :empty-hint="emptyHint" /></div>
-      <div class="slot"><IoPanel title="Output" :badge="cur.outBadge" :badge-tone="node.status.code === 'error' ? 'error' : 'neutral'" :blocks="cur.output" :json="cur.io.outputJson" :empty-hint="emptyHint" /></div>
+      <div class="slot"><IoPanel :title="t('spanInspector.input')" :badge="cur.inBadge" :blocks="cur.io.input" :json="cur.io.inputJson" :empty-hint="emptyHint" /></div>
+      <div class="slot"><IoPanel :title="t('spanInspector.output')" :badge="cur.outBadge" :badge-tone="node.status.code === 'error' ? 'error' : 'neutral'" :blocks="cur.output" :json="cur.io.outputJson" :empty-hint="emptyHint" /></div>
 
-      <section class="tabs" aria-label="Span metadata">
+      <section class="tabs" :aria-label="t('spanInspector.span_metadata')">
         <SegmentedControl tabs :options="tabs.map((t) => ({ value: t.key, label: t.label, count: t.count }))" :model-value="tab" @update:model-value="tab = $event as Tab" />
         <div v-if="tab === 'attrs'" class="kv">
           <div v-for="[k, v] in cur.attrs" :key="k" class="kv-row"><span class="k" :title="k">{{ k }}</span><span class="val" :title="v">{{ v }}</span></div>
-          <p v-if="cur.attrs.length === 0" class="muted empty">No additional attributes.</p>
+          <p v-if="cur.attrs.length === 0" class="muted empty">{{ t("spanInspector.no_additional_attributes") }}</p>
         </div>
         <div v-else-if="tab === 'events'" class="events">
           <div v-for="(e, i) in cur.events" :key="i" class="ev">
@@ -121,7 +122,7 @@ const tabs = computed(() => [
             <span class="ev-name" :class="{ err: e.name === 'exception' }">{{ e.name }}</span>
             <span class="val" :title="JSON.stringify(e.attributes)">{{ Object.entries(e.attributes).map(([k, v]) => `${k}=${v}`).join(" · ") }}</span>
           </div>
-          <p v-if="cur.events.length === 0" class="muted empty">This span recorded no events.</p>
+          <p v-if="cur.events.length === 0" class="muted empty">{{ t("spanInspector.this_span_recorded_no_events") }}</p>
         </div>
         <div v-else class="kv">
           <div v-for="[k, v] in cur.meta" :key="k" class="kv-row"><span class="k">{{ k }}</span><span class="val">{{ v }}</span></div>

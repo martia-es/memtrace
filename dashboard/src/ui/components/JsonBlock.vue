@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { useQuasar } from "quasar";
 import Button from "./Button.vue";
+import { t } from "../i18n";
 
 const props = defineProps<{ value: unknown }>();
 const $q = useQuasar();
@@ -20,7 +21,7 @@ async function copy() {
 
 <template>
   <div class="json-block">
-    <Button variant="icon" size="sm" class="copy" aria-label="Copy" @click="copy"><q-icon name="content_copy" size="16px" /></Button>
+    <Button variant="icon" size="sm" class="copy" :aria-label="t('jsonBlock.copy')" @click="copy"><q-icon name="content_copy" size="16px" /></Button>
     <pre>{{ text }}</pre>
   </div>
 </template>

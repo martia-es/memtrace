@@ -12,6 +12,7 @@ import { numericChoices } from "../score-config-form";
 import NewScoreConfigModal from "./NewScoreConfigModal.vue";
 import Button from "./Button.vue";
 import SegmentedControl from "./SegmentedControl.vue";
+import { t, tp } from "../i18n";
 
 /**
  * Anotación humana de una traza (ADR-037): una persona puntúa la traza (o un span) con las rúbricas del
@@ -53,7 +54,7 @@ async function load() {
     judgments.value = annotated;
     queues.value = await traceApi.listTraceQueues(props.traceId).then((r) => r.items).catch(() => []);
   } catch (error) {
-    notifyError("Could not load annotations", error);
+    notifyError(t("traceAnnotationsPanel.could_not_load_annotations"), error);
   } finally {
     loading.value = false;
   }
@@ -61,7 +62,7 @@ async function load() {
 void load();
 
 // ---- scope: the whole trace or the span selected in the tree ----
-const SCOPE_OPTIONS = [{ value: "trace", label: "Whole trace" }, { value: "span", label: "Selected span" }];
+const SCOPE_OPTIONS = [{ value: "trace", get label() { return t("traceAnnotationsPanel.whole_trace"); } }, { value: "span", get label() { return t("traceAnnotationsPanel.selected_span"); } }];
 const onSpan = ref(false);
 const scopeSpanId = computed(() => (onSpan.value && props.span ? props.span.spanId : null));
 watch(() => props.span, (span) => {
@@ -105,7 +106,7 @@ async function save(config: ScoreConfigDto) {
       spanId: scopeSpanId.value,
     });
   } catch (error) {
-    notifyError("Could not save annotation", error);
+    notifyError(t("traceAnnotationsPanel.could_not_save_annotation"), error);
   } finally {
     savingId.value = null;
   }
@@ -117,7 +118,7 @@ async function retract(annotation: AnnotationDto) {
     await traceApi.retractTraceAnnotation(props.traceId, annotation.configId, { spanId: annotation.spanId, ...(own ? {} : { annotatorId: annotation.annotator.id }) });
     judgments.value = await traceApi.listTraceAnnotations(props.traceId);
   } catch (error) {
-    notifyError("Could not retract annotation", error);
+    notifyError(t("traceAnnotationsPanel.could_not_retract_annotation"), error);
   }
 }
 
@@ -129,38 +130,38 @@ function choices(config: ScoreConfigDto): Array<{ value: string; label: string }
 }
 
 const canAct = (annotation: AnnotationDto) => annotation.annotator.id === myUserId.value || canModerate.value;
-const authorOf = (annotation: AnnotationDto) => (annotation.annotator.id === myUserId.value ? "You" : (annotation.annotator.name ?? "Former member"));
+const authorOf = (annotation: AnnotationDto) => (annotation.annotator.id === myUserId.value ? t("traceAnnotationsPanel.you") : (annotation.annotator.name ?? t("traceAnnotationsPanel.former_member")));
 const scopeOf = (annotation: AnnotationDto) => (annotation.spanId ? `span ${shortId(annotation.spanId)}` : "whole trace");
 </script>
 
 <template>
   <div class="annotations" data-testid="annotations-panel">
-    <p v-if="loading" class="hint">Loading…</p>
+    <p v-if="loading" class="hint">{{ t("traceAnnotationsPanel.loading") }}</p>
 
     <template v-else>
-      <div v-if="span" class="scope" role="group" aria-label="What to annotate">
-        <SegmentedControl size="sm" aria-label="Annotate" :options="SCOPE_OPTIONS" :model-value="onSpan ? 'span' : 'trace'" @update:model-value="onSpan = $event === 'span'" />
+      <div v-if="span" class="scope" role="group" :aria-label="t('traceAnnotationsPanel.what_to_annotate')">
+        <SegmentedControl size="sm" :aria-label="t('traceAnnotationsPanel.annotate')" :options="SCOPE_OPTIONS" :model-value="onSpan ? 'span' : 'trace'" @update:model-value="onSpan = $event === 'span'" />
         <span class="hint span-name">{{ span.name }}</span>
       </div>
 
       <p v-if="queues.length" class="hint queues" data-testid="trace-queues">
-        In review queue{{ queues.length === 1 ? "" : "s" }}:
+        {{ tp("traceAnnotationsPanel.inQueue", queues.length) }}
         <router-link v-for="q in queues" :key="q.queueId" :to="{ name: 'annotation-queues' }" class="queue-chip">
-          {{ q.queueName }} · {{ q.itemStatus === "skipped" ? "unreviewable" : q.itemStatus }}<template v-if="q.archived"> · archived</template>
+          {{ q.queueName }} · {{ q.itemStatus === "skipped" ? t("traceAnnotationsPanel.unreviewable") : q.itemStatus }}<template v-if="q.archived">{{ " " + t("traceAnnotationsPanel.archived") }}</template>
         </router-link>
       </p>
 
       <p v-if="!configs.length" class="hint" data-testid="no-configs">
-        There are no score configs yet — they define what you can score.
-        <template v-if="!canModerate">Ask an experiment admin to create them.</template>
+        {{ t("traceAnnotationsPanel.there_are_no_score_configs_yet") }}
+        <template v-if="!canModerate">{{ t("traceAnnotationsPanel.ask_an_experiment_admin_to_create") }}</template>
       </p>
-      <Button v-if="canModerate" size="sm" class="mt-new" data-testid="new-config" @click="showNewConfig = true">+ New score config</Button>
+      <Button v-if="canModerate" size="sm" class="mt-new" data-testid="new-config" @click="showNewConfig = true">{{ t("traceAnnotationsPanel.new_score_config") }}</Button>
       <NewScoreConfigModal v-if="showNewConfig" :experiment-id="experimentId" @close="showNewConfig = false" @created="load" />
 
       <section v-for="config in configs" :key="config.id" class="config" data-testid="annotation-config">
         <div class="config-head">
           <span class="config-name">{{ config.name }}</span>
-          <span v-if="mine(config.id)" class="mine-pill">your label saved</span>
+          <span v-if="mine(config.id)" class="mine-pill">{{ t("traceAnnotationsPanel.your_label_saved") }}</span>
         </div>
         <p v-if="config.description" class="hint">{{ config.description }}</p>
 
@@ -176,27 +177,27 @@ const scopeOf = (annotation: AnnotationDto) => (annotation.spanId ? `span ${shor
             :min="config.minValue ?? undefined"
             :max="config.maxValue ?? undefined"
             :placeholder="`${config.minValue} – ${config.maxValue}`"
-            :aria-label="`${config.name} value`" />
-          <TextInput v-model="drafts[config.id]!.comment" placeholder="Comment (optional)" :aria-label="`${config.name} comment`" maxlength="5000" />
-          <Button variant="primary" :disabled="savingId === config.id || !isDirty(config)" @click="save(config)">Save</Button>
+            :aria-label="t('traceAnnotationsPanel.name_value', { name: config.name })" />
+          <TextInput v-model="drafts[config.id]!.comment" :placeholder="t('traceAnnotationsPanel.comment_optional')" :aria-label="t('traceAnnotationsPanel.name_comment', { name: config.name })" maxlength="5000" />
+          <Button variant="primary" :disabled="savingId === config.id || !isDirty(config)" @click="save(config)">{{ t("traceAnnotationsPanel.save") }}</Button>
         </div>
       </section>
 
-      <section v-if="judgments.annotations.length" class="list" aria-label="Human labels">
-        <h3>Human labels</h3>
+      <section v-if="judgments.annotations.length" class="list" :aria-label="t('traceAnnotationsPanel.human_labels')">
+        <h3>{{ t("traceAnnotationsPanel.human_labels") }}</h3>
         <ul>
           <li v-for="a in judgments.annotations" :key="`${a.configId}|${a.spanId}|${a.annotator.id}`" class="row" data-testid="annotation-row">
             <span class="row-name">{{ a.configName }}</span>
             <span class="row-value mono">{{ a.value }}</span>
             <span class="hint">{{ authorOf(a) }} · {{ scopeOf(a) }}</span>
             <span v-if="a.comment" class="row-comment">“{{ a.comment }}”</span>
-            <Button class="push" variant="danger" size="sm" v-if="canAct(a)" @click="retract(a)">Retract</Button>
+            <Button class="push" variant="danger" size="sm" v-if="canAct(a)" @click="retract(a)">{{ t("traceAnnotationsPanel.retract") }}</Button>
           </li>
         </ul>
       </section>
 
-      <section v-if="judgments.scores.length" class="list" aria-label="Automatic scores">
-        <h3>Automatic scores</h3>
+      <section v-if="judgments.scores.length" class="list" :aria-label="t('traceAnnotationsPanel.automatic_scores')">
+        <h3>{{ t("traceAnnotationsPanel.automatic_scores") }}</h3>
         <ul>
           <li v-for="(s, i) in judgments.scores" :key="i" class="row" data-testid="score-row">
             <span class="row-name">{{ s.name }}</span>
