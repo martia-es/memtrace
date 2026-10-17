@@ -39,7 +39,7 @@ async function openPanel(identity: FakeIdentityApi, role = "technical") {
 }
 
 async function openPage(identity: FakeIdentityApi, role = "technical") {
-  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/e/:experimentId/overview/catalog", name: "overview-catalog", component: { template: "<div />" } }] });
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/e/:experimentId/overview/catalog", name: "overview-catalog", component: { template: "<div />" } }, { path: "/e/:experimentId/overview/charts", name: "overview-charts", component: { template: "<div />" } }] });
   await router.push("/e/e1/overview/catalog");
   await router.isReady();
   const Host = defineComponent({ setup: () => () => h(QLayout, () => h(QPageContainer, () => h(ChartCatalogPage))) });

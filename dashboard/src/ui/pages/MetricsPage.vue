@@ -359,10 +359,10 @@ const view = computed(() => (route.meta.view as View | undefined) ?? "summary");
 const PANEL: Record<View, string> = { summary: "overview", compare: "compare", charts: "custom", reports: "reports", report: "report" };
 const activePanel = computed(() => PANEL[view.value]);
 const reportId = computed(() => (view.value === "report" ? String(route.params.reportId) : null));
-const VIEW_TITLES: Record<View, string> = { summary: "Overview", compare: "Compare", charts: "Custom charts", reports: "Reports", report: "Report" };
+const VIEW_TITLES: Record<View, string> = { summary: "Overview", compare: "Compare", charts: "Charts", reports: "Reports", report: "Report" };
 const crumbs = computed(() => {
-  const root = { label: "Overview", to: { name: "overview", params: { experimentId: experimentId.value } } };
   if (view.value === "summary") return [{ label: "Overview" }];
+  const root = { label: "Analytics" };
   if (view.value === "report") return [root, { label: "Reports", to: { name: "overview-reports", params: { experimentId: experimentId.value } } }, { label: pageTitle.value }];
   return [root, { label: VIEW_TITLES[view.value] }];
 });
@@ -584,6 +584,7 @@ function swapAgents() {
       </TabPanel>
 
       <TabPanel :active="activePanel === 'custom'" class="metrics-tab-panel">
+        <router-link class="catalog-link" :to="{ name: 'overview-catalog', params: { experimentId } }" data-testid="catalog-link">What can I chart? Data catalog →</router-link>
         <CustomChartsPanel :experiment-id="experimentId" :range="customChartsRange" />
       </TabPanel>
 
@@ -615,6 +616,12 @@ function swapAgents() {
 </template>
 
 <style scoped>
+.catalog-link {
+  display: inline-block;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: var(--mt-accent-text);
+}
 .page {
   box-sizing: border-box;
   display: flex;
