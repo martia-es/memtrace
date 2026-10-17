@@ -85,6 +85,13 @@ Tres modos de visualización: `bubble` (ventana flotante), `dock` (panel lateral
 - Un control nuevo = primero buscar si ya existe en la tabla de componentes; si no, crearlo allí y añadirlo a esta tabla.
 - Un color nuevo = un token `--mt-*` con valor claro y oscuro; nunca un hex dentro de un componente.
 
+## 11. Idiomas (en / es)
+
+- El inglés es el idioma fuente. Los textos de la interfaz viven en `src/ui/i18n/en.ts` y `es.ts` (claves planas `area.nombre`, marcadores `{nombre}`); `es.ts` está tipado contra `en.ts` y `tests/ui/i18n.test.ts` exige las mismas claves y marcadores. Un texto nuevo = una clave en los dos catálogos.
+- Se usa con `t("clave", { param })` de `ui/i18n` (módulo propio, sin plugin: funciona en tests sin montarlo). El idioma activo es un `ref` compartido, persistido en `memtrace.locale`; por defecto el del navegador (`es*` → español, el resto inglés). Se cambia desde el menú de usuario y actualiza `<html lang>` y el paquete de idioma de Quasar.
+- Las tablas de datos con textos (p. ej. `NAV`) guardan la clave y traducen al pintar, no al declarar.
+- Migración por fases; lo que aún no tiene clave se ve en inglés.
+
 ## 6. Costs › Model pricing: calidad y confirmación de coincidencias
 
 - La tabla de precios gana una columna **Quality · Arena Elo** (`domain/model-quality.ts` decide qué dice cada celda: puntuación, candidato, sin equivalente o no disponible). Una celda con candidato lleva el nombre de Arena y un botón «Confirm match →»; quien no puede decidir (`pricing:manage`) ve «Awaiting confirmation». Antes de la primera sincronización la columna no se pinta y los precios funcionan igual.
