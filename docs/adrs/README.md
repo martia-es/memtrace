@@ -73,6 +73,7 @@ Do **not** write one for a new screen, an endpoint that follows an existing patt
 | 097 | Repeated Executions of a Run to Measure Evaluation Noise | [evaluation/adr-097-repeated-executions-to-measure-evaluation-noise.md](evaluation/adr-097-repeated-executions-to-measure-evaluation-noise.md) |
 | 098 | Durable Ingestion Pipeline: Dedicated Ingest Service, Broker Between Collectors, Prometheus and Grafana | [infra/adr-098-durable-ingestion-pipeline-with-broker.md](infra/adr-098-durable-ingestion-pipeline-with-broker.md) |
 | 099 | Deduplicated Span Storage with ReplacingMergeTree | [storage/adr-099-deduplicated-span-storage.md](storage/adr-099-deduplicated-span-storage.md) |
+| 100 | ArcadeDB as the Knowledge Store of Phase 2 (Mem), Optional and Behind a Port | [storage/adr-100-arcadedb-knowledge-store.md](storage/adr-100-arcadedb-knowledge-store.md) |
 
 ## Retired ADRs
 

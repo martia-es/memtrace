@@ -310,7 +310,7 @@ Un usuario puede agrupar varias gráficas custom ya guardadas en un **informe** 
 ### Componentes Técnicos
 
 #### 2.1 Motor de Análisis de Trazas
-- **Tecnología**: Redis Stack OpenSource
+- **Tecnología**: tablas existentes en la fase 2.0; ArcadeDB (opcional, detrás de un puerto) desde la 2.1 — [ADR-100](adrs/storage/adr-100-arcadedb-knowledge-store.md)
 - **Propósito**: Procesar trazas para extraer patrones de éxito/fallo
 - **Operaciones**:
   - Clasificar trazas: exitosas vs fallidas
@@ -319,7 +319,7 @@ Un usuario puede agrupar varias gráficas custom ya guardadas en un **informe** 
   - Generar embeddings de trazas fallidas para similitud
 
 #### 2.2 Knowledge Graph
-- **Almacenamiento**: Redis Stack (grafos + search)
+- **Almacenamiento**: ArcadeDB (grafo + vectores), opt-in y con prueba de concepto previa ([ADR-100](adrs/storage/adr-100-arcadedb-knowledge-store.md)). Redis Stack descartado: RedisGraph está descontinuado
 - **Nodos**:
   - Agentes
   - Herramientas/Tools
@@ -355,8 +355,8 @@ Un usuario puede agrupar varias gráficas custom ya guardadas en un **informe** 
 
 ### Deliverables Fase 2
 
-- [ ] Motor de análisis de trazas (ClickHouse → Redis)
-- [ ] Knowledge graph schema en Redis Stack
+- [ ] Motor de análisis de trazas (lee de ClickHouse; sin almacén nuevo en la 2.0)
+- [ ] Prueba de concepto de ArcadeDB contra los criterios del ADR-100 y esquema del grafo
 - [ ] Pipeline de extracción de patrones y reglas
 - [ ] Servicio de recomendación de feedback para agentes
 - [ ] API para inyectar contexto en prompts
@@ -367,7 +367,7 @@ Un usuario puede agrupar varias gráficas custom ya guardadas en un **informe** 
 
 ```
 Análisis: Python (pandas, scikit-learn)
-Knowledge Store: Redis Stack (graphs + search)
+Knowledge Store: ArcadeDB (graph + vector), con PostgreSQL + pgvector como alternativa (ADR-100)
 API: FastAPI
 Embeddings: Sentence Transformers / OpenAI
 Monitoreo: Prometheus + Grafana (opcional)
