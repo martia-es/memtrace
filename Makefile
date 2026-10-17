@@ -12,7 +12,7 @@ PRICING_IMAGE ?= localhost/memtrace/model-pricing:dev
 QUALITY_IMAGE ?= localhost/memtrace/model-quality:dev
 
 .DEFAULT_GOAL := help
-.PHONY: help check up images dashboard api ingest status forward logs query migrate backfill-experiment-id netpol-check migrate-postgres pricing-sync quality-sync down reset db-reset dev-data docs weather weather-bg weather-stop weather-restart rag rag-bg rag-stop rag-restart
+.PHONY: help check up images dashboard api ingest prune status forward logs query migrate backfill-experiment-id netpol-check migrate-postgres pricing-sync quality-sync down reset db-reset dev-data docs weather weather-bg weather-stop weather-restart rag rag-bg rag-stop rag-restart
 
 help: ## Muestra esta ayuda
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-10s %s\n", $$1, $$2}'
@@ -44,6 +44,7 @@ up: check ## Levanta todo en 1 solo comando (clúster, despliegue, migraciones y
 	kubectl rollout status deployment/docs -n $(NS) --timeout=300s
 	@$(MAKE) --no-print-directory pricing-sync
 	@$(MAKE) --no-print-directory quality-sync
+	@$(MAKE) --no-print-directory prune
 	@pkill -f "kubectl port-forward" 2>/dev/null || true
 	@nohup kubectl port-forward svc/clickhouse 8123:8123 -n $(NS) >/dev/null 2>&1 &
 	@nohup kubectl port-forward svc/dashboard 8080:8080 -n $(NS) >/dev/null 2>&1 &
@@ -75,7 +76,9 @@ images: ## Construye las imágenes de la API, la ingesta, el dashboard y la docu
 	for img in $(API_IMAGE) $(INGEST_IMAGE) $(DASH_IMAGE) $(DOCS_IMAGE) $(PRICING_IMAGE) $(QUALITY_IMAGE); do \
 		docker save -o $$tmp $$img && kind load image-archive $$tmp --name $(CLUSTER) || { rm -f $$tmp; exit 1; }; \
 	done; rm -f $$tmp
-	@kubectl rollout restart deployment/api deployment/ingest deployment/dashboard deployment/docs -n $(NS) 2>/dev/null || true
+	@kubectl rollout restart deployment/api deployment/ingest deployment/dashboard deployment/docs -n $(NS) 2>/dev/null \
+		&& kubectl rollout status deployment/api deployment/ingest deployment/dashboard deployment/docs -n $(NS) --timeout=300s || true
+	@$(MAKE) --no-print-directory prune
 
 # Reconstruye UNA imagen, la carga en el clúster, reinicia su deployment y relanza solo su port-forward
 # $(1)=deployment  $(2)=imagen  $(3)=comando docker build  $(4)=puerto local:servicio
@@ -87,6 +90,7 @@ define redeploy
 	kubectl rollout status deployment/$(1) -n $(NS) --timeout=300s
 	@pkill -f "kubectl port-forward svc/$(1) " 2>/dev/null || true
 	@nohup kubectl port-forward svc/$(1) $(4) -n $(NS) >/dev/null 2>&1 &
+	@$(MAKE) --no-print-directory prune
 endef
 
 dashboard: ## Reconstruye y despliega solo el dashboard (más rápido que make images)
@@ -104,6 +108,10 @@ ingest: ## Reconstruye y despliega solo el servicio de ingesta (ADR-098); queda 
 docs: ## Reconstruye y despliega solo la documentación (más rápido que make images)
 	$(call redeploy,docs,$(DOCS_IMAGE),docker build -t $(DOCS_IMAGE) docs-site,8081:8080)
 	@echo "Documentación actualizada: http://localhost:8081 (recarga forzada: Ctrl/Cmd+Shift+R)"
+
+prune: ## Borra imágenes viejas: las versiones anteriores que kind load deja en el nodo y las sin etiqueta de Docker/Podman (se ejecuta solo tras make images, api, dashboard, ingest y up)
+	-@docker image prune -f >/dev/null 2>&1
+	@$(PYTHON) scripts/prune-kind-images.py --cluster $(CLUSTER) --namespace $(NS)
 
 status: ## Estado de pods, volúmenes y migraciones
 	kubectl get pods,pvc,job -n $(NS)
