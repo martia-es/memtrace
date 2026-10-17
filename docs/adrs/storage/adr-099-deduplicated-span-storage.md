@@ -76,7 +76,32 @@ Without a broker the pause in step 3 would lose or reject traces, which is why t
 - **Reads use `final = 1`, not `FROM t FINAL`.** `FINAL` on a plain MergeTree fails (`ILLEGAL_FINAL`, checked on 23.8), so the explicit syntax would break the API between deploying it and swapping. The setting applies FINAL only where it exists and ignores the rest, so the API is correct before, during and after. It is passed in `DEDUPED_READS` by the one query helper of each span repository, the data export and the retention count, and a test fails if a new query on `otel_traces` does not use it. It also applies to the other tables of a joined query (for example `span_topics`), which is what is wanted.
 - **The ExperimentId backfill** (ADR-088) can no longer `UPDATE` rows of `otel_traces` once the experiment is in the sort key; it now decides by the real key and copies and deletes, like the other tables with the experiment in their key.
 - **Rehearsed on a copy, then run for real.** On a scratch copy of the data with an inserter running throughout (202 spans), all 202 survived, the total was exactly 8,244 + 202, the lookup had all 202 and the view was back. On the real cluster with the pipeline running (SDK to ClickHouse through `ingest` and Kafka) while the swap ran, 409 of 409 accepted spans were in ClickHouse and in the lookup, total rows 8,653 = 8,244 + 409, no duplicates by key, and the writer kept inserting into the swapped table. The load gate then passed with a query p95 of 70 ms (it was 50 to 100 ms before) and the Kafka resilience scenarios still pass.
-- **Not covered:** a swap on a large table (the local one has 8 k rows; the history copy is one `INSERT ... SELECT` per day, so a day must fit in what ClickHouse can move in one statement) and the cost of `final = 1` on large tables: measure with the load gate on a bigger volume before relying on it. The old table doubles the disk until `make dedupe-cleanup`.
+- **Measured on a large table** (below): the first design did not hold, and the fixes are in the sections that follow. The old table still doubles the disk until it is dropped (automatically after 7 days, or `make dedupe-cleanup`).
+
+### Update (2026-10-17): measured with 17.8 million spans
+
+Setup: a throwaway ClickHouse 23.8 limited to 3 GB (and later a 24.3 one), 17.8 M synthetic spans over 31 days (~3 GB on disk; random text in the prompt attribute so it does not compress unrealistically), with the real migrations and the real Job.
+
+1. **The swap ran out of memory** with one `INSERT ... SELECT` per day (~600 k rows): recalculating the MATERIALIZED columns of a big block needs more than the 2.7 GB the server allowed. Fix: copy by hour in blocks of 65,536 rows with 2 threads, and split an hour with more than 500,000 rows by hash of `TraceId` (`maxRowsPerChunk`). With it, 17.8 M rows swapped in **421 s with a server peak of 1.26 GB**, and the 24 h catch-up matched exactly (572,432 of 572,432 spans).
+2. **`final = 1` alone is not viable at this size.** On 23.8, with the table as the merges left it, queries ran 5 to 10 times slower and four of seven exhausted the memory (Q3 latest root spans, Q4 trace detail, Q5 daily series, Q6 attribute discovery). `OPTIMIZE ... FINAL` of the whole table took 93 s and folded the 0.87 M duplicates the catch-up had created (18.7 M rows back to 17,836,424).
+3. **Three things make it cheap:** (a) compact closed days to one part per partition; (b) `do_not_merge_across_partitions_select_final = 1`, safe because every copy of a span has the same timestamp and therefore lives in the same partition; (c) `use_skip_indexes_if_final = 1`, without which FINAL disables the skip indexes and trace detail by `TraceId` reads everything (242 ms against 23 ms). Median of three runs, ms:
+
+| | 23.8, 17.8 M, no FINAL | 23.8, three settings | 24.3, 5.3 M, no FINAL | 24.3, three settings |
+|---|---|---|---|---|
+| Errors and p95, 24 h | 16 | 25 | 25 | 21 |
+| Tokens by model, 7 d | 317 | 551 | 423 | 307 |
+| Latest 50 root spans | 78 | 327 | 61 | 51 |
+| Trace detail | 19 | 23 | 21 | 18 |
+| Daily series, 30 d | 54 | 235 | 27 | 21 |
+| Attribute discovery | 231 | 330 | 323 | 276 |
+| Total of an experiment | 245 | 419 | 93 | 101 |
+
+   On **24.3 the cost is nil**; on 23.8 it is 1.2 to 4 times. The two columns use different row counts (the 24.3 copy stopped at 5.3 M rows), so compare each column with its own baseline, not across them. Hence **the chart and the manifests now run ClickHouse 24.3** (the migration Job image already was), and the settings above are `DEDUPED_READS`.
+4. **Maintenance Job.** `maintain-otel-traces` (CronJob, hourly, `make compact` to run it now) compacts every closed partition with more than one part (the last two days are left alone because they still receive inserts; a late span is compacted by the next pass) and drops `otel_traces_pre_dedup` 7 days after the swap was verified.
+5. **Upgrading the real cluster from 23.8 to 24.3** was done after a backup (`make backup`); the data, the migrations and the Collector 0.96 ClickHouse exporter worked unchanged and the end-to-end resilience scenarios and the load gate passed on it.
+
+Still not measured: a table of hundreds of millions of rows, and a managed ClickHouse (use 24.3 or newer there too).
+
 
 ## Consequences
 

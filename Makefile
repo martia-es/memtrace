@@ -12,7 +12,7 @@ PRICING_IMAGE ?= localhost/memtrace/model-pricing:dev
 QUALITY_IMAGE ?= localhost/memtrace/model-quality:dev
 
 .DEFAULT_GOAL := help
-.PHONY: help check up images dashboard api ingest monitoring monitoring-down prune kafka-topics dedupe dedupe-cleanup status forward logs query migrate backfill-experiment-id netpol-check migrate-postgres pricing-sync quality-sync down reset db-reset dev-data docs weather weather-bg weather-stop weather-restart rag rag-bg rag-stop rag-restart
+.PHONY: help check up images dashboard api ingest monitoring monitoring-down prune kafka-topics dedupe dedupe-cleanup compact status forward logs query migrate backfill-experiment-id netpol-check migrate-postgres pricing-sync quality-sync down reset db-reset dev-data docs weather weather-bg weather-stop weather-restart rag rag-bg rag-stop rag-restart
 
 help: ## Muestra esta ayuda
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-10s %s\n", $$1, $$2}'
@@ -156,6 +156,12 @@ kafka-topics: ## Relanza el Job que crea y ajusta el tópico de trazas en Kafka 
 	kubectl delete job kafka-topics -n $(NS) --ignore-not-found
 	kubectl apply -f k8s/43-kafka-topics.yaml
 	kubectl wait --for=condition=complete job/kafka-topics -n $(NS) --timeout=300s
+
+compact: ## Lanza ahora el mantenimiento de otel_traces (compactar días cerrados; ADR-099) sin esperar al CronJob horario
+	kubectl delete job maintain-otel-traces-manual -n $(NS) --ignore-not-found
+	kubectl create job maintain-otel-traces-manual --from=cronjob/maintain-otel-traces -n $(NS)
+	kubectl wait --for=condition=complete job/maintain-otel-traces-manual -n $(NS) --timeout=3600s
+	kubectl logs job/maintain-otel-traces-manual -n $(NS)
 
 dedupe: ## Relanza el Job que cambia otel_traces a su versión sin duplicados (ADR-099); es idempotente
 	kubectl delete job dedupe-otel-traces -n $(NS) --ignore-not-found

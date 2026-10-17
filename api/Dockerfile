@@ -38,6 +38,8 @@ COPY --from=build --chown=node:node /app/dist-worker/evaluate-alerts.cjs ./worke
 COPY --from=build --chown=node:node /app/dist-worker/backfill-experiment-id.cjs ./worker/backfill-experiment-id.cjs
 # cambio de otel_traces a su versión sin duplicados (ADR-099): Job `dedupe-otel-traces`, repetible
 COPY --from=build --chown=node:node /app/dist-worker/dedupe-otel-traces.cjs ./worker/dedupe-otel-traces.cjs
+# mantenimiento de otel_traces (compactar días cerrados, borrar la tabla anterior al cambio): CronJob `maintain-otel-traces`
+COPY --from=build --chown=node:node /app/dist-worker/maintain-otel-traces.cjs ./worker/maintain-otel-traces.cjs
 # uid de `node`; numérico para que Kubernetes pueda verificar runAsNonRoot
 USER 1000:1000
 EXPOSE 3001
