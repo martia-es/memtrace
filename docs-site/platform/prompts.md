@@ -4,9 +4,9 @@ The place where the prompts of your agents live, with their history. A prompt be
 
 ## The list: what is live
 
-One table with a row per prompt and fragment: **Name**, **Type** (*Prompt* or *Fragment*), the **latest** version and, for `dev`, `pre` and `pro`, the version each tag points to. In `pro`, a row that is behind the latest version is highlighted in orange and says how far (*3 behind*); a dash means that environment has no tag yet.
+One white table with a row per prompt and fragment: the **name** with an icon and its type (*Prompt* or *Fragment*), the **latest** version and, for `dev`, `pre` and `pro`, the version each tag points to, with a dot: teal when it is in sync, orange when it is behind the latest version (*3 behind*). A dash means that environment has no tag yet. Hover a row to see **Open →**.
 
-Use the **Type** and **Status** dropdowns to narrow the list (*Behind in PRO*, *In sync*, *Not released*); both are kept in the link. The table assumes the usual `dev`, `pre` and `pro` environments; any other tag is listed next to the name. **Show archived** is in the **⋯** menu. **+ New prompt** and **+ New fragment** are at the top.
+Narrow the list with the **All / Prompts / Fragments** switch and the status chips (*Behind in PRO*, *Not released*, *In sync*; click a chip again to clear it); both are kept in the link. The table assumes the usual `dev`, `pre` and `pro` environments; any other tag is listed next to the name. **Show archived** is in the **⋯** menu. **+ New prompt** and **+ New fragment** are at the top.
 
 ## Versions
 
@@ -14,9 +14,9 @@ Every save creates a new, **immutable version** (`v1`, `v2`, `v3`…): the text,
 
 Variables are written `{{city}}`; MemTrace detects them when you save and lists them on the version.
 
-A prompt page has two columns.
+A prompt page has the environments across the top and, below, the selected version on the left and the list of versions on the right.
 
-**On the left**, what is live and where to change it. There is one card per environment (`dev`, `pre`, `pro`) with the version it runs, whether it is *up to date* or *N versions behind*, and what the agents report (*agent on v9*, or *no agent has reported it yet*). Next to a card that is behind, **Promote vN** moves that environment to the latest version (or **Request approval** when the step needs one). The **⋯** button of a card opens its options: the agent's state, a reason, **Point to…** any version and **remove the tag**. Below the cards, your **custom tags** as chips, and the list of **versions**: search by number (`12`) or a word of the message, each one grouped by month, with its tags, who created it and where it runs.
+**At the top**, what is live and where to change it. There is one card per environment (`dev`, `pre`, `pro`) with the version it runs, whether it is *up to date* or *N versions behind*, and what the agents report (*agent on v9*, or *no agent has reported it yet*). Next to a card that is behind, **Promote vN** moves that environment to the latest version (or **Request approval** when the step needs one). The **⋯** button of a card opens its options: the agent's state, a reason, **Point to…** any version and **remove the tag**. Below the cards, your **custom tags** as chips. **On the right**, the **versions** as a timeline: search by number (`12`) or a word of the message, each one grouped by month, with its tags, who created it and where it runs.
 
 **On the right**, the version you picked, with **Edit as new version** and three tabs:
 
@@ -38,7 +38,7 @@ A tag is a label that points to one version. The tags `dev`, `pre` and `pro` (th
 - Moving an **environment tag** (`dev`, `pre`, `pro`) needs `prompt:promote`, which the `technical` role has by default.
 - Each move is saved in the **history** of the prompt: from which version to which, who did it, when and the reason you wrote. The author is shown as their name (or email if they have no name).
 - A version can be retrieved by number (`3`) or by tag (`pro`), also through the [API](./api#prompts).
-- **A custom tag is a channel with your own name.** An agent follows it with `memtrace.prompts.get("weather-system", tag="canary")` and receives the version it points to, so moving the tag updates the agent without a redeploy. In the **Custom tags** row on the left, each tag is a chip with the number of agents that follow it; click it to see them (environment, running version, last report) and to move or remove it, and use **+ New tag** to tag the version you are looking at. A tag no agent has reported says so, with the line to paste in the agent and a **Copy** button. Names use lowercase letters, digits, `-` and `_`, start with a letter and have up to 32 characters; `dev`, `pre` and `pro` are environments and cannot be created here. The agent chooses its tag in its code; choosing it from this page is not available yet.
+- **A custom tag is a channel with your own name.** An agent follows it with `memtrace.prompts.get("weather-system", tag="canary")` and receives the version it points to, so moving the tag updates the agent without a redeploy. In the **Custom tags** row under the environment cards, each tag is a chip with the number of agents that follow it; click it to see them (environment, running version, last report) and to move or remove it, and use **+ New tag** to tag the version you are looking at. A tag no agent has reported says so, with the line to paste in the agent and a **Copy** button. Names use lowercase letters, digits, `-` and `_`, start with a letter and have up to 32 characters; `dev`, `pre` and `pro` are environments and cannot be created here. The agent chooses its tag in its code; choosing it from this page is not available yet.
 
 ## Archive instead of delete
 
@@ -62,7 +62,7 @@ The [Python SDK](/library/prompts) reads the prompt of an environment with `memt
 
 ## What really runs
 
-Each environment card on the left says what the agents report for it, and its **⋯** options give the detail: the version each agent reports to be using. *Up to date* means it runs the version its tag points to; *Catching up* means the tag moved and the agent has not picked it up yet (it takes up to 30 seconds, or longer if some replica is stale); *Fixed version* is an agent that asked for a version number instead of a tag; *Not reporting* means it has not reported for 15 minutes. In the version list, a version running somewhere says **Running in pro**. Agents report only when they read their prompt with the SDK.
+Each environment card says what the agents report for it, and its **⋯** options give the detail: the version each agent reports to be using. *Up to date* means it runs the version its tag points to; *Catching up* means the tag moved and the agent has not picked it up yet (it takes up to 30 seconds, or longer if some replica is stale); *Fixed version* is an agent that asked for a version number instead of a tag; *Not reporting* means it has not reported for 15 minutes. In the version list, a version running somewhere says **Running in pro**. Agents report only when they read their prompt with the SDK.
 
 ## Traces of a version
 
