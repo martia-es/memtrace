@@ -178,7 +178,7 @@ const chartsRoute = computed(() => ({ name: "overview-charts", params: route.par
         </div>
 
         <div class="pair" data-testid="breakdown-pair">
-          <div v-for="s in slots" :key="s.letter" class="slot" :class="{ filled: !!s.item, next: s.next }" :data-testid="`slot-${s.letter}`">
+          <div v-for="s in slots" :key="s.letter" class="slot" :class="[`role-${s.letter.toLowerCase()}`, { filled: !!s.item, next: s.next }]" :data-testid="`slot-${s.letter}`">
             <span class="letter" aria-hidden="true">{{ s.letter }}</span>
             <div class="slot-body">
               <span class="slot-role">{{ s.letter }} · {{ s.role.toUpperCase() }}</span>
@@ -214,7 +214,7 @@ const chartsRoute = computed(() => ({ name: "overview-charts", params: route.par
             <tr
               v-for="i in items"
               :key="i.key"
-              :class="{ on: !!letterOf(i.key), few: few(i), pickable: !only }"
+              :class="[letterOf(i.key) ? `on on-${letterOf(i.key).toLowerCase()}` : '', { few: few(i), pickable: !only }]"
               :data-testid="`row-${i.key}`"
               @click="pick(i.key)"
             >
@@ -235,6 +235,7 @@ const chartsRoute = computed(() => ({ name: "overview-charts", params: route.par
                 </Button>
               </td>
               <td class="name">
+                <span v-if="letterOf(i.key)" class="badge" :class="`badge-${letterOf(i.key).toLowerCase()}`" aria-hidden="true">{{ letterOf(i.key) }}</span>
                 <span class="key">{{ i.key }}</span>
                 <Pill v-if="few(i)" tone="warn">few traces</Pill>
               </td>
@@ -278,7 +279,7 @@ const chartsRoute = computed(() => ({ name: "overview-charts", params: route.par
 
         <section v-else-if="compared" class="compare" data-testid="breakdown-compare">
           <div class="compare-head">
-            <span class="tag a">A</span><strong>{{ compared.a.key }}</strong><span class="muted">against</span><span class="tag b">B</span><strong>{{ compared.b.key }}</strong>
+            <span class="tag tag-a">A</span><strong>{{ compared.a.key }}</strong><span class="muted">against</span><span class="tag tag-b">B</span><strong>{{ compared.b.key }}</strong>
             <Pill v-if="compared.a.related.join() !== compared.b.related.join()" tone="info" data-testid="compare-differs">
               {{ groupBy === "environment" ? "Run different versions" : "Seen in different environments" }}
             </Pill>
@@ -286,7 +287,7 @@ const chartsRoute = computed(() => ({ name: "overview-charts", params: route.par
           <div class="cells">
             <div v-for="c in compared.cells" :key="c.label" class="cell" :data-testid="`delta-${c.label}`">
               <span class="cell-label">{{ c.label }}</span>
-              <span class="cell-range muted">{{ c.from }} → <strong>{{ c.to }}</strong></span>
+              <span class="cell-range"><span class="from">{{ c.from }}</span> <span class="muted">→</span> <strong class="to">{{ c.to }}</strong></span>
               <span class="cell-delta" :class="c.tone">{{ c.delta }}</span>
               <span class="cell-note muted">{{ c.note }}</span>
             </div>
@@ -429,6 +430,45 @@ const chartsRoute = computed(() => ({ name: "overview-charts", params: route.par
   border-style: solid;
   border-color: var(--mt-accent);
 }
+/* A y B tienen cada una su color en todo el flujo: hueco, círculo, fila, etiqueta y cifras de la comparación */
+.slot.role-a.next,
+.slot.role-a.filled {
+  border-color: var(--mt-cmp-a);
+}
+.slot.role-b.next,
+.slot.role-b.filled {
+  border-color: var(--mt-cmp-b);
+}
+.slot.role-a.next {
+  box-shadow: 0 0 0 3px var(--mt-cmp-a-soft);
+}
+.slot.role-b.next {
+  box-shadow: 0 0 0 3px var(--mt-cmp-b-soft);
+}
+.slot.role-a .letter,
+.slot.role-a .slot-role {
+  border-color: var(--mt-cmp-a);
+  color: var(--mt-cmp-a-ink);
+}
+.slot.role-b .letter,
+.slot.role-b .slot-role {
+  border-color: var(--mt-cmp-b);
+  color: var(--mt-cmp-b-ink);
+}
+.slot.role-a.filled .letter {
+  background: var(--mt-cmp-a);
+  color: #fff;
+}
+.slot.role-b.filled .letter {
+  background: var(--mt-cmp-b);
+  color: #fff;
+}
+.slot.role-a.next .slot-empty {
+  color: var(--mt-cmp-a-ink);
+}
+.slot.role-b.next .slot-empty {
+  color: var(--mt-cmp-b-ink);
+}
 .letter {
   flex: none;
   width: 30px;
@@ -508,8 +548,13 @@ tr.few td {
 tr.few td.pick {
   opacity: 1;
 }
-tr.on {
-  background: var(--mt-accent-soft);
+tr.on-a {
+  background: var(--mt-cmp-a-soft);
+  box-shadow: inset 3px 0 0 var(--mt-cmp-a);
+}
+tr.on-b {
+  background: var(--mt-cmp-b-soft);
+  box-shadow: inset 3px 0 0 var(--mt-cmp-b);
 }
 /* círculo de la fila: punteado con la letra que recibiría; lleno cuando ya es A o B */
 .pick-btn {
@@ -525,9 +570,15 @@ tr.on {
 }
 .pick-btn.set {
   border-style: solid;
-  border-color: var(--mt-accent);
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
+  color: #fff;
+}
+.pick-btn.a {
+  border-color: var(--mt-cmp-a);
+  background: var(--mt-cmp-a);
+}
+.pick-btn.b {
+  border-color: var(--mt-cmp-b);
+  background: var(--mt-cmp-b);
 }
 tr.pickable:hover .pick-btn:not(.set) {
   border-color: var(--mt-accent);
@@ -540,6 +591,27 @@ tr.pickable:hover .pick-btn:not(.set) {
 }
 .key {
   font-weight: 800;
+}
+.badge,
+.tag {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+}
+.badge-a,
+.tag-a {
+  background: var(--mt-cmp-a);
+}
+.badge-b,
+.tag-b {
+  background: var(--mt-cmp-b);
 }
 .chips {
   display: inline-flex;
@@ -605,18 +677,6 @@ tr.pickable:hover .pick-btn:not(.set) {
   margin-top: 12px;
   font-size: 12.5px;
 }
-.tag {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 800;
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-}
 .cells {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -640,10 +700,20 @@ tr.pickable:hover .pick-btn:not(.set) {
   letter-spacing: 0.06em;
   color: var(--mt-muted);
 }
-.cell-range,
 .cell-note {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
+}
+.cell-range {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.cell-range .from {
+  color: var(--mt-cmp-a-ink);
+  font-weight: 700;
+}
+.cell-range .to {
+  color: var(--mt-cmp-b-ink);
 }
 .cell-delta {
   font-size: 18px;
