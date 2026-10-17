@@ -148,7 +148,9 @@ onBeforeUnmount(() => ((leftEl.value = null), (rightEl.value = null)));
 
 function switchExperiment(experimentId: string | null) {
   if (!experimentId) return;
-  void router.push({ name: "overview", params: { experimentId } });
+  // el rango se conserva al cambiar de experimento; el servicio es de cada uno
+  const { service: _service, ...query } = shared.value;
+  void router.push({ name: "overview", params: { experimentId }, query });
 }
 </script>
 
