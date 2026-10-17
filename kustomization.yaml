@@ -27,6 +27,7 @@ resources:
   - k8s/84-alerts-evaluate.yaml
   - k8s/85-backfill-experiment-id.yaml
   - k8s/87-backup.yaml
+  - k8s/88-dedupe-otel-traces.yaml
 configMapGenerator:
   - name: clickhouse-migrations
     files:
@@ -46,6 +47,7 @@ configMapGenerator:
       - migrations/clickhouse/014_experiment_id.sql
       - migrations/clickhouse/015_model_quality.sql
       - migrations/clickhouse/016_user_id.sql
+      - migrations/clickhouse/017_otel_traces_dedup.sql
     options:
       disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
   - name: postgres-migrations

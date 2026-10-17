@@ -127,7 +127,7 @@ describe("Collector", () => {
 });
 
 describe("containers", () => {
-  const hardened = ["api", "ingest", "kafka", "otel-collector-writer", "dashboard", "docs", "otel-collector", "health-probe", "backfill-experiment-id"];
+  const hardened = ["api", "ingest", "kafka", "otel-collector-writer", "dashboard", "docs", "otel-collector", "health-probe", "backfill-experiment-id", "dedupe-otel-traces"];
   it.each(hardened)("%s drops privileges and runs as non-root", (app) => {
     const { template } = workloads.find((w) => w.app === app)!;
     const nonRoot = template.spec.securityContext?.runAsNonRoot === true || template.spec.containers.every((c: Doc) => c.securityContext?.runAsNonRoot === true);

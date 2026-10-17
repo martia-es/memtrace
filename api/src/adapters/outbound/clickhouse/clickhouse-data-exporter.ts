@@ -1,4 +1,5 @@
 import type { ClickHouseClient } from "@clickhouse/client";
+import { DEDUPED_READS } from "./client";
 import { RepositoryUnavailableError } from "@/application/errors";
 import type { DataExporter } from "@/application/ports/data-exporter";
 import type { ExportKind } from "@/domain/data-export";
@@ -49,6 +50,7 @@ export class ClickHouseDataExporter implements DataExporter {
           query: `SELECT count() AS n FROM ${this.database}.${source.table}${source.tombstones ? " FINAL" : ""} WHERE ${this.where(source)}`,
           query_params: this.params(scope, from, to),
           format: "JSONEachRow",
+          clickhouse_settings: source.table === "otel_traces" ? DEDUPED_READS : undefined,
         });
         return Number(((await result.json()) as { n: string | number }[])[0]?.n ?? 0);
       });
@@ -63,6 +65,7 @@ export class ClickHouseDataExporter implements DataExporter {
       query: `SELECT * FROM ${this.database}.${source.table}${source.tombstones ? " FINAL" : ""} WHERE ${this.where(source)}`,
       query_params: this.params(scope, from, to),
       format: "JSONEachRow",
+      clickhouse_settings: source.table === "otel_traces" ? DEDUPED_READS : undefined,
     });
     for await (const rows of result.stream()) {
       for (const row of rows) yield row.text;

@@ -1,5 +1,13 @@
 import { createClient, type ClickHouseClient } from "@clickhouse/client";
 
+/**
+ * Lectura de spans sin duplicados (ADR-099). La entrega al menos una vez (ADR-098) puede dejar dos copias del mismo span hasta que
+ * ClickHouse las funde en segundo plano; con `final = 1` aplica FINAL a las tablas donde existe (ReplacingMergeTree) y lo ignora en
+ * las demás. La sintaxis `FROM tabla FINAL` fallaría contra `otel_traces` antes de su cambio de motor (MergeTree: ILLEGAL_FINAL), y así
+ * la API funciona igual antes, durante y después del cambio.
+ */
+export const DEDUPED_READS = { final: 1 } as const;
+
 export interface ClickHouseConfig {
   url: string;
   username: string;

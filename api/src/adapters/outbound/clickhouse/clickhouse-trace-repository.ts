@@ -1,4 +1,5 @@
 import type { ClickHouseClient } from "@clickhouse/client";
+import { DEDUPED_READS } from "./client";
 import { RepositoryUnavailableError } from "@/application/errors";
 import type { ConversationListQuery, RevisionSummary, SpanListQuery, TraceListQuery, TraceRepository, TraceSpans } from "@/application/ports/trace-repository";
 import type { ErrorGroupsResult } from "@/domain/error-categories";
@@ -316,7 +317,7 @@ export class ClickHouseTraceRepository implements TraceRepository {
   private async rows<T = Row>(query: string, params: Params): Promise<T[]> {
     try {
       return await this.limiter.run(async () => {
-        const result = await this.client.query({ query, query_params: params, format: "JSONEachRow" });
+        const result = await this.client.query({ query, query_params: params, format: "JSONEachRow", clickhouse_settings: DEDUPED_READS });
         return await result.json<T>();
       });
     } catch (error) {

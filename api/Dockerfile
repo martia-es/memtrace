@@ -36,6 +36,8 @@ COPY --from=build --chown=node:node /app/dist-worker/purge-traces.cjs ./worker/p
 COPY --from=build --chown=node:node /app/dist-worker/evaluate-alerts.cjs ./worker/evaluate-alerts.cjs
 # backfill de ExperimentId (ADR-088): Job de una pasada con la misma imagen
 COPY --from=build --chown=node:node /app/dist-worker/backfill-experiment-id.cjs ./worker/backfill-experiment-id.cjs
+# cambio de otel_traces a su versión sin duplicados (ADR-099): Job `dedupe-otel-traces`, repetible
+COPY --from=build --chown=node:node /app/dist-worker/dedupe-otel-traces.cjs ./worker/dedupe-otel-traces.cjs
 # uid de `node`; numérico para que Kubernetes pueda verificar runAsNonRoot
 USER 1000:1000
 EXPOSE 3001

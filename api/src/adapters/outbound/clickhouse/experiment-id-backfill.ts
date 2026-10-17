@@ -34,7 +34,11 @@ export interface BackfillCount {
   rows: number;
 }
 
-/** `otel_traces`: ExperimentId es una columna DEFAULT fuera de la clave, así que se actualiza en sitio. */
+/**
+ * `otel_traces` en su versión original: ExperimentId es una columna DEFAULT fuera de la clave, así que se actualiza en sitio. Desde la
+ * migración a ReplacingMergeTree (ADR-099) el experimento está en la clave de ordenación y se trata como las demás (copia y borrado):
+ * `tablesByStrategy` lo decide mirando la clave real, no una suposición.
+ */
 const UPDATE_TABLES = ["otel_traces"];
 /** Tablas con el experimento en la clave de ordenación: no admiten UPDATE, se copian con el valor y se borra el original. */
 const COPY_TABLES = ["eval_items", "eval_scores", "eval_run_summaries", "annotations", "user_feedback"];
@@ -49,10 +53,22 @@ export class ExperimentIdBackfill {
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(database)) throw new Error(`Invalid database name: ${database}`);
   }
 
+  /** Qué tablas se actualizan en sitio y cuáles se copian: el experimento en la clave de ordenación no admite UPDATE. */
+  private async tablesByStrategy(): Promise<{ update: string[]; copy: string[] }> {
+    const result = await this.client.query({
+      query: `SELECT sorting_key FROM system.tables WHERE database = {database:String} AND name = 'otel_traces'`,
+      query_params: { database: this.database },
+      format: "JSONEachRow",
+    });
+    const key = (await result.json<{ sorting_key: string }>())[0]?.sorting_key ?? "";
+    return key.includes("ExperimentId") ? { update: [], copy: ["otel_traces", ...COPY_TABLES] } : { update: UPDATE_TABLES, copy: COPY_TABLES };
+  }
+
   async run(assign: ExperimentRef[]): Promise<BackfillCount[]> {
     const counts: BackfillCount[] = [];
+    const { update, copy } = await this.tablesByStrategy();
     for (const experiment of assign) {
-      for (const table of UPDATE_TABLES) {
+      for (const table of update) {
         const rows = await this.pending(table, experiment.serviceName);
         if (rows === 0) continue;
         await this.client.command({
@@ -62,7 +78,7 @@ export class ExperimentIdBackfill {
         });
         counts.push({ table, serviceName: experiment.serviceName, rows });
       }
-      for (const table of COPY_TABLES) {
+      for (const table of copy) {
         const rows = await this.pending(table, experiment.serviceName);
         if (rows === 0) continue;
         const columns = (await this.columns(table)).map((c) => `\`${c}\``);
@@ -86,7 +102,7 @@ export class ExperimentIdBackfill {
   /** Filas sin asignar de cada tabla (para informar de lo que queda tras el backfill). */
   async unassigned(): Promise<Array<{ table: string; serviceName: string; rows: number }>> {
     const out: Array<{ table: string; serviceName: string; rows: number }> = [];
-    for (const table of [...UPDATE_TABLES, ...COPY_TABLES]) {
+    for (const table of [...UPDATE_TABLES, ...COPY_TABLES].filter((t, i, all) => all.indexOf(t) === i)) {
       const result = await this.client.query({
         query: `SELECT ServiceName AS serviceName, count() AS rows FROM ${this.database}.${table} WHERE ExperimentId = '' GROUP BY ServiceName ORDER BY ServiceName`,
         format: "JSONEachRow",

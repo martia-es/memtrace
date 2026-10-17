@@ -1,4 +1,5 @@
 import type { ClickHouseClient } from "@clickhouse/client";
+import { DEDUPED_READS } from "./client";
 import type { TracePurger } from "@/application/ports/trace-purger";
 import type { TenantScope } from "@/domain/tenant";
 import { TENANT_SQL, tenantParams } from "./tenant-sql";
@@ -17,7 +18,7 @@ export class ClickHouseTracePurger implements TracePurger {
   async purge(scope: TenantScope, cutoff: Date): Promise<{ spans: number }> {
     const params = { ...tenantParams(scope), cutoffMs: cutoff.getTime() };
     const where = `${TENANT_SQL} AND Timestamp < fromUnixTimestamp64Milli({cutoffMs:Int64})`;
-    const counted = await this.client.query({ query: `SELECT count() AS n FROM ${this.database}.otel_traces WHERE ${where}`, query_params: params, format: "JSONEachRow" });
+    const counted = await this.client.query({ query: `SELECT count() AS n FROM ${this.database}.otel_traces WHERE ${where}`, query_params: params, format: "JSONEachRow", clickhouse_settings: DEDUPED_READS });
     const spans = Number(((await counted.json()) as { n: string | number }[])[0]?.n ?? 0);
     if (spans === 0) return { spans: 0 };
 

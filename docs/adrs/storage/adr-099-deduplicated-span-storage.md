@@ -1,6 +1,6 @@
 # ADR-099: Deduplicated Span Storage with ReplacingMergeTree
 
-* **Status**: Accepted — not implemented yet. Runs after the broker of ADR-098 is in place (phase 5 of its rollout)
+* **Status**: Accepted — implemented (2026-10-17), after the broker of ADR-098 (phase 5 of its rollout). See the update at the end for what changed from the plan
 * **Date**: 2026-10-17
 * **Deciders**: MemTrace Core Team
 * **Related**: [ADR-003](adr-003-clickhouse-schema-and-migrations.md), [ADR-084](adr-084-data-protection-retention-masking-audit-and-export.md), [ADR-088](../cybersecurity/adr-088-strict-tenant-isolation-in-clickhouse.md), [ADR-098](../infra/adr-098-durable-ingestion-pipeline-with-broker.md)
@@ -68,6 +68,15 @@ Without a broker the pause in step 3 would lose or reject traces, which is why t
 | Keep the current sort key, `ReplacingMergeTree` on top | Merges distinct spans (same service, name and second); loses data |
 | Exactly-once with Kafka transactions | Applies inside Kafka; the write to ClickHouse still needs an idempotent destination |
 | `AggregatingMergeTree` with state per span | Powerful but heavy for rows that are complete spans; unnecessary here |
+
+## Update (2026-10-17): implemented, and what changed from the plan
+
+- **The table** is created by migration 017 (`otel_traces_v2`, `CREATE TABLE ... AS memtrace.otel_traces` so that all 27 columns, their defaults and the 8 skip indexes are copied) with the key of section 2.
+- **The swap is a Job, not a migration** (`k8s/88-dedupe-otel-traces.yaml`, `api/src/worker/dedupe-otel-traces.ts`, `make dedupe`). A migration is fixed SQL and the operation has to look at the state, wait and verify. It does **not** need to pause the consumers, as section 4 assumed: **the copies overlap on purpose, and copying the same span twice is harmless because the new table folds copies**. So: copy the history day by day; drop the materialized views that read `otel_traces`; `EXCHANGE TABLES`; rename the old one to `otel_traces_pre_dedup`; recreate the views from their stored definition; and, after a short settle, copy the last 24 h from the old table again (twice if a count check says spans are missing) and refill the trace-id lookup for what was written while the view was absent. The Job waits for migration 017, is idempotent (a second run says "nothing to do"), resumes a half-done swap without swapping back, and records completion in `schema_migrations` (`dedupe-otel-traces`). `make dedupe-cleanup` drops the old table once verified (it refuses before).
+- **Reads use `final = 1`, not `FROM t FINAL`.** `FINAL` on a plain MergeTree fails (`ILLEGAL_FINAL`, checked on 23.8), so the explicit syntax would break the API between deploying it and swapping. The setting applies FINAL only where it exists and ignores the rest, so the API is correct before, during and after. It is passed in `DEDUPED_READS` by the one query helper of each span repository, the data export and the retention count, and a test fails if a new query on `otel_traces` does not use it. It also applies to the other tables of a joined query (for example `span_topics`), which is what is wanted.
+- **The ExperimentId backfill** (ADR-088) can no longer `UPDATE` rows of `otel_traces` once the experiment is in the sort key; it now decides by the real key and copies and deletes, like the other tables with the experiment in their key.
+- **Rehearsed on a copy, then run for real.** On a scratch copy of the data with an inserter running throughout (202 spans), all 202 survived, the total was exactly 8,244 + 202, the lookup had all 202 and the view was back. On the real cluster with the pipeline running (SDK to ClickHouse through `ingest` and Kafka) while the swap ran, 409 of 409 accepted spans were in ClickHouse and in the lookup, total rows 8,653 = 8,244 + 409, no duplicates by key, and the writer kept inserting into the swapped table. The load gate then passed with a query p95 of 70 ms (it was 50 to 100 ms before) and the Kafka resilience scenarios still pass.
+- **Not covered:** a swap on a large table (the local one has 8 k rows; the history copy is one `INSERT ... SELECT` per day, so a day must fit in what ClickHouse can move in one statement) and the cost of `final = 1` on large tables: measure with the load gate on a bigger volume before relying on it. The old table doubles the disk until `make dedupe-cleanup`.
 
 ## Consequences
 
