@@ -25,7 +25,8 @@ import Menu from "../components/Menu.vue";
 import MenuItem from "../components/MenuItem.vue";
 import Pill from "../components/Pill.vue";
 import LoadingState from "../components/LoadingState.vue";
-import Select from "../components/Select.vue";
+import SegmentedControl from "../components/SegmentedControl.vue";
+import ToggleChip from "../components/ToggleChip.vue";
 import { t, tp } from "../i18n";
 
 const api = usePromptApi();
@@ -71,16 +72,17 @@ const kindOf = (p: PromptSummaryDto): "prompt" | "fragment" => (p.kind === "frag
 const live = computed(() => items.value.filter((p) => !p.archivedAt));
 const summary = computed(() => releaseSummary(live.value));
 const TYPE_OPTIONS = computed(() => [
-  { value: "all", label: t("promptsPage.all") },
-  { value: "prompt", label: `${t("promptsPage.prompts")} · ${items.value.filter((p) => kindOf(p) === "prompt").length}` },
-  { value: "fragment", label: `${t("promptsPage.fragments")} · ${items.value.filter((p) => kindOf(p) === "fragment").length}` },
+  { value: "all", label: t("promptsPage.all"), count: items.value.length, testid: "type-filter-all" },
+  { value: "prompt", label: t("promptsPage.prompts"), count: items.value.filter((p) => kindOf(p) === "prompt").length, testid: "type-filter-prompt" },
+  { value: "fragment", label: t("promptsPage.fragments"), count: items.value.filter((p) => kindOf(p) === "fragment").length, testid: "type-filter-fragment" },
 ]);
-const STATUS_OPTIONS = computed(() => [
-  { value: "all", label: t("promptsPage.all") },
-  { value: "behind", label: `${t("promptsPage.behind_in_pro")} · ${summary.value.behind}` },
-  { value: "in_sync", label: `${t("promptsPage.in_sync")} · ${summary.value.inSync}` },
-  { value: "not_released", label: `${t("promptsPage.not_released")} · ${summary.value.notReleased}` },
+/** Estado de publicación como chips que se activan y desactivan (volver a pulsar quita el filtro). */
+const STATUS_CHIPS = computed(() => [
+  { value: "behind" as const, label: t("promptsPage.behind_in_pro"), count: summary.value.behind, dot: "late" },
+  { value: "not_released" as const, label: t("promptsPage.not_released"), count: summary.value.notReleased, dot: "none" },
+  { value: "in_sync" as const, label: t("promptsPage.in_sync"), count: summary.value.inSync, dot: "ok" },
 ]);
+const toggleStatus = (v: ReleaseState) => (status.value = status.value === v ? "all" : v);
 
 const search = ref("");
 const filtered = computed(() => {
@@ -114,6 +116,8 @@ const rows = computed<Row[]>(() =>
   }),
 );
 /** Etiquetas que no son de entorno (`stable`, `canary`…): no caben en una columna, se listan junto al nombre. */
+const PROMPT_ICON = "M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6";
+const FRAGMENT_ICON = "M9 4a2 2 0 014 0v2h4v4h2a2 2 0 010 4h-2v4h-4v-2a2 2 0 00-4 0v2H5v-4h2a2 2 0 000-4H5V6h4z";
 const freeTags = (p: PromptSummaryDto) => sortEnvironments(Object.keys(p.tags).filter((t) => !(ENV_ORDER as readonly string[]).includes(t)));
 
 function open(promptId: string) {
@@ -197,8 +201,13 @@ async function create() {
 
     <template v-else>
       <div class="toolbar">
-        <label class="filter">{{ t("promptsPage.type") + " " }}<div class="filter-select"><Select v-model="typeFilter" :options="TYPE_OPTIONS" :aria-label="t('promptsPage.type')" data-testid="type-filter" /></div></label>
-        <label class="filter">{{ t("promptsPage.status") + " " }}<div class="filter-select"><Select v-model="status" :options="STATUS_OPTIONS" :aria-label="t('promptsPage.release_status')" data-testid="status-filter" /></div></label>
+        <SegmentedControl v-model="typeFilter" :options="TYPE_OPTIONS" :aria-label="t('promptsPage.type')" data-testid="type-filter" />
+        <span class="divider" aria-hidden="true" />
+        <div class="chips" role="group" :aria-label="t('promptsPage.release_status')" data-testid="status-filter">
+          <ToggleChip v-for="s in STATUS_CHIPS" :key="s.value" :pressed="status === s.value" :count="s.count" :data-testid="`status-filter-${s.value}`" @click="toggleStatus(s.value)">
+            <span class="dot" :class="s.dot" aria-hidden="true" />{{ s.label }}
+          </ToggleChip>
+        </div>
         <span class="grow" />
         <span class="soft" data-testid="count">{{ tp("promptsPage.items", filtered.length) }}</span>
         <Button variant="icon" :aria-label="t('promptsPage.more_options')" data-testid="more-options">
@@ -210,33 +219,45 @@ async function create() {
       </div>
 
       <EmptyState v-if="rows.length === 0" icon="search_off" :title="t('promptsPage.no_matches')">{{ t("promptsPage.try_a_different_search_or_filter") }}</EmptyState>
-      <DataTable v-else class="prompt-table" data-testid="prompt-table">
+      <DataTable v-else bare class="prompt-table" data-testid="prompt-table">
         <thead>
-          <tr><th>{{ t("promptsPage.name") }}</th><th>{{ t("promptsPage.type") }}</th><th>{{ t("promptsPage.latest") }}</th><th>{{ t("promptsPage.dev") }}</th><th>{{ t("promptsPage.pre") }}</th><th>{{ t("promptsPage.pro") }}</th><th class="num">{{ t("promptsPage.updated") }}</th></tr>
+          <tr><th>{{ t("promptsPage.name") }}</th><th>{{ t("promptsPage.latest") }}</th><th>{{ t("promptsPage.dev") }}</th><th>{{ t("promptsPage.pre") }}</th><th>{{ t("promptsPage.pro") }}</th><th class="num">{{ t("promptsPage.updated") }}</th><th class="open-col" /></tr>
         </thead>
         <tbody>
           <tr v-for="r in rows" :key="r.prompt.id" class="prompt-row" :data-testid="`${r.prompt.kind === 'fragment' ? 'fragment' : 'prompt'}-row-${r.prompt.name}`" tabindex="0" @click="open(r.prompt.id)" @keydown.enter="open(r.prompt.id)">
-            <td class="who">
+            <td>
+              <div class="who">
+              <span class="icon" :class="kindOf(r.prompt)" aria-hidden="true">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path :d="kindOf(r.prompt) === 'fragment' ? FRAGMENT_ICON : PROMPT_ICON" /></svg>
+              </span>
+              <div class="who-text">
               <div class="who-name">
                 <span class="name">{{ r.prompt.name }}</span>
+                <span class="kind" :data-testid="`type-${r.prompt.name}`">{{ kindOf(r.prompt) === "fragment" ? t("promptsPage.fragment2") : t("promptsPage.prompt2") }}</span>
                 <Pill v-if="r.prompt.archivedAt" class="archived">{{ t("promptsPage.archived") }}</Pill>
                 <Pill v-if="awaitingMe.has(r.prompt.id)" :data-testid="`awaiting-${r.prompt.name}`" class="awaiting">{{ t("promptsPage.needs_your_approval") }}</Pill>
                 <span v-for="t in freeTags(r.prompt)" :key="t" class="free-tag mono" :data-testid="`tag-${r.prompt.name}-${t}`">{{ t }} → v{{ r.prompt.tags[t] }}</span>
               </div>
               <div v-if="r.prompt.description" class="desc">{{ r.prompt.description }}</div>
               <span class="sr-only" :data-testid="`release-${r.prompt.name}`">{{ r.release.state === "behind" ? `${r.release.behindBy} ${r.release.behindBy === 1 ? "version" : "versions"} behind in PRO` : r.release.state === "in_sync" ? "In sync" : "Not released" }}</span>
+              </div>
+              </div>
             </td>
-            <td class="type" :data-testid="`type-${r.prompt.name}`"><Pill v-if="r.prompt.kind === 'fragment'" tone="accent">{{ t("promptsPage.fragment2") }}</Pill><Pill v-else tone="info">{{ t("promptsPage.prompt2") }}</Pill></td>
             <td class="mono strong" :data-testid="`latest-${r.prompt.name}`">v{{ r.prompt.latestVersion }}</td>
             <td v-for="c in r.cells" :key="c.env">
               <span v-if="c.version === null" class="none" :data-testid="`tag-${r.prompt.name}-${c.env}`">—</span>
-              <span v-else-if="c.behind > 0" class="chip late mono" :data-testid="`tag-${r.prompt.name}-${c.env}`">v{{ c.version }}<b>{{ t("promptsPage.count_behind", { count: c.behind }) }}</b></span>
-              <span v-else class="chip mono" :class="c.env" :data-testid="`tag-${r.prompt.name}-${c.env}`">v{{ c.version }}</span>
+              <span v-else-if="c.behind > 0" class="env late mono" :data-testid="`tag-${r.prompt.name}-${c.env}`"><span class="dot late" aria-hidden="true" />v{{ c.version }}<b>{{ t("promptsPage.count_behind", { count: c.behind }) }}</b></span>
+              <span v-else class="env mono" :data-testid="`tag-${r.prompt.name}-${c.env}`"><span class="dot ok" aria-hidden="true" />v{{ c.version }}</span>
             </td>
             <td class="num mono when">{{ formatDateTime(r.prompt.updatedAt) }}</td>
+            <td class="open-col"><span class="open" aria-hidden="true">{{ t("promptsPage.open") }} →</span></td>
           </tr>
         </tbody>
       </DataTable>
+      <div v-if="rows.length > 0" class="legend" aria-hidden="true">
+        <span><span class="dot ok" />{{ t("promptsPage.in_sync") }}</span>
+        <span><span class="dot late" />{{ t("promptsPage.behind_in_pro") }}</span>
+      </div>
     </template>
 
     <Modal v-if="showCreate" :title="form.kind === 'fragment' ? t('promptsPage.new_fragment') : t('promptsPage.new_prompt')" :wide="true" @close="showCreate = false">
@@ -296,7 +317,7 @@ code {
   flex-direction: column;
   gap: 14px;
   padding: 16px 24px 20px;
-  background: var(--mt-bg);
+  background: var(--mt-card);
   overflow: auto;
 }
 .actions {
@@ -409,7 +430,40 @@ code {
   flex: 1;
 }
 
-/* ---- tabla de prompts ---- */
+/* ---- tabla de prompts: blanca, sin caja, filas separadas por una línea ---- */
+.divider {
+  width: 1px;
+  height: 20px;
+  background: var(--mt-line);
+}
+.chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  background: var(--mt-accent);
+}
+.dot.late {
+  background: var(--mt-highlight);
+}
+.dot.none {
+  background: transparent;
+  border: 1.5px solid var(--mt-muted);
+}
+.prompt-table :deep(th) {
+  background: transparent;
+  border-bottom-color: var(--mt-line);
+}
+.prompt-table :deep(td) {
+  height: 64px;
+  border-bottom-color: var(--mt-line-2);
+}
 .prompt-table .prompt-row {
   cursor: pointer;
 }
@@ -417,11 +471,48 @@ code {
   outline: 2px solid var(--mt-accent);
   outline-offset: -2px;
 }
-.prompt-table :deep(td) {
-  height: 56px;
+.prompt-table .open-col {
+  width: 90px;
+  text-align: right;
+}
+.open {
+  opacity: 0;
+  color: var(--mt-accent-text);
+  font-weight: 700;
+  transition: opacity 0.12s ease;
+}
+.prompt-row:hover .open,
+.prompt-row:focus-visible .open {
+  opacity: 1;
 }
 .who {
+  display: flex;
+  align-items: center;
+  gap: 14px;
   min-width: 0;
+}
+.who-text {
+  min-width: 0;
+}
+.icon {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: var(--mt-accent-tint);
+  color: var(--mt-accent);
+}
+.icon.fragment {
+  background: var(--mt-soft);
+  color: var(--mt-muted);
+}
+.kind {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--mt-muted);
 }
 .who-name {
   display: flex;
@@ -444,48 +535,42 @@ code {
   color: var(--mt-muted);
 }
 .when {
-  font-size: 11px;
-  color: var(--mt-faint);
+  font-size: 12px;
+  color: var(--mt-muted);
 }
 .free-tag {
-  font-size: 11px;
-  color: var(--mt-faint);
-}
-.none {
-  color: var(--mt-faint);
-}
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 24px;
-  padding: 0 9px;
-  box-sizing: border-box;
-  border: 1px solid var(--mt-soft);
+  padding: 1px 7px;
   border-radius: var(--mt-radius-xs);
   background: var(--mt-soft);
+  font-size: 11px;
+  color: var(--mt-accent-text);
+}
+.none {
+  color: var(--mt-muted);
+}
+.env {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.env b {
+  font-family: var(--mt-font, inherit);
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--mt-highlight-ink);
+}
+.legend {
+  display: flex;
+  gap: 22px;
+  padding: 14px 14px 0;
   color: var(--mt-muted);
   font-size: 12px;
 }
-.chip.pre {
-  border-color: var(--mt-warn-bg);
-  background: var(--mt-warn-bg);
-  color: var(--mt-warn-ink);
-}
-.chip.pro {
-  border-color: var(--mt-accent);
-  background: var(--mt-accent);
-  color: var(--mt-accent-ink);
-}
-.chip.late {
-  border-color: var(--mt-highlight);
-  background: var(--mt-highlight-soft);
-  color: var(--mt-highlight-ink);
-}
-.chip b {
-  font-family: var(--mt-font, inherit);
-  font-size: 11px;
-  font-weight: 800;
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
 }
 .sr-only {
   position: absolute;

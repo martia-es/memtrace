@@ -153,6 +153,39 @@ const groups = computed(() => groupByMonth(visible.value));
   text-align: left;
   cursor: pointer;
 }
+/* línea de tiempo: un punto por versión unido por un hilo (no en las fijadas, que van en fila) */
+.version:not(.compact) {
+  position: relative;
+  padding-left: 28px;
+}
+.version:not(.compact)::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 14px;
+  width: 8px;
+  height: 8px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2px solid var(--mt-muted);
+  background: var(--mt-card);
+}
+.version:not(.compact)::after {
+  content: "";
+  position: absolute;
+  left: 11px;
+  top: 26px;
+  bottom: -8px;
+  width: 2px;
+  background: var(--mt-line);
+}
+.version:not(.compact):last-child::after {
+  display: none;
+}
+.version.active:not(.compact)::before {
+  border-color: var(--mt-accent);
+  background: var(--mt-accent);
+}
 .version.compact {
   flex-direction: row;
   align-items: center;

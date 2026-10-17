@@ -1451,6 +1451,7 @@ const es: Record<keyof typeof en, string> = {
   "promptsPage.pre": "PRE",
   "promptsPage.pro": "PRO",
   "promptsPage.updated": "Actualizado",
+  "promptsPage.open": "Abrir",
   "promptsPage.archived": "archivado",
   "promptsPage.needs_your_approval": "necesita tu aprobación",
   "promptsPage.fragment2": "Fragmento",

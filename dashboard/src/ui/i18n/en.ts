@@ -1450,6 +1450,7 @@ export default {
   "promptsPage.pre": "PRE",
   "promptsPage.pro": "PRO",
   "promptsPage.updated": "Updated",
+  "promptsPage.open": "Open",
   "promptsPage.archived": "archived",
   "promptsPage.needs_your_approval": "needs your approval",
   "promptsPage.fragment2": "Fragment",

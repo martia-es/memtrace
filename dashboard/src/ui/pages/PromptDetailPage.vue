@@ -554,9 +554,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
         <Button data-testid="open-rules" @click="rulesOpen = true">{{ t('promptDetailPage.release_rules') }}<span v-if="openRequests.length > 0" class="pending-count" data-testid="rules-pending">{{ t('promptDetailPage.count_pending', { count: openRequests.length }) }}</span></Button>
       </section>
 
-      <div class="split">
-        <aside class="side" :aria-label="t('promptDetailPage.environments_and_versions')">
-          <span class="eyebrow">{{ t("promptDetailPage.environments") }}</span>
+      <section class="envs" :aria-label="t('promptDetailPage.environments')">
           <div v-if="envCards.length > 0" class="env-list" data-testid="env-strip">
             <div v-for="e in envCards" :key="e.key" class="env-card" :class="{ late: e.behind !== null && e.behind > 0 && e.key === 'pro' }" :data-testid="`env-card-${e.key}`">
               <div class="env-row">
@@ -649,6 +647,10 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
             <p v-if="newTagError" class="soft tag-error" data-testid="new-tag-error">{{ newTagError }}</p>
             <p v-else class="soft">{{ t("promptDetailPage.lowercase_letters_digits_and_starting_wi") }}</p>
           </div>
+      </section>
+
+      <div class="split">
+        <aside class="side" :aria-label="t('promptDetailPage.environments_and_versions')">
           <div class="versions-box" data-testid="versions-box">
             <PromptVersionList :versions="versions" :selected="selected" :tags-by-version="tagsByVersion" :pinned="[]" :running="running" :author-name="authorName" @pick="pick" />
           </div>
@@ -997,7 +999,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
   flex-direction: column;
   gap: 12px;
   padding: 16px 24px 20px;
-  background: var(--mt-bg);
+  background: var(--mt-card);
 }
 .actions {
   display: flex;
@@ -1666,6 +1668,9 @@ ul.plain {
 }
 
 @media (max-width: 1100px) {
+  .env-list {
+    grid-template-columns: 1fr;
+  }
   .body {
     flex-direction: column;
   }
@@ -1722,8 +1727,15 @@ ul.plain {
   display: flex;
   gap: 24px;
 }
+.envs {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
 .side {
-  width: 380px;
+  order: 2;
+  width: 340px;
   flex: none;
   min-height: 0;
   display: flex;
@@ -1731,17 +1743,18 @@ ul.plain {
   gap: 10px;
 }
 .env-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: 16px;
 }
 .env-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px 14px;
+  gap: 10px;
+  padding: 16px 18px;
   border: 1px solid var(--mt-line);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--mt-card);
 }
 .env-card.late {
@@ -1749,7 +1762,7 @@ ul.plain {
   border-color: var(--mt-highlight);
 }
 .env-card-ver {
-  font-size: 18px;
+  font-size: 28px;
   font-weight: 800;
   letter-spacing: -0.02em;
 }
@@ -1834,7 +1847,7 @@ ul.plain {
   display: flex;
   flex-direction: column;
   border: 1px solid var(--mt-line);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--mt-card);
   overflow: hidden;
 }

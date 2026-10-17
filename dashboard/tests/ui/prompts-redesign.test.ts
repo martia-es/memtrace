@@ -8,7 +8,6 @@ import { EMPTY_THEME, type ExperimentDto } from "@/application/identity-api";
 import PromptsPage from "@/ui/pages/PromptsPage.vue";
 import PromptDetailPage from "@/ui/pages/PromptDetailPage.vue";
 import { permissionsOf } from "../permissions";
-import { chooseOption } from "./select";
 import { FakeIdentityApi, FakeTraceApi } from "../fakes";
 import { FakePromptApi, promptDetail, promptSummary } from "../fakes-prompts";
 
@@ -74,18 +73,18 @@ describe("prompts list: one table", () => {
     expect(wrapper.findAll("thead th")).toHaveLength(row.findAll("td").length);
   });
 
-  it("filters by release status with the Status dropdown", async () => {
+  it("filters by release status with the status chips", async () => {
     const api = new FakePromptApi();
     api.list = [promptSummary("weather-system", { latestVersion: 12, tags: { pro: 9 } }), promptSummary("refund-policy", { latestVersion: 7, tags: { pro: 7 } })];
     const wrapper = await setup(PromptsPage, api);
     expect(rows(wrapper)).toHaveLength(2);
-    await chooseOption(document.body, "[data-testid='status-filter']", "Behind in PRO · 1");
+    await wrapper.find("[data-testid='status-filter-behind']").trigger("click");
     await flushPromises();
     expect(rows(wrapper)).toEqual(["prompt-row-weather-system"]);
     expect(wrapper.find("[data-testid='count']").text()).toBe("1 item");
   });
 
-  it("lists prompts and fragments in the same table, with a Type column and a Type filter", async () => {
+  it("lists prompts and fragments in the same table, with a type label and a Type filter", async () => {
     const api = new FakePromptApi();
     api.list = [promptSummary("weather-system", { latestVersion: 2, tags: { pro: 2 } }), { ...promptSummary("tone"), kind: "fragment" as const, latestVersion: 1, tags: {} }];
     const wrapper = await setup(PromptsPage, api);
@@ -93,7 +92,7 @@ describe("prompts list: one table", () => {
     expect(wrapper.find("[data-testid='fragment-row-tone']").exists()).toBe(true);
     expect(wrapper.find("[data-testid='type-tone']").text()).toBe("Fragment");
     expect(wrapper.find("[data-testid='type-weather-system']").text()).toBe("Prompt");
-    await chooseOption(document.body, "[data-testid='type-filter']", "Fragments · 1");
+    await wrapper.find("[data-testid='type-filter-fragment']").trigger("click");
     await flushPromises();
     expect(wrapper.find("[data-testid='prompt-row-weather-system']").exists()).toBe(false);
     expect(wrapper.find("[data-testid='fragment-row-tone']").exists()).toBe(true);
