@@ -12,7 +12,7 @@ PRICING_IMAGE ?= localhost/memtrace/model-pricing:dev
 QUALITY_IMAGE ?= localhost/memtrace/model-quality:dev
 
 .DEFAULT_GOAL := help
-.PHONY: help check up images dashboard api ingest monitoring monitoring-down prune status forward logs query migrate backfill-experiment-id netpol-check migrate-postgres pricing-sync quality-sync down reset db-reset dev-data docs weather weather-bg weather-stop weather-restart rag rag-bg rag-stop rag-restart
+.PHONY: help check up images dashboard api ingest monitoring monitoring-down prune kafka-topics status forward logs query migrate backfill-experiment-id netpol-check migrate-postgres pricing-sync quality-sync down reset db-reset dev-data docs weather weather-bg weather-stop weather-restart rag rag-bg rag-stop rag-restart
 
 help: ## Muestra esta ayuda
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-10s %s\n", $$1, $$2}'
@@ -37,7 +37,9 @@ up: check ## Levanta todo en 1 solo comando (clúster, despliegue, migraciones y
 	kubectl wait --for=condition=complete job/clickhouse-migrate -n $(NS) --timeout=300s
 	kubectl rollout status statefulset/clickhouse -n $(NS) --timeout=300s
 	kubectl rollout status statefulset/postgres -n $(NS) --timeout=300s
-	kubectl rollout status deployment/otel-collector -n $(NS) --timeout=300s
+	kubectl rollout status statefulset/kafka -n $(NS) --timeout=300s
+	kubectl wait --for=condition=complete job/kafka-topics -n $(NS) --timeout=300s
+	kubectl rollout status deployment/otel-collector deployment/otel-collector-writer -n $(NS) --timeout=300s
 	kubectl rollout status deployment/api -n $(NS) --timeout=300s
 	kubectl rollout status deployment/ingest -n $(NS) --timeout=300s
 	kubectl rollout status deployment/dashboard -n $(NS) --timeout=300s
@@ -141,12 +143,17 @@ forward: ## Re-ejecuta la redirección de puertos en primer plano (Ctrl+C para p
 	kubectl port-forward svc/api 3001:3001 -n $(NS) & \
 	wait
 
-logs: ## Logs del Collector (útil para ver errores de inserción)
-	kubectl logs deploy/otel-collector -n $(NS) --tail=100 -f
+logs: ## Logs del Collector de escritura (errores de inserción en ClickHouse); el de entrada: kubectl logs deploy/otel-collector
+	kubectl logs deploy/otel-collector-writer -n $(NS) --tail=100 -f
 
 query: ## Spans y trazas por servicio guardadas en ClickHouse
 	kubectl exec statefulset/clickhouse -n $(NS) -- sh -c \
 		'clickhouse-client --password "$$CLICKHOUSE_PASSWORD" --query "SELECT ServiceName, count() AS spans, uniqExact(TraceId) AS traces FROM memtrace.otel_traces GROUP BY ServiceName FORMAT PrettyCompact"'
+
+kafka-topics: ## Relanza el Job que crea y ajusta el tópico de trazas en Kafka (ADR-098)
+	kubectl delete job kafka-topics -n $(NS) --ignore-not-found
+	kubectl apply -f k8s/43-kafka-topics.yaml
+	kubectl wait --for=condition=complete job/kafka-topics -n $(NS) --timeout=300s
 
 migrate: ## Relanza las migraciones de ClickHouse
 	kubectl delete job clickhouse-migrate -n $(NS) --ignore-not-found
@@ -217,7 +224,7 @@ db-reset: ## BORRA las tablas de Postgres y ClickHouse (conserva el clúster) y 
 		kubectl exec statefulset/postgres -n $(NS) -- sh -c 'psql -U memtrace -d memtrace_identity -v ON_ERROR_STOP=1 -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"' && \
 		kubectl exec statefulset/clickhouse -n $(NS) -- sh -c 'clickhouse-client --password "$$CLICKHOUSE_PASSWORD" --query "DROP DATABASE IF EXISTS memtrace SYNC"' && \
 		$(MAKE) --no-print-directory migrate migrate-postgres && \
-		kubectl rollout restart deployment/api deployment/ingest deployment/otel-collector -n $(NS) && \
+		kubectl rollout restart deployment/api deployment/ingest deployment/otel-collector deployment/otel-collector-writer -n $(NS) && \
 		echo "Bases de datos reseteadas y migraciones aplicadas"; \
 	else \
 		echo "Cancelado"; \

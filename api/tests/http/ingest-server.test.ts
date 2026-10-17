@@ -143,9 +143,26 @@ describe("ingest server", () => {
     }
   });
 
-  it("passes a Collector failure back so the agent can retry", async () => {
+  it("passes a retryable Collector failure back as it is", async () => {
     collectorStatus = 503;
     expect((await post(body)).status).toBe(503);
+  });
+
+  it.each([500, 501, 507])("turns a Collector %i into 503 with Retry-After, because OTLP exporters do not retry it", async (status) => {
+    collectorStatus = status;
+    const res = await post(body);
+    expect(res.status).toBe(503);
+    expect(res.headers.get("retry-after")).toBe("5");
+  });
+
+  it.each([502, 504])("keeps a Collector %i, which exporters already retry", async (status) => {
+    collectorStatus = status;
+    expect((await post(body)).status).toBe(status);
+  });
+
+  it("does not hide a client error of the Collector (4xx)", async () => {
+    collectorStatus = 400;
+    expect((await post(body)).status).toBe(400);
   });
 });
 

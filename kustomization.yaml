@@ -12,6 +12,9 @@ resources:
   - k8s/30-clickhouse-migrations.yaml
   - k8s/35-postgres-migrations.yaml
   - k8s/40-otel-collector.yaml
+  - k8s/42-kafka.yaml
+  - k8s/43-kafka-topics.yaml
+  - k8s/44-otel-collector-writer.yaml
   - k8s/50-api.yaml
   - k8s/55-ingest.yaml
   - k8s/60-dashboard.yaml

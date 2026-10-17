@@ -23,10 +23,14 @@ const workloads = docs.flatMap(({ file, doc }) => {
 });
 const policies = docs.filter(({ doc }) => doc.kind === "NetworkPolicy").map(({ doc }) => doc);
 const policy = (name: string) => policies.find((p) => p.metadata.name === name)!;
-const collectorConfig = () => {
-  const cm = docs.find(({ doc }) => doc.kind === "ConfigMap" && doc.metadata.name === "otel-collector-config")!.doc;
-  return parseAllDocuments(cm.data["otel-collector-config.yaml"])[0]!.toJS() as Doc;
+const configMapYaml = (name: string, key: string) => {
+  const cm = docs.find(({ doc }) => doc.kind === "ConfigMap" && doc.metadata.name === name)!.doc;
+  return parseAllDocuments(cm.data[key])[0]!.toJS() as Doc;
 };
+/** Collector de entrada: recibe de `ingest`, enmascara PII y publica en Kafka (ADR-098). */
+const collectorConfig = () => configMapYaml("otel-collector-config", "otel-collector-config.yaml");
+/** Collector de escritura: lee de Kafka y escribe en ClickHouse. */
+const writerConfig = () => configMapYaml("otel-collector-writer-config", "otel-collector-writer-config.yaml");
 
 describe("network policies", () => {
   it("denies all ingress and egress by default", () => {
@@ -123,7 +127,7 @@ describe("Collector", () => {
 });
 
 describe("containers", () => {
-  const hardened = ["api", "ingest", "dashboard", "docs", "otel-collector", "health-probe", "backfill-experiment-id"];
+  const hardened = ["api", "ingest", "kafka", "otel-collector-writer", "dashboard", "docs", "otel-collector", "health-probe", "backfill-experiment-id"];
   it.each(hardened)("%s drops privileges and runs as non-root", (app) => {
     const { template } = workloads.find((w) => w.app === app)!;
     const nonRoot = template.spec.securityContext?.runAsNonRoot === true || template.spec.containers.every((c: Doc) => c.securityContext?.runAsNonRoot === true);
@@ -132,6 +136,53 @@ describe("containers", () => {
       expect(c.securityContext?.allowPrivilegeEscalation).toBe(false);
       expect(c.securityContext?.capabilities?.drop).toEqual(["ALL"]);
     }
+  });
+});
+
+describe("the pipeline between the Collectors (ADR-098)", () => {
+  const targets = (name: string, direction: "egress" | "ingress") =>
+    policy(name).spec[direction].flatMap((r: Doc) => (r.to ?? r.from).map((t: Doc) => `${t.podSelector?.matchLabels?.app ?? t.podSelector?.matchExpressions?.[0]?.values.join("+")}:${r.ports.map((p: Doc) => p.port).join("/")}`));
+
+  it("the entry Collector reaches only Kafka, never ClickHouse", () => {
+    expect(targets("otel-collector", "egress")).toEqual(["kafka:9092"]);
+  });
+
+  it("only the writer reaches ClickHouse among the Collectors", () => {
+    expect(targets("otel-collector-writer", "egress").sort()).toEqual(["clickhouse:9000", "kafka:9092"]);
+    const nativePort = policy("clickhouse").spec.ingress.find((r: Doc) => r.ports.some((p: Doc) => p.port === 9000 && r.from[0].podSelector.matchLabels));
+    expect(nativePort.from[0].podSelector.matchLabels.app).toBe("otel-collector-writer");
+    expect(workloads.find((w) => w.app === "otel-collector-writer")).toBeDefined();
+  });
+
+  it("the writer is not reachable by anyone (its metrics are read through the monitoring policies)", () => {
+    expect(policy("otel-collector-writer").spec.ingress).toBeUndefined();
+  });
+
+  it("Kafka accepts the Collectors and the topic job on 9092, and its own nodes on 9092 and 9093", () => {
+    expect(targets("kafka", "ingress")).toEqual(["otel-collector+otel-collector-writer+kafka-topics:9092", "kafka:9092/9093"]);
+    expect(targets("kafka", "egress")).toEqual(["kafka:9092/9093"]);
+  });
+
+  it("the entry Collector publishes with acks=all and without a queue of its own, so an error reaches ingest", () => {
+    const kafka = collectorConfig().exporters.kafka;
+    expect(kafka.producer.required_acks).toBe(-1);
+    expect(kafka.sending_queue.enabled).toBe(false);
+    expect(kafka.retry_on_failure.enabled).toBe(false);
+    expect(collectorConfig().service.pipelines.traces.exporters).toEqual(["kafka"]);
+    expect(collectorConfig().service.pipelines.traces.processors).not.toContain("batch");
+  });
+
+  it("the writer inserts synchronously: no batch processor, no queue, and ClickHouse answers only once it has written", () => {
+    const config = writerConfig();
+    expect(config.service.pipelines.traces.processors).toBeUndefined();
+    expect(config.exporters.clickhouse.sending_queue.enabled).toBe(false);
+    expect(config.exporters.clickhouse.connection_params.wait_for_async_insert).toBe("1");
+    expect(config.receivers.kafka.group_id).toBe("clickhouse-writers");
+    expect(config.receivers.kafka.topic).toBe(collectorConfig().exporters.kafka.topic);
+  });
+
+  it("does not set protocol_version, which some brokers reject", () => {
+    expect(JSON.stringify([collectorConfig(), writerConfig()])).not.toContain("protocol_version");
   });
 });
 
@@ -162,11 +213,13 @@ describe("ClickHouse users (ADR-090)", () => {
     expect(Object.keys(secret.stringData)).toEqual(expect.arrayContaining(["reader-password", "collector-password", "writer-password"]));
   });
 
-  it("the Collector writes with its own user", () => {
-    const config = collectorConfig();
+  it("the Collector writer writes with its own user, and the entry Collector has no ClickHouse credentials", () => {
+    const config = writerConfig();
     expect(config.exporters.clickhouse.username).toBe("collector");
     expect(config.exporters.clickhouse.password).toBe("${env:COLLECTOR_CLICKHOUSE_PASSWORD}");
-    expect(envOf("otel-collector").find((e) => e.name === "COLLECTOR_CLICKHOUSE_PASSWORD")?.valueFrom.secretKeyRef.key).toBe("collector-password");
+    expect(envOf("otel-collector-writer").find((e) => e.name === "COLLECTOR_CLICKHOUSE_PASSWORD")?.valueFrom.secretKeyRef.key).toBe("collector-password");
+    expect(envOf("otel-collector").map((e) => e.name).filter((n) => /CLICKHOUSE/.test(n))).toEqual([]);
+    expect(JSON.stringify(collectorConfig())).not.toMatch(/clickhouse/i);
   });
 
   it("the migration job creates the users with only the grants they need", () => {

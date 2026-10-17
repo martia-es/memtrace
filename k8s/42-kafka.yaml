@@ -1,0 +1,170 @@
+# Broker de mensajes (ADR-098): Apache Kafka en modo KRaft (sin ZooKeeper), el buffer duradero entre el Collector de entrada y
+# el que escribe en ClickHouse. Aquí, 1 nodo y replicación 1 (desarrollo local); en la nube el chart de Helm pone 3 nodos,
+# replicación 3 y `min.insync.replicas` 2 (`broker.replicas`). El mismo manifiesto escala cambiando `replicas` y KAFKA_REPLICAS.
+# Para usar un Kafka gestionado (MSK, Confluent Cloud...) o Redpanda, el chart acepta `broker.external.bootstrapServers`.
+#
+# Cada pod toma su id de su ordinal (kafka-0 → 0) y anuncia su nombre DNS estable; el quórum de controladores se arma con los
+# mismos nombres. CLUSTER_ID identifica el clúster KRaft: no lo cambies en un clúster con datos.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: kafka
+  namespace: memtrace
+spec:
+  serviceName: kafka-headless
+  replicas: 1
+  podManagementPolicy: Parallel   # el quórum KRaft necesita arrancar a la vez, no de uno en uno
+  selector:
+    matchLabels:
+      app: kafka
+  template:
+    metadata:
+      labels:
+        app: kafka
+    spec:
+      terminationGracePeriodSeconds: 60
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: kafka
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000          # appuser de la imagen
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+      - name: kafka
+        image: apache/kafka:3.8.0
+        command: ["sh", "-c"]
+        args:
+        - |
+          export KAFKA_NODE_ID="${HOSTNAME##*-}"
+          export KAFKA_ADVERTISED_LISTENERS="PLAINTEXT://${HOSTNAME}.kafka-headless.${POD_NAMESPACE}.svc.cluster.local:9092"
+          voters=""; i=0
+          while [ "$i" -lt "$KAFKA_REPLICAS" ]; do
+            voters="${voters:+$voters,}$i@kafka-$i.kafka-headless.${POD_NAMESPACE}.svc.cluster.local:9093"
+            i=$((i + 1))
+          done
+          export KAFKA_CONTROLLER_QUORUM_VOTERS="$voters"
+          exec /__cacert_entrypoint.sh /etc/kafka/docker/run
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: KAFKA_REPLICAS
+          value: "1"
+        - name: CLUSTER_ID
+          value: "4FzE5l5uQtOpfkqHKK_lJw"
+        - name: KAFKA_PROCESS_ROLES
+          value: "broker,controller"
+        - name: KAFKA_LISTENERS
+          value: "PLAINTEXT://:9092,CONTROLLER://:9093"
+        - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+          value: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+        - name: KAFKA_INTER_BROKER_LISTENER_NAME
+          value: "PLAINTEXT"
+        - name: KAFKA_CONTROLLER_LISTENER_NAMES
+          value: "CONTROLLER"
+        - name: KAFKA_LOG_DIRS
+          value: "/var/lib/kafka/data"
+        # El tópico lo crea el Job `kafka-topics` con sus ajustes: un tópico creado "solo" al publicar saldría con los de por defecto
+        - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
+          value: "false"
+        - name: KAFKA_DEFAULT_REPLICATION_FACTOR
+          value: "1"
+        - name: KAFKA_MIN_INSYNC_REPLICAS
+          value: "1"
+        - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+          value: "1"
+        - name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
+          value: "1"
+        - name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR
+          value: "1"
+        # Mensajes de hasta 10 MiB (el tope del gateway) también entre réplicas; la retención solo borra segmentos cerrados,
+        # así que se cierran a 128 MiB para que el tamaño máximo se respete en discos pequeños
+        - name: KAFKA_MESSAGE_MAX_BYTES
+          value: "10485760"
+        - name: KAFKA_REPLICA_FETCH_MAX_BYTES
+          value: "10485760"
+        - name: KAFKA_LOG_SEGMENT_BYTES
+          value: "134217728"
+        - name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS
+          value: "3000"
+        - name: KAFKA_HEAP_OPTS
+          value: "-Xms512m -Xmx512m"
+        ports:
+        - containerPort: 9092
+          name: broker
+        - containerPort: 9093
+          name: controller
+        readinessProbe:
+          tcpSocket:
+            port: broker
+          periodSeconds: 10
+        livenessProbe:
+          tcpSocket:
+            port: broker
+          initialDelaySeconds: 60
+          periodSeconds: 20
+        resources:
+          requests:
+            memory: "768Mi"
+            cpu: "100m"
+          limits:
+            memory: "1Gi"
+            cpu: "1"
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/kafka/data
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 10Gi
+---
+# Dirección de entrada para los clientes (bootstrap). Después cada cliente habla con el pod que le toca por su nombre DNS.
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka
+  namespace: memtrace
+spec:
+  type: ClusterIP
+  ports:
+  - port: 9092
+    targetPort: 9092
+    name: broker
+  selector:
+    app: kafka
+---
+# Nombres DNS estables de cada pod, también antes de estar listos (el quórum KRaft lo necesita para formarse)
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-headless
+  namespace: memtrace
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+  - port: 9092
+    targetPort: 9092
+    name: broker
+  - port: 9093
+    targetPort: 9093
+    name: controller
+  selector:
+    app: kafka

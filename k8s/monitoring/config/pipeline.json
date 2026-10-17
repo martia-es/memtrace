@@ -7,7 +7,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "30s",
   "time": {
     "from": "now-3h",
@@ -79,7 +79,7 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "Collector",
+      "title": "Collectors (entrada y escritura)",
       "description": "",
       "datasource": {
         "type": "prometheus",
@@ -94,7 +94,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "min(up{job=\"otel-collector\"})",
+          "expr": "min(up{job=~\"otel-collector|otel-collector-writer\"})",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -634,8 +634,8 @@
     {
       "id": 11,
       "type": "timeseries",
-      "title": "Spans en el Collector (por segundo)",
-      "description": "",
+      "title": "Spans por etapa (por segundo)",
+      "description": "Entrada: lo que llega de ingest y lo que se publica en Kafka. Escritura: lo que se lee de Kafka y se inserta en ClickHouse. Si «publicados» supera a «escritos», se está acumulando atraso en Kafka.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -649,8 +649,8 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(otelcol_receiver_accepted_spans[1m]))",
-          "legendFormat": "aceptados",
+          "expr": "sum(rate(otelcol_receiver_accepted_spans{receiver=\"otlp\"}[1m]))",
+          "legendFormat": "recibidos de ingest",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -658,8 +658,8 @@
         },
         {
           "refId": "B",
-          "expr": "sum(rate(otelcol_receiver_refused_spans[1m]))",
-          "legendFormat": "rechazados",
+          "expr": "sum(rate(otelcol_exporter_sent_spans{exporter=\"kafka\"}[1m]))",
+          "legendFormat": "publicados en Kafka",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -667,7 +667,7 @@
         },
         {
           "refId": "C",
-          "expr": "sum(rate(otelcol_exporter_sent_spans[1m]))",
+          "expr": "sum(rate(otelcol_exporter_sent_spans{exporter=\"clickhouse\"}[1m]))",
           "legendFormat": "escritos en ClickHouse",
           "datasource": {
             "type": "prometheus",
@@ -677,7 +677,16 @@
         {
           "refId": "D",
           "expr": "sum(rate(otelcol_exporter_send_failed_spans[1m]))",
-          "legendFormat": "fallidos",
+          "legendFormat": "fallidos (cualquiera)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "refId": "E",
+          "expr": "sum(rate(otelcol_receiver_refused_spans[1m]))",
+          "legendFormat": "rechazados",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -712,8 +721,8 @@
     {
       "id": 12,
       "type": "timeseries",
-      "title": "Cola del Collector (lotes)",
-      "description": "Si la cola se acerca a la capacidad, ClickHouse escribe más despacio de lo que llegan los datos.",
+      "title": "Atraso de escritura en Kafka (mensajes)",
+      "description": "Mensajes que el grupo clickhouse-writers aún no ha escrito en ClickHouse (cada mensaje es un lote de ~512 spans). Sube si ClickHouse cae o escribe más despacio de lo que llegan los datos; baja cuando se recupera.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -727,8 +736,8 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "max(otelcol_exporter_queue_size)",
-          "legendFormat": "en cola",
+          "expr": "sum(kafka_consumergroup_lag{consumergroup=\"clickhouse-writers\", topic=\"otel-traces\"})",
+          "legendFormat": "sin escribir",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -736,8 +745,8 @@
         },
         {
           "refId": "B",
-          "expr": "max(otelcol_exporter_queue_capacity)",
-          "legendFormat": "capacidad",
+          "expr": "sum(rate(kafka_topic_partition_current_offset{topic=\"otel-traces\"}[1m])) * 60",
+          "legendFormat": "publicados por minuto",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -787,8 +796,8 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "max(otelcol_process_memory_rss)",
-          "legendFormat": "Collector",
+          "expr": "max by (job) (otelcol_process_memory_rss)",
+          "legendFormat": "{{job}}",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -885,7 +894,7 @@
     {
       "id": 15,
       "type": "timeseries",
-      "title": "Instancias de ingest",
+      "title": "Instancias vivas",
       "description": "",
       "datasource": {
         "type": "prometheus",
@@ -901,7 +910,7 @@
         {
           "refId": "A",
           "expr": "count(up{job=\"ingest\"} == 1)",
-          "legendFormat": "vivas",
+          "legendFormat": "ingest",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -909,8 +918,26 @@
         },
         {
           "refId": "B",
-          "expr": "count(up{job=\"ingest\"})",
-          "legendFormat": "descubiertas",
+          "expr": "count(up{job=\"otel-collector\"} == 1)",
+          "legendFormat": "Collector de entrada",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "refId": "C",
+          "expr": "max(kafka_consumergroup_members{consumergroup=\"clickhouse-writers\"})",
+          "legendFormat": "Collectors de escritura leyendo",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "refId": "D",
+          "expr": "max(kafka_brokers)",
+          "legendFormat": "nodos de Kafka",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -943,5 +970,5 @@
       }
     }
   ],
-  "description": "Salud del camino SDK → ingest → Collector → ClickHouse (ADR-098). Las métricas del broker llegarán con el broker."
+  "description": "Salud del camino SDK → ingest → Collector de entrada → Kafka → Collector de escritura → ClickHouse (ADR-098)."
 }

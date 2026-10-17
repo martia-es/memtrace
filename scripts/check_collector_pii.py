@@ -98,7 +98,7 @@ def end_to_end(binary: str) -> None:
     out_file = Path(out) / "traces.jsonl"
     cfg["receivers"]["otlp"]["protocols"] = {"http": {"endpoint": "127.0.0.1:43180"}}
     cfg["exporters"] = {"file": {"path": str(out_file)}}
-    cfg["service"]["pipelines"]["traces"] = {"receivers": ["otlp"], "processors": ["transform/pii", "batch"], "exporters": ["file"]}
+    cfg["service"]["pipelines"]["traces"] = {"receivers": ["otlp"], "processors": ["transform/pii"], "exporters": ["file"]}
     cfg["service"]["telemetry"] = {"metrics": {"level": "none"}}
     cfg_path = Path(out) / "config.yaml"
     cfg_path.write_text(yaml.safe_dump(cfg))

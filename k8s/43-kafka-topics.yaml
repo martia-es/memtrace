@@ -1,0 +1,61 @@
+# Crea el tópico de trazas con sus ajustes (ADR-098) y los reaplica en cada ejecución. Es idempotente. Las particiones solo se
+# fijan al crearlo: más particiones se pueden añadir después, pero cambian el reparto por clave (no se quitan).
+#   - 12 particiones: tantos Collectors de escritura en paralelo como máximo
+#   - retención de 48 h Y 512 MiB por partición: el broker es un amortiguador, no un archivo, y un consumidor parado no puede
+#     llenar el disco sin que se note
+#   - replicación y min.insync.replicas según los nodos (aquí 1 y 1; el chart pone 3 y 2 con 3 nodos)
+# Un Job no se puede cambiar una vez creado: `make kafka-topics` lo borra y lo vuelve a crear.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kafka-topics
+  namespace: memtrace
+spec:
+  backoffLimit: 12
+  template:
+    metadata:
+      labels:
+        app: kafka-topics
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+      - name: kafka-topics
+        image: apache/kafka:3.8.0
+        command: ["sh", "-c"]
+        args:
+        - |
+          set -e
+          bin=/opt/kafka/bin
+          until $bin/kafka-broker-api-versions.sh --bootstrap-server "$BOOTSTRAP_SERVERS" >/dev/null 2>&1; do echo "esperando al broker..."; sleep 3; done
+          $bin/kafka-topics.sh --bootstrap-server "$BOOTSTRAP_SERVERS" --create --if-not-exists --topic otel-traces \
+            --partitions "$PARTITIONS" --replication-factor "$REPLICATION_FACTOR"
+          $bin/kafka-configs.sh --bootstrap-server "$BOOTSTRAP_SERVERS" --alter --entity-type topics --entity-name otel-traces \
+            --add-config "retention.ms=$RETENTION_MS,retention.bytes=$RETENTION_BYTES,min.insync.replicas=$MIN_INSYNC_REPLICAS,max.message.bytes=10485760,compression.type=producer"
+          $bin/kafka-topics.sh --bootstrap-server "$BOOTSTRAP_SERVERS" --describe --topic otel-traces
+        env:
+        - name: BOOTSTRAP_SERVERS
+          value: "kafka:9092"
+        - name: PARTITIONS
+          value: "12"
+        - name: REPLICATION_FACTOR
+          value: "1"
+        - name: MIN_INSYNC_REPLICAS
+          value: "1"
+        - name: RETENTION_MS
+          value: "172800000"      # 48 h
+        - name: RETENTION_BYTES
+          value: "536870912"      # 512 MiB por partición
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "50m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]

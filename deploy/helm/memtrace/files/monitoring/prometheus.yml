@@ -21,12 +21,28 @@ scrape_configs:
         port: 3002
         refresh_interval: 15s
 
-  # Collector: spans aceptados, rechazados, enviados y fallidos; tamaño de la cola; memoria
+  # Collector de entrada (ingest → Kafka): spans aceptados, rechazados, publicados y fallidos; memoria
   - job_name: otel-collector
     dns_sd_configs:
       - names: ["otel-collector-metrics"]
         type: A
         port: 8888
+        refresh_interval: 15s
+
+  # Collector de escritura (Kafka → ClickHouse): lo que inserta, lo que falla y su memoria
+  - job_name: otel-collector-writer
+    dns_sd_configs:
+      - names: ["otel-collector-writer-metrics"]
+        type: A
+        port: 8888
+        refresh_interval: 15s
+
+  # Kafka, vía el exportador: lag del grupo de escritura, mensajes publicados, nodos vivos
+  - job_name: kafka-exporter
+    dns_sd_configs:
+      - names: ["kafka-exporter-metrics"]
+        type: A
+        port: 9308
         refresh_interval: 15s
 
   # ClickHouse: su endpoint de Prometheus (k8s/config/clickhouse-low-footprint.xml)

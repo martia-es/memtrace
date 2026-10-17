@@ -1,5 +1,5 @@
 {{- if .Values.monitoring.enabled }}
-# Monitoring opcional (ADR-098): Prometheus y Grafana. Equivale a `k8s/monitoring/` en Kustomize.
+# Monitoring opcional (ADR-098): Prometheus, Grafana y el exportador de métricas de Kafka. Equivale a `k8s/monitoring/` en Kustomize.
 # Prometheus (ADR-098): lee las métricas del pipeline de ingesta, evalúa las reglas de alerta (config/alerts.yaml) y guarda
 # 15 días. Es opcional: `make monitoring` lo despliega junto a Grafana. Sin descubrimiento por la API de Kubernetes (ver
 # config/prometheus.yml): no lleva ServiceAccount con permisos ni salida hacia el servidor de la API.
@@ -141,6 +141,86 @@ spec:
   selector:
     app: clickhouse
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector-writer-metrics
+  namespace: {{ .Release.Namespace }}
+spec:
+  clusterIP: None
+  ports:
+  - port: 8888
+    targetPort: 8888
+    name: metrics
+  selector:
+    app: otel-collector-writer
+---
+# Exportador de métricas de Kafka (Apache 2.0): el lag de cada grupo de consumidores, los mensajes publicados por tópico y
+# cuántos nodos responden. Solo lee de Kafka; no escribe nada. El espacio en disco del broker no lo da: lo acota la retención
+# del tópico (48 h y 512 MiB por partición).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-exporter
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka-exporter
+  template:
+    metadata:
+      labels:
+        app: kafka-exporter
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+      containers:
+      - name: kafka-exporter
+        image: {{ include "memtrace.image" .Values.images.kafkaExporter }}
+        args:
+        {{- range $b := splitList "," (default "kafka:9092" .Values.broker.external.bootstrapServers) }}
+        - --kafka.server={{ trim $b }}
+        {{- end }}
+        - --web.listen-address=:9308
+        ports:
+        - containerPort: 9308
+          name: metrics
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: metrics
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: metrics
+          initialDelaySeconds: 20
+          periodSeconds: 20
+        resources:
+{{- toYaml .Values.resources.kafkaExporter | nindent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-exporter-metrics
+  namespace: {{ .Release.Namespace }}
+spec:
+  clusterIP: None
+  ports:
+  - port: 9308
+    targetPort: 9308
+    name: metrics
+  selector:
+    app: kafka-exporter
+---
 # Grafana (ADR-098): paneles de salud del pipeline, ya provistos (config/pipeline.json). NO sale por el ingress: se abre
 # con `make grafana` (port-forward). Los dashboards y el origen de datos se leen de ficheros, no se editan en la interfaz.
 # La contraseña de admin se genera al azar la primera vez (Secret `grafana-admin`) y se conserva al actualizar.
@@ -268,7 +348,8 @@ spec:
 # aquí solo añaden lo que hace falta y no tocan las del núcleo.
 #
 #   grafana ──► prometheus ──► ingest :3002 /metrics
-#                         ├──► otel-collector :8888
+#                         ├──► otel-collector :8888 y otel-collector-writer :8888
+#                         ├──► kafka-exporter :9308 ──► kafka :9092
 #                         └──► clickhouse :9363
 #
 # Grafana no tiene ninguna entrada: se abre con `kubectl port-forward` (que no pasa por estas políticas). Si lo expones con
@@ -297,9 +378,17 @@ spec:
         - { protocol: TCP, port: 3002 }
     - to:
         - podSelector:
-            matchLabels: { app: otel-collector }
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [otel-collector, otel-collector-writer]
       ports:
         - { protocol: TCP, port: 8888 }
+    - to:
+        - podSelector:
+            matchLabels: { app: kafka-exporter }
+      ports:
+        - { protocol: TCP, port: 9308 }
     - to:
         - podSelector:
             matchLabels: { app: clickhouse }
@@ -370,5 +459,61 @@ spec:
             matchLabels: { app: prometheus }
       ports:
         - { protocol: TCP, port: 9363 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: scrape-otel-collector-writer
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels: { app: otel-collector-writer }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: prometheus }
+      ports:
+        - { protocol: TCP, port: 8888 }
+---
+# El exportador de Kafka: lo lee Prometheus, y él solo habla con Kafka
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kafka-exporter
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels: { app: kafka-exporter }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: prometheus }
+      ports:
+        - { protocol: TCP, port: 9308 }
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app: kafka }
+      ports:
+        - { protocol: TCP, port: 9092 }
+---
+# Kafka deja entrar al exportador (la política base de Kafka solo nombra a los Collectors y al Job del tópico)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kafka-allow-exporter
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels: { app: kafka }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: kafka-exporter }
+      ports:
+        - { protocol: TCP, port: 9092 }
 {{- end }}
 {{- end }}

@@ -23,8 +23,10 @@ El entorno corre íntegramente de forma local sobre **Kubernetes** (`kind` / `k3
 graph LR
     Agent["🤖 Agente de IA<br/>(SDK OpenTelemetry)"] -->|OTLP/HTTP + API key| Gateway["🚪 Servicio ingest<br/>(:3002, ADR-089, ADR-098)"]
     Gateway -->|validar API key| Postgres
-    Gateway -->|OTLP/HTTP + token interno| Collector["📡 OpenTelemetry Collector<br/>(otelcol-contrib)"]
-    Collector -->|Escritura por Lotes| ClickHouse["🗄️ ClickHouse DB<br/>(Almacén Columnar - Trazas)"]
+    Gateway -->|OTLP/HTTP + token interno| Collector["📡 Collector de entrada<br/>(enmascara PII)"]
+    Collector -->|publica, acks=all| Kafka["📨 Apache Kafka<br/>(buffer duradero, ADR-098)"]
+    Kafka -->|lee en grupo| Writer["📡 Collector de escritura"]
+    Writer -->|inserta| ClickHouse["🗄️ ClickHouse DB<br/>(Almacén Columnar - Trazas)"]
     MigrateCH["⚙️ Job Migraciones<br/>(clickhouse-migrate)"] -->|Esquema SQL Versionado| ClickHouse
     User["👤 Desarrollador"] -->|Login OIDC Google/Microsoft| API["🔌 API de Consulta<br/>(Next.js + Auth.js)"]
     API -->|Trazas / Spans| ClickHouse
@@ -36,7 +38,9 @@ graph LR
 ```
 
 ### Componentes Principales:
-* **OpenTelemetry Collector:** Recibe trazas solo vía OTLP/HTTP (`4318`) y solo del servicio `ingest`, que valida la API key y fija el experimento (ADR-089, ADR-090, ADR-098). Agrupa con cola persistente en disco.
+* **OpenTelemetry Collector (entrada):** Recibe trazas solo vía OTLP/HTTP (`4318`) y solo del servicio `ingest`, que valida la API key y fija el experimento (ADR-089, ADR-090). Enmascara datos personales y las publica en Kafka sin estado propio.
+* **Apache Kafka:** el buffer duradero entre los dos Collectors (ADR-098). Si ClickHouse cae, las trazas esperan ahí.
+* **OpenTelemetry Collector (escritura):** lee de Kafka y escribe en ClickHouse; puedes tener varios.
 * **ClickHouse Server:** Base de datos columnar optimizada para analítica de trazas de alto rendimiento.
 * **ClickHouse Migrations Job:** Orquestador declarativo que aplica migraciones SQL versionadas (`migrations/clickhouse/*.sql`).
 * **PostgreSQL:** Almacén de identidad transaccional (usuarios, organizaciones, experimentos, memberships y sesiones), independiente de ClickHouse — ver [ADR-013](docs/adrs/identity/adr-013-identity-postgres-and-oauth-rbac.md).
@@ -165,7 +169,9 @@ MemTrace/
 │   ├── 10-clickhouse-secret.yaml
 │   ├── 20-clickhouse.yaml
 │   ├── 30-clickhouse-migrations.yaml
-│   ├── 40-otel-collector.yaml
+│   ├── 40-otel-collector.yaml  # Collector de entrada (ingest → Kafka)
+│   ├── 42-kafka.yaml           # Apache Kafka (KRaft) y su Job de tópico (43)
+│   ├── 44-otel-collector-writer.yaml # Collector de escritura (Kafka → ClickHouse)
 │   ├── 50-api.yaml             # API de consulta (Deployment + Service)
 │   ├── 60-dashboard.yaml       # Dashboard servido por nginx (Deployment + Service)
 │   ├── 70-docs.yaml            # Sitio de documentación pública (nginx)

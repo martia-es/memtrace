@@ -37,7 +37,9 @@ jobs:
           helm install memtrace deploy/helm/memtrace -n memtrace --create-namespace
           kubectl -n memtrace rollout status statefulset/clickhouse statefulset/postgres --timeout=300s
           kubectl -n memtrace wait --for=condition=complete job/clickhouse-migrate-1 job/postgres-migrate-1 --timeout=300s
-          kubectl -n memtrace rollout status deployment/api deployment/ingest deployment/otel-collector --timeout=300s
+          kubectl -n memtrace rollout status statefulset/kafka --timeout=300s
+          kubectl -n memtrace wait --for=condition=complete job/kafka-topics-1 --timeout=300s
+          kubectl -n memtrace rollout status deployment/api deployment/ingest deployment/otel-collector deployment/otel-collector-writer --timeout=300s
       - name: Run the gate
         run: |
           python -m pip install --upgrade pip
@@ -54,5 +56,7 @@ jobs:
         run: |
           kubectl -n memtrace get pods
           kubectl -n memtrace logs deployment/otel-collector --tail=100 || true
+          kubectl -n memtrace logs deployment/otel-collector-writer --tail=100 || true
+          kubectl -n memtrace logs statefulset/kafka --tail=100 || true
           kubectl -n memtrace logs deployment/api --tail=100 || true
           kubectl -n memtrace logs deployment/ingest --tail=100 || true

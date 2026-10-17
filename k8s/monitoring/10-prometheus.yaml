@@ -138,3 +138,86 @@ spec:
     name: metrics
   selector:
     app: clickhouse
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector-writer-metrics
+  namespace: memtrace
+spec:
+  clusterIP: None
+  ports:
+  - port: 8888
+    targetPort: 8888
+    name: metrics
+  selector:
+    app: otel-collector-writer
+---
+# Exportador de métricas de Kafka (Apache 2.0): el lag de cada grupo de consumidores, los mensajes publicados por tópico y
+# cuántos nodos responden. Solo lee de Kafka; no escribe nada. El espacio en disco del broker no lo da: lo acota la retención
+# del tópico (48 h y 512 MiB por partición).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-exporter
+  namespace: memtrace
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka-exporter
+  template:
+    metadata:
+      labels:
+        app: kafka-exporter
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+      containers:
+      - name: kafka-exporter
+        image: danielqsj/kafka-exporter:v1.8.0
+        args:
+        - --kafka.server=kafka:9092
+        - --web.listen-address=:9308
+        ports:
+        - containerPort: 9308
+          name: metrics
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: metrics
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: metrics
+          initialDelaySeconds: 20
+          periodSeconds: 20
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "20m"
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-exporter-metrics
+  namespace: memtrace
+spec:
+  clusterIP: None
+  ports:
+  - port: 9308
+    targetPort: 9308
+    name: metrics
+  selector:
+    app: kafka-exporter

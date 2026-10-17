@@ -4,7 +4,8 @@
 #   dashboard ──► api ──► postgres
 #       │          └──────► clickhouse (lectura y escritura de evaluación)
 #       └─────► ingest ──► postgres (validar API keys)
-#                  └─────► otel-collector ──► clickhouse   (`ingest` es el ÚNICO cliente del Collector, ADR-098)
+#                  └─────► otel-collector ──► kafka ◄── otel-collector-writer ──► clickhouse
+#                          (`ingest` es el ÚNICO cliente del Collector de entrada, ADR-098; solo el de escritura llega a ClickHouse)
 #   jobs (migraciones, backfill, topic-extraction, model-pricing, model-quality, health-probe, retention-purge, alerts-evaluate) ──► postgres / clickhouse
 #
 # IMPORTANTE: una NetworkPolicy solo vale si el CNI del clúster la aplica. El `kindnet` por defecto de kind puede no
@@ -42,7 +43,7 @@ spec:
         - { protocol: UDP, port: 53 }
         - { protocol: TCP, port: 53 }
 ---
-# 3) Collector: solo `ingest` le habla (4318), y él solo habla con ClickHouse (9000, protocolo nativo)
+# 3) Collector de entrada: solo `ingest` le habla (4318) y él solo habla con Kafka (9092); no llega a ClickHouse (ADR-098)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -61,11 +62,83 @@ spec:
   egress:
     - to:
         - podSelector:
+            matchLabels: { app: kafka }
+      ports:
+        - { protocol: TCP, port: 9092 }
+---
+# 3b) Collector de escritura: lee de Kafka y escribe en ClickHouse; nadie le habla (sus métricas las lee Prometheus, ver monitoring)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: otel-collector-writer
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels: { app: otel-collector-writer }
+  policyTypes: [Ingress, Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app: kafka }
+      ports:
+        - { protocol: TCP, port: 9092 }
+    - to:
+        - podSelector:
             matchLabels: { app: clickhouse }
       ports:
         - { protocol: TCP, port: 9000 }
 ---
-# 4) ClickHouse: el Collector (nativo 9000) y quienes consultan o migran (HTTP 8123 / nativo 9000 el Job de migración)
+# 3c) Kafka: lo alcanzan los dos Collectors y el Job que crea el tópico (9092), y los nodos entre sí (9092 y 9093 del quórum)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kafka
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels: { app: kafka }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [otel-collector, otel-collector-writer, kafka-topics]
+      ports:
+        - { protocol: TCP, port: 9092 }
+    - from:
+        - podSelector:
+            matchLabels: { app: kafka }
+      ports:
+        - { protocol: TCP, port: 9092 }
+        - { protocol: TCP, port: 9093 }
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app: kafka }
+      ports:
+        - { protocol: TCP, port: 9092 }
+        - { protocol: TCP, port: 9093 }
+---
+# 3d) Job que crea el tópico: solo habla con Kafka
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kafka-topics
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels: { app: kafka-topics }
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app: kafka }
+      ports:
+        - { protocol: TCP, port: 9092 }
+---
+# 4) ClickHouse: el Collector de escritura (nativo 9000) y quienes consultan o migran (HTTP 8123 / nativo 9000 el Job de migración)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -78,7 +151,7 @@ spec:
   ingress:
     - from:
         - podSelector:
-            matchLabels: { app: otel-collector }
+            matchLabels: { app: otel-collector-writer }
       ports:
         - { protocol: TCP, port: 9000 }
     - from:
@@ -335,5 +408,4 @@ spec:
         - ipBlock:
             cidr: 0.0.0.0/0
             except: {{ toJson .Values.networkPolicy.internalCidrs }}
-
 {{- end }}

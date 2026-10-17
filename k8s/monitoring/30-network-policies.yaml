@@ -2,7 +2,8 @@
 # aquí solo añaden lo que hace falta y no tocan las del núcleo.
 #
 #   grafana ──► prometheus ──► ingest :3002 /metrics
-#                         ├──► otel-collector :8888
+#                         ├──► otel-collector :8888 y otel-collector-writer :8888
+#                         ├──► kafka-exporter :9308 ──► kafka :9092
 #                         └──► clickhouse :9363
 #
 # Grafana no tiene ninguna entrada: se abre con `kubectl port-forward` (que no pasa por estas políticas). Si lo expones con
@@ -30,9 +31,17 @@ spec:
         - { protocol: TCP, port: 3002 }
     - to:
         - podSelector:
-            matchLabels: { app: otel-collector }
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [otel-collector, otel-collector-writer]
       ports:
         - { protocol: TCP, port: 8888 }
+    - to:
+        - podSelector:
+            matchLabels: { app: kafka-exporter }
+      ports:
+        - { protocol: TCP, port: 9308 }
     - to:
         - podSelector:
             matchLabels: { app: clickhouse }
@@ -103,3 +112,59 @@ spec:
             matchLabels: { app: prometheus }
       ports:
         - { protocol: TCP, port: 9363 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: scrape-otel-collector-writer
+  namespace: memtrace
+spec:
+  podSelector:
+    matchLabels: { app: otel-collector-writer }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: prometheus }
+      ports:
+        - { protocol: TCP, port: 8888 }
+---
+# El exportador de Kafka: lo lee Prometheus, y él solo habla con Kafka
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kafka-exporter
+  namespace: memtrace
+spec:
+  podSelector:
+    matchLabels: { app: kafka-exporter }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: prometheus }
+      ports:
+        - { protocol: TCP, port: 9308 }
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app: kafka }
+      ports:
+        - { protocol: TCP, port: 9092 }
+---
+# Kafka deja entrar al exportador (la política base de Kafka solo nombra a los Collectors y al Job del tópico)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kafka-allow-exporter
+  namespace: memtrace
+spec:
+  podSelector:
+    matchLabels: { app: kafka }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: kafka-exporter }
+      ports:
+        - { protocol: TCP, port: 9092 }
