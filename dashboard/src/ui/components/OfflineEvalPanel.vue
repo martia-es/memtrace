@@ -16,6 +16,7 @@ import OfflineTrendView from "./OfflineTrendView.vue";
 import FormField from "./FormField.vue";
 import LoadingState from "./LoadingState.vue";
 import Button from "./Button.vue";
+import { t } from "../i18n";
 
 const props = defineProps<{ experimentId: string; range: RangeParams; /** baseline and candidate to compare, from the Evaluations run list */ compareIds?: [string, string] | null }>();
 
@@ -42,7 +43,7 @@ const ALL_DATASETS = "__all__";
 const datasetOptions = computed(() => {
   const seen = new Map<string, string>();
   for (const r of runs.data.value?.items ?? []) seen.set(r.datasetId, r.datasetName);
-  return [{ label: "All datasets", value: ALL_DATASETS }, ...[...seen.entries()].map(([value, label]) => ({ label, value }))];
+  return [{ label: t("offlineEvalPanel.all_datasets"), value: ALL_DATASETS }, ...[...seen.entries()].map(([value, label]) => ({ label, value }))];
 });
 const datasetSelection = computed({
   get: () => datasetId.value ?? ALL_DATASETS,
@@ -71,21 +72,21 @@ function openRun(run: RunListItemDto) {
   <div class="offline">
     <header class="head">
       <div class="titles">
-        <h2>Offline evaluations</h2>
-        <p class="sub">Results of <code>run_experiment</code> against MemTrace datasets. Only completed runs are shown, so a partial upload never looks like a regression.</p>
+        <h2>{{ t("offlineEvalPanel.offline_evaluations") }}</h2>
+        <p class="sub">{{ t("offlineEvalPanel.results_of") + " " }}<code>run_experiment</code>{{ " " + t("offlineEvalPanel.against_memtrace_datasets_only_completed") }}</p>
       </div>
       <div class="filters">
-        <FormField label="Dataset">
+        <FormField :label="t('offlineEvalPanel.dataset')">
           <Select v-model="datasetSelection" :options="datasetOptions" />
         </FormField>
       </div>
     </header>
 
-    <Button variant="link" v-if="view !== 'trend'" class="back" @click="view = 'trend'">← All runs</Button>
+    <Button variant="link" v-if="view !== 'trend'" class="back" @click="view = 'trend'">{{ t("offlineEvalPanel.all_runs") }}</Button>
 
     <ErrorBanner v-if="runs.error.value" :error="runs.error.value" @retry="runs.run()" />
     <LoadingState v-else-if="runs.loading.value && !runs.data.value" size="lg" />
-    <EmptyState v-else-if="!allCompleted.length" icon="science" title="No offline evaluation runs">No completed runs yet. Run <code>run_experiment</code> against a MemTrace dataset to see them here.</EmptyState>
+    <EmptyState v-else-if="!allCompleted.length" icon="science" :title="t('offlineEvalPanel.no_offline_evaluation_runs')">{{ t("offlineEvalPanel.no_completed_runs_yet_run") + " " }}<code>run_experiment</code>{{ " " + t("offlineEvalPanel.against_a_memtrace_dataset_to_see") }}</EmptyState>
 
     <template v-else>
       <OfflineTrendView v-if="view === 'trend'"   :runs="inRange" :targets="targets.data.value ?? undefined" @open-run="openRun" @compare="openCompare" />

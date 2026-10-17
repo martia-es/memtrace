@@ -21,6 +21,7 @@ import Modal from "./Modal.vue";
 import SegmentedControl from "./SegmentedControl.vue";
 import Select from "./Select.vue";
 import TabBar from "./TabBar.vue";
+import { t, tp } from "../i18n";
 
 const props = defineProps<{ experimentId: string; datasetId: string; datasetName: string; versions: DatasetVersionDto[] }>();
 const emit = defineEmits<{ close: [] }>();
@@ -97,7 +98,7 @@ const canGenerate = computed(() => metrics.value.length > 0);
 
 function copy() {
   void navigator.clipboard.writeText(shown.value);
-  $q.notify({ message: "Copied", timeout: 1200, position: "bottom" });
+  $q.notify({ message: t("runOfflineModal.copied"), timeout: 1200, position: "bottom" });
 }
 
 function download(filename: string, text: string) {
@@ -115,55 +116,55 @@ function downloadBoth() {
 </script>
 
 <template>
-  <Modal title="Run offline" full @close="emit('close')">
-    <p class="intro muted">Pick what to evaluate. You get a script and a <code>.env</code> ready to run on your machine or in CI; the results land in this dataset's Runs.</p>
+  <Modal :title="t('runOfflineModal.run_offline')" full @close="emit('close')">
+    <p class="intro muted">{{ t("runOfflineModal.pick_what_to_evaluate_you_get") + " " }}<code>.env</code>{{ " " + t("runOfflineModal.ready_to_run_on_your_machine") }}</p>
     <div class="layout">
       <div class="options">
         <section>
-          <h3>1 · Dataset</h3>
+          <h3>{{ t("runOfflineModal.1_dataset") }}</h3>
           <div class="dataset-row">
             <span class="dataset-name">{{ datasetName }}</span>
             <Select v-model="version" :options="versionOptions" data-testid="run-version" />
           </div>
-          <p class="hint muted"><template v-if="itemCount !== null">{{ itemCount }} items · </template>pinning a version makes the run reproducible after the dataset changes.</p>
+          <p class="hint muted"><template v-if="itemCount !== null">{{ t('runOfflineModal.count_items', { count: itemCount }) }} · </template>{{ t('runOfflineModal.pinning_a_version_makes_the_run') }}</p>
         </section>
 
         <section>
-          <h3>2 · Metrics</h3>
+          <h3>{{ t("runOfflineModal.2_metrics") }}</h3>
           <div class="metric-group">
-            <div class="group-title">Rules <span class="muted">no API key</span></div>
+            <div class="group-title">{{ t("runOfflineModal.rules") + " " }}<span class="muted">{{ t("runOfflineModal.no_api_key") }}</span></div>
             <label v-for="m in EVAL_METRICS.filter((x) => x.group === 'rules')" :key="m.id" class="metric">
               <Checkbox v-model="metrics" :value="m.id" :data-testid="`metric-${m.id}`" />
               <b>{{ m.label }}</b><span class="muted">{{ m.description }}</span>
             </label>
           </div>
           <div class="metric-group">
-            <div class="group-title">LLM judge <span class="muted">needs ANTHROPIC_API_KEY</span></div>
+            <div class="group-title">{{ t("runOfflineModal.llm_judge") + " " }}<span class="muted">{{ t("runOfflineModal.needs_anthropic_api_key") }}</span></div>
             <label v-for="m in EVAL_METRICS.filter((x) => x.group === 'judge')" :key="m.id" class="metric">
               <Checkbox v-model="metrics" :value="m.id" :data-testid="`metric-${m.id}`" />
               <b>{{ m.label }}</b><span class="muted">{{ m.description }}</span>
             </label>
           </div>
           <details class="unavailable">
-            <summary>Not available from here</summary>
+            <summary>{{ t("runOfflineModal.not_available_from_here") }}</summary>
             <p v-for="u in EVAL_METRICS_UNAVAILABLE" :key="u.label" class="hint muted"><b>{{ u.label }}</b>: {{ u.reason }}.</p>
           </details>
         </section>
 
         <section>
-          <h3>3 · Agent to call</h3>
+          <h3>{{ t("runOfflineModal.3_agent_to_call") }}</h3>
           <template v-if="agent">
             <SegmentedControl
               :options="deployments.map((d) => ({ value: d.environment.key, label: d.environment.label }))"
               :model-value="environment?.environment.key"
-              aria-label="Environment"
+              :aria-label="t('runOfflineModal.environment')"
               @update:model-value="environmentKey = $event as string"
             />
             <code class="url" data-testid="agent-url">POST {{ agent.url }}</code>
-            <p class="hint muted">Host of the environment plus the agent's chat path and JSON contract (Assistants › agent card).</p>
+            <p class="hint muted">{{ t("runOfflineModal.host_of_the_environment_plus_the") }}</p>
           </template>
-          <p v-else-if="cardLoading" class="hint muted">Reading the agent card…</p>
-          <p v-else class="hint muted" data-testid="no-agent">This agent has no chat endpoint declared (or no environment), so the script leaves an <code>agent()</code> function for you to fill in.</p>
+          <p v-else-if="cardLoading" class="hint muted">{{ t("runOfflineModal.reading_the_agent_card") }}</p>
+          <p v-else class="hint muted" data-testid="no-agent">{{ t("runOfflineModal.this_agent_has_no_chat_endpoint") + " " }}<code>agent()</code>{{ " " + t("runOfflineModal.function_for_you_to_fill_in") }}</p>
         </section>
       </div>
 
@@ -171,20 +172,20 @@ function downloadBoth() {
         <TabBar :tabs="FILES.map((f) => ({ id: f.id, label: f.label }))" :model-value="activeFile" @update:model-value="activeFile = $event">
         </TabBar>
         <div class="output-actions">
-          <Button size="sm" variant="secondary" data-testid="copy" @click="copy">Copy</Button>
-          <Button size="sm" variant="secondary" data-testid="download-current" @click="downloadCurrent">Download</Button>
+          <Button size="sm" variant="secondary" data-testid="copy" @click="copy">{{ t("runOfflineModal.copy") }}</Button>
+          <Button size="sm" variant="secondary" data-testid="download-current" @click="downloadCurrent">{{ t("runOfflineModal.download") }}</Button>
         </div>
         <CodeBlock class="code" :code="shown" :lang="current.lang" data-testid="code" />
         <p class="secrets" role="note" data-testid="secrets">
-          Secrets are never shown here. Fill in <code v-for="s in secrets" :key="s">{{ s }}</code> in the <code>.env</code>; the MemTrace key is created in Experiment › API keys.
+          {{ t("runOfflineModal.secrets_are_never_shown_here_fill") + " " }}<code v-for="s in secrets" :key="s">{{ s }}</code>{{ " " + t("runOfflineModal.in_the") + " " }}<code>.env</code>{{ t("runOfflineModal.the_memtrace_key_is_created_in") }}
         </p>
       </div>
     </div>
 
     <template #footer>
-      <span class="muted summary">{{ metrics.length }} metric{{ metrics.length === 1 ? "" : "s" }}<template v-if="needsJudge(metrics)"> · 1 needs an LLM judge key</template> · results upload to Datasets › {{ datasetName }} › Runs</span>
-      <Button variant="secondary" @click="emit('close')">Close</Button>
-      <Button variant="primary" :disabled="!canGenerate" data-testid="download-both" @click="downloadBoth">Download .env + script</Button>
+      <span class="muted summary">{{ tp("runOfflineModal.metrics", metrics.length) }}<template v-if="needsJudge(metrics)"> {{ t('runOfflineModal.1_needs_an_llm_judge_key') }}</template> · {{ t('runOfflineModal.results_upload_to_datasets_name_runs', { name: datasetName }) }}</span>
+      <Button variant="secondary" @click="emit('close')">{{ t("runOfflineModal.close") }}</Button>
+      <Button variant="primary" :disabled="!canGenerate" data-testid="download-both" @click="downloadBoth">{{ t("runOfflineModal.download_env_script") }}</Button>
     </template>
   </Modal>
 </template>
