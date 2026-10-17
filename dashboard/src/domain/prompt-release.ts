@@ -1,3 +1,4 @@
+import { tr } from "./translate";
 /**
  * Qué versión corre en cada entorno y cuánto va por detrás de la última. Alimenta el tablero de la lista de prompts
  * y la tira "running" del detalle. Funciones puras: la pantalla solo pinta lo que devuelven.
@@ -141,7 +142,7 @@ export interface ServingStatus {
  */
 export function servingStatus(serving: { environment: string; tag: string; version: number }, tagVersions: Record<string, number>, latest: number): ServingStatus {
   const target = serving.tag ? tagVersions[serving.tag] : undefined;
-  if (target !== undefined && target !== serving.version) return { state: "catching-up", label: "catching up" };
-  if (serving.environment === PRODUCTION_ENV && latest > serving.version) return { state: "behind", label: `${latest - serving.version} behind` };
-  return { state: "ok", label: "up to date" };
+  if (target !== undefined && target !== serving.version) return { state: "catching-up", label: tr("prompt-release.catching_up") };
+  if (serving.environment === PRODUCTION_ENV && latest > serving.version) return { state: "behind", label: tr("prompt-release.count_behind", { count: latest - serving.version }) };
+  return { state: "ok", label: tr("prompt-release.up_to_date") };
 }

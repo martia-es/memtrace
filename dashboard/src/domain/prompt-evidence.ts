@@ -1,5 +1,6 @@
 import type { VersionEvidenceDto } from "@contract";
 import { formatCostUsd, formatDuration, formatPercent } from "./format";
+import { tr } from "./translate";
 
 /**
  * Comparar dos versiones de un prompt con su evidencia (ADR-069). Con pocas trazas una diferencia es ruido, así que
@@ -65,7 +66,7 @@ export function compareVersions(base: VersionEvidenceDto, target: VersionEvidenc
 
   deltas.push({
     key: "errorRate",
-    label: "Error rate",
+    get label() { return tr("prompt-evidence.error_rate"); },
     base: percent(base.errorRate),
     target: percent(target.errorRate),
     change: points(target.errorRate - base.errorRate),
@@ -75,7 +76,7 @@ export function compareVersions(base: VersionEvidenceDto, target: VersionEvidenc
 
   deltas.push({
     key: "p95",
-    label: "Latency p95",
+    get label() { return tr("prompt-evidence.latency_p95"); },
     base: formatDuration(base.latencyMs.p95),
     target: formatDuration(target.latencyMs.p95),
     change: `${sign(target.latencyMs.p95 - base.latencyMs.p95)}${formatDuration(Math.abs(target.latencyMs.p95 - base.latencyMs.p95))}`,
@@ -86,7 +87,7 @@ export function compareVersions(base: VersionEvidenceDto, target: VersionEvidenc
   const cost = base.costPerTraceUsd !== null && target.costPerTraceUsd !== null;
   deltas.push({
     key: "cost",
-    label: "Cost per trace",
+    get label() { return tr("prompt-evidence.cost_per_trace"); },
     base: formatCostUsd(base.costPerTraceUsd) ?? "–",
     target: formatCostUsd(target.costPerTraceUsd) ?? "–",
     change: cost ? `${sign(target.costPerTraceUsd! - base.costPerTraceUsd!)}${formatCostUsd(Math.abs(target.costPerTraceUsd! - base.costPerTraceUsd!))}` : "–",
@@ -97,7 +98,7 @@ export function compareVersions(base: VersionEvidenceDto, target: VersionEvidenc
   const sat = base.feedback.satisfaction !== null && target.feedback.satisfaction !== null;
   deltas.push({
     key: "satisfaction",
-    label: "User 👍",
+    get label() { return tr("prompt-evidence.user"); },
     base: base.feedback.satisfaction === null ? "–" : `${base.feedback.satisfaction.toFixed(0)}%`,
     target: target.feedback.satisfaction === null ? "–" : `${target.feedback.satisfaction.toFixed(0)}%`,
     change: sat ? `${sign(target.feedback.satisfaction! - base.feedback.satisfaction!)}${Math.abs(target.feedback.satisfaction! - base.feedback.satisfaction!).toFixed(0)} pp` : "–",
@@ -112,7 +113,7 @@ export function compareVersions(base: VersionEvidenceDto, target: VersionEvidenc
     const boolean = e.dataType === "boolean";
     deltas.push({
       key: `eval:${e.name}`,
-      label: `${e.name}${boolean ? " pass rate" : " (avg)"}`,
+      label: tr(boolean ? "prompt-evidence.name_pass_rate" : "prompt-evidence.name_avg", { name: e.name }),
       base: boolean ? percent(e.value) : (e.value?.toFixed(2) ?? "–"),
       target: boolean ? percent(other.value) : (other.value?.toFixed(2) ?? "–"),
       change: e.value === null || other.value === null ? "–" : boolean ? points(other.value - e.value) : `${sign(other.value - e.value)}${Math.abs(other.value - e.value).toFixed(2)}`,
@@ -134,5 +135,5 @@ export function evaluatorCell(version: VersionEvidenceDto, name: string): string
   if (!e) return "–";
   if (e.dataType === "boolean") return e.value === null ? "–" : formatPercent(e.value);
   if (e.dataType === "numeric") return e.value === null ? "–" : e.value.toFixed(2);
-  return `${e.items} items`;
+  return tr("prompt-evidence.count_items", { count: e.items });
 }

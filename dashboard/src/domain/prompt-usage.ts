@@ -1,4 +1,5 @@
 import type { PromptTagDto, PromptUsageDto } from "@contract";
+import { tr } from "./translate";
 
 /** Lo que informan los agentes sobre la versión de un prompt que usan (ADR-068), listo para pintar. */
 export type UsageState =
@@ -50,7 +51,7 @@ const TAG_PATTERN = /^[a-z][a-z0-9_-]{0,31}$/;
 
 /** Mismas reglas que la API (TAG_PATTERN) y que los entornos son de la organización: null si el nombre vale. */
 export function tagNameError(tag: string, environmentKeys: string[]): string | null {
-  if (environmentKeys.includes(tag)) return `“${tag}” is an environment: move it from the list above.`;
-  if (!TAG_PATTERN.test(tag)) return "Use lowercase letters, digits, “-” or “_”, starting with a letter (up to 32 characters).";
+  if (environmentKeys.includes(tag)) return tr("prompt-usage.tag_is_an_environment_move_it", { tag });
+  if (!TAG_PATTERN.test(tag)) return tr("prompt-usage.use_lowercase_letters_digits_or_starting");
   return null;
 }

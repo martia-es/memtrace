@@ -1,10 +1,11 @@
 /** Reglas de presentación del registro de asistentes (ADR-053): estado global, uptime y origen de las conexiones. Sin Vue ni HTTP. */
 import type { AssistantCardDto, ConnectionDto, DeploymentSummaryDto, HealthCheckDto, HealthStatusDto, RepoConfigDto } from "@contract";
+import { tr, lazyMessages } from "./translate";
 
 export type Tone = "ok" | "error" | "warn" | "neutral";
 
 export const HEALTH_TONE: Record<HealthStatusDto, Tone> = { up: "ok", degraded: "warn", down: "error", unknown: "neutral" };
-export const HEALTH_LABEL: Record<HealthStatusDto, string> = { up: "Up", degraded: "Degraded", down: "Down", unknown: "Unknown" };
+export const HEALTH_LABEL: Record<HealthStatusDto, string> = lazyMessages({ up: "assistants.up", degraded: "assistants.degraded", down: "assistants.down", unknown: "assistants.unknown" });
 
 const SEVERITY: Record<HealthStatusDto, number> = { down: 3, degraded: 2, unknown: 1, up: 0 };
 
@@ -18,13 +19,13 @@ export interface Headline {
  * (verde): estar o no en producción no cambia que funcione. Sin ningún despliegue (o retirado) es neutro.
  */
 export function headline(card: Pick<AssistantCardDto, "deployments" | "lifecycle">): Headline {
-  if (card.lifecycle === "retired") return { label: "Retired", tone: "neutral" };
+  if (card.lifecycle === "retired") return { label: tr("assistants.retired"), tone: "neutral" };
   const worst = worstDeployment(card.deployments);
-  if (!worst) return { label: "Not deployed", tone: "neutral" };
-  if (worst.healthStatus === "down") return { label: `Down in ${worst.environment.label}`, tone: "error" };
-  if (worst.healthStatus === "degraded") return { label: `Degraded in ${worst.environment.label}`, tone: "warn" };
-  if (worst.healthStatus === "unknown") return { label: "Check pending", tone: "neutral" };
-  return { label: "Healthy", tone: "ok" };
+  if (!worst) return { label: tr("assistants.not_deployed"), tone: "neutral" };
+  if (worst.healthStatus === "down") return { label: tr("assistants.down_in_env", { env: worst.environment.label }), tone: "error" };
+  if (worst.healthStatus === "degraded") return { label: tr("assistants.degraded_in_env", { env: worst.environment.label }), tone: "warn" };
+  if (worst.healthStatus === "unknown") return { label: tr("assistants.check_pending"), tone: "neutral" };
+  return { label: tr("assistants.healthy"), tone: "ok" };
 }
 
 /** Aspecto de la tarjeta: `off` = todo en gris (sin desplegar o retirado); si no, el tono de su estado. */
@@ -52,12 +53,12 @@ export function productionDeployment(card: Pick<AssistantCardDto, "deployments">
 /** Resumen de quién puede llamar al despliegue: «Everyone», «2 groups · 1 user», o que no hay nada definido. */
 export function accessSummary(d: Pick<DeploymentSummaryDto, "access">): string {
   const { everyone, groups, users } = d.access;
-  if (everyone) return "Everyone in the organization";
-  const parts = [groups > 0 ? `${groups} ${groups === 1 ? "group" : "groups"}` : "", users > 0 ? `${users} ${users === 1 ? "user" : "users"}` : ""].filter(Boolean);
-  return parts.length > 0 ? parts.join(" · ") : "No access defined";
+  if (everyone) return tr("assistants.everyone_in_the_organization");
+  const parts = [groups > 0 ? (groups === 1 ? tr("assistants.count_group", { count: groups }) : tr("assistants.count_groups", { count: groups })) : "", users > 0 ? (users === 1 ? tr("assistants.count_user", { count: users }) : tr("assistants.count_users", { count: users })) : ""].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : tr("assistants.no_access_defined");
 }
 
-export const AUTH_LABEL: Record<string, string> = { none: "No authentication", api_key: "API key", oauth2: "OAuth 2.0", mtls: "Mutual TLS", other: "Other" };
+export const AUTH_LABEL: Record<string, string> = lazyMessages({ none: "assistants.no_authentication", api_key: "assistants.api_key", oauth2: "assistants.oauth_2_0", mtls: "assistants.mutual_tls", other: "assistants.other" });
 
 export function authSummary(d: Pick<DeploymentSummaryDto, "authMethod" | "authProvider">): string {
   const method = AUTH_LABEL[d.authMethod] ?? d.authMethod;
@@ -102,11 +103,11 @@ export function connectionOrigin(c: Pick<ConnectionDto, "declared" | "firstSeenA
   return c.declared ? "declared-only" : "seen-only";
 }
 
-export const ORIGIN_LABEL: Record<ConnectionOrigin, string> = {
-  "declared-and-seen": "Declared and seen in traces",
-  "seen-only": "Seen in traces, not declared",
-  "declared-only": "Declared, not seen yet",
-};
+export const ORIGIN_LABEL: Record<ConnectionOrigin, string> = lazyMessages({
+  "declared-and-seen": "assistants.declared_and_seen_in_traces",
+  "seen-only": "assistants.seen_in_traces_not_declared",
+  "declared-only": "assistants.declared_not_seen_yet",
+});
 
 /** Visto en trazas y todavía sin decidir: lo que gobernanza tiene que revisar. */
 export function isPendingReview(c: Pick<ConnectionDto, "firstSeenAt" | "status">): boolean {
@@ -138,7 +139,7 @@ export function personInitials(p: PersonLike): string {
   return label ? initials(label) : initials(p.email.split("@")[0] ?? p.email);
 }
 
-export const ROLE_LABEL: Record<string, string> = { technical: "Technical", business: "Business" };
+export const ROLE_LABEL: Record<string, string> = lazyMessages({ technical: "assistants.technical", business: "assistants.business" });
 
 /** Enlace al commit en el repositorio del agente, para la versión de una traza o una evaluación (ADR-065); null si no hay repo. */
 export function commitUrl(repo: Pick<RepoConfigDto, "url" | "provider"> | null | undefined, sha: string): string | null {
@@ -149,34 +150,34 @@ export function commitUrl(repo: Pick<RepoConfigDto, "url" | "provider"> | null |
 
 /** Frase del veredicto del gate (ADR-064) para el modal de despliegue. */
 export const GATE_LABEL: Record<string, { label: string; tone: Tone }> = {
-  allowed: { label: "Evaluation passed", tone: "ok" },
-  rollback: { label: "Already deployed before", tone: "ok" },
-  no_evaluation: { label: "Not evaluated", tone: "error" },
-  evaluation_running: { label: "Evaluation running", tone: "warn" },
-  only_dirty_runs: { label: "Only local evaluations", tone: "error" },
-  failed: { label: "Evaluation failed", tone: "error" },
-  insufficient_runs: { label: "More evaluations needed", tone: "warn" },
+  allowed: { get label() { return tr("assistants.evaluation_passed"); }, tone: "ok" },
+  rollback: { get label() { return tr("assistants.already_deployed_before"); }, tone: "ok" },
+  no_evaluation: { get label() { return tr("assistants.not_evaluated"); }, tone: "error" },
+  evaluation_running: { get label() { return tr("assistants.evaluation_running"); }, tone: "warn" },
+  only_dirty_runs: { get label() { return tr("assistants.only_local_evaluations"); }, tone: "error" },
+  failed: { get label() { return tr("assistants.evaluation_failed"); }, tone: "error" },
+  insufficient_runs: { get label() { return tr("assistants.more_evaluations_needed"); }, tone: "warn" },
 };
 
 /** Frase del veredicto del gate de promoción de prompts (ADR-070). */
 export const PROMPT_GATE_LABEL: Record<string, { label: string; tone: Tone }> = {
-  allowed: { label: "Evaluation passed", tone: "ok" },
-  rollback: { label: "Already promoted before", tone: "ok" },
-  not_gated: { label: "Not protected", tone: "ok" },
-  no_policy: { label: "No policy", tone: "ok" },
-  policy_incomplete: { label: "Policy needs a dataset", tone: "error" },
-  no_evaluation: { label: "Not evaluated", tone: "error" },
-  evaluation_running: { label: "Evaluation running", tone: "warn" },
-  failed: { label: "Evaluation failed", tone: "error" },
-  insufficient_runs: { label: "More evaluations needed", tone: "warn" },
+  allowed: { get label() { return tr("assistants.evaluation_passed"); }, tone: "ok" },
+  rollback: { get label() { return tr("assistants.already_promoted_before"); }, tone: "ok" },
+  not_gated: { get label() { return tr("assistants.not_protected"); }, tone: "ok" },
+  no_policy: { get label() { return tr("assistants.no_policy"); }, tone: "ok" },
+  policy_incomplete: { get label() { return tr("assistants.policy_needs_a_dataset"); }, tone: "error" },
+  no_evaluation: { get label() { return tr("assistants.not_evaluated"); }, tone: "error" },
+  evaluation_running: { get label() { return tr("assistants.evaluation_running"); }, tone: "warn" },
+  failed: { get label() { return tr("assistants.evaluation_failed"); }, tone: "error" },
+  insufficient_runs: { get label() { return tr("assistants.more_evaluations_needed"); }, tone: "warn" },
 };
 
 export const DEPLOY_STATUS: Record<string, { label: string; tone: Tone }> = {
-  queued: { label: "Queued", tone: "neutral" },
-  running: { label: "Deploying", tone: "warn" },
-  succeeded: { label: "Deployed", tone: "ok" },
-  failed: { label: "Failed", tone: "error" },
-  cancelled: { label: "Cancelled", tone: "neutral" },
+  queued: { get label() { return tr("assistants.queued"); }, tone: "neutral" },
+  running: { get label() { return tr("assistants.deploying"); }, tone: "warn" },
+  succeeded: { get label() { return tr("assistants.deployed"); }, tone: "ok" },
+  failed: { get label() { return tr("assistants.failed"); }, tone: "error" },
+  cancelled: { get label() { return tr("assistants.cancelled"); }, tone: "neutral" },
 };
 
 /** ¿Se puede lanzar un despliegue? Hace falta repo, workflow de GitHub y rama del entorno (ADR-064). */
