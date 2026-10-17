@@ -148,6 +148,7 @@ El proyecto incluye un `Makefile` interactivo para gestionar fácilmente el cicl
 | **`make migrate`** | Re-ejecuta de forma manual las migraciones de base de datos. |
 | **`make dashboard`** / **`make api`** | Reconstruyen y despliegan solo el dashboard o solo la API (más rápido que `make images`). |
 | **`make images`** | Reconstruye las imágenes de la API y el dashboard, las carga en el clúster y reinicia sus pods. |
+| **`make prune`** | Borra las imágenes viejas que dejan las reconstrucciones (decenas de GB en el nodo de kind). Se ejecuta solo tras `make images`, `api`, `dashboard`, `ingest` y `up`; `python3 scripts/prune-kind-images.py --dry-run` muestra qué borraría. |
 | **`make dev-data`** | Genera trazas de ejemplo con un agente simulado. |
 | **`make docs`** | Sitio de documentación en modo desarrollo con recarga en caliente (http://localhost:5174). `make up` ya lo sirve en http://localhost:8081. |
 | **`make down`** | Detiene el clúster conservando todos los datos guardados. |
