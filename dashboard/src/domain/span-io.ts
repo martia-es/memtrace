@@ -213,6 +213,11 @@ function fromMessages(value: unknown): IoBlock[] | null {
   return null;
 }
 
+/** Blocks of a list of chat messages in any framework format we have an adapter for; null when `value` is not one. */
+export function messageBlocks(value: unknown): IoBlock[] | null {
+  return fromMessages(value);
+}
+
 function single(label: string, value: unknown): IoBlock[] {
   const text = pretty(value);
   const structured = typeof value !== "string" || /^\s*[{[]/.test(text);
