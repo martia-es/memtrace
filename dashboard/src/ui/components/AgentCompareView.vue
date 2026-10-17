@@ -12,7 +12,7 @@ import ErrorBanner from "./ErrorBanner.vue";
 import Select from "./Select.vue";
 import LoadingState from "./LoadingState.vue";
 import Button from "./Button.vue";
-import { t } from "../i18n";
+import { dateLocale, t } from "../i18n";
 import { tr } from "../../domain/translate";
 
 const props = defineProps<{
@@ -72,7 +72,7 @@ const tokenMix = computed(() => {
 });
 
 const hour = (iso: string) =>
-  new Date(iso).toLocaleString("en-US", props.longRange ? { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false } : { hour: "2-digit", minute: "2-digit", hour12: false });
+  new Date(iso).toLocaleString(dateLocale("en-US"), props.longRange ? { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false } : { hour: "2-digit", minute: "2-digit", hour12: false });
 
 function lineOption(aValues: number[], bValues: number[], valueFormatter?: (v: number) => string): EChartsCoreOption {
   const c = chartColors($q.dark.isActive);

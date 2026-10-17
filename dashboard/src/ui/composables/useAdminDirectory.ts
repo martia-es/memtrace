@@ -1,3 +1,4 @@
+import { dateLocale } from "../i18n";
 import { reactive, ref } from "vue";
 import { useQuasar } from "quasar";
 import type { ExperimentDto, MembersResponseDto, OrganizationDto } from "@/application/identity-api";
@@ -38,7 +39,7 @@ export function initials(name: string): string {
 
 export function formatDate(iso: string | null): string {
   if (!iso) return "never";
-  return new Date(iso).toLocaleString("en-US", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleString(dateLocale("en-US"), { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 export function notifyErrorWith(notify: ReturnType<typeof useQuasar>["notify"], action: string, error: unknown) {

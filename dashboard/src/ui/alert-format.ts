@@ -1,6 +1,6 @@
 import type { AlertEventDto, AlertRuleDto, AlertStatusDto, NotificationDto, OpenAlertDto } from "@contract";
 import { formatRelativeTime } from "./i18n/format";
-import { t, tp } from "./i18n";
+import { dateLocale, t, tp } from "./i18n";
 
 /** Textos y estados de las alertas (ADR-086): todo lo que la pantalla dice sobre una regla, sin tocar el DOM. */
 
@@ -46,7 +46,7 @@ export function formatValue(metric: AlertMetric, value: number | null): string {
   if (value === null) return "—";
   if (metric === "cost") return `$${value.toFixed(2)}`;
   if (metric === "error_rate" || metric === "satisfaction") return `${Number(value.toFixed(1))} %`;
-  if (metric === "latency_p95") return `${Math.round(value).toLocaleString("en-US")} ms`;
+  if (metric === "latency_p95") return `${Math.round(value).toLocaleString(dateLocale("en-US"))} ms`;
   return String(Number(value.toFixed(4)));
 }
 

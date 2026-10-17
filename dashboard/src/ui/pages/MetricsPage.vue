@@ -34,7 +34,7 @@ import Card from "../components/Card.vue";
 import Spinner from "../components/Spinner.vue";
 import Modal from "../components/Modal.vue";
 import TabPanel from "../components/TabPanel.vue";
-import { t, tp } from "../i18n";
+import { dateLocale, t, tp } from "../i18n";
 
 const api = useTraceApi();
 const identityApi = useIdentityApi();
@@ -221,7 +221,7 @@ const costPerTrace = computed(() => (data.value && data.value.totals.traces ? da
 
 const longRange = computed(() => (data.value ? Date.parse(data.value.range.to) - Date.parse(data.value.range.from) > 2 * 86_400_000 : false));
 const label = (iso: string) =>
-  new Date(iso).toLocaleString("en-US", longRange.value ? { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false } : { hour: "2-digit", minute: "2-digit", hour12: false });
+  new Date(iso).toLocaleString(dateLocale("en-US"), longRange.value ? { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false } : { hour: "2-digit", minute: "2-digit", hour12: false });
 
 function sparkOption(values: number[], color: string): EChartsCoreOption {
   return {

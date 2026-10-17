@@ -162,7 +162,7 @@ Click **Edit layout** on a report's page to drag and resize its charts, or add m
 
 ## Language
 
-The dashboard is available in English and Spanish. It starts in your browser's language; change it any time from the user menu (**Language**) and your choice is remembered. Some screens are still being translated and appear in English until then.
+The dashboard is available in English and Spanish. It starts in your browser's language; change it any time from the user menu (**Language**) and your choice is remembered. The interface is fully available in both languages; dates and numbers in a few places still use English formatting.
 
 ## Theme
 

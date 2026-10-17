@@ -90,7 +90,8 @@ Tres modos de visualización: `bubble` (ventana flotante), `dock` (panel lateral
 - El inglés es el idioma fuente. Los textos de la interfaz viven en `src/ui/i18n/en.ts` y `es.ts` (claves planas `area.nombre`, marcadores `{nombre}`); `es.ts` está tipado contra `en.ts` y `tests/ui/i18n.test.ts` exige las mismas claves y marcadores. Un texto nuevo = una clave en los dos catálogos.
 - Se usa con `t("clave", { param })` de `ui/i18n` (módulo propio, sin plugin: funciona en tests sin montarlo). El idioma activo es un `ref` compartido, persistido en `memtrace.locale`; por defecto el del navegador (`es*` → español, el resto inglés). Se cambia desde el menú de usuario y actualiza `<html lang>` y el paquete de idioma de Quasar.
 - Las tablas de datos con textos (p. ej. `NAV`) guardan la clave y traducen al pintar, no al declarar.
-- Migración por fases; lo que aún no tiene clave se ve en inglés.
+- El dominio traduce con `tr()` / `lazyMessages()` (`domain/translate.ts`, un puerto que registra `ui/i18n`); las constantes con etiquetas usan `get label()` o `lazyMessages` para seguir el idioma activo. Un `v-for="t in …"` tapa la función `t`: renombra la variable.
+- Pendiente: formatos de fecha y número de `domain/format.ts` (fijos en en-US) y algunos textos sueltos; ver el backlog.
 
 ## 6. Costs › Model pricing: calidad y confirmación de coincidencias
 
