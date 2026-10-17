@@ -1,5 +1,6 @@
 import type { AssistantCardDto, DeploymentSummaryDto, PromptUsageDto, SpanNodeDto } from "@contract";
 import { traceThread } from "./trace-thread";
+import { tr } from "./translate";
 
 /**
  * Lo que el playground (ADR-071) necesita decidir antes de ejecutar: dónde puede probarse una versión y qué mensaje
@@ -19,7 +20,7 @@ export interface PlaygroundTargets {
 }
 
 export function playgroundTargets(card: Pick<AssistantCardDto, "chat" | "deployments">): PlaygroundTargets {
-  if (!card.chat) return { usable: [], unavailable: "This agent has no chat endpoint configured. Add one in the assistant's card to talk to it from here." };
+  if (!card.chat) return { usable: [], unavailable: tr("prompt-playground.this_agent_has_no_chat_endpoint") };
   const usable = [...card.deployments]
     .filter((d) => !d.environment.isProduction && d.authMethod === "none")
     .sort((a, b) => a.environment.position - b.environment.position)
@@ -30,8 +31,8 @@ export function playgroundTargets(card: Pick<AssistantCardDto, "chat" | "deploym
     usable,
     unavailable:
       nonProduction.length === 0
-        ? "The playground never runs against production, and this agent has no other environment."
-        : "The agent's non-production environments need credentials, and MemTrace does not store them, so it cannot talk to them.",
+        ? tr("prompt-playground.the_playground_never_runs_against_produc")
+        : tr("prompt-playground.the_agent_s_non_production_environments"),
   };
 }
 

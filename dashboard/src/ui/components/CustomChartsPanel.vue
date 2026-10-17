@@ -38,6 +38,7 @@ import {
 import Button from "./Button.vue";
 import ToggleChip from "./ToggleChip.vue";
 import SegmentedControl from "./SegmentedControl.vue";
+import { t, tp } from "../i18n";
 
 const props = defineProps<{ experimentId: string; range: RangeParams }>();
 
@@ -275,7 +276,7 @@ async function runPreview() {
     }
   } catch (err) {
     if (seq !== previewSeq) return;
-    previewError.value = err instanceof Error ? err.message : "Could not compute the chart";
+    previewError.value = err instanceof Error ? err.message : t("customChartsPanel.could_not_compute_the_chart");
     previewResult.value = null;
   } finally {
     if (seq === previewSeq) previewLoading.value = false;
@@ -391,17 +392,17 @@ watch(() => props.range, () => { void loadStepKinds(); void loadSaved(); }, { im
 watch(() => props.experimentId, () => { void loadSaved(); void loadCatalog(); }, { immediate: true });
 
 const CHART_TYPES: { value: CustomMetricDefinitionDto["chartType"]; label: string }[] = [
-  { value: "line", label: "Over time" },
-  { value: "bar", label: "Bars" },
-  { value: "pie", label: "Pie" },
-  { value: "area", label: "Area" },
-  { value: "number", label: "Single number" },
-  { value: "table", label: "Table" },
+  { value: "line", get label() { return t("customChartsPanel.over_time"); } },
+  { value: "bar", get label() { return t("customChartsPanel.bars"); } },
+  { value: "pie", get label() { return t("customChartsPanel.pie"); } },
+  { value: "area", get label() { return t("customChartsPanel.area"); } },
+  { value: "number", get label() { return t("customChartsPanel.single_number"); } },
+  { value: "table", get label() { return t("customChartsPanel.table"); } },
 ];
 /** "Based on 1,284 tool calls": cuántos datos hay detrás de cada pregunta. */
-function templateBasis(t: ChartTemplate): string {
-  const n = stepKinds.value.filter((s) => t.requires.includes(s.stepType)).reduce((sum, s) => sum + s.count, 0);
-  return `Based on ${n.toLocaleString()} ${stepLabel(t.requires[0] ?? "", names.value).toLowerCase()}`;
+function templateBasis(tpl: ChartTemplate): string {
+  const n = stepKinds.value.filter((s) => tpl.requires.includes(s.stepType)).reduce((sum, s) => sum + s.count, 0);
+  return t("customChartsPanel.based_on_count_steps", { count: n.toLocaleString(), steps: stepLabel(tpl.requires[0] ?? "", names.value).toLowerCase() });
 }
 /** Los números de este paso que se pueden medir. Con varios pasos no hay una lista común: la medida pide un único paso. */
 const measureAttributes = computed(() => (singleStep.value ? attributeKeys.value.filter(isMeasure) : []));
@@ -431,30 +432,30 @@ const visibleAttributeKeys = computed(() =>
 );
 const hiddenTechnicalCount = computed(() => attributeKeys.value.length - visibleAttributeKeys.value.length);
 const groupByOptions = computed(() => [
-  { label: "— don't break down —", value: "" },
+  { label: t("customChartsPanel.don_t_break_down"), value: "" },
   ...visibleAttributeKeys.value.map((k) => ({ label: attributeLabel(k.key, names.value), value: k.key })),
 ]);
 const filterAttributeOptions = computed(() => [
-  { label: "Choose a detail…", value: "" },
+  { label: t("customChartsPanel.choose_a_detail"), value: "" },
   ...visibleAttributeKeys.value.map((k) => ({ label: attributeLabel(k.key, names.value), value: k.key })),
 ]);
-const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) => (def.groupByAttribute ? attributeLabel(def.groupByAttribute, names.value) : "Step");
+const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) => (def.groupByAttribute ? attributeLabel(def.groupByAttribute, names.value) : t("customChartsPanel.step"));
 </script>
 
 <template>
   <section class="detail-panel custom-charts">
     <div class="panel-header">
       <div>
-        <h3>Custom charts</h3>
-        <span class="panel-hint">Pick a question, or build your own chart — no query language required.</span>
+        <h3>{{ t("customChartsPanel.custom_charts") }}</h3>
+        <span class="panel-hint">{{ t("customChartsPanel.pick_a_question_or_build_your") }}</span>
       </div>
     </div>
 
     <div class="cc-grid">
       <div class="cc-builder">
         <template v-if="templates.length && !hasSteps">
-          <div class="cc-title">What do you want to know?</div>
-          <p class="hint cc-sub">Pick a question. We set up the chart; you can tweak it after.</p>
+          <div class="cc-title">{{ t("customChartsPanel.what_do_you_want_to_know") }}</div>
+          <p class="hint cc-sub">{{ t("customChartsPanel.pick_a_question_we_set_up") }}</p>
           <div class="question-list">
             <button v-for="t in visibleQuestions" :key="t.id" type="button" class="question-card" @click="applyTemplate(t)">
               <span class="q-text">{{ t.question }}</span>
@@ -465,67 +466,67 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
             {{ showAllQuestions ? "Show fewer questions" : `Show all ${templates.length} questions` }}
           </Button>
           <div class="cc-divider" />
-          <div class="eyebrow">Or build it yourself</div>
+          <div class="eyebrow">{{ t("customChartsPanel.or_build_it_yourself") }}</div>
         </template>
 
         <div class="field">
-          <label>I want to see… <span class="label-note">(pick one or several to compare)</span>
+          <label>{{ t("customChartsPanel.i_want_to_see") }} <span class="label-note">{{ t("customChartsPanel.pick_one_or_several_to_compare") }}</span>
             <Button v-if="can('catalog:manage')" size="sm" class="rename-btn" data-testid="open-catalog" @click="showCatalog = true">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
-              Customize names
+              {{ t("customChartsPanel.customize_names") }}
             </Button>
           </label>
           <div class="chip-select">
-            <span v-if="stepKindsLoading" class="hint">Loading…</span>
-            <span v-else-if="!stepKinds.length" class="hint">No activity in this range yet.</span>
+            <span v-if="stepKindsLoading" class="hint">{{ t("customChartsPanel.loading") }}</span>
+            <span v-else-if="!stepKinds.length" class="hint">{{ t("customChartsPanel.no_activity_in_this_range_yet") }}</span>
             <template v-for="k in stepKinds" :key="k.stepType">
               <span v-if="editingStep === k.stepType" class="chip-edit">
-                <input v-model="stepDraft" type="text" maxlength="80" :placeholder="stepLabel(k.stepType)" :aria-label="`Name for ${k.stepType}`" data-testid="step-rename-input" autofocus @keydown.enter.prevent="commitRename" @keydown.esc.prevent="editingStep = null" @blur="commitRename" />
+                <input v-model="stepDraft" type="text" maxlength="80" :placeholder="stepLabel(k.stepType)" :aria-label="t('customChartsPanel.name_for_step', { step: k.stepType })" data-testid="step-rename-input" autofocus @keydown.enter.prevent="commitRename" @keydown.esc.prevent="editingStep = null" @blur="commitRename" />
               </span>
               <span v-else class="chip-wrap" :class="{ renamed: isRenamed(k.stepType) }">
                 <ToggleChip :pressed="selectedSteps.includes(k.stepType)" :count="k.count.toLocaleString()" @click="toggleStep(k.stepType)">{{ stepLabel(k.stepType, names) }}</ToggleChip>
-                <Button v-if="can('catalog:manage')" variant="icon" size="sm" class="chip-pencil" :aria-label="`Rename ${stepLabel(k.stepType, names)}`" :data-testid="`rename-step-${k.stepType}`" @click="startRename(k.stepType)">
+                <Button v-if="can('catalog:manage')" variant="icon" size="sm" class="chip-pencil" :aria-label="t('customChartsPanel.rename_step', { step: stepLabel(k.stepType, names) })" :data-testid="`rename-step-${k.stepType}`" @click="startRename(k.stepType)">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
                 </Button>
               </span>
             </template>
           </div>
           <span v-if="stepRenameError" class="hint error-text" role="alert" data-testid="step-rename-error">{{ stepRenameError }}</span>
-          <Button v-if="can('catalog:manage') && stepKinds.length" variant="link" class="self-start" data-testid="open-catalog-page" @click="router?.push({ name: 'overview-catalog', params: { experimentId } })">Manage all names and details</Button>
+          <Button v-if="can('catalog:manage') && stepKinds.length" variant="link" class="self-start" data-testid="open-catalog-page" @click="router?.push({ name: 'overview-catalog', params: { experimentId } })">{{ t("customChartsPanel.manage_all_names_and_details") }}</Button>
         </div>
         <ChartCatalogEditor v-if="showCatalog" :experiment-id="experimentId" :range="range" :entries="catalogEntries" @close="showCatalog = false" @changed="catalogEntries = $event" />
         <div class="field">
-          <label>Measured as…</label>
+          <label>{{ t("customChartsPanel.measured_as") }}</label>
           <Select v-model="metric" :options="METRICS" :disabled="!hasSteps" data-testid="metric-select" />
           <template v-if="isAttributeMetric(metric)">
-            <label class="sub-label">Of which number?</label>
+            <label class="sub-label">{{ t("customChartsPanel.of_which_number") }}</label>
             <Select v-model="metricAttribute" :options="measureOptions" data-testid="measure-select" />
           </template>
-          <span v-else-if="singleStep && !measureAttributes.length && !attributeKeysLoading" class="hint" data-testid="no-measures">This step has no numbers to add up or average.</span>
+          <span v-else-if="singleStep && !measureAttributes.length && !attributeKeysLoading" class="hint" data-testid="no-measures">{{ t("customChartsPanel.this_step_has_no_numbers_to") }}</span>
         </div>
         <div class="field">
-          <label>Split by… (optional)</label>
+          <label>{{ t("customChartsPanel.split_by_optional") }}</label>
           <Select v-model="groupByAttribute" :options="groupByOptions" :disabled="!singleStep" />
-          <span v-if="attributeKeysLoading" class="hint">Loading details…</span>
-          <span v-else-if="multiStep" class="hint">Comparing {{ selectedSteps.length }} steps: one {{ chartType === "line" || chartType === "area" ? "line" : "bar" }} each. Pick a single step to split it by a detail.</span>
-          <span v-else-if="singleStep && !visibleAttributeKeys.length" class="hint">Nothing to split by for this step.</span>
+          <span v-if="attributeKeysLoading" class="hint">{{ t("customChartsPanel.loading_details") }}</span>
+          <span v-else-if="multiStep" class="hint">{{ t(chartType === "line" || chartType === "area" ? "customChartsPanel.comparing.line" : "customChartsPanel.comparing.bar", { count: selectedSteps.length }) }}</span>
+          <span v-else-if="singleStep && !visibleAttributeKeys.length" class="hint">{{ t("customChartsPanel.nothing_to_split_by_for_this") }}</span>
           <Button class="self-start" variant="link" v-if="singleStep && (hiddenTechnicalCount > 0 || showTechnical)" @click="showTechnical = !showTechnical">
             {{ showTechnical ? "Show fewer details" : `Show ${hiddenTechnicalCount} more detail${hiddenTechnicalCount === 1 ? "" : "s"}` }}
           </Button>
         </div>
 
         <div class="field">
-          <label>Only when… (optional)</label>
+          <label>{{ t("customChartsPanel.only_when_optional") }}</label>
           <div v-for="(row, i) in filterRows" :key="i" class="filter-block">
             <div class="filter-row">
               <Select v-model="row.attribute" :options="filterAttributeOptions" :disabled="!singleStep" @update:model-value="loadFilterRowValues(row)" />
-              <Button variant="icon" size="sm" aria-label="Remove condition" @click="removeFilterRow(i)"><q-icon name="close" size="16px" /></Button>
+              <Button variant="icon" size="sm" :aria-label="t('customChartsPanel.remove_condition')" @click="removeFilterRow(i)"><q-icon name="close" size="16px" /></Button>
             </div>
             <div v-if="row.attribute" class="value-box">
-              <span v-if="row.loading" class="hint">Loading values…</span>
-              <span v-else-if="!row.values.length" class="hint">No values found for this detail.</span>
+              <span v-if="row.loading" class="hint">{{ t("customChartsPanel.loading_values") }}</span>
+              <span v-else-if="!row.values.length" class="hint">{{ t("customChartsPanel.no_values_found_for_this_detail") }}</span>
               <template v-else>
-                <span class="hint">Only include these:</span>
+                <span class="hint">{{ t("customChartsPanel.only_include_these") }}</span>
                 <div class="chip-select">
                   <ToggleChip v-for="v in row.values" :key="v.value" :pressed="row.selected.has(v.value)" :count="v.count" @click="toggleFilterRowValue(row, v.value)">{{ v.value }}</ToggleChip>
                 </div>
@@ -533,7 +534,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
             </div>
           </div>
           <div>
-            <Button variant="link" class="add-condition" :disabled="!singleStep" @click="addFilterRow">+ Add condition</Button>
+            <Button variant="link" class="add-condition" :disabled="!singleStep" @click="addFilterRow">{{ t("customChartsPanel.add_condition") }}</Button>
           </div>
         </div>
 
@@ -553,17 +554,17 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
           <div class="ghost" aria-hidden="true">
             <div v-for="w in [200, 150, 110, 60]" :key="w" class="ghost-row"><span class="ghost-label" /><span class="ghost-bar" :style="{ width: w + 'px' }" /></div>
           </div>
-          <div class="cc-title">Your chart appears here</div>
-          <p class="hint cc-sub">Choose a question on the left and you will see the result right away, computed from your traces.</p>
+          <div class="cc-title">{{ t("customChartsPanel.your_chart_appears_here") }}</div>
+          <p class="hint cc-sub">{{ t("customChartsPanel.choose_a_question_on_the_left") }}</p>
         </template>
 
         <template v-else>
           <div class="preview-head">
             <div class="preview-name">
-              <TextInput v-model="newChartName" placeholder="Name this chart" @update:model-value="nameTouched = true" />
+              <TextInput v-model="newChartName" :placeholder="t('customChartsPanel.name_this_chart')" @update:model-value="nameTouched = true" />
               <span class="hint">{{ description }}</span>
             </div>
-            <SegmentedControl class="seg" aria-label="Chart type" :options="CHART_TYPES.map((t) => ({ value: t.value, label: t.label, class: 'seg-btn' }))" :model-value="chartType" @update:model-value="pickChartType($event as typeof chartType)" />
+            <SegmentedControl class="seg" :aria-label="t('customChartsPanel.chart_type')" :options="CHART_TYPES.map((t) => ({ value: t.value, label: t.label, class: 'seg-btn' }))" :model-value="chartType" @update:model-value="pickChartType($event as typeof chartType)" />
           </div>
 
           <div class="preview-body" :class="{ stale: previewLoading }">
@@ -572,7 +573,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
             <div v-if="headline" class="headline">
               <span class="headline-value">{{ headline.value }}</span>
               <span v-if="headline.change" class="delta" :class="headline.change.tone">{{ headline.change.label }}</span>
-              <span class="hint">{{ headline.overall ? "overall" : "" }}{{ headline.overall && headline.change ? " · " : "" }}{{ headline.change ? `vs previous period (${headline.previous})` : "" }}</span>
+              <span class="hint">{{ headline.overall ? t("customChartsPanel.overall") : "" }}{{ headline.overall && headline.change ? " · " : "" }}{{ headline.change ? t("customChartsPanel.vs_previous_period_previous", { previous: headline.previous }) : "" }}</span>
             </div>
 
             <template v-if="previewResult">
@@ -580,10 +581,10 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
                 <thead><tr><th>{{ groupHeader({ groupByAttribute: groupByAttribute || null }) }}</th><th>{{ metricLabel({ metric, metricAttribute }) }}</th></tr></thead>
                 <tbody><tr v-for="p in previewRows" :key="p.label"><td>{{ p.label }}</td><td>{{ formatMetricValue(metric, p.value) }}</td></tr></tbody>
               </table>
-              <EChart v-else-if="previewOption" :option="previewOption" height="240px" label="Custom chart preview" />
-              <p v-if="!previewResult.points.length && !previewResult.timeseries.length" class="hint">No data for this combination in the selected range.</p>
+              <EChart v-else-if="previewOption" :option="previewOption" height="240px" :label="t('customChartsPanel.custom_chart_preview')" />
+              <p v-if="!previewResult.points.length && !previewResult.timeseries.length" class="hint">{{ t("customChartsPanel.no_data_for_this_combination_in") }}</p>
             </template>
-            <p v-else-if="!previewError" class="hint">Loading…</p>
+            <p v-else-if="!previewError" class="hint">{{ t("customChartsPanel.loading") }}</p>
 
             <div v-if="outlier" class="insight">
               <q-icon name="warning_amber" size="18px" />
@@ -592,9 +593,9 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
           </div>
 
           <div class="preview-foot">
-            <span class="hint foot-hint">{{ chartTypeTouched ? "" : "Chart type suggested for this data. Change it any time." }}</span>
-            <Button @click="resetBuilder">Start over</Button>
-            <Button variant="primary" :disabled="!previewResult || !newChartName.trim()" :loading="saving" @click="saveChart">Save to Metrics</Button>
+            <span class="hint foot-hint">{{ chartTypeTouched ? "" : t("customChartsPanel.chart_type_suggested_for_this_data") }}</span>
+            <Button @click="resetBuilder">{{ t("customChartsPanel.start_over") }}</Button>
+            <Button variant="primary" :disabled="!previewResult || !newChartName.trim()" :loading="saving" @click="saveChart">{{ t("customChartsPanel.save_to_metrics") }}</Button>
           </div>
         </template>
       </div>
@@ -602,15 +603,15 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
 
     <div class="saved-section">
       <div class="saved-section-head">
-        <h4>Saved charts</h4>
+        <h4>{{ t("customChartsPanel.saved_charts") }}</h4>
         <span class="panel-count">{{ saved.length }}</span>
       </div>
-      <p v-if="!saved.length && !savedLoading" class="hint">Charts you save show up here and refresh with the selected period.</p>
+      <p v-if="!saved.length && !savedLoading" class="hint">{{ t("customChartsPanel.charts_you_save_show_up_here") }}</p>
       <div v-else class="saved-list">
         <div v-for="m in saved" :key="m.id" class="saved-card">
           <div class="saved-head">
             <span class="name">{{ m.name }}</span>
-            <Button variant="icon" size="sm" :aria-label="`Delete ${m.name}`" @click="removeSaved(m.id)"><q-icon name="close" size="16px" /></Button>
+            <Button variant="icon" size="sm" :aria-label="t('customChartsPanel.delete_name', { name: m.name })" @click="removeSaved(m.id)"><q-icon name="close" size="16px" /></Button>
           </div>
           <div v-if="savedResults[m.id]" class="saved-chart">
             <div v-if="m.definition.chartType === 'number'" class="number-tile small">

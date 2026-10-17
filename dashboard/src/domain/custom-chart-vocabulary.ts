@@ -1,3 +1,4 @@
+import { tr, lazyMessages } from "./translate";
 /** Vocabulario de negocio del builder de Custom charts (ADR-057).
  *
  * El modelo guardado sigue siendo técnico (`step_type`, claves de atributo, métricas cerradas);
@@ -54,13 +55,13 @@ export function humanize(id: string): string {
   return spaced ? spaced[0]!.toUpperCase() + spaced.slice(1) : id;
 }
 
-const BUILT_IN_STEPS: Record<string, string> = {
-  llm: "Model calls",
-  tool: "Tool calls",
-  agent: "Agent runs",
-  retriever: "Document searches",
-  unknown: "Other steps",
-};
+const BUILT_IN_STEPS: Record<string, string> = lazyMessages({
+  llm: "custom-chart-vocabulary.model_calls",
+  tool: "custom-chart-vocabulary.tool_calls",
+  agent: "custom-chart-vocabulary.agent_runs",
+  retriever: "custom-chart-vocabulary.document_searches",
+  unknown: "custom-chart-vocabulary.other_steps",
+});
 
 export function isBuiltInStep(stepType: string): boolean {
   return stepType in BUILT_IN_STEPS;
@@ -73,16 +74,16 @@ export function stepLabel(stepType: string, names: NameCatalog = NO_NAMES): stri
 
 // ---- atributos ----
 
-const ATTRIBUTE_LABELS: Record<string, string> = {
-  "gen_ai.tool.name": "Tool",
-  "gen_ai.request.model": "Model",
-  "gen_ai.response.model": "Model (served)",
-  "gen_ai.system": "Provider",
-  "gen_ai.operation.name": "Operation",
-  "gen_ai.usage.input_tokens": "Input tokens",
-  "gen_ai.usage.output_tokens": "Output tokens",
-  "gen_ai.usage.total_tokens": "Total tokens",
-};
+const ATTRIBUTE_LABELS: Record<string, string> = lazyMessages({
+  "gen_ai.tool.name": "custom-chart-vocabulary.tool",
+  "gen_ai.request.model": "custom-chart-vocabulary.model",
+  "gen_ai.response.model": "custom-chart-vocabulary.model_served",
+  "gen_ai.system": "custom-chart-vocabulary.provider",
+  "gen_ai.operation.name": "custom-chart-vocabulary.operation",
+  "gen_ai.usage.input_tokens": "custom-chart-vocabulary.input_tokens",
+  "gen_ai.usage.output_tokens": "custom-chart-vocabulary.output_tokens",
+  "gen_ai.usage.total_tokens": "custom-chart-vocabulary.total_tokens",
+});
 
 /** Claves que son plumbing de instrumentación: se ocultan salvo que se pidan expresamente. */
 const TECHNICAL_ATTRIBUTE = /^(memtrace\.|otel\.|telemetry\.|gen_ai\.(tool\.call\.|usage\.|request\.(temperature|max_tokens|top_p)|prompt|completion|response\.id)|exception\.|code\.|thread\.|process\.)/;
@@ -97,44 +98,44 @@ export function attributeLabel(key: string, names: NameCatalog = NO_NAMES): stri
 
 // ---- métricas ----
 
-export const METRIC_LABELS: Record<MetricKind, string> = {
-  count: "How many times",
-  avg_duration: "How long it takes (average)",
-  p50_duration: "Typical time (median)",
-  p95_duration: "How long it takes in the slowest 5%",
-  error_rate: "% that fail",
-  sum_attribute: "Total of a number",
-  avg_attribute: "Average of a number",
-  min_attribute: "Lowest value of a number",
-  max_attribute: "Highest value of a number",
-};
+export const METRIC_LABELS: Record<MetricKind, string> = lazyMessages({
+  count: "custom-chart-vocabulary.how_many_times",
+  avg_duration: "custom-chart-vocabulary.how_long_it_takes_average",
+  p50_duration: "custom-chart-vocabulary.typical_time_median",
+  p95_duration: "custom-chart-vocabulary.how_long_it_takes_in_the",
+  error_rate: "custom-chart-vocabulary.that_fail",
+  sum_attribute: "custom-chart-vocabulary.total_of_a_number",
+  avg_attribute: "custom-chart-vocabulary.average_of_a_number",
+  min_attribute: "custom-chart-vocabulary.lowest_value_of_a_number",
+  max_attribute: "custom-chart-vocabulary.highest_value_of_a_number",
+});
 
 /** p50 sigue siendo válido en gráficas ya guardadas, pero el builder no lo ofrece. */
 export const SELECTABLE_METRICS: MetricKind[] = ["count", "avg_duration", "p95_duration", "error_rate"];
 
-const METRIC_PHRASE: Record<MetricKind, string> = {
-  count: "the number of",
-  avg_duration: "the average time of",
-  p50_duration: "the typical time of",
-  p95_duration: "the time in the slowest 5% of",
-  error_rate: "the % that fail among",
-  sum_attribute: "the total of",
-  avg_attribute: "the average of",
-  min_attribute: "the lowest",
-  max_attribute: "the highest",
-};
+const METRIC_PHRASE: Record<MetricKind, string> = lazyMessages({
+  count: "custom-chart-vocabulary.the_number_of",
+  avg_duration: "custom-chart-vocabulary.the_average_time_of",
+  p50_duration: "custom-chart-vocabulary.the_typical_time_of",
+  p95_duration: "custom-chart-vocabulary.the_time_in_the_slowest_5",
+  error_rate: "custom-chart-vocabulary.the_that_fail_among",
+  sum_attribute: "custom-chart-vocabulary.the_total_of",
+  avg_attribute: "custom-chart-vocabulary.the_average_of",
+  min_attribute: "custom-chart-vocabulary.the_lowest",
+  max_attribute: "custom-chart-vocabulary.the_highest",
+});
 
-const METRIC_TITLE: Record<MetricKind, string> = {
-  count: "Count of",
-  avg_duration: "Average time of",
-  p50_duration: "Typical time of",
-  p95_duration: "Slowest-5% time of",
-  error_rate: "Failure rate of",
-  sum_attribute: "Total of",
-  avg_attribute: "Average",
-  min_attribute: "Lowest",
-  max_attribute: "Highest",
-};
+const METRIC_TITLE: Record<MetricKind, string> = lazyMessages({
+  count: "custom-chart-vocabulary.count_of",
+  avg_duration: "custom-chart-vocabulary.average_time_of",
+  p50_duration: "custom-chart-vocabulary.typical_time_of",
+  p95_duration: "custom-chart-vocabulary.slowest_5_time_of",
+  error_rate: "custom-chart-vocabulary.failure_rate_of",
+  sum_attribute: "custom-chart-vocabulary.total_of",
+  avg_attribute: "custom-chart-vocabulary.average",
+  min_attribute: "custom-chart-vocabulary.lowest",
+  max_attribute: "custom-chart-vocabulary.highest",
+});
 
 /** El encabezado de la columna de valores de una tabla: "Total of order total" para una métrica sobre un atributo, la frase de siempre en el resto. */
 export function metricColumnLabel(def: { metric: MetricKind; metricAttribute?: string | null }, names: NameCatalog = NO_NAMES): string {
@@ -184,13 +185,13 @@ export interface ChangeSummary {
 export function describeChange(metric: MetricKind, current: number, previous: number): ChangeSummary | null {
   if (metric === "error_rate") {
     const pts = (current - previous) * 100;
-    if (Math.abs(pts) < 0.05) return { label: "No change", direction: "flat", tone: "neutral" };
+    if (Math.abs(pts) < 0.05) return { label: tr("custom-chart-vocabulary.no_change"), direction: "flat", tone: "neutral" };
     const text = `${pts > 0 ? "+" : "-"}${Math.abs(pts).toLocaleString(undefined, { maximumFractionDigits: 1 })} pts`;
     return { label: `${pts > 0 ? "▲" : "▼"} ${text}`, direction: pts > 0 ? "up" : "down", tone: pts > 0 ? "bad" : "good" };
   }
   if (!previous) return null;
   const pct = ((current - previous) / previous) * 100;
-  if (Math.abs(pct) < 0.5) return { label: "No change", direction: "flat", tone: "neutral" };
+  if (Math.abs(pct) < 0.5) return { label: tr("custom-chart-vocabulary.no_change"), direction: "flat", tone: "neutral" };
   const text = `${pct > 0 ? "+" : "-"}${Math.abs(pct).toLocaleString(undefined, { maximumFractionDigits: 0 })}%`;
   const direction = pct > 0 ? "up" : "down";
   // subir una cifra de negocio (ventas, notas) no es bueno ni malo por sí mismo: solo los tiempos y los fallos juzgan
@@ -208,7 +209,7 @@ export function findOutlier(metric: MetricKind, points: { label: string; value: 
   const ratio = top.value / mean;
   if (ratio < 1.5) return null;
   const times = ratio.toLocaleString(undefined, { maximumFractionDigits: 1 });
-  return { label: top.label, text: metric === "error_rate" ? `fails ${times}× more than the others.` : `is ${times}× slower than the others.` };
+  return { label: top.label, text: metric === "error_rate" ? tr("custom-chart-vocabulary.fails_times_more_than_the_others", { times }) : tr("custom-chart-vocabulary.is_times_slower_than_the_others", { times }) };
 }
 
 // ---- sugerencias y descripciones ----
@@ -221,39 +222,39 @@ export function suggestChartType(groupByAttribute: string | null): ChartKind {
 /** "tool calls", "guardrail input and tool calls", "model calls, tool calls and 2 more". */
 export function stepsPhrase(stepTypes: string[], catalog: NameCatalog = NO_NAMES): string {
   const names = stepTypes.map((s) => stepLabel(s, catalog).toLowerCase());
-  if (names.length <= 1) return names[0] ?? "selected steps";
-  if (names.length === 2) return `${names[0]} and ${names[1]}`;
-  if (names.length === 3) return `${names[0]}, ${names[1]} and ${names[2]}`;
-  return `${names[0]}, ${names[1]} and ${names.length - 2} more`;
+  if (names.length <= 1) return names[0] ?? tr("custom-chart-vocabulary.selected_steps");
+  if (names.length === 2) return tr("custom-chart-vocabulary.a_and_b", { a: names[0]!, b: names[1]! });
+  if (names.length === 3) return tr("custom-chart-vocabulary.a_b_and_c", { a: names[0]!, b: names[1]!, c: names[2]! });
+  return tr("custom-chart-vocabulary.a_b_and_n_more", { a: names[0]!, b: names[1]!, n: names.length - 2 });
 }
 
 export function suggestName(def: Pick<ChartDefinition, "metric" | "stepTypes" | "groupByAttribute" | "metricAttribute">, names: NameCatalog = NO_NAMES): string {
   const step = stepsPhrase(def.stepTypes, names);
-  const by = def.groupByAttribute ? ` by ${attributeLabel(def.groupByAttribute, names).toLowerCase()}` : "";
+  const by = def.groupByAttribute ? ` ${tr("custom-chart-vocabulary.by_attr", { attr: attributeLabel(def.groupByAttribute, names).toLowerCase() })}` : "";
   // sobre un atributo: "Total of order total in tool calls"; el resto, como siempre: "Count of tool calls"
-  if (isAttributeMetric(def.metric) && def.metricAttribute) return `${METRIC_TITLE[def.metric]} ${attributeLabel(def.metricAttribute, names).toLowerCase()} in ${step}${by}`;
+  if (isAttributeMetric(def.metric) && def.metricAttribute) return tr("custom-chart-vocabulary.title_attr_in_step_by", { title: METRIC_TITLE[def.metric], attr: attributeLabel(def.metricAttribute, names).toLowerCase(), step, by });
   return `${METRIC_TITLE[def.metric]} ${step}${by}`;
 }
 
 /** Una frase que sustituye al antiguo "X axis / Series". */
 export function describeDefinition(def: ChartDefinition, names: NameCatalog = NO_NAMES): string {
-  if (!def.stepTypes.length) return "Pick what you want to measure to see a description here.";
+  if (!def.stepTypes.length) return tr("custom-chart-vocabulary.pick_what_you_want_to_measure");
   const step = stepsPhrase(def.stepTypes, names);
   const attr = (key: string) => attributeLabel(key, names).toLowerCase();
   const timeBased = def.chartType === "line" || def.chartType === "area";
   const layout = timeBased
     ? def.groupByAttribute
-      ? `over time, one line per ${attr(def.groupByAttribute)}`
-      : "over time"
+      ? tr("custom-chart-vocabulary.over_time_one_line_per_attr", { attr: attr(def.groupByAttribute) })
+      : tr("custom-chart-vocabulary.over_time")
     : def.chartType === "number"
-      ? "as a single number"
+      ? tr("custom-chart-vocabulary.as_a_single_number")
       : def.groupByAttribute
-        ? `for each ${attr(def.groupByAttribute)}`
-        : "for each kind of step";
+        ? tr("custom-chart-vocabulary.for_each_attr", { attr: attr(def.groupByAttribute) })
+        : tr("custom-chart-vocabulary.for_each_kind_of_step");
   const active = def.filters.filter((f) => f.attribute && f.values.length);
-  const only = active.length ? `, only when ${active.map((f) => `${attr(f.attribute)} is ${f.values.join(" or ")}`).join(" and ")}` : "";
-  const measured = isAttributeMetric(def.metric) && def.metricAttribute ? `${METRIC_PHRASE[def.metric]} ${attr(def.metricAttribute)} in ${step}` : `${METRIC_PHRASE[def.metric]} ${step}`;
-  return `Shows ${measured} ${layout}${only}.`;
+  const only = active.length ? tr("custom-chart-vocabulary.only_when_conditions", { conditions: active.map((f) => tr("custom-chart-vocabulary.attr_is_values", { attr: attr(f.attribute), values: f.values.join(` ${tr("custom-chart-vocabulary.or")} `) })).join(` ${tr("custom-chart-vocabulary.and")} `) }) : "";
+  const measured = isAttributeMetric(def.metric) && def.metricAttribute ? tr("custom-chart-vocabulary.phrase_attr_in_step", { phrase: METRIC_PHRASE[def.metric], attr: attr(def.metricAttribute), step }) : `${METRIC_PHRASE[def.metric]} ${step}`;
+  return tr("custom-chart-vocabulary.shows_measured_layout_only", { measured, layout, only });
 }
 
 /** Cuando no se desglosa por atributo, las etiquetas de los puntos son step types: se muestran con su nombre de negocio. */
@@ -278,12 +279,12 @@ const def = (d: Partial<ChartDefinition> & Pick<ChartDefinition, "chartType" | "
 });
 
 const BUILT_IN_TEMPLATES: ChartTemplate[] = [
-  { id: "tools-usage", question: "How often is each tool used?", requires: ["tool"], definition: def({ chartType: "bar", stepTypes: ["tool"], metric: "count", groupByAttribute: "gen_ai.tool.name" }) },
-  { id: "tools-failing", question: "Which tools fail the most?", requires: ["tool"], definition: def({ chartType: "bar", stepTypes: ["tool"], metric: "error_rate", groupByAttribute: "gen_ai.tool.name" }) },
-  { id: "tools-slow", question: "Which tools are the slowest?", requires: ["tool"], definition: def({ chartType: "bar", stepTypes: ["tool"], metric: "avg_duration", groupByAttribute: "gen_ai.tool.name" }) },
-  { id: "model-calls-over-time", question: "How many model calls do I make each day?", requires: ["llm"], definition: def({ chartType: "line", stepTypes: ["llm"], metric: "count" }) },
-  { id: "model-calls-by-model", question: "Which models do I call the most?", requires: ["llm"], definition: def({ chartType: "pie", stepTypes: ["llm"], metric: "count", groupByAttribute: "gen_ai.request.model" }) },
-  { id: "model-latency", question: "How long do model calls take?", requires: ["llm"], definition: def({ chartType: "line", stepTypes: ["llm"], metric: "avg_duration" }) },
+  { id: "tools-usage", get question() { return tr("custom-chart-vocabulary.how_often_is_each_tool_used"); }, requires: ["tool"], definition: def({ chartType: "bar", stepTypes: ["tool"], metric: "count", groupByAttribute: "gen_ai.tool.name" }) },
+  { id: "tools-failing", get question() { return tr("custom-chart-vocabulary.which_tools_fail_the_most"); }, requires: ["tool"], definition: def({ chartType: "bar", stepTypes: ["tool"], metric: "error_rate", groupByAttribute: "gen_ai.tool.name" }) },
+  { id: "tools-slow", get question() { return tr("custom-chart-vocabulary.which_tools_are_the_slowest"); }, requires: ["tool"], definition: def({ chartType: "bar", stepTypes: ["tool"], metric: "avg_duration", groupByAttribute: "gen_ai.tool.name" }) },
+  { id: "model-calls-over-time", get question() { return tr("custom-chart-vocabulary.how_many_model_calls_do_i"); }, requires: ["llm"], definition: def({ chartType: "line", stepTypes: ["llm"], metric: "count" }) },
+  { id: "model-calls-by-model", get question() { return tr("custom-chart-vocabulary.which_models_do_i_call_the"); }, requires: ["llm"], definition: def({ chartType: "pie", stepTypes: ["llm"], metric: "count", groupByAttribute: "gen_ai.request.model" }) },
+  { id: "model-latency", get question() { return tr("custom-chart-vocabulary.how_long_do_model_calls_take"); }, requires: ["llm"], definition: def({ chartType: "line", stepTypes: ["llm"], metric: "avg_duration" }) },
 ];
 
 /** Plantillas aplicables a lo detectado en las trazas, más dos preguntas por cada paso propio del usuario. */
@@ -294,8 +295,8 @@ export function templatesFor(stepTypes: string[], names: NameCatalog = NO_NAMES)
     .filter((s) => !isBuiltInStep(s))
     .slice(0, 6)
     .flatMap<ChartTemplate>((s) => [
-      { id: `custom-count-${s}`, question: `How often does "${stepLabel(s, names)}" happen?`, requires: [s], definition: def({ chartType: "line", stepTypes: [s], metric: "count" }) },
-      { id: `custom-fail-${s}`, question: `How often does "${stepLabel(s, names)}" fail?`, requires: [s], definition: def({ chartType: "number", stepTypes: [s], metric: "error_rate" }) },
+      { id: `custom-count-${s}`, question: tr("custom-chart-vocabulary.how_often_does_step_happen", { step: stepLabel(s, names) }), requires: [s], definition: def({ chartType: "line", stepTypes: [s], metric: "count" }) },
+      { id: `custom-fail-${s}`, question: tr("custom-chart-vocabulary.how_often_does_step_fail", { step: stepLabel(s, names) }), requires: [s], definition: def({ chartType: "number", stepTypes: [s], metric: "error_rate" }) },
     ]);
   return [...builtIn, ...custom];
 }

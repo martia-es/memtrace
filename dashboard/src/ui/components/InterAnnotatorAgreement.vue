@@ -4,6 +4,7 @@ import { formatKappa, kappaLabel, kappaTone, lowSampleNote } from "@/domain/agre
 import ErrorBanner from "./ErrorBanner.vue";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
+import { t, tp } from "../i18n";
 
 /** Cuánto coinciden entre sí las personas que etiquetan una cola (ADR-040): el techo de lo que puede esperarse de un juez. */
 const props = defineProps<{ queueId: string }>();
@@ -21,7 +22,7 @@ function value(m: (typeof metrics.value)[number]): number | null {
 <template>
   <div data-testid="inter-annotator-agreement">
     <ErrorBanner v-if="agreement.error.value" :error="agreement.error.value" @retry="agreement.run()" />
-    <p v-else-if="agreement.data.value && !metrics.length" class="muted" data-testid="inter-annotator-empty">No labels yet.</p>
+    <p v-else-if="agreement.data.value && !metrics.length" class="muted" data-testid="inter-annotator-empty">{{ t("interAnnotatorAgreement.no_labels_yet") }}</p>
     <ul v-else class="plain">
       <li v-for="m in metrics" :key="`${m.name}-${m.dataType}`" data-testid="inter-annotator-row">
         <strong>{{ m.name }}</strong>
@@ -29,12 +30,12 @@ function value(m: (typeof metrics.value)[number]): number | null {
           <span class="value" :class="kappaTone(value(m))">{{ formatKappa(value(m)) }}</span>
           <span class="muted">{{ m.dataType === "numeric" ? "mean Spearman ρ" : `mean Cohen's kappa · ${kappaLabel(value(m))}` }}</span>
         </template>
-        <span v-else class="muted">needs at least two reviewers on the same items</span>
-        <span class="muted">{{ m.annotators }} reviewer{{ m.annotators === 1 ? "" : "s" }} · {{ m.n }} shared item{{ m.n === 1 ? "" : "s" }}</span>
-        <span v-if="m.pairs > 0 && m.lowSample" class="warn" :title="lowSampleNote(m.n)">low sample</span>
+        <span v-else class="muted">{{ t("interAnnotatorAgreement.needs_at_least_two_reviewers_on") }}</span>
+        <span class="muted">{{ tp("interAnnotatorAgreement.reviewers", m.annotators) }} · {{ tp("interAnnotatorAgreement.sharedItems", m.n) }}</span>
+        <span v-if="m.pairs > 0 && m.lowSample" class="warn" :title="lowSampleNote(m.n)">{{ t("interAnnotatorAgreement.low_sample") }}</span>
       </li>
     </ul>
-    <p v-if="metrics.some((m) => m.pairs > 0)" class="muted hint">Low agreement between people usually means the rubric is ambiguous, not that the reviewers are wrong.</p>
+    <p v-if="metrics.some((m) => m.pairs > 0)" class="muted hint">{{ t("interAnnotatorAgreement.low_agreement_between_people_usually_mea") }}</p>
   </div>
 </template>
 

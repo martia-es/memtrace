@@ -1,14 +1,15 @@
+import { lazyMessages } from "./translate";
 /** Formas de ver el asistente y su resolución entre organización y usuario (ADR-063). Reglas puras. */
 
 export type AssistantDisplayMode = "bubble" | "dock" | "fullscreen";
 
 export const ASSISTANT_DISPLAY_MODES: readonly AssistantDisplayMode[] = ["bubble", "dock", "fullscreen"];
 
-export const MODE_LABELS: Record<AssistantDisplayMode, string> = {
-  bubble: "Bubble",
-  dock: "Side panel",
-  fullscreen: "Full screen",
-};
+export const MODE_LABELS: Record<AssistantDisplayMode, string> = lazyMessages({
+  bubble: "assistant-display.bubble",
+  dock: "assistant-display.side_panel",
+  fullscreen: "assistant-display.full_screen",
+});
 
 /** Lo que de verdad lee de un tema el resolutor: así no depende del DTO completo. */
 export interface AssistantDisplayTheme {

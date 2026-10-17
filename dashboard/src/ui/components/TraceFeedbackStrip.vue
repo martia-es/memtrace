@@ -6,6 +6,7 @@ import { formatDateTime } from "@/domain/format";
 import ThumbIcon from "./ThumbIcon.vue";
 import { useTraceApi } from "../composables/useTraceApi";
 import Card from "./Card.vue";
+import { t } from "../i18n";
 
 /**
  * Lo que el usuario final dijo de esta respuesta (👍/👎, ADR-062), con una franja de color y si coincide con la
@@ -30,11 +31,11 @@ const comments = computed(() => votes.value.filter((v) => v.comment));
 </script>
 
 <template>
-  <Card as="section" padding="none" block v-if="votes.length" class="strip" :class="tone" aria-label="User feedback" data-testid="trace-feedback">
+  <Card as="section" padding="none" block v-if="votes.length" class="strip" :class="tone" :aria-label="t('traceFeedbackStrip.user_feedback')" data-testid="trace-feedback">
     <div class="line">
       <span class="verdict" aria-hidden="true"><ThumbIcon :direction="tone === 'error' ? 'down' : 'up'" :size="18" filled /></span>
-      <b>User feedback</b>
-      <span class="counts mono" :aria-label="`${up} positive, ${down} negative`">
+      <b>{{ t("traceFeedbackStrip.user_feedback") }}</b>
+      <span class="counts mono" :aria-label="t('traceFeedbackStrip.up_positive_down_negative', { up, down })">
         <span class="count"><ThumbIcon direction="up" :size="13" />{{ up }}</span>
         <span class="count"><ThumbIcon direction="down" :size="13" />{{ down }}</span>
       </span>

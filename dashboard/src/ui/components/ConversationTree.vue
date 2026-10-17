@@ -5,11 +5,13 @@ import { formatCostUsd, formatCount, formatDateTime, formatDuration } from "@/do
 import StatusBadge from "./StatusBadge.vue";
 import SpanTree from "./SpanTree.vue";
 import Pill from "./Pill.vue";
+import { t, tp } from "../i18n";
+import { tr } from "../../domain/translate";
 
 const props = defineProps<{ turns: TraceDetailResponse[]; selectedTraceId: string | null; selectedSpanId: string | null }>();
 const emit = defineEmits<{ select: [traceId: string, spanId: string] }>();
 
-const rootName = (t: TraceDetailResponse) => t.roots.find((r) => !r.orphan)?.name ?? t.roots[0]?.name ?? "Trace";
+const rootName = (t: TraceDetailResponse) => t.roots.find((r) => !r.orphan)?.name ?? t.roots[0]?.name ?? tr("conversationTree.trace");
 
 const collapsed = ref<Set<string>>(new Set());
 const toggle = (traceId: string) => {
@@ -33,13 +35,13 @@ const summary = computed(() => {
 <template>
   <div class="conv-tree">
     <div class="summary">
-      <span class="s-label">Summary</span>
-      <span class="s-item"><q-icon name="tag" size="14px" /> {{ summary.count }} {{ summary.count === 1 ? "run" : "runs" }}</span>
+      <span class="s-label">{{ t("conversationTree.summary") }}</span>
+      <span class="s-item"><q-icon name="tag" size="14px" /> {{ tp("conversationTree.runs", summary.count) }}</span>
       <span class="s-item"><q-icon name="schedule" size="14px" /> P50 {{ formatDuration(summary.p50) }}</span>
-      <span class="s-item"><q-icon name="account_tree" size="14px" /> {{ formatCount(summary.totalSpans) }} spans</span>
-      <span v-if="summary.totalTokens" class="s-item"><q-icon name="toll" size="14px" /> {{ formatCount(summary.totalTokens) }} tokens</span>
+      <span class="s-item"><q-icon name="account_tree" size="14px" /> {{ t("conversationTree.count_spans", { count: formatCount(summary.totalSpans) }) }}</span>
+      <span v-if="summary.totalTokens" class="s-item"><q-icon name="toll" size="14px" /> {{ t("conversationTree.count_tokens", { count: formatCount(summary.totalTokens) }) }}</span>
       <span v-if="summary.totalCostUsd" class="s-item"><q-icon name="payments" size="14px" /> {{ formatCostUsd(summary.totalCostUsd) }}</span>
-      <span v-if="summary.errorRuns" class="s-item err"><q-icon name="error" size="14px" /> {{ summary.errorRuns }} {{ summary.errorRuns === 1 ? "run" : "runs" }} with error</span>
+      <span v-if="summary.errorRuns" class="s-item err"><q-icon name="error" size="14px" /> {{ tp("conversationTree.runsWithError", summary.errorRuns) }}</span>
     </div>
 
     <ol class="runs">
@@ -54,9 +56,9 @@ const summary = computed(() => {
           <span class="run-pills">
             <StatusBadge :status="t.status" />
             <Pill>{{ formatDuration(t.durationMs) }}</Pill>
-            <Pill v-if="t.totalTokens">{{ formatCount(t.totalTokens) }} tok</Pill>
+            <Pill v-if="t.totalTokens">{{ tr("conversationTree.count_tok", { count: formatCount(t.totalTokens) }) }}</Pill>
             <Pill v-if="t.totalCostUsd">{{ formatCostUsd(t.totalCostUsd) }}</Pill>
-            <Pill tone="error" v-if="t.errorCount">{{ t.errorCount }} err</Pill>
+            <Pill tone="error" v-if="t.errorCount">{{ tr("conversationTree.count_err", { count: t.errorCount }) }}</Pill>
           </span>
         </button>
         <div v-show="!collapsed.has(t.traceId)" class="run-body">

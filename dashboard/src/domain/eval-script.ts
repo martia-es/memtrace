@@ -1,3 +1,4 @@
+import { tr } from "./translate";
 /** Genera el script y el `.env` de una evaluación offline desde el dashboard. Sin Vue ni HTTP. */
 
 export type EvalMetricId = "exact_match" | "contains" | "correctness";
@@ -13,15 +14,15 @@ export interface EvalMetric {
 }
 
 export const EVAL_METRICS: EvalMetric[] = [
-  { id: "exact_match", group: "rules", label: "exact_match", description: "output equals expected", python: "exact_match", needsJudge: false },
-  { id: "contains", group: "rules", label: "contains", description: "expected is in the output", python: "contains", needsJudge: false },
-  { id: "correctness", group: "judge", label: "Correctness", description: "an LLM judges the answer vs expected", python: "Correctness(client=AnthropicJudgeClient())", needsJudge: true },
+  { id: "exact_match", group: "rules", label: "exact_match", get description() { return tr("eval-script.output_equals_expected"); }, python: "exact_match", needsJudge: false },
+  { id: "contains", group: "rules", label: "contains", get description() { return tr("eval-script.expected_is_in_the_output"); }, python: "contains", needsJudge: false },
+  { id: "correctness", group: "judge", label: "Correctness", get description() { return tr("eval-script.an_llm_judges_the_answer_vs"); }, python: "Correctness(client=AnthropicJudgeClient())", needsJudge: true },
 ];
 
 /** Métricas que existen en el SDK pero no se pueden pedir aquí: el agente corre en otro proceso (se llama por HTTP). */
 export const EVAL_METRICS_UNAVAILABLE = [
-  { label: "Faithfulness", reason: "needs the retrieved context, which only exists inside the agent's process" },
-  { label: "Recall@k · MRR · HitRate", reason: "retrieval is captured in-process; run them from your own code (see the docs)" },
+  { label: "Faithfulness", get reason() { return tr("eval-script.needs_the_retrieved_context_which_only"); } },
+  { label: "Recall@k · MRR · HitRate", get reason() { return tr("eval-script.retrieval_is_captured_in_process_run"); } },
 ];
 
 export interface EvalAgentTarget {

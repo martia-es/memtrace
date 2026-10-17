@@ -12,6 +12,7 @@ import TextInput from "./TextInput.vue";
 import Button from "./Button.vue";
 import Checkbox from "./Checkbox.vue";
 import FormField from "./FormField.vue";
+import { t } from "../i18n";
 
 /**
  * Pedir aprobación (ADR-076) para publicar un borrador o apuntar un entorno a una versión. Enseña qué exige la regla de
@@ -48,7 +49,7 @@ async function send() {
   problem.value = null;
   try {
     await api.openApproval(props.promptId, { action: props.action, version: props.version, ...(props.tag ? { tag: props.tag } : {}), note: note.value.trim(), extraApprovers: extra.value });
-    $q.notify({ message: "Request sent. The reviewers can see it now", color: "positive", timeout: 3000 });
+    $q.notify({ message: t("requestApprovalModal.request_sent_the_reviewers_can_see"), color: "positive", timeout: 3000 });
     emit("opened");
     emit("close");
   } catch (error) {
@@ -60,22 +61,22 @@ async function send() {
 </script>
 
 <template>
-  <Modal :title="`Ask for approval: ${requestTitle({ action, version, tag: tag ?? '' })}`" medium @close="emit('close')">
+  <Modal :title="t('requestApprovalModal.ask_for_approval_title', { title: requestTitle({ action, version, tag: tag ?? '' }) })" medium @close="emit('close')">
     <div class="ask" data-testid="request-modal">
-      <p v-if="info.loading.value && !info.data.value" class="muted">Reading the rule…</p>
+      <p v-if="info.loading.value && !info.data.value" class="muted">{{ t("requestApprovalModal.reading_the_rule") }}</p>
       <template v-else>
         <section class="rule">
-          <span class="eyebrow">WHAT THE RULE ASKS FOR</span>
+          <span class="eyebrow">{{ t("requestApprovalModal.what_the_rule_asks_for") }}</span>
           <p data-testid="request-rule">{{ describeRule(rule, names) }}</p>
-          <p class="muted">Your own approval never counts: someone else has to look at it.</p>
+          <p class="muted">{{ t("requestApprovalModal.your_own_approval_never_counts_someone") }}</p>
         </section>
 
-        <FormField label="Note for the reviewers (optional)">
-          <TextInput v-model="note" multiline :rows="3" placeholder="What changes and why" data-testid="request-note" />
+        <FormField :label="t('requestApprovalModal.note_for_the_reviewers_optional')">
+          <TextInput v-model="note" multiline :rows="3" :placeholder="t('requestApprovalModal.what_changes_and_why')" data-testid="request-note" />
         </FormField>
 
         <fieldset v-if="candidates.length > 0" class="people">
-          <legend>Also ask these people <span class="muted">(each one will have to approve)</span></legend>
+          <legend>{{ t("requestApprovalModal.also_ask_these_people") + " " }}<span class="muted">{{ t("requestApprovalModal.each_one_will_have_to_approve") }}</span></legend>
           <Checkbox v-for="p in candidates" :key="p.userId" class="person" :checked="extra.includes(p.userId)" :data-testid="`extra-${p.userId}`" @change="toggle(p.userId, ($event.target as HTMLInputElement).checked)"> <span>{{ p.name }}</span>
             <span class="muted">{{ p.roles.map(profileLabel).join(", ") }}</span></Checkbox>
         </fieldset>
@@ -83,8 +84,8 @@ async function send() {
         <p v-if="problem" class="problem" role="alert" data-testid="request-error">{{ problem }}</p>
       </template>
       <div class="actions">
-        <Button @click="emit('close')">Cancel</Button>
-        <Button variant="primary" :disabled="sending || (info.loading.value && !info.data.value)" data-testid="request-send" @click="send">{{ sending ? "Sending…" : "Send request" }}</Button>
+        <Button @click="emit('close')">{{ t("requestApprovalModal.cancel") }}</Button>
+        <Button variant="primary" :disabled="sending || (info.loading.value && !info.data.value)" data-testid="request-send" @click="send">{{ sending ? t("requestApprovalModal.sending") : t("requestApprovalModal.send_request") }}</Button>
       </div>
     </div>
   </Modal>

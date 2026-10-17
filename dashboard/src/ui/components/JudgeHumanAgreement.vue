@@ -9,6 +9,7 @@ import { useTraceApi } from "../composables/useTraceApi";
 import Button from "./Button.vue";
 import LoadingState from "./LoadingState.vue";
 import Card from "./Card.vue";
+import { t, tp } from "../i18n";
 
 /**
  * "Agreement with human labels" (ADR-040): por evaluador, cuánto coinciden el juez LLM y las personas. La parte que
@@ -30,28 +31,28 @@ const population = computed(() => {
 });
 const traceTargets = computed(() => agreement.data.value?.scope.traceTargets ?? 0);
 
-const judgeLabel = (m: JudgeHumanMetricDto) => (m.judge ? `${m.judge.model ?? "unknown model"}${m.judge.promptHash ? ` · rubric ${m.judge.promptHash}` : ""}` : m.judges.length > 1 ? `${m.judges.length} judges` : "unknown judge");
+const judgeLabel = (m: JudgeHumanMetricDto) => (m.judge ? `${m.judge.model ?? t("judgeHumanAgreement.unknown_model")}${m.judge.promptHash ? ` · ${t("judgeHumanAgreement.rubric_hash", { hash: m.judge.promptHash })}` : ""}` : m.judges.length > 1 ? t("judgeHumanAgreement.count_judges", { count: m.judges.length }) : t("judgeHumanAgreement.unknown_judge"));
 
 function excludedText(m: JudgeHumanMetricDto): string | null {
   const parts = [
-    m.excluded.noHuman ? `${m.excluded.noHuman} without a human label` : null,
-    m.excluded.noJudge ? `${m.excluded.noJudge} without a judge score` : null,
-    m.excluded.ties ? `${m.excluded.ties} with tied human votes` : null,
-    m.excluded.invalid ? `${m.excluded.invalid} with an invalid value` : null,
+    m.excluded.noHuman ? t("judgeHumanAgreement.count_without_a_human_label", { count: m.excluded.noHuman }) : null,
+    m.excluded.noJudge ? t("judgeHumanAgreement.count_without_a_judge_score", { count: m.excluded.noJudge }) : null,
+    m.excluded.ties ? t("judgeHumanAgreement.count_with_tied_human_votes", { count: m.excluded.ties }) : null,
+    m.excluded.invalid ? t("judgeHumanAgreement.count_with_an_invalid_value", { count: m.excluded.invalid }) : null,
   ].filter(Boolean);
-  return parts.length ? `Left out: ${parts.join(", ")}.` : null;
+  return parts.length ? t("judgeHumanAgreement.left_out_parts", { parts: parts.join(", ") }) : null;
 }
 
 function targetLabel(target: string): string {
   const index = runId.value ? itemIndexOfTarget(target, runId.value) : null;
-  return index !== null ? `Item ${index}` : target;
+  return index !== null ? t("judgeHumanAgreement.item_index", { index }) : target;
 }
 </script>
 
 <template>
   <Card as="section" padding="none" block class="agreement" data-testid="judge-human-agreement">
     <header>
-      <h2>Agreement with human labels</h2>
+      <h2>{{ t("judgeHumanAgreement.agreement_with_human_labels") }}</h2>
       <slot name="actions" />
     </header>
 
@@ -60,17 +61,17 @@ function targetLabel(target: string): string {
 
     <template v-else>
       <p v-if="!metrics.length" class="muted" data-testid="agreement-empty">
-        No judge score has a human label yet. Send items to a review queue to collect them; the human rubric must use the same name as the evaluator.
+        {{ t("judgeHumanAgreement.no_judge_score_has_a_human") }}
       </p>
 
       <article v-for="m in metrics" :key="m.name" class="metric" data-testid="agreement-metric">
         <div class="title">
           <strong>{{ m.name }}</strong>
-          <span class="muted">{{ m.dataType }} · judge: {{ judgeLabel(m) }}</span>
+          <span class="muted">{{ m.dataType }} · {{ t("judgeHumanAgreement.judge_label", { label: judgeLabel(m) }) }}</span>
         </div>
 
         <p v-if="m.status !== 'ok'" class="notice" data-testid="agreement-status">
-          {{ m.status === "mixed_judges" ? "Scores of this evaluator come from different judge versions, so no single number is shown." : "Judge and human labels use different types, so they cannot be compared." }}
+          {{ m.status === "mixed_judges" ? t("judgeHumanAgreement.scores_of_this_evaluator_come_from") : t("judgeHumanAgreement.judge_and_human_labels_use_different") }}
           <span class="muted">{{ m.reason }}</span>
         </p>
 
@@ -80,25 +81,25 @@ function targetLabel(target: string): string {
           <div class="stats">
             <div v-if="m.dataType !== 'numeric'" class="stat" :class="kappaTone(m.kappa)">
               <span class="value" data-testid="agreement-kappa">{{ formatKappa(m.kappa) }}</span>
-              <span class="label">Cohen's kappa · {{ kappaLabel(m.kappa) }}</span>
+              <span class="label">{{ t("judgeHumanAgreement.cohen_s_kappa_label", { label: kappaLabel(m.kappa) }) }}</span>
             </div>
             <div class="stat">
               <span class="value">{{ formatRate(m.percentAgreement) }}</span>
-              <span class="label">exact agreement</span>
+              <span class="label">{{ t("judgeHumanAgreement.exact_agreement") }}</span>
             </div>
             <template v-if="m.dataType === 'numeric'">
-              <div class="stat"><span class="value">{{ m.mae === null || m.mae === undefined ? "–" : m.mae.toFixed(2) }}</span><span class="label">mean abs. error</span></div>
-              <div class="stat"><span class="value">{{ formatKappa(m.spearman) }}</span><span class="label">Spearman ρ</span></div>
-              <div class="stat"><span class="value">{{ formatKappa(m.pearson) }}</span><span class="label">Pearson r</span></div>
-              <div class="stat"><span class="value">{{ formatRate(m.withinOne) }}</span><span class="label">within ±1</span></div>
+              <div class="stat"><span class="value">{{ m.mae === null || m.mae === undefined ? "–" : m.mae.toFixed(2) }}</span><span class="label">{{ t('judgeHumanAgreement.mean_abs_error') }}</span></div>
+              <div class="stat"><span class="value">{{ formatKappa(m.spearman) }}</span><span class="label">{{ t("judgeHumanAgreement.spearman") }}</span></div>
+              <div class="stat"><span class="value">{{ formatKappa(m.pearson) }}</span><span class="label">{{ t("judgeHumanAgreement.pearson_r") }}</span></div>
+              <div class="stat"><span class="value">{{ formatRate(m.withinOne) }}</span><span class="label">{{ t("judgeHumanAgreement.within_1") }}</span></div>
             </template>
-            <div class="stat"><span class="value">{{ m.n }}</span><span class="label">items compared</span></div>
+            <div class="stat"><span class="value">{{ m.n }}</span><span class="label">{{ t("judgeHumanAgreement.items_compared") }}</span></div>
           </div>
           <p v-if="kappaNote(m)" class="muted">{{ kappaNote(m) }}</p>
           <p v-if="excludedText(m)" class="muted">{{ excludedText(m) }}</p>
 
           <table v-if="m.confusion" class="confusion" data-testid="agreement-confusion">
-            <caption>Rows: human label · columns: judge</caption>
+            <caption>{{ t("judgeHumanAgreement.rows_human_label_columns_judge") }}</caption>
             <thead>
               <tr><th /><th v-for="label in m.confusion.labels" :key="label">{{ label }}</th></tr>
             </thead>
@@ -111,12 +112,12 @@ function targetLabel(target: string): string {
           </table>
 
           <div v-if="m.disagreements.length" class="disagreements" data-testid="agreement-disagreements">
-            <h3>Where they differ ({{ m.disagreements.length }}{{ m.disagreements.length >= 100 ? "+" : "" }})</h3>
+            <h3>{{ t("judgeHumanAgreement.where_they_differ_count", { count: `${m.disagreements.length}${m.disagreements.length >= 100 ? "+" : ""}` }) }}</h3>
             <ul>
               <li v-for="d in m.disagreements.slice(0, 20)" :key="d.target">
                 <Button variant="link" v-if="runId && itemIndexOfTarget(d.target, runId) !== null" @click="emit('select-item', itemIndexOfTarget(d.target, runId)!)">{{ targetLabel(d.target) }}</Button>
                 <span v-else class="mono">{{ targetLabel(d.target) }}</span>
-                <span class="muted">judge <strong>{{ d.judge }}</strong> · human <strong>{{ d.human }}</strong></span>
+                <span class="muted">{{ t("judgeHumanAgreement.judge") + " " }}<strong>{{ d.judge }}</strong>{{ " " + t("judgeHumanAgreement.human") + " " }}<strong>{{ d.human }}</strong></span>
               </li>
             </ul>
           </div>
@@ -124,17 +125,17 @@ function targetLabel(target: string): string {
       </article>
 
       <p v-if="traceTargets" class="muted" data-testid="agreement-trace-targets">
-        {{ traceTargets }} trace{{ traceTargets === 1 ? "" : "s" }} in this queue {{ traceTargets === 1 ? "is" : "are" }} not compared: only run items have judge scores.
+        {{ tp("judgeHumanAgreement.traces", traceTargets) }}
       </p>
       <p v-if="unmatched.judgeOnly.length || unmatched.humanOnly.length" class="muted" data-testid="agreement-unmatched">
-        Not compared because the names don't match:
-        <template v-if="unmatched.judgeOnly.length">evaluators without a human rubric ({{ unmatched.judgeOnly.join(", ") }})</template>
+        {{ t("judgeHumanAgreement.not_compared_because_the_names_don") }}
+        <template v-if="unmatched.judgeOnly.length">{{ t('judgeHumanAgreement.evaluators_without_a_human_rubric_names', { names: unmatched.judgeOnly.join(", ") }) }}</template>
         <template v-if="unmatched.judgeOnly.length && unmatched.humanOnly.length">; </template>
-        <template v-if="unmatched.humanOnly.length">human rubrics without an evaluator ({{ unmatched.humanOnly.join(", ") }})</template>.
+        <template v-if="unmatched.humanOnly.length">{{ t('judgeHumanAgreement.human_rubrics_without_an_evaluator_names', { names: unmatched.humanOnly.join(", ") }) }}</template>.
       </p>
       <p v-if="metrics.length && population" class="muted" :class="{ warn: population.tone === 'warn' }" data-testid="agreement-population">{{ population.text }}</p>
       <p v-if="metrics.length && !population" class="muted">
-        Agreement is only as representative as the sample: label a random sample of items, not only the ones the judge failed.
+        {{ t("judgeHumanAgreement.agreement_is_only_as_representative_as") }}
       </p>
     </template>
   </Card>

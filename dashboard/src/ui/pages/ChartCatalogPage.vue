@@ -9,6 +9,7 @@ import { useIdentityApi } from "../composables/useIdentityApi";
 import { usePermissions } from "../composables/usePermissions";
 import Button from "../components/Button.vue";
 import Card from "../components/Card.vue";
+import { t, tp } from "../i18n";
 
 /**
  * Overview › Data catalog (ADR-079): todos los pasos y atributos que ven las Custom charts, con el nombre que les pone el equipo
@@ -55,20 +56,19 @@ void load();
 
 <template>
   <div class="page">
-    <PageHeader :crumbs="[{ label: 'Analytics' }, { label: 'Charts', to: { name: 'overview-charts', params: { experimentId } } }, { label: 'Data catalog' }]" icon="M4 6h16M4 12h16M4 18h10" title="Data catalog" />
+    <PageHeader :crumbs="[{ label: t('nav.analytics') }, { label: t('nav.charts'), to: { name: 'overview-charts', params: { experimentId } } }, { label: t('nav.dataCatalog') }]" icon="M4 6h16M4 12h16M4 18h10" :title="t('chartCatalogPage.data_catalog')" />
     <Card padding="none" block class="body" data-testid="catalog-page">
       <p class="intro">
-        Everything your agent reports that Charts can use. Name each step and attribute the way your team talks about it, and hide the details nobody needs to pick.
-        Names apply to every chart, including saved ones.
-        <template v-if="!can('catalog:manage')"> You can look but not change it: editing needs the catalog permission.</template>
+        {{ t("chartCatalogPage.everything_your_agent_reports_that_custo") }}
+        <template v-if="!can('catalog:manage')"> {{ t("chartCatalogPage.you_can_look_but_not_change") }}</template>
       </p>
-      <input v-model="search" class="search" type="search" placeholder="Search steps and attributes…" aria-label="Search the catalog" data-testid="catalog-search" />
-      <p v-if="entries === null" class="muted">Loading…</p>
+      <input v-model="search" class="search" type="search" :placeholder="t('chartCatalogPage.search_steps_and_attributes')" :aria-label="t('chartCatalogPage.search_the_catalog')" data-testid="catalog-search" />
+      <p v-if="entries === null" class="muted">{{ t("chartCatalogPage.loading") }}</p>
       <ChartCatalogTable v-else ref="table" manual :experiment-id="experimentId" :range="range" :entries="entries" :readonly="!can('catalog:manage')" :search="search" @changed="entries = $event" @dirty="dirty = $event" />
       <div v-if="dirty > 0" class="savebar" role="status" data-testid="catalog-savebar">
-        <span>{{ dirty }} unsaved {{ dirty === 1 ? "change" : "changes" }}</span>
-        <Button :disabled="saving" data-testid="catalog-discard" @click="table?.discard()">Discard</Button>
-        <Button variant="primary" class="primary" :disabled="saving" data-testid="catalog-save" @click="saveAll">{{ saving ? "Saving…" : "Save changes" }}</Button>
+        <span>{{ tp("chartCatalogPage.unsaved", dirty) }}</span>
+        <Button :disabled="saving" data-testid="catalog-discard" @click="table?.discard()">{{ t("chartCatalogPage.discard") }}</Button>
+        <Button variant="primary" class="primary" :disabled="saving" data-testid="catalog-save" @click="saveAll">{{ saving ? t("chartCatalogPage.saving") : t("chartCatalogPage.save_changes") }}</Button>
       </div>
     </Card>
   </div>

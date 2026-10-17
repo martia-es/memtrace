@@ -15,6 +15,7 @@ import PageHeader from "../components/PageHeader.vue";
 import Checkbox from "../components/Checkbox.vue";
 import LoadingState from "../components/LoadingState.vue";
 import Card from "../components/Card.vue";
+import { t } from "../i18n";
 
 /** Catálogo de asistentes de la organización (ADR-053): una tarjeta de presentación por experimento registrado. */
 const ORG_KEY = "memtrace:assistantsOrganizationId";
@@ -113,40 +114,40 @@ const organizationOptions = computed(() => readable.value.map((o) => ({ label: o
 
 <template>
   <div class="page">
-    <PageHeader :crumbs="[{ label: 'Assistants' }]" icon="M12 8V4M8 4h8M5 8h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2zM9 14h.01M15 14h.01" title="Assistants">
+    <PageHeader :crumbs="[{ label: 'Assistants' }]" icon="M12 8V4M8 4h8M5 8h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2zM9 14h.01M15 14h.01" :title="t('assistantsPage.assistants2')">
       <div class="actions">
-        <div v-if="readable.length > 1" class="org-select"><Select v-model="organizationId" :options="organizationOptions" aria-label="Organization" /></div>
-        <router-link v-if="canCreateAgents && organizationId" :to="{ name: 'admin-organization', params: { organizationId } }" class="primary mt-new" data-testid="create-agent">+ New agent</router-link>
+        <div v-if="readable.length > 1" class="org-select"><Select v-model="organizationId" :options="organizationOptions" :aria-label="t('assistantsPage.organization')" /></div>
+        <router-link v-if="canCreateAgents && organizationId" :to="{ name: 'admin-organization', params: { organizationId } }" class="primary mt-new" data-testid="create-agent">{{ t("assistantsPage.new_agent") }}</router-link>
       </div>
     </PageHeader>
 
     <ErrorBanner v-if="catalog.error.value" :error="catalog.error.value" @retry="catalog.run()" />
     <LoadingState v-else-if="(organizations.loading.value || catalog.loading.value) && !catalog.data.value" size="lg" />
-    <EmptyState v-else-if="!organization" icon="lock" title="No access to the catalog">
-      You need the governance permission in an organization to see its assistants. Ask an organization admin.
+    <EmptyState v-else-if="!organization" icon="lock" :title="t('assistantsPage.no_access_to_the_catalog')">
+      {{ t("assistantsPage.you_need_the_governance_permission_in") }}
     </EmptyState>
 
     <template v-else>
-      <Card as="section" padding="none" block class="summary" aria-label="Summary">
-        <div class="stat"><b>{{ summary.assistants }}</b><span>assistants</span></div>
-        <div class="stat ok"><b>{{ summary.up }} / {{ summary.deployed }}</b><span>environments up</span></div>
-        <div class="stat" :class="{ err: summary.attention > 0 }"><b>{{ summary.attention }}</b><span>degraded or down</span></div>
-        <div class="stat" :class="{ warn: summary.toReview > 0 }"><b>{{ summary.toReview }}</b><span>connections to review</span></div>
+      <Card as="section" padding="none" block class="summary" :aria-label="t('assistantsPage.summary')">
+        <div class="stat"><b>{{ summary.assistants }}</b><span>{{ t("assistantsPage.assistants") }}</span></div>
+        <div class="stat ok"><b>{{ summary.up }} / {{ summary.deployed }}</b><span>{{ t("assistantsPage.environments_up") }}</span></div>
+        <div class="stat" :class="{ err: summary.attention > 0 }"><b>{{ summary.attention }}</b><span>{{ t("assistantsPage.degraded_or_down") }}</span></div>
+        <div class="stat" :class="{ warn: summary.toReview > 0 }"><b>{{ summary.toReview }}</b><span>{{ t("assistantsPage.connections_to_review") }}</span></div>
         <div class="grow" />
-        <span class="hint">Health is checked automatically; this page refreshes every 30 s</span>
+        <span class="hint">{{ t("assistantsPage.health_is_checked_automatically_this_pag") }}</span>
       </Card>
 
       <div class="filters">
-        <TextInput type="search" v-model="search" placeholder="Search by name, description or owner…" class="search" />
-        <FilterPill label="Environment" :model-value="environment" :options="environmentOptions" all-label="All" @update:model-value="environment = $event" />
-        <FilterPill label="Status" :model-value="status" :options="statusOptions" all-label="All" @update:model-value="status = $event" />
-        <Checkbox class="toggle" v-model="onlyIssues">Only with issues</Checkbox>
+        <TextInput type="search" v-model="search" :placeholder="t('assistantsPage.search_by_name_description_or_owner')" class="search" />
+        <FilterPill :label="t('assistantsPage.environment')" :model-value="environment" :options="environmentOptions" all-label="All" @update:model-value="environment = $event" />
+        <FilterPill :label="t('assistantsPage.status')" :model-value="status" :options="statusOptions" all-label="All" @update:model-value="status = $event" />
+        <Checkbox class="toggle" v-model="onlyIssues">{{ t("assistantsPage.only_with_issues") }}</Checkbox>
       </div>
 
-      <EmptyState v-if="cards.length === 0" icon="smart_toy" title="No agents yet">
-        Every experiment is an agent and appears here as soon as it is created. Create one in Settings.
+      <EmptyState v-if="cards.length === 0" icon="smart_toy" :title="t('assistantsPage.no_agents_yet')">
+        {{ t("assistantsPage.every_experiment_is_an_agent_and") }}
       </EmptyState>
-      <EmptyState v-else-if="visible.length === 0" icon="search_off" title="No assistants match">Try a different search or clear the filters.</EmptyState>
+      <EmptyState v-else-if="visible.length === 0" icon="search_off" :title="t('assistantsPage.no_assistants_match')">{{ t("assistantsPage.try_a_different_search_or_clear") }}</EmptyState>
       <section v-else class="cards" data-testid="assistant-cards">
         <AssistantCard v-for="c in visible" :key="c.experimentId" :card="c" :slots="slots" />
       </section>

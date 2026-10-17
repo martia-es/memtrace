@@ -26,6 +26,7 @@ import MenuItem from "../components/MenuItem.vue";
 import Pill from "../components/Pill.vue";
 import LoadingState from "../components/LoadingState.vue";
 import Select from "../components/Select.vue";
+import { t, tp } from "../i18n";
 
 const api = usePromptApi();
 const route = useRoute();
@@ -44,7 +45,7 @@ void prompts.run().then(() => {
   if (!name) return;
   const found = (prompts.data.value ?? []).find((p) => p.name === name);
   if (!found) {
-    $q.notify({ message: `The prompt "${name}" is not registered for this agent in MemTrace.`, color: "warning", timeout: 5000 });
+    $q.notify({ message: t("promptsPage.the_prompt_name_is_not_registered", { name }), color: "warning", timeout: 5000 });
     return;
   }
   const version = typeof route.query.version === "string" ? route.query.version : undefined;
@@ -70,15 +71,15 @@ const kindOf = (p: PromptSummaryDto): "prompt" | "fragment" => (p.kind === "frag
 const live = computed(() => items.value.filter((p) => !p.archivedAt));
 const summary = computed(() => releaseSummary(live.value));
 const TYPE_OPTIONS = computed(() => [
-  { value: "all", label: "All" },
-  { value: "prompt", label: `Prompts · ${items.value.filter((p) => kindOf(p) === "prompt").length}` },
-  { value: "fragment", label: `Fragments · ${items.value.filter((p) => kindOf(p) === "fragment").length}` },
+  { value: "all", label: t("promptsPage.all") },
+  { value: "prompt", label: `${t("promptsPage.prompts")} · ${items.value.filter((p) => kindOf(p) === "prompt").length}` },
+  { value: "fragment", label: `${t("promptsPage.fragments")} · ${items.value.filter((p) => kindOf(p) === "fragment").length}` },
 ]);
 const STATUS_OPTIONS = computed(() => [
-  { value: "all", label: "All" },
-  { value: "behind", label: `Behind in PRO · ${summary.value.behind}` },
-  { value: "in_sync", label: `In sync · ${summary.value.inSync}` },
-  { value: "not_released", label: `Not released · ${summary.value.notReleased}` },
+  { value: "all", label: t("promptsPage.all") },
+  { value: "behind", label: `${t("promptsPage.behind_in_pro")} · ${summary.value.behind}` },
+  { value: "in_sync", label: `${t("promptsPage.in_sync")} · ${summary.value.inSync}` },
+  { value: "not_released", label: `${t("promptsPage.not_released")} · ${summary.value.notReleased}` },
 ]);
 
 const search = ref("");
@@ -129,7 +130,7 @@ const sampleVariable = asVariable("language");
 /** cómo se incluiría el fragmento que se está escribiendo */
 const ownInclude = computed(() => includeSyntax(form.value.name.trim() || "name", "pro"));
 const formVariables = computed(() => extractVariables(form.value.content));
-const contentPlaceholder = "Prompt text. Use {{variable}} for the parts that change.";
+const contentPlaceholder = computed(() => t("promptsPage.prompt_text_use_variable_for_the"));
 const showCreate = ref(false);
 function openCreate(kind: "prompt" | "fragment") {
   form.value.kind = kind;
@@ -149,7 +150,7 @@ async function create() {
   } catch (error) {
     const err = error as Error & { fields?: Record<string, string> };
     fieldErrors.value = err.fields ?? {};
-    $q.notify({ message: `Could not create the prompt: ${describeApiError(err)}`, color: "negative", timeout: 4000 });
+    $q.notify({ message: t("promptsPage.could_not_create_the_prompt_error", { error: describeApiError(err) }), color: "negative", timeout: 4000 });
   } finally {
     creating.value = false;
   }
@@ -158,11 +159,11 @@ async function create() {
 
 <template>
   <div class="page">
-    <PageHeader :crumbs="[{ label: 'Prompts' }, { label: 'Prompts' }]" icon="M4 6h16M4 12h16M4 18h10" title="Prompts">
+    <PageHeader :crumbs="[{ label: 'Prompts' }, { label: 'Prompts' }]" icon="M4 6h16M4 12h16M4 18h10" :title="t('promptsPage.prompts')">
       <div class="actions">
-        <TextInput v-model="search" type="search" placeholder="Filter by name…" class="search" />
-        <Button v-if="can('prompt:write')" data-testid="new-fragment" @click="openCreate('fragment')">+ New fragment</Button>
-        <Button variant="primary" v-if="can('prompt:write')" data-testid="new-prompt" @click="openCreate('prompt')">+ New prompt</Button>
+        <TextInput v-model="search" type="search" :placeholder="t('promptsPage.filter_by_name')" class="search" />
+        <Button v-if="can('prompt:write')" data-testid="new-fragment" @click="openCreate('fragment')">{{ t("promptsPage.new_fragment2") }}</Button>
+        <Button variant="primary" v-if="can('prompt:write')" data-testid="new-prompt" @click="openCreate('prompt')">{{ t("promptsPage.new_prompt2") }}</Button>
       </div>
     </PageHeader>
 
@@ -172,64 +173,64 @@ async function create() {
     <LoadingState v-else-if="prompts.loading.value && !prompts.data.value" size="lg" />
     <section v-else-if="(prompts.data.value?.length ?? 0) === 0" class="welcome" data-testid="empty-state">
       <div class="welcome-head">
-        <h2>Version what your agent says</h2>
-        <p>Every save is a version, tags decide which one runs in DEV, PRE and PRO, and each version keeps its own traces, cost and errors.</p>
+        <h2>{{ t("promptsPage.version_what_your_agent_says") }}</h2>
+        <p>{{ t("promptsPage.every_save_is_a_version_tags") }}</p>
       </div>
       <div class="welcome-cards">
         <article class="welcome-card">
-          <span class="eyebrow">PROMPT</span>
-          <h3>New prompt</h3>
-          <p>The text your agent runs with. Use <code>{{ sampleVariable }}</code> for the parts that change.</p>
-          <pre class="sample">You are a weather assistant. Answer in {{ sampleVariable }}.</pre>
-          <Button variant="primary" v-if="can('prompt:write')" data-testid="empty-new-prompt" @click="openCreate('prompt')">+ New prompt</Button>
+          <span class="eyebrow">{{ t("promptsPage.prompt") }}</span>
+          <h3>{{ t("promptsPage.new_prompt") }}</h3>
+          <p>{{ t("promptsPage.the_text_your_agent_runs_with") + " " }}<code>{{ sampleVariable }}</code>{{ " " + t("promptsPage.for_the_parts_that_change") }}</p>
+          <pre class="sample">{{ t('promptsPage.you_are_a_weather_assistant_answer', { variable: sampleVariable }) }}</pre>
+          <Button variant="primary" v-if="can('prompt:write')" data-testid="empty-new-prompt" @click="openCreate('prompt')">{{ t("promptsPage.new_prompt2") }}</Button>
         </article>
         <article class="welcome-card">
-          <span class="eyebrow">FRAGMENT</span>
-          <h3>New fragment</h3>
-          <p>Text shared by several prompts (tone, policies, format). Edit it once and the prompts that use it get a new draft.</p>
-          <pre class="sample">In your prompt: {{ sampleInclude }}</pre>
-          <Button v-if="can('prompt:write')" data-testid="empty-new-fragment" @click="openCreate('fragment')">+ New fragment</Button>
+          <span class="eyebrow">{{ t("promptsPage.fragment") }}</span>
+          <h3>{{ t("promptsPage.new_fragment") }}</h3>
+          <p>{{ t("promptsPage.text_shared_by_several_prompts_tone") }}</p>
+          <pre class="sample">{{ t('promptsPage.in_your_prompt_include', { include: sampleInclude }) }}</pre>
+          <Button v-if="can('prompt:write')" data-testid="empty-new-fragment" @click="openCreate('fragment')">{{ t("promptsPage.new_fragment2") }}</Button>
         </article>
       </div>
-      <Button variant="link" v-if="!showArchived" data-testid="show-archived-empty" @click="showArchived = true; prompts.run()">Show archived prompts</Button>
+      <Button variant="link" v-if="!showArchived" data-testid="show-archived-empty" @click="showArchived = true; prompts.run()">{{ t("promptsPage.show_archived_prompts") }}</Button>
     </section>
 
     <template v-else>
       <div class="toolbar">
-        <label class="filter">Type <div class="filter-select"><Select v-model="typeFilter" :options="TYPE_OPTIONS" aria-label="Type" data-testid="type-filter" /></div></label>
-        <label class="filter">Status <div class="filter-select"><Select v-model="status" :options="STATUS_OPTIONS" aria-label="Release status" data-testid="status-filter" /></div></label>
+        <label class="filter">{{ t("promptsPage.type") + " " }}<div class="filter-select"><Select v-model="typeFilter" :options="TYPE_OPTIONS" :aria-label="t('promptsPage.type')" data-testid="type-filter" /></div></label>
+        <label class="filter">{{ t("promptsPage.status") + " " }}<div class="filter-select"><Select v-model="status" :options="STATUS_OPTIONS" :aria-label="t('promptsPage.release_status')" data-testid="status-filter" /></div></label>
         <span class="grow" />
-        <span class="soft" data-testid="count">{{ filtered.length }} {{ filtered.length === 1 ? "item" : "items" }}</span>
-        <Button variant="icon" aria-label="More options" data-testid="more-options">
+        <span class="soft" data-testid="count">{{ tp("promptsPage.items", filtered.length) }}</span>
+        <Button variant="icon" :aria-label="t('promptsPage.more_options')" data-testid="more-options">
           ⋯
           <Menu anchor="bottom right" self="top right" auto-close>
-            <MenuItem :active="showArchived" data-testid="show-archived" @click="showArchived = !showArchived; prompts.run()">Show archived</MenuItem>
+            <MenuItem :active="showArchived" data-testid="show-archived" @click="showArchived = !showArchived; prompts.run()">{{ t("promptsPage.show_archived") }}</MenuItem>
           </Menu>
         </Button>
       </div>
 
-      <EmptyState v-if="rows.length === 0" icon="search_off" title="No matches">Try a different search or filter.</EmptyState>
+      <EmptyState v-if="rows.length === 0" icon="search_off" :title="t('promptsPage.no_matches')">{{ t("promptsPage.try_a_different_search_or_filter") }}</EmptyState>
       <DataTable v-else class="prompt-table" data-testid="prompt-table">
         <thead>
-          <tr><th>Name</th><th>Type</th><th>Latest</th><th>DEV</th><th>PRE</th><th>PRO</th><th class="num">Updated</th></tr>
+          <tr><th>{{ t("promptsPage.name") }}</th><th>{{ t("promptsPage.type") }}</th><th>{{ t("promptsPage.latest") }}</th><th>{{ t("promptsPage.dev") }}</th><th>{{ t("promptsPage.pre") }}</th><th>{{ t("promptsPage.pro") }}</th><th class="num">{{ t("promptsPage.updated") }}</th></tr>
         </thead>
         <tbody>
           <tr v-for="r in rows" :key="r.prompt.id" class="prompt-row" :data-testid="`${r.prompt.kind === 'fragment' ? 'fragment' : 'prompt'}-row-${r.prompt.name}`" tabindex="0" @click="open(r.prompt.id)" @keydown.enter="open(r.prompt.id)">
             <td class="who">
               <div class="who-name">
                 <span class="name">{{ r.prompt.name }}</span>
-                <Pill v-if="r.prompt.archivedAt" class="archived">archived</Pill>
-                <Pill v-if="awaitingMe.has(r.prompt.id)" :data-testid="`awaiting-${r.prompt.name}`" class="awaiting">needs your approval</Pill>
+                <Pill v-if="r.prompt.archivedAt" class="archived">{{ t("promptsPage.archived") }}</Pill>
+                <Pill v-if="awaitingMe.has(r.prompt.id)" :data-testid="`awaiting-${r.prompt.name}`" class="awaiting">{{ t("promptsPage.needs_your_approval") }}</Pill>
                 <span v-for="t in freeTags(r.prompt)" :key="t" class="free-tag mono" :data-testid="`tag-${r.prompt.name}-${t}`">{{ t }} → v{{ r.prompt.tags[t] }}</span>
               </div>
               <div v-if="r.prompt.description" class="desc">{{ r.prompt.description }}</div>
               <span class="sr-only" :data-testid="`release-${r.prompt.name}`">{{ r.release.state === "behind" ? `${r.release.behindBy} ${r.release.behindBy === 1 ? "version" : "versions"} behind in PRO` : r.release.state === "in_sync" ? "In sync" : "Not released" }}</span>
             </td>
-            <td class="type" :data-testid="`type-${r.prompt.name}`"><Pill v-if="r.prompt.kind === 'fragment'" tone="accent">Fragment</Pill><Pill v-else tone="info">Prompt</Pill></td>
+            <td class="type" :data-testid="`type-${r.prompt.name}`"><Pill v-if="r.prompt.kind === 'fragment'" tone="accent">{{ t("promptsPage.fragment2") }}</Pill><Pill v-else tone="info">{{ t("promptsPage.prompt2") }}</Pill></td>
             <td class="mono strong" :data-testid="`latest-${r.prompt.name}`">v{{ r.prompt.latestVersion }}</td>
             <td v-for="c in r.cells" :key="c.env">
               <span v-if="c.version === null" class="none" :data-testid="`tag-${r.prompt.name}-${c.env}`">—</span>
-              <span v-else-if="c.behind > 0" class="chip late mono" :data-testid="`tag-${r.prompt.name}-${c.env}`">v{{ c.version }}<b>{{ c.behind }} behind</b></span>
+              <span v-else-if="c.behind > 0" class="chip late mono" :data-testid="`tag-${r.prompt.name}-${c.env}`">v{{ c.version }}<b>{{ t("promptsPage.count_behind", { count: c.behind }) }}</b></span>
               <span v-else class="chip mono" :class="c.env" :data-testid="`tag-${r.prompt.name}-${c.env}`">v{{ c.version }}</span>
             </td>
             <td class="num mono when">{{ formatDateTime(r.prompt.updatedAt) }}</td>
@@ -238,41 +239,41 @@ async function create() {
       </DataTable>
     </template>
 
-    <Modal v-if="showCreate" :title="form.kind === 'fragment' ? 'New fragment' : 'New prompt'" :wide="true" @close="showCreate = false">
+    <Modal v-if="showCreate" :title="form.kind === 'fragment' ? t('promptsPage.new_fragment') : t('promptsPage.new_prompt')" :wide="true" @close="showCreate = false">
       <form class="modal-form" :class="{ split: form.kind === 'fragment' }" @submit.prevent="create">
         <p v-if="form.kind === 'fragment'" class="hint small intro" data-testid="fragment-hint">
-          A fragment is text shared by several prompts (tone, policies, format). A prompt includes it with <code>{{ example("pro") }}</code>
-          (by tag) or <code>{{ example("3") }}</code> (by version), and the version it points to when saving is pinned.
+          {{ t("promptsPage.a_fragment_is_text_shared_by") + " " }}<code>{{ example("pro") }}</code>
+          {{ t("promptsPage.by_tag_or") + " " }}<code>{{ example("3") }}</code>{{ " " + t("promptsPage.by_version_and_the_version_it") }}
         </p>
         <div class="fields">
-          <TextInput v-model="form.name" placeholder="name, e.g. weather-system" mono autofocus :invalid="!!fieldErrors.name" data-testid="prompt-name" />
+          <TextInput v-model="form.name" :placeholder="t('promptsPage.name_e_g_weather_system')" mono autofocus :invalid="!!fieldErrors.name" data-testid="prompt-name" />
           <p v-if="fieldErrors.name" class="field-error">{{ fieldErrors.name }}</p>
-          <TextInput v-model="form.description" placeholder="What is it for? (optional)" />
+          <TextInput v-model="form.description" :placeholder="t('promptsPage.what_is_it_for_optional')" />
           <PromptEditor v-model="form.content" :experiment-id="experimentId" :fragments="form.kind === 'prompt'" :rows="14" :invalid="!!fieldErrors.content" :placeholder="contentPlaceholder" testid="prompt-content" />
           <p v-if="fieldErrors.content" class="field-error">{{ fieldErrors.content }}</p>
-          <TextInput v-model="form.message" placeholder="Message for version 1 (optional)" />
+          <TextInput v-model="form.message" :placeholder="t('promptsPage.message_for_version_1_optional')" />
         </div>
         <aside v-if="form.kind === 'fragment'" class="aside-cards">
           <div class="aside-card" data-testid="fragment-variables">
-            <span class="eyebrow">VARIABLES IT BRINGS</span>
-            <p class="soft small">Every prompt that includes it gets these variables too.</p>
+            <span class="eyebrow">{{ t("promptsPage.variables_it_brings") }}</span>
+            <p class="soft small">{{ t("promptsPage.every_prompt_that_includes_it_gets") }}</p>
             <div class="vars">
               <code v-for="v in formVariables" :key="v" class="var">{{ asVariable(v) }}</code>
-              <span v-if="formVariables.length === 0" class="soft small">none yet</span>
+              <span v-if="formVariables.length === 0" class="soft small">{{ t("promptsPage.none_yet") }}</span>
             </div>
           </div>
           <div class="aside-card accent">
-            <span class="eyebrow">HOW A PROMPT USES IT</span>
-            <p class="soft small">Pick it from <b>Insert fragment</b> in the prompt editor, or type:</p>
+            <span class="eyebrow">{{ t("promptsPage.how_a_prompt_uses_it") }}</span>
+            <p class="soft small">{{ t("promptsPage.pick_it_from") + " " }}<b>{{ t("promptsPage.insert_fragment") }}</b>{{ " " + t("promptsPage.in_the_prompt_editor_or_type") }}</p>
             <code class="snippet">{{ ownInclude }}</code>
-            <p class="soft small">The tag or version is required: a prompt always knows exactly which text it got.</p>
+            <p class="soft small">{{ t("promptsPage.the_tag_or_version_is_required") }}</p>
           </div>
         </aside>
         <div class="modal-foot">
-          <span v-if="form.kind === 'fragment'" class="soft small">Creates v1, published. Nothing runs in an agent until a prompt includes it.</span>
+          <span v-if="form.kind === 'fragment'" class="soft small">{{ t("promptsPage.creates_v1_published_nothing_runs_in") }}</span>
           <span class="grow" />
-          <Button @click="showCreate = false">Cancel</Button>
-          <Button variant="primary" type="submit" :disabled="creating || !form.name.trim() || !form.content.trim()" data-testid="create-prompt">{{ form.kind === "fragment" ? "Create fragment" : "Create" }}</Button>
+          <Button @click="showCreate = false">{{ t("promptsPage.cancel") }}</Button>
+          <Button variant="primary" type="submit" :disabled="creating || !form.name.trim() || !form.content.trim()" data-testid="create-prompt">{{ form.kind === "fragment" ? t("promptsPage.create_fragment") : t("promptsPage.create") }}</Button>
         </div>
       </form>
     </Modal>

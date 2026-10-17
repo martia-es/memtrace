@@ -8,6 +8,7 @@ import { useChatDock } from "../composables/useChatDock";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { applyOrganizationTheme } from "../composables/useOrganizationTheme";
 import Button from "../components/Button.vue";
+import { t } from "../i18n";
 
 /** Chat a pantalla completa, en su propia pestaña (ADR-063). Ruta sin sidebar: hereda sesión y tema de la organización. */
 const route = useRoute();
@@ -30,14 +31,14 @@ onMounted(async () => {
 
 <template>
   <div class="page">
-    <p v-if="!target" class="missing">Open the assistant from its card in Assistants.</p>
+    <p v-if="!target" class="missing">{{ t("assistantFullscreenPage.open_the_assistant_from_its_card") }}</p>
     <template v-else>
       <header class="bar">
         <span class="dot" aria-hidden="true" />
         <b>{{ displayName }}</b>
         <span class="env">{{ target.environmentLabel }}</span>
         <span class="grow" />
-        <Button @click="dock.reset()">New conversation</Button>
+        <Button @click="dock.reset()">{{ t("assistantFullscreenPage.new_conversation") }}</Button>
       </header>
       <AssistantChat :display-name="displayName" large />
     </template>

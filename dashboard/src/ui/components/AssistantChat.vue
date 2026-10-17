@@ -6,6 +6,7 @@ import ThumbIcon from "./ThumbIcon.vue";
 import { useAssistantApi } from "../composables/useAssistantApi";
 import { useChatDock } from "../composables/useChatDock";
 import Button from "./Button.vue";
+import { t } from "../i18n";
 
 /** Conversación con un agente (mensajes, votos y caja de texto). La comparten los tres modos de visualización (ADR-063). */
 const props = defineProps<{ displayName: string; large?: boolean }>();
@@ -79,20 +80,20 @@ function onKey(event: KeyboardEvent) {
 <template>
   <div class="chat" :class="{ large }">
     <div ref="scroller" class="msgs" aria-live="polite">
-      <p v-if="state.messages.length === 0" class="empty">Ask {{ props.displayName }} something. This runs against {{ state.target?.environmentLabel }}.</p>
+      <p v-if="state.messages.length === 0" class="empty">{{ t("assistantChat.ask_name_something_this_runs_against", { name: props.displayName, env: state.target?.environmentLabel }) }}</p>
       <template v-for="m in state.messages" :key="m.id">
         <div class="msg" :class="m.role">{{ m.text }}</div>
-        <div v-if="m.role === 'agent' && m.traceId" class="votes" role="group" aria-label="Rate this answer">
-          <Button variant="icon" size="sm" class="vote" :class="{ on: m.vote === 1 }" :aria-pressed="m.vote === 1" title="Good answer" aria-label="Good answer" data-testid="vote-up" @click="vote(m, 1)"><ThumbIcon direction="up" :size="15" :filled="m.vote === 1" /></Button>
-          <Button variant="icon" size="sm" class="vote" :class="{ on: m.vote === -1 }" :aria-pressed="m.vote === -1" title="Bad answer" aria-label="Bad answer" data-testid="vote-down" @click="vote(m, -1)"><ThumbIcon direction="down" :size="15" :filled="m.vote === -1" /></Button>
+        <div v-if="m.role === 'agent' && m.traceId" class="votes" role="group" :aria-label="t('assistantChat.rate_this_answer')">
+          <Button variant="icon" size="sm" class="vote" :class="{ on: m.vote === 1 }" :aria-pressed="m.vote === 1" :title="t('assistantChat.good_answer')" :aria-label="t('assistantChat.good_answer')" data-testid="vote-up" @click="vote(m, 1)"><ThumbIcon direction="up" :size="15" :filled="m.vote === 1" /></Button>
+          <Button variant="icon" size="sm" class="vote" :class="{ on: m.vote === -1 }" :aria-pressed="m.vote === -1" :title="t('assistantChat.bad_answer')" :aria-label="t('assistantChat.bad_answer')" data-testid="vote-down" @click="vote(m, -1)"><ThumbIcon direction="down" :size="15" :filled="m.vote === -1" /></Button>
         </div>
       </template>
       <div v-if="voteError" class="msg error" role="alert">{{ voteError }}</div>
-      <div v-if="sending" class="msg agent typing" aria-label="Waiting for the answer">…</div>
+      <div v-if="sending" class="msg agent typing" :aria-label="t('assistantChat.waiting_for_the_answer')">…</div>
     </div>
     <form class="compose" @submit.prevent="send">
-      <textarea v-model="draft" rows="1" placeholder="Write a message" aria-label="Message" data-testid="chat-input" @keydown="onKey" />
-      <Button variant="primary" type="submit" class="send" :disabled="sending || normalizeDraft(draft) === null" data-testid="chat-send">Send</Button>
+      <textarea v-model="draft" rows="1" :placeholder="t('assistantChat.write_a_message')" :aria-label="t('assistantChat.message')" data-testid="chat-input" @keydown="onKey" />
+      <Button variant="primary" type="submit" class="send" :disabled="sending || normalizeDraft(draft) === null" data-testid="chat-send">{{ t("assistantChat.send") }}</Button>
     </form>
   </div>
 </template>

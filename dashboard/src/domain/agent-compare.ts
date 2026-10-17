@@ -1,5 +1,6 @@
 import type { OverviewResponse } from "@contract";
 import { formatCostUsd, formatCount, formatDuration, formatPercent } from "./format";
+import { tr } from "./translate";
 
 /** Un cambio de menos de este porcentaje relativo es ruido: no se pinta ni de mejor ni de peor. */
 export const NEUTRAL_THRESHOLD = 0.05;
@@ -28,14 +29,14 @@ interface MetricDef {
 }
 
 const METRICS: MetricDef[] = [
-  { key: "cost", label: "Total cost", better: "lower", value: (o) => o.totals.costUsd, format: (v) => formatCostUsd(v) ?? "–" },
-  { key: "tokens", label: "Total tokens", better: "lower", value: (o) => o.totals.totalTokens, format: formatCount },
-  { key: "p50", label: "Latency p50", better: "lower", value: (o) => o.latencyMs.p50, format: formatDuration },
-  { key: "p95", label: "Latency p95", better: "lower", value: (o) => o.latencyMs.p95, format: formatDuration },
-  { key: "p99", label: "Latency p99", better: "lower", value: (o) => o.latencyMs.p99, format: formatDuration },
-  { key: "errors", label: "Error rate", better: "lower", value: (o) => o.totals.errorRate, format: formatPercent },
-  { key: "conversations", label: "Conversations", better: "none", value: (o) => o.totals.conversations, format: formatCount },
-  { key: "executions", label: "Executions", better: "none", value: (o) => o.totals.traces, format: formatCount },
+  { key: "cost", get label() { return tr("agent-compare.total_cost"); }, better: "lower", value: (o) => o.totals.costUsd, format: (v) => formatCostUsd(v) ?? "–" },
+  { key: "tokens", get label() { return tr("agent-compare.total_tokens"); }, better: "lower", value: (o) => o.totals.totalTokens, format: formatCount },
+  { key: "p50", get label() { return tr("agent-compare.latency_p50"); }, better: "lower", value: (o) => o.latencyMs.p50, format: formatDuration },
+  { key: "p95", get label() { return tr("agent-compare.latency_p95"); }, better: "lower", value: (o) => o.latencyMs.p95, format: formatDuration },
+  { key: "p99", get label() { return tr("agent-compare.latency_p99"); }, better: "lower", value: (o) => o.latencyMs.p99, format: formatDuration },
+  { key: "errors", get label() { return tr("agent-compare.error_rate"); }, better: "lower", value: (o) => o.totals.errorRate, format: formatPercent },
+  { key: "conversations", get label() { return tr("agent-compare.conversations"); }, better: "none", value: (o) => o.totals.conversations, format: formatCount },
+  { key: "executions", get label() { return tr("agent-compare.executions"); }, better: "none", value: (o) => o.totals.traces, format: formatCount },
 ];
 
 export function relativeChange(a: number, b: number): number | null {
@@ -84,18 +85,18 @@ export interface CompareVerdict {
 }
 
 const PHRASES: Record<string, { better: string; worse: string }> = {
-  cost: { better: "cheaper", worse: "more expensive" },
-  tokens: { better: "lighter on tokens", worse: "heavier on tokens" },
-  p50: { better: "faster", worse: "slower" },
-  p99: { better: "steadier in the slowest answers", worse: "slower in the slowest answers" },
-  errors: { better: "more reliable", worse: "failing more often" },
+  cost: { get better() { return tr("agent-compare.cheaper"); }, get worse() { return tr("agent-compare.more_expensive"); } },
+  tokens: { get better() { return tr("agent-compare.lighter_on_tokens"); }, get worse() { return tr("agent-compare.heavier_on_tokens"); } },
+  p50: { get better() { return tr("agent-compare.faster"); }, get worse() { return tr("agent-compare.slower"); } },
+  p99: { get better() { return tr("agent-compare.steadier_in_the_slowest_answers"); }, get worse() { return tr("agent-compare.slower_in_the_slowest_answers"); } },
+  errors: { get better() { return tr("agent-compare.more_reliable"); }, get worse() { return tr("agent-compare.failing_more_often"); } },
 };
 
 function joinPhrases(items: string[]): string {
-  return items.length > 1 ? `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}` : (items[0] ?? "");
+  return items.length > 1 ? tr("agent-compare.list_and_last", { list: items.slice(0, -1).join(", "), last: items[items.length - 1]! }) : (items[0] ?? "");
 }
 
-export function compareVerdict(rows: CompareRow[], nameA = "the first experiment", nameB = "the second experiment"): CompareVerdict {
+export function compareVerdict(rows: CompareRow[], nameA = tr("agent-compare.the_first_experiment"), nameB = tr("agent-compare.the_second_experiment")): CompareVerdict {
   const better = rows.filter((r) => r.tone === "better");
   const worse = rows.filter((r) => r.tone === "worse");
   const neutral = rows.length - better.length - worse.length;
@@ -103,14 +104,14 @@ export function compareVerdict(rows: CompareRow[], nameA = "the first experiment
   const good = phrases(better, "better");
   const bad = phrases(worse, "worse");
 
-  let headline = `No meaningful difference between ${nameB} and ${nameA}`;
-  if (good.length && bad.length) headline = `${nameB} is ${joinPhrases(good)}, but ${joinPhrases(bad)}`;
-  else if (good.length) headline = `${nameB} is ${joinPhrases(good)}`;
-  else if (bad.length) headline = `${nameB} is ${joinPhrases(bad)}`;
-  if (good.length || bad.length) headline += ` than ${nameA}`;
+  let headline = tr("agent-compare.no_meaningful_difference_between_b_and", { a: nameA, b: nameB });
+  if (good.length && bad.length) headline = tr("agent-compare.b_is_good_but_bad", { b: nameB, good: joinPhrases(good), bad: joinPhrases(bad) });
+  else if (good.length) headline = tr("agent-compare.b_is_phrases", { b: nameB, phrases: joinPhrases(good) });
+  else if (bad.length) headline = tr("agent-compare.b_is_phrases", { b: nameB, phrases: joinPhrases(bad) });
+  if (good.length || bad.length) headline += ` ${tr("agent-compare.than_a", { a: nameA })}`;
 
   const changed = [...better, ...worse].map((r) => `${r.label} ${r.a} → ${r.b} (${r.deltaText.replace(/^[▼▲] /, (m) => (m.startsWith("▼") ? "−" : "+"))})`);
-  const detail = changed.length ? changed.join(" · ") : `Every metric moved less than ${NEUTRAL_THRESHOLD * 100}%.`;
+  const detail = changed.length ? changed.join(" · ") : tr("agent-compare.every_metric_moved_less_than_percent", { percent: NEUTRAL_THRESHOLD * 100 });
   const tone = better.length && worse.length ? "mixed" : better.length ? "good" : worse.length ? "bad" : "flat";
   return { better: better.length, worse: worse.length, neutral, headline, detail, tone };
 }

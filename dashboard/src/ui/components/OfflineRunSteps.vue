@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import Button from "./Button.vue";
+import { t } from "../i18n";
 
 /**
  * Cómo lanzar una evaluación offline, para los estados vacíos de Runs. Con `to` enlaza a los datasets; con el evento
@@ -11,15 +12,15 @@ const emit = defineEmits<{ open: [] }>();
 
 <template>
   <div class="steps" data-testid="offline-steps">
-    <h3>No runs yet: run your first evaluation</h3>
+    <h3>{{ t("offlineRunSteps.no_runs_yet_run_your_first") }}</h3>
     <ol>
-      <li><b>Get the script.</b> Open a dataset and press the <code>&lt;/&gt;</code> button: pick the version, the metrics and the agent environment.</li>
-      <li><b>Add your keys.</b> You get a <code>.env</code> filled in; only the API keys are left for you to paste (Experiment › API keys).</li>
-      <li><b>Run it.</b> <code>pip install "memtrace-ai[eval]" httpx python-dotenv</code>, then <code>python run_eval.py</code>. The run shows up here.</li>
+      <li><b>{{ t("offlineRunSteps.get_the_script") }}</b>{{ " " + t("offlineRunSteps.open_a_dataset_and_press_the") + " " }}<code>&lt;/&gt;</code>{{ " " + t("offlineRunSteps.button_pick_the_version_the_metrics") }}</li>
+      <li><b>{{ t("offlineRunSteps.add_your_keys") }}</b>{{ " " + t("offlineRunSteps.you_get_a") + " " }}<code>.env</code>{{ " " + t("offlineRunSteps.filled_in_only_the_api_keys") }}</li>
+      <li><b>{{ t("offlineRunSteps.run_it") }}</b> <code>pip install "memtrace-ai[eval]" httpx python-dotenv</code>{{ t("offlineRunSteps.then") + " " }}<code>python run_eval.py</code>{{ t("offlineRunSteps.the_run_shows_up_here") }}</li>
     </ol>
-    <Button v-if="datasetId" variant="primary" data-testid="steps-open" @click="emit('open')">Get the script for this dataset</Button>
-    <Button v-else-if="to" variant="primary" :to="to">Go to datasets</Button>
-    <p class="muted">Prefer your own code? Call <code>run_experiment(data="…", task=…, evaluators=[…])</code>.</p>
+    <Button v-if="datasetId" variant="primary" data-testid="steps-open" @click="emit('open')">{{ t("offlineRunSteps.get_the_script_for_this_dataset") }}</Button>
+    <Button v-else-if="to" variant="primary" :to="to">{{ t("offlineRunSteps.go_to_datasets") }}</Button>
+    <p class="muted">{{ t("offlineRunSteps.prefer_your_own_code_call") + " " }}<code>run_experiment(data="…", task=…, evaluators=[…])</code>.</p>
   </div>
 </template>
 

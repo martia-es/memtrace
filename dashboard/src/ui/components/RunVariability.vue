@@ -8,6 +8,7 @@ import Card from "./Card.vue";
 import DataTable from "./DataTable.vue";
 import ErrorBanner from "./ErrorBanner.vue";
 import Pill from "./Pill.vue";
+import { t } from "../i18n";
 
 /**
  * Variabilidad de un run (ADR-097): cuánto se mueve el resultado de cada evaluador entre las ejecuciones de un run lanzado con
@@ -44,21 +45,21 @@ const SNIPPET = `run_experiment(
 <template>
   <div class="variability">
     <ErrorBanner v-if="variability.error.value" :error="variability.error.value" @retry="variability.run()" />
-    <p v-else-if="variability.loading.value && !data" class="hint">Reading the executions…</p>
+    <p v-else-if="variability.loading.value && !data" class="hint">{{ t("runVariability.reading_the_executions") }}</p>
 
     <template v-else-if="data && repeated">
       <Card as="section" padding="lg" gap="md" class="card">
-        <h3>Result of each execution
-          <span class="hint">{{ data.group!.completed }} of {{ data.group!.total }} executions · if nothing changes, how much does the result move?</span>
+        <h3>{{ t("runVariability.result_of_each_execution") }}
+          <span class="hint">{{ t("runVariability.done_of_total_executions_if_nothing", { done: data.group!.completed, total: data.group!.total }) }}</span>
         </h3>
         <DataTable v-if="data.evaluators.length" class="layout-fixed">
           <thead>
             <tr>
-              <th>Evaluator</th>
-              <th v-for="n in columns" :key="n" class="num">Exec {{ n }}</th>
-              <th class="num">Mean</th>
-              <th class="num">Noise</th>
-              <th class="num">Unstable items</th>
+              <th>{{ t("runVariability.evaluator") }}</th>
+              <th v-for="n in columns" :key="n" class="num">{{ t('runVariability.exec_n', { n }) }}</th>
+              <th class="num">{{ t("runVariability.mean") }}</th>
+              <th class="num">{{ t("runVariability.noise") }}</th>
+              <th class="num">{{ t("runVariability.unstable_items") }}</th>
             </tr>
           </thead>
           <tbody>
@@ -71,15 +72,15 @@ const SNIPPET = `run_experiment(
             </tr>
           </tbody>
         </DataTable>
-        <p v-else class="hint">The executions have no boolean or numeric evaluators to compare.</p>
-        <p v-if="roughEstimate" class="hint" data-testid="rough-estimate">With {{ data.group!.completed }} {{ data.group!.completed === 1 ? "execution" : "executions" }} the noise is a rough estimate; more repeats make it steadier.</p>
+        <p v-else class="hint">{{ t("runVariability.the_executions_have_no_boolean_or") }}</p>
+        <p v-if="roughEstimate" class="hint" data-testid="rough-estimate">{{ t("runVariability.with_count_unit_the_noise_is", { count: data.group!.completed, unit: data.group!.completed === 1 ? t("runVariability.executions.one") : t("runVariability.executions.other") }) }}</p>
       </Card>
 
       <Card as="section" padding="lg" gap="md" class="card">
-        <h3>Unstable items <span class="hint">items whose result is not the same in every execution. Fix or drop these first.</span></h3>
-        <p v-if="!data.unstableItems.length" class="hint">Every item gave the same result in all the executions.</p>
+        <h3>{{ t("runVariability.unstable_items") + " " }}<span class="hint">{{ t("runVariability.items_whose_result_is_not_the") }}</span></h3>
+        <p v-if="!data.unstableItems.length" class="hint">{{ t("runVariability.every_item_gave_the_same_result") }}</p>
         <DataTable v-else class="layout-fixed">
-          <thead><tr><th>Input</th><th class="ev-col">Evaluator</th><th class="out-col">Executions</th></tr></thead>
+          <thead><tr><th>{{ t("runVariability.input") }}</th><th class="ev-col">{{ t("runVariability.evaluator") }}</th><th class="out-col">{{ t("runVariability.executions") }}</th></tr></thead>
           <tbody>
             <tr v-for="item in data.unstableItems" :key="`${item.evaluator}-${item.itemIndex}`" data-testid="unstable-item">
               <td class="preview" :title="preview(item.input)">{{ preview(item.input) }}</td>
@@ -92,10 +93,10 @@ const SNIPPET = `run_experiment(
     </template>
 
     <Card v-else-if="data" as="section" padding="lg" gap="md" class="card" data-testid="no-repeats">
-      <h3>Measure the noise of this evaluation</h3>
-      <p class="hint">This run has one execution, so there is no way to tell how much of its result is chance. Ask for repetitions in the same call: the executions run under identical conditions, so any difference between them is noise, not something you changed.</p>
+      <h3>{{ t("runVariability.measure_the_noise_of_this_evaluation") }}</h3>
+      <p class="hint">{{ t("runVariability.this_run_has_one_execution_so") }}</p>
       <pre class="snippet">{{ SNIPPET }}</pre>
-      <p class="hint">Costs <strong>N times</strong> the time and tokens; the default is 1. In TypeScript: <code>repeats: 3</code>.</p>
+      <p class="hint">{{ t("runVariability.costs") + " " }}<strong>{{ t("runVariability.n_times") }}</strong>{{ " " + t("runVariability.the_time_and_tokens_the_default") + " " }}<code>repeats: 3</code>.</p>
     </Card>
   </div>
 </template>

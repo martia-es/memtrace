@@ -6,12 +6,14 @@ import type { DeploymentSummaryDto, RepoConfigDto } from "@contract";
 import { useAsync } from "../../composables/useAsync";
 import { useAssistantApi } from "../../composables/useAssistantApi";
 import { chatUrl } from "@/domain/chat-dock";
-import { formatDuration, formatRelativeTime } from "@/domain/format";
+import { formatDuration } from "@/domain/format";
+import { formatRelativeTime } from "../../i18n/format";
 import { DEPLOY_STATUS, HEALTH_LABEL, HEALTH_TONE, accessSummary, authSummary, formatUptime, uptimePercent } from "@/domain/assistants";
 import CommitLink from "../CommitLink.vue";
 import StatusChip from "../StatusChip.vue";
 import HealthBars from "./HealthBars.vue";
 import Button from "../Button.vue";
+import { t } from "../../i18n";
 
 /** Un entorno de un asistente: estado de /health, disponibilidad de 24 h y datos del despliegue (ADR-053). */
 const props = defineProps<{ experimentId: string; deployment: DeploymentSummaryDto; selected: boolean; canManage: boolean; nowMs: number; chatPath?: string | null; talkable?: boolean; deployable?: boolean; refreshKey?: number; repo?: RepoConfigDto | null }>();
@@ -38,7 +40,7 @@ async function checkNow() {
     await api.checkDeploymentNow(props.experimentId, props.deployment.id);
     emit("checked");
   } catch (error) {
-    $q.notify({ message: `Could not check the health: ${describeApiError(error as Error)}`, color: "negative", timeout: 4000 });
+    $q.notify({ message: t("deploymentCard.could_not_check_the_health_error", { error: describeApiError(error as Error) }), color: "negative", timeout: 4000 });
   } finally {
     checking.value = false;
   }
@@ -47,18 +49,18 @@ async function checkNow() {
 const checks = computed(() => history.data.value ?? []);
 const d = computed(() => props.deployment);
 const rows = computed<Array<[string, string]>>(() => [
-  ["API", d.value.apiUrl],
-  ["Health", d.value.healthUrl ?? `${d.value.apiUrl.replace(/\/+$/, "")}/health`],
-  ["Latency", d.value.healthLatencyMs !== null ? `${formatDuration(d.value.healthLatencyMs)}${d.value.healthCheckedAt ? ` · ${formatRelativeTime(d.value.healthCheckedAt, props.nowMs)}` : ""}` : d.value.healthCheckEnabled ? "No check yet" : "Checks off"],
-  ...(props.chatPath ? ([["Chat", chatUrl(d.value.apiUrl, props.chatPath)]] as Array<[string, string]>) : []),
-  ["Version", d.value.version ?? "–"],
-  ...(deployed.value ? ([["Deployed", formatRelativeTime(deployed.value.createdAt, props.nowMs)]] as Array<[string, string]>) : []),
-  ...(lastDeploy.value ? ([["Last deploy", `${DEPLOY_STATUS[lastDeploy.value.status]?.label ?? lastDeploy.value.status} · ${lastDeploy.value.commitSha.slice(0, 7)} · ${formatRelativeTime(lastDeploy.value.createdAt, props.nowMs)}${lastDeploy.value.gateBypassed ? " · evaluation skipped" : ""}`]] as Array<[string, string]>) : []),
-  ...(d.value.deployRef ? ([["Deploys from", d.value.deployRef]] as Array<[string, string]>) : []),
-  ["Auth", authSummary(d.value)],
-  ["Access", accessSummary(d.value)],
+  [t("deploymentCard.api"), d.value.apiUrl],
+  [t("deploymentCard.health"), d.value.healthUrl ?? `${d.value.apiUrl.replace(/\/+$/, "")}/health`],
+  [t("deploymentCard.latency"), d.value.healthLatencyMs !== null ? `${formatDuration(d.value.healthLatencyMs)}${d.value.healthCheckedAt ? ` · ${formatRelativeTime(d.value.healthCheckedAt, props.nowMs)}` : ""}` : d.value.healthCheckEnabled ? t("deploymentCard.no_check_yet") : t("deploymentCard.checks_off")],
+  ...(props.chatPath ? ([[t("deploymentCard.chat"), chatUrl(d.value.apiUrl, props.chatPath)]] as Array<[string, string]>) : []),
+  [t("deploymentCard.version"), d.value.version ?? "–"],
+  ...(deployed.value ? ([[t("deploymentCard.deployed"), formatRelativeTime(deployed.value.createdAt, props.nowMs)]] as Array<[string, string]>) : []),
+  ...(lastDeploy.value ? ([[t("deploymentCard.last_deploy"), `${DEPLOY_STATUS[lastDeploy.value.status]?.label ?? lastDeploy.value.status} · ${lastDeploy.value.commitSha.slice(0, 7)} · ${formatRelativeTime(lastDeploy.value.createdAt, props.nowMs)}${lastDeploy.value.gateBypassed ? ` · ${t("deploymentCard.evaluation_skipped")}` : ""}`]] as Array<[string, string]>) : []),
+  ...(d.value.deployRef ? ([[t("deploymentCard.deploys_from"), d.value.deployRef]] as Array<[string, string]>) : []),
+  [t("deploymentCard.auth"), authSummary(d.value)],
+  [t("deploymentCard.access"), accessSummary(d.value)],
 ]);
-const mono = new Set(["API", "Health", "Chat", "Latency", "Version", "Deploys from", "Last deploy", "Deployed"]);
+const mono = computed(() => new Set([t("deploymentCard.api"), t("deploymentCard.health"), t("deploymentCard.chat"), t("deploymentCard.latency"), t("deploymentCard.version"), t("deploymentCard.deploys_from"), t("deploymentCard.last_deploy"), t("deploymentCard.deployed")]));
 </script>
 
 <template>
@@ -67,14 +69,14 @@ const mono = new Set(["API", "Health", "Chat", "Latency", "Version", "Deploys fr
       <span class="key">{{ deployment.environment.label }}</span>
       <StatusChip :tone="HEALTH_TONE[deployment.healthStatus]" :label="HEALTH_LABEL[deployment.healthStatus]" />
       <div class="spacer" />
-      <Button size="sm" v-if="deployable" data-testid="deploy" @click="emit('deploy')"><q-icon name="rocket_launch" size="14px" />Deploy</Button>
-      <Button size="sm" v-if="talkable" data-testid="talk" @click="emit('talk')"><q-icon name="chat_bubble_outline" size="14px" />Chat</Button>
-      <Button variant="link" v-if="canManage" :disabled="checking" data-testid="check-now" @click="checkNow"><q-icon name="sync" size="14px" :class="{ spin: checking }" />{{ checking ? "Syncing…" : "Sync" }}</Button>
-      <Button variant="link" v-if="canManage" @click="emit('edit')"><q-icon name="edit" size="14px" />Edit</Button>
+      <Button size="sm" v-if="deployable" data-testid="deploy" @click="emit('deploy')"><q-icon name="rocket_launch" size="14px" />{{ t("deploymentCard.deploy") }}</Button>
+      <Button size="sm" v-if="talkable" data-testid="talk" @click="emit('talk')"><q-icon name="chat_bubble_outline" size="14px" />{{ t("deploymentCard.chat") }}</Button>
+      <Button variant="link" v-if="canManage" :disabled="checking" data-testid="check-now" @click="checkNow"><q-icon name="sync" size="14px" :class="{ spin: checking }" />{{ checking ? t("deploymentCard.syncing") : t("deploymentCard.sync") }}</Button>
+      <Button variant="link" v-if="canManage" @click="emit('edit')"><q-icon name="edit" size="14px" />{{ t("deploymentCard.edit") }}</Button>
     </header>
     <div class="uptime">
       <HealthBars :checks="checks" :now-ms="nowMs" />
-      <div class="uptime-legend"><span>24 h ago</span><span><b>{{ formatUptime(uptimePercent(checks)) }}</b> uptime</span><span>now</span></div>
+      <div class="uptime-legend"><span>{{ t("deploymentCard.24_h_ago") }}</span><span><b>{{ formatUptime(uptimePercent(checks)) }}</b>{{ " " + t("deploymentCard.uptime") }}</span><span>{{ t("deploymentCard.now") }}</span></div>
     </div>
     <dl class="rows">
       <template v-for="[label, value] in rows" :key="label">
@@ -83,7 +85,7 @@ const mono = new Set(["API", "Health", "Chat", "Latency", "Version", "Deploys fr
         <dd v-else :class="{ mono: mono.has(label) }" :title="value">{{ value }}</dd>
       </template>
     </dl>
-    <Button size="sm" class="select" :aria-pressed="selected" @click="emit('select')">{{ selected ? "Showing who can call it" : "Show who can call it" }}</Button>
+    <Button size="sm" class="select" :aria-pressed="selected" @click="emit('select')">{{ selected ? t("deploymentCard.showing_who_can_call_it") : t("deploymentCard.show_who_can_call_it") }}</Button>
   </article>
 </template>
 

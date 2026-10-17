@@ -4,6 +4,7 @@ import { formatCostUsd, formatCount, formatDuration } from "@/domain/format";
 import type { SpanFilter, TraceSummary } from "@/domain/trace-summary";
 import Switch from "./Switch.vue";
 import ToggleChip from "./ToggleChip.vue";
+import { t, tp } from "../i18n";
 
 /**
  * The top of the Technical trace tab: what happened in one line of numbers, the slowest step, and the filters that
@@ -16,16 +17,16 @@ const stats = computed(() => {
   const s = props.summary;
   const cost = formatCostUsd(props.costUsd);
   return [
-    { k: "Spans", v: formatCount(s.spans), sub: "", tone: "" },
-    { k: "Model calls", v: String(s.modelCalls), sub: [props.tokens ? `${formatCount(props.tokens)} tokens` : null, cost].filter(Boolean).join(" · "), tone: "" },
-    { k: "Tools", v: String(s.tools), sub: s.retrievals ? `${s.retrievals} ${s.retrievals === 1 ? "retrieval" : "retrievals"}` : "", tone: "" },
+    { k: t("traceOverviewBar.spans"), v: formatCount(s.spans), sub: "", tone: "" },
+    { k: t("traceOverviewBar.model_calls"), v: String(s.modelCalls), sub: [props.tokens ? t("traceOverviewBar.count_tokens", { count: formatCount(props.tokens) }) : null, cost].filter(Boolean).join(" · "), tone: "" },
+    { k: t("traceOverviewBar.tools"), v: String(s.tools), sub: s.retrievals ? tp("traceOverviewBar.retrievals", s.retrievals) : "", tone: "" },
     {
-      k: "Guardrails",
-      v: s.guardrails.total === 0 && s.guardrails.failed === 0 ? "–" : s.guardrails.failed ? `${s.guardrails.failed} blocked` : `${s.guardrails.total} passed`,
+      k: t("traceOverviewBar.guardrails"),
+      v: s.guardrails.total === 0 && s.guardrails.failed === 0 ? "–" : s.guardrails.failed ? t("traceOverviewBar.count_blocked", { count: s.guardrails.failed }) : t("traceOverviewBar.count_passed", { count: s.guardrails.total }),
       sub: "",
       tone: s.guardrails.failed ? "bad" : s.guardrails.total ? "good" : "",
     },
-    { k: "Errors", v: String(s.errors), sub: "", tone: s.errors ? "bad" : "good" },
+    { k: t("traceOverviewBar.errors"), v: String(s.errors), sub: "", tone: s.errors ? "bad" : "good" },
   ];
 });
 
@@ -33,17 +34,17 @@ const chips = computed(() => {
   const s = props.summary;
   return [
     { value: "all" as const, label: "All", count: s.spans },
-    { value: "llm" as const, label: "Model calls", count: s.modelCalls },
-    { value: "tool" as const, label: "Tools", count: s.tools },
-    { value: "retriever" as const, label: "Retrieval", count: s.retrievals },
-    { value: "guardrail" as const, label: "Guardrails", count: s.guardrails.total + s.guardrails.failed },
-    { value: "error" as const, label: "Errors", count: s.errors },
+    { value: "llm" as const, label: t("traceOverviewBar.model_calls"), count: s.modelCalls },
+    { value: "tool" as const, label: t("traceOverviewBar.tools"), count: s.tools },
+    { value: "retriever" as const, label: t("traceOverviewBar.retrieval"), count: s.retrievals },
+    { value: "guardrail" as const, label: t("traceOverviewBar.guardrails"), count: s.guardrails.total + s.guardrails.failed },
+    { value: "error" as const, label: t("traceOverviewBar.errors"), count: s.errors },
   ].filter((c) => c.value === "all" || c.value === "error" || c.count > 0);
 });
 </script>
 
 <template>
-  <section class="overview" aria-label="Trace overview" data-testid="trace-overview">
+  <section class="overview" :aria-label="t('traceOverviewBar.trace_overview')" data-testid="trace-overview">
     <div class="strip">
       <div v-for="s in stats" :key="s.k" class="stat">
         <span class="k">{{ s.k }}</span>
@@ -51,17 +52,17 @@ const chips = computed(() => {
         <span v-if="s.sub" class="sub">{{ s.sub }}</span>
       </div>
       <button v-if="summary.slowest" type="button" class="stat slowest" data-testid="slowest-step" @click="emit('select-slowest', summary.slowest.spanId)">
-        <span class="k">Slowest step</span>
+        <span class="k">{{ t("traceOverviewBar.slowest_step") }}</span>
         <span class="v mono">{{ formatDuration(summary.slowest.durationMs) }}</span>
-        <span class="sub">{{ summary.slowest.name }} · {{ Math.round(summary.slowest.share * 100) }}% of the time</span>
+        <span class="sub">{{ summary.slowest.name }} · {{ t("traceOverviewBar.percent_of_the_time", { percent: Math.round(summary.slowest.share * 100) }) }}</span>
       </button>
     </div>
     <div class="filters">
       <ToggleChip v-for="c in chips" :key="c.value" :pressed="filter === c.value" :count="c.count" :data-testid="`filter-${c.value}`" @click="emit('update:filter', c.value)">{{ c.label }}</ToggleChip>
       <span class="grow" />
       <label class="group">
-        <Switch :on="groupGuardrails" aria-label="Group guardrail checks" data-testid="group-guardrails" @click="emit('update:groupGuardrails', !groupGuardrails)" />
-        <span>Group guardrails</span>
+        <Switch :on="groupGuardrails" :aria-label="t('traceOverviewBar.group_guardrail_checks')" data-testid="group-guardrails" @click="emit('update:groupGuardrails', !groupGuardrails)" />
+        <span>{{ t("traceOverviewBar.group_guardrails") }}</span>
       </label>
     </div>
   </section>

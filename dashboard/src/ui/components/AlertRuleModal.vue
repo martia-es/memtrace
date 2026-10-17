@@ -13,6 +13,7 @@ import Modal from "./Modal.vue";
 import SegmentedControl from "./SegmentedControl.vue";
 import Select from "./Select.vue";
 import TextInput from "./TextInput.vue";
+import { t } from "../i18n";
 
 /**
  * Crear o cambiar una regla de alerta (ADR-086). Los campos se validan en la API; aquí solo se enseña qué campo falló. Una regla
@@ -45,8 +46,8 @@ const METRIC_OPTIONS = METRICS.map((m) => ({ label: m.label, value: m.value }));
 const WINDOW_OPTIONS = WINDOWS.map((w) => ({ label: w.label, value: w.value }));
 const REMINDER_OPTIONS = REMINDERS.map((r) => ({ label: r.label, value: r.value ?? 0 }));
 const COMPARATORS = [
-  { value: "above", label: "Goes above" },
-  { value: "below", label: "Falls below" },
+  { value: "above", label: t("alertRuleModal.goes_above") },
+  { value: "below", label: t("alertRuleModal.falls_below") },
 ];
 
 // una alerta mide UN número: gráficas con un solo paso y sin desglose por un detalle
@@ -90,60 +91,60 @@ async function save() {
 </script>
 
 <template>
-  <Modal :title="rule ? 'Edit alert' : 'New alert'" @close="emit('close')">
+  <Modal :title="rule ? t('alertRuleModal.edit_alert') : t('alertRuleModal.new_alert')" @close="emit('close')">
     <form class="form" data-testid="alert-form" @submit.prevent="save">
-      <FormField label="Name" :error="errors.name">
-        <TextInput v-model="form.name" placeholder="e.g. Too many errors" autofocus aria-label="Alert name" />
+      <FormField :label="t('alertRuleModal.name')" :error="errors.name">
+        <TextInput v-model="form.name" :placeholder="t('alertRuleModal.e_g_too_many_errors')" autofocus :aria-label="t('alertRuleModal.alert_name')" />
       </FormField>
 
-      <FormField label="Measure" :hint="metricHint" :error="errors.metric" as="div">
-        <Select v-model="form.metric" :options="METRIC_OPTIONS" aria-label="Metric" />
+      <FormField :label="t('alertRuleModal.measure')" :hint="metricHint" :error="errors.metric" as="div">
+        <Select v-model="form.metric" :options="METRIC_OPTIONS" :aria-label="t('alertRuleModal.metric')" />
       </FormField>
 
-      <FormField v-if="form.metric === 'custom'" label="Chart" :error="errors.customMetricId" as="div" :hint="usableCharts.length ? 'Only charts about one step, with no split by a detail' : undefined">
-        <Select v-if="usableCharts.length" v-model="form.customMetricId" :options="chartOptions" placeholder="Choose a saved chart" aria-label="Custom chart" />
-        <p v-else class="empty">You have no chart this can use yet. Save one in Analytics › Charts, about a single step and without splitting it by a detail.</p>
+      <FormField v-if="form.metric === 'custom'" :label="t('alertRuleModal.chart')" :error="errors.customMetricId" as="div" :hint="usableCharts.length ? t('alertRuleModal.only_charts_about_one_step_with') : undefined">
+        <Select v-if="usableCharts.length" v-model="form.customMetricId" :options="chartOptions" :placeholder="t('alertRuleModal.choose_a_saved_chart')" :aria-label="t('alertRuleModal.custom_chart')" />
+        <p v-else class="empty">{{ t("alertRuleModal.you_have_no_chart_this_can") }}</p>
       </FormField>
 
       <div class="row">
-        <FormField label="When it" as="div">
-          <SegmentedControl v-model="form.comparator" :options="COMPARATORS" aria-label="Direction" />
+        <FormField :label="t('alertRuleModal.when_it')" as="div">
+          <SegmentedControl v-model="form.comparator" :options="COMPARATORS" :aria-label="t('alertRuleModal.direction')" />
         </FormField>
-        <FormField label="This value" :error="errors.threshold">
+        <FormField :label="t('alertRuleModal.this_value')" :error="errors.threshold">
           <span class="with-unit">
-            <TextInput v-model="form.threshold" type="number" aria-label="Threshold" placeholder="0" />
+            <TextInput v-model="form.threshold" type="number" :aria-label="t('alertRuleModal.threshold')" placeholder="0" />
             <span v-if="unit" class="unit">{{ unit }}</span>
           </span>
         </FormField>
-        <FormField label="Over the last" :error="errors.windowMinutes" as="div">
-          <Select v-model="form.windowMinutes" :options="WINDOW_OPTIONS" aria-label="Window" />
+        <FormField :label="t('alertRuleModal.over_the_last')" :error="errors.windowMinutes" as="div">
+          <Select v-model="form.windowMinutes" :options="WINDOW_OPTIONS" :aria-label="t('alertRuleModal.window')" />
         </FormField>
       </div>
 
       <FormField
         v-if="needsSamples(form.metric)"
-        :label="`Needs at least this many ${samplesLabel(form.metric)}`"
+        :label="t('alertRuleModal.needs_at_least_this_many_samples', { samples: samplesLabel(form.metric) })"
         :error="errors.minSamples"
-        :hint="`With fewer, the alert stays quiet: two failed ${samplesLabel(form.metric)} are not a 100 % error rate.`"
+        :hint="t('alertRuleModal.with_fewer_the_alert_stays_quiet', { samples: samplesLabel(form.metric) })"
       >
-        <TextInput v-model="form.minSamples" type="number" aria-label="Minimum samples" />
+        <TextInput v-model="form.minSamples" type="number" :aria-label="t('alertRuleModal.minimum_samples')" />
       </FormField>
 
-      <FormField label="Email" :error="errors.recipients" hint="One address per line, up to 10. They get a message when it fires and when it is back to normal; no conversation content is included.">
-        <TextInput v-model="form.recipients" multiline :rows="3" placeholder="oncall@example.com" aria-label="Recipients" />
+      <FormField :label="t('alertRuleModal.email')" :error="errors.recipients" :hint="t('alertRuleModal.one_address_per_line_up_to')">
+        <TextInput v-model="form.recipients" multiline :rows="3" :placeholder="t('alertRuleModal.oncall_example_com')" :aria-label="t('alertRuleModal.recipients')" />
       </FormField>
 
-      <FormField label="Remind me" :error="errors.reminderMinutes" as="div">
-        <Select v-model="form.reminder" :options="REMINDER_OPTIONS" aria-label="Reminder" />
+      <FormField :label="t('alertRuleModal.remind_me')" :error="errors.reminderMinutes" as="div">
+        <Select v-model="form.reminder" :options="REMINDER_OPTIONS" :aria-label="t('alertRuleModal.reminder')" />
       </FormField>
 
-      <Checkbox v-model="form.enabled" variant="switch">Active</Checkbox>
+      <Checkbox v-model="form.enabled" variant="switch">{{ t("alertRuleModal.active") }}</Checkbox>
 
       <p v-if="generalError" class="general" role="alert">{{ generalError }}</p>
     </form>
     <template #footer>
-      <Button @click="emit('close')">Cancel</Button>
-      <Button variant="primary" :loading="saving" :disabled="!canSave" data-testid="alert-save" @click="save">{{ rule ? "Save changes" : "Create alert" }}</Button>
+      <Button @click="emit('close')">{{ t("alertRuleModal.cancel") }}</Button>
+      <Button variant="primary" :loading="saving" :disabled="!canSave" data-testid="alert-save" @click="save">{{ rule ? t("alertRuleModal.save_changes") : t("alertRuleModal.create_alert") }}</Button>
     </template>
   </Modal>
 </template>

@@ -9,6 +9,7 @@ import FeedbackChip from "./FeedbackChip.vue";
 import PromptChips from "./PromptChips.vue";
 import DataTable from "./DataTable.vue";
 import Button from "./Button.vue";
+import { t } from "../i18n";
 
 const props = defineProps<{
   items: TraceSummaryDto[];
@@ -39,51 +40,51 @@ const activate = (traceId: string) => (props.selectable ? emit("select", traceId
   <DataTable class="traces" sticky nowrap>
     <thead>
       <tr>
-        <th>Trace</th>
-        <th>Input</th>
-        <th>Output</th>
-        <th>Start time</th>
-        <th class="num">Duration</th>
-        <th class="num">Tokens</th>
-        <th>Status</th>
-        <th v-if="ratings">Annotation</th>
-        <th v-if="feedback">User feedback</th>
-        <th v-if="showPrompts">Prompt</th>
-        <th v-if="showConversation">Conversation</th>
+        <th>{{ t("traceTable.trace") }}</th>
+        <th>{{ t("traceTable.input") }}</th>
+        <th>{{ t("traceTable.output") }}</th>
+        <th>{{ t("traceTable.start_time") }}</th>
+        <th class="num">{{ t("traceTable.duration") }}</th>
+        <th class="num">{{ t("traceTable.tokens") }}</th>
+        <th>{{ t("traceTable.status") }}</th>
+        <th v-if="ratings">{{ t("traceTable.annotation") }}</th>
+        <th v-if="feedback">{{ t("traceTable.user_feedback") }}</th>
+        <th v-if="showPrompts">{{ t("traceTable.prompt") }}</th>
+        <th v-if="showConversation">{{ t("traceTable.conversation") }}</th>
         <th v-if="annotatable" />
       </tr>
     </thead>
     <tbody>
       <tr
-        v-for="t in items"
-        :key="t.traceId"
+        v-for="row in items"
+        :key="row.traceId"
         class="item"
-        :class="{ fresh: newKeys?.has(t.traceId), selected: selectedId === t.traceId }"
+        :class="{ fresh: newKeys?.has(row.traceId), selected: selectedId === row.traceId }"
         tabindex="0"
-        @click="activate(t.traceId)"
-        @dblclick="$emit('open', t.traceId)"
-        @keydown.enter="$emit('open', t.traceId)"
+        @click="activate(row.traceId)"
+        @dblclick="$emit('open', row.traceId)"
+        @keydown.enter="$emit('open', row.traceId)"
       >
         <td class="name-cell">
-          <span class="name" :title="labels?.get(t.traceId) ?? t.rootSpanName">{{ labels?.get(t.traceId) ?? t.rootSpanName }}</span>
-          <span class="mono id" :title="t.traceId">{{ t.traceId }}</span>
-          <CommitLink v-if="t.revision" :revision="t.revision" :repo="repo" data-testid="row-revision" />
+          <span class="name" :title="labels?.get(row.traceId) ?? row.rootSpanName">{{ labels?.get(row.traceId) ?? row.rootSpanName }}</span>
+          <span class="mono id" :title="row.traceId">{{ row.traceId }}</span>
+          <CommitLink v-if="row.revision" :revision="row.revision" :repo="repo" data-testid="row-revision" />
         </td>
-        <td class="preview" :title="t.input ?? undefined">{{ t.input ?? "–" }}</td>
-        <td v-if="t.output === null && t.error" class="preview error-text" :title="t.error">{{ t.error }}</td>
-        <td v-else class="preview" :title="t.output ?? undefined">{{ t.output ?? "–" }}</td>
-        <td class="muted mono">{{ formatDateTime(t.startTime) }}</td>
-        <td class="num mono">{{ formatDuration(t.durationMs) }}</td>
-        <td class="num mono">{{ t.totalTokens ? formatCount(t.totalTokens) : "–" }}</td>
-        <td><StatusBadge :status="t.status" :error-count="t.errorCount" /></td>
-        <td v-if="ratings"><AnnotationChip :rating="ratings.get(t.traceId)" /></td>
-        <td v-if="feedback"><FeedbackChip :feedback="feedback.get(t.traceId)" /></td>
-        <td v-if="showPrompts"><PromptChips :prompts="t.prompts" :max="2" /></td>
+        <td class="preview" :title="row.input ?? undefined">{{ row.input ?? "–" }}</td>
+        <td v-if="row.output === null && row.error" class="preview error-text" :title="row.error">{{ row.error }}</td>
+        <td v-else class="preview" :title="row.output ?? undefined">{{ row.output ?? "–" }}</td>
+        <td class="muted mono">{{ formatDateTime(row.startTime) }}</td>
+        <td class="num mono">{{ formatDuration(row.durationMs) }}</td>
+        <td class="num mono">{{ row.totalTokens ? formatCount(row.totalTokens) : "–" }}</td>
+        <td><StatusBadge :status="row.status" :error-count="row.errorCount" /></td>
+        <td v-if="ratings"><AnnotationChip :rating="ratings.get(row.traceId)" /></td>
+        <td v-if="feedback"><FeedbackChip :feedback="feedback.get(row.traceId)" /></td>
+        <td v-if="showPrompts"><PromptChips :prompts="row.prompts" :max="2" /></td>
         <td v-if="showConversation">
-          <a v-if="t.conversationId" class="conv-link mono" href="#" @click.prevent.stop="$emit('openConversation', t.conversationId)">{{ t.conversationId }}</a>
+          <a v-if="row.conversationId" class="conv-link mono" href="#" @click.prevent.stop="$emit('openConversation', row.conversationId)">{{ row.conversationId }}</a>
           <span v-else class="muted">–</span>
         </td>
-        <td v-if="annotatable"><Button size="sm" class="annotate-btn" data-testid="row-annotate" @click.stop="$emit('annotate', t.traceId)" @dblclick.stop @keydown.enter.stop>Annotate</Button></td>
+        <td v-if="annotatable"><Button size="sm" class="annotate-btn" data-testid="row-annotate" @click.stop="$emit('annotate', row.traceId)" @dblclick.stop @keydown.enter.stop>{{ t("traceTable.annotate") }}</Button></td>
       </tr>
     </tbody>
   </DataTable>

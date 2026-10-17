@@ -8,6 +8,7 @@ import { usePromptApi } from "../composables/usePromptApi";
 import PromptFragmentPicker from "./PromptFragmentPicker.vue";
 import TextInput from "./TextInput.vue";
 import SegmentedControl from "./SegmentedControl.vue";
+import { t } from "../i18n";
 
 /**
  * Editor del texto de un prompt (ADR-073): a la izquierda el texto, con la vista «Code» (editable) o «Rendered» (markdown ya
@@ -23,9 +24,9 @@ const props = withDefaults(defineProps<{ modelValue: string; experimentId: strin
 });
 const emit = defineEmits<{ "update:modelValue": [value: string] }>();
 
-const VIEW_OPTIONS = [{ value: "code", label: "Code", testid: "editor-view-code" }, { value: "rendered", label: "Rendered", testid: "editor-view-rendered" }];
+const VIEW_OPTIONS = [{ value: "code", get label() { return t("promptEditor.code"); }, testid: "editor-view-code" }, { value: "rendered", get label() { return t("promptEditor.rendered"); }, testid: "editor-view-rendered" }];
 const view = ref<"code" | "rendered">("code");
-const hint = computed(() => (view.value === "code" ? "Markdown. Use {{variable}} for the parts that change." : "How it reads, with each fragment included."));
+const hint = computed(() => (view.value === "code" ? t("promptEditor.markdown_use_variable_for_the_parts") : t("promptEditor.how_it_reads_with_each_fragment")));
 
 // ---- fragmentos de la experiencia: lista y detalle con caché ----
 const api = usePromptApi();
@@ -73,12 +74,12 @@ const rendered = computed<RenderedBlock[]>(() =>
     if (s.kind === "text") return { key, html: renderMarkdown(s.text) };
     const label = `${s.name}@${s.ref}`;
     const summary = fragmentList.value.find((f) => f.name === s.name);
-    if (!summary) return { key, html: "", fragment: { label, missing: list.loading.value ? "Loading…" : "This fragment does not exist." } };
+    if (!summary) return { key, html: "", fragment: { label, missing: list.loading.value ? t("promptEditor.loading") : t("promptEditor.this_fragment_does_not_exist") } };
     const detail = details.value[summary.id];
     if (!detail) return { key, html: "", fragment: { label, missing: "Loading…" } };
     const version = versionForRef(s.ref, Object.fromEntries(detail.tags.map((t) => [t.tag, t.version])));
     const found = detail.versions.find((v) => v.version === version && v.status === "published");
-    if (!found) return { key, html: "", fragment: { label, missing: `${s.ref} does not point to a published version.` } };
+    if (!found) return { key, html: "", fragment: { label, missing: t("promptEditor.ref_does_not_point_to_a", { ref: s.ref }) } };
     return { key, html: renderMarkdown(found.content), fragment: { label: `${s.name} · v${found.version}`, missing: null } };
   }),
 );
@@ -111,18 +112,18 @@ async function insert(snippet: string) {
   <div class="prompt-editor" :class="{ 'with-panel': fragments }">
     <div class="main">
       <div class="bar">
-        <SegmentedControl size="sm" class="view-toggle" aria-label="View" :options="VIEW_OPTIONS" :model-value="view" @update:model-value="view = $event as typeof view" />
+        <SegmentedControl size="sm" class="view-toggle" :aria-label="t('promptEditor.view')" :options="VIEW_OPTIONS" :model-value="view" @update:model-value="view = $event as typeof view" />
         <span class="soft">{{ hint }}</span>
       </div>
       <div v-show="view === 'code'" ref="box" @focusout="rememberCaret" @keyup="rememberCaret" @mouseup="rememberCaret">
         <TextInput :model-value="modelValue" multiline :rows="rows" mono :invalid="invalid" :placeholder="placeholder" :data-testid="testid" @update:model-value="emit('update:modelValue', String($event))" />
       </div>
       <div v-if="view === 'rendered'" class="rendered" data-testid="editor-rendered">
-        <p v-if="!modelValue.trim()" class="soft">Nothing to show yet.</p>
+        <p v-if="!modelValue.trim()" class="soft">{{ t("promptEditor.nothing_to_show_yet") }}</p>
         <template v-for="b in rendered" :key="b.key">
           <div v-if="!b.fragment" class="md" v-html="b.html" />
           <div v-else class="embedded" :data-testid="`embedded-${b.fragment.label}`">
-            <span class="tag">FRAGMENT · {{ b.fragment.label }}</span>
+            <span class="tag">{{ t("promptEditor.fragment_label", { label: b.fragment.label }) }}</span>
             <p v-if="b.fragment.missing" class="soft">{{ b.fragment.missing }}</p>
             <div v-else class="md" v-html="b.html" />
           </div>

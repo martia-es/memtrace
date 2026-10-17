@@ -4,6 +4,7 @@ import type { RepoConfigDto } from "@contract";
 import { CI_LABEL, DOCKERFILE_SNIPPET, buildCommand, type CiProvider } from "@/domain/ci-snippet";
 import SegmentedControl from "../SegmentedControl.vue";
 import Button from "../Button.vue";
+import { t } from "../../i18n";
 
 /** Cómo hacer que las trazas lleven el commit (ADR-065): dos líneas, una sola vez por repositorio. */
 const props = defineProps<{ repo: RepoConfigDto | null }>();
@@ -25,18 +26,17 @@ async function copy(label: string, text: string) {
 
 <template>
   <details class="ci" data-testid="ci-setup">
-    <summary>Show the code version on every trace</summary>
+    <summary>{{ t("ciSetup.show_the_code_version_on_every") }}</summary>
     <p class="hint">
-      Pass the commit being built to your image, once. The CI fills it in on every build, so each trace carries the version of the code that produced it.
-      Platforms that already expose the commit (Vercel, Render, Heroku) need nothing.
+      {{ t("ciSetup.pass_the_commit_being_built_to") }}
     </p>
-    <SegmentedControl class="providers" size="sm" aria-label="CI provider" :options="providers.map((p) => ({ value: p, label: CI_LABEL[p] }))" :model-value="provider" @update:model-value="picked = $event as typeof provider" />
+    <SegmentedControl class="providers" size="sm" :aria-label="t('ciSetup.ci_provider')" :options="providers.map((p) => ({ value: p, label: CI_LABEL[p] }))" :model-value="provider" @update:model-value="picked = $event as typeof provider" />
     <div class="block">
-      <div class="block-head"><span>Dockerfile</span><Button size="sm" @click="copy('dockerfile', DOCKERFILE_SNIPPET)">{{ copied === "dockerfile" ? "Copied" : "Copy" }}</Button></div>
+      <div class="block-head"><span>Dockerfile</span><Button size="sm" @click="copy('dockerfile', DOCKERFILE_SNIPPET)">{{ copied === "dockerfile" ? t("ciSetup.copied") : t("ciSetup.copy") }}</Button></div>
       <pre data-testid="ci-dockerfile">{{ DOCKERFILE_SNIPPET }}</pre>
     </div>
     <div class="block">
-      <div class="block-head"><span>{{ CI_LABEL[provider] }}: build step</span><Button size="sm" @click="copy('build', buildCommand(provider))">{{ copied === "build" ? "Copied" : "Copy" }}</Button></div>
+      <div class="block-head"><span>{{ t("ciSetup.provider_build_step", { provider: CI_LABEL[provider] }) }}</span><Button size="sm" @click="copy('build', buildCommand(provider))">{{ copied === "build" ? t("ciSetup.copied") : t("ciSetup.copy") }}</Button></div>
       <pre data-testid="ci-build">{{ buildCommand(provider) }}</pre>
     </div>
   </details>

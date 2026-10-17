@@ -3,7 +3,8 @@ import TextInput from "@/ui/components/TextInput.vue";
 import type { EChartsCoreOption } from "echarts/core";
 import { computed, ref, watch } from "vue";
 import { chartColors } from "../chart-theme";
-import { formatCostUsd, formatCount, formatDuration, formatPercent, formatRelativeTime } from "@/domain/format";
+import { formatCostUsd, formatCount, formatDuration, formatPercent } from "@/domain/format";
+import { formatRelativeTime } from "../i18n/format";
 import { aggregateTone, aggregateValueLabel } from "@/domain/evaluation";
 import { formatSatisfaction } from "@/domain/feedback";
 import { budgetGoalOf, goalOf, missingStarterGoals, starterRuleBody, STARTER_GOALS, limitText } from "@/domain/goals";
@@ -33,6 +34,7 @@ import Card from "../components/Card.vue";
 import Spinner from "../components/Spinner.vue";
 import Modal from "../components/Modal.vue";
 import TabPanel from "../components/TabPanel.vue";
+import { dateLocale, t, tp } from "../i18n";
 
 const api = useTraceApi();
 const identityApi = useIdentityApi();
@@ -82,10 +84,10 @@ const successRate = computed(() => (data.value ? 1 - data.value.totals.errorRate
 const health = computed(() => {
   const rate = data.value?.totals.errorRate ?? 0;
   const executions = formatCount(data.value?.totals.traces ?? 0);
-  const ok = `${formatPercent(successRate.value)} of the ${executions} executions in this range finished without errors.`;
-  if (rate === 0) return { key: "ok", title: "Your assistant is healthy", text: ok };
-  if (rate < 0.05) return { key: "warn", title: "Some executions are failing", text: ok };
-  return { key: "error", title: "Your assistant needs attention", text: ok };
+  const ok = t("metricsPage.percent_of_the_executions_executions_in", { percent: formatPercent(successRate.value), executions });
+  if (rate === 0) return { key: "ok", title: t("metricsPage.your_assistant_is_healthy"), text: ok };
+  if (rate < 0.05) return { key: "warn", title: t("metricsPage.some_executions_are_failing"), text: ok };
+  return { key: "error", title: t("metricsPage.your_assistant_needs_attention"), text: ok };
 });
 
 // ---- "Needs attention" (ADR-048): lo accionable de esta pantalla, en lenguaje llano y con acción directa ----
@@ -98,11 +100,11 @@ const attention = computed(() => {
   if (!d) return [];
   const items: { key: string; tone: "error" | "warn" | "info"; title: string; text: string; cta: string; go: () => void }[] = [];
   if (d.totals.errorTraces > 0) {
-    items.push({ key: "errors", tone: "error", title: `${formatCount(d.totals.errorTraces)} ${d.totals.errorTraces === 1 ? "execution" : "executions"} ended with errors`, text: `${formatPercent(d.totals.errorRate)} of executions in this range.`, cta: "View", go: goToErrors });
+    items.push({ key: "errors", tone: "error", title: tp("metricsPage.executions", d.totals.errorTraces, { count: formatCount(d.totals.errorTraces) }), text: t("metricsPage.percent_of_executions_in_this_range", { percent: formatPercent(d.totals.errorRate) }), cta: t("metricsPage.view2"), go: goToErrors });
   }
   const failing = d.byTool.filter((t) => t.errors > 0 && toolErrorRate(t) >= 0.02).sort((a, b) => toolErrorRate(b) - toolErrorRate(a)).slice(0, 2);
-  for (const t of failing) {
-    items.push({ key: `tool:${t.tool}`, tone: "warn", title: `${t.tool} fails ${formatPercent(toolErrorRate(t))} of calls`, text: `${formatCount(t.errors)} of ${formatCount(t.calls)} calls failed.`, cta: "Inspect", go: goToErrors });
+  for (const tool of failing) {
+    items.push({ key: `tool:${tool.tool}`, tone: "warn", title: t("metricsPage.tool_fails_percent_of_calls", { tool: tool.tool, percent: formatPercent(toolErrorRate(tool)) }), text: t("metricsPage.errors_of_calls_calls_failed", { errors: formatCount(tool.errors), calls: formatCount(tool.calls) }), cta: t("metricsPage.inspect"), go: goToErrors });
   }
   const rated = lowRated.data.value;
   if (rated && rated.count > 0) {
@@ -110,9 +112,9 @@ const attention = computed(() => {
     items.push({
       key: "low-rated",
       tone: "warn",
-      title: `${formatCount(rated.count)} ${rated.count === 1 ? "trace was" : "traces were"} rated low by reviewers`,
-      text: `Latest: ${latest.configName} = ${latest.value}.`,
-      cta: "Open latest",
+      title: tp("metricsPage.lowRated", rated.count, { count: formatCount(rated.count) }),
+      text: t("metricsPage.latest_name_value", { name: latest.configName, value: latest.value }),
+      cta: t("metricsPage.open_latest"),
       go: () => void router.push({ name: "trace", params: { experimentId: experimentId.value, traceId: latest.traceId } }),
     });
   }
@@ -122,9 +124,9 @@ const attention = computed(() => {
     items.push({
       key: "thumbs-down",
       tone: "warn",
-      title: `${formatCount(votes.summary.down)} ${votes.summary.down === 1 ? "answer got" : "answers got"} a thumbs down from users`,
-      text: latest.comment ? `Latest: “${latest.comment}”` : "Open the latest one to see what happened.",
-      cta: "Open latest",
+      title: tp("metricsPage.thumbsDown", votes.summary.down, { count: formatCount(votes.summary.down) }),
+      text: latest.comment ? t("metricsPage.latest_comment", { comment: latest.comment }) : t("metricsPage.open_the_latest_one_to_see"),
+      cta: t("metricsPage.open_latest"),
       go: () => void router.push({ name: "trace", params: { experimentId: experimentId.value, traceId: latest.traceId } }),
     });
   }
@@ -132,14 +134,14 @@ const attention = computed(() => {
     items.push({
       key: "feedback-misaligned",
       tone: "info",
-      title: `Users and reviewers disagree on ${formatCount(votes.alignment.misaligned)} ${votes.alignment.misaligned === 1 ? "answer" : "answers"}`,
-      text: "Good to check whether the review rubric misses what users care about.",
-      cta: "Review",
+      title: tp("metricsPage.disagree", votes.alignment.misaligned, { count: formatCount(votes.alignment.misaligned) }),
+      text: t("metricsPage.good_to_check_whether_the_review"),
+      cta: t("metricsPage.review2"),
       go: goToReview,
     });
   }
   if (pendingReviews.value > 0) {
-    items.push({ key: "review", tone: "info", title: `${formatCount(pendingReviews.value)} ${pendingReviews.value === 1 ? "item is" : "items are"} waiting for review`, text: "Conversations queued for human review.", cta: "Start", go: goToReview });
+    items.push({ key: "review", tone: "info", title: tp("metricsPage.waiting", pendingReviews.value, { count: formatCount(pendingReviews.value) }), text: t("metricsPage.conversations_queued_for_human_review"), cta: t("metricsPage.start"), go: goToReview });
   }
   return items;
 });
@@ -148,7 +150,7 @@ const satisfactionKpi = computed(() => {
   const s = feedback.data.value?.summary;
   if (!s || s.total === 0) return [];
   const tone = s.satisfaction === null ? "" : s.satisfaction >= 80 ? "good" : s.satisfaction >= 60 ? "warn" : "error";
-  return [{ key: "satisfaction", label: "USER SATISFACTION", value: formatSatisfaction(s.satisfaction), sub: `${formatCount(s.up)} positive · ${formatCount(s.down)} negative from ${formatCount(s.ratedTraces)} ${s.ratedTraces === 1 ? "answer" : "answers"}`, tone, link: false }];
+  return [{ key: "satisfaction", label: t("metricsPage.user_satisfaction"), value: formatSatisfaction(s.satisfaction), sub: t("metricsPage.up_positive_down_negative_from_answers", { up: formatCount(s.up), down: formatCount(s.down), answers: tp("metricsPage.answers", s.ratedTraces, { count: formatCount(s.ratedTraces) }) }), tone, link: false }];
 });
 /** El objetivo que acompaña a una tarjeta: pastilla, límite y a dónde ir a cambiarlo. Solo errores, latencia y coste tienen. */
 interface GoalChip { tone: "ok" | "warn" | "error" | "neutral"; label: string; line: string }
@@ -156,14 +158,14 @@ const goalChips = computed<Record<string, GoalChip>>(() => {
   const overview = goalsData.data.value;
   if (!overview) return {};
   const chips: Record<string, GoalChip> = {};
-  const measured = (g: NonNullable<ReturnType<typeof goalOf>>, fmt: (v: number) => string) => (g.current === null ? "" : ` · now ${fmt(g.current)} (${windowText(g.windowMinutes)})`);
+  const measured = (g: NonNullable<ReturnType<typeof goalOf>>, fmt: (v: number) => string) => (g.current === null ? "" : ` · ${t("metricsPage.now_value_window", { value: fmt(g.current), window: windowText(g.windowMinutes) })}`);
   const err = goalOf("error_rate", overview.rules);
-  if (err) chips.errors = { tone: err.tone, label: err.label, line: `Goal ${limitText("error_rate", overview.rules.find((r) => r.rule.metric === "error_rate" && r.rule.enabled)!.rule.threshold)}${measured(err, (v) => `${Number(v.toFixed(1))} %`)}` };
+  if (err) chips.errors = { tone: err.tone, label: err.label, line: `${t("metricsPage.goal")} ${limitText("error_rate", overview.rules.find((r) => r.rule.metric === "error_rate" && r.rule.enabled)!.rule.threshold)}${measured(err, (v) => `${Number(v.toFixed(1))} %`)}` };
   const lat = goalOf("latency_p95", overview.rules);
-  if (lat) chips.latency = { tone: lat.tone, label: lat.label, line: `Goal ${limitText("latency_p95", overview.rules.find((r) => r.rule.metric === "latency_p95" && r.rule.enabled)!.rule.threshold)}${measured(lat, (v) => formatDuration(v))}` };
+  if (lat) chips.latency = { tone: lat.tone, label: lat.label, line: `${t("metricsPage.goal")} ${limitText("latency_p95", overview.rules.find((r) => r.rule.metric === "latency_p95" && r.rule.enabled)!.rule.threshold)}${measured(lat, (v) => formatDuration(v))}` };
   const cost = budgetGoalOf(overview.budget);
-  if (cost) chips.cost = { tone: cost.tone, label: cost.label, line: `${formatCostUsd(cost.spentUsd) ?? "$0"} of ${formatCostUsd(cost.monthlyUsd) ?? "$0"} this month${cost.projectedUsd === null ? "" : ` · projected ${formatCostUsd(cost.projectedUsd) ?? "$0"}`}` };
-  else if (can("alert:manage")) chips.cost = { tone: "neutral", label: "No goal", line: "Set a monthly budget →" };
+  if (cost) chips.cost = { tone: cost.tone, label: cost.label, line: t("metricsPage.spent_of_budget_this_month", { spent: formatCostUsd(cost.spentUsd) ?? "$0", budget: formatCostUsd(cost.monthlyUsd) ?? "$0" }) + (cost.projectedUsd === null ? "" : ` · ${t("metricsPage.projected_value", { value: formatCostUsd(cost.projectedUsd) ?? "$0" })}`) };
+  else if (can("alert:manage")) chips.cost = { tone: "neutral", label: t("metricsPage.no_goal"), line: t("metricsPage.set_a_monthly_budget") };
   return chips;
 });
 // la previsión de coste es del mes natural y vive en el presupuesto (ADR-086): sin presupuesto activo no hay tarjeta
@@ -201,11 +203,11 @@ const kpis = computed(() => {
   const d = data.value;
   if (!d) return [];
   return [
-    { key: "conversations", label: "CONVERSATIONS", value: formatCount(d.totals.conversations), sub: `${formatCount(d.totals.traces)} executions`, tone: "", spark: true, link: false },
-    { key: "success", label: "SUCCESS RATE", value: formatPercent(successRate.value), sub: health.value.title, tone: health.value.key === "ok" ? "good" : health.value.key, link: false },
-    { key: "latency", label: "RESPONSE TIME P95", value: formatDuration(d.latencyMs.p95), sub: `median ${formatDuration(d.latencyMs.p50)}`, tone: "" },
-    { key: "errors", label: "ERRORS", value: formatCount(d.totals.errorTraces), sub: `${formatPercent(d.totals.errorRate)} of executions`, tone: d.totals.errorTraces > 0 ? "error" : "", link: d.totals.errorTraces > 0 },
-    { key: "cost", label: "COST", value: formatCostUsd(d.totals.costUsd) ?? "–", sub: `${formatCount(d.totals.totalTokens)} tokens`, tone: "" },
+    { key: "conversations", label: t("metricsPage.conversations2"), value: formatCount(d.totals.conversations), sub: t("metricsPage.count_executions", { count: formatCount(d.totals.traces) }), tone: "", spark: true, link: false },
+    { key: "success", label: t("metricsPage.success_rate"), value: formatPercent(successRate.value), sub: health.value.title, tone: health.value.key === "ok" ? "good" : health.value.key, link: false },
+    { key: "latency", label: t("metricsPage.response_time_p952"), value: formatDuration(d.latencyMs.p95), sub: t("metricsPage.median_value", { value: formatDuration(d.latencyMs.p50) }), tone: "" },
+    { key: "errors", label: t("metricsPage.errors2"), value: formatCount(d.totals.errorTraces), sub: t("metricsPage.percent_of_executions", { percent: formatPercent(d.totals.errorRate) }), tone: d.totals.errorTraces > 0 ? "error" : "", link: d.totals.errorTraces > 0 },
+    { key: "cost", label: t("metricsPage.cost2"), value: formatCostUsd(d.totals.costUsd) ?? "–", sub: t("metricsPage.count_tokens", { count: formatCount(d.totals.totalTokens) }), tone: "" },
     ...satisfactionKpi.value,
   ];
 });
@@ -219,7 +221,7 @@ const costPerTrace = computed(() => (data.value && data.value.totals.traces ? da
 
 const longRange = computed(() => (data.value ? Date.parse(data.value.range.to) - Date.parse(data.value.range.from) > 2 * 86_400_000 : false));
 const label = (iso: string) =>
-  new Date(iso).toLocaleString("en-US", longRange.value ? { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false } : { hour: "2-digit", minute: "2-digit", hour12: false });
+  new Date(iso).toLocaleString(dateLocale("en-US"), longRange.value ? { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false } : { hour: "2-digit", minute: "2-digit", hour12: false });
 
 function sparkOption(values: number[], color: string): EChartsCoreOption {
   return {
@@ -269,10 +271,10 @@ const activityOption = computed<EChartsCoreOption>(() => {
       { type: "value", ...a, splitLine: { show: false }, axisLabel: { ...a.axisLabel, formatter: (v: number) => formatDuration(v) } },
     ],
     series: [
-      { name: "Conversations", type: "bar", stack: "t", barMaxWidth: 26, data: d?.timeseries.map((p) => p.traces - p.errorTraces) ?? [], itemStyle: { color: c.primary, borderRadius: [0, 0, 0, 0] } },
-      { name: "Errors", type: "bar", stack: "t", barMaxWidth: 26, data: d?.timeseries.map((p) => p.errorTraces) ?? [], itemStyle: { color: c.danger, borderRadius: [6, 6, 0, 0] } },
+      { name: t("metricsPage.conversations"), type: "bar", stack: "t", barMaxWidth: 26, data: d?.timeseries.map((p) => p.traces - p.errorTraces) ?? [], itemStyle: { color: c.primary, borderRadius: [0, 0, 0, 0] } },
+      { name: t("metricsPage.errors"), type: "bar", stack: "t", barMaxWidth: 26, data: d?.timeseries.map((p) => p.errorTraces) ?? [], itemStyle: { color: c.danger, borderRadius: [6, 6, 0, 0] } },
       {
-        name: "p95 latency",
+        name: t("metricsPage.p95_latency"),
         type: "line",
         yAxisIndex: 1,
         smooth: 0.35,
@@ -295,7 +297,7 @@ const recentRuns = computed(() =>
   (latestRuns.data.value?.items ?? []).slice(0, 4).map((r) => {
     const a = r.aggregates[0];
     const tone = a ? aggregateTone(a) : "default";
-    return { id: r.id, datasetId: r.datasetId, name: r.name, when: `${formatRelativeTime(r.createdAt, Date.now())} · ${r.itemCount} items`, score: a ? aggregateValueLabel(a) : "–", tone };
+    return { id: r.id, datasetId: r.datasetId, name: r.name, when: `${formatRelativeTime(r.createdAt, Date.now())} · ${t("metricsPage.count_items", { count: r.itemCount })}`, score: a ? aggregateValueLabel(a) : "–", tone };
   }),
 );
 
@@ -359,18 +361,18 @@ const view = computed(() => (route.meta.view as View | undefined) ?? "summary");
 const PANEL: Record<View, string> = { summary: "overview", compare: "compare", charts: "custom", reports: "reports", report: "report" };
 const activePanel = computed(() => PANEL[view.value]);
 const reportId = computed(() => (view.value === "report" ? String(route.params.reportId) : null));
-const VIEW_TITLES: Record<View, string> = { summary: "Overview", compare: "Compare", charts: "Charts", reports: "Reports", report: "Report" };
+const VIEW_TITLES = computed<Record<View, string>>(() => ({ summary: t("nav.overview"), compare: t("nav.compare"), charts: t("nav.charts"), reports: t("nav.reports"), report: t("metricsPage.report") }));
 const crumbs = computed(() => {
-  if (view.value === "summary") return [{ label: "Overview" }];
-  const root = { label: "Analytics" };
-  if (view.value === "report") return [root, { label: "Reports", to: { name: "overview-reports", params: { experimentId: experimentId.value } } }, { label: pageTitle.value }];
-  return [root, { label: VIEW_TITLES[view.value] }];
+  const root = { label: t("nav.analytics") };
+  if (view.value === "summary") return [{ label: t("nav.overview") }];
+  if (view.value === "report") return [root, { label: t("nav.reports"), to: { name: "overview-reports", params: { experimentId: experimentId.value } } }, { label: pageTitle.value }];
+  return [root, { label: VIEW_TITLES.value[view.value] }];
 });
 
 // ---- Informes guardados (ADR-035): una página de listado y una por informe ----
 const reports = useAsync((signal) => identityApi.listMetricReports(experimentId.value, signal));
 watch(experimentId, () => void reports.run(), { immediate: true });
-const pageTitle = computed(() => (view.value === "report" ? (reports.data.value?.find((r) => r.id === reportId.value)?.name ?? "Report") : VIEW_TITLES[view.value]));
+const pageTitle = computed(() => (view.value === "report" ? (reports.data.value?.find((r) => r.id === reportId.value)?.name ?? t("metricsPage.report")) : VIEW_TITLES.value[view.value]));
 
 const creatingReport = ref(false);
 const newReportName = ref("");
@@ -407,8 +409,8 @@ function onReportDeleted() {
 // ---- Comparativa entre 2 agentes (superpuesta sobre el mismo rango) ----
 const compareAgentId = ref<string | null>(null);
 const compareOptions = computed(() => agentOptions.value.filter((o) => o.value !== experimentId.value));
-const agentAName = computed(() => experiments.data.value?.find((e) => e.id === experimentId.value)?.name ?? "This agent");
-const agentBName = computed(() => experiments.data.value?.find((e) => e.id === compareAgentId.value)?.name ?? "Agent B");
+const agentAName = computed(() => experiments.data.value?.find((e) => e.id === experimentId.value)?.name ?? t("metricsPage.this_agent"));
+const agentBName = computed(() => experiments.data.value?.find((e) => e.id === compareAgentId.value)?.name ?? t("metricsPage.agent_b"));
 
 const compareB = useAsync((signal) => api.getOverviewForExperiment(compareAgentId.value as string, f.resolve(), signal));
 function loadCompare() {
@@ -434,11 +436,11 @@ function swapAgents() {
   <q-page class="page">
     <PageHeader :crumbs="crumbs" icon="M3 11l9-8 9 8v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z" :title="pageTitle" />
 
-    <Modal v-if="creatingReport" title="New report" @close="creatingReport = false">
-      <TextInput v-model="newReportName" placeholder="Report name" aria-label="Report name" @keyup.enter="createReport" />
+    <Modal v-if="creatingReport" :title="t('metricsPage.new_report2')" @close="creatingReport = false">
+      <TextInput v-model="newReportName" :placeholder="t('metricsPage.report_name')" :aria-label="t('metricsPage.report_name')" @keyup.enter="createReport" />
       <template #footer>
-        <Button @click="creatingReport = false">Cancel</Button>
-        <Button variant="primary" :disabled="!newReportName.trim()" :loading="creatingReportBusy" @click="createReport">Create</Button>
+        <Button @click="creatingReport = false">{{ t("metricsPage.cancel") }}</Button>
+        <Button variant="primary" :disabled="!newReportName.trim()" :loading="creatingReportBusy" @click="createReport">{{ t("metricsPage.create") }}</Button>
       </template>
     </Modal>
 
@@ -450,7 +452,7 @@ function swapAgents() {
           <Spinner size="lg" />
         </div>
 
-        <EmptyState v-else-if="empty" icon="insights" title="No data in this range">Run an instrumented agent or extend the time range.</EmptyState>
+        <EmptyState v-else-if="empty" icon="insights" :title="t('metricsPage.no_data_in_this_range')">{{ t("metricsPage.run_an_instrumented_agent_or_extend") }}</EmptyState>
 
         <template v-else-if="data">
           <section class="health" :class="health.key" data-testid="health-banner">
@@ -460,28 +462,28 @@ function swapAgents() {
             </span>
             <div class="health-body">
               <h2>{{ health.title }}</h2>
-              <p>{{ health.text }}<template v-if="attention.length"> {{ attention.length }} {{ attention.length === 1 ? "thing" : "things" }} could use a look.</template></p>
+              <p>{{ health.text }}<template v-if="attention.length"> {{ tp("metricsPage.things", attention.length) }}</template></p>
             </div>
-            <Button v-if="attention.length" @click="goToFirstAttention">See what needs attention</Button>
+            <Button v-if="attention.length" @click="goToFirstAttention">{{ t("metricsPage.see_what_needs_attention") }}</Button>
           </section>
 
-          <section v-if="starters.length" class="goals-welcome" aria-label="Goals" data-testid="goals-welcome">
+          <section v-if="starters.length" class="goals-welcome" :aria-label="t('metricsPage.goals')" data-testid="goals-welcome">
             <div class="goals-welcome-text">
-              <h2>Set goals so this page can tell you if all is well</h2>
-              <p>A goal is a limit you choose. MemTrace checks the last 24 h against it and shows a green, amber or red light on the cards below.</p>
+              <h2>{{ t("metricsPage.set_goals_so_this_page_can") }}</h2>
+              <p>{{ t("metricsPage.a_goal_is_a_limit_you") }}</p>
             </div>
             <ul class="goals-welcome-list">
-              <li v-for="g in starters" :key="g.metric"><strong>{{ g.metric === "error_rate" ? "Errors" : "Response time p95" }}</strong><span>{{ limitText(g.metric, g.threshold) }}</span></li>
-              <li><strong>Cost</strong><span>you choose the monthly budget</span></li>
+              <li v-for="g in starters" :key="g.metric"><strong>{{ g.metric === "error_rate" ? t("metricsPage.errors") : t("metricsPage.response_time_p95") }}</strong><span>{{ limitText(g.metric, g.threshold) }}</span></li>
+              <li><strong>{{ t("metricsPage.cost") }}</strong><span>{{ t("metricsPage.you_choose_the_monthly_budget") }}</span></li>
             </ul>
             <div class="goals-welcome-actions">
-              <Button variant="primary" :loading="startersBusy" data-testid="starter-goals" @click="turnOnStarterGoals">Turn on starter goals</Button>
-              <a class="kpi-sub link-accent" @click="goToAlerts">Choose my own →</a>
+              <Button variant="primary" :loading="startersBusy" data-testid="starter-goals" @click="turnOnStarterGoals">{{ t("metricsPage.turn_on_starter_goals") }}</Button>
+              <a class="kpi-sub link-accent" @click="goToAlerts">{{ t("metricsPage.choose_my_own") }}</a>
               <span v-if="startersError" class="kpi-sub error" role="alert">{{ startersError }}</span>
             </div>
           </section>
 
-          <section class="kpi-grid" aria-label="Key figures">
+          <section class="kpi-grid" :aria-label="t('metricsPage.key_figures')">
             <div v-for="k in kpiCards" :key="k.key" class="kpi" :data-testid="`kpi-${k.key}`">
               <div class="kpi-head">
                 <span class="kpi-label">{{ k.label }}</span>
@@ -491,29 +493,29 @@ function swapAgents() {
                 <span class="kpi-value" :class="k.tone">{{ k.value }}</span>
                 <svg v-if="k.points" class="kpi-spark" width="58" height="24" viewBox="0 0 58 24" aria-hidden="true"><polyline :points="k.points" fill="none" :stroke="k.stroke" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" /></svg>
               </div>
-              <a v-if="k.link" class="kpi-sub link" @click="goToErrors">{{ k.sub }} · view →</a>
+              <a v-if="k.link" class="kpi-sub link" @click="goToErrors">{{ k.sub }} · {{ t("metricsPage.view") }}</a>
               <span v-else class="kpi-sub" :class="k.tone">{{ k.sub }}</span>
               <a v-if="k.goal" class="kpi-sub link-accent" :data-testid="`goal-line-${k.key}`" @click="goToAlerts">{{ k.goal.line }}</a>
             </div>
           </section>
 
           <div class="overview-row split">
-            <Card as="section" gap="sm" class="card" aria-label="Activity">
+            <Card as="section" gap="sm" class="card" :aria-label="t('metricsPage.activity')">
               <div class="card-head">
-                <h2>Activity</h2>
-                <span class="legend"><i class="sw" style="background: var(--mt-accent)" />Conversations</span>
-                <span class="legend"><i class="sw" style="background: var(--mt-err)" />Errors</span>
-                <span class="legend"><i class="sw line" style="background: var(--mt-highlight)" />p95 latency</span>
+                <h2>{{ t("metricsPage.activity") }}</h2>
+                <span class="legend"><i class="sw" style="background: var(--mt-accent)" />{{ t("metricsPage.conversations") }}</span>
+                <span class="legend"><i class="sw" style="background: var(--mt-err)" />{{ t("metricsPage.errors") }}</span>
+                <span class="legend"><i class="sw line" style="background: var(--mt-highlight)" />{{ t("metricsPage.p95_latency") }}</span>
               </div>
-              <EChart :option="activityOption" height="200px" label="Conversations, errors, and p95 latency" />
+              <EChart :option="activityOption" height="200px" :label="t('metricsPage.conversations_errors_and_p95_latency')" />
             </Card>
 
-            <Card as="section" gap="sm" class="card attention" aria-label="Needs attention">
+            <Card as="section" gap="sm" class="card attention" :aria-label="t('metricsPage.needs_attention')">
               <div class="card-head">
-                <h2>Needs attention</h2>
+                <h2>{{ t("metricsPage.needs_attention") }}</h2>
                 <span v-if="attention.length" class="attention-count">{{ attention.length }}</span>
               </div>
-              <p v-if="!attention.length" class="all-clear" data-testid="all-clear">Nothing needs your attention in this range.</p>
+              <p v-if="!attention.length" class="all-clear" data-testid="all-clear">{{ t("metricsPage.nothing_needs_your_attention_in_this") }}</p>
               <button v-for="a in attention" :key="a.key" type="button" class="attn" :class="a.tone" data-testid="attention-item" @click="a.go">
                 <span class="attn-icon" aria-hidden="true">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path :d="attentionIcon[a.tone]" /></svg>
@@ -529,9 +531,9 @@ function swapAgents() {
           <ErrorOverviewCard v-if="errorOverview.data.value && errorOverview.data.value.categories.length" :overview="errorOverview.data.value" @view="goToErrors" />
 
           <div class="overview-row thirds">
-            <Card as="section" gap="sm" class="card list-card" aria-label="Models">
-              <div class="card-head"><h2>Models</h2><span class="spacer" /><span class="card-link">{{ data.byModel.length }} in range</span></div>
-              <p v-if="!topModels.length" class="list-empty">No LLM calls in this range.</p>
+            <Card as="section" gap="sm" class="card list-card" :aria-label="t('metricsPage.models')">
+              <div class="card-head"><h2>{{ t("metricsPage.models") }}</h2><span class="spacer" /><span class="card-link">{{ t("metricsPage.count_in_range", { count: data.byModel.length }) }}</span></div>
+              <p v-if="!topModels.length" class="list-empty">{{ t("metricsPage.no_llm_calls_in_this_range") }}</p>
               <div v-for="m in topModels" :key="m.model" class="model-row">
                 <span class="mono ellipsis">{{ m.model }}</span>
                 <span class="mono muted right">{{ formatDuration(m.p95Ms) }}</span>
@@ -539,24 +541,24 @@ function swapAgents() {
               </div>
             </Card>
 
-            <Card as="section" gap="sm" class="card list-card" aria-label="Human review quality">
+            <Card as="section" gap="sm" class="card list-card" :aria-label="t('metricsPage.human_review_quality')">
               <div class="card-head">
-                <h2>Human review quality</h2><span class="spacer" />
-                <a class="card-link" @click="goToReview">Review →</a>
+                <h2>{{ t("metricsPage.human_review_quality") }}</h2><span class="spacer" />
+                <a class="card-link" @click="goToReview">{{ t("metricsPage.review") }}</a>
               </div>
-              <p v-if="!reviewQuality.data.value?.length" class="list-empty">No completed human reviews yet.</p>
+              <p v-if="!reviewQuality.data.value?.length" class="list-empty">{{ t("metricsPage.no_completed_human_reviews_yet") }}</p>
               <div v-for="q in reviewQuality.data.value ?? []" :key="q.name" class="quality-row">
                 <div class="quality-line"><span class="quality-name">{{ q.name }}</span><span class="mono">{{ q.value }}</span></div>
                 <div class="bar"><div class="bar-fill" :class="{ low: q.low }" :style="{ width: `${q.width}%` }" /></div>
               </div>
             </Card>
 
-            <Card as="section" gap="sm" class="card list-card" aria-label="Latest evaluation runs">
+            <Card as="section" gap="sm" class="card list-card" :aria-label="t('metricsPage.latest_evaluation_runs')">
               <div class="card-head">
-                <h2>Latest evaluation runs</h2><span class="spacer" />
-                <a class="card-link" @click="router.push({ name: 'runs', params: { experimentId } })">All runs →</a>
+                <h2>{{ t("metricsPage.latest_evaluation_runs") }}</h2><span class="spacer" />
+                <a class="card-link" @click="router.push({ name: 'runs', params: { experimentId } })">{{ t("metricsPage.all_runs") }}</a>
               </div>
-              <p v-if="!recentRuns.length" class="list-empty">No evaluation runs yet.</p>
+              <p v-if="!recentRuns.length" class="list-empty">{{ t("metricsPage.no_evaluation_runs_yet") }}</p>
               <a v-for="r in recentRuns" :key="r.id" class="run-row" @click="router.push({ name: 'dataset-run', params: { experimentId, datasetId: r.datasetId, runId: r.id } })">
                 <span class="run-text"><strong>{{ r.name }}</strong><span>{{ r.when }}</span></span>
                 <span class="run-score" :class="r.tone">{{ r.score }}</span>
@@ -590,11 +592,11 @@ function swapAgents() {
 
       <TabPanel :active="activePanel === 'reports'" class="metrics-tab-panel">
         <div class="reports-head">
-          <p class="reports-hint">A report is a saved set of custom charts you can share with the rest of the experiment.</p>
-          <Button size="sm" class="add-report-btn mt-new" data-testid="new-report" @click="openCreateReport">+ New report</Button>
+          <p class="reports-hint">{{ t("metricsPage.a_report_is_a_saved_set") }}</p>
+          <Button size="sm" class="add-report-btn mt-new" data-testid="new-report" @click="openCreateReport">{{ t("metricsPage.new_report") }}</Button>
         </div>
         <ErrorBanner v-if="reports.error.value" :error="reports.error.value" @retry="reports.run()" />
-        <EmptyState v-else-if="reports.data.value && reports.data.value.length === 0" icon="dashboard" title="No reports yet">Create one to group the charts you check every week.</EmptyState>
+        <EmptyState v-else-if="reports.data.value && reports.data.value.length === 0" icon="dashboard" :title="t('metricsPage.no_reports_yet')">{{ t("metricsPage.create_one_to_group_the_charts") }}</EmptyState>
         <div v-else class="report-list">
           <ReportCard v-for="r in reports.data.value ?? []" :key="r.id" :experiment-id="experimentId" :report="r" />
         </div>

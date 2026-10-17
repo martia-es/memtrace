@@ -1,5 +1,6 @@
 /** Reglas puras del feedback de usuario final (ADR-062). */
 import type { TraceFeedbackResponse } from "@contract";
+import { tr } from "./translate";
 
 export type FeedbackTone = "ok" | "error" | "warn" | "neutral";
 
@@ -11,8 +12,8 @@ export function feedbackTone(up: number, down: number): FeedbackTone {
 }
 
 export function alignmentLabel(alignment: TraceFeedbackResponse["alignment"]): string | null {
-  if (alignment === "aligned") return "Matches the reviewers";
-  if (alignment === "misaligned") return "Disagrees with the reviewers";
+  if (alignment === "aligned") return tr("feedback.matches_the_reviewers");
+  if (alignment === "misaligned") return tr("feedback.disagrees_with_the_reviewers");
   return null;
 }
 

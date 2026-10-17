@@ -19,6 +19,8 @@ import Pill from "./Pill.vue";
 import DataTable from "./DataTable.vue";
 import LoadingState from "./LoadingState.vue";
 import ToggleChip from "./ToggleChip.vue";
+import { t, tp } from "../i18n";
+import { lazyMessages } from "../../domain/translate";
 
 /**
  * Resultados de una cola para el perfil técnico (ADR-050): qué respondió cada revisor por item y criterio, los
@@ -27,20 +29,20 @@ import ToggleChip from "./ToggleChip.vue";
 const props = defineProps<{ queueId: string }>();
 const emit = defineEmits<{ close: [] }>();
 
-const UNREVIEWABLE_NOTE = "Marked unreviewable by a reviewer (not enough content to judge): it can't be added to a dataset";
-const REASONS: Record<PromotionSkipReasonDto, string> = {
-  already_promoted: "already in the dataset",
-  no_content: "no input saved",
-  not_found: "not found",
-  ambiguous_label: "reviewers disagree",
-  unsupported_label: "label is not a reference answer",
-};
-const READINESS_NOTE: Record<RowReadiness, string> = {
+const UNREVIEWABLE_NOTE = lazyMessages({ note: "queueResults.marked_unreviewable_by_a_reviewer_not" }).note;
+const REASONS: Record<PromotionSkipReasonDto, string> = lazyMessages({
+  already_promoted: "queueResults.already_in_the_dataset",
+  no_content: "queueResults.no_input_saved",
+  not_found: "queueResults.not_found",
+  ambiguous_label: "queueResults.reviewers_disagree",
+  unsupported_label: "queueResults.label_is_not_a_reference_answer",
+});
+const READINESS_NOTE: Record<RowReadiness, string> = lazyMessages({
   ready: "",
-  needs_resolution: "Reviewers disagree: resolve it to promote",
-  not_reviewed: "Not fully reviewed yet",
-  not_a_trace: "Run items cannot be promoted from here",
-};
+  needs_resolution: "queueResults.reviewers_disagree_resolve_it_to_promote",
+  not_reviewed: "queueResults.not_fully_reviewed_yet",
+  not_a_trace: "queueResults.run_items_cannot_be_promoted_from",
+});
 
 const api = useTraceApi();
 const route = useRoute();
@@ -61,9 +63,9 @@ const categorical = computed(() => configs.value.filter((c) => c.dataType === "c
 const datasetOptions = computed(() => (datasets.data.value?.items ?? []).map((d) => ({ label: d.name, value: d.id })));
 const REPLY = "__reply";
 const referenceOptions = computed(() => [
-  { label: "Expected output: only the correct answer I typed", value: "" },
-  { label: "Expected output: the reply that was reviewed (unless I typed one)", value: REPLY },
-  ...categorical.value.map((c) => ({ label: `Expected output: the label of “${c.name}” (unless I typed one)`, value: c.id })),
+  { label: t("queueResults.expected_output_only_the_correct_answer"), value: "" },
+  { label: t("queueResults.expected_output_the_reply_that_was"), value: REPLY },
+  ...categorical.value.map((c) => ({ label: t("queueResults.expected_output_the_label_of_name", { name: c.name }), value: c.id })),
 ]);
 
 const openRow = ref<string | null>(null);
@@ -77,14 +79,14 @@ const busy = ref(false);
 const readyRows = computed(() => rows.value.filter((r) => rowReadiness(r) === "ready"));
 const chosen = computed(() => rows.value.filter((r) => selected.has(r.id) && rowReadiness(r) === "ready"));
 const referenceHelp = computed(() => {
-  if (useReply.value) return "Rows where you typed a correct answer use it. The rest get the agent's reply that reviewers judged, so choose this only if those replies are good.";
-  if (reference.value) return `Rows where you typed a correct answer use it. The rest get the agreed or resolved label of “${reference.value.name}” (a label, not a sentence).`;
-  return "Only the correct answers you typed in Resolve are used. Rows without one are added with no expected output, so only evaluators that need no reference (LLM-as-judge) can score them.";
+  if (useReply.value) return t("queueResults.rows_where_you_typed_a_correct");
+  if (reference.value) return t("queueResults.rows_where_you_typed_a_correct2", { name: reference.value.name });
+  return t("queueResults.only_the_correct_answers_you_typed");
 });
 const promoteHint = computed(() => {
-  if (!readyRows.value.length) return "No row is ready: every row needs all its reviews and no open disagreement.";
-  if (!chosen.value.length) return "Tick the rows to add, or press “Select all ready”.";
-  if (!datasetId.value) return "Choose a dataset to enable “Add to dataset”.";
+  if (!readyRows.value.length) return t("queueResults.no_row_is_ready_every_row");
+  if (!chosen.value.length) return t("queueResults.tick_the_rows_to_add_or");
+  if (!datasetId.value) return t("queueResults.choose_a_dataset_to_enable_add");
   return "";
 });
 const useReply = computed(() => referenceId.value === REPLY);
@@ -120,7 +122,7 @@ async function save(row: QueueResultItemDto, criterion: QueueResultCriterionDto)
     await api.resolveQueueItem(props.queueId, row.id, criterion.configId, { value: draft.value, expectedOutput: draft.expected.trim() || null });
     await results.run();
   } catch (error) {
-    notifyError("Could not save the resolution", error);
+    notifyError(t("queueResults.could_not_save_the_resolution"), error);
   }
 }
 
@@ -130,7 +132,7 @@ async function clear(row: QueueResultItemDto, criterion: QueueResultCriterionDto
     drafts[key(row, criterion.configId)] = { value: "", expected: "" };
     await results.run();
   } catch (error) {
-    notifyError("Could not clear the resolution", error);
+    notifyError(t("queueResults.could_not_clear_the_resolution"), error);
   }
 }
 
@@ -146,10 +148,10 @@ async function promote() {
       skipped.push(...result.skipped);
     }
     const detail = Object.entries(countSkipReasons(skipped)).map(([reason, n]) => `${n} ${REASONS[reason as PromotionSkipReasonDto]}`).join(", ");
-    $q.notify({ message: `Added ${added} item${added === 1 ? "" : "s"} to the dataset${detail ? ` · skipped: ${detail}` : ""}`, color: added ? "positive" : "warning", timeout: 6000 });
+    $q.notify({ message: `${tp("queueResults.itemsAdded", added)}${detail ? ` · ${t("queueResults.skipped_detail", { detail })}` : ""}`, color: added ? "positive" : "warning", timeout: 6000 });
     selected.clear();
   } catch (error) {
-    notifyError(`Could not add to the dataset${added ? ` (${added} already added)` : ""}`, error);
+    notifyError(`${t("queueResults.could_not_add_to_the_dataset")}${added ? ` (${t("queueResults.count_already_added", { count: added })})` : ""}`, error);
   } finally {
     busy.value = false;
   }
@@ -159,52 +161,51 @@ async function promote() {
 <template>
   <section class="results" data-testid="queue-results">
     <p class="intro" data-testid="results-intro">
-      <strong>Your task:</strong> 1) settle every disagreement (<em>Resolve</em>), 2) tick the rows that are good, 3) choose the dataset and where the expected output comes from, 4) press <em>Add to dataset</em>.
-      Open a row to read the conversation that was evaluated next to the reviewers' answers.
+      <strong>{{ t("queueResults.your_task") }}</strong>{{ " " + t("queueResults.1_settle_every_disagreement") }}<em>{{ t("queueResults.resolve") }}</em>{{ t("queueResults.2_tick_the_rows_that_are") + " " }}<em>{{ t("queueResults.add_to_dataset") }}</em>{{ t("queueResults.open_a_row_to_read_the") }}
     </p>
     <div class="toolbar">
-      <Checkbox class="check" v-model="onlyDisagreements" data-testid="only-disagreements"> Only disagreements</Checkbox>
-      <span v-if="results.data.value" class="muted">{{ results.data.value.total }} item{{ results.data.value.total === 1 ? "" : "s" }}</span>
-      <Button class="push" size="sm" :disabled="!readyRows.length" data-testid="select-ready" @click="readyRows.forEach((r) => selected.add(r.id))">Select all ready</Button>
+      <Checkbox class="check" v-model="onlyDisagreements" data-testid="only-disagreements">{{ " " + t("queueResults.only_disagreements") }}</Checkbox>
+      <span v-if="results.data.value" class="muted">{{ tp("queueResults.items", results.data.value.total) }}</span>
+      <Button class="push" size="sm" :disabled="!readyRows.length" data-testid="select-ready" @click="readyRows.forEach((r) => selected.add(r.id))">{{ t("queueResults.select_all_ready") }}</Button>
     </div>
 
     <ErrorBanner v-if="results.error.value" :error="results.error.value" @retry="results.run()" />
     <LoadingState v-else-if="!results.data.value" size="md" />
-    <p v-else-if="!rows.length" class="muted" data-testid="results-empty">{{ onlyDisagreements ? "No items where reviewers disagree." : "No items in this queue yet." }}</p>
+    <p v-else-if="!rows.length" class="muted" data-testid="results-empty">{{ onlyDisagreements ? t("queueResults.no_items_where_reviewers_disagree") : t("queueResults.no_items_in_this_queue_yet") }}</p>
 
     <div v-else class="scroll">
       <DataTable sticky density="sm">
         <thead>
           <tr>
             <th />
-            <th>Item</th>
+            <th>{{ t("queueResults.item") }}</th>
             <th v-for="c in configs" :key="c.id">{{ c.name }}</th>
             <th />
           </tr>
         </thead>
         <tbody v-for="row in rows" :key="row.id">
           <tr data-testid="result-row" :class="{ flagged: row.needsResolution }">
-            <td><Checkbox :checked="selected.has(row.id)" :disabled="rowReadiness(row) !== 'ready'" :aria-label="`Select ${shortId(row.traceId ?? row.id)}`" data-testid="result-select" @change="toggle(row)" /></td>
+            <td><Checkbox :checked="selected.has(row.id)" :disabled="rowReadiness(row) !== 'ready'" :aria-label="t('queueResults.select_id', { id: shortId(row.traceId ?? row.id) })" data-testid="result-select" @change="toggle(row)" /></td>
             <td>
-              <router-link v-if="row.traceId" :to="{ name: 'trace', params: { experimentId, traceId: row.traceId } }" class="mono" @click="emit('close')">Trace {{ shortId(row.traceId) }}</router-link>
-              <span v-else class="mono">Run {{ shortId(row.datasetRunId ?? "") }} · item {{ row.itemIndex }}</span>
+              <router-link v-if="row.traceId" :to="{ name: 'trace', params: { experimentId, traceId: row.traceId } }" class="mono" @click="emit('close')">{{ t('queueResults.trace_id', { id: shortId(row.traceId) }) }}</router-link>
+              <span v-else class="mono">{{ t('queueResults.run_id_item_index', { id: shortId(row.datasetRunId ?? ""), index: row.itemIndex }) }}</span>
               <div v-for="p in row.promotedTo" :key="p.datasetId" class="note" data-testid="promoted-to">
                 <router-link :to="{ name: 'dataset', params: { datasetId: p.datasetId } }" @click="emit('close')">→ {{ p.datasetName }} v{{ p.version }}</router-link>
               </div>
-              <div class="muted note" :title="row.status === 'skipped' ? UNREVIEWABLE_NOTE : undefined">{{ row.status === "skipped" ? "unreviewable" : row.status }}<template v-if="READINESS_NOTE[rowReadiness(row)] && row.status === 'completed'"> · {{ READINESS_NOTE[rowReadiness(row)] }}</template></div>
+              <div class="muted note" :title="row.status === 'skipped' ? UNREVIEWABLE_NOTE : undefined">{{ row.status === "skipped" ? t("queueResults.unreviewable") : row.status }}<template v-if="READINESS_NOTE[rowReadiness(row)] && row.status === 'completed'"> · {{ READINESS_NOTE[rowReadiness(row)] }}</template></div>
               <div v-if="row.status === 'skipped'" class="muted note">{{ UNREVIEWABLE_NOTE }}</div>
             </td>
             <td v-for="c in configs" :key="c.id" :class="{ disagree: row.criteria.find((x) => x.configId === c.id)?.status === 'disagreement' }">
               <template v-for="crit in row.criteria.filter((x) => x.configId === c.id)" :key="crit.configId">
                 <span v-if="!crit.labels.length" class="muted">—</span>
-                <span v-for="l in crit.labels" :key="l.userId" class="lbl" :class="{ muted: !l.isReviewer }" :title="[l.comment, l.isReviewer ? '' : 'No longer a reviewer'].filter(Boolean).join(' · ')">
-                  {{ l.name ?? "Former member" }}: <strong>{{ show(c, l.value) }}</strong>
+                <span v-for="l in crit.labels" :key="l.userId" class="lbl" :class="{ muted: !l.isReviewer }" :title="[l.comment, l.isReviewer ? '' : t('queueResults.no_longer_a_reviewer')].filter(Boolean).join(' · ')">
+                  {{ l.name ?? t("queueResults.former_member") }}: <strong>{{ show(c, l.value) }}</strong>
                 </span>
-                <Pill v-if="crit.resolution" tone="ok" data-testid="resolved-pill">resolved: {{ show(c, crit.resolution.value) }}</Pill>
-                <Pill v-else-if="crit.status === 'disagreement'" tone="warn">disagreement</Pill>
+                <Pill v-if="crit.resolution" tone="ok" data-testid="resolved-pill">{{ t('queueResults.resolved_value', { value: show(c, crit.resolution.value) }) }}</Pill>
+                <Pill v-else-if="crit.status === 'disagreement'" tone="warn">{{ t("queueResults.disagreement") }}</Pill>
               </template>
             </td>
-            <td><Button size="sm" data-testid="resolve-btn" @click="open(row)">{{ row.needsResolution ? "Resolve" : "Open" }}</Button></td>
+            <td><Button size="sm" data-testid="resolve-btn" @click="open(row)">{{ row.needsResolution ? t("queueResults.resolve") : t("queueResults.open") }}</Button></td>
           </tr>
 
         </tbody>
@@ -212,32 +213,32 @@ async function promote() {
     </div>
 
     <div v-if="rows.length" class="promote" data-testid="promote-bar">
-      <strong>{{ chosen.length }} selected</strong>
-      <Select v-model="datasetId" :options="datasetOptions" placeholder="Choose a dataset…" aria-label="Dataset" data-testid="promote-dataset" />
-      <Select v-model="referenceId" :options="referenceOptions" aria-label="Expected output from" data-testid="promote-config" />
-      <Button variant="primary" size="sm" data-testid="promote-run" :disabled="!canPromote" @click="promote">Add to dataset</Button>
+      <strong>{{ t("queueResults.count_selected", { count: chosen.length }) }}</strong>
+      <Select v-model="datasetId" :options="datasetOptions" :placeholder="t('queueResults.choose_a_dataset')" :aria-label="t('queueResults.dataset')" data-testid="promote-dataset" />
+      <Select v-model="referenceId" :options="referenceOptions" :aria-label="t('queueResults.expected_output_from')" data-testid="promote-config" />
+      <Button variant="primary" size="sm" data-testid="promote-run" :disabled="!canPromote" @click="promote">{{ t("queueResults.add_to_dataset") }}</Button>
       <p class="muted" data-testid="promote-help">{{ referenceHelp }}</p>
       <p v-if="promoteHint" class="muted hint" data-testid="promote-hint">{{ promoteHint }}</p>
-      <p class="muted">Items are copies and each batch of 100 creates one new dataset version. Rows where reviewers disagree can’t be selected until you resolve them.</p>
+      <p class="muted">{{ t("queueResults.items_are_copies_and_each_batch") }}</p>
     </div>
 
-    <Modal v-if="openedRow" full :title="openedRow.traceId ? `Trace ${shortId(openedRow.traceId)}` : `Run item ${openedRow.itemIndex}`" @close="openRow = null">
+    <Modal v-if="openedRow" full :title="openedRow.traceId ? t('queueResults.trace_id', { id: shortId(openedRow.traceId) }) : t('queueResults.run_item_index', { index: openedRow.itemIndex })" @close="openRow = null">
       <div class="split" data-testid="resolve-panel">
         <div class="conversation">
-          <h3>Conversation that was evaluated</h3>
+          <h3>{{ t("queueResults.conversation_that_was_evaluated") }}</h3>
           <TraceThreadPreview v-if="openedRow.traceId" :trace-id="openedRow.traceId" fill />
         </div>
         <div class="decisions">
-          <p class="muted">Each reviewer’s answer and your decision. Saving a decision never changes what reviewers answered.</p>
+          <p class="muted">{{ t("queueResults.each_reviewer_s_answer_and_your") }}</p>
           <div v-for="crit in openedRow.criteria" :key="crit.configId" class="crit">
             <h4>{{ configById.get(crit.configId)?.name }}</h4>
             <p v-if="configById.get(crit.configId)?.description" class="muted">{{ configById.get(crit.configId)?.description }}</p>
             <ul class="plain">
-              <li v-for="l in crit.labels" :key="l.userId"><strong>{{ l.name ?? "Former member" }}</strong> {{ show(configById.get(crit.configId), l.value) }}<span v-if="l.comment" class="muted"> — “{{ l.comment }}”</span></li>
-              <li v-if="!crit.labels.length" class="muted">Nobody labelled this criterion.</li>
+              <li v-for="l in crit.labels" :key="l.userId"><strong>{{ l.name ?? t("queueResults.former_member") }}</strong> {{ show(configById.get(crit.configId), l.value) }}<span v-if="l.comment" class="muted"> — “{{ l.comment }}”</span></li>
+              <li v-if="!crit.labels.length" class="muted">{{ t("queueResults.nobody_labelled_this_criterion") }}</li>
             </ul>
             <div v-if="drafts[key(openedRow, crit.configId)] && configById.get(crit.configId)" class="decide">
-              <span class="muted">Verdict (settles the disagreement)</span>
+              <span class="muted">{{ t("queueResults.verdict_settles_the_disagreement") }}</span>
               <template v-if="valueChoices(configById.get(crit.configId)!)">
                 <ToggleChip
                   v-for="c in valueChoices(configById.get(crit.configId)!)"
@@ -248,12 +249,12 @@ async function promote() {
                   @click="drafts[key(openedRow, crit.configId)]!.value = c.value"
                 >{{ c.label }}</ToggleChip>
               </template>
-              <TextInput v-else v-model="drafts[key(openedRow, crit.configId)]!.value" type="number" aria-label="Final value" />
+              <TextInput v-else v-model="drafts[key(openedRow, crit.configId)]!.value" type="number" :aria-label="t('queueResults.final_value')" />
             </div>
-            <TextInput multiline class="expected" v-if="drafts[key(openedRow, crit.configId)]" v-model="drafts[key(openedRow, crit.configId)]!.expected" :rows="3" placeholder="Correct answer (optional): what the agent should have said. It becomes the dataset item’s expected output." aria-label="Correct answer" />
+            <TextInput multiline class="expected" v-if="drafts[key(openedRow, crit.configId)]" v-model="drafts[key(openedRow, crit.configId)]!.expected" :rows="3" :placeholder="t('queueResults.correct_answer_optional_what_the_agent')" :aria-label="t('queueResults.correct_answer')" />
             <div class="decide">
-              <Button size="sm" :disabled="!drafts[key(openedRow, crit.configId)]?.value" data-testid="save-resolution" @click="save(openedRow, crit)">Save decision</Button>
-              <Button size="sm" v-if="crit.resolution" data-testid="clear-resolution" @click="clear(openedRow, crit)">Clear decision</Button>
+              <Button size="sm" :disabled="!drafts[key(openedRow, crit.configId)]?.value" data-testid="save-resolution" @click="save(openedRow, crit)">{{ t("queueResults.save_decision") }}</Button>
+              <Button size="sm" v-if="crit.resolution" data-testid="clear-resolution" @click="clear(openedRow, crit)">{{ t("queueResults.clear_decision") }}</Button>
             </div>
           </div>
         </div>

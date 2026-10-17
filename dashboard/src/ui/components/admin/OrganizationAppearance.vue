@@ -9,6 +9,7 @@ import { ASSISTANT_DISPLAY_MODES, MODE_LABELS, type AssistantDisplayMode } from 
 import { notifyErrorWith } from "../../composables/useAdminDirectory";
 import Button from "../Button.vue";
 import SegmentedControl from "../SegmentedControl.vue";
+import { t } from "../../i18n";
 
 /** Apariencia de la organización (ADR-019, ADR-063): colores, esquinas, fuente y cómo se ve el asistente. Solo org_admin la cambia. */
 const props = defineProps<{ organization: OrganizationDto; canManage: boolean }>();
@@ -22,17 +23,17 @@ const DEFAULT_ACCENT = "#00857f";
 const DEFAULT_SECONDARY = "#ff6b4a";
 // "Default" = sin override: el 4/6/8 px del diseño Mediterráneo (ADR-048); el resto lo reemplaza
 const RADIUS_OPTIONS: { label: string; value: OrganizationThemeDto["radiusPreset"] }[] = [
-  { label: "Default", value: null },
-  { label: "Sharp", value: "sharp" as const },
-  { label: "Soft", value: "soft" as const },
-  { label: "Round", value: "round" as const },
+  { get label() { return t("organizationAppearance.default2"); }, value: null },
+  { get label() { return t("organizationAppearance.sharp"); }, value: "sharp" as const },
+  { get label() { return t("organizationAppearance.soft"); }, value: "soft" as const },
+  { get label() { return t("organizationAppearance.round"); }, value: "round" as const },
 ];
 
 const FONT_OPTIONS: { label: string; value: OrganizationThemeDto["fontPreset"] }[] = [
-  { label: "Default", value: null },
-  { label: "System", value: "system" },
-  { label: "Serif", value: "serif" },
-  { label: "Humanist", value: "humanist" },
+  { get label() { return t("organizationAppearance.default2"); }, value: null },
+  { get label() { return t("organizationAppearance.system"); }, value: "system" },
+  { get label() { return t("organizationAppearance.serif"); }, value: "serif" },
+  { get label() { return t("organizationAppearance.humanist"); }, value: "humanist" },
 ];
 
 const draft = reactive<OrganizationThemeDto>({ ...EMPTY_THEME });
@@ -64,7 +65,7 @@ function onAllowedChange(next: AssistantDisplayMode[]) {
 
 // la vista previa pinta con las mismas variables que aplicará el tema, pero acotadas a este recuadro
 const previewStyle = computed(() => themeCssVars(draft));
-const previewName = computed(() => draft.assistantName?.trim() || "Weather Assistant");
+const previewName = computed(() => draft.assistantName?.trim() || t("organizationAppearance.weather_assistant"));
 
 async function save() {
   saving.value = true;
@@ -73,9 +74,9 @@ async function save() {
     // aplica ya el cambio si la organización es la del experimento abierto; si no, MainLayout lo hará al navegar
     if (currentExperiment.value?.organizationId === props.organization.id) applyOrganizationTheme(updated.theme);
     emit("saved");
-    $q.notify({ message: "Appearance updated", color: "positive", timeout: 2000 });
+    $q.notify({ message: t("organizationAppearance.appearance_updated"), color: "positive", timeout: 2000 });
   } catch (error) {
-    notifyErrorWith($q.notify, "Could not update appearance", error);
+    notifyErrorWith($q.notify, t("organizationAppearance.could_not_update_appearance"), error);
   } finally {
     saving.value = false;
   }
@@ -89,67 +90,66 @@ function reset() {
 <template>
   <div class="appearance">
     <p class="adm-hint">
-      Brand the dashboard and the assistant chat for everyone working in this organization's experiments.
-      MemTrace's logo and the colors of charts and spans stay the same.
+      {{ t("organizationAppearance.brand_the_dashboard_and_the_assistant") }}
     </p>
 
     <div class="adm-card appearance-form">
       <div class="field">
-        <span class="field-label">Accent color</span>
+        <span class="field-label">{{ t("organizationAppearance.accent_color") }}</span>
         <div class="color-input">
-          <input v-if="canManage" type="color" :value="draft.accentColor ?? DEFAULT_ACCENT" aria-label="Accent color" @input="draft.accentColor = ($event.target as HTMLInputElement).value" />
-          <span class="adm-code">{{ draft.accentColor ?? "default" }}</span>
+          <input v-if="canManage" type="color" :value="draft.accentColor ?? DEFAULT_ACCENT" :aria-label="t('organizationAppearance.accent_color')" @input="draft.accentColor = ($event.target as HTMLInputElement).value" />
+          <span class="adm-code">{{ draft.accentColor ?? t("organizationAppearance.default") }}</span>
         </div>
       </div>
 
       <div class="field">
-        <span class="field-label">Corner style</span>
+        <span class="field-label">{{ t("organizationAppearance.corner_style") }}</span>
         <SegmentedControl size="sm" :disabled="!canManage" :options="RADIUS_OPTIONS" :model-value="draft.radiusPreset" @update:model-value="draft.radiusPreset = $event as OrganizationThemeDto['radiusPreset']" />
       </div>
 
       <div class="field">
-        <span class="field-label">Secondary color</span>
+        <span class="field-label">{{ t("organizationAppearance.secondary_color") }}</span>
         <div class="color-input">
-          <input v-if="canManage" type="color" :value="draft.secondaryColor ?? DEFAULT_SECONDARY" aria-label="Secondary color" @input="draft.secondaryColor = ($event.target as HTMLInputElement).value" />
-          <span class="adm-code">{{ draft.secondaryColor ?? "default" }}</span>
-          <Button v-if="canManage && draft.secondaryColor" @click="draft.secondaryColor = null">Clear</Button>
+          <input v-if="canManage" type="color" :value="draft.secondaryColor ?? DEFAULT_SECONDARY" :aria-label="t('organizationAppearance.secondary_color')" @input="draft.secondaryColor = ($event.target as HTMLInputElement).value" />
+          <span class="adm-code">{{ draft.secondaryColor ?? t("organizationAppearance.default") }}</span>
+          <Button v-if="canManage && draft.secondaryColor" @click="draft.secondaryColor = null">{{ t("organizationAppearance.clear") }}</Button>
         </div>
       </div>
 
       <div class="field">
-        <span class="field-label">Font</span>
+        <span class="field-label">{{ t("organizationAppearance.font") }}</span>
         <SegmentedControl size="sm" :disabled="!canManage" :options="FONT_OPTIONS" :model-value="draft.fontPreset" @update:model-value="draft.fontPreset = $event as OrganizationThemeDto['fontPreset']" />
       </div>
 
-      <h4 class="section">Assistant</h4>
+      <h4 class="section">{{ t("organizationAppearance.assistant") }}</h4>
 
       <div class="field">
-        <label class="field-label" for="assistant-name">Assistant name</label>
-        <input id="assistant-name" v-model="draft.assistantName" class="text-input" type="text" maxlength="40" placeholder="Name of the agent" :disabled="!canManage" />
+        <label class="field-label" for="assistant-name">{{ t("organizationAppearance.assistant_name") }}</label>
+        <input id="assistant-name" v-model="draft.assistantName" class="text-input" type="text" maxlength="40" :placeholder="t('organizationAppearance.name_of_the_agent')" :disabled="!canManage" />
       </div>
 
       <div class="field">
-        <span class="field-label">Available views</span>
+        <span class="field-label">{{ t("organizationAppearance.available_views") }}</span>
         <SegmentedControl size="sm" multiple :disabled="!canManage" :options="MODE_OPTIONS" :model-value="allowed" @update:model-value="onAllowedChange($event as AssistantDisplayMode[])" />
       </div>
 
       <div class="field">
-        <span class="field-label">Default view</span>
+        <span class="field-label">{{ t("organizationAppearance.default_view") }}</span>
         <SegmentedControl size="sm" :disabled="!canManage" :options="DEFAULT_OPTIONS" :model-value="draft.assistantDefaultMode ?? allowed[0]" @update:model-value="draft.assistantDefaultMode = $event as AssistantDisplayMode" />
       </div>
 
-      <div class="preview" :style="previewStyle" aria-label="Preview" data-testid="appearance-preview">
-        <div class="preview-bar"><span class="preview-dot" aria-hidden="true" /><b>{{ previewName }}</b><span class="preview-env">PRO</span><span class="preview-tag">Highlight</span></div>
-        <div class="preview-msg agent">Hi! Ask me about the weather in any city.</div>
-        <div class="preview-msg user">What is it like in Seville?</div>
-        <button type="button" class="preview-send" tabindex="-1">Send</button>
+      <div class="preview" :style="previewStyle" :aria-label="t('organizationAppearance.preview')" data-testid="appearance-preview">
+        <div class="preview-bar"><span class="preview-dot" aria-hidden="true" /><b>{{ previewName }}</b><span class="preview-env">{{ t("organizationAppearance.pro") }}</span><span class="preview-tag">{{ t("organizationAppearance.highlight") }}</span></div>
+        <div class="preview-msg agent">{{ t("organizationAppearance.hi_ask_me_about_the_weather") }}</div>
+        <div class="preview-msg user">{{ t("organizationAppearance.what_is_it_like_in_seville") }}</div>
+        <button type="button" class="preview-send" tabindex="-1">{{ t("organizationAppearance.send") }}</button>
       </div>
 
       <div v-if="canManage" class="actions">
-        <Button @click="reset">Reset to default</Button>
-        <Button variant="primary" :disabled="saving || !dirty" @click="save">Save appearance</Button>
+        <Button @click="reset">{{ t("organizationAppearance.reset_to_default") }}</Button>
+        <Button variant="primary" :disabled="saving || !dirty" @click="save">{{ t("organizationAppearance.save_appearance") }}</Button>
       </div>
-      <p v-else class="adm-hint">Only an org_admin can change this.</p>
+      <p v-else class="adm-hint">{{ t("organizationAppearance.only_an_org_admin_can_change") }}</p>
     </div>
   </div>
 </template>

@@ -2,6 +2,7 @@
 import type { StatusCodeDto } from "@contract";
 import { computed } from "vue";
 import StatusChip from "./StatusChip.vue";
+import { t, tp } from "../i18n";
 
 const props = defineProps<{ status: StatusCodeDto; errorCount?: number; showLabel?: boolean }>();
 
@@ -10,7 +11,7 @@ const chip = computed(() => {
     case "ok":
       return { tone: "ok" as const, label: "OK" };
     case "error":
-      return { tone: "error" as const, label: "Error" };
+      return { tone: "error" as const, label: t("statusBadge.error") };
     default:
       // OTel "unset": la instrumentación (p. ej. Pydantic AI) no marcó el span; sin error, terminó bien
       return { tone: "ok" as const, label: "OK" };
@@ -21,7 +22,7 @@ const chip = computed(() => {
 <template>
   <span class="status-badge">
     <StatusChip :tone="chip.tone" :label="chip.label" />
-    <span v-if="errorCount && errorCount > 0" class="inner-errors" :title="`${errorCount} ${errorCount === 1 ? 'span' : 'spans'} with error inside the trace`">{{ errorCount }} failed</span>
+    <span v-if="errorCount && errorCount > 0" class="inner-errors" :title="tp('statusBadge.spansWithError', errorCount)">{{ t('statusBadge.count_failed', { count: errorCount }) }}</span>
   </span>
 </template>
 

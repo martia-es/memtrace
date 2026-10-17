@@ -6,6 +6,7 @@ import { kindMeta } from "@/domain/meta";
 import { guardrailGroups, type SpanFilter } from "@/domain/trace-summary";
 import { ancestorIds, axisTicks, buildRows, parentIds } from "@/domain/waterfall";
 import Pill from "./Pill.vue";
+import { t } from "../i18n";
 
 const props = withDefaults(
   defineProps<{
@@ -71,7 +72,7 @@ defineExpose({ collapseAll: () => (collapsed.value = new Set(parentIds(props.roo
       </div>
       <span class="axis-edge end">{{ formatDuration(props.totalMs) }}</span>
     </div>
-    <div class="rows" role="tree" aria-label="Span tree">
+    <div class="rows" role="tree" :aria-label="t('spanTree.span_tree')">
       <button
         v-for="r in rows"
         :key="r.node.spanId"
@@ -101,8 +102,8 @@ defineExpose({ collapseAll: () => (collapsed.value = new Set(parentIds(props.roo
             <span class="name mono" :class="{ err: r.node.status.code === 'error' }" :title="r.node.name">{{ r.node.name }}</span>
             <span v-if="subLabel(r.node)" class="sub muted">{{ subLabel(r.node) }}</span>
           </span>
-          <Pill v-if="r.collapsed && groups.get(r.node.spanId)" tone="ok" class="tag" data-testid="guardrail-group">{{ groups.get(r.node.spanId)!.total }} checks passed</Pill>
-          <Pill v-if="r.node.spanId === slowestId" tone="warn" class="tag" data-testid="slowest-tag">Slowest</Pill>
+          <Pill v-if="r.collapsed && groups.get(r.node.spanId)" tone="ok" class="tag" data-testid="guardrail-group">{{ t("spanTree.count_checks_passed", { count: groups.get(r.node.spanId)!.total }) }}</Pill>
+          <Pill v-if="r.node.spanId === slowestId" tone="warn" class="tag" data-testid="slowest-tag">{{ t("spanTree.slowest") }}</Pill>
         </span>
         <span class="track" :title="`${formatDuration(r.node.offsetMs)} → ${formatDuration(r.node.offsetMs + r.node.durationMs)}`">
           <span v-for="t in ticks" :key="t.pct" class="grid" :style="{ left: `${t.pct}%` }" />
@@ -113,7 +114,7 @@ defineExpose({ collapseAll: () => (collapsed.value = new Set(parentIds(props.roo
     </div>
     <div class="legend">
       <span v-for="k in kindsPresent" :key="k"><span class="sw" :style="{ background: kindMeta(k).color }" />{{ kindMeta(k).label }}</span>
-      <span><span class="sw" style="background: var(--mt-err-ink)" />Error</span>
+      <span><span class="sw" style="background: var(--mt-err-ink)" />{{ t("spanTree.error") }}</span>
     </div>
   </div>
 </template>

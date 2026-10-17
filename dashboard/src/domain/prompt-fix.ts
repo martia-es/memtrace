@@ -1,4 +1,5 @@
 import type { PromptVersionDto, SpanNodeDto } from "@contract";
+import { tr, lazyMessages } from "./translate";
 
 /**
  * Arreglar un prompt a partir de un fallo (ADR-072): qué falló en una traza y desde qué versión partir. Reglas puras de
@@ -19,7 +20,7 @@ function messageOf(node: SpanNodeDto): string {
   if (status) return status;
   const exception = node.events.find((e) => e.name === "exception");
   const detail = exception?.attributes["exception.message"] ?? exception?.attributes["exception.type"];
-  return detail?.trim() || "The step failed without a message";
+  return detail?.trim() || tr("prompt-fix.the_step_failed_without_a_message");
 }
 
 /** El fallo de una traza: el primer span fallido que no tiene un hijo fallido (los de arriba solo propagan el error). */
@@ -52,16 +53,16 @@ export function baseVersionFor(versions: PromptVersionDto[], usedByTrace: number
 
 /** El motivo que se propone al guardar el borrador: el fallo, sin que nadie tenga que escribirlo. */
 export function defaultRationale(failure: Failure | null): string {
-  return failure ? `Fixes a failure in "${failure.step}": ${failure.message}` : "";
+  return failure ? tr("prompt-fix.fixes_a_failure_in_step_message", { step: failure.step, message: failure.message }) : "";
 }
 
 export type FailureReason = "error" | "low_score" | "human_low" | "user_dislike";
 
 /** Cómo se llama cada motivo de fallo para quien arregla el prompt (ADR-077). */
-export const FAILURE_REASON_LABELS: Record<FailureReason, string> = {
-  error: "Error",
-  low_score: "Low score",
-  human_low: "Reviewer said no",
-  user_dislike: "👎 from user",
-};
+export const FAILURE_REASON_LABELS: Record<FailureReason, string> = lazyMessages({
+  error: "prompt-fix.error",
+  low_score: "prompt-fix.low_score",
+  human_low: "prompt-fix.reviewer_said_no",
+  user_dislike: "prompt-fix.from_user",
+});
 export const FAILURE_REASONS = Object.keys(FAILURE_REASON_LABELS) as FailureReason[];

@@ -23,6 +23,7 @@ import LoadingState from "../components/LoadingState.vue";
 import Card from "../components/Card.vue";
 import TabBar from "../components/TabBar.vue";
 import TabPanel from "../components/TabPanel.vue";
+import { t, tp } from "../i18n";
 
 const PAGE_SIZE = 20;
 
@@ -40,11 +41,11 @@ const dataset = useAsync((signal) => api.getDataset(datasetId.value, signal));
 void dataset.run();
 
 function notifyError(action: string, error: unknown) {
-  const detail = error instanceof Error ? error.message : "Unknown error";
+  const detail = error instanceof Error ? error.message : t("datasetDetailPage.unknown_error");
   $q.notify({ message: `${action}: ${detail}`, color: "negative", timeout: 4000 });
 }
 
-const DETAIL_TABS = [{ id: "items", label: "Items" }, { id: "versions", label: "Versions" }, { id: "runs", label: "Runs" }];
+const DETAIL_TABS = [{ id: "items", get label() { return t("datasetDetailPage.items"); } }, { id: "versions", get label() { return t("datasetDetailPage.versions"); } }, { id: "runs", get label() { return t("datasetDetailPage.runs"); } }];
 const activeTab = ref<"items" | "versions" | "runs">("items");
 
 // ---- versions (ADR-032): historial puramente informativo, nunca se crean a mano ----
@@ -100,8 +101,8 @@ function openRun(runId: string) {
 
 <template>
   <div class="page">
-    <PageHeader :crumbs="[{ label: 'Datasets', to: { name: 'datasets' } }, { label: dataset.data.value?.name ?? datasetId }]" icon="science" :title="dataset.data.value?.name ?? datasetId">
-      <Button variant="icon" data-testid="run-offline" aria-label="Get the script to run this dataset offline" title="Get the script to run this dataset offline" @click="runOfflineOpen = true">
+    <PageHeader :crumbs="[{ label: t('nav.datasets'), to: { name: 'datasets' } }, { label: dataset.data.value?.name ?? datasetId }]" icon="science" :title="dataset.data.value?.name ?? datasetId">
+      <Button variant="icon" data-testid="run-offline" :aria-label="t('datasetDetailPage.get_the_script_to_run_this')" :title="t('datasetDetailPage.get_the_script_to_run_this')" @click="runOfflineOpen = true">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16" /></svg>
       </Button>
     </PageHeader>
@@ -121,7 +122,7 @@ function openRun(runId: string) {
       <div class="tab-panels">
         <!-- Items -->
         <TabPanel :active="activeTab === 'items'" class="tab-panel">
-          <p class="hint muted">Current version: v{{ latestVersion?.major ?? 1 }}.{{ latestVersion?.minor ?? 0 }} — edit directly in the table; when you press Publish, all your changes are saved as <b>a single version</b>.</p>
+          <p class="hint muted">{{ t("datasetDetailPage.current_version_v_version_edit_directly", { version: `${latestVersion?.major ?? 1}.${latestVersion?.minor ?? 0}` }) }} <b>{{ t("datasetDetailPage.a_single_version") }}</b>.</p>
           <ErrorBanner v-if="items.error.value" :error="items.error.value" @retry="items.run()" />
           <LoadingState v-else-if="items.loading.value && !items.data.value" size="lg" />
           <DatasetItemsEditor v-else :dataset-id="datasetId" :items="items.data.value?.items ?? []" :version="latestVersion" @published="afterItemMutation" />
@@ -129,19 +130,19 @@ function openRun(runId: string) {
 
         <!-- Versions: historial de solo lectura, generado automáticamente (ADR-032) -->
         <TabPanel :active="activeTab === 'versions'" class="tab-panel">
-          <p class="hint muted">Every time you publish changes in Items a version is created on its own — adding or removing items bumps the major, editing content only bumps the minor. Press ⓘ to see what changed and compare it with any earlier version.</p>
+          <p class="hint muted">{{ t("datasetDetailPage.every_time_you_publish_changes_in") }}</p>
           <ErrorBanner v-if="versions.error.value" :error="versions.error.value" @retry="versions.run()" />
           <LoadingState v-else-if="versions.loading.value && !versions.data.value" size="lg" />
           <Card padding="none" block v-else class="table-card">
             <DataTable class="items" sticky nowrap>
               <thead>
                 <tr>
-                  <th>Version</th>
-                  <th>Change</th>
-                  <th>Diff</th>
-                  <th class="num">Items</th>
-                  <th>By</th>
-                  <th>When</th>
+                  <th>{{ t("datasetDetailPage.version") }}</th>
+                  <th>{{ t("datasetDetailPage.change") }}</th>
+                  <th>{{ t("datasetDetailPage.diff") }}</th>
+                  <th class="num">{{ t("datasetDetailPage.items") }}</th>
+                  <th>{{ t("datasetDetailPage.by") }}</th>
+                  <th>{{ t("datasetDetailPage.when") }}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -161,7 +162,7 @@ function openRun(runId: string) {
                   <td class="muted">{{ v.createdByEmail }}</td>
                   <td class="muted mono">{{ formatDateTime(v.createdAt) }}</td>
                   <td class="info-cell">
-                    <Button variant="icon" size="sm" class="info-btn" :aria-label="`Details of v${v.major}.${v.minor}`" @click="inspectedVersion = v">
+                    <Button variant="icon" size="sm" class="info-btn" :aria-label="t('datasetDetailPage.details_of_v_version', { version: `${v.major}.${v.minor}` })" @click="inspectedVersion = v">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
                     </Button>
                   </td>
@@ -180,26 +181,26 @@ function openRun(runId: string) {
 
         <!-- Runs -->
         <TabPanel :active="activeTab === 'runs'" class="tab-panel">
-          <TextInput type="search" v-model="runSearch" placeholder="Filter by run name…" class="search" />
+          <TextInput type="search" v-model="runSearch" :placeholder="t('datasetDetailPage.filter_by_run_name')" class="search" />
           <ErrorBanner v-if="runs.error.value" :error="runs.error.value" @retry="runs.run()" />
           <LoadingState v-else-if="runs.loading.value && !runs.data.value" size="lg" />
           <OfflineRunSteps v-else-if="(runs.data.value?.items.length ?? 0) === 0" :dataset-id="datasetId" @open="runOfflineOpen = true" />
-          <EmptyState v-else-if="pagedRuns.length === 0" icon="search_off" title="No matches">Try a different search.</EmptyState>
+          <EmptyState v-else-if="pagedRuns.length === 0" icon="search_off" :title="t('datasetDetailPage.no_matches')">{{ t("datasetDetailPage.try_a_different_search") }}</EmptyState>
           <Card padding="none" block v-else class="table-card">
             <DataTable class="items" sticky nowrap>
               <thead>
                 <tr>
-                  <th>Run</th>
-                  <th class="num">Version</th>
+                  <th>{{ t("datasetDetailPage.run") }}</th>
+                  <th class="num">{{ t("datasetDetailPage.version") }}</th>
                   <th v-for="m in runMetricNames" :key="m" class="num">{{ m }}</th>
-                  <th class="num">Items</th>
-                  <th>Created</th>
+                  <th class="num">{{ t("datasetDetailPage.items") }}</th>
+                  <th>{{ t("datasetDetailPage.created") }}</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="r in pagedRuns" :key="r.id" class="run-row" tabindex="0" @click="openRun(r.id)" @keydown.enter="openRun(r.id)">
                   <td class="name">{{ r.name }}</td>
-                  <td class="num mono">v{{ r.versionMajor }}.{{ r.versionMinor }} <Pill tone="warn" v-if="r.status === 'running'" title="Still receiving results, or the process stopped before finishing">running</Pill></td>
+                  <td class="num mono">v{{ r.versionMajor }}.{{ r.versionMinor }} <Pill tone="warn" v-if="r.status === 'running'" :title="t('datasetDetailPage.still_receiving_results_or_the_process')">{{ t("datasetDetailPage.running") }}</Pill></td>
                   <td v-for="m in runMetricNames" :key="m" class="num">
                     <Pill v-if="runMetricCell(r, m)" :tone="aggregatePillTone(aggregateTone(runMetricCell(r, m)!))">
                       {{ aggregateValueLabel(runMetricCell(r, m)!) }}
@@ -212,7 +213,7 @@ function openRun(runId: string) {
               </tbody>
             </DataTable>
           </Card>
-          <Pagination v-if="pagedRuns.length > 0" v-model:page="runPage" :page-count="runPageCount">{{ filteredRuns.length }} run{{ filteredRuns.length === 1 ? "" : "s" }}</Pagination>
+          <Pagination v-if="pagedRuns.length > 0" v-model:page="runPage" :page-count="runPageCount">{{ tp("runsPage.count", filteredRuns.length) }}</Pagination>
         </TabPanel>
       </div>
     </template>

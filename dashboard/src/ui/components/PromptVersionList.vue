@@ -10,6 +10,7 @@ import { filterVersions, groupByMonth } from "@/domain/prompt-release";
 import EnvFlag from "./EnvFlag.vue";
 import Pill from "./Pill.vue";
 import TextInput from "./TextInput.vue";
+import { t, tp } from "../i18n";
 
 const props = defineProps<{
   versions: PromptVersionDto[];
@@ -31,12 +32,12 @@ const groups = computed(() => groupByMonth(visible.value));
 <template>
   <div class="version-list-root">
     <div class="rail-head">
-      <div class="rail-title"><strong>Versions</strong><span class="mono soft">{{ versions.length }} in total</span></div>
-      <TextInput v-model="query" type="search" placeholder="v number or message…" data-testid="version-search" />
+      <div class="rail-title"><strong>{{ t("promptVersionList.versions") }}</strong><span class="mono soft">{{ tp("promptVersionList.total", versions.length) }}</span></div>
+      <TextInput v-model="query" type="search" :placeholder="t('promptVersionList.v_number_or_message')" data-testid="version-search" />
     </div>
 
     <div v-if="pinned.length > 0 && !query" class="pinned" data-testid="pinned">
-      <span class="eyebrow">PINNED BY TAGS</span>
+      <span class="eyebrow">{{ t("promptVersionList.pinned_by_tags") }}</span>
       <button
         v-for="p in pinned"
         :key="p.tag"
@@ -53,7 +54,7 @@ const groups = computed(() => groupByMonth(visible.value));
     </div>
 
     <div class="all" data-testid="version-list">
-      <p v-if="visible.length === 0" class="soft empty-list" data-testid="no-versions">No version matches “{{ query }}”.</p>
+      <p v-if="visible.length === 0" class="soft empty-list" data-testid="no-versions">{{ t("promptVersionList.no_version_matches_query", { query }) }}</p>
       <template v-for="group in groups" :key="group.key">
         <span class="eyebrow group-label">{{ group.label.toUpperCase() }}</span>
         <button
@@ -67,14 +68,14 @@ const groups = computed(() => groupByMonth(visible.value));
         >
           <span class="version-head">
             <strong class="mono">v{{ v.version }}</strong>
-            <Pill v-if="v.status === 'draft'" :data-testid="`draft-${v.version}`" class="draft-pill">draft</Pill>
+            <Pill v-if="v.status === 'draft'" :data-testid="`draft-${v.version}`" class="draft-pill">{{ t("promptVersionList.draft") }}</Pill>
             <EnvFlag v-for="tag in tagsByVersion.get(v.version) ?? []" :key="tag" :env="tag" />
             <span class="grow" />
             <span class="mono version-date">{{ formatDateTime(v.createdAt) }}</span>
           </span>
           <span v-if="v.message" class="version-msg">{{ v.message }}</span>
-          <span v-if="authorName(v.createdBy)" class="version-author" :data-testid="`author-${v.version}`">by {{ authorName(v.createdBy) }}</span>
-          <span v-if="running(v.version).length > 0" class="running" :data-testid="`running-${v.version}`">Running in {{ running(v.version).join(", ") }}</span>
+          <span v-if="authorName(v.createdBy)" class="version-author" :data-testid="`author-${v.version}`">{{ t("promptVersionList.by_name", { name: authorName(v.createdBy) }) }}</span>
+          <span v-if="running(v.version).length > 0" class="running" :data-testid="`running-${v.version}`">{{ t("promptVersionList.running_in_envs", { envs: running(v.version).join(", ") }) }}</span>
         </button>
       </template>
     </div>

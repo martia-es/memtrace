@@ -20,6 +20,7 @@ import { liveSeconds, liveUpdatedAt, requestRefresh, setRefreshSeconds } from ".
 import { useTopbar } from "../composables/useTopbar";
 import Button from "../components/Button.vue";
 import { useSettingsNav, withGroupHeaders } from "../composables/useSettingsNav";
+import { routeTitle, t, type MessageKey } from "../i18n";
 
 const route = useRoute();
 const router = useRouter();
@@ -39,39 +40,39 @@ const OTLP_ENDPOINT = import.meta.env.VITE_OTLP_ENDPOINT ?? "http://localhost:43
 // Navegación por intención (ADR-048, ampliado): tres bloques con título (Observe / Watch / Improve) y submenús en vez de
 // pestañas dentro de cada página (ADR-059). Cada hijo es una ruta con su propia URL; "sections" son los meta.section que lo
 // dejan activo. Un grupo con un solo hijo se pinta como un item plano. "heading" abre un bloque nuevo en ese grupo.
-interface NavChild { name: string; label: string; sections: readonly string[] }
-interface NavGroup { id: string; label: string; icon: string; heading?: string; children: readonly NavChild[] }
+interface NavChild { name: string; label: MessageKey; sections: readonly string[] }
+interface NavGroup { id: string; label: MessageKey; icon: string; heading?: MessageKey; children: readonly NavChild[] }
 const NAV: readonly NavGroup[] = [
-  { id: "overview", label: "Overview", heading: "Observe", icon: "M3 11l9-8 9 8v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z", children: [{ name: "overview", label: "Overview", sections: ["overview"] }] },
-  { id: "conversations", label: "Conversations", icon: "M4 5h16v11H9l-5 4z", children: [{ name: "conversations", label: "Conversations", sections: ["conversations"] }] },
+  { id: "overview", label: "nav.overview", heading: "nav.observe", icon: "M3 11l9-8 9 8v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z", children: [{ name: "overview", label: "nav.overview", sections: ["overview"] }] },
+  { id: "conversations", label: "nav.conversations", icon: "M4 5h16v11H9l-5 4z", children: [{ name: "conversations", label: "nav.conversations", sections: ["conversations"] }] },
   {
     id: "analytics",
-    label: "Analytics",
+    label: "nav.analytics",
     icon: "M4 20V10M10 20V4M16 20v-8M22 20H2",
     children: [
-      { name: "overview-breakdown", label: "Breakdown", sections: ["breakdown"] },
-      { name: "overview-compare", label: "Compare", sections: ["compare"] },
-      { name: "overview-charts", label: "Charts", sections: ["charts", "catalog"] },
-      { name: "overview-reports", label: "Reports", sections: ["reports"] },
+      { name: "overview-breakdown", label: "nav.breakdown", sections: ["breakdown"] },
+      { name: "overview-compare", label: "nav.compare", sections: ["compare"] },
+      { name: "overview-charts", label: "nav.charts", sections: ["charts", "catalog"] },
+      { name: "overview-reports", label: "nav.reports", sections: ["reports"] },
     ],
   },
-  { id: "monitoring", label: "Alerts & budget", heading: "Watch", icon: "M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0", children: [{ name: "alerts", label: "Alerts & budget", sections: ["alerts"] }] },
+  { id: "monitoring", label: "nav.alertsBudget", heading: "nav.watch", icon: "M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0", children: [{ name: "alerts", label: "nav.alertsBudget", sections: ["alerts"] }] },
   {
     id: "review",
-    label: "Review",
-    heading: "Improve",
+    label: "nav.review",
+    heading: "nav.improve",
     icon: "M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11",
-    children: [{ name: "annotation-queues", label: "Review", sections: ["review"] }],
+    children: [{ name: "annotation-queues", label: "nav.review", sections: ["review"] }],
   },
-  { id: "prompts", label: "Prompts", icon: "M4 6h16M4 12h16M4 18h10", children: [{ name: "prompts", label: "Prompts", sections: ["prompts"] }] },
+  { id: "prompts", label: "nav.prompts", icon: "M4 6h16M4 12h16M4 18h10", children: [{ name: "prompts", label: "nav.prompts", sections: ["prompts"] }] },
   {
     id: "evaluations",
-    label: "Evaluations",
+    label: "nav.evaluations",
     icon: "M3 3v18h18M7 14l4-4 3 3 5-6",
     children: [
-      { name: "datasets", label: "Datasets", sections: ["datasets"] },
-      { name: "runs", label: "Runs", sections: ["runs"] },
-      { name: "trends", label: "Quality trends", sections: ["trends"] },
+      { name: "datasets", label: "nav.datasets", sections: ["datasets"] },
+      { name: "runs", label: "nav.runs", sections: ["runs"] },
+      { name: "trends", label: "nav.qualityTrends", sections: ["trends"] },
     ],
   },
 ];
@@ -135,8 +136,8 @@ const settingsItems = computed(() => withGroupHeaders(settingsNav.value?.section
 const settingsActive = computed(() => (typeof route.query.tab === "string" ? route.query.tab : "experiments"));
 const backToApp = computed(() =>
   navExperimentId.value && navCanRead.value
-    ? { label: "Back to app", to: { name: "overview", params: { experimentId: navExperimentId.value }, query: shared.value } }
-    : { label: "All organizations", to: { name: "admin" } },
+    ? { label: t("nav.backToApp"), to: { name: "overview", params: { experimentId: navExperimentId.value }, query: shared.value } }
+    : { label: t("nav.allOrganizations"), to: { name: "admin" } },
 );
 
 // topbar global (ADR-058): las páginas teletransportan aquí su breadcrumb y sus filtros
@@ -164,7 +165,7 @@ function switchExperiment(experimentId: string | null) {
           </svg>
           <span v-if="!isCollapsed">MemTrace</span>
         </router-link>
-        <Button variant="icon" size="sm" class="collapse-btn" :aria-label="isCollapsed ? 'Expand menu' : 'Collapse menu'" @click="isCollapsed = !isCollapsed">
+        <Button variant="icon" size="sm" class="collapse-btn" :aria-label="isCollapsed ? t('nav.expandMenu') : t('nav.collapseMenu')" @click="isCollapsed = !isCollapsed">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path :d="isCollapsed ? 'M9 18l6-6-6-6' : 'M15 18l-6-6 6-6'" />
           </svg>
@@ -177,7 +178,7 @@ function switchExperiment(experimentId: string | null) {
         :loading="experiments.loading.value"
         @update:model-value="switchExperiment"
       />
-      <nav v-if="settingsNav" aria-label="Settings" class="nav" data-testid="settings-nav">
+      <nav v-if="settingsNav" :aria-label="t('common.settings')" class="nav" data-testid="settings-nav">
         <router-link :to="backToApp.to" class="nav-item nav-back" :title="isCollapsed ? backToApp.label : undefined" data-testid="settings-back">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6" /></svg>
           <span v-if="!isCollapsed" class="nav-label">{{ backToApp.label }}</span>
@@ -199,11 +200,11 @@ function switchExperiment(experimentId: string | null) {
           </router-link>
         </template>
       </nav>
-      <nav v-else aria-label="Main" class="nav">
+      <nav v-else :aria-label="t('nav.main')" class="nav">
         <template v-if="navExperimentId && navCanRead">
           <template v-for="g in NAV" :key="g.id">
             <div v-if="g.heading" class="nav-heading" :class="{ collapsed: isCollapsed }" data-testid="nav-heading">
-              <span v-if="!isCollapsed">{{ g.heading }}</span>
+              <span v-if="!isCollapsed">{{ t(g.heading) }}</span>
             </div>
             <router-link
               :to="navTo(g.children[0]!)"
@@ -211,16 +212,16 @@ function switchExperiment(experimentId: string | null) {
               :class="{ active: isLeaf(g) && groupActive(g), open: !isLeaf(g) && groupActive(g) }"
               :aria-current="isLeaf(g) && groupActive(g) ? 'page' : undefined"
               :aria-expanded="isLeaf(g) ? undefined : groupActive(g)"
-              :title="isCollapsed ? g.label : undefined"
+              :title="isCollapsed ? t(g.label) : undefined"
               :data-testid="`nav-${g.id}`"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="g.icon" /></svg>
-              <span v-if="!isCollapsed" class="nav-label">{{ g.label }}</span>
+              <span v-if="!isCollapsed" class="nav-label">{{ t(g.label) }}</span>
               <span v-if="!isCollapsed && g.id === 'review' && pendingReviews > 0" class="nav-badge" data-testid="pending-reviews">{{ pendingReviews }}</span>
-              <span v-if="!isCollapsed && g.id === 'prompts' && pendingApprovals > 0" class="nav-badge" data-testid="pending-approvals" :title="`${pendingApprovals} waiting for your approval`">{{ pendingApprovals }}</span>
+              <span v-if="!isCollapsed && g.id === 'prompts' && pendingApprovals > 0" class="nav-badge" data-testid="pending-approvals" :title="t('nav.pendingApprovals', { count: pendingApprovals })">{{ pendingApprovals }}</span>
               <svg v-if="!isCollapsed && !isLeaf(g)" class="nav-chevron" :class="{ expanded: groupActive(g) }" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="CHEVRON" /></svg>
             </router-link>
-            <div v-if="!isCollapsed && !isLeaf(g) && groupActive(g)" class="nav-sub" role="group" :aria-label="g.label">
+            <div v-if="!isCollapsed && !isLeaf(g) && groupActive(g)" class="nav-sub" role="group" :aria-label="t(g.label)">
               <router-link
                 v-for="c in g.children"
                 :key="c.name"
@@ -229,32 +230,32 @@ function switchExperiment(experimentId: string | null) {
                 :class="{ active: isActive(c.sections) }"
                 :aria-current="isActive(c.sections) ? 'page' : undefined"
               >
-                <span class="nav-label">{{ c.label }}</span>
+                <span class="nav-label">{{ t(c.label) }}</span>
               </router-link>
             </div>
           </template>
         </template>
-        <div class="nav-heading" :class="{ collapsed: isCollapsed }" data-testid="nav-heading"><span v-if="!isCollapsed">Workspace</span></div>
+        <div class="nav-heading" :class="{ collapsed: isCollapsed }" data-testid="nav-heading"><span v-if="!isCollapsed">{{ t("nav.workspace") }}</span></div>
         <router-link
           v-if="canSeeAssistants"
           :to="{ name: 'assistants' }"
           class="nav-item"
           :class="{ active: route.meta.section === 'assistants' }"
           :aria-current="route.meta.section === 'assistants' ? 'page' : undefined"
-          :title="isCollapsed ? 'Assistants' : undefined"
+          :title="isCollapsed ? t('nav.assistants') : undefined"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="ASSISTANTS_ICON" /></svg>
-          <span v-if="!isCollapsed" class="nav-label">Assistants</span>
+          <span v-if="!isCollapsed" class="nav-label">{{ t("nav.assistants") }}</span>
         </router-link>
         <router-link
           :to="{ name: 'model-pricing' }"
           class="nav-item"
           :class="{ active: route.name === 'model-pricing' }"
           :aria-current="route.name === 'model-pricing' ? 'page' : undefined"
-          :title="isCollapsed ? 'Model pricing' : undefined"
+          :title="isCollapsed ? t('nav.modelPricing') : undefined"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="PRICING_ICON" /></svg>
-          <span v-if="!isCollapsed" class="nav-label">Model pricing</span>
+          <span v-if="!isCollapsed" class="nav-label">{{ t("nav.modelPricing") }}</span>
         </router-link>
       </nav>
       <div class="sidebar-foot">
@@ -263,10 +264,10 @@ function switchExperiment(experimentId: string | null) {
           class="nav-item"
           :class="{ active: route.meta.section === 'admin' }"
           :aria-current="route.meta.section === 'admin' ? 'page' : undefined"
-          :title="isCollapsed ? 'Settings' : undefined"
+          :title="isCollapsed ? t('common.settings') : undefined"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="ADMIN_ICON" /></svg>
-          <span v-if="!isCollapsed" class="nav-label">Settings</span>
+          <span v-if="!isCollapsed" class="nav-label">{{ t("common.settings") }}</span>
         </router-link>
         <UserMenu :collapsed="isCollapsed" />
       </div>
@@ -274,7 +275,7 @@ function switchExperiment(experimentId: string | null) {
     <div class="main-col">
       <header class="topbar">
         <div ref="topbarLeft" class="topbar-left">
-          <span v-if="leftCount === 0" class="topbar-title">{{ route.meta.title }}</span>
+          <span v-if="leftCount === 0" class="topbar-title">{{ routeTitle(route.meta.title) }}</span>
         </div>
         <div ref="topbarRight" class="topbar-right" />
         <div v-if="currentExperimentId && navCanRead && route.meta.timeRange !== false" class="topbar-filters">

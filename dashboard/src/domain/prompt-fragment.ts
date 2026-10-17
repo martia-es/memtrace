@@ -1,3 +1,4 @@
+import { tr } from "./translate";
 /** Utilidades de la UI de fragmentos (ADR-073): sintaxis de inclusión, variables que aporta un texto y cómo insertarlo. */
 
 /** `{{> nombre@ref}}`: `ref` es un tag (`pro`) o un número de versión (`3`), siempre obligatorio. */
@@ -28,8 +29,8 @@ export interface FragmentRefChoice {
 export function fragmentRefChoices(tags: Record<string, number>, latestPublished: number): FragmentRefChoice[] {
   const order = ["pro", "pre", "dev"];
   const names = Object.keys(tags).sort((a, b) => (order.indexOf(a) === -1 ? 99 : order.indexOf(a)) - (order.indexOf(b) === -1 ? 99 : order.indexOf(b)) || a.localeCompare(b));
-  const byTag = names.map((tag): FragmentRefChoice => ({ kind: "tag", ref: tag, version: tags[tag]!, label: `Follow tag ${tag}` }));
-  const pinned: FragmentRefChoice[] = latestPublished > 0 ? [{ kind: "version", ref: String(latestPublished), version: latestPublished, label: `Pin to v${latestPublished}` }] : [];
+  const byTag = names.map((tag): FragmentRefChoice => ({ kind: "tag", ref: tag, version: tags[tag]!, label: tr("prompt-fragment.follow_tag_tag", { tag }) }));
+  const pinned: FragmentRefChoice[] = latestPublished > 0 ? [{ kind: "version", ref: String(latestPublished), version: latestPublished, label: tr("prompt-fragment.pin_to_v_version", { version: latestPublished }) }] : [];
   return [...byTag, ...pinned];
 }
 

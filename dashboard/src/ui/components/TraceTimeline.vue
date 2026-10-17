@@ -7,6 +7,7 @@ import { SPAN_COLORS } from "@/domain/palette";
 import { axisTicks } from "@/domain/waterfall";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
+import { t } from "../i18n";
 
 /**
  * Where the time of one reply went, under that reply: a single line with its sequential steps (guardrail, model call,
@@ -28,24 +29,24 @@ const groupsPresent = computed(() => {
   return (["guardrail", "llm", "tool"] as const).filter((g) => seen.has(g));
 });
 const LEGEND: Record<"guardrail" | "llm" | "tool", { label: string; color: string }> = {
-  guardrail: { label: "Guardrail", color: SPAN_COLORS.guardrail },
+  guardrail: { get label() { return t("traceTimeline.guardrail"); }, color: SPAN_COLORS.guardrail },
   llm: { label: "LLM", color: SPAN_COLORS.llm },
-  tool: { label: "Tool", color: SPAN_COLORS.tool },
+  tool: { get label() { return t("traceTimeline.tool"); }, color: SPAN_COLORS.tool },
 };
 const barColor = (color: string, failed: boolean) => (failed ? "var(--mt-err-ink)" : color);
 </script>
 
 <template>
-  <section v-if="timeline && timeline.phases.length" class="timeline" :class="{ open }" aria-label="Where the time went" data-testid="trace-timeline">
-    <button type="button" class="head" :aria-expanded="open" aria-label="Toggle timeline" data-testid="timeline-toggle" @click="open = !open">
+  <section v-if="timeline && timeline.phases.length" class="timeline" :class="{ open }" :aria-label="t('traceTimeline.where_the_time_went')" data-testid="trace-timeline">
+    <button type="button" class="head" :aria-expanded="open" :aria-label="t('traceTimeline.toggle_timeline')" data-testid="timeline-toggle" @click="open = !open">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" class="icon"><path d="M3 6h10M7 12h13M5 18h8" /></svg>
-      <span class="title">Timeline</span>
-      <span class="meta mono">{{ formatDuration(timeline.totalMs) }} · {{ trace.data.value!.spanCount }} spans</span>
-      <span v-if="!open && timeline.slowest" class="slowest">Slowest · <b>{{ timeline.slowest.label }} {{ formatDuration(timeline.slowest.node.durationMs) }}</b></span>
+      <span class="title">{{ t("traceTimeline.timeline") }}</span>
+      <span class="meta mono">{{ formatDuration(timeline.totalMs) }} · {{ t("traceTimeline.count_spans", { count: trace.data.value!.spanCount }) }}</span>
+      <span v-if="!open && timeline.slowest" class="slowest">{{ t("traceTimeline.slowest") + " " }}<b>{{ timeline.slowest.label }} {{ formatDuration(timeline.slowest.node.durationMs) }}</b></span>
       <q-icon name="expand_more" size="18px" class="chev" />
     </button>
 
-    <button v-if="!open" type="button" class="line" aria-label="Show step breakdown" data-testid="timeline-line" @click="open = true">
+    <button v-if="!open" type="button" class="line" :aria-label="t('traceTimeline.show_step_breakdown')" data-testid="timeline-line" @click="open = true">
       <span class="bar">
         <span
           v-for="p in timeline.phases"
@@ -67,10 +68,10 @@ const barColor = (color: string, failed: boolean) => (failed ? "var(--mt-err-ink
       <div class="keys">
         <span v-for="g in groupsPresent" :key="g" class="key"><span class="sw" :style="{ background: LEGEND[g].color }" />{{ LEGEND[g].label }}</span>
         <span class="spacer" />
-        <router-link :to="{ name: 'trace', params: { experimentId: route.params.experimentId, traceId }, query: route.query }" class="open-trace">Open in trace ↗</router-link>
+        <router-link :to="{ name: 'trace', params: { experimentId: route.params.experimentId, traceId }, query: route.query }" class="open-trace">{{ t("traceTimeline.open_in_trace") }}</router-link>
       </div>
       <div class="grid axis" aria-hidden="true">
-        <span class="th">SPAN</span>
+        <span class="th">{{ t("traceTimeline.span") }}</span>
         <span class="ticks mono"><span v-for="t in ticks" :key="t.pct">{{ t.ms === 0 ? "0" : formatDuration(t.ms) }}</span></span>
         <span />
       </div>

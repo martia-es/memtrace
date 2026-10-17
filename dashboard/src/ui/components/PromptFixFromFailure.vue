@@ -14,6 +14,8 @@ import Button from "./Button.vue";
 import Pill from "./Pill.vue";
 import LoadingState from "./LoadingState.vue";
 import ToggleChip from "./ToggleChip.vue";
+import { t, tp } from "../i18n";
+import { tr } from "../../domain/translate";
 
 /**
  * Arreglar un prompt desde un fallo real (ADR-072): se ve qué falló en la traza, se parte de la versión que la produjo, se
@@ -26,7 +28,7 @@ const emit = defineEmits<{ saved: [draft: number]; test: [draft: number, base: n
 const api = usePromptApi();
 const traces = useTraceApi();
 
-const STEPS = ["See the failure", "Change the prompt", "Save and test"];
+const STEPS = computed(() => [t("promptFixFromFailure.see_the_failure"), t("promptFixFromFailure.change_the_prompt"), t("promptFixFromFailure.save_and_test")]);
 const traceId = ref(props.initialTrace ?? "");
 const loadedTrace = ref<string | null>(null);
 const problem = ref<string | null>(null);
@@ -80,7 +82,7 @@ async function load() {
   savedDraft.value = null;
   const found = await trace.run();
   if (!found) {
-    problem.value = trace.error.value ? describeApiError(trace.error.value) : "Could not load that trace";
+    problem.value = trace.error.value ? describeApiError(trace.error.value) : t("promptFixFromFailure.could_not_load_that_trace");
     return;
   }
   loadedTrace.value = id;
@@ -103,7 +105,7 @@ async function save() {
   try {
     const draft = await api.saveVersion(props.promptId, {
       content: content.value,
-      message: "Proposed fix",
+      message: t("promptFixFromFailure.proposed_fix"),
       parentVersion: base.value.version,
       draft: true,
       origin: { traceIds: [loadedTrace.value], cause: failure.value?.message ?? null, rationale: rationale.value },
@@ -121,34 +123,34 @@ async function save() {
 <template>
   <div class="fix" data-testid="fix">
     <div class="top">
-      <ol class="steps" aria-label="Steps">
+      <ol class="steps" :aria-label="t('promptFixFromFailure.steps')">
         <li v-for="(label, i) in STEPS" :key="label" :class="{ done: step > i + 1, now: step === i + 1 }">
           <span class="step-dot">{{ step > i + 1 ? "✓" : i + 1 }}</span>{{ label }}
         </li>
       </ol>
-      <Button size="sm" v-if="loadedTrace" data-testid="fix-back" @click="backToList">← Pick another failure</Button>
+      <Button size="sm" v-if="loadedTrace" data-testid="fix-back" @click="backToList">{{ t("promptFixFromFailure.pick_another_failure") }}</Button>
     </div>
     <p v-if="problem" class="warn small" role="alert" data-testid="fix-problem">{{ problem }}</p>
 
     <section v-if="picking" class="panel picker" data-testid="fix-picker">
       <header>
-        <b>Which failure do you want to fix?</b>
-        <span class="faint">Last 30 days of {{ promptName }}: errors, low scores, reviewer "no" and 👎 from users</span>
+        <b>{{ t("promptFixFromFailure.which_failure_do_you_want_to") }}</b>
+        <span class="faint">{{ tr("promptFixFromFailure.last_30_days_of_name_errors", { name: promptName }) }}</span>
       </header>
       <LoadingState v-if="recent.loading.value && !recent.data.value" size="md" />
       <p v-else-if="recent.error.value" class="warn small pad" role="alert">{{ describeApiError(recent.error.value) }}</p>
       <p v-else-if="all.length === 0" class="muted small pad" data-testid="fix-picker-empty">
-        No failure found among the latest {{ recent.data.value?.scanned ?? 0 }} traces of this prompt. Good news, or the agent is not sending traces yet. You can still paste a trace id below.
+        {{ t("promptFixFromFailure.no_failure_found_among_the_latest", { scanned: recent.data.value?.scanned ?? 0 }) }}
       </p>
       <template v-else>
-        <div class="filters" role="group" aria-label="Reason">
+        <div class="filters" role="group" :aria-label="t('promptFixFromFailure.reason')">
           <ToggleChip v-for="f in filters" :key="f.key" :pressed="reason === f.key" :count="f.n" :data-testid="`fix-filter-${f.key}`" @click="reason = f.key">{{ f.label }}</ToggleChip>
         </div>
         <ul class="cases">
           <li v-for="t in visible" :key="t.traceId">
             <button type="button" class="case" :disabled="trace.loading.value" data-testid="fix-case" @click="pick(t.traceId)">
               <span class="case-main">
-                <span class="case-said">{{ t.input ?? "(no input captured)" }}</span>
+                <span class="case-said">{{ t.input ?? tr("promptFixFromFailure.no_input_captured") }}</span>
                 <span v-if="t.error" class="case-error">{{ t.error }}</span>
                 <span v-else-if="t.output" class="case-answer">{{ t.output }}</span>
               </span>
@@ -160,15 +162,15 @@ async function save() {
           </li>
         </ul>
         <div class="more">
-          <Button size="sm" v-if="failures.length > visible.length" data-testid="fix-more" @click="shown += PAGE">Show {{ Math.min(PAGE, failures.length - visible.length) }} more</Button>
-          <span class="faint small" data-testid="fix-scanned">{{ failures.length }} {{ failures.length === 1 ? "failure" : "failures" }} among the latest {{ recent.data.value?.scanned }} traces of this prompt.</span>
+          <Button size="sm" v-if="failures.length > visible.length" data-testid="fix-more" @click="shown += PAGE">{{ t('promptFixFromFailure.show_count_more', { count: Math.min(PAGE, failures.length - visible.length) }) }}</Button>
+          <span class="faint small" data-testid="fix-scanned">{{ tp("promptFixFromFailure.failures", failures.length, { scanned: recent.data.value?.scanned }) }}</span>
         </div>
       </template>
       <footer class="paste">
-        <Button class="self-start" variant="link" data-testid="fix-paste-toggle" @click="pasteOpen = !pasteOpen">Have a trace id? {{ pasteOpen ? "Hide" : "Paste it" }}</Button>
+        <Button class="self-start" variant="link" data-testid="fix-paste-toggle" @click="pasteOpen = !pasteOpen">{{ t("promptFixFromFailure.have_a_trace_id") }} {{ pasteOpen ? t("promptFixFromFailure.hide") : t("promptFixFromFailure.paste_it") }}</Button>
         <div v-if="pasteOpen" class="row">
-          <TextInput v-model="traceId" mono placeholder="Trace id of the failure" class="trace-id" data-testid="fix-trace" @keydown.enter.prevent="load" />
-          <Button size="sm" :disabled="trace.loading.value || traceId.trim() === ''" data-testid="fix-load" @click="load">Load</Button>
+          <TextInput v-model="traceId" mono :placeholder="t('promptFixFromFailure.trace_id_of_the_failure')" class="trace-id" data-testid="fix-trace" @keydown.enter.prevent="load" />
+          <Button size="sm" :disabled="trace.loading.value || traceId.trim() === ''" data-testid="fix-load" @click="load">{{ t("promptFixFromFailure.load") }}</Button>
         </div>
       </footer>
     </section>
@@ -176,58 +178,58 @@ async function save() {
     <div v-if="loadedTrace && trace.data.value" class="grid">
       <section class="panel failure" data-testid="fix-failure">
         <div class="block bad">
-          <span class="eyebrow bad-ink">WHAT FAILED</span>
+          <span class="eyebrow bad-ink">{{ t("promptFixFromFailure.what_failed") }}</span>
           <template v-if="failure">
             <span class="step-chip mono">{{ failure.step }}</span>
             <p class="msg">{{ failure.message }}</p>
           </template>
-          <p v-else class="muted small" data-testid="fix-no-failure">No step of this trace failed. A fix needs a failure; you can still propose a change, but there is nothing to check it against.</p>
+          <p v-else class="muted small" data-testid="fix-no-failure">{{ t("promptFixFromFailure.no_step_of_this_trace_failed") }}</p>
         </div>
         <div v-if="replay.message" class="block">
-          <span class="eyebrow">THE PERSON SAID</span>
+          <span class="eyebrow">{{ t("promptFixFromFailure.the_person_said") }}</span>
           <p class="small">{{ replay.message }}</p>
         </div>
         <div v-if="replay.answer" class="block grow">
-          <span class="eyebrow">THE AGENT ANSWERED</span>
+          <span class="eyebrow">{{ t("promptFixFromFailure.the_agent_answered") }}</span>
           <p class="small muted">{{ replay.answer }}</p>
         </div>
         <footer class="used">
-          <template v-if="usedVersion !== null"><span data-testid="fix-used">This trace used <b class="mono">v{{ usedVersion }}</b>{{ base && base.version !== usedVersion ? ` (not available as a base; starting from v${base.version})` : "" }}</span></template>
-          <template v-else><span data-testid="fix-unknown-version">This trace does not say which version it used: starting from <b class="mono">v{{ base?.version }}</b>.</span></template>
+          <template v-if="usedVersion !== null"><span data-testid="fix-used">{{ t("promptFixFromFailure.this_trace_used") + " " }}<b class="mono">v{{ usedVersion }}</b>{{ base && base.version !== usedVersion ? ` (not available as a base; starting from v${base.version})` : "" }}</span></template>
+          <template v-else><span data-testid="fix-unknown-version">{{ t("promptFixFromFailure.this_trace_does_not_say_which") + " " }}<b class="mono">v{{ base?.version }}</b>.</span></template>
         </footer>
       </section>
 
       <section v-if="base" class="panel editor">
         <header>
-          <b>Prompt text</b><span class="faint">starting from v{{ base.version }}</span>
-          <Pill v-if="!unchanged" data-testid="fix-changed" class="ok-pill">changed</Pill>
+          <b>{{ t("promptFixFromFailure.prompt_text") }}</b><span class="faint">{{ t('promptFixFromFailure.starting_from_v_version', { version: base.version }) }}</span>
+          <Pill v-if="!unchanged" data-testid="fix-changed" class="ok-pill">{{ t("promptFixFromFailure.changed") }}</Pill>
         </header>
         <div class="body">
           <TextInput v-model="content" multiline :rows="12" mono data-testid="fix-content" />
           <label class="field">
-            <span class="muted small strong">Why should this fix it?</span>
+            <span class="muted small strong">{{ t("promptFixFromFailure.why_should_this_fix_it") }}</span>
             <TextInput v-model="rationale" multiline :rows="2" data-testid="fix-rationale" />
           </label>
-          <p v-if="unchanged" class="muted small" data-testid="fix-unchanged">Change the text to save a proposal.</p>
+          <p v-if="unchanged" class="muted small" data-testid="fix-unchanged">{{ t("promptFixFromFailure.change_the_text_to_save_a") }}</p>
         </div>
         <footer class="save">
-          <span class="muted small">Saved as a <b>draft</b>: no tag, not published. A person reviews it first.</span>
-          <Button variant="primary" :disabled="!canSave" data-testid="fix-save" @click="save">{{ saving ? "Saving…" : "Save as draft" }}</Button>
+          <span class="muted small">{{ t("promptFixFromFailure.saved_as_a") + " " }}<b>{{ t("promptFixFromFailure.draft") }}</b>{{ t("promptFixFromFailure.no_tag_not_published_a_person") }}</span>
+          <Button variant="primary" :disabled="!canSave" data-testid="fix-save" @click="save">{{ saving ? t("promptFixFromFailure.saving") : t("promptFixFromFailure.save_as_draft") }}</Button>
         </footer>
       </section>
-      <p v-else class="warn small" data-testid="fix-no-base">This prompt has no published version to start from.</p>
+      <p v-else class="warn small" data-testid="fix-no-base">{{ t("promptFixFromFailure.this_prompt_has_no_published_version") }}</p>
     </div>
 
     <section v-if="savedDraft && loadedTrace" class="panel saved" data-testid="fix-saved">
-      <p><b>Draft v{{ savedDraft.version }} saved.</b> It has no tag and is not published.</p>
+      <p><b>{{ t("promptFixFromFailure.draft_v_version_saved", { version: savedDraft.version }) }}</b> {{ t("promptFixFromFailure.it_has_no_tag_and_is") }}</p>
       <div class="row">
-        <Button variant="primary" data-testid="fix-test" @click="emit('test', savedDraft.version, savedDraft.base, loadedTrace)">Test it on this case</Button>
-        <span class="muted small">Runs the real agent with the draft and with v{{ savedDraft.base }}, side by side.</span>
+        <Button variant="primary" data-testid="fix-test" @click="emit('test', savedDraft.version, savedDraft.base, loadedTrace)">{{ t("promptFixFromFailure.test_it_on_this_case") }}</Button>
+        <span class="muted small">{{ t("promptFixFromFailure.runs_the_real_agent_with_the", { base: savedDraft.base }) }}</span>
       </div>
     </section>
 
     <p class="faint small tip" data-testid="fix-tip">
-      Prefer a model to write the proposal? <code>memtrace.prompts.propose_fix(name, cases, llm)</code> uses <b>your</b> LLM, with your key, and saves the result here as a draft.
+      {{ t("promptFixFromFailure.prefer_a_model_to_write_the") + " " }}<code>memtrace.prompts.propose_fix(name, cases, llm)</code>{{ " " + t("promptFixFromFailure.uses") + " " }}<b>{{ t("promptFixFromFailure.your") }}</b>{{ " " + t("promptFixFromFailure.llm_with_your_key_and_saves") }}
     </p>
   </div>
 </template>

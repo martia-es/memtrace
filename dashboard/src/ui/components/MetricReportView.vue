@@ -17,6 +17,7 @@ import Button from "./Button.vue";
 import LoadingState from "./LoadingState.vue";
 import Spinner from "./Spinner.vue";
 import Modal from "./Modal.vue";
+import { t } from "../i18n";
 
 const props = defineProps<{ experimentId: string; reportId: string; range: RangeParams }>();
 const emit = defineEmits<{ renamed: [name: string]; deleted: [] }>();
@@ -52,7 +53,7 @@ async function loadReport() {
     // vea el selector de "añadir gráfico guardado" sin un paso extra (feedback de usuario, ADR-035).
     if (!layout.value.length) await enterEdit();
   } catch (err) {
-    loadError.value = err instanceof Error ? err : new Error("Could not load the report");
+    loadError.value = err instanceof Error ? err : new Error(t("metricReportView.could_not_load_the_report"));
   } finally {
     loading.value = false;
   }
@@ -182,7 +183,7 @@ async function sendEmail() {
     await identityApi.sendMetricReportEmail(props.experimentId, props.reportId, toEmails);
     sendSuccess.value = true;
   } catch (err) {
-    sendError.value = err instanceof Error ? err.message : "Could not send the email";
+    sendError.value = err instanceof Error ? err.message : t("metricReportView.could_not_send_the_email");
   } finally {
     sending.value = false;
   }
@@ -195,32 +196,32 @@ async function sendEmail() {
       <div class="report-title">
         <template v-if="renaming">
           <TextInput class="rename-input" v-model="renameValue" @keyup.enter="saveRename" @keyup.escape="renaming = false" />
-          <Button variant="primary" size="sm" :disabled="!renameValue.trim()" @click="saveRename">Save</Button>
-          <Button size="sm" @click="renaming = false">Cancel</Button>
+          <Button variant="primary" size="sm" :disabled="!renameValue.trim()" @click="saveRename">{{ t("metricReportView.save") }}</Button>
+          <Button size="sm" @click="renaming = false">{{ t("metricReportView.cancel") }}</Button>
         </template>
         <template v-else>
           <h3>{{ report?.name }}</h3>
-          <Button variant="link" v-if="!editMode" class="icon-link" title="Rename" @click="renameValue = report?.name ?? ''; renaming = true">Rename</Button>
+          <Button variant="link" v-if="!editMode" class="icon-link" :title="t('metricReportView.rename')" @click="renameValue = report?.name ?? ''; renaming = true">{{ t("metricReportView.rename") }}</Button>
         </template>
       </div>
 
       <div class="report-actions">
         <template v-if="editMode">
-          <Button size="sm" @click="cancelEdit">Cancel</Button>
-          <Button variant="primary" size="sm" :disabled="savingLayout" @click="saveLayout">Save layout</Button>
+          <Button size="sm" @click="cancelEdit">{{ t("metricReportView.cancel") }}</Button>
+          <Button variant="primary" size="sm" :disabled="savingLayout" @click="saveLayout">{{ t("metricReportView.save_layout") }}</Button>
         </template>
         <template v-else>
-          <Button size="sm" @click="openSendDialog">Send by email</Button>
-          <Button size="sm" @click="enterEdit">Edit layout</Button>
-          <Button variant="danger" size="sm" @click="confirmingDelete = true">Delete</Button>
+          <Button size="sm" @click="openSendDialog">{{ t("metricReportView.send_by_email") }}</Button>
+          <Button size="sm" @click="enterEdit">{{ t("metricReportView.edit_layout") }}</Button>
+          <Button variant="danger" size="sm" @click="confirmingDelete = true">{{ t("metricReportView.delete") }}</Button>
         </template>
       </div>
     </div>
 
     <div v-if="editMode" class="add-chart-row">
-      <span class="add-chart-label">Add a saved chart:</span>
-      <div v-if="!availableCharts.length" class="hint">You don't have any saved charts yet — save one from the "Custom charts" tab first.</div>
-      <div v-else-if="!chartsNotInLayout.length" class="hint">All your saved charts are already in this report.</div>
+      <span class="add-chart-label">{{ t("metricReportView.add_a_saved_chart") }}</span>
+      <div v-if="!availableCharts.length" class="hint">{{ t("metricReportView.you_don_t_have_any_saved") }}</div>
+      <div v-else-if="!chartsNotInLayout.length" class="hint">{{ t("metricReportView.all_your_saved_charts_are_already") }}</div>
       <div v-else class="add-chart-chips">
         <Button v-for="m in chartsNotInLayout" :key="m.id" size="sm" @click="addChart(m)">+ {{ m.name }}</Button>
       </div>
@@ -228,11 +229,11 @@ async function sendEmail() {
 
     <ErrorBanner v-if="loadError" :error="loadError" @retry="loadReport" />
     <LoadingState v-else-if="loading && !report" size="lg" />
-    <EmptyState v-else-if="report && !layout.length" icon="dashboard" :title="editMode ? 'Add a chart to get started' : 'No charts in this report yet'">
-      <template v-if="editMode">Use the chips above to add a chart you've already saved in Charts.</template>
+    <EmptyState v-else-if="report && !layout.length" icon="dashboard" :title="editMode ? t('metricReportView.add_a_chart_to_get_started') : t('metricReportView.no_charts_in_this_report_yet')">
+      <template v-if="editMode">{{ t("metricReportView.use_the_chips_above_to_add") }}</template>
       <template v-else>
-        <p class="hint">Add charts you've already saved in Charts.</p>
-        <Button variant="primary" size="sm" @click="enterEdit">Edit layout</Button>
+        <p class="hint">{{ t("metricReportView.add_charts_you_ve_already_saved") }}</p>
+        <Button variant="primary" size="sm" @click="enterEdit">{{ t("metricReportView.edit_layout") }}</Button>
       </template>
     </EmptyState>
 
@@ -251,8 +252,8 @@ async function sendEmail() {
               <table v-else-if="chartById.get(item.i)!.definition.chartType === 'table'" class="result-table">
                 <thead>
                   <tr>
-                    <th>{{ chartById.get(item.i)!.definition.groupByAttribute || "Step" }}</th>
-                    <th>Value</th>
+                    <th>{{ chartById.get(item.i)!.definition.groupByAttribute || t("metricReportView.step") }}</th>
+                    <th>{{ t("metricReportView.value") }}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -270,22 +271,22 @@ async function sendEmail() {
       </GridItem>
     </GridLayout>
 
-    <Modal v-if="confirmingDelete" title="Delete report" @close="confirmingDelete = false">
-      <p>Delete report "{{ report?.name }}"? Its saved charts aren't affected.</p>
+    <Modal v-if="confirmingDelete" :title="t('metricReportView.delete_report')" @close="confirmingDelete = false">
+      <p>{{ t("metricReportView.delete_report_name_its_saved_charts", { name: report?.name ?? "" }) }}</p>
       <template #footer>
-        <Button @click="confirmingDelete = false">Cancel</Button>
-        <Button variant="danger" @click="confirmDelete">Delete</Button>
+        <Button @click="confirmingDelete = false">{{ t("metricReportView.cancel") }}</Button>
+        <Button variant="danger" @click="confirmDelete">{{ t("metricReportView.delete") }}</Button>
       </template>
     </Modal>
 
-    <Modal v-if="sendDialogOpen" :title="`Send &quot;${report?.name}&quot; by email`" @close="sendDialogOpen = false">
-      <p class="hint">Sends a text summary (one table per chart) over the current time range — no PDF attachment.</p>
-      <TextInput v-model="sendEmails" placeholder="emails separated by comma" aria-label="Emails" />
+    <Modal v-if="sendDialogOpen" :title="t('metricReportView.send_name_by_email', { name: report?.name ?? '' })" @close="sendDialogOpen = false">
+      <p class="hint">{{ t("metricReportView.sends_a_text_summary_one_table") }}</p>
+      <TextInput v-model="sendEmails" :placeholder="t('metricReportView.emails_separated_by_comma')" :aria-label="t('metricReportView.emails')" />
       <p v-if="sendError" class="error-text">{{ sendError }}</p>
-      <p v-if="sendSuccess" class="success-text">Sent.</p>
+      <p v-if="sendSuccess" class="success-text">{{ t("metricReportView.sent") }}</p>
       <template #footer>
-        <Button @click="sendDialogOpen = false">Close</Button>
-        <Button variant="primary" :loading="sending" :disabled="!sendEmails.trim()" @click="sendEmail">Send</Button>
+        <Button @click="sendDialogOpen = false">{{ t("metricReportView.close") }}</Button>
+        <Button variant="primary" :loading="sending" :disabled="!sendEmails.trim()" @click="sendEmail">{{ t("metricReportView.send") }}</Button>
       </template>
     </Modal>
   </section>

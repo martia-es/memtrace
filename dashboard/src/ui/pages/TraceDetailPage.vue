@@ -36,6 +36,7 @@ import Pill from "../components/Pill.vue";
 import LoadingState from "../components/LoadingState.vue";
 import Card from "../components/Card.vue";
 import TabBar from "../components/TabBar.vue";
+import { t } from "../i18n";
 
 const props = defineProps<{ traceId: string }>();
 const api = useTraceApi();
@@ -59,7 +60,7 @@ useLiveRefresh(() => trace.run(), { active: () => inProgress.value, isBusy: () =
 
 const roots = computed(() => trace.data.value?.roots ?? []);
 const hasOrphans = computed(() => roots.value.some((r) => r.orphan));
-const rootName = computed(() => roots.value.find((r) => !r.orphan)?.name ?? roots.value[0]?.name ?? "Trace");
+const rootName = computed(() => roots.value.find((r) => !r.orphan)?.name ?? roots.value[0]?.name ?? t("traceDetailPage.trace"));
 const conversationId = computed(() => trace.data.value?.conversationId ?? null);
 
 // ---- selected span (?span=): the one from the link, if not the first with error, if not the root ----
@@ -74,8 +75,8 @@ const { can } = usePermissions();
 const canTechnical = computed(() => can("trace:read_technical"));
 const tab = computed<"conversation" | "trace">(() => (!canTechnical.value || route.query.tab === "conversation" ? "conversation" : "trace"));
 const viewTabs = computed(() => [
-  { id: "conversation", label: "Conversation" },
-  ...(canTechnical.value ? [{ id: "trace", label: "Technical trace", count: formatCount(trace.data.value?.spanCount ?? 0) }] : []),
+  { id: "conversation", label: t("traceDetailPage.conversation") },
+  ...(canTechnical.value ? [{ id: "trace", label: t("traceDetailPage.technical_trace"), count: formatCount(trace.data.value?.spanCount ?? 0) }] : []),
 ]);
 const setTab = (value: "conversation" | "trace") => void router.replace({ query: { ...route.query, tab: value === "trace" ? undefined : value } });
 const turns = computed(() => conversationTurns(traceThread(roots.value)));
@@ -118,17 +119,17 @@ async function openPromptFor(tab: "try" | "fix") {
   try {
     const found = (await promptApi.listForAgent(experimentId.value, true)).find((p) => p.name === used.name);
     if (!found) {
-      replayProblem.value = `The prompt "${used.name}" does not belong to this agent in MemTrace.`;
+      replayProblem.value = t("traceDetailPage.the_prompt_name_does_not_belong", { name: used.name });
       return;
     }
     await router.push({ name: "prompt", params: { experimentId: experimentId.value, promptId: found.id }, query: { tab, trace: props.traceId } });
   } catch (error) {
-    replayProblem.value = error instanceof Error ? error.message : "Could not open the prompt";
+    replayProblem.value = error instanceof Error ? error.message : t("traceDetailPage.could_not_open_the_prompt");
   }
 }
 const addingToDataset = ref(false);
 
-const hint = "This span has no content saved. Enable MEMTRACE_CAPTURE_CONTENT=true on the agent to see it here (it's saved as-is: check privacy).";
+const hint = computed(() => t("traceDetailPage.this_span_has_no_content_saved"));
 
 const treeRef = useTemplateRef<InstanceType<typeof SpanTree>>("treeRef");
 const copyId = () => void navigator.clipboard?.writeText(props.traceId);
@@ -139,8 +140,8 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
 <template>
   <div class="page">
     <TopbarSlot side="left">
-      <nav class="crumbs" aria-label="Breadcrumbs">
-        <Button variant="link" class="crumb" @click="goList">← Conversations</Button>
+      <nav class="crumbs" :aria-label="t('traceDetailPage.breadcrumbs')">
+        <Button variant="link" class="crumb" @click="goList">{{ t("traceDetailPage.conversations") }}</Button>
         <template v-if="conversationId">
           <span class="sep">/</span>
           <Button variant="link" class="crumb mono" @click="goConversation">{{ conversationId }}</Button>
@@ -159,41 +160,41 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
           <StatusBadge :status="trace.data.value.status" show-label />
           <Pill v-if="trace.data.value.framework">{{ trace.data.value.framework }}</Pill>
           <PromptChips :prompts="promptsUsed" />
-          <span class="commit" data-testid="trace-revision"><span class="commit-label">Commit</span><CommitLink :revision="trace.data.value.revision" :repo="repo" /></span>
+          <span class="commit" data-testid="trace-revision"><span class="commit-label">{{ t("traceDetailPage.commit") }}</span><CommitLink :revision="trace.data.value.revision" :repo="repo" /></span>
           <div class="actions">
-            <Button aria-label="Copy trace ID" @click="copyId">Copy ID</Button>
-            <Button data-testid="add-to-dataset-btn" @click="addingToDataset = true">Add to dataset</Button>
-            <Button data-testid="add-to-queue-btn" @click="addingToQueue = true">Add to queue</Button>
+            <Button :aria-label="t('traceDetailPage.copy_trace_id')" @click="copyId">{{ t("traceDetailPage.copy_id") }}</Button>
+            <Button data-testid="add-to-dataset-btn" @click="addingToDataset = true">{{ t("traceDetailPage.add_to_dataset") }}</Button>
+            <Button data-testid="add-to-queue-btn" @click="addingToQueue = true">{{ t("traceDetailPage.add_to_queue") }}</Button>
             <Button
               v-if="promptsUsed.length > 0"
              
              
-              :title="`Run the same message with another version of ${promptsUsed[0]!.name} (this trace used v${promptsUsed[0]!.version})`"
+              :title="t('traceDetailPage.run_the_same_message_with_another', { name: promptsUsed[0]!.name, version: promptsUsed[0]!.version })"
               data-testid="replay-btn"
               @click="replayWithAnotherVersion"
             >
-              Try another prompt version
+              {{ t("traceDetailPage.try_another_prompt_version") }}
             </Button>
             <Button
               v-if="promptsUsed.length > 0 && trace.data.value.errorCount > 0"
              
              
-              :title="`Propose a change to ${promptsUsed[0]!.name} that fixes this failure, as a draft to review`"
+              :title="t('traceDetailPage.propose_a_change_to_name_that', { name: promptsUsed[0]!.name })"
               data-testid="fix-btn"
               @click="fixThisFailure"
             >
-              Fix with a prompt change
+              {{ t("traceDetailPage.fix_with_a_prompt_change") }}
             </Button>
-            <Button variant="primary" data-testid="annotate-btn" @click="annotating = true">Annotate</Button>
+            <Button variant="primary" data-testid="annotate-btn" @click="annotating = true">{{ t("traceDetailPage.annotate") }}</Button>
           </div>
         </div>
         <div class="meta-line">
-          <span>Started <b>{{ formatDateTime(trace.data.value.startTime) }}</b></span>
-          <span>Duration <b class="mono">{{ formatDuration(trace.data.value.durationMs) }}</b></span>
-          <span>Spans <b class="mono">{{ formatCount(trace.data.value.spanCount) }}</b></span>
-          <span v-if="trace.data.value.errorCount" class="bad">Failed <b class="mono">{{ trace.data.value.errorCount }}</b></span>
-          <span v-if="trace.data.value.totalTokens">Tokens <b class="mono">{{ formatCount(trace.data.value.totalTokens) }}</b></span>
-          <span v-if="trace.data.value.totalCostUsd">Cost <b class="mono">{{ formatCostUsd(trace.data.value.totalCostUsd) }}</b></span>
+          <span>{{ t("traceDetailPage.started") }} <b>{{ formatDateTime(trace.data.value.startTime) }}</b></span>
+          <span>{{ t("traceDetailPage.duration") }} <b class="mono">{{ formatDuration(trace.data.value.durationMs) }}</b></span>
+          <span>{{ t("traceDetailPage.spans") }} <b class="mono">{{ formatCount(trace.data.value.spanCount) }}</b></span>
+          <span v-if="trace.data.value.errorCount" class="bad">{{ t("traceDetailPage.failed") }} <b class="mono">{{ trace.data.value.errorCount }}</b></span>
+          <span v-if="trace.data.value.totalTokens">{{ t("traceDetailPage.tokens") }} <b class="mono">{{ formatCount(trace.data.value.totalTokens) }}</b></span>
+          <span v-if="trace.data.value.totalCostUsd">{{ t("traceDetailPage.cost") }} <b class="mono">{{ formatCostUsd(trace.data.value.totalCostUsd) }}</b></span>
         </div>
       </Card>
 
@@ -203,22 +204,22 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
       <div class="body">
       <div class="main">
       <TabBar :tabs="viewTabs" :model-value="tab" @update:model-value="setTab($event as 'conversation' | 'trace')">
-        <template #trailing><span class="tabs-hint">{{ tab === "trace" ? "Select a span to see its input, output and metadata" : "The messages exchanged, without ids or raw JSON" }}</span></template>
+        <template #trailing><span class="tabs-hint">{{ tab === "trace" ? t("traceDetailPage.select_a_span_to_see_its") : t("traceDetailPage.the_messages_exchanged_without_ids_or") }}</span></template>
       </TabBar>
 
-      <div v-if="trace.data.value.truncated" class="banner warn">Trace has more than 5000 spans: only showing the first ones.</div>
+      <div v-if="trace.data.value.truncated" class="banner warn">{{ t("traceDetailPage.trace_has_more_than_5000_spans") }}</div>
       <div v-if="hasOrphans" class="banner warn">
-        <template v-if="inProgress">The trace is still in progress: auto-updating until the root span arrives.</template>
-        <template v-else>Some spans have no parent in the trace (lost or not yet exported) and are shown as roots.</template>
+        <template v-if="inProgress">{{ t("traceDetailPage.the_trace_is_still_in_progress") }}</template>
+        <template v-else>{{ t("traceDetailPage.some_spans_have_no_parent_in") }}</template>
       </div>
 
-      <Card as="section" padding="none" block v-if="tab === 'conversation'" class="thread-card" aria-label="Conversation">
+      <Card as="section" padding="none" block v-if="tab === 'conversation'" class="thread-card" :aria-label="t('traceDetailPage.conversation')">
         <ConversationThread v-if="turns.length" :turns="shownTurns">
           <template v-if="steps.length" #steps>
             <ConversationSteps :steps="steps" :can-open-trace="canTechnical" @open-span="openSpanInTrace" />
           </template>
         </ConversationThread>
-        <p v-else class="muted empty-thread">This trace has no message content saved. Enable <code>MEMTRACE_CAPTURE_CONTENT=true</code> on the agent to read the conversation here.</p>
+        <p v-else class="muted empty-thread">{{ t("traceDetailPage.this_trace_has_no_message_content") + " " }}<code>MEMTRACE_CAPTURE_CONTENT=true</code>{{ " " + t("traceDetailPage.on_the_agent_to_read_the") }}</p>
       </Card>
 
       <TraceOverviewBar
@@ -232,13 +233,13 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
       />
 
       <div v-if="tab === 'trace'" class="cols">
-        <Card as="section" padding="none" block class="tree-card" aria-label="Span tree">
+        <Card as="section" padding="none" block class="tree-card" :aria-label="t('traceDetailPage.span_tree')">
           <div class="tree-head">
-            <h2>Spans</h2>
+            <h2>{{ t("traceDetailPage.spans") }}</h2>
             <div class="tree-actions">
-              <Button variant="link" @click="treeRef?.expandAll()">Expand all</Button>
+              <Button variant="link" @click="treeRef?.expandAll()">{{ t("traceDetailPage.expand_all") }}</Button>
               <span class="dot-sep">·</span>
-              <Button variant="link" @click="treeRef?.collapseAll()">Collapse all</Button>
+              <Button variant="link" @click="treeRef?.collapseAll()">{{ t("traceDetailPage.collapse_all") }}</Button>
               <span class="mono muted meta">{{ formatDuration(trace.data.value.durationMs) }}</span>
             </div>
           </div>
@@ -255,7 +256,7 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
         </Card>
 
         <SpanInspector v-if="selectedNode" :node="selectedNode" :empty-hint="hint" />
-        <Card as="section" padding="none" block v-else class="empty-card">This trace has no spans to show.</Card>
+        <Card as="section" padding="none" block v-else class="empty-card">{{ t("traceDetailPage.this_trace_has_no_spans_to") }}</Card>
       </div>
 
       </div>
@@ -265,7 +266,7 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
       <AddToDatasetModal v-if="addingToDataset" :trace-id="traceId" :roots="roots" @close="addingToDataset = false" />
       <AddToQueueModal v-if="addingToQueue" :trace-id="traceId" @close="addingToQueue = false" />
 
-      <Modal v-if="annotating" title="Annotate trace" wide @close="closeAnnotate">
+      <Modal v-if="annotating" :title="t('traceDetailPage.annotate_trace')" wide @close="closeAnnotate">
         <TraceAnnotationsPanel :trace-id="traceId" :experiment-id="experimentId" :span="selectedNode ? { spanId: selectedNode.spanId, name: selectedNode.name } : null" />
       </Modal>
     </template>

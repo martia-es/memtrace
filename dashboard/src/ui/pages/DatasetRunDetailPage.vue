@@ -21,6 +21,7 @@ import Pill from "../components/Pill.vue";
 import DataTable from "../components/DataTable.vue";
 import LoadingState from "../components/LoadingState.vue";
 import Card from "../components/Card.vue";
+import { t } from "../i18n";
 
 const api = useTraceApi();
 const route = useRoute();
@@ -85,18 +86,18 @@ function sourceSuffix(s: ScoreDto): string | null {
 
 <template>
   <div class="page">
-    <PageHeader :crumbs="[{ label: 'Evaluation', to: { name: 'datasets' } }, { label: run.data.value?.dataset.name ?? '…', to: { name: 'dataset', params: { datasetId } } }, { label: run.data.value?.run.name ?? runId }]" icon="playlist_add_check" :title="run.data.value?.run.name ?? 'Run'" />
+    <PageHeader :crumbs="[{ label: t('nav.evaluations'), to: { name: 'datasets' } }, { label: run.data.value?.dataset.name ?? '…', to: { name: 'dataset', params: { datasetId } } }, { label: run.data.value?.run.name ?? runId }]" icon="playlist_add_check" :title="run.data.value?.run.name ?? t('datasetRunDetailPage.run')" />
 
     <ErrorBanner v-if="run.error.value" :error="run.error.value" @retry="run.run()" />
     <LoadingState v-else-if="run.loading.value && !run.data.value" size="lg" />
     <template v-else>
       <div class="artifacts">
-        <span class="artifact">Dataset: <router-link :to="{ name: 'dataset', params: { datasetId } }">{{ run.data.value!.dataset.name }}</router-link></span>
-        <span class="artifact">Agent version: <strong>{{ run.data.value!.run.name }}</strong></span>
-        <span v-if="run.data.value!.run.revision" class="artifact">Code version: <CommitLink :revision="run.data.value!.run.revision" :repo="repo" :dirty="run.data.value!.run.revisionDirty" /></span>
-        <span v-if="runPrompts.length > 0" class="artifact" data-testid="run-prompts">Prompt: <PromptChips :prompts="runPrompts" :max="4" /></span>
-        <span class="artifact">{{ run.data.value!.run.itemCount }} items</span>
-        <Pill tone="warn" v-if="run.data.value!.run.status === 'running'" title="Still receiving results, or the process stopped before finishing" class="artifact">running</Pill>
+        <span class="artifact">{{ t("datasetRunDetailPage.dataset") + " " }}<router-link :to="{ name: 'dataset', params: { datasetId } }">{{ run.data.value!.dataset.name }}</router-link></span>
+        <span class="artifact">{{ t("datasetRunDetailPage.agent_version") + " " }}<strong>{{ run.data.value!.run.name }}</strong></span>
+        <span v-if="run.data.value!.run.revision" class="artifact">{{ t("datasetRunDetailPage.code_version") + " " }}<CommitLink :revision="run.data.value!.run.revision" :repo="repo" :dirty="run.data.value!.run.revisionDirty" /></span>
+        <span v-if="runPrompts.length > 0" class="artifact" data-testid="run-prompts">{{ t("datasetRunDetailPage.prompt") + " " }}<PromptChips :prompts="runPrompts" :max="4" /></span>
+        <span class="artifact">{{ t('datasetRunDetailPage.count_items', { count: run.data.value!.run.itemCount }) }}</span>
+        <Pill tone="warn" v-if="run.data.value!.run.status === 'running'" :title="t('datasetRunDetailPage.still_receiving_results_or_the_process')" class="artifact">{{ t("datasetRunDetailPage.running") }}</Pill>
         <span class="artifact">{{ formatDateTime(run.data.value!.run.createdAt) }}</span>
       </div>
 
@@ -113,13 +114,13 @@ function sourceSuffix(s: ScoreDto): string | null {
       <JudgeHumanAgreement :scope="{ datasetRunId: runId }" @select-item="showItem">
         <template #actions>
           <Button size="sm" v-if="run.data.value!.items.length > 0" data-testid="add-run-items-to-queue" @click="addingToQueue = true">
-            Send items to a review queue
+            {{ t("datasetRunDetailPage.send_items_to_a_review_queue") }}
           </Button>
         </template>
       </JudgeHumanAgreement>
       <AddToQueueModal v-if="addingToQueue" :run="{ datasetRunId: runId, itemCount: run.data.value!.run.itemCount }" @close="addingToQueue = false" />
 
-      <EmptyState v-if="run.data.value!.items.length === 0" icon="playlist_add_check" title="No items">This run has no items.</EmptyState>
+      <EmptyState v-if="run.data.value!.items.length === 0" icon="playlist_add_check" :title="t('datasetRunDetailPage.no_items')">{{ t("datasetRunDetailPage.this_run_has_no_items") }}</EmptyState>
 
       <div v-else class="items-area">
       <Card padding="none" block class="table-card">
@@ -127,12 +128,12 @@ function sourceSuffix(s: ScoreDto): string | null {
           <thead>
             <tr>
               <th class="idx">#</th>
-              <th>Input</th>
-              <th>Expected</th>
-              <th>Output</th>
-              <th>Scores</th>
-              <th v-if="hasAnyTraceId">Prompt</th>
-              <th v-if="hasAnyTraceId">Trace</th>
+              <th>{{ t("datasetRunDetailPage.input") }}</th>
+              <th>{{ t("datasetRunDetailPage.expected") }}</th>
+              <th>{{ t("datasetRunDetailPage.output") }}</th>
+              <th>{{ t("datasetRunDetailPage.scores") }}</th>
+              <th v-if="hasAnyTraceId">{{ t("datasetRunDetailPage.prompt2") }}</th>
+              <th v-if="hasAnyTraceId">{{ t("datasetRunDetailPage.trace") }}</th>
             </tr>
           </thead>
           <tbody>

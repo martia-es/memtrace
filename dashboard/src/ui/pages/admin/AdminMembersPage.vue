@@ -5,6 +5,7 @@ import "@/styles/admin.css";
 import { ROLE_LABEL, formatDate, initials, useAdminDirectory, roleTone } from "../../composables/useAdminDirectory";
 import PageHeader from "../../components/PageHeader.vue";
 import Pill from "../../components/Pill.vue";
+import { t } from "../../i18n";
 
 /** Vista transversal: todas las personas con acceso y sus invitaciones pendientes, en un único listado. */
 const dir = useAdminDirectory();
@@ -50,16 +51,16 @@ const filtered = computed(() => {
 <template>
   <q-page>
     <div class="adm-page">
-      <PageHeader :crumbs="[{ label: 'MemTrace' }, { label: 'Admin', to: { name: 'admin' } }, { label: 'Members' }]" icon="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" title="Members" />
+      <PageHeader :crumbs="[{ label: 'MemTrace' }, { label: 'Admin', to: { name: 'admin' } }, { label: 'Members' }]" icon="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" :title="t('adminMembersPage.members')" />
 
       <div class="adm-toolbar">
-        <p class="adm-sub">Everyone with access to an organization or experiment, and which invitations are still waiting.</p>
-        <TextInput v-model="filter" type="search" placeholder="Search by name, email or organization / experiment" />
+        <p class="adm-sub">{{ t("adminMembersPage.everyone_with_access_to_an_organization") }}</p>
+        <TextInput v-model="filter" type="search" :placeholder="t('adminMembersPage.search_by_name_email_or_organization')" />
       </div>
 
       <div class="adm-card list-card">
-        <p v-if="dir.loading.value" class="adm-hint pad">Loading…</p>
-        <p v-else-if="!filtered.length" class="adm-hint pad">No results.</p>
+        <p v-if="dir.loading.value" class="adm-hint pad">{{ t("adminMembersPage.loading") }}</p>
+        <p v-else-if="!filtered.length" class="adm-hint pad">{{ t("adminMembersPage.no_results") }}</p>
         <ul v-else class="adm-list">
           <li v-for="r in filtered" :key="r.id" class="adm-item" :class="{ pending: r.pending }">
             <div class="adm-avatar" :class="{ pending: r.pending }">{{ r.pending ? "?" : initials(r.name) }}</div>
@@ -67,9 +68,9 @@ const filtered = computed(() => {
               <span class="adm-item-title">{{ r.name }}</span>
               <span class="adm-item-meta">{{ r.email }}</span>
             </div>
-            <Pill>{{ r.scopeType === "organization" ? "Organization" : "Experiment" }}: {{ r.scope }}</Pill>
+            <Pill>{{ r.scopeType === "organization" ? t("adminMembersPage.organization") : t("adminMembersPage.experiment") }}: {{ r.scope }}</Pill>
             <Pill :tone="roleTone(r.role)" :outline="r.pending">{{ ROLE_LABEL[r.role] }}</Pill>
-            <Pill :tone="r.pending ? 'warn' : 'ok'">{{ r.pending ? `pending · ${formatDate(r.date)}` : "active" }}</Pill>
+            <Pill :tone="r.pending ? 'warn' : 'ok'">{{ r.pending ? t("adminMembersPage.pending_when", { when: formatDate(r.date) }) : t("adminMembersPage.active") }}</Pill>
           </li>
         </ul>
       </div>

@@ -175,7 +175,11 @@ body { font-size: 14px; letter-spacing: 0; }
 .vp-doc h1 > code, .vp-doc h2 > code, .vp-doc h3 > code { font-size: inherit; }
 
 /* Code: tinted block with syntax colors (shiki github themes), turquoise top rule */
-.vp-doc div[class*="language-"] { background: #061a19 !important; border: 1px solid #1d3c3a; margin: 20px 0; }
+.vp-doc div[class*="language-"] { background: #061a19 !important; border: 1px solid #1d3c3a; margin: 20px 0; display: flow-root; overflow: hidden; height: auto; }
+.vp-doc div[class*="language-"] pre { overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; scrollbar-color: #2a4f4c transparent; }
+.vp-doc div[class*="language-"] pre::-webkit-scrollbar { height: 8px; }
+.vp-doc div[class*="language-"] pre::-webkit-scrollbar-track { background: transparent; }
+.vp-doc div[class*="language-"] pre::-webkit-scrollbar-thumb { background: #2a4f4c; border-radius: 4px; }
 .vp-doc div[class*="language-"] pre, .vp-doc div[class*="language-"] code { color: #cfe6e3; }
 .vp-doc div[class*="language-"] pre, .vp-doc div[class*="language-"] code { font-family: var(--mt-mono); font-size: 13.5px; line-height: 1.7; }
 .vp-doc div[class*="language-"] .lang { color: #86e8e2; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }

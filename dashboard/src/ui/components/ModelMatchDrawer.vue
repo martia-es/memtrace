@@ -11,6 +11,7 @@ import LoadingState from "./LoadingState.vue";
 import Pill from "./Pill.vue";
 import Radio from "./Radio.vue";
 import SegmentedControl from "./SegmentedControl.vue";
+import { t, dateLocale } from "../i18n";
 
 /**
  * «Confirm Arena matches» (ADR-025): para cada modelo del catálogo que Arena publica con otro nombre, la persona elige qué entrada es el
@@ -41,8 +42,8 @@ const all = computed(() => (tab.value === "in_use" ? inUse.value : others.value)
 const shown = computed(() => all.value.slice(0, limit.value));
 const hidden = computed(() => Math.max(0, all.value.length - limit.value));
 const tabs = computed(() => [
-  { value: "in_use", label: "In use", count: inUse.value.length },
-  { value: "others", label: "Others", count: others.value.length },
+  { value: "in_use", label: t("modelMatchDrawer.in_use"), count: inUse.value.length },
+  { value: "others", label: t("modelMatchDrawer.others"), count: others.value.length },
 ]);
 
 function choice(g: Group): string | undefined {
@@ -79,10 +80,10 @@ async function settle(g: Group, body: Parameters<typeof api.decideModelMatch>[2]
 
 const confirm = (g: Group) => {
   const arenaName = choice(g);
-  if (arenaName) void settle(g, { decision: "confirm", arenaName }, `${g.modelKey} now shows the score of ${arenaName}`);
+  if (arenaName) void settle(g, { decision: "confirm", arenaName }, t("modelMatchDrawer.model_now_shows_the_score_of", { model: g.modelKey, arena: arenaName }));
 };
-const none = (g: Group) => void settle(g, { decision: "reject", arenaNames: g.candidates.map((c) => c.arenaName) }, `${g.modelKey}: those entries will not be offered again`);
-const noEquivalent = (g: Group) => void settle(g, { decision: "no_equivalent" }, `${g.modelKey}: marked as not listed by Arena`);
+const none = (g: Group) => void settle(g, { decision: "reject", arenaNames: g.candidates.map((c) => c.arenaName) }, t("modelMatchDrawer.model_those_entries_will_not_be", { model: g.modelKey }));
+const noEquivalent = (g: Group) => void settle(g, { decision: "no_equivalent" }, t("modelMatchDrawer.model_marked_as_not_listed_by", { model: g.modelKey }));
 
 </script>
 
@@ -92,38 +93,38 @@ const noEquivalent = (g: Group) => void settle(g, { decision: "no_equivalent" },
       <div class="drawer-backdrop" data-testid="match-backdrop" @click="emit('close')" />
     </Transition>
     <Transition name="drawer-slide" appear>
-      <aside class="drawer" role="dialog" aria-label="Confirm Arena matches" data-testid="match-drawer" @keydown.esc="emit('close')">
+      <aside class="drawer" role="dialog" :aria-label="t('modelMatchDrawer.confirm_arena_matches')" data-testid="match-drawer" @keydown.esc="emit('close')">
         <header class="head">
           <div class="head-row">
-            <h2>Confirm Arena matches</h2>
-            <Button variant="icon" aria-label="Close" data-testid="match-close" @click="emit('close')">
+            <h2>{{ t("modelMatchDrawer.confirm_arena_matches") }}</h2>
+            <Button variant="icon" :aria-label="t('modelMatchDrawer.close')" data-testid="match-close" @click="emit('close')">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
             </Button>
           </div>
           <p class="intro">
-            Arena lists models under its own names. Choose the entry that is the same model as yours, so its Elo shows in Model pricing. This only sets where the quality score comes from; nothing changes in how your agent runs.
+            {{ t("modelMatchDrawer.arena_lists_models_under_its_own") }}
           </p>
           <div class="tabs">
-            <SegmentedControl :options="tabs" :model-value="tab" size="sm" aria-label="Models to review" @update:model-value="tab = $event as 'in_use' | 'others'; limit = PAGE" />
-            <span class="hint">“In use” = seen in your traces, last 30 days</span>
+            <SegmentedControl :options="tabs" :model-value="tab" size="sm" :aria-label="t('modelMatchDrawer.models_to_review')" @update:model-value="tab = $event as 'in_use' | 'others'; limit = PAGE" />
+            <span class="hint">{{ t("modelMatchDrawer.in_use_seen_in_your_traces") }}</span>
           </div>
         </header>
 
         <div class="body">
           <ErrorBanner v-if="list.error.value" :error="list.error.value" @retry="load" />
           <LoadingState v-else-if="list.loading.value && !list.data.value" />
-          <EmptyState v-else-if="groups.length === 0" icon="check_circle" title="Nothing to confirm">Every model with a candidate has a decision.</EmptyState>
-          <EmptyState v-else-if="shown.length === 0" icon="check_circle" :title="tab === 'in_use' ? 'No model in use is waiting' : 'No other model is waiting'">
-            {{ tab === "in_use" ? "The ones you use already have a score or a decision." : "Nothing else has a candidate." }}
+          <EmptyState v-else-if="groups.length === 0" icon="check_circle" :title="t('modelMatchDrawer.nothing_to_confirm')">{{ t("modelMatchDrawer.every_model_with_a_candidate_has") }}</EmptyState>
+          <EmptyState v-else-if="shown.length === 0" icon="check_circle" :title="tab === 'in_use' ? t('modelMatchDrawer.no_model_in_use_is_waiting') : t('modelMatchDrawer.no_other_model_is_waiting')">
+            {{ tab === "in_use" ? t("modelMatchDrawer.the_ones_you_use_already_have") : t("modelMatchDrawer.nothing_else_has_a_candidate") }}
           </EmptyState>
 
           <section v-for="g in shown" :key="g.modelKey" class="card" :data-testid="`match-card-${g.modelKey}`">
             <header class="card-head">
-              <span class="label">Your model</span>
+              <span class="label">{{ t("modelMatchDrawer.your_model") }}</span>
               <code class="model">{{ g.model }}</code>
-              <Pill v-if="g.inUse" tone="info">In use</Pill>
+              <Pill v-if="g.inUse" tone="info">{{ t("modelMatchDrawer.in_use") }}</Pill>
             </header>
-            <p class="ask">ARENA LISTS IT AS… (CHOOSE ONE)</p>
+            <p class="ask">{{ t("modelMatchDrawer.arena_lists_it_as_choose_one") }}</p>
             <ul class="options">
               <li v-for="(c, i) in g.candidates" :key="c.arenaName">
                 <Radio
@@ -138,32 +139,32 @@ const noEquivalent = (g: Group) => void settle(g, { decision: "no_equivalent" },
                   <span class="opt">
                     <span class="opt-main">
                       <code class="arena-name">{{ c.arenaName }}</code>
-                      <Pill v-if="i === 0" tone="info">CLOSEST NAME</Pill>
+                      <Pill v-if="i === 0" tone="info">{{ t("modelMatchDrawer.closest_name") }}</Pill>
                     </span>
                     <span class="reason">{{ c.reason }}</span>
                   </span>
                   <span class="opt-score">
                     <b>{{ c.elo }}</b> <small>±{{ c.ci }}</small>
-                    <small class="votes">#{{ c.rank }} · {{ c.votes.toLocaleString("en-US") }} votes</small>
+                    <small class="votes">#{{ c.rank }} · {{ t("modelMatchDrawer.count_votes", { count: c.votes.toLocaleString(dateLocale("en-US")) }) }}</small>
                   </span>
                 </Radio>
               </li>
             </ul>
-            <p v-if="failed[g.modelKey]" class="error" role="alert" :data-testid="`match-error-${g.modelKey}`">Could not save: {{ failed[g.modelKey] }}</p>
+            <p v-if="failed[g.modelKey]" class="error" role="alert" :data-testid="`match-error-${g.modelKey}`">{{ t('modelMatchDrawer.could_not_save_error', { error: failed[g.modelKey] }) }}</p>
             <footer class="actions">
-              <Button variant="primary" :loading="busy[g.modelKey]" :disabled="!choice(g)" :data-testid="`match-confirm-${g.modelKey}`" @click="confirm(g)">Confirm match</Button>
-              <Button variant="link" :disabled="busy[g.modelKey]" :data-testid="`match-none-${g.modelKey}`" @click="none(g)">None of these</Button>
-              <Button variant="link" :disabled="busy[g.modelKey]" :data-testid="`match-noequiv-${g.modelKey}`" @click="noEquivalent(g)">Arena doesn't list it</Button>
+              <Button variant="primary" :loading="busy[g.modelKey]" :disabled="!choice(g)" :data-testid="`match-confirm-${g.modelKey}`" @click="confirm(g)">{{ t("modelMatchDrawer.confirm_match") }}</Button>
+              <Button variant="link" :disabled="busy[g.modelKey]" :data-testid="`match-none-${g.modelKey}`" @click="none(g)">{{ t("modelMatchDrawer.none_of_these") }}</Button>
+              <Button variant="link" :disabled="busy[g.modelKey]" :data-testid="`match-noequiv-${g.modelKey}`" @click="noEquivalent(g)">{{ t("modelMatchDrawer.arena_doesn_t_list_it") }}</Button>
               <span class="grow" />
-              <span class="saved">Saved; later syncs keep it</span>
+              <span class="saved">{{ t("modelMatchDrawer.saved_later_syncs_keep_it") }}</span>
             </footer>
           </section>
-          <Button v-if="hidden > 0" class="more" data-testid="match-more" @click="limit += PAGE">Show {{ Math.min(PAGE, hidden) }} more ({{ hidden }} left)</Button>
+          <Button v-if="hidden > 0" class="more" data-testid="match-more" @click="limit += PAGE">{{ t("modelMatchDrawer.show_count_more_left_left", { count: Math.min(PAGE, hidden), left: hidden }) }}</Button>
         </div>
 
         <footer class="foot">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
-          <span>Decisions apply to the whole organization and are saved in the audit log. Only people who can manage pricing see these buttons.</span>
+          <span>{{ t("modelMatchDrawer.decisions_apply_to_the_whole_organizatio") }}</span>
         </footer>
       </aside>
     </Transition>

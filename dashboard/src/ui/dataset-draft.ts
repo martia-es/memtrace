@@ -1,4 +1,5 @@
 import type { CommitDatasetChangesBody, DatasetItemDto } from "@contract";
+import { t } from "./i18n";
 
 /**
  * Borrador de edición de los items de un dataset (ADR-041): todo lo que la persona teclea, pega,
@@ -85,8 +86,8 @@ export function rowState(row: DraftRow): RowState {
 export function rowProblem(row: DraftRow): string | null {
   const state = rowState(row);
   if (state === "empty" || state === "removed" || state === "clean") return null;
-  if (!row.input.trim()) return "Input is required";
-  if (row.metadata.trim() && parseMetadata(row.metadata) === "invalid") return "Metadata must be a JSON object";
+  if (!row.input.trim()) return t("dataset-draft.input_is_required");
+  if (row.metadata.trim() && parseMetadata(row.metadata) === "invalid") return t("dataset-draft.metadata_must_be_a_json_object");
   return null;
 }
 

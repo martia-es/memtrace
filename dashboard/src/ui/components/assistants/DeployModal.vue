@@ -13,6 +13,7 @@ import StatusChip from "../StatusChip.vue";
 import Button from "../Button.vue";
 import Checkbox from "../Checkbox.vue";
 import FormField from "../FormField.vue";
+import { t } from "../../i18n";
 
 /**
  * Despliegue de un entorno (ADR-064). MemTrace no despliega: dispara el CI del repo con el commit al que apunta hoy la rama
@@ -43,12 +44,12 @@ async function send() {
   fieldErrors.value = {};
   try {
     await api.deploy(props.experimentId, props.deployment.id, gate.value?.allowed ? null : reason.value.trim());
-    $q.notify({ message: `Deploy to ${props.deployment.environment.label} started. The CI will report how it ends.`, color: "positive", timeout: 4000 });
+    $q.notify({ message: t("deployModal.deploy_to_env_started_the_ci", { env: props.deployment.environment.label }), color: "positive", timeout: 4000 });
     emit("deployed");
     emit("close");
   } catch (error) {
     fieldErrors.value = (error as { fields?: Record<string, string> }).fields ?? {};
-    $q.notify({ message: `Could not deploy: ${describeApiError(error as Error)}`, color: "negative", timeout: 5000 });
+    $q.notify({ message: t("deployModal.could_not_deploy_error", { error: describeApiError(error as Error) }), color: "negative", timeout: 5000 });
   } finally {
     sending.value = false;
   }
@@ -56,41 +57,41 @@ async function send() {
 </script>
 
 <template>
-  <Modal :title="`Deploy to ${deployment.environment.label}`" medium @close="emit('close')">
+  <Modal :title="t('deployModal.deploy_to_env', { env: deployment.environment.label })" medium @close="emit('close')">
     <div class="deploy" data-testid="deploy-modal">
-      <p v-if="preview.loading.value && !preview.data.value" class="muted">Checking what would be deployed…</p>
+      <p v-if="preview.loading.value && !preview.data.value" class="muted">{{ t("deployModal.checking_what_would_be_deployed") }}</p>
       <p v-else-if="preview.error.value" class="problem" role="alert" data-testid="deploy-error">{{ describeApiError(preview.error.value) }}</p>
       <template v-else-if="preview.data.value && gate">
         <dl class="facts">
-          <dt>Branch</dt>
+          <dt>{{ t("deployModal.branch") }}</dt>
           <dd class="mono">{{ preview.data.value.ref }}</dd>
-          <dt>Commit</dt>
+          <dt>{{ t("deployModal.commit") }}</dt>
           <dd><CommitLink :revision="preview.data.value.sha" :repo="repo" /></dd>
-          <dt>Evaluation</dt>
+          <dt>{{ t("deployModal.evaluation") }}</dt>
           <dd><StatusChip :tone="verdict!.tone" :label="verdict!.label" data-testid="gate-verdict" /></dd>
         </dl>
         <p class="reason" data-testid="gate-reason">{{ gate.reason }}</p>
         <ul v-if="gate.runs.some((r) => r.failures.length)" class="failures">
           <template v-for="r in gate.runs" :key="r.runId">
             <li v-for="f in r.failures" :key="r.runId + f.evaluator">
-              <template v-if="f.incomplete"><b>{{ f.evaluator }}</b> scored only {{ f.incomplete.scored }} of {{ f.incomplete.items }} items <span class="muted">(the rest failed to run, so its pass rate says nothing about the run)</span></template>
-              <template v-else><b>{{ f.evaluator }}</b> {{ f.passRate === null ? "has no results" : `${Math.round(f.passRate * 100)}%` }} <span class="muted">(target {{ Math.round(f.target * 100) }}%)</span></template>
+              <template v-if="f.incomplete"><b>{{ f.evaluator }}</b> {{ t("deployModal.scored_only_scored_of_items_items", { scored: f.incomplete.scored, items: f.incomplete.items }) }} <span class="muted">{{ t("deployModal.the_rest_failed_to_run_so") }}</span></template>
+              <template v-else><b>{{ f.evaluator }}</b> {{ f.passRate === null ? t('deployModal.has_no_results') : `${Math.round(f.passRate * 100)}%` }} <span class="muted">{{ t('deployModal.target_percent', { percent: Math.round(f.target * 100) }) }}</span></template>
             </li>
           </template>
         </ul>
 
         <template v-if="!gate.allowed">
-          <p class="hint">Run the offline evaluation from your CI on this commit, then come back. Evaluations run on a laptop with uncommitted changes do not count.</p>
-          <Checkbox v-if="canBypass" class="bypass" v-model="bypassing" data-testid="bypass-toggle"> Deploy anyway (hotfix)</Checkbox>
-          <FormField label="Why? It stays in the deployment history." v-if="bypassing">
+          <p class="hint">{{ t("deployModal.run_the_offline_evaluation_from_your") }}</p>
+          <Checkbox v-if="canBypass" class="bypass" v-model="bypassing" data-testid="bypass-toggle">{{ " " + t("deployModal.deploy_anyway_hotfix") }}</Checkbox>
+          <FormField :label="t('deployModal.why_it_stays_in_the_deployment')" v-if="bypassing">
             <TextInput v-model="reason" multiline :rows="2" :invalid="!!fieldErrors.bypassReason" data-testid="bypass-reason" />
             <span v-if="fieldErrors.bypassReason" class="field-error">{{ fieldErrors.bypassReason }}</span>
           </FormField>
         </template>
       </template>
       <div class="actions">
-        <Button @click="emit('close')">Cancel</Button>
-        <Button variant="primary" :disabled="!canSend" data-testid="deploy-confirm" @click="send">{{ sending ? "Starting…" : gate && !gate.allowed ? "Deploy anyway" : "Deploy" }}</Button>
+        <Button @click="emit('close')">{{ t("deployModal.cancel") }}</Button>
+        <Button variant="primary" :disabled="!canSend" data-testid="deploy-confirm" @click="send">{{ sending ? t("deployModal.starting") : gate && !gate.allowed ? t("deployModal.deploy_anyway") : t("deployModal.deploy") }}</Button>
       </div>
     </div>
   </Modal>

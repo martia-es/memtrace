@@ -13,6 +13,7 @@ import Select from "./Select.vue";
 import TextInput from "./TextInput.vue";
 import Button from "./Button.vue";
 import Pill from "./Pill.vue";
+import { t } from "../i18n";
 
 /**
  * Probar versiones de un prompt en el asistente real (ADR-071): se ejecuta el agente de verdad, con sus tools y su RAG, sin
@@ -61,7 +62,7 @@ async function loadTrace() {
     const detail = await traces.getTrace(id);
     const found = replayInputOf(detail.roots);
     if (found.message === null) {
-      traceProblem.value = "That trace has no captured message. Turn on content capture (MEMTRACE_CAPTURE_CONTENT) in the agent, or type the message.";
+      traceProblem.value = t("promptPlayground.that_trace_has_no_captured_message");
       original.value = null;
       return;
     }
@@ -119,81 +120,81 @@ async function run() {
 <template>
   <div class="playground" data-testid="playground">
     <ErrorBanner v-if="card.error.value" :error="card.error.value" @retry="card.run()" />
-    <p v-else-if="card.loading.value && !card.data.value" class="muted">Loading the agent…</p>
+    <p v-else-if="card.loading.value && !card.data.value" class="muted">{{ t("promptPlayground.loading_the_agent") }}</p>
     <p v-else-if="targets?.unavailable" class="warn" data-testid="playground-unavailable">{{ targets.unavailable }}</p>
 
     <template v-else-if="targets">
       <div class="pick">
-        <b>Test</b>
+        <b>{{ t("promptPlayground.test") }}</b>
         <Select v-model="first" :options="versionOptions" data-testid="playground-first" />
-        <b>against</b>
+        <b>{{ t("promptPlayground.against") }}</b>
         <Select v-model="second" :options="secondOptions" placeholder="nothing" data-testid="playground-second" />
-        <Button size="sm" v-if="second !== null" data-testid="playground-clear" @click="second = null">Clear</Button>
+        <Button size="sm" v-if="second !== null" data-testid="playground-clear" @click="second = null">{{ t("promptPlayground.clear") }}</Button>
         <template v-if="deploymentOptions.length > 1">
-          <span class="muted">in</span>
+          <span class="muted">{{ t("promptPlayground.in") }}</span>
           <Select v-model="deploymentId" :options="deploymentOptions" data-testid="playground-deployment" />
         </template>
         <span v-else-if="deploymentOptions[0]" class="tag mono" data-testid="playground-deployment-label">{{ deploymentOptions[0].label }}</span>
         <span class="grow" />
-        <span class="faint small">Runs the real agent. Nothing is promoted.</span>
+        <span class="faint small">{{ t("promptPlayground.runs_the_real_agent_nothing_is") }}</span>
       </div>
 
       <p v-if="!reads" class="warn small" data-testid="playground-not-reading">
-        No agent has reported reading this prompt in {{ environmentKey }}. The playground only works if the agent reads it with <code>memtrace.prompts</code>
-        and runs with <code>MEMTRACE_ALLOW_PROMPT_OVERRIDE=true</code> and the <code>PromptOverrideMiddleware</code>. You can still try: MemTrace tells you whether the agent applied it.
+        {{ t("promptPlayground.no_agent_has_reported_reading_this", { env: environmentKey }) }} <code>memtrace.prompts</code>
+        {{ t("promptPlayground.and_runs_with") + " " }}<code>MEMTRACE_ALLOW_PROMPT_OVERRIDE=true</code>{{ " " + t("promptPlayground.and_the") + " " }}<code>PromptOverrideMiddleware</code>{{ t("promptPlayground.you_can_still_try_memtrace_tells") }}
       </p>
 
       <section class="panel">
         <header>
-          <b>Message</b>
-          <span v-if="original" class="tag mono">from {{ original.traceId }}</span>
-          <span v-else class="faint small">What does the person say?</span>
+          <b>{{ t("promptPlayground.message") }}</b>
+          <span v-if="original" class="tag mono">{{ t("promptPlayground.from_id", { id: original.traceId }) }}</span>
+          <span v-else class="faint small">{{ t("promptPlayground.what_does_the_person_say") }}</span>
         </header>
         <div class="earlier" data-testid="playground-history">
           <div v-for="(_, i) in history" :key="i" class="turn">
-            <span class="who mono">PERSON</span>
+            <span class="who mono">{{ t("promptPlayground.person") }}</span>
             <TextInput v-model="history[i]" size="sm" :data-testid="`playground-earlier-${i}`" />
-            <Button variant="icon" size="sm" class="x" :aria-label="`Remove earlier message ${i + 1}`" :data-testid="`playground-earlier-remove-${i}`" @click="removeEarlier(i)">×</Button>
+            <Button variant="icon" size="sm" class="x" :aria-label="t('promptPlayground.remove_earlier_message_n', { n: i + 1 })" :data-testid="`playground-earlier-remove-${i}`" @click="removeEarlier(i)">×</Button>
           </div>
           <p class="faint small note">
-            <template v-if="history.length > 0">The agent receives these first, in the same conversation, and answers them again before the message below.</template>
-            <template v-else>No earlier messages.</template>
-            <Button variant="link" v-if="history.length < MAX_HISTORY" class="add" data-testid="playground-add-earlier" @click="history.push('')">+ Add an earlier message</Button>
+            <template v-if="history.length > 0">{{ t("promptPlayground.the_agent_receives_these_first_in") }}</template>
+            <template v-else>{{ t("promptPlayground.no_earlier_messages") }}</template>
+            <Button variant="link" v-if="history.length < MAX_HISTORY" class="add" data-testid="playground-add-earlier" @click="history.push('')">{{ t("promptPlayground.add_an_earlier_message") }}</Button>
           </p>
         </div>
         <div class="body">
-          <TextInput v-model="message" multiline :rows="3" placeholder="What does the person say?" data-testid="playground-message" />
+          <TextInput v-model="message" multiline :rows="3" :placeholder="t('promptPlayground.what_does_the_person_say')" data-testid="playground-message" />
           <p v-if="traceProblem" class="warn small" data-testid="playground-trace-problem">{{ traceProblem }}</p>
         </div>
         <footer>
-          <TextInput v-model="traceId" mono size="sm" placeholder="or load it from a trace id" class="trace-id" data-testid="playground-trace" @keydown.enter.prevent="loadTrace" />
-          <Button size="sm" :disabled="loadingTrace || traceId.trim() === ''" data-testid="playground-load" @click="loadTrace">Load</Button>
+          <TextInput v-model="traceId" mono size="sm" :placeholder="t('promptPlayground.or_load_it_from_a_trace')" class="trace-id" data-testid="playground-trace" @keydown.enter.prevent="loadTrace" />
+          <Button size="sm" :disabled="loadingTrace || traceId.trim() === ''" data-testid="playground-load" @click="loadTrace">{{ t("promptPlayground.load") }}</Button>
           <span class="grow" />
-          <Button variant="primary" :disabled="!canRun" data-testid="playground-run" @click="run">{{ running ? "Running…" : "Run" }}</Button>
+          <Button variant="primary" :disabled="!canRun" data-testid="playground-run" @click="run">{{ running ? t("promptPlayground.running") : t("promptPlayground.run") }}</Button>
         </footer>
       </section>
 
       <div v-if="original?.answer || outcomes.length > 0 || running" class="results" data-testid="playground-results">
         <section v-if="original?.answer" class="panel before" data-testid="playground-original">
-          <header><b class="muted">Before</b><router-link :to="{ name: 'trace', params: { experimentId, traceId: original.traceId } }" class="link">open its trace</router-link></header>
+          <header><b class="muted">{{ t("promptPlayground.before") }}</b><router-link :to="{ name: 'trace', params: { experimentId, traceId: original.traceId } }" class="link">{{ t("promptPlayground.open_its_trace") }}</router-link></header>
           <pre>{{ original.answer }}</pre>
         </section>
         <section v-for="o in outcomes" :key="o.version" class="panel" :data-testid="`playground-result-${o.version}`">
           <header>
             <b class="mono">v{{ o.version }}</b>
-            <Pill v-if="o.result && !o.result.applied" :data-testid="`applied-${o.version}`" class="bad">NOT applied</Pill>
+            <Pill v-if="o.result && !o.result.applied" :data-testid="`applied-${o.version}`" class="bad">{{ t("promptPlayground.not_applied") }}</Pill>
             <span v-if="o.result" class="faint mono small">{{ formatDuration(o.result.latencyMs) }}</span>
-            <router-link v-if="o.result?.traceId" :to="{ name: 'trace', params: { experimentId, traceId: o.result.traceId } }" class="link">open trace</router-link>
+            <router-link v-if="o.result?.traceId" :to="{ name: 'trace', params: { experimentId, traceId: o.result.traceId } }" class="link">{{ t("promptPlayground.open_trace") }}</router-link>
           </header>
           <p v-if="o.error" class="warn small pad" :data-testid="`error-${o.version}`">{{ o.error }}</p>
           <template v-else-if="o.result">
             <p v-if="!o.result.applied" class="warn small pad" :data-testid="`not-applied-${o.version}`">
-              The agent answered without asking for this version, so <b>this answer is not from v{{ o.version }}</b>. Check that it reads the prompt with
-              <code>memtrace.prompts</code>, that <code>MEMTRACE_ALLOW_PROMPT_OVERRIDE=true</code> and that the <code>PromptOverrideMiddleware</code> is installed.
+              {{ t("promptPlayground.the_agent_answered_without_asking_for") + " " }}<b>{{ t("promptPlayground.this_answer_is_not_from_v", { version: o.version }) }}</b>{{ t("promptPlayground.check_that_it_reads_the_prompt") }}
+              <code>memtrace.prompts</code>{{ t("promptPlayground.that") + " " }}<code>MEMTRACE_ALLOW_PROMPT_OVERRIDE=true</code> {{ t("promptPlayground.and_that_the") }} <code>PromptOverrideMiddleware</code>{{ " " + t("promptPlayground.is_installed") }}
             </p>
             <pre>{{ o.result.reply }}</pre>
           </template>
-          <p v-else class="faint small pad">Running…</p>
+          <p v-else class="faint small pad">{{ t("promptPlayground.running") }}</p>
         </section>
       </div>
     </template>

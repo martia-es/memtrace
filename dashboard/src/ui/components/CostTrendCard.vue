@@ -9,6 +9,8 @@ import { useTraceApi } from "../composables/useTraceApi";
 import Card from "./Card.vue";
 import Pill from "./Pill.vue";
 import SegmentedControl from "./SegmentedControl.vue";
+import { t, tp } from "../i18n";
+import { tr, lazyMessages } from "../../domain/translate";
 
 /**
  * Overview › Summary: gasto del mes, previsión a fin de mes y en qué se va. El mes es siempre el natural (no sigue al rango del
@@ -48,29 +50,35 @@ const cross = computed(() => (trend.value.crossDay === null ? null : X(trend.val
 const usd = (v: number | null) => formatCostUsd(v) ?? "$0";
 const budgetOf = computed(() => trend.value.monthlyUsd);
 const STATES: Record<CostTrendState, { tone: "ok" | "warn" | "error" | "neutral"; label: string }> = {
-  on_track: { tone: "ok", label: "On track" },
-  forecast: { tone: "warn", label: "Forecast over budget" },
-  exceeded: { tone: "error", label: "Exceeded" },
-  early: { tone: "neutral", label: "Too early to project" },
-  no_budget: { tone: "neutral", label: "No budget set" },
+  on_track: { tone: "ok", get label() { return t("costTrendCard.on_track"); } },
+  forecast: { tone: "warn", get label() { return t("costTrendCard.forecast_over_budget"); } },
+  exceeded: { tone: "error", get label() { return t("costTrendCard.exceeded"); } },
+  early: { tone: "neutral", get label() { return t("costTrendCard.too_early_to_project"); } },
+  no_budget: { tone: "neutral", get label() { return t("costTrendCard.no_budget_set"); } },
 };
 const state = computed(() => STATES[trend.value.state]);
 const summary = computed(() => {
   const t = trend.value;
-  if (t.state === "exceeded") return `Spent ${usd(t.spentUsd)} of ${usd(t.monthlyUsd)}: the budget is already used up.`;
-  if (t.state === "forecast") return `At this pace the month ends at ${usd(t.projectedUsd)}, ${usd(t.overUsd)} over the budget${t.crossLabel ? `, crossing it around ${t.crossLabel}` : ""}.`;
-  if (t.state === "early") return "The projection starts after three days of spend.";
-  if (t.state === "no_budget") return `At this pace the month ends at ${usd(t.projectedUsd)}. Set a monthly budget to be warned before it is exceeded.`;
-  return `At this pace the month ends at ${usd(t.projectedUsd)}, within the ${usd(t.monthlyUsd)} budget.`;
+  if (t.state === "exceeded") return tr("costTrendCard.spent_spent_of_budget_the_budget", { spent: usd(t.spentUsd), budget: usd(t.monthlyUsd) });
+  if (t.state === "forecast") return tr("costTrendCard.at_this_pace_the_month_ends", { projected: usd(t.projectedUsd), over: usd(t.overUsd), crossing: t.crossLabel ? tr("costTrendCard.crossing_it_around_when", { when: t.crossLabel }) : "" });
+  if (t.state === "early") return tr("costTrendCard.the_projection_starts_after_three_days");
+  if (t.state === "no_budget") return tr("costTrendCard.at_this_pace_the_month_ends2", { projected: usd(t.projectedUsd) });
+  return tr("costTrendCard.at_this_pace_the_month_ends3", { projected: usd(t.projectedUsd), budget: usd(t.monthlyUsd) });
 });
-const chartLabel = computed(() => `Cumulative spend this month: ${usd(trend.value.spentUsd)} so far${trend.value.projectedUsd === null ? "" : `, projected ${usd(trend.value.projectedUsd)} at month end`}, ${budgetOf.value === null ? ", with no budget set" : `, against a ${usd(budgetOf.value)} budget`}`);
+const chartLabel = computed(() =>
+  tr("costTrendCard.cumulative_spend_this_month_spent_so", {
+    spent: usd(trend.value.spentUsd),
+    projected: trend.value.projectedUsd === null ? "" : tr("costTrendCard.projected_amount_at_month_end", { amount: usd(trend.value.projectedUsd) }),
+    budget: budgetOf.value === null ? tr("costTrendCard.with_no_budget_set") : tr("costTrendCard.against_a_amount_budget", { amount: usd(budgetOf.value) }),
+  }),
+);
 
 // ---- en qué se va: el mismo reparto que Overview › Breakdown, del día 1 a hoy
 type Group = BreakdownResponse["groupBy"];
 const GROUPS = [
-  { value: "user", label: "User", testid: "cost-group-user" },
-  { value: "prompt_version", label: "Prompt version", testid: "cost-group-prompt_version" },
-  { value: "environment", label: "Environment", testid: "cost-group-environment" },
+  { value: "user", get label() { return t("costTrendCard.user"); }, testid: "cost-group-user" },
+  { value: "prompt_version", get label() { return t("costTrendCard.prompt_version"); }, testid: "cost-group-prompt_version" },
+  { value: "environment", get label() { return t("costTrendCard.environment"); }, testid: "cost-group-environment" },
 ];
 const groupBy = ref<Group>("user");
 const setGroup = (g: unknown) => { if (GROUPS.some((o) => o.value === g)) groupBy.value = g as Group; };
@@ -82,33 +90,33 @@ const rows = computed(() => {
   const total = items.reduce((s, i) => s + i.cost, 0);
   const head = items.slice(0, SHOWN);
   const rest = items.slice(SHOWN);
-  const all = rest.length ? [...head, { name: `${rest.length} other${rest.length === 1 ? "" : "s"}`, cost: rest.reduce((s, i) => s + i.cost, 0), other: true }] : head;
+  const all = rest.length ? [...head, { name: tp("costTrendCard.other", rest.length), cost: rest.reduce((s, i) => s + i.cost, 0), other: true }] : head;
   const top = Math.max(0, ...all.map((r) => r.cost));
   return all.map((r) => ({ ...r, other: "other" in r, share: total > 0 ? Math.round((r.cost / total) * 100) : 0, width: top > 0 ? Math.max(2, Math.round((r.cost / top) * 100)) : 0 }));
 });
-const EMPTY: Record<Group, string> = {
-  user: "Users show up when the agent wraps each request in memtrace.user(user_id).",
-  prompt_version: "Versions show up when the agent reads its prompt with memtrace.prompts.",
-  environment: "Environments show up when the agent sets one in its SDK configuration.",
-};
+const EMPTY: Record<Group, string> = lazyMessages({
+  user: "costTrendCard.users_show_up_when_the_agent",
+  prompt_version: "costTrendCard.versions_show_up_when_the_agent",
+  environment: "costTrendCard.environments_show_up_when_the_agent",
+});
 const openBreakdown = () => router.push({ name: "overview-breakdown", params: { experimentId: route.params.experimentId as string }, query: { groupBy: groupBy.value } });
 const groupLabel = computed(() => GROUPS.find((g) => g.value === groupBy.value)!.label);
 </script>
 
 <template>
   <div class="cost-row" data-testid="cost-trend">
-    <Card as="section" gap="sm" class="trend" aria-label="Spend this month">
+    <Card as="section" gap="sm" class="trend" :aria-label="t('costTrendCard.spend_this_month')">
       <div class="head">
-        <h2>Spend this month</h2>
-        <span class="note">{{ trend.monthLabel }} 1 – {{ trend.daysInMonth }} · estimate from the price catalog</span>
+        <h2>{{ t("costTrendCard.spend_this_month") }}</h2>
+        <span class="note">{{ t("costTrendCard.month_1_days_estimate_from_the", { month: trend.monthLabel, days: trend.daysInMonth }) }}</span>
         <span class="spacer" />
         <Pill :tone="state.tone" dot data-testid="cost-state">{{ state.label }}</Pill>
       </div>
 
       <div class="stats">
-        <div class="stat"><span class="label">SPENT, DAY {{ Math.ceil(trend.elapsedDays) }} OF {{ trend.daysInMonth }}</span><strong data-testid="cost-spent">{{ usd(trend.spentUsd) }}</strong></div>
-        <div class="stat" :class="trend.state"><span class="label">PROJECTED AT MONTH END</span><strong data-testid="cost-projected">{{ trend.projectedUsd === null ? "–" : usd(trend.projectedUsd) }}</strong></div>
-        <div class="stat"><span class="label">BUDGET</span><strong v-if="budgetOf !== null">{{ usd(budgetOf) }}</strong><strong v-else class="none">None</strong><a v-if="budgetOf === null && canSetBudget" class="link" data-testid="cost-set-budget" @click="$emit('setBudget')">Set a budget →</a></div>
+        <div class="stat"><span class="label">{{ t("costTrendCard.spent_day_day_of_days", { day: Math.ceil(trend.elapsedDays), days: trend.daysInMonth }) }}</span><strong data-testid="cost-spent">{{ usd(trend.spentUsd) }}</strong></div>
+        <div class="stat" :class="trend.state"><span class="label">{{ t("costTrendCard.projected_at_month_end") }}</span><strong data-testid="cost-projected">{{ trend.projectedUsd === null ? "–" : usd(trend.projectedUsd) }}</strong></div>
+        <div class="stat"><span class="label">{{ t("costTrendCard.budget") }}</span><strong v-if="budgetOf !== null">{{ usd(budgetOf) }}</strong><strong v-else class="none">{{ t("costTrendCard.none") }}</strong><a v-if="budgetOf === null && canSetBudget" class="link" data-testid="cost-set-budget" @click="$emit('setBudget')">{{ t("costTrendCard.set_a_budget") }}</a></div>
       </div>
       <p class="summary" data-testid="cost-summary">{{ summary }}</p>
 
@@ -121,30 +129,30 @@ const groupLabel = computed(() => GROUPS.find((g) => g.value === groupBy.value)!
         <rect v-if="trend.projection.length" :x="today.x" :y="TOP" :width="RIGHT - today.x" :height="BOTTOM - TOP" class="future" />
         <template v-if="budgetOf !== null">
           <line :x1="LEFT" :y1="Y(budgetOf)" :x2="RIGHT" :y2="Y(budgetOf)" class="budget" />
-          <text :x="LEFT + 6" :y="Y(budgetOf) - 6" class="budget-label">Budget {{ usd(budgetOf) }}</text>
+          <text :x="LEFT + 6" :y="Y(budgetOf) - 6" class="budget-label">{{ t("costTrendCard.budget_amount", { amount: usd(budgetOf) }) }}</text>
         </template>
         <polyline v-if="trend.projection.length" :points="points(trend.projection)" class="projection" />
         <polyline :points="points(trend.spent)" class="spent" />
         <template v-if="trend.projection.length">
           <line :x1="today.x" :y1="TOP" :x2="today.x" :y2="BOTTOM" class="today-line" />
-          <text :x="today.x + 6" :y="TOP + 14" class="today-label">Today</text>
+          <text :x="today.x + 6" :y="TOP + 14" class="today-label">{{ t("costTrendCard.today") }}</text>
         </template>
         <circle :cx="today.x" :cy="today.y" r="4.5" class="today-dot" />
         <template v-if="end">
           <circle :cx="end.x" :cy="end.y" r="5" class="end-dot" />
-          <text :x="end.x - 10" :y="end.y - 12" text-anchor="end" class="end-label">{{ usd(trend.projectedUsd) }} projected</text>
+          <text :x="end.x - 10" :y="end.y - 12" text-anchor="end" class="end-label">{{ t("costTrendCard.amount_projected", { amount: usd(trend.projectedUsd) }) }}</text>
         </template>
         <circle v-if="cross !== null && budgetOf !== null" :cx="cross" :cy="Y(budgetOf)" r="4" class="cross-dot" />
         <text v-for="x in xLabels" :key="x.label" :x="x.x" :y="H - 8" text-anchor="middle" class="axis">{{ x.label }}</text>
       </svg>
       <div class="legend" aria-hidden="true">
-        <span><i class="key spent-key" />Spent</span><span><i class="key proj-key" />Projected</span><span v-if="budgetOf !== null"><i class="key budget-key" />Budget</span><span><i class="key bar-key" />Per day</span>
+        <span><i class="key spent-key" />{{ t("costTrendCard.spent") }}</span><span><i class="key proj-key" />{{ t("costTrendCard.projected") }}</span><span v-if="budgetOf !== null"><i class="key budget-key" />{{ t("costTrendCard.budget2") }}</span><span><i class="key bar-key" />{{ t("costTrendCard.per_day") }}</span>
       </div>
     </Card>
 
-    <Card as="section" gap="sm" class="split" aria-label="Where it goes">
-      <div class="head"><h2>Where it goes</h2></div>
-      <SegmentedControl :options="GROUPS" :model-value="groupBy" aria-label="Group the spend by" data-testid="cost-group" @update:model-value="setGroup" />
+    <Card as="section" gap="sm" class="split" :aria-label="t('costTrendCard.where_it_goes')">
+      <div class="head"><h2>{{ t("costTrendCard.where_it_goes") }}</h2></div>
+      <SegmentedControl :options="GROUPS" :model-value="groupBy" :aria-label="t('costTrendCard.group_the_spend_by')" data-testid="cost-group" @update:model-value="setGroup" />
       <div class="rows">
         <div v-for="r in rows" :key="r.name" class="item" data-testid="cost-split-row">
           <div class="line"><span class="name" :class="{ muted: r.other }">{{ r.name }}</span><span class="val">{{ usd(r.cost) }} <span class="share">· {{ r.share }}%</span></span></div>
@@ -152,7 +160,7 @@ const groupLabel = computed(() => GROUPS.find((g) => g.value === groupBy.value)!
         </div>
         <p v-if="!rows.length && !split.loading.value" class="empty" data-testid="cost-split-empty">{{ EMPTY[groupBy] }}</p>
       </div>
-      <a class="link" data-testid="cost-open-breakdown" @click="openBreakdown">Open Breakdown › {{ groupLabel }} →</a>
+      <a class="link" data-testid="cost-open-breakdown" @click="openBreakdown">{{ t("costTrendCard.open_breakdown_group", { group: groupLabel }) }}</a>
     </Card>
   </div>
 </template>

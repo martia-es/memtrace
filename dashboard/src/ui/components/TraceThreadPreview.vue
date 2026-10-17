@@ -7,6 +7,7 @@ import ErrorBanner from "./ErrorBanner.vue";
 import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
 import LoadingState from "./LoadingState.vue";
+import { t } from "../i18n";
 
 /** La conversación de una traza leída como un chat, para ver qué se evaluó sin salir de la pantalla (ADR-050). */
 const props = defineProps<{ traceId: string; /** ocupa todo el alto disponible en vez de limitarse a 320px */ fill?: boolean }>();
@@ -21,7 +22,7 @@ const turns = computed(() => conversationTurns(traceThread(trace.data.value?.roo
   <div class="preview" :class="{ fill }" data-testid="trace-preview">
     <ErrorBanner v-if="trace.error.value" :error="trace.error.value" @retry="trace.run()" />
     <LoadingState v-else-if="!trace.data.value" size="sm" />
-    <p v-else-if="!turns.length" class="empty">This trace has no content saved.</p>
+    <p v-else-if="!turns.length" class="empty">{{ t("traceThreadPreview.this_trace_has_no_content_saved") }}</p>
     <ConversationThread v-else :turns="turns" answer-label="Reply that was reviewed" />
   </div>
 </template>

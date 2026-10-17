@@ -16,6 +16,7 @@ import ApprovalRulesPanel from "../../components/admin/ApprovalRulesPanel.vue";
 import ExperimentExport from "../../components/admin/ExperimentExport.vue";
 import Button from "../../components/Button.vue";
 import Pill from "../../components/Pill.vue";
+import { t } from "../../i18n";
 
 /**
  * Nivel 3: un experimento. Un paso por pestaña, en el orden en que se configura un agente:
@@ -56,14 +57,14 @@ onMounted(refreshKeyCount);
 
 const tabs = computed(() => {
   const list: { id: string; label: string; count?: number }[] = [
-    { id: "connect", label: "Connect" },
-    { id: "keys", label: "API keys", count: keyCount.value ?? undefined },
-    { id: "score-configs", label: "Score configs" },
+    { id: "connect", label: t("adminExperimentPage.connect") },
+    { id: "keys", label: t("adminExperimentPage.api_keys"), count: keyCount.value ?? undefined },
+    { id: "score-configs", label: t("adminExperimentPage.score_configs") },
   ];
-  if (canApprovals.value) list.push({ id: "approvals", label: "Approvals" });
-  if (canExport.value) list.push({ id: "export", label: "Export" });
+  if (canApprovals.value) list.push({ id: "approvals", label: t("adminExperimentPage.approvals") });
+  if (canExport.value) list.push({ id: "export", label: t("adminExperimentPage.export") });
   if (canManage.value) {
-    list.push({ id: "members", label: "Members", count: (members.value?.members.length ?? 0) + (members.value?.pendingInvitations.length ?? 0) });
+    list.push({ id: "members", label: t("adminExperimentPage.members"), count: (members.value?.members.length ?? 0) + (members.value?.pendingInvitations.length ?? 0) });
   }
   return list;
 });
@@ -81,22 +82,22 @@ MEMTRACE_CAPTURE_CONTENT="true"`,
 );
 function copyTemplate() {
   void navigator.clipboard.writeText(envTemplate.value);
-  $q.notify({ message: "Copied", timeout: 1200, position: "bottom" });
+  $q.notify({ message: t("adminExperimentPage.copied"), timeout: 1200, position: "bottom" });
 }
 
 async function inviteMember({ email, role }: { email: string; role: string }) {
   try {
     await api.addExperimentMember(props.experimentId, email, role);
-    $q.notify({ message: "Invitation sent", color: "positive", timeout: 2500 });
+    $q.notify({ message: t("adminExperimentPage.invitation_sent"), color: "positive", timeout: 2500 });
     await dir.reload();
   } catch (error) {
-    notifyErrorWith($q.notify, "Could not invite", error);
+    notifyErrorWith($q.notify, t("adminExperimentPage.could_not_invite"), error);
   }
 }
 
 const MEMBER_ROLE_OPTIONS = [
-  { label: "technical: curates reviews, rubrics, datasets and the technical trace", value: "technical" },
-  { label: "business: sees the dashboard and labels in the queues they review", value: "business" },
+  { get label() { return t("adminExperimentPage.technical_curates_reviews_rubrics_datase"); }, value: "technical" },
+  { get label() { return t("adminExperimentPage.business_sees_the_dashboard_and_labels"); }, value: "business" },
 ];
 </script>
 
@@ -111,81 +112,80 @@ const MEMBER_ROLE_OPTIONS = [
           { label: experiment?.name ?? 'Experiment' },
         ]"
         icon="M4 5h16v11H9l-5 4z"
-        :title="experiment?.name ?? 'Experiment'"
+        :title="experiment?.name ?? t('adminExperimentPage.experiment')"
       />
 
       <p v-if="loaded && !experiment" class="adm-empty">
-        This experiment doesn't exist or you don't have access to it.
-        <router-link :to="{ name: 'admin' }">Back to organizations</router-link>
+        {{ t("adminExperimentPage.this_experiment_doesn_t_exist_or") }}
+        <router-link :to="{ name: 'admin' }">{{ t("adminExperimentPage.back_to_organizations") }}</router-link>
       </p>
 
       <template v-else-if="experiment">
         <div class="summary adm-card">
           <div class="summary-item">
-            <span class="summary-label">service.name</span>
+            <span class="summary-label">{{ t("adminExperimentPage.service_name") }}</span>
             <span class="mono">{{ experiment.serviceName }}</span>
           </div>
           <div class="summary-item">
-            <span class="summary-label">Your role</span>
+            <span class="summary-label">{{ t("adminExperimentPage.your_role") }}</span>
             <Pill :tone="roleTone(experiment.myRole)">{{ ROLE_LABEL[experiment.myRole] }}</Pill>
           </div>
-          <Button class="push" size="sm" :to="{ name: 'conversations', params: { experimentId: experiment.id } }">Open traces</Button>
+          <Button class="push" size="sm" :to="{ name: 'conversations', params: { experimentId: experiment.id } }">{{ t("adminExperimentPage.open_traces") }}</Button>
         </div>
 
         <TabBar v-model="tab" :tabs="tabs" />
 
         <section v-if="tab === 'connect'" class="panel">
-          <p class="adm-sub">Three steps to start sending traces from your agent.</p>
+          <p class="adm-sub">{{ t("adminExperimentPage.three_steps_to_start_sending_traces") }}</p>
           <ol class="adm-steps">
             <li class="adm-step">
               <span class="adm-step-num">1</span>
               <div class="adm-step-body">
-                <h4 class="adm-step-title">Create an API key</h4>
+                <h4 class="adm-step-title">{{ t("adminExperimentPage.create_an_api_key") }}</h4>
                 <p class="adm-hint">
                   {{ keyCount ? `This experiment has ${keyCount} active key(s).` : "The agent needs a key to prove which experiment its traces belong to." }}
                 </p>
-                <Button variant="primary" size="sm" @click="tab = 'keys'">{{ keyCount ? "Manage API keys" : "Create API key" }}</Button>
-                <p v-if="!canKeys && !keyCount" class="adm-hint">Only technical profiles and organization admins can create keys.</p>
+                <Button variant="primary" size="sm" @click="tab = 'keys'">{{ keyCount ? t("adminExperimentPage.manage_api_keys") : t("adminExperimentPage.create_api_key") }}</Button>
+                <p v-if="!canKeys && !keyCount" class="adm-hint">{{ t("adminExperimentPage.only_technical_profiles_and_organization") }}</p>
               </div>
             </li>
             <li class="adm-step">
               <span class="adm-step-num">2</span>
               <div class="adm-step-body">
-                <h4 class="adm-step-title">Set these variables in your agent</h4>
-                <p class="adm-hint">Replace <span class="adm-code">&lt;your-api-key&gt;</span> with the key from step 1.</p>
+                <h4 class="adm-step-title">{{ t("adminExperimentPage.set_these_variables_in_your_agent") }}</h4>
+                <p class="adm-hint">{{ t("adminExperimentPage.replace") + " " }}<span class="adm-code">&lt;your-api-key&gt;</span>{{ " " + t("adminExperimentPage.with_the_key_from_step_1") }}</p>
                 <div class="adm-snippet">
                   <pre>{{ envTemplate }}</pre>
-                  <Button @click="copyTemplate">Copy</Button>
+                  <Button @click="copyTemplate">{{ t("adminExperimentPage.copy") }}</Button>
                 </div>
               </div>
             </li>
             <li class="adm-step">
               <span class="adm-step-num">3</span>
               <div class="adm-step-body">
-                <h4 class="adm-step-title">Run your agent</h4>
-                <p class="adm-hint">Its traces appear in this experiment's conversations within a few seconds.</p>
+                <h4 class="adm-step-title">{{ t("adminExperimentPage.run_your_agent") }}</h4>
+                <p class="adm-hint">{{ t("adminExperimentPage.its_traces_appear_in_this_experiment") }}</p>
               </div>
             </li>
           </ol>
         </section>
 
         <section v-if="tab === 'keys'" class="panel">
-          <p class="adm-sub">Credentials that let an agent write traces into this experiment.</p>
+          <p class="adm-sub">{{ t("adminExperimentPage.credentials_that_let_an_agent_write") }}</p>
           <ExperimentApiKeys :experiment="experiment" :can-manage="canKeys" />
         </section>
 
         <section v-if="tab === 'score-configs'" class="panel">
           <p class="adm-sub">
-            A score config is a rubric: it defines what can be scored on a trace (a number range, yes/no, or categories), so labels
-            from different people are comparable. Annotation queues use them.
+            {{ t("adminExperimentPage.a_score_config_is_a_rubric") }}
           </p>
           <ScoreConfigsPanel :experiment-id="experiment.id" :can-manage="canScoreConfigs" />
         </section>
 
         <section v-if="tab === 'approvals' && canApprovals" class="panel">
           <div class="adm-card">
-            <h3 class="adm-section-title">Approvals for this agent's prompts</h3>
-            <p class="adm-hint">Extra review for the prompts of this agent, on top of what the organization already asks. You can add people or approvers; you cannot ask for fewer than the organization.</p>
+            <h3 class="adm-section-title">{{ t("adminExperimentPage.approvals_for_this_agent_s_prompts") }}</h3>
+            <p class="adm-hint">{{ t("adminExperimentPage.extra_review_for_the_prompts_of") }}</p>
             <ApprovalRulesPanel :scope="{ type: 'experiment', id: experiment.id }" />
           </div>
         </section>
@@ -196,12 +196,12 @@ const MEMBER_ROLE_OPTIONS = [
 
         <section v-if="tab === 'members' && canManage" class="panel">
           <div class="adm-card">
-            <h3 class="adm-section-title">Who can access this experiment</h3>
-            <p class="adm-hint">Technical profiles curate the reviews and manage rubrics, datasets and their own keys. Business profiles see the dashboard and label in the queues they review.</p>
+            <h3 class="adm-section-title">{{ t("adminExperimentPage.who_can_access_this_experiment") }}</h3>
+            <p class="adm-hint">{{ t("adminExperimentPage.technical_profiles_curate_the_reviews_an") }}</p>
             <MemberList :data="members" />
           </div>
           <InviteForm
-            title="Invite someone to this experiment"
+            :title="t('adminExperimentPage.invite_someone_to_this_experiment')"
             help="If the person doesn't have an account yet, they'll receive an email to sign in with Google or Microsoft."
             :role-options="MEMBER_ROLE_OPTIONS"
             @invite="inviteMember"

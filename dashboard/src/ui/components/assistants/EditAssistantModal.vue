@@ -4,6 +4,7 @@ import Select from "../Select.vue";
 import { reactive, ref } from "vue";
 import { useQuasar } from "quasar";
 import type { AssistantCardDto, RepoConfigDto } from "@contract";
+import { t } from "../../i18n";
 
 type RepoProvider = RepoConfigDto["provider"];
 const PROVIDERS: { label: string; value: RepoProvider }[] = [
@@ -56,67 +57,65 @@ async function save() {
     emit("close");
   } catch (error) {
     fieldErrors.value = (error as { fields?: Record<string, string> }).fields ?? {};
-    $q.notify({ message: `Could not save: ${describeApiError(error as Error)}`, color: "negative", timeout: 4000 });
+    $q.notify({ message: t("editAssistantModal.could_not_save_error", { error: describeApiError(error as Error) }), color: "negative", timeout: 4000 });
   } finally {
     saving.value = false;
   }
 }
 const LIFECYCLE_OPTIONS: { label: string; value: "active" | "retired" }[] = [
-  { label: "Active", value: "active" },
-  { label: "Retired (health checks stop)", value: "retired" },
+  { label: t("editAssistantModal.active"), value: "active" },
+  { label: t("editAssistantModal.retired_health_checks_stop"), value: "retired" },
 ];
 </script>
 
 <template>
-  <Modal :title="`Edit ${card.name}`" @close="emit('close')">
+  <Modal :title="t('editAssistantModal.edit_name', { name: card.name })" @close="emit('close')">
     <form class="modal-form" @submit.prevent="save">
-      <FormField label="Description"><TextInput multiline v-model="form.description" :rows="3" /></FormField>
-      <FormField label="Lifecycle">
+      <FormField :label="t('editAssistantModal.description')"><TextInput multiline v-model="form.description" :rows="3" /></FormField>
+      <FormField :label="t('editAssistantModal.lifecycle')">
         <Select v-model="form.lifecycle" :options="LIFECYCLE_OPTIONS" />
       </FormField>
       <fieldset class="chat">
-        <legend>Chat endpoint</legend>
-        <FormField label="Path">
+        <legend>{{ t("editAssistantModal.chat_endpoint") }}</legend>
+        <FormField :label="t('editAssistantModal.path')">
           <TextInput v-model="form.chatPath" :invalid="!!fieldErrors.path" placeholder="/api/chat" data-testid="chat-path" />
           <span v-if="fieldErrors.path" class="field-error">{{ fieldErrors.path }}</span>
-          <p class="hint">Same in every environment: the host comes from each deployment. Leave empty if the agent has no chat.</p>
+          <p class="hint">{{ t("editAssistantModal.same_in_every_environment_the_host") }}</p>
         </FormField>
         <div v-if="form.chatPath.trim() !== ''" class="row">
-          <FormField label="Message field"><TextInput v-model="form.requestField" :invalid="!!fieldErrors.requestField" /></FormField>
-          <FormField label="Reply field"><TextInput v-model="form.responseField" :invalid="!!fieldErrors.responseField" placeholder="reply or data.answer" /></FormField>
+          <FormField :label="t('editAssistantModal.message_field')"><TextInput v-model="form.requestField" :invalid="!!fieldErrors.requestField" /></FormField>
+          <FormField :label="t('editAssistantModal.reply_field')"><TextInput v-model="form.responseField" :invalid="!!fieldErrors.responseField" :placeholder="t('editAssistantModal.reply_or_data_answer')" /></FormField>
         </div>
-        <FormField label="Session field (optional)" v-if="form.chatPath.trim() !== ''">
+        <FormField :label="t('editAssistantModal.session_field_optional')" v-if="form.chatPath.trim() !== ''">
           <TextInput v-model="form.sessionField" placeholder="session_id" />
-          <p class="hint">JSON key that carries the conversation id, in the request and in the reply.</p>
+          <p class="hint">{{ t("editAssistantModal.json_key_that_carries_the_conversation") }}</p>
         </FormField>
-        <FormField label="Trace id field (optional)" v-if="form.chatPath.trim() !== ''">
+        <FormField :label="t('editAssistantModal.trace_id_field_optional')" v-if="form.chatPath.trim() !== ''">
           <TextInput v-model="form.traceIdField" :invalid="!!fieldErrors.traceIdField" placeholder="trace_id" data-testid="chat-trace-id-field" />
-          <p class="hint">Key of the reply with the id of the trace that produced it. With it, each answer in MemTrace's chat gets 👍/👎 and the vote is saved on that trace.</p>
+          <p class="hint">{{ t("editAssistantModal.key_of_the_reply_with_the") }}</p>
         </FormField>
       </fieldset>
       <fieldset class="chat">
-        <legend>Source repository</legend>
+        <legend>{{ t("editAssistantModal.source_repository") }}</legend>
         <div class="row">
-          <FormField label="Provider"><Select v-model="form.repoProvider" :options="PROVIDERS" /></FormField>
-          <FormField label="Repository URL">
+          <FormField :label="t('editAssistantModal.provider')"><Select v-model="form.repoProvider" :options="PROVIDERS" /></FormField>
+          <FormField :label="t('editAssistantModal.repository_url')">
             <TextInput v-model="form.repoUrl" :invalid="!!fieldErrors.url" placeholder="https://github.com/acme/weather" data-testid="repo-url" />
             <span v-if="fieldErrors.url" class="field-error">{{ fieldErrors.url }}</span>
           </FormField>
         </div>
-        <FormField label="Deploy workflow (optional)" v-if="form.repoUrl.trim() !== ''">
+        <FormField :label="t('editAssistantModal.deploy_workflow_optional')" v-if="form.repoUrl.trim() !== ''">
           <TextInput v-model="form.deployWorkflow" :invalid="!!fieldErrors.deployWorkflow" placeholder="deploy.yml" data-testid="deploy-workflow" />
-          <p class="hint">The pipeline MemTrace will trigger to deploy. Leave the URL empty if the agent has no repository. No credentials are stored here.</p>
+          <p class="hint">{{ t("editAssistantModal.the_pipeline_memtrace_will_trigger_to") }}</p>
         </FormField>
-        <FormField label="Pull requests" v-if="form.repoUrl.trim() !== '' && form.repoProvider === 'github'">
-          <Checkbox v-model="form.prGate" variant="switch" data-testid="pr-gate">Check the evaluation of every commit</Checkbox>
+        <FormField :label="t('editAssistantModal.pull_requests')" v-if="form.repoUrl.trim() !== '' && form.repoProvider === 'github'">
+          <Checkbox v-model="form.prGate" variant="switch" data-testid="pr-gate">{{ t("editAssistantModal.check_the_evaluation_of_every_commit") }}</Checkbox>
           <p class="hint">
-            MemTrace publishes a <code>memtrace/eval-gate</code> check on the commit that was evaluated. Mark it as required in your branch protection rules
-            and a pull request cannot be merged while its evaluation misses its targets. Needs the MemTrace GitHub App with the Checks permission, and the
-            evaluation to run on the pull request with the head commit as its version.
+            {{ t("editAssistantModal.memtrace_publishes_a") + " " }}<code>memtrace/eval-gate</code>{{ " " + t("editAssistantModal.check_on_the_commit_that_was") }}
           </p>
         </FormField>
       </fieldset>
-      <div class="actions"><Button variant="primary" type="submit" :disabled="saving">Save</Button></div>
+      <div class="actions"><Button variant="primary" type="submit" :disabled="saving">{{ t("editAssistantModal.save") }}</Button></div>
     </form>
   </Modal>
 </template>

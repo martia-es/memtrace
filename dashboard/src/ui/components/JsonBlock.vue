@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { useQuasar } from "quasar";
 import Button from "./Button.vue";
+import { t } from "../i18n";
 
 const props = defineProps<{ value: unknown }>();
 const $q = useQuasar();
@@ -11,16 +12,16 @@ const text = computed(() => (typeof props.value === "string" ? props.value : JSO
 async function copy() {
   try {
     await navigator.clipboard.writeText(text.value);
-    $q.notify({ message: "Copiado", timeout: 1200, position: "bottom" });
+    $q.notify({ message: t("jsonBlock.copied"), timeout: 1200, position: "bottom" });
   } catch {
-    $q.notify({ message: "Could not copy", color: "negative", timeout: 1500 });
+    $q.notify({ message: t("jsonBlock.could_not_copy"), color: "negative", timeout: 1500 });
   }
 }
 </script>
 
 <template>
   <div class="json-block">
-    <Button variant="icon" size="sm" class="copy" aria-label="Copy" @click="copy"><q-icon name="content_copy" size="16px" /></Button>
+    <Button variant="icon" size="sm" class="copy" :aria-label="t('jsonBlock.copy')" @click="copy"><q-icon name="content_copy" size="16px" /></Button>
     <pre>{{ text }}</pre>
   </div>
 </template>

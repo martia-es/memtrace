@@ -22,6 +22,7 @@ import LoadingState from "../components/LoadingState.vue";
 import Card from "../components/Card.vue";
 import Menu from "../components/Menu.vue";
 import MenuItem from "../components/MenuItem.vue";
+import { t, tp } from "../i18n";
 
 /**
  * Colas de revisión (ADR-039): qué trazas hay que revisar, con qué rúbrica y cuánto va hecho. Cualquier
@@ -121,7 +122,7 @@ async function openCreate() {
     configs.value = await identityApi.listScoreConfigs(experimentId.value);
     for (const c of configs.value) form.picked[c.id] ??= { on: false, required: true };
   } catch (error) {
-    notifyError("Could not load members or score configs", error);
+    notifyError(t("annotationQueuesPage.could_not_load_members_or_score"), error);
   }
 }
 
@@ -139,7 +140,7 @@ async function create() {
     Object.assign(form, { name: "", instructions: "", requiredAnnotations: 1, reviewerIds: [], picked: {} });
     await queues.run();
   } catch (error) {
-    notifyError("Could not create the queue", error);
+    notifyError(t("annotationQueuesPage.could_not_create_the_queue"), error);
   } finally {
     creating.value = false;
   }
@@ -150,7 +151,7 @@ async function setArchived(queue: AnnotationQueueSummaryDto, archived: boolean) 
     await api.updateAnnotationQueue(queue.id, { archived });
     await queues.run();
   } catch (error) {
-    notifyError(`Could not ${archived ? "archive" : "restore"} the queue`, error);
+    notifyError(archived ? t("annotationQueuesPage.could_not_archive_the_queue") : t("annotationQueuesPage.could_not_restore_the_queue"), error);
   }
 }
 
@@ -175,68 +176,68 @@ async function addByFilter() {
         ...(filter.random ? { sample: { size: filter.limit } } : { limit: filter.limit }),
       },
     });
-    const note = result.sample?.truncated ? ` (sampled from the ${result.sample.poolSize} most recent matches)` : "";
-    $q.notify({ message: `${result.added} added${result.duplicates ? `, ${result.duplicates} already in the queue` : ""}${note}`, color: "positive", timeout: 3500 });
+    const note = result.sample?.truncated ? ` ${t("annotationQueuesPage.sampled_from_the_count_most_recent", { count: result.sample.poolSize })}` : "";
+    $q.notify({ message: `${t("annotationQueuesPage.count_added", { count: result.added })}${result.duplicates ? `, ${t("annotationQueuesPage.count_already_in_the_queue", { count: result.duplicates })}` : ""}${note}`, color: "positive", timeout: 3500 });
     addTo.value = null;
     await queues.run();
   } catch (error) {
-    notifyError("Could not add traces", error);
+    notifyError(t("annotationQueuesPage.could_not_add_traces"), error);
   } finally {
     adding.value = false;
   }
 }
 const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
-  { label: "Any", value: "" },
-  { label: "OK", value: "ok" },
-  { label: "Error", value: "error" },
+  { get label() { return t("annotationQueuesPage.any"); }, value: "" },
+  { get label() { return t("annotationQueuesPage.ok"); }, value: "ok" },
+  { get label() { return t("annotationQueuesPage.error"); }, value: "error" },
 ];
 </script>
 
 <template>
   <div class="page">
-    <PageHeader :crumbs="[{ label: 'Review' }]" :icon="ICON" title="Review">
-      <Button variant="primary" v-if="canManage" data-testid="new-queue" @click="openCreate" class="mt-new">+ New queue</Button>
+    <PageHeader :crumbs="[{ label: t('nav.review') }]" :icon="ICON" :title="t('nav.review')">
+      <Button variant="primary" v-if="canManage" data-testid="new-queue" @click="openCreate" class="mt-new">{{ t("annotationQueuesPage.new_queue") }}</Button>
     </PageHeader>
 
     <div class="filters">
-      <SegmentedControl v-model="scope" aria-label="Queues to show" :options="[{ value: 'assigned', label: 'Assigned to me', testid: 'scope-assigned' }, { value: 'all', label: 'All queues', testid: 'scope-all' }]" />
-      <SegmentedControl v-model="status" aria-label="Queue status" :options="[{ value: 'active', label: 'Active', testid: 'status-active' }, { value: 'archived', label: 'Archived', testid: 'status-archived' }]" />
+      <SegmentedControl v-model="scope" :aria-label="t('annotationQueuesPage.queues_to_show')" :options="[{ value: 'assigned', label: 'Assigned to me', testid: 'scope-assigned' }, { value: 'all', label: 'All queues', testid: 'scope-all' }]" />
+      <SegmentedControl v-model="status" :aria-label="t('annotationQueuesPage.queue_status')" :options="[{ value: 'active', label: 'Active', testid: 'status-active' }, { value: 'archived', label: 'Archived', testid: 'status-archived' }]" />
     </div>
 
     <section v-if="pendingTotal > 0" class="inbox" data-testid="inbox">
       <div class="inbox-text">
-        <span class="eyebrow">YOUR REVIEW INBOX</span>
-        <h2>{{ pendingTotal }} {{ pendingTotal === 1 ? "conversation is" : "conversations are" }} waiting for you</h2>
-        <p>Across {{ pendingQueues.length }} {{ pendingQueues.length === 1 ? "queue" : "queues" }} · nobody gets the same item twice, and you can skip anything you are unsure about</p>
+        <span class="eyebrow">{{ t("annotationQueuesPage.your_review_inbox") }}</span>
+        <h2>{{ tp("annotationQueuesPage.waiting", pendingTotal) }}</h2>
+        <p>{{ t("annotationQueuesPage.across_queues_nobody_gets_the_same", { queues: tp("annotationQueuesPage.queuesCount", pendingQueues.length) }) }}</p>
       </div>
-      <Button data-testid="continue-reviewing" @click="continueReviewing">Continue reviewing →</Button>
+      <Button data-testid="continue-reviewing" @click="continueReviewing">{{ t("annotationQueuesPage.continue_reviewing") }}</Button>
     </section>
     <section v-if="curateTotal > 0" class="inbox curate" data-testid="curate-inbox">
       <div class="inbox-text">
-        <span class="eyebrow">READY FOR YOU</span>
-        <h2>{{ curateTotal }} reviewed {{ curateTotal === 1 ? "item is" : "items are" }} waiting for your decision</h2>
-        <p>Reviewers have finished {{ curateTotal === 1 ? "it" : "them" }} in {{ curateQueues.length }} {{ curateQueues.length === 1 ? "queue" : "queues" }}. Check their answers, settle any disagreement and add the good ones to a dataset.</p>
+        <span class="eyebrow">{{ t("annotationQueuesPage.ready_for_you") }}</span>
+        <h2>{{ tp("annotationQueuesPage.curate", curateTotal) }}</h2>
+        <p>{{ tp("annotationQueuesPage.curateNote", curateTotal, { queues: tp("annotationQueuesPage.queuesCount", curateQueues.length) }) }}</p>
       </div>
-      <Button data-testid="open-results" @click="openDetail(curateQueues[0]!.id, 'results')">Open results →</Button>
+      <Button data-testid="open-results" @click="openDetail(curateQueues[0]!.id, 'results')">{{ t("annotationQueuesPage.open_results") }}</Button>
     </section>
 
-    <p v-if="pendingTotal === 0 && curateTotal === 0 && queues.data.value?.items.length" class="hint muted">You are all caught up.</p>
+    <p v-if="pendingTotal === 0 && curateTotal === 0 && queues.data.value?.items.length" class="hint muted">{{ t("annotationQueuesPage.you_are_all_caught_up") }}</p>
 
     <ErrorBanner v-if="queues.error.value" :error="queues.error.value" @retry="queues.run()" />
     <LoadingState v-else-if="queues.loading.value && !queues.data.value" size="lg" />
-    <EmptyState v-else-if="(queues.data.value?.items.length ?? 0) === 0" icon="rate_review" title="No review queues yet">
-      {{ canManage ? 'Create one with "New queue" (you need at least one score config first).' : "Ask an experiment admin to create one." }}
+    <EmptyState v-else-if="(queues.data.value?.items.length ?? 0) === 0" icon="rate_review" :title="t('annotationQueuesPage.no_review_queues_yet')">
+      {{ canManage ? t("annotationQueuesPage.create_one_with_new_queue_you") : t("annotationQueuesPage.ask_an_experiment_admin_to_create") }}
     </EmptyState>
     <p v-else-if="visibleQueues.length === 0" class="hint muted" data-testid="queues-empty-tab">
-      {{ status === "archived" ? "No archived queues." : scope === "assigned" ? "You are not assigned to any queue." : "You are all caught up." }}
+      {{ status === "archived" ? t("annotationQueuesPage.no_archived_queues") : scope === "assigned" ? t("annotationQueuesPage.you_are_not_assigned_to_any") : t("annotationQueuesPage.you_are_all_caught_up") }}
     </p>
 
     <Card padding="none" block v-if="visibleQueues.length" class="table-card">
       <div class="grid head">
-        <span>Queue</span>
-        <span>Rubric</span>
-        <span>Progress</span>
-        <span>Reviewers</span>
+        <span>{{ t("annotationQueuesPage.queue") }}</span>
+        <span>{{ t("annotationQueuesPage.rubric") }}</span>
+        <span>{{ t("annotationQueuesPage.progress") }}</span>
+        <span>{{ t("annotationQueuesPage.reviewers") }}</span>
         <span />
       </div>
       <div v-for="q in visibleQueues" :key="q.id" class="grid row" data-testid="queue-row" :class="{ 'has-work': q.progress.pending > 0 && !q.archivedAt }">
@@ -249,82 +250,82 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
         </div>
         <div class="progress-cell">
           <div class="progress-top">
-            <span class="done-count">{{ q.progress.completed }} of {{ total(q) }}</span>
+            <span class="done-count">{{ t('annotationQueuesPage.done_of_total', { done: q.progress.completed, total: total(q) }) }}</span>
             <span class="state" :class="{ done: q.progress.pending === 0 }" data-testid="queue-pending">{{ q.progress.pending > 0 ? `${q.progress.pending} pending` : "Done" }}</span>
           </div>
           <div class="bar" aria-hidden="true"><div class="bar-fill" :class="{ complete: q.progress.pending === 0 }" :style="{ width: `${percent(q)}%` }" /></div>
-          <span v-if="canCurate && q.toCurate > 0" class="curate-note" data-testid="queue-to-curate">{{ q.toCurate }} to review &amp; add to a dataset</span>
+          <span v-if="canCurate && q.toCurate > 0" class="curate-note" data-testid="queue-to-curate">{{ t("annotationQueuesPage.count_to_review_add_to_a", { count: q.toCurate }) }}</span>
         </div>
         <div class="avatars" data-testid="queue-reviewers">
-          <span v-for="r in q.assignedReviewers" :key="r.userId" class="avatar" :title="r.name ?? 'Former member'" :aria-label="r.name ?? 'Former member'" data-testid="queue-reviewer">
-            <img v-if="r.image" :src="r.image" :alt="r.name ?? 'Former member'" referrerpolicy="no-referrer" />
+          <span v-for="r in q.assignedReviewers" :key="r.userId" class="avatar" :title="r.name ?? t('annotationQueuesPage.former_member')" :aria-label="r.name ?? t('annotationQueuesPage.former_member')" data-testid="queue-reviewer">
+            <img v-if="r.image" :src="r.image" :alt="r.name ?? t('annotationQueuesPage.former_member')" referrerpolicy="no-referrer" />
             <span v-else>{{ initials(r.name) }}</span>
           </span>
         </div>
         <div class="actions">
-          <Button variant="primary" size="sm" v-if="q.isReviewer && q.progress.pending > 0 && !q.archivedAt" @click="review(q.id)">Review</Button>
-          <Button size="sm" v-else-if="canCurate && !q.archivedAt" data-testid="queue-results-btn" @click="openDetail(q.id, 'results')">View results</Button>
-          <Button size="sm" v-else @click="openDetail(q.id)">Details</Button>
-          <Button variant="icon" size="sm" class="more" aria-label="More actions" data-testid="queue-more">
+          <Button variant="primary" size="sm" v-if="q.isReviewer && q.progress.pending > 0 && !q.archivedAt" @click="review(q.id)">{{ t("annotationQueuesPage.review") }}</Button>
+          <Button size="sm" v-else-if="canCurate && !q.archivedAt" data-testid="queue-results-btn" @click="openDetail(q.id, 'results')">{{ t("annotationQueuesPage.view_results") }}</Button>
+          <Button size="sm" v-else @click="openDetail(q.id)">{{ t("annotationQueuesPage.details") }}</Button>
+          <Button variant="icon" size="sm" class="more" :aria-label="t('annotationQueuesPage.more_actions')" data-testid="queue-more">
             ⋯
             <Menu auto-close anchor="bottom right" self="top right" :offset="[0, 6]" class="queue-menu">
               <div class="menu-list">
-                <MenuItem v-if="!q.archivedAt" @click="addTo = q">Add traces</MenuItem>
-                <MenuItem v-if="canCurate && q.toCurate > 0" @click="openDetail(q.id, 'results')">Review results</MenuItem>
-                <MenuItem @click="openDetail(q.id)">Details</MenuItem>
-                <MenuItem v-if="canManage && !q.archivedAt" @click="setArchived(q, true)">Archive</MenuItem>
-                <MenuItem v-if="canManage && q.archivedAt" @click="setArchived(q, false)">Restore</MenuItem>
+                <MenuItem v-if="!q.archivedAt" @click="addTo = q">{{ t("annotationQueuesPage.add_traces") }}</MenuItem>
+                <MenuItem v-if="canCurate && q.toCurate > 0" @click="openDetail(q.id, 'results')">{{ t("annotationQueuesPage.review_results") }}</MenuItem>
+                <MenuItem @click="openDetail(q.id)">{{ t("annotationQueuesPage.details") }}</MenuItem>
+                <MenuItem v-if="canManage && !q.archivedAt" @click="setArchived(q, true)">{{ t("annotationQueuesPage.archive") }}</MenuItem>
+                <MenuItem v-if="canManage && q.archivedAt" @click="setArchived(q, false)">{{ t("annotationQueuesPage.restore") }}</MenuItem>
               </div>
             </Menu>
           </Button>
         </div>
       </div>
     </Card>
-    <p class="footnote muted">A queue is a batch of conversations that people review with a rubric. Business reviewers rate quality; technical reviewers can promote the best examples into a dataset.</p>
+    <p class="footnote muted">{{ t("annotationQueuesPage.a_queue_is_a_batch_of") }}</p>
 
     <QueueDetailModal v-if="detailQueueId" :queue-id="detailQueueId" :can-manage="canManage" :initial-tab="detailTab" @close="detailQueueId = null" @changed="queues.run()" />
 
-    <Modal v-if="showCreate" title="New review queue" @close="showCreate = false">
+    <Modal v-if="showCreate" :title="t('annotationQueuesPage.new_review_queue')" @close="showCreate = false">
       <form class="modal-form" @submit.prevent="create">
-        <TextInput v-model="form.name" placeholder="Queue name" maxlength="200" aria-label="Queue name" />
-        <TextInput multiline v-model="form.instructions" placeholder="Instructions for reviewers (optional)" maxlength="5000" aria-label="Instructions" />
+        <TextInput v-model="form.name" :placeholder="t('annotationQueuesPage.queue_name')" maxlength="200" :aria-label="t('annotationQueuesPage.queue_name')" />
+        <TextInput multiline v-model="form.instructions" :placeholder="t('annotationQueuesPage.instructions_for_reviewers_optional')" maxlength="5000" :aria-label="t('annotationQueuesPage.instructions')" />
         <label class="inline">
-          Reviews required per item
-          <TextInput v-model="form.requiredAnnotations" type="number" min="1" max="10" aria-label="Reviews required per item" />
+          {{ t("annotationQueuesPage.reviews_required_per_item") }}
+          <TextInput v-model="form.requiredAnnotations" type="number" min="1" max="10" :aria-label="t('annotationQueuesPage.reviews_required_per_item')" />
         </label>
         <fieldset class="rubric">
-          <legend>Reviewers</legend>
-          <p class="muted">Only the people you pick can annotate in this queue.</p>
-          <p v-if="!members.length" class="muted">This experiment has no members yet. Invite them in Admin → your experiment.</p>
+          <legend>{{ t("annotationQueuesPage.reviewers") }}</legend>
+          <p class="muted">{{ t("annotationQueuesPage.only_the_people_you_pick_can") }}</p>
+          <p v-if="!members.length" class="muted">{{ t("annotationQueuesPage.this_experiment_has_no_members_yet") }}</p>
           <div v-for="m in members" :key="m.userId" class="rubric-row">
             <Checkbox v-model="form.reviewerIds" :value="m.userId"> {{ m.name ?? m.email }} <span class="muted">{{ m.email }}</span></Checkbox>
           </div>
         </fieldset>
         <fieldset class="rubric">
-          <legend>Rubric</legend>
-          <p v-if="!configs.length" class="muted">No score configs yet. Create them in Admin → your experiment → Score configs.</p>
+          <legend>{{ t("annotationQueuesPage.rubric") }}</legend>
+          <p v-if="!configs.length" class="muted">{{ t("annotationQueuesPage.no_score_configs_yet_create_them") }}</p>
           <div v-for="c in configs" :key="c.id" class="rubric-row">
             <Checkbox v-model="form.picked[c.id]!.on"> {{ c.name }}</Checkbox>
-            <Checkbox v-if="form.picked[c.id]?.on" class="muted" v-model="form.picked[c.id]!.required"> required</Checkbox>
+            <Checkbox v-if="form.picked[c.id]?.on" class="muted" v-model="form.picked[c.id]!.required">{{ " " + t("annotationQueuesPage.required") }}</Checkbox>
           </div>
         </fieldset>
-        <Button variant="primary" type="submit" :disabled="creating || !form.name.trim() || !rubric.length || !form.reviewerIds.length || form.requiredAnnotations > form.reviewerIds.length">Create</Button>
+        <Button variant="primary" type="submit" :disabled="creating || !form.name.trim() || !rubric.length || !form.reviewerIds.length || form.requiredAnnotations > form.reviewerIds.length">{{ t("annotationQueuesPage.create") }}</Button>
       </form>
     </Modal>
 
-    <Modal v-if="addTo" :title="`Add traces to “${addTo.name}”`" @close="addTo = null">
+    <Modal v-if="addTo" :title="t('annotationQueuesPage.add_traces_to_name', { name: addTo.name })" @close="addTo = null">
       <form class="modal-form" @submit.prevent="addByFilter">
-        <p class="muted">Adds the traces that match <em>now</em>; the queue keeps their ids, it does not follow new traffic.</p>
-        <label class="inline">Last <TextInput v-model="filter.hours" type="number" min="1" max="720" aria-label="Hours" /> hours</label>
+        <p class="muted">{{ t("annotationQueuesPage.adds_the_traces_that_match") + " " }}<em>{{ t("annotationQueuesPage.now") }}</em>{{ t("annotationQueuesPage.the_queue_keeps_their_ids_it") }}</p>
+        <label class="inline">{{ t("annotationQueuesPage.last") + " " }}<TextInput v-model="filter.hours" type="number" min="1" max="720" :aria-label="t('annotationQueuesPage.hours2')" />{{ " " + t("annotationQueuesPage.hours") }}</label>
         <label class="inline">
-          Root status
-          <Select v-model="filter.status" :options="STATUS_OPTIONS" aria-label="Root status" />
+          {{ t("annotationQueuesPage.root_status") }}
+          <Select v-model="filter.status" :options="STATUS_OPTIONS" :aria-label="t('annotationQueuesPage.root_status')" />
         </label>
-        <Checkbox class="inline" v-model="filter.hasErrors"> Only traces with a failed span</Checkbox>
-        <label class="inline">Slower than (ms) <TextInput v-model="filter.minDurationMs" type="number" min="0" aria-label="Minimum duration" /></label>
-        <label class="inline">{{ filter.random ? "Sample of" : "At most" }} <TextInput v-model="filter.limit" type="number" min="1" max="500" aria-label="Limit" /> traces</label>
-        <Checkbox class="inline" v-model="filter.random" aria-label="Random sample"> Pick them at random from all matches instead of the first ones</Checkbox>
-        <Button variant="primary" type="submit" :disabled="adding">Add traces</Button>
+        <Checkbox class="inline" v-model="filter.hasErrors">{{ " " + t("annotationQueuesPage.only_traces_with_a_failed_span") }}</Checkbox>
+        <label class="inline">{{ t("annotationQueuesPage.slower_than_ms") + " " }}<TextInput v-model="filter.minDurationMs" type="number" min="0" :aria-label="t('annotationQueuesPage.minimum_duration')" /></label>
+        <label class="inline">{{ filter.random ? t("annotationQueuesPage.sample_of") : t("annotationQueuesPage.at_most") }} <TextInput v-model="filter.limit" type="number" min="1" max="500" :aria-label="t('annotationQueuesPage.limit')" />{{ " " + t("annotationQueuesPage.traces") }}</label>
+        <Checkbox class="inline" v-model="filter.random" :aria-label="t('annotationQueuesPage.random_sample')">{{ " " + t("annotationQueuesPage.pick_them_at_random_from_all") }}</Checkbox>
+        <Button variant="primary" type="submit" :disabled="adding">{{ t("annotationQueuesPage.add_traces") }}</Button>
       </form>
     </Modal>
   </div>

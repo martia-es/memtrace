@@ -1,5 +1,6 @@
 import type { AttributeKeyDto } from "@contract";
 import { isTechnicalAttribute } from "./custom-chart-vocabulary";
+import { tr, lazyMessages } from "./translate";
 
 /**
  * Qué atributos ofrecen los selectores de agrupar y filtrar (ADR-078, fase 2). El servidor clasifica cada atributo (categoría, número,
@@ -13,20 +14,20 @@ export type AttributeKind = AttributeKeyDto["kind"];
 /** Un atributo detectado. Los campos de clasificación pueden faltar si responde una API anterior a la fase 2: se cae al nombre. */
 export type AttributeInfo = Pick<AttributeKeyDto, "key" | "count"> & Partial<Pick<AttributeKeyDto, "kind" | "distinct" | "numeric" | "hiddenByDefault">>;
 
-export const KIND_LABEL: Record<AttributeKind, string> = {
-  category: "Category",
-  number: "Number",
-  id: "Identifier",
-  text: "Free text",
-  technical: "Technical",
-};
+export const KIND_LABEL: Record<AttributeKind, string> = lazyMessages({
+  category: "attribute-visibility.category",
+  number: "attribute-visibility.number",
+  id: "attribute-visibility.identifier",
+  text: "attribute-visibility.free_text",
+  technical: "attribute-visibility.technical",
+});
 
 /** Por qué un atributo así no suele servir para agrupar, dicho en llano. */
-const KIND_REASON: Partial<Record<AttributeKind, string>> = {
-  id: "it is different in almost every step, so a chart would get one bar per value",
-  text: "its values are long free texts, not labels",
-  technical: "it is instrumentation detail",
-};
+const KIND_REASON: Partial<Record<AttributeKind, string>> = lazyMessages({
+  id: "attribute-visibility.it_is_different_in_almost_every",
+  text: "attribute-visibility.its_values_are_long_free_texts",
+  technical: "attribute-visibility.it_is_instrumentation_detail",
+});
 
 /** Lo que dice el servidor; sin clasificación, solo se esconden los detalles técnicos por su nombre (como antes de la fase 2). */
 export function kindOf(info: AttributeInfo): AttributeKind {
@@ -47,14 +48,14 @@ export function isAttributeShown(info: AttributeInfo, visibility: Visibility): b
 /** "Hidden by you" / "Hidden automatically: it looks like an identifier…" / null si se enseña. */
 export function hiddenReason(info: AttributeInfo, visibility: Visibility): string | null {
   if (isAttributeShown(info, visibility)) return null;
-  if (visibility === "hidden") return "Hidden by you";
+  if (visibility === "hidden") return tr("attribute-visibility.hidden_by_you");
   const why = KIND_REASON[kindOf(info)];
-  return why ? `Hidden automatically: ${why}` : "Hidden automatically";
+  return why ? tr("attribute-visibility.hidden_automatically_why", { why }) : tr("attribute-visibility.hidden_automatically");
 }
 
 /** El texto de la opción "Automatic": dice qué hará la clasificación con este atributo. */
 export function automaticLabel(info: AttributeInfo): string {
-  return hiddenByDefault(info) ? "Automatic (hidden)" : "Automatic (shown)";
+  return hiddenByDefault(info) ? tr("attribute-visibility.automatic_hidden") : tr("attribute-visibility.automatic_shown");
 }
 
 /**
@@ -68,5 +69,5 @@ export function isMeasure(info: AttributeInfo): boolean {
 /** "1 value", "12 different values"; null si no se sabe. */
 export function distinctLabel(info: AttributeInfo): string | null {
   if (info.distinct === undefined) return null;
-  return `${info.distinct.toLocaleString()} ${info.distinct === 1 ? "value" : "different values"}`;
+  return info.distinct === 1 ? tr("attribute-visibility.count_value", { count: info.distinct.toLocaleString() }) : tr("attribute-visibility.count_different_values", { count: info.distinct.toLocaleString() });
 }

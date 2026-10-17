@@ -4,6 +4,7 @@ import type { AnnotationDto, TraceAnnotationsResponse, TraceQueueDto } from "@co
 import { shortId } from "@/domain/format";
 import { useTraceApi } from "../composables/useTraceApi";
 import Card from "./Card.vue";
+import { t } from "../i18n";
 
 /**
  * Resumen de solo lectura de todo lo que la traza tiene asociado (ADR-037, ADR-039): etiquetas humanas,
@@ -25,16 +26,16 @@ watch(() => [props.traceId, props.refreshKey], () => void load(), { immediate: t
 
 const annotations = computed(() => judgments.value?.annotations ?? []);
 const scores = computed(() => judgments.value?.scores ?? []);
-const authorOf = (a: AnnotationDto) => a.annotator.name ?? "Former member";
+const authorOf = (a: AnnotationDto) => a.annotator.name ?? t("traceSummaryPanel.former_member");
 const scopeOf = (a: AnnotationDto) => (a.spanId ? `span ${shortId(a.spanId)}` : null);
 const queueStatus = (q: TraceQueueDto) => (q.itemStatus === "skipped" ? "unreviewable" : q.itemStatus);
 </script>
 
 <template>
-  <aside class="summary" aria-label="Trace summary" data-testid="trace-summary">
-    <Card as="section" padding="none" block v-if="judgments" class="block" aria-label="Human labels">
-      <h2>Human labels</h2>
-      <p v-if="!annotations.length" class="empty" data-testid="trace-not-annotated">Not annotated yet.</p>
+  <aside class="summary" :aria-label="t('traceSummaryPanel.trace_summary')" data-testid="trace-summary">
+    <Card as="section" padding="none" block v-if="judgments" class="block" :aria-label="t('traceSummaryPanel.human_labels')">
+      <h2>{{ t("traceSummaryPanel.human_labels") }}</h2>
+      <p v-if="!annotations.length" class="empty" data-testid="trace-not-annotated">{{ t("traceSummaryPanel.not_annotated_yet") }}</p>
       <ul v-else>
         <li v-for="a in annotations" :key="`${a.configId}|${a.spanId}|${a.annotator.id}`" data-testid="trace-label">
           <div class="line">
@@ -47,8 +48,8 @@ const queueStatus = (q: TraceQueueDto) => (q.itemStatus === "skipped" ? "unrevie
       </ul>
     </Card>
 
-    <Card as="section" padding="none" block v-if="scores.length" class="block" aria-label="Automatic evaluations">
-      <h2>Evaluations</h2>
+    <Card as="section" padding="none" block v-if="scores.length" class="block" :aria-label="t('traceSummaryPanel.automatic_evaluations')">
+      <h2>{{ t("traceSummaryPanel.evaluations") }}</h2>
       <ul>
         <li v-for="(s, i) in scores" :key="i" data-testid="trace-score">
           <div class="line">
@@ -61,16 +62,16 @@ const queueStatus = (q: TraceQueueDto) => (q.itemStatus === "skipped" ? "unrevie
       </ul>
     </Card>
 
-    <Card as="section" padding="none" block v-if="queues" class="block" aria-label="Review queues">
-      <h2>Review queues</h2>
-      <p v-if="!queues.length" class="empty" data-testid="trace-no-queues">Not in any queue.</p>
+    <Card as="section" padding="none" block v-if="queues" class="block" :aria-label="t('traceSummaryPanel.review_queues')">
+      <h2>{{ t("traceSummaryPanel.review_queues") }}</h2>
+      <p v-if="!queues.length" class="empty" data-testid="trace-no-queues">{{ t("traceSummaryPanel.not_in_any_queue") }}</p>
       <ul v-else>
         <li v-for="q in queues" :key="q.queueId" data-testid="trace-queue">
           <div class="line">
             <router-link :to="{ name: 'annotation-queues' }" class="name link">{{ q.queueName }}</router-link>
             <span class="value">{{ queueStatus(q) }}</span>
           </div>
-          <span v-if="q.archived" class="by">archived</span>
+          <span v-if="q.archived" class="by">{{ t("traceSummaryPanel.archived") }}</span>
         </li>
       </ul>
     </Card>

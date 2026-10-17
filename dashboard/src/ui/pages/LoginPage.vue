@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { fetchCsrfToken } from "@/adapters/outbound/browser-auth";
+import { t } from "../i18n";
 
 // Auth.js doesn't start the provider on a GET with ?provider=: its /api/auth/signin page
 // only lists options. To skip straight to it, the csrfToken must be POSTed to
@@ -40,23 +41,23 @@ async function signIn(provider: "google" | "microsoft") {
           <span>MemTrace</span>
         </div>
 
-        <h1 class="showcase-title">Understand what your agent does, with peace of mind.</h1>
+        <h1 class="showcase-title">{{ t("loginPage.understand_what_your_agent_does_with") }}</h1>
         <p class="showcase-sub">
-          Traces, spans, and cost for every conversation, with no manual instrumentation.
+          {{ t("loginPage.traces_spans_and_cost_for_every") }}
         </p>
 
         <div class="mockup" aria-hidden="true">
           <div class="mockup-row">
             <div class="mockup-kpi">
-              <div class="mockup-kpi-label">TRACES</div>
+              <div class="mockup-kpi-label">{{ t("loginPage.traces") }}</div>
               <div class="mockup-kpi-value">1,204</div>
             </div>
             <div class="mockup-kpi">
-              <div class="mockup-kpi-label">LATENCY P95</div>
+              <div class="mockup-kpi-label">{{ t("loginPage.latency_p95") }}</div>
               <div class="mockup-kpi-value">840ms</div>
             </div>
             <div class="mockup-kpi">
-              <div class="mockup-kpi-label">ERRORS</div>
+              <div class="mockup-kpi-label">{{ t("loginPage.errors") }}</div>
               <div class="mockup-kpi-value">0.4%</div>
             </div>
           </div>
@@ -78,9 +79,9 @@ async function signIn(provider: "google" | "microsoft") {
         </div>
 
         <ul class="showcase-features">
-          <li>Sessions and span trees, not just loose logs</li>
-          <li>Latency, tokens, and cost per model and per tool</li>
-          <li>LangChain, LangGraph, and PydanticAI in Python or TypeScript</li>
+          <li>{{ t("loginPage.sessions_and_span_trees_not_just") }}</li>
+          <li>{{ t("loginPage.latency_tokens_and_cost_per_model") }}</li>
+          <li>{{ t("loginPage.langchain_langgraph_and_pydanticai_in_py") }}</li>
         </ul>
       </div>
     </div>
@@ -95,8 +96,8 @@ async function signIn(provider: "google" | "microsoft") {
           </svg>
           <span>MemTrace</span>
         </div>
-        <h2 class="welcome">Welcome back</h2>
-        <p class="hint">Sign in to pick up where you left off.</p>
+        <h2 class="welcome">{{ t("loginPage.welcome_back") }}</h2>
+        <p class="hint">{{ t("loginPage.sign_in_to_pick_up_where") }}</p>
         <button class="signin-btn primary" type="button" @click="signIn('google')">
           <span class="provider-icon">
             <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
@@ -106,7 +107,7 @@ async function signIn(provider: "google" | "microsoft") {
               <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0 5.44 0 2.38 2.02.9 4.93l3.07 2.34C4.68 5.16 6.66 3.58 9 3.58z"/>
             </svg>
           </span>
-          Sign in with Google
+          {{ t("loginPage.sign_in_with_google") }}
         </button>
         <button class="signin-btn" type="button" @click="signIn('microsoft')">
           <span class="provider-icon">
@@ -117,7 +118,7 @@ async function signIn(provider: "google" | "microsoft") {
               <rect x="9.5" y="9.5" width="7.5" height="7.5" fill="#FFBA08"/>
             </svg>
           </span>
-          Sign in with Microsoft
+          {{ t("loginPage.sign_in_with_microsoft") }}
         </button>
       </div>
     </div>

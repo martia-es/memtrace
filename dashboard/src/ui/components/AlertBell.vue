@@ -8,6 +8,7 @@ import Button from "./Button.vue";
 import Menu from "./Menu.vue";
 import TabBar from "./TabBar.vue";
 import MenuItem from "./MenuItem.vue";
+import { t, tp } from "../i18n";
 
 /**
  * La campana de la barra superior (ADR-086, ADR-094): las alertas disparadas ahora en los agentes que la persona puede leer, y debajo los
@@ -74,10 +75,10 @@ const emailCount = computed(() => {
   return Math.max(0, ...mine.map((n) => n.recipients));
 });
 const tabs = computed<Array<{ id: Tab; label: string; count: number }>>(() => [
-  { id: "all", label: "All", count: items.value.length + earlier.value.length + (pendingModels.value.total > 0 ? 1 : 0) },
-  { id: "firing", label: "Firing", count: items.value.length },
-  { id: "budget", label: "Budget", count: budgetItems.value.length },
-  ...(pendingModels.value.total > 0 ? [{ id: "models" as Tab, label: "Models", count: pendingModels.value.total }] : []),
+  { id: "all", label: t("bell.tab.all"), count: items.value.length + earlier.value.length + (pendingModels.value.total > 0 ? 1 : 0) },
+  { id: "firing", label: t("bell.tab.firing"), count: items.value.length },
+  { id: "budget", label: t("bell.tab.budget"), count: budgetItems.value.length },
+  ...(pendingModels.value.total > 0 ? [{ id: "models" as Tab, label: t("bell.tab.models"), count: pendingModels.value.total }] : []),
 ]);
 /** «Review matches» lleva a Model pricing con el panel de confirmación abierto */
 function reviewModels() {
@@ -86,12 +87,12 @@ function reviewModels() {
 }
 const modelNames = computed(() => {
   const names = pendingModels.value.items.map((m) => m.model);
-  return names.length > 2 ? `${names.slice(0, 2).join(", ")} and ${names.length - 2} more` : names.join(" and ");
+  return names.length > 2 ? t("bell.namesMore", { a: names[0]!, b: names[1]!, n: names.length - 2 }) : names.length === 2 ? t("bell.namesAnd", { a: names[0]!, b: names[1]! }) : names.join("");
 });
 const label = computed(() => {
-  if (items.value.length) return `${items.value.length} alerts firing`;
-  if (pendingModels.value.total) return `${pendingModels.value.total} models need a quality match`;
-  return unreadEarlier.value ? `${unreadEarlier.value} new notifications` : "Alerts";
+  if (items.value.length) return t("bell.label.firing", { count: items.value.length });
+  if (pendingModels.value.total) return t("bell.label.models", { count: pendingModels.value.total });
+  return unreadEarlier.value ? t("bell.label.unread", { count: unreadEarlier.value }) : t("nav.alerts");
 });
 </script>
 
@@ -104,31 +105,31 @@ const label = computed(() => {
       <span v-if="attention" class="badge" :class="{ calm: items.length === 0 }" data-testid="bell-count">{{ attention > 9 ? "9+" : attention }}</span>
       <Menu ref="menu" anchor="bottom right" self="top right" :offset="[0, 6]" class="bell-menu">
         <div class="head">
-          <span class="head-title">Notifications</span>
-          <Button v-if="unreadEarlier > 0" size="sm" variant="link" data-testid="bell-mark-read" @click="markAllRead">Mark all as read</Button>
+          <span class="head-title">{{ t("bell.notifications") }}</span>
+          <Button v-if="unreadEarlier > 0" size="sm" variant="link" data-testid="bell-mark-read" @click="markAllRead">{{ t("bell.markAllRead") }}</Button>
         </div>
         <TabBar class="tabs" :class="{ alarmed: items.length > 0 }" :tabs="tabs" :model-value="tab" @update:model-value="tab = $event as Tab" />
 
-        <p v-if="empty" class="none" data-testid="bell-empty">{{ tab === "budget" ? "No budget notices." : tab === "models" ? "No models are waiting." : "No alerts firing." }}</p>
+        <p v-if="empty" class="none" data-testid="bell-empty">{{ tab === "budget" ? t("bell.empty.budget") : tab === "models" ? t("bell.empty.models") : t("bell.empty.alerts") }}</p>
 
         <template v-if="showModels">
-          <p class="title">Needs a decision · {{ pendingModels.total }}</p>
+          <p class="title">{{ t("bell.needsDecision", { count: pendingModels.total }) }}</p>
           <MenuItem data-testid="bell-models" @click="reviewModels">
             <span class="icon t-info" aria-hidden="true">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" /></svg>
             </span>
             <span class="item">
-              <span class="row"><span class="name">{{ pendingModels.total === 1 ? "A model you use needs a quality match" : `${pendingModels.total} models you use need a quality match` }}</span><span class="when">Pending</span></span>
-              <span class="now">{{ modelNames }} {{ pendingModels.total === 1 ? "has" : "have" }} Arena candidates. Their Quality cell stays empty until you choose.</span>
-              <span class="meta">Arena leaderboard · prices and costs are not affected</span>
-              <span class="cta">Review matches →</span>
+              <span class="row"><span class="name">{{ pendingModels.total === 1 ? t("bell.modelOne") : t("bell.modelMany", { count: pendingModels.total }) }}</span><span class="when">{{ t("bell.pending") }}</span></span>
+              <span class="now">{{ t(pendingModels.total === 1 ? "bell.modelHas" : "bell.modelHave", { names: modelNames }) }}</span>
+              <span class="meta">{{ t("bell.arenaNote") }}</span>
+              <span class="cta">{{ t("bell.reviewMatches") }}</span>
             </span>
-            <span class="dot" data-testid="bell-models-dot" aria-label="Needs a decision" />
+            <span class="dot" data-testid="bell-models-dot" :aria-label="t('bell.needsDecisionLabel')" />
           </MenuItem>
         </template>
 
         <template v-if="showFiring && items.length > 0">
-          <p class="title">Firing now · {{ items.length }}</p>
+          <p class="title">{{ t("bell.firingNow", { count: items.length }) }}</p>
           <MenuItem v-for="a in items" :key="a.ruleId" data-testid="bell-item" @click="go(a.experimentId)">
             <span class="icon t-error" aria-hidden="true">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01" /></svg>
@@ -137,14 +138,14 @@ const label = computed(() => {
               <span class="row"><span class="name">{{ a.ruleName }}</span><span class="when">{{ bellTime(a.since, Date.now()) }}</span></span>
               <span class="now">{{ openAlertView(a).text }}</span>
               <span class="meta">{{ a.experimentName }} · {{ openAlertView(a).detail }}</span>
-              <span class="cta">View alert →</span>
+              <span class="cta">{{ t("bell.viewAlertCta") }}</span>
             </span>
-            <span class="dot t-error" data-testid="bell-firing-dot" aria-label="Firing now" />
+            <span class="dot t-error" data-testid="bell-firing-dot" :aria-label="t('bell.firingNowLabel')" />
           </MenuItem>
         </template>
 
         <template v-if="showEarlier && earlierShown.length > 0">
-          <p class="title">Earlier</p>
+          <p class="title">{{ t("bell.earlier") }}</p>
           <MenuItem v-for="n in earlierShown" :key="n.id" data-testid="bell-notification" @click="go(n.experimentId)">
             <span class="icon" :class="`t-${notificationView(n).tone}`" aria-hidden="true">
               <svg v-if="n.kind === 'resolved'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
@@ -157,14 +158,14 @@ const label = computed(() => {
               <span class="meta">{{ n.experimentName }}<template v-if="notificationView(n).detail"> · {{ notificationView(n).detail }}</template></span>
               <span class="cta">{{ notificationView(n).cta }} →</span>
             </span>
-            <span v-if="!n.read" class="dot" :class="`t-${notificationView(n).tone}`" data-testid="bell-unread" aria-label="Unread" />
+            <span v-if="!n.read" class="dot" :class="`t-${notificationView(n).tone}`" data-testid="bell-unread" :aria-label="t('bell.unread')" />
           </MenuItem>
         </template>
 
         <div v-if="manageExperimentId" class="foot">
-          <MenuItem class="manage" data-testid="bell-manage" @click="go(manageExperimentId)">Manage alerts</MenuItem>
-          <span v-if="emailCount > 0" class="mail" data-testid="bell-email">Also sent by email to {{ emailCount }} {{ emailCount === 1 ? "address" : "addresses" }}</span>
-          <span v-else-if="tab === 'models'" class="mail" data-testid="bell-models-note">Model matches are not sent by email</span>
+          <MenuItem class="manage" data-testid="bell-manage" @click="go(manageExperimentId)">{{ t("bell.manage") }}</MenuItem>
+          <span v-if="emailCount > 0" class="mail" data-testid="bell-email">{{ tp("bell.emailSent", emailCount) }}</span>
+          <span v-else-if="tab === 'models'" class="mail" data-testid="bell-models-note">{{ t("bell.modelsNoEmail") }}</span>
         </div>
       </Menu>
     </Button>

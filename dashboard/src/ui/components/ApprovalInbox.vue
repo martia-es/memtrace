@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { useRoute } from "vue-router";
 import { describeRule, requestTitle } from "@/domain/approvals";
-import { formatRelativeTime } from "@/domain/format";
+import { formatRelativeTime } from "../i18n/format";
 import { useApprovalInbox } from "../composables/useApprovalInbox";
+import { t } from "../i18n";
 
 /**
  * "Waiting for your approval" (ADR-076): las solicitudes vivas de la organización que esta persona puede decidir y aún no
@@ -21,8 +22,8 @@ const link = (promptId: string) => ({ name: "prompt", params: { experimentId: St
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10" /></svg>
       </span>
       <div class="inbox-body">
-        <h2>Waiting for your approval <span class="count">{{ items.length }}</span></h2>
-        <p>{{ items.length === 1 ? "A change to a prompt is waiting for your decision." : "Changes to prompts are waiting for your decision." }}</p>
+        <h2>{{ t("approvalInbox.waiting_for_your_approval") }} <span class="count">{{ items.length }}</span></h2>
+        <p>{{ items.length === 1 ? t("approvalInbox.a_change_to_a_prompt_is") : t("approvalInbox.changes_to_prompts_are_waiting_for") }}</p>
       </div>
     </header>
     <ul>
@@ -32,8 +33,8 @@ const link = (promptId: string) => ({ name: "prompt", params: { experimentId: St
             <b>{{ r.promptName }}</b>
             <span>{{ requestTitle(r) }}</span>
           </span>
-          <span class="muted">{{ describeRule(r.rule, {}) }} · asked by {{ (r.requestedBy && r.people[r.requestedBy]) || "someone" }} {{ formatRelativeTime(r.createdAt, nowMs) }}</span>
-          <span class="review">Review →</span>
+          <span class="muted">{{ describeRule(r.rule, {}) }} · {{ t("approvalInbox.asked_by_name_when", { name: (r.requestedBy && r.people[r.requestedBy]) || t("approvalInbox.someone"), when: formatRelativeTime(r.createdAt, nowMs) }) }}</span>
+          <span class="review">{{ t("approvalInbox.review") }}</span>
         </router-link>
       </li>
     </ul>

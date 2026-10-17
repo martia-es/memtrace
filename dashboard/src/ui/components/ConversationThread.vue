@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { Turn } from "@/domain/review-thread";
+import { t } from "../i18n";
 
 /**
  * A conversation read like a chat (ADR-048): the user on the right, the assistant on the left, tool calls as quiet
@@ -16,7 +17,7 @@ const stepsAt = computed(() => props.turns.map((t) => t.kind).lastIndexOf("user"
     <template v-for="(turn, i) in turns" :key="i">
       <slot v-if="i === stepsAt" name="steps" />
       <div v-if="turn.kind === 'user'" class="turn user">
-        <span class="who">User</span>
+        <span class="who">{{ t("conversationThread.user") }}</span>
         <p>{{ turn.text }}</p>
       </div>
       <div v-else-if="turn.kind === 'action'" class="action" data-testid="turn-action">
@@ -27,16 +28,16 @@ const stepsAt = computed(() => props.turns.map((t) => t.kind).lastIndexOf("user"
         <summary>
           <q-icon name="dataset" size="16px" />
           <span>Data retrieved{{ turn.source ? ` by ${turn.source}` : "" }}</span>
-          <span class="toggle"><span class="when-closed">Show</span><span class="when-open">Hide</span><q-icon name="expand_more" size="18px" class="chev" /></span>
+          <span class="toggle"><span class="when-closed">{{ t("conversationThread.show") }}</span><span class="when-open">{{ t("conversationThread.hide") }}</span><q-icon name="expand_more" size="18px" class="chev" /></span>
         </summary>
         <pre>{{ turn.json }}</pre>
       </details>
       <div v-else-if="turn.kind === 'answer'" class="turn answer" data-testid="turn-answer">
-        <span class="who"><q-icon name="rate_review" size="14px" /> {{ answerLabel ?? "Assistant reply" }}</span>
+        <span class="who"><q-icon name="rate_review" size="14px" /> {{ answerLabel ?? t("conversationThread.assistant_reply") }}</span>
         <p>{{ turn.text }}</p>
       </div>
       <div v-else class="turn assistant">
-        <span class="who">Assistant</span>
+        <span class="who">{{ t("conversationThread.assistant") }}</span>
         <p>{{ turn.text }}</p>
       </div>
     </template>

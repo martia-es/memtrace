@@ -4,6 +4,7 @@ import { fetchCsrfToken, postSignOut } from "@/adapters/outbound/browser-auth";
 import { useAsync } from "../composables/useAsync";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTheme } from "../composables/useTheme";
+import { useI18n } from "../i18n";
 import Menu from "./Menu.vue";
 import MenuItem from "./MenuItem.vue";
 // signOut import removed (next-auth/react is React‑only and not usable in Vue)
@@ -17,6 +18,7 @@ const me = useAsync((signal) => identityApi.getMe(signal));
 void me.run();
 
 const { theme, toggle: toggleTheme } = useTheme();
+const { t, locale, locales, setLocale } = useI18n();
 
 const handleSignOut = async () => {
   try {
@@ -60,19 +62,25 @@ const initials = computed(() => {
           <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z" />
           </svg>
-          Theme: {{ theme === "dark" ? "Dark" : "Light" }}
+          {{ t("common.theme", { mode: theme === "dark" ? t("common.dark") : t("common.light") }) }}
         </MenuItem>
         <MenuItem :href="DOCS_URL">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
           </svg>
-          Documentation</MenuItem>
+          {{ t("common.documentation") }}</MenuItem>
+        <MenuItem v-for="l in locales" :key="l.id" :data-testid="`locale-${l.id}`" @click="setLocale(l.id)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
+          </svg>
+          {{ t("common.language") }}: {{ l.label }}<template v-if="locale === l.id"> ✓</template>
+        </MenuItem>
         <div class="menu-divider" />
         <MenuItem danger @click="handleSignOut">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" />
           </svg>
-          Sign out
+          {{ t("common.signOut") }}
         </MenuItem>
       </Menu>
     </button>

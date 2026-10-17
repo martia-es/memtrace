@@ -3,6 +3,7 @@ import TextInput from "@/ui/components/TextInput.vue";
 import { computed, ref } from "vue";
 import type { ExperimentDto } from "@/application/identity-api";
 import Menu from "./Menu.vue";
+import { t } from "../i18n";
 
 interface Props {
   modelValue: string | null;
@@ -32,17 +33,17 @@ const pick = (id: string) => {
   <button type="button" class="exp-trigger" aria-haspopup="listbox" data-testid="experiment-switcher">
     <span class="exp-avatar" aria-hidden="true">{{ initials(current?.name ?? "MT") }}</span>
     <span class="exp-text">
-      <span class="exp-label">Experiment</span>
-      <span class="exp-name">{{ current?.name ?? (loading ? "Loading…" : "Select experiment") }}</span>
+      <span class="exp-label">{{ t("experiment.experiment") }}</span>
+      <span class="exp-name">{{ current?.name ?? (loading ? t("experiment.loading") : t("experiment.select")) }}</span>
     </span>
     <svg class="exp-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <path d="M7 15l5 5 5-5M7 9l5-5 5 5" />
     </svg>
     <Menu ref="menu" fit :offset="[0, 6]" class="exp-popover" @before-show="query = ''">
       <div v-if="options.length > 6" class="exp-search">
-        <TextInput v-model="query" type="search" size="sm" placeholder="Search experiments…" aria-label="Search experiments" />
+        <TextInput v-model="query" type="search" size="sm" :placeholder="t('experiment.searchPlaceholder')" :aria-label="t('experiment.search')" />
       </div>
-      <ul class="exp-list" role="listbox" aria-label="Experiments">
+      <ul class="exp-list" role="listbox" :aria-label="t('experiment.experiments')">
         <li v-for="e in filtered" :key="e.id" role="option" :aria-selected="e.id === modelValue">
           <button type="button" class="exp-option" :class="{ selected: e.id === modelValue }" @click="pick(e.id)">
             <span class="exp-avatar" aria-hidden="true">{{ initials(e.name) }}</span>
@@ -55,7 +56,7 @@ const pick = (id: string) => {
             </svg>
           </button>
         </li>
-        <li v-if="!filtered.length" class="exp-empty">No experiments found</li>
+        <li v-if="!filtered.length" class="exp-empty">{{ t("experiment.none") }}</li>
       </ul>
     </Menu>
   </button>

@@ -6,6 +6,7 @@ import { formatDuration } from "@/domain/format";
 import Button from "./Button.vue";
 import Pill from "./Pill.vue";
 import Card from "./Card.vue";
+import { t } from "../i18n";
 
 const route = useRoute();
 const props = defineProps<{ item: DatasetRunItemResultDto; position: number; total: number; hasPrev: boolean; hasNext: boolean }>();
@@ -49,20 +50,20 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
 </script>
 
 <template>
-  <aside class="item-panel" data-testid="run-item-panel" aria-label="Item detail">
+  <aside class="item-panel" data-testid="run-item-panel" :aria-label="t('runItemPanel.item_detail')">
     <header class="head">
       <div class="title">
-        <strong>Item {{ item.itemIndex + 1 }}</strong>
-        <span class="muted">{{ position }} of {{ total }}</span>
-        <Pill tone="error" v-if="failedCount > 0">{{ failedCount }} failed</Pill>
-        <Pill tone="ok" v-else>all passed</Pill>
+        <strong>{{ t("runItemPanel.item_n", { n: item.itemIndex + 1 }) }}</strong>
+        <span class="muted">{{ t("runItemPanel.position_of_total", { position, total }) }}</span>
+        <Pill tone="error" v-if="failedCount > 0">{{ t("runItemPanel.count_failed", { count: failedCount }) }}</Pill>
+        <Pill tone="ok" v-else>{{ t("runItemPanel.all_passed") }}</Pill>
       </div>
       <div class="nav">
-        <Button v-if="traceLink" size="sm" :to="traceLink" data-testid="run-item-trace">Open trace</Button>
-        <span v-else-if="item.traceId" class="muted small" data-testid="run-item-no-trace" title="The trace was not stored or has expired">Trace not available</span>
-        <Button variant="icon" :disabled="!hasPrev" aria-label="Previous item" data-testid="run-item-prev" @click="emit('prev')">‹</Button>
-        <Button variant="icon" :disabled="!hasNext" aria-label="Next item" data-testid="run-item-next" @click="emit('next')">›</Button>
-        <Button variant="icon" aria-label="Close" data-testid="run-item-close" @click="emit('close')">✕</Button>
+        <Button v-if="traceLink" size="sm" :to="traceLink" data-testid="run-item-trace">{{ t("runItemPanel.open_trace") }}</Button>
+        <span v-else-if="item.traceId" class="muted small" data-testid="run-item-no-trace" :title="t('runItemPanel.the_trace_was_not_stored_or')">{{ t("runItemPanel.trace_not_available") }}</span>
+        <Button variant="icon" :disabled="!hasPrev" :aria-label="t('runItemPanel.previous_item')" data-testid="run-item-prev" @click="emit('prev')">‹</Button>
+        <Button variant="icon" :disabled="!hasNext" :aria-label="t('runItemPanel.next_item')" data-testid="run-item-next" @click="emit('next')">›</Button>
+        <Button variant="icon" :aria-label="t('runItemPanel.close')" data-testid="run-item-close" @click="emit('close')">✕</Button>
       </div>
     </header>
 
@@ -70,24 +71,24 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
       <h3 class="question">{{ text(item.input) }}</h3>
 
       <Card as="section" gap="sm" v-if="item.error" class="card err-card">
-        <h4>Error</h4>
+        <h4>{{ t("runItemPanel.error") }}</h4>
         <pre class="block err">{{ item.error }}</pre>
       </Card>
 
       <div class="outputs">
         <Card as="section" gap="sm" class="card">
-          <h4>Expected output</h4>
+          <h4>{{ t("runItemPanel.expected_output") }}</h4>
           <pre class="block" :class="{ empty: item.expectedOutput == null }">{{ text(item.expectedOutput) }}</pre>
         </Card>
         <Card as="section" gap="sm" class="card" :class="{ 'err-card': failedCount > 0 && !item.error }">
-          <h4>Generated output</h4>
+          <h4>{{ t("runItemPanel.generated_output") }}</h4>
           <pre class="block" :class="{ empty: item.output == null }">{{ text(item.output) }}</pre>
         </Card>
       </div>
 
       <Card as="section" gap="sm" class="card flush">
-        <h4 class="bar">Scores</h4>
-        <p v-if="scores.length === 0" class="muted pad">This item has no scores.</p>
+        <h4 class="bar">{{ t("runItemPanel.scores") }}</h4>
+        <p v-if="scores.length === 0" class="muted pad">{{ t("runItemPanel.this_item_has_no_scores") }}</p>
         <div v-for="s in scores" :key="s.name" class="score" :class="{ bad: failed(s) }" :data-testid="`run-item-score-${s.name}`">
           <div class="score-head">
             <span class="mono name">{{ s.name }}</span>
@@ -96,17 +97,17 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
             <span class="muted small">{{ s.dataType }} · {{ sourceLabel(s) }}</span>
           </div>
           <p v-if="s.comment" class="comment" :class="{ bad: failed(s) }">{{ s.comment }}</p>
-          <p v-else class="muted small">No explanation recorded by the evaluator.</p>
-          <p v-if="judgeLine(s)" class="muted small">Judge: {{ judgeLine(s) }}</p>
+          <p v-else class="muted small">{{ t("runItemPanel.no_explanation_recorded_by_the_evaluator") }}</p>
+          <p v-if="judgeLine(s)" class="muted small">{{ t('runItemPanel.judge_line', { line: judgeLine(s) }) }}</p>
         </div>
       </Card>
 
       <Card as="section" gap="sm" v-if="telemetry" class="card">
-        <h4>Telemetry</h4>
+        <h4>{{ t("runItemPanel.telemetry") }}</h4>
         <div class="telemetry">
-          <div><span class="muted small">Latency</span><strong class="mono">{{ formatDuration(telemetry.latencyMs) }}</strong></div>
-          <div><span class="muted small">Tokens in / out</span><strong class="mono">{{ telemetry.inputTokens }} / {{ telemetry.outputTokens }}</strong></div>
-          <div v-if="telemetry.costUsd !== null"><span class="muted small">Cost</span><strong class="mono">${{ telemetry.costUsd.toFixed(4) }}</strong></div>
+          <div><span class="muted small">{{ t("runItemPanel.latency") }}</span><strong class="mono">{{ formatDuration(telemetry.latencyMs) }}</strong></div>
+          <div><span class="muted small">{{ t("runItemPanel.tokens_in_out") }}</span><strong class="mono">{{ telemetry.inputTokens }} / {{ telemetry.outputTokens }}</strong></div>
+          <div v-if="telemetry.costUsd !== null"><span class="muted small">{{ t("runItemPanel.cost") }}</span><strong class="mono">${{ telemetry.costUsd.toFixed(4) }}</strong></div>
         </div>
       </Card>
     </div>

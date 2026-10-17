@@ -5,7 +5,8 @@ import type { ConversationSummaryDto, TraceSummaryDto } from "@contract";
 import { computed, inject, onBeforeUnmount, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { CURRENT_EXPERIMENT } from "@/dependency-container";
-import { formatCostUsd, formatCount, formatDateTime, formatDuration, formatPercent, formatRelativeTime, shortRevision } from "@/domain/format";
+import { formatCostUsd, formatCount, formatDateTime, formatDuration, formatPercent, shortRevision } from "@/domain/format";
+import { formatRelativeTime } from "../i18n/format";
 import { mergeLatestConversations, mergeLatestTraces } from "@/domain/merge";
 import EmptyState from "../components/EmptyState.vue";
 import OnboardingGuide from "../components/OnboardingGuide.vue";
@@ -32,6 +33,7 @@ import LoadingState from "../components/LoadingState.vue";
 import Card from "../components/Card.vue";
 import SegmentedControl from "../components/SegmentedControl.vue";
 import Button from "../components/Button.vue";
+import { t, tp } from "../i18n";
 
 const PAGE_SIZE = 50;
 const api = useTraceApi();
@@ -40,7 +42,7 @@ const route = useRoute();
 const experimentId = computed(() => route.params.experimentId as string);
 const currentExperiment = inject(CURRENT_EXPERIMENT, computed(() => null));
 const f = useFilters();
-const LIST_MODES = [{ value: "conversation", label: "Conversations", class: "mode-conversations" }, { value: "flat", label: "Traces", class: "mode-traces" }];
+const LIST_MODES = [{ value: "conversation", get label() { return t("conversationsPage.conversations"); }, class: "mode-conversations" }, { value: "flat", get label() { return t("conversationsPage.traces"); }, class: "mode-traces" }];
 const grouped = computed(() => f.group.value === "conversation");
 
 // Ungrouped (default): all traces. Grouped: one row per conversation.
@@ -64,11 +66,11 @@ const kpis = computed(() => {
   const o = overview.data.value;
   if (!o) return [];
   return [
-    { k: "Conversations", v: formatCount(o.totals.conversations), tone: "" },
-    { k: "Traces", v: formatCount(o.totals.traces), tone: "" },
-    { k: "Latency p95", v: formatDuration(o.latencyMs.p95), tone: "" },
-    { k: "Error Rate", v: formatPercent(o.totals.errorRate), tone: o.totals.errorRate > 0 ? "bad" : "" },
-    { k: "Tokens", v: formatCount(o.totals.totalTokens), tone: "" },
+    { k: t("conversationsPage.conversations"), v: formatCount(o.totals.conversations), tone: "" },
+    { k: t("conversationsPage.traces"), v: formatCount(o.totals.traces), tone: "" },
+    { k: t("conversationsPage.latency_p95"), v: formatDuration(o.latencyMs.p95), tone: "" },
+    { k: t("conversationsPage.error_rate"), v: formatPercent(o.totals.errorRate), tone: o.totals.errorRate > 0 ? "bad" : "" },
+    { k: t("conversationsPage.tokens"), v: formatCount(o.totals.totalTokens), tone: "" },
   ];
 });
 
@@ -87,7 +89,7 @@ watch([f.rangeSig, f.service, f.hasErrors, f.minDurationMs, f.text, f.revision, 
 const convStatus = (c: ConversationSummaryDto) => (c.errorTurns > 0 ? "error" : c.failedSpans > 0 ? "warn" : "ok");
 /** barra de color a la izquierda de la fila (diseño): error y valoración baja destacan; con fallos internos, aviso */
 const rowBar = (c: ConversationSummaryDto) => (convStatus(c) === "error" ? "bar-error" : ratings.value.get(c.conversationId)?.low ? "bar-low" : convStatus(c) === "warn" ? "bar-warn" : "");
-const STATUS_LABEL = { ok: "OK", error: "Error", warn: "With failures" } as const;
+const STATUS_LABEL = { get ok() { return t("conversationsPage.ok"); }, get error() { return t("conversationsPage.error"); }, get warn() { return t("conversationsPage.with_failures"); } };
 
 // ---- columna Annotation: etiquetas humanas de las filas cargadas (se piden por lote, solo las que faltan) ----
 const ratings = ref(new Map<string, { labels: number; low: boolean }>());
@@ -142,10 +144,10 @@ const revisions = useAsync((signal) => api.listRevisions(f.resolve(), signal));
 watch([f.rangeSig, f.service], () => void revisions.run(), { immediate: true });
 const versionOptions = computed(() => {
   const found = revisions.data.value?.items ?? [];
-  const options = [{ label: "All versions", value: "" }, ...found.map((r) => ({ label: `${shortRevision(r.revision)} · ${r.traces} ${r.traces === 1 ? "trace" : "traces"} · ${formatRelativeTime(r.lastSeen, Date.now())}`, value: r.revision }))];
+  const options = [{ label: t("conversationsPage.all_versions"), value: "" }, ...found.map((r) => ({ label: `${shortRevision(r.revision)} · ${tp("conversationsPage.traces", r.traces)} · ${formatRelativeTime(r.lastSeen, Date.now())}`, value: r.revision }))];
   const current = f.revision.value;
   // un filtro que llega por la URL y no está en el rango sigue visible y se puede quitar
-  if (current && !found.some((r) => r.revision.startsWith(current.toLowerCase()))) options.splice(1, 0, { label: `${shortRevision(current)} (not in this range)`, value: current });
+  if (current && !found.some((r) => r.revision.startsWith(current.toLowerCase()))) options.splice(1, 0, { label: t("conversationsPage.revision_not_in_this_range", { revision: shortRevision(current) }), value: current });
   return options;
 });
 const selectedVersion = computed(() => versionOptions.value.find((o) => o.value && f.revision.value && (o.value.startsWith(f.revision.value.toLowerCase()) || f.revision.value.toLowerCase().startsWith(o.value)))?.value ?? "");
@@ -158,8 +160,8 @@ const quickViews = computed(() => {
   const errors = overview.data.value?.totals.errorTraces;
   return [
     { key: "all" as const, label: "All", count: null },
-    { key: "errors" as const, label: "With errors", count: errors ?? null },
-    ...(grouped.value ? [] : [{ key: "slow" as const, label: `Slow (≥ ${SLOW_MS / 1000} s)`, count: null }]),
+    { key: "errors" as const, label: t("conversationsPage.with_errors"), count: errors ?? null },
+    ...(grouped.value ? [] : [{ key: "slow" as const, label: t("conversationsPage.slow_seconds_s", { seconds: SLOW_MS / 1000 }), count: null }]),
   ];
 });
 
@@ -184,26 +186,26 @@ const preview = computed(() => {
       title: c.title ?? c.conversationId,
       subtitle: `${c.conversationId} · ${c.serviceNames.join(", ")} · ${formatDateTime(c.lastActivity)}`,
       stats: [
-        { k: "TURNS", v: String(c.turnCount) },
-        { k: "ACTIVE TIME", v: formatDuration(c.activeMs) },
-        { k: "COST", v: formatCostUsd(c.costUsd) ?? "–" },
+        { k: t("conversationsPage.turns2"), v: String(c.turnCount) },
+        { k: t("conversationsPage.active_time2"), v: formatDuration(c.activeMs) },
+        { k: t("conversationsPage.cost2"), v: formatCostUsd(c.costUsd) ?? "–" },
       ],
       messages,
       loading: transcript.loading.value && !transcript.data.value,
-      emptyHint: transcript.data.value && !transcript.data.value.contentCaptured ? "The agent did not capture message content (enable MEMTRACE_CAPTURE_CONTENT=true to see it here)." : undefined,
+      emptyHint: transcript.data.value && !transcript.data.value.contentCaptured ? t("conversationsPage.the_agent_did_not_capture_message") : undefined,
     };
   }
-  const t = selectedTrace.value;
-  if (t) {
+  const trace = selectedTrace.value;
+  if (trace) {
     return {
-      title: t.rootSpanName,
-      subtitle: t.traceId,
+      title: trace.rootSpanName,
+      subtitle: trace.traceId,
       stats: [
-        { k: "DURATION", v: formatDuration(t.durationMs) },
-        { k: "TOKENS", v: t.totalTokens ? formatCount(t.totalTokens) : "–" },
-        { k: "SPANS", v: formatCount(t.spanCount) },
+        { k: t("conversationsPage.duration"), v: formatDuration(trace.durationMs) },
+        { k: t("conversationsPage.tokens2"), v: trace.totalTokens ? formatCount(trace.totalTokens) : "–" },
+        { k: t("conversationsPage.spans"), v: formatCount(trace.spanCount) },
       ],
-      messages: [...(t.input ? [{ role: "user" as const, text: t.input }] : []), ...(t.output ? [{ role: "assistant" as const, text: t.output, traceId: t.traceId }] : [])],
+      messages: [...(trace.input ? [{ role: "user" as const, text: trace.input }] : []), ...(trace.output ? [{ role: "assistant" as const, text: trace.output, traceId: trace.traceId }] : [])],
       loading: false,
       emptyHint: undefined,
     };
@@ -238,27 +240,27 @@ const footer = computed(() => {
 
 <template>
   <q-page class="page">
-    <PageHeader :crumbs="[{ label: 'MemTrace', to: { name: 'overview', params: { experimentId } } }, { label: 'Conversations' }]" icon="M4 5h16v11H9l-5 4z" title="Conversations" />
+    <PageHeader :crumbs="[{ label: 'MemTrace', to: { name: 'overview', params: { experimentId } } }, { label: 'Conversations' }]" icon="M4 5h16v11H9l-5 4z" :title="t('conversationsPage.conversations')" />
 
-    <Card as="section" padding="none" block class="kpis" aria-label="Summary">
+    <Card as="section" padding="none" block class="kpis" :aria-label="t('conversationsPage.summary')">
       <template v-if="kpis.length">
         <div v-for="(k, i) in kpis" :key="k.k" class="kpi" :class="{ first: i === 0 }">
           <span class="kpi-k">{{ k.k }}</span>
           <span class="kpi-v" :class="k.tone">{{ k.v }}</span>
         </div>
       </template>
-      <div v-else-if="overview.error.value" class="kpi-msg">Could not load summary.</div>
-      <div v-else class="kpi-msg">Loading summary…</div>
+      <div v-else-if="overview.error.value" class="kpi-msg">{{ t("conversationsPage.could_not_load_summary") }}</div>
+      <div v-else class="kpi-msg">{{ t("conversationsPage.loading_summary") }}</div>
     </Card>
 
     <div class="views-row">
-      <SegmentedControl size="sm" aria-label="List mode" :options="LIST_MODES" :model-value="grouped ? 'conversation' : 'flat'" @update:model-value="f.setGroup($event as 'conversation' | 'flat')" />
-      <SegmentedControl tabs class="quick-tabs" size="sm" aria-label="Quick views" :options="quickViews.map((v) => ({ value: v.key, label: v.label, count: v.count ?? undefined, class: 'quick' }))" :model-value="quick" @update:model-value="f.setQuickView($event as typeof quick)" />
-      <button v-if="f.prompt.value" type="button" class="prompt-filter" data-testid="prompt-filter" :title="'Remove the prompt filter'" @click="f.setPrompt(undefined)">
-        Prompt: <b>{{ f.prompt.value }}{{ f.promptVersion.value ? ` v${f.promptVersion.value}` : "" }}</b> ✕
+      <SegmentedControl size="sm" :aria-label="t('conversationsPage.list_mode')" :options="LIST_MODES" :model-value="grouped ? 'conversation' : 'flat'" @update:model-value="f.setGroup($event as 'conversation' | 'flat')" />
+      <SegmentedControl tabs class="quick-tabs" size="sm" :aria-label="t('conversationsPage.quick_views')" :options="quickViews.map((v) => ({ value: v.key, label: v.label, count: v.count ?? undefined, class: 'quick' }))" :model-value="quick" @update:model-value="f.setQuickView($event as typeof quick)" />
+      <button v-if="f.prompt.value" type="button" class="prompt-filter" data-testid="prompt-filter" :title="t('conversationsPage.remove_the_prompt_filter')" @click="f.setPrompt(undefined)">
+        {{ t("conversationsPage.prompt") }} <b>{{ f.prompt.value }}{{ f.promptVersion.value ? ` v${f.promptVersion.value}` : "" }}</b> ✕
       </button>
-      <Select :model-value="selectedVersion" :options="versionOptions" :loading="revisions.loading.value" class="version" aria-label="Filter by code version" data-testid="revision-filter" @update:model-value="(v: string) => f.setRevision(v)" />
-      <TextInput type="search" v-model="search" placeholder="Search input / output…" class="search" aria-label="Search input and output" />
+      <Select :model-value="selectedVersion" :options="versionOptions" :loading="revisions.loading.value" class="version" :aria-label="t('conversationsPage.filter_by_code_version')" data-testid="revision-filter" @update:model-value="(v: string) => f.setRevision(v)" />
+      <TextInput type="search" v-model="search" :placeholder="t('conversationsPage.search_input_output')" class="search" :aria-label="t('conversationsPage.search_input_and_output')" />
     </div>
 
     <div class="body">
@@ -268,7 +270,7 @@ const footer = computed(() => {
         <div class="list">
           <DataTable v-if="grouped && conversations.items.value.length" class="conversations" sticky nowrap>
             <thead>
-              <tr><th>Conversation</th><th>Prompt</th><th>Last activity</th><th class="num">Turns</th><th class="num">Active time</th><th class="num">Tokens</th><th class="num">Cost</th><th>Status</th><th>Annotation</th><th>User feedback</th></tr>
+              <tr><th>{{ t("conversationsPage.conversation") }}</th><th>{{ t("conversationsPage.prompt2") }}</th><th>{{ t("conversationsPage.last_activity") }}</th><th class="num">{{ t("conversationsPage.turns") }}</th><th class="num">{{ t("conversationsPage.active_time") }}</th><th class="num">{{ t("conversationsPage.tokens") }}</th><th class="num">{{ t("conversationsPage.cost") }}</th><th>{{ t("conversationsPage.status") }}</th><th>{{ t("conversationsPage.annotation") }}</th><th>{{ t("conversationsPage.user_feedback") }}</th></tr>
             </thead>
             <tbody>
               <tr
@@ -313,7 +315,7 @@ const footer = computed(() => {
             @open-conversation="openConversation"
           />
 
-          <div v-if="!active.loading.value && active.items.value.length === 0 && !active.error.value && f.text.value" class="no-match">No matches for “{{ f.text.value }}” in this range.</div>
+          <div v-if="!active.loading.value && active.items.value.length === 0 && !active.error.value && f.text.value" class="no-match">{{ t("conversationsPage.no_matches_for_text_in_this", { text: f.text.value }) }}</div>
           <OnboardingGuide
             v-else-if="!active.loading.value && active.items.value.length === 0 && !active.error.value"
             :service-name="currentExperiment?.serviceName ?? ''"
@@ -326,7 +328,7 @@ const footer = computed(() => {
         <div class="footer">
           <span class="count">{{ footer }}</span>
           <Button size="sm" v-if="active.nextCursor.value" :disabled="active.moreLoading.value" @click="active.loadMore">
-            {{ active.moreLoading.value ? "Loading…" : "Load more" }}
+            {{ active.moreLoading.value ? t("conversationsPage.loading") : t("conversationsPage.load_more") }}
           </Button>
         </div>
       </Card>
@@ -352,7 +354,7 @@ const footer = computed(() => {
       <template v-if="actionTraceId">
         <AddToQueueModal v-if="addingToQueue" :trace-id="actionTraceId" @close="addingToQueue = false" />
         <AddToDatasetModal v-if="addingToDataset && datasetTrace.data.value" :trace-id="actionTraceId" :roots="datasetTrace.data.value.roots" @close="addingToDataset = false" />
-        <Modal v-if="annotating" title="Annotate trace" wide @close="closeAnnotate">
+        <Modal v-if="annotating" :title="t('conversationsPage.annotate_trace')" wide @close="closeAnnotate">
           <TraceAnnotationsPanel :trace-id="actionTraceId" :experiment-id="experimentId" :span="null" />
         </Modal>
       </template>

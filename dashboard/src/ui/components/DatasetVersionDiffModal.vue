@@ -10,6 +10,8 @@ import ErrorBanner from "./ErrorBanner.vue";
 import Modal from "./Modal.vue";
 import Pill from "./Pill.vue";
 import LoadingState from "./LoadingState.vue";
+import { t, tp } from "../i18n";
+import { lazyMessages } from "../../domain/translate";
 
 const props = defineProps<{
   datasetId: string;
@@ -47,21 +49,21 @@ function changeAuthor(change: DatasetItemChangeDto): string {
   if (change.kind === "modified") return after?.updatedByEmail && after.updatedAt ? `${after.updatedByEmail} · ${formatDateTime(after.updatedAt)}` : "";
   return after?.deletedByEmail && after.deletedAt ? `${after.deletedByEmail} · ${formatDateTime(after.deletedAt)}` : "";
 }
-const KIND_LABEL = { added: "Added", modified: "Modified", removed: "Removed" } as const;
+const KIND_LABEL = lazyMessages({ added: "datasetVersionDiffModal.added", modified: "datasetVersionDiffModal.modified", removed: "datasetVersionDiffModal.removed" });
 const KIND_TONE = { added: "ok", modified: "warn", removed: "error" } as const;
 </script>
 
 <template>
-  <Modal :title="`Version ${label(version)}`" wide @close="emit('close')">
+  <Modal :title="t('datasetVersionDiffModal.version_label', { label: label(version) })" wide @close="emit('close')">
     <dl class="meta">
-      <div><dt>Change</dt><dd>{{ version.note ?? "–" }}</dd></div>
-      <div><dt>By</dt><dd>{{ version.createdByEmail }}</dd></div>
-      <div><dt>When</dt><dd class="mono">{{ formatDateTime(version.createdAt) }}</dd></div>
+      <div><dt>{{ t("datasetVersionDiffModal.change") }}</dt><dd>{{ version.note ?? "–" }}</dd></div>
+      <div><dt>{{ t("datasetVersionDiffModal.by") }}</dt><dd>{{ version.createdByEmail }}</dd></div>
+      <div><dt>{{ t("datasetVersionDiffModal.when") }}</dt><dd class="mono">{{ formatDateTime(version.createdAt) }}</dd></div>
       <div>
-        <dt><label for="compare-with">Compare with</label></dt>
+        <dt><label for="compare-with">{{ t("datasetVersionDiffModal.compare_with") }}</label></dt>
         <dd>
           <Select v-if="olderVersions.length > 0" id="compare-with" v-model="againstId" :options="versionOptions" />
-          <span v-else class="muted">Initial version</span>
+          <span v-else class="muted">{{ t("datasetVersionDiffModal.initial_version") }}</span>
         </dd>
       </div>
     </dl>
@@ -69,7 +71,7 @@ const KIND_TONE = { added: "ok", modified: "warn", removed: "error" } as const;
     <ErrorBanner v-if="diff.error.value" :error="diff.error.value" @retry="diff.run()" />
     <LoadingState v-else-if="diff.loading.value && !diff.data.value" size="md" />
     <template v-else-if="diff.data.value">
-      <p v-if="diff.data.value.base" class="muted range">Changes from {{ label(diff.data.value.base) }} to {{ label(diff.data.value.target) }} — everything that differs between the two, including changes made by versions in between.</p>
+      <p v-if="diff.data.value.base" class="muted range">{{ t("datasetVersionDiffModal.changes_from_from_to_to_everything", { from: label(diff.data.value.base), to: label(diff.data.value.target) }) }}</p>
       <p v-if="entries.length === 0" class="muted empty">No differences{{ diff.data.value.base ? ` between ${label(diff.data.value.base)} and ${label(diff.data.value.target)}` : "" }}.</p>
       <section v-for="entry in entries" :key="entry.change.originItemId" class="change" data-testid="diff-change">
         <header class="change-head">
@@ -85,7 +87,7 @@ const KIND_TONE = { added: "ok", modified: "warn", removed: "error" } as const;
           </template>
         </div>
       </section>
-      <p v-if="diff.data.value.unchangedCount > 0" class="muted unchanged">{{ diff.data.value.unchangedCount }} unchanged item{{ diff.data.value.unchangedCount === 1 ? "" : "s" }}</p>
+      <p v-if="diff.data.value.unchangedCount > 0" class="muted unchanged">{{ tp("datasetVersionDiffModal.unchanged", diff.data.value.unchangedCount) }}</p>
     </template>
   </Modal>
 </template>

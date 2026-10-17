@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { sideBySideDiff, type DiffCell } from "@/domain/text-diff";
 import Card from "./Card.vue";
+import { t, tp } from "../i18n";
 
 /** Diferencia de texto entre dos versiones de un prompt, en dos columnas con números de línea (rojo = quitado, verde = añadido). */
 const props = defineProps<{ oldText: string; newText: string; oldLabel: string; newLabel: string }>();
@@ -30,18 +31,18 @@ const summary = computed(() => {
     else if (right.kind === "add") added += 1;
     else if (left.kind === "del") removed += 1;
   }
-  return [rewritten && `${rewritten} ${rewritten === 1 ? "line" : "lines"} rewritten`, added && `${added} added`, removed && `${removed} removed`].filter(Boolean).join(", ");
+  return [rewritten && tp("promptDiff.lines", rewritten), added && t("promptDiff.count_added", { count: added }), removed && t("promptDiff.count_removed", { count: removed })].filter(Boolean).join(", ");
 });
 const mark = (kind: DiffCell["kind"]) => (kind === "add" ? "+" : kind === "del" ? "−" : "");
 </script>
 
 <template>
-  <p v-if="identical" class="muted" data-testid="prompt-diff-empty">No differences between {{ oldLabel }} and {{ newLabel }}.</p>
+  <p v-if="identical" class="muted" data-testid="prompt-diff-empty">{{ t("promptDiff.no_differences_between_old_and_new", { old: oldLabel, new: newLabel }) }}</p>
   <Card as="section" padding="none" v-else class="card" data-testid="prompt-diff-card">
-    <header class="head"><strong>Prompt changes</strong><span class="summary">{{ summary }}</span></header>
+    <header class="head"><strong>{{ t("promptDiff.prompt_changes") }}</strong><span class="summary">{{ summary }}</span></header>
     <div class="diff" data-testid="prompt-diff">
-      <div class="side-title">{{ oldLabel }} · base</div>
-      <div class="side-title">{{ newLabel }} · selected</div>
+      <div class="side-title">{{ t("promptDiff.label_base", { label: oldLabel }) }}</div>
+      <div class="side-title">{{ t("promptDiff.label_selected", { label: newLabel }) }}</div>
       <template v-for="(row, i) in numbered" :key="i">
         <div class="cell" :class="row.left.kind"><span class="no">{{ row.ln }}</span><span class="mark">{{ mark(row.left.kind) }}</span><pre class="line">{{ row.left.text }}</pre></div>
         <div class="cell" :class="row.right.kind"><span class="no">{{ row.rn }}</span><span class="mark">{{ mark(row.right.kind) }}</span><pre class="line">{{ row.right.text }}</pre></div>

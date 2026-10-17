@@ -1,18 +1,19 @@
 /** Presentación del acuerdo juez-humano / inter-anotador (ADR-040). Solo formato: el cálculo vive en la API. */
 import type { JudgeHumanMetricDto } from "@contract";
+import { tr } from "./translate";
 
 /** Mismo mínimo que `MIN_AGREEMENT_SAMPLE` de la API; solo se usa para el texto "needs N more". */
 export const MIN_SAMPLE = 20;
 
 /** Escala de Landis y Koch, la lectura habitual de un kappa. */
 export function kappaLabel(kappa: number | null): string {
-  if (kappa === null) return "n/a";
-  if (kappa < 0) return "worse than chance";
-  if (kappa <= 0.2) return "slight";
-  if (kappa <= 0.4) return "fair";
-  if (kappa <= 0.6) return "moderate";
-  if (kappa <= 0.8) return "substantial";
-  return "almost perfect";
+  if (kappa === null) return tr("agreement.n_a");
+  if (kappa < 0) return tr("agreement.worse_than_chance");
+  if (kappa <= 0.2) return tr("agreement.slight");
+  if (kappa <= 0.4) return tr("agreement.fair");
+  if (kappa <= 0.6) return tr("agreement.moderate");
+  if (kappa <= 0.8) return tr("agreement.substantial");
+  return tr("agreement.almost_perfect");
 }
 
 export function kappaTone(kappa: number | null): "positive" | "warning" | "negative" | "default" {
@@ -27,10 +28,10 @@ export function kappaTone(kappa: number | null): "positive" | "warning" | "negat
  * Solo texto; no decide nada por sí solo.
  */
 export function judgeVerdict(kappa: number | null): { tone: ReturnType<typeof kappaTone>; text: string } {
-  if (kappa === null) return { tone: "default", text: "Not enough labels yet to compare." };
-  if (kappa >= 0.6) return { tone: "positive", text: "Matches your reviewers: the judge can be trusted for this score." };
-  if (kappa >= 0.4) return { tone: "warning", text: "Partly matches: check the judge's rubric and the disagreements." };
-  return { tone: "negative", text: "Does not match your reviewers: do not use this judge score." };
+  if (kappa === null) return { tone: "default", text: tr("agreement.not_enough_labels_yet_to_compare") };
+  if (kappa >= 0.6) return { tone: "positive", text: tr("agreement.matches_your_reviewers_the_judge_can") };
+  if (kappa >= 0.4) return { tone: "warning", text: tr("agreement.partly_matches_check_the_judge_s") };
+  return { tone: "negative", text: tr("agreement.does_not_match_your_reviewers_do") };
 }
 
 export function formatKappa(kappa: number | null | undefined): string {
@@ -44,12 +45,12 @@ export function formatRate(value: number | null | undefined): string {
 /** Por qué no hay kappa en una métrica que sí se calculó. */
 export function kappaNote(metric: Pick<JudgeHumanMetricDto, "kappa" | "kappaReason">): string | null {
   if (metric.kappa !== null) return null;
-  return metric.kappaReason === "no_variance" ? "Kappa is undefined: both judge and humans gave a single label to every item." : null;
+  return metric.kappaReason === "no_variance" ? tr("agreement.kappa_is_undefined_both_judge_and") : null;
 }
 
 /** Texto de una muestra pequeña, o `null` si ya es suficiente. */
 export function lowSampleNote(n: number): string {
-  return `Only ${n} item${n === 1 ? "" : "s"} with both a judge score and a human label — these numbers are noise until there are at least ${MIN_SAMPLE}.`;
+  return tr(n === 1 ? "agreement.sample.one" : "agreement.sample.other", { count: n, min: MIN_SAMPLE });
 }
 
 export interface QueuePopulationCounts {
@@ -65,10 +66,10 @@ export interface QueuePopulationCounts {
 export function describePopulation(p: QueuePopulationCounts): { text: string; tone: "ok" | "warn" } | null {
   const total = p.manual + p.filter + p.randomSample;
   if (total === 0) return null;
-  const parts = [p.randomSample ? `${p.randomSample} randomly sampled` : null, p.filter ? `${p.filter} chosen by a filter or whole run` : null, p.manual ? `${p.manual} picked by hand` : null].filter(Boolean);
-  const how = `Sample: ${parts.join(", ")}.`;
-  if (p.randomSample === total) return { text: `${how} Agreement can be read as representative of the items it was sampled from.`, tone: "ok" };
-  return { text: `${how} Not a purely random sample, so agreement may not generalize to the other items.`, tone: "warn" };
+  const parts = [p.randomSample ? tr("agreement.count_randomly_sampled", { count: p.randomSample }) : null, p.filter ? tr("agreement.count_chosen_by_a_filter_or", { count: p.filter }) : null, p.manual ? tr("agreement.count_picked_by_hand", { count: p.manual }) : null].filter(Boolean);
+  const how = tr("agreement.sample_parts", { parts: parts.join(", ") });
+  if (p.randomSample === total) return { text: tr("agreement.how_agreement_can_be_read_as", { how }), tone: "ok" };
+  return { text: tr("agreement.how_not_a_purely_random_sample", { how }), tone: "warn" };
 }
 
 /** `run:<datasetRunId>:<itemIndex>` → índice del item, o `null` si no es de este run. */

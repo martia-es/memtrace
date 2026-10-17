@@ -11,6 +11,8 @@ import { useAsync } from "../composables/useAsync";
 import { useTraceApi } from "../composables/useTraceApi";
 import Button from "./Button.vue";
 import FormField from "./FormField.vue";
+import { lazyMessages } from "@/domain/translate";
+import { t } from "../i18n";
 
 /**
  * Promueve esta traza a un item de dataset (ADR-038). El item es una COPIA: la persona ve y puede corregir la entrada
@@ -19,13 +21,13 @@ import FormField from "./FormField.vue";
 const props = defineProps<{ traceId: string; roots: SpanNodeDto[] }>();
 const emit = defineEmits<{ close: [] }>();
 
-const REASONS: Record<PromotionSkipReasonDto, string> = {
-  already_promoted: "This trace is already in that dataset.",
-  no_content: "This trace has no input saved. Type one below, or enable MEMTRACE_CAPTURE_CONTENT=true on the agent.",
-  not_found: "Trace not found.",
-  ambiguous_label: "The annotators disagree.",
-  unsupported_label: "That label is not a reference answer.",
-};
+const REASONS: Record<PromotionSkipReasonDto, string> = lazyMessages({
+  already_promoted: "addToDatasetModal.this_trace_is_already_in_that",
+  no_content: "addToDatasetModal.this_trace_has_no_input_saved",
+  not_found: "addToDatasetModal.trace_not_found",
+  ambiguous_label: "addToDatasetModal.the_annotators_disagree",
+  unsupported_label: "addToDatasetModal.that_label_is_not_a_reference",
+});
 
 const api = useTraceApi();
 const $q = useQuasar();
@@ -54,10 +56,10 @@ async function save() {
       return;
     }
     const v = result.version;
-    $q.notify({ message: `Added to the dataset${v ? ` · new version ${v.major}.${v.minor}` : ""}`, color: "positive", timeout: 4000 });
+    $q.notify({ message: `${t("addToDatasetModal.added_to_the_dataset")}${v ? ` · ${t("addToDatasetModal.new_version_version", { version: `${v.major}.${v.minor}` })}` : ""}`, color: "positive", timeout: 4000 });
     emit("close");
   } catch (error) {
-    $q.notify({ message: `Could not add the trace: ${error instanceof Error ? error.message : String(error)}`, color: "negative", timeout: 4000 });
+    $q.notify({ message: `${t("addToDatasetModal.could_not_add_the_trace")}: ${error instanceof Error ? error.message : String(error)}`, color: "negative", timeout: 4000 });
   } finally {
     saving.value = false;
   }
@@ -65,27 +67,27 @@ async function save() {
 </script>
 
 <template>
-  <Modal title="Add to dataset" wide @close="emit('close')">
+  <Modal :title="t('addToDatasetModal.add_to_dataset')" wide @close="emit('close')">
     <ErrorBanner v-if="datasets.error.value" :error="datasets.error.value" @retry="datasets.run()" />
-    <p v-else-if="datasets.data.value && !items.length" class="muted" data-testid="no-datasets">There are no datasets yet. Create one in Datasets.</p>
+    <p v-else-if="datasets.data.value && !items.length" class="muted" data-testid="no-datasets">{{ t("addToDatasetModal.there_are_no_datasets_yet_create") }}</p>
     <form v-else class="form" @submit.prevent="save">
-      <FormField label="Dataset">
-        <Select v-model="datasetId" :options="datasetOptions" placeholder="Choose a dataset…" data-testid="dataset-select" />
+      <FormField :label="t('addToDatasetModal.dataset')">
+        <Select v-model="datasetId" :options="datasetOptions" :placeholder="t('addToDatasetModal.choose_a_dataset')" data-testid="dataset-select" />
       </FormField>
-      <FormField label="Input">
+      <FormField :label="t('addToDatasetModal.input')">
         <TextInput v-model="input" multiline mono :rows="5" data-testid="input" spellcheck="false" />
-        <small v-if="!draft" class="warn" data-testid="no-content">No input was saved in this trace: type the input to use.</small>
-        <small v-else class="muted">Copied from the trace. Remove personal data here: the item is a long-lived copy.</small>
+        <small v-if="!draft" class="warn" data-testid="no-content">{{ t("addToDatasetModal.no_input_was_saved_in_this") }}</small>
+        <small v-else class="muted">{{ t("addToDatasetModal.copied_from_the_trace_remove_personal") }}</small>
       </FormField>
-      <FormField label="Expected output">
-        <TextInput v-model="expected" multiline mono :rows="3" data-testid="expected" spellcheck="false" placeholder="The correct answer (optional)" />
-        <small v-if="!expected.trim()" class="muted" data-testid="no-expected">Without it, only evaluators that need no reference (e.g. LLM-as-judge) can score this item.</small>
+      <FormField :label="t('addToDatasetModal.expected_output')">
+        <TextInput v-model="expected" multiline mono :rows="3" data-testid="expected" spellcheck="false" :placeholder="t('addToDatasetModal.the_correct_answer_optional')" />
+        <small v-if="!expected.trim()" class="muted" data-testid="no-expected">{{ t("addToDatasetModal.without_it_only_evaluators_that_need") }}</small>
       </FormField>
       <p v-if="draft?.observedOutput" class="observed muted">
-        <strong>The agent answered:</strong> {{ draft.observedOutput }}<br />
-        It is saved as context in the item's metadata, not as the expected output.
+        <strong>{{ t("addToDatasetModal.the_agent_answered") }}</strong> {{ draft.observedOutput }}<br />
+        {{ t("addToDatasetModal.it_is_saved_as_context_in") }}
       </p>
-      <Button variant="primary" type="submit" data-testid="save" :disabled="!canSave">Add to dataset</Button>
+      <Button variant="primary" type="submit" data-testid="save" :disabled="!canSave">{{ t("addToDatasetModal.add_to_dataset") }}</Button>
     </form>
   </Modal>
 </template>

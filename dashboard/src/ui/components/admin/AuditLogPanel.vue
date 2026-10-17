@@ -8,6 +8,7 @@ import { formatDate, notifyErrorWith } from "../../composables/useAdminDirectory
 import Button from "../Button.vue";
 import DataTable from "../DataTable.vue";
 import FormField from "../FormField.vue";
+import { t } from "../../i18n";
 
 /**
  * Registro de auditoría de la organización (ADR-084): quién abrió el contenido de una traza o conversación, quién exportó datos y
@@ -19,30 +20,30 @@ const api = useIdentityApi();
 const $q = useQuasar();
 
 const ACTIONS: { value: string; label: string }[] = [
-  { value: "", label: "Everything" },
-  { value: "trace.view", label: "Opened a trace" },
-  { value: "conversation.view", label: "Opened a conversation" },
-  { value: "data.export", label: "Exported data" },
-  { value: "retention.update", label: "Changed retention" },
-  { value: "retention.purge", label: "Deleted expired traces" },
-  { value: "member.add", label: "Added a member" },
-  { value: "apikey.create", label: "Created an API key" },
-  { value: "apikey.revoke", label: "Revoked an API key" },
-  { value: "alert.create", label: "Created an alert" },
-  { value: "alert.update", label: "Changed an alert" },
-  { value: "alert.delete", label: "Deleted an alert" },
-  { value: "budget.update", label: "Set the cost budget" },
-  { value: "budget.delete", label: "Removed the cost budget" },
-  { value: "model_match.update", label: "Decided an Arena match for a model" },
-  { value: "approval_exemption.grant", label: "Exempted an agent from an approval rule" },
-  { value: "approval_exemption.revoke", label: "Brought back an approval rule for an agent" },
-  { value: "partnership.create", label: "Added a partner" },
-  { value: "partnership.revoke", label: "Ended a partnership" },
-  { value: "partner_grant.create", label: "Granted a partner access" },
-  { value: "partner_grant.revoke", label: "Removed a partner access" },
-  { value: "partner.access", label: "A partner entered an experiment" },
+  { value: "", get label() { return t("auditLogPanel.everything"); } },
+  { value: "trace.view", get label() { return t("auditLogPanel.opened_a_trace"); } },
+  { value: "conversation.view", get label() { return t("auditLogPanel.opened_a_conversation"); } },
+  { value: "data.export", get label() { return t("auditLogPanel.exported_data"); } },
+  { value: "retention.update", get label() { return t("auditLogPanel.changed_retention"); } },
+  { value: "retention.purge", get label() { return t("auditLogPanel.deleted_expired_traces"); } },
+  { value: "member.add", get label() { return t("auditLogPanel.added_a_member"); } },
+  { value: "apikey.create", get label() { return t("auditLogPanel.created_an_api_key"); } },
+  { value: "apikey.revoke", get label() { return t("auditLogPanel.revoked_an_api_key"); } },
+  { value: "alert.create", get label() { return t("auditLogPanel.created_an_alert"); } },
+  { value: "alert.update", get label() { return t("auditLogPanel.changed_an_alert"); } },
+  { value: "alert.delete", get label() { return t("auditLogPanel.deleted_an_alert"); } },
+  { value: "budget.update", get label() { return t("auditLogPanel.set_the_cost_budget"); } },
+  { value: "budget.delete", get label() { return t("auditLogPanel.removed_the_cost_budget"); } },
+  { value: "model_match.update", get label() { return t("auditLogPanel.decided_an_arena_match_for_a"); } },
+  { value: "approval_exemption.grant", get label() { return t("auditLogPanel.exempted_an_agent_from_an_approval"); } },
+  { value: "approval_exemption.revoke", get label() { return t("auditLogPanel.brought_back_an_approval_rule_for"); } },
+  { value: "partnership.create", get label() { return t("auditLogPanel.added_a_partner"); } },
+  { value: "partnership.revoke", get label() { return t("auditLogPanel.ended_a_partnership"); } },
+  { value: "partner_grant.create", get label() { return t("auditLogPanel.granted_a_partner_access"); } },
+  { value: "partner_grant.revoke", get label() { return t("auditLogPanel.removed_a_partner_access"); } },
+  { value: "partner.access", get label() { return t("auditLogPanel.a_partner_entered_an_experiment"); } },
 ];
-const LABEL = Object.fromEntries(ACTIONS.filter((a) => a.value).map((a) => [a.value, a.label]));
+const LABEL = new Proxy({} as Record<string, string>, { get: (_target, key) => ACTIONS.find((a) => a.value === key)?.label });
 
 const action = ref("");
 const experimentId = ref("");
@@ -65,7 +66,7 @@ async function load(more = false) {
     items.value = more ? [...items.value, ...page.items] : page.items;
     nextCursor.value = page.nextCursor;
   } catch (error) {
-    notifyErrorWith($q.notify, "Could not load the audit log", error);
+    notifyErrorWith($q.notify, t("auditLogPanel.could_not_load_the_audit_log"), error);
   } finally {
     loading.value = false;
     loaded.value = true;
@@ -79,13 +80,13 @@ function detail(e: AuditEntryDto): string {
   const m = e.metadata as Record<string, unknown>;
   switch (e.action) {
     case "data.export":
-      return `${m.kind}, ${m.rows} rows`;
+      return t("auditLogPanel.kind_rows_rows", { kind: String(m.kind), rows: String(m.rows) });
     case "retention.update":
-      return m.days === null ? "back to the organization's period" : `${m.days} days`;
+      return m.days === null ? t("auditLogPanel.back_to_the_organization_s_period") : t("auditLogPanel.days_days", { days: String(m.days) });
     case "retention.purge":
-      return `${m.spans} spans older than ${m.days} days`;
+      return t("auditLogPanel.spans_spans_older_than_days_days", { spans: String(m.spans), days: String(m.days) });
     case "member.add":
-      return `${m.role}${m.status === "pending" ? " (invited)" : ""}`;
+      return `${m.role}${m.status === "pending" ? ` ${t("auditLogPanel.invited")}` : ""}`;
     case "apikey.create":
       return String(m.keyPrefix ?? "");
     case "alert.create":
@@ -93,9 +94,9 @@ function detail(e: AuditEntryDto): string {
     case "alert.delete":
       return String(m.name ?? "");
     case "budget.update":
-      return `$${m.monthlyUsd}/month, warn at ${m.warnPercent} %`;
+      return t("auditLogPanel.amount_month_warn_at_percent", { amount: String(m.monthlyUsd), percent: String(m.warnPercent) });
     case "model_match.update":
-      return `${e.targetId ?? ""}: ${m.decision === "confirm" ? `confirmed ${m.arenaName}` : m.decision === "reject" ? "rejected the candidates" : m.decision === "no_equivalent" ? "not listed by Arena" : "back to automatic"}`;
+      return `${e.targetId ?? ""}: ${m.decision === "confirm" ? t("auditLogPanel.confirmed_name", { name: String(m.arenaName) }) : m.decision === "reject" ? t("auditLogPanel.rejected_the_candidates") : m.decision === "no_equivalent" ? t("auditLogPanel.not_listed_by_arena") : t("auditLogPanel.back_to_automatic")}`;
     default:
       return e.targetId ? `${e.targetType ?? ""} ${e.targetId}`.trim() : "";
   }
@@ -104,35 +105,34 @@ function detail(e: AuditEntryDto): string {
 
 <template>
   <div class="adm-card audit">
-    <h3 class="adm-section-title">Audit log</h3>
+    <h3 class="adm-section-title">{{ t("auditLogPanel.audit_log") }}</h3>
     <p class="adm-hint">
-      Who opened the content of a trace or conversation, exported data, or changed access and settings. It records identifiers only, never the content itself.
-      Entries are kept for one year.
+      {{ t("auditLogPanel.who_opened_the_content_of_a") }}
     </p>
 
     <div class="filters">
-      <FormField label="What">
-        <select v-model="action" aria-label="Filter by action">
+      <FormField :label="t('auditLogPanel.what')">
+        <select v-model="action" :aria-label="t('auditLogPanel.filter_by_action')">
           <option v-for="a in ACTIONS" :key="a.value" :value="a.value">{{ a.label }}</option>
         </select>
       </FormField>
-      <FormField label="Experiment">
-        <select v-model="experimentId" aria-label="Filter by experiment">
-          <option value="">All</option>
+      <FormField :label="t('auditLogPanel.experiment')">
+        <select v-model="experimentId" :aria-label="t('auditLogPanel.filter_by_experiment')">
+          <option value="">{{ t("auditLogPanel.all") }}</option>
           <option v-for="e in experiments" :key="e.id" :value="e.id">{{ e.name }}</option>
         </select>
       </FormField>
     </div>
 
-    <p v-if="loaded && !items.length" class="adm-empty">Nothing recorded for this filter yet.</p>
+    <p v-if="loaded && !items.length" class="adm-empty">{{ t("auditLogPanel.nothing_recorded_for_this_filter_yet") }}</p>
     <DataTable v-else-if="items.length">
       <thead>
         <tr>
-          <th>When</th>
-          <th>Who</th>
-          <th>What</th>
-          <th>Experiment</th>
-          <th>Detail</th>
+          <th>{{ t("auditLogPanel.when") }}</th>
+          <th>{{ t("auditLogPanel.who") }}</th>
+          <th>{{ t("auditLogPanel.what") }}</th>
+          <th>{{ t("auditLogPanel.experiment") }}</th>
+          <th>{{ t("auditLogPanel.detail") }}</th>
         </tr>
       </thead>
       <tbody>
@@ -140,12 +140,12 @@ function detail(e: AuditEntryDto): string {
           <td class="when">{{ formatDate(e.at) }}</td>
           <td>{{ e.actorLabel }}</td>
           <td>{{ LABEL[e.action] ?? e.action }}</td>
-          <td>{{ e.experimentId ? (experimentName.get(e.experimentId) ?? "(deleted)") : "—" }}</td>
+          <td>{{ e.experimentId ? (experimentName.get(e.experimentId) ?? t("auditLogPanel.deleted")) : "—" }}</td>
           <td class="detail">{{ detail(e) }}</td>
         </tr>
       </tbody>
     </DataTable>
-    <Button v-if="nextCursor" :disabled="loading" @click="load(true)">Show older entries</Button>
+    <Button v-if="nextCursor" :disabled="loading" @click="load(true)">{{ t("auditLogPanel.show_older_entries") }}</Button>
   </div>
 </template>
 

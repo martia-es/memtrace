@@ -9,6 +9,7 @@ import TextInput from "./TextInput.vue";
 import Button from "./Button.vue";
 import Pill from "./Pill.vue";
 import SegmentedControl from "./SegmentedControl.vue";
+import { t, tp } from "../i18n";
 
 /**
  * Panel de fragmentos que acompaña al editor del prompt (ADR-073), siempre visible: enseña a qué versión resuelve cada
@@ -62,18 +63,18 @@ const tagsOf = (f: PromptSummaryDto) => sortEnvironments(Object.keys(f.tags)).ma
 </script>
 
 <template>
-  <aside class="picker" data-testid="fragment-picker" aria-label="Fragments">
+  <aside class="picker" data-testid="fragment-picker" :aria-label="t('promptFragmentPicker.fragments')">
     <div class="head">
-      <div class="title"><strong>Fragments</strong><span class="soft">click Insert to add one at the cursor</span></div>
-      <TextInput v-model="query" type="search" placeholder="Search fragments…" data-testid="fragment-search" />
+      <div class="title"><strong>{{ t("promptFragmentPicker.fragments") }}</strong><span class="soft">{{ t("promptFragmentPicker.click_insert_to_add_one_at") }}</span></div>
+      <TextInput v-model="query" type="search" :placeholder="t('promptFragmentPicker.search_fragments')" data-testid="fragment-search" />
     </div>
 
     <ErrorBanner v-if="error" :error="error" @retry="emit('retry')" />
-    <p v-else-if="loading && fragments.length === 0" class="soft pad">Loading…</p>
-    <p v-else-if="fragments.length === 0" class="soft pad" data-testid="no-fragments">There are no fragments yet. Create one from the Prompts list with “New fragment”.</p>
+    <p v-else-if="loading && fragments.length === 0" class="soft pad">{{ t("promptFragmentPicker.loading") }}</p>
+    <p v-else-if="fragments.length === 0" class="soft pad" data-testid="no-fragments">{{ t("promptFragmentPicker.there_are_no_fragments_yet_create") }}</p>
     <template v-else>
-      <div class="options" role="listbox" aria-label="Fragments">
-        <p v-if="visible.length === 0" class="soft pad-sm">No fragment matches “{{ query }}”.</p>
+      <div class="options" role="listbox" :aria-label="t('promptFragmentPicker.fragments')">
+        <p v-if="visible.length === 0" class="soft pad-sm">{{ t("promptFragmentPicker.no_fragment_matches_query", { query }) }}</p>
         <button
           v-for="f in visible"
           :key="f.id"
@@ -89,33 +90,33 @@ const tagsOf = (f: PromptSummaryDto) => sortEnvironments(Object.keys(f.tags)).ma
           <span v-if="f.description" class="soft clamp">{{ f.description }}</span>
           <span class="tags">
             <template v-for="[tag, version] in tagsOf(f)" :key="tag"><EnvFlag :env="tag" /><span class="soft mono">→ v{{ version }}</span></template>
-            <Pill v-if="Object.keys(f.tags).length === 0" class="none">no tags yet</Pill>
+            <Pill v-if="Object.keys(f.tags).length === 0" class="none">{{ t("promptFragmentPicker.no_tags_yet") }}</Pill>
           </span>
         </button>
       </div>
 
       <div v-if="data && choice" class="choose">
-        <span class="eyebrow">WHICH VERSION</span>
-        <SegmentedControl class="seg" aria-label="Which version" :options="choices.map((c, i) => ({ value: i, label: c.label, testid: `choice-${c.kind}-${c.ref}` }))" :model-value="choiceIndex" @update:model-value="choiceIndex = $event as number" />
+        <span class="eyebrow">{{ t("promptFragmentPicker.which_version") }}</span>
+        <SegmentedControl class="seg" :aria-label="t('promptFragmentPicker.which_version2')" :options="choices.map((c, i) => ({ value: i, label: c.label, testid: `choice-${c.kind}-${c.ref}` }))" :model-value="choiceIndex" @update:model-value="choiceIndex = $event as number" />
         <p class="soft expl" data-testid="choice-explain">
-          <template v-if="choice.kind === 'tag'">Follows {{ choice.ref }}: today that is <b>v{{ choice.version }}</b>. When {{ choice.ref }} moves, this prompt gets a <b>draft</b> to review. It never changes by itself.</template>
-          <template v-else>Fixed to <b>v{{ choice.version }}</b>. It stays on that text until someone edits this prompt.</template>
+          <template v-if="choice.kind === 'tag'">{{ t('promptFragmentPicker.follows_ref_today_that_is', { ref: choice.ref }) }} <b>v{{ choice.version }}</b>. {{ t('promptFragmentPicker.when_ref_moves_this_prompt_gets', { ref: choice.ref }) }} <b>{{ t('promptFragmentPicker.draft') }}</b> {{ t('promptFragmentPicker.to_review_it_never_changes_by') }}</template>
+          <template v-else>{{ t("promptFragmentPicker.fixed_to") }} <b>v{{ choice.version }}</b>{{ t("promptFragmentPicker.it_stays_on_that_text_until") }}</template>
         </p>
-        <p v-if="data.usedBy.length > 0" class="soft expl">Used by {{ data.usedBy.length }} {{ data.usedBy.length === 1 ? "prompt" : "prompts" }}.</p>
+        <p v-if="data.usedBy.length > 0" class="soft expl">{{ tp("promptFragmentPicker.usedBy", data.usedBy.length) }}</p>
       </div>
-      <div v-else-if="selectedId && detailLoading" class="soft pad-sm">Loading…</div>
+      <div v-else-if="selectedId && detailLoading" class="soft pad-sm">{{ t("promptFragmentPicker.loading") }}</div>
 
       <div v-if="resolved" class="preview" data-testid="fragment-preview">
-        <span class="eyebrow">PREVIEW · v{{ resolved.version }}</span>
+        <span class="eyebrow">{{ t("promptFragmentPicker.preview_v_version", { version: resolved.version }) }}</span>
         <pre class="text"><template v-for="(part, i) in splitVariables(resolved.content)" :key="i"><span :class="{ variable: part.variable }">{{ part.text }}</span></template></pre>
-        <p v-if="resolved.variables.length > 0" class="soft expl">Adds {{ resolved.variables.length === 1 ? "the variable" : "the variables" }} <code v-for="v in resolved.variables" :key="v" class="var">{{ asVariable(v) }}</code> to this prompt.</p>
+        <p v-if="resolved.variables.length > 0" class="soft expl">{{ tp("promptFragmentPicker.addsVariable", resolved.variables.length) }} <code v-for="v in resolved.variables" :key="v" class="var">{{ asVariable(v) }}</code>{{ " " + t("promptFragmentPicker.to_this_prompt") }}</p>
       </div>
     </template>
 
     <div class="foot">
       <code v-if="snippet" class="snippet" data-testid="fragment-snippet">{{ snippet }}</code>
       <span class="grow" />
-      <Button variant="primary" :disabled="!snippet" data-testid="fragment-insert" @click="emit('insert', snippet)">Insert</Button>
+      <Button variant="primary" :disabled="!snippet" data-testid="fragment-insert" @click="emit('insert', snippet)">{{ t("promptFragmentPicker.insert") }}</Button>
     </div>
   </aside>
 </template>

@@ -3,7 +3,8 @@ import TextInput from "@/ui/components/TextInput.vue";
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import type { ModelQualityItemDto } from "@contract";
-import { formatPricePerMillion, formatRelativeTime } from "@/domain/format";
+import { formatPricePerMillion } from "@/domain/format";
+import { formatRelativeTime } from "../i18n/format";
 import { compareElo, eloBarWidth, eloScale, inScope, itemsByModelId, parseScope, qualityCell, snapshotNote, type QualityScope } from "@/domain/model-quality";
 import { useAsync } from "../composables/useAsync";
 import { useIdentityApi } from "../composables/useIdentityApi";
@@ -21,6 +22,7 @@ import Card from "../components/Card.vue";
 import ModelMatchDrawer from "../components/ModelMatchDrawer.vue";
 import Pill from "../components/Pill.vue";
 import SegmentedControl from "../components/SegmentedControl.vue";
+import { t, tp, dateLocale } from "../i18n";
 
 const PAGE_SIZE = 50;
 const LAST_EXPERIMENT_KEY = "memtrace:lastExperimentId";
@@ -64,9 +66,9 @@ const scope = computed<QualityScope>({
   },
 });
 const scopeOptions = computed(() => [
-  { value: "all", label: "All models" },
-  { value: "in_use", label: "In use", count: counts.value.inUse },
-  { value: "review", label: "Needs review", count: counts.value.needsReview },
+  { value: "all", label: t("modelPricingPage.all_models") },
+  { value: "in_use", label: t("modelPricingPage.in_use"), count: counts.value.inUse },
+  { value: "review", label: t("modelPricingPage.needs_review"), count: counts.value.needsReview },
 ]);
 
 // el panel de confirmación se abre desde el banner, desde la fila de un modelo o con `?review=1` (el aviso de la campana)
@@ -156,12 +158,12 @@ function splitModel(id: string): { prefix: string; name: string } {
 const now = Date.now();
 
 const columns = computed<{ key: SortKey; label: string }[]>(() => [
-  { key: "modelId", label: "Model" },
-  { key: "provider", label: "Provider" },
-  { key: "inputPricePerToken", label: "Input · $ / 1M tokens" },
-  { key: "outputPricePerToken", label: "Output · $ / 1M tokens" },
-  ...(qualityAvailable.value ? [{ key: "elo" as const, label: "Quality · Arena Elo" }] : []),
-  { key: "updatedAt", label: "Updated" },
+  { key: "modelId", label: t("modelPricingPage.model") },
+  { key: "provider", label: t("modelPricingPage.provider") },
+  { key: "inputPricePerToken", label: t("modelPricingPage.input_1m_tokens") },
+  { key: "outputPricePerToken", label: t("modelPricingPage.output_1m_tokens") },
+  ...(qualityAvailable.value ? [{ key: "elo" as const, label: t("modelPricingPage.quality_arena_elo") }] : []),
+  { key: "updatedAt", label: t("modelPricingPage.updated") },
 ]);
 
 const cell = (modelId: string) => qualityCell(byId.value.get(modelId), qualityAvailable.value);
@@ -174,39 +176,38 @@ const items = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, 
 
 <template>
   <div class="page">
-    <PageHeader :crumbs="[{ label: 'Model pricing' }]" icon="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" title="Model pricing">
+    <PageHeader :crumbs="[{ label: 'Model pricing' }]" icon="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" :title="t('modelPricingPage.model_pricing')">
       <div class="actions">
-        <FilterPill label="Provider" :model-value="provider" :options="providerOptions" all-label="All providers" @update:model-value="provider = $event" />
-        <TextInput type="search" v-model="search" placeholder="Filter by model…" class="search" />
+        <FilterPill :label="t('modelPricingPage.provider')" :model-value="provider" :options="providerOptions" all-label="All providers" @update:model-value="provider = $event" />
+        <TextInput type="search" v-model="search" :placeholder="t('modelPricingPage.filter_by_model')" class="search" />
       </div>
     </PageHeader>
 
     <p class="hint muted">
-      Per-model price catalog, synced daily from
-      <a href="https://github.com/BerriAI/litellm" target="_blank" rel="noopener">LiteLLM</a>.
-      It is used to compute the cost of every LLM span in the trace and conversation views.
+      {{ t("modelPricingPage.per_model_price_catalog_synced_daily") }}
+      <a href="https://github.com/BerriAI/litellm" target="_blank" rel="noopener">LiteLLM</a>{{ t("modelPricingPage.it_is_used_to_compute_the") }}
     </p>
 
     <section v-if="qualityAvailable && counts.pending > 0" class="banner" data-testid="quality-banner">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" /></svg>
       <span class="banner-text">
-        <b>{{ counts.pending }} {{ counts.pending === 1 ? "model you use has" : "models you use have" }} no quality score yet.</b>
-        Arena lists {{ counts.pending === 1 ? "it" : "them" }} under {{ counts.pending === 1 ? "a different name" : "different names" }}, so you pick which entry is the same model.
-        <template v-if="canDecide">You can also do it from the button on each row.</template>
-        <template v-else>Someone with the technical profile can confirm {{ counts.pending === 1 ? "it" : "them" }}.</template>
-        Prices and costs are not affected.
+        <b>{{ tp("modelPricingPage.noScore", counts.pending) }}</b>
+        {{ tp("modelPricingPage.arenaLists", counts.pending) }}
+        <template v-if="canDecide">{{ t("modelPricingPage.you_can_also_do_it_from") }}</template>
+        <template v-else>{{ tp("modelPricingPage.technical", counts.pending) }}</template>
+        {{ t("modelPricingPage.prices_and_costs_are_not_affected") }}
       </span>
-      <Button v-if="canDecide" variant="primary" data-testid="review-matches" @click="review()">Review matches</Button>
+      <Button v-if="canDecide" variant="primary" data-testid="review-matches" @click="review()">{{ t("modelPricingPage.review_matches") }}</Button>
     </section>
 
     <div v-if="qualityAvailable" class="scope-row">
-      <SegmentedControl :options="scopeOptions" :model-value="scope" aria-label="Models to show" @update:model-value="scope = $event as QualityScope" />
-      <span v-if="experiment" class="muted small">“In use” = seen in the traces of {{ experiment.name }}, last 30 days</span>
+      <SegmentedControl :options="scopeOptions" :model-value="scope" :aria-label="t('modelPricingPage.models_to_show')" @update:model-value="scope = $event as QualityScope" />
+      <span v-if="experiment" class="muted small">{{ t("modelPricingPage.in_use_seen_in_the_traces", { name: experiment.name }) }}</span>
     </div>
 
     <ErrorBanner v-if="pricing.error.value" :error="pricing.error.value" @retry="pricing.run()" />
     <LoadingState v-else-if="pricing.loading.value && !pricing.data.value" size="lg" />
-    <EmptyState v-else-if="items.length === 0" icon="toll" title="No models found">{{ scope === "all" ? "Try a different search." : "Nothing matches this view. Try “All models”." }}</EmptyState>
+    <EmptyState v-else-if="items.length === 0" icon="toll" :title="t('modelPricingPage.no_models_found')">{{ scope === "all" ? t("modelPricingPage.try_a_different_search") : t("modelPricingPage.nothing_matches_this_view_try_all") }}</EmptyState>
 
     <Card padding="none" block v-else class="table-card">
       <DataTable class="pricing" sticky nowrap>
@@ -223,18 +224,18 @@ const items = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, 
           <tr v-for="p in items" :key="p.modelId" :class="{ review: cell(p.modelId).kind === 'candidate' }" :data-testid="`price-row-${p.modelId}`">
             <td class="name" :title="p.modelId">
               <span class="prefix mono">{{ splitModel(p.modelId).prefix }}</span><span class="mono model">{{ splitModel(p.modelId).name }}</span>
-              <Pill v-if="inUse(byId.get(p.modelId))" tone="info" class="in-use" data-testid="in-use">IN USE</Pill>
+              <Pill v-if="inUse(byId.get(p.modelId))" tone="info" class="in-use" data-testid="in-use">{{ t("modelPricingPage.in_use2") }}</Pill>
             </td>
             <td><span class="provider" :style="{ '--h': providerHue(p.provider) }">{{ p.provider }}</span></td>
             <td class="price">
-              <span v-if="p.inputPricePerToken <= 0" class="free">Free</span>
+              <span v-if="p.inputPricePerToken <= 0" class="free">{{ t("modelPricingPage.free") }}</span>
               <template v-else>
                 <span class="mono value">{{ formatPricePerMillion(p.inputPricePerToken) }}</span>
                 <span class="bar"><span class="fill" :style="{ width: barWidth(p.inputPricePerToken) }" /></span>
               </template>
             </td>
             <td class="price">
-              <span v-if="p.outputPricePerToken <= 0" class="free">Free</span>
+              <span v-if="p.outputPricePerToken <= 0" class="free">{{ t("modelPricingPage.free") }}</span>
               <template v-else>
                 <span class="mono value">{{ formatPricePerMillion(p.outputPricePerToken) }}</span>
                 <span class="bar"><span class="fill out" :style="{ width: barWidth(p.outputPricePerToken) }" /></span>
@@ -242,20 +243,20 @@ const items = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, 
             </td>
             <td v-if="qualityAvailable" class="quality" :data-testid="`quality-${p.modelId}`">
               <template v-for="q in [cell(p.modelId)]" :key="q.kind">
-                <div v-if="q.kind === 'score'" class="score" :class="{ stale: q.stale }" :title="`${q.arenaName} · ${q.votes.toLocaleString('en-US')} votes${q.confirmed ? ' · confirmed by your team' : ''}${q.stale ? ' · no longer on the leaderboard' : ''}`">
+                <div v-if="q.kind === 'score'" class="score" :class="{ stale: q.stale }" :title="`${q.arenaName} · ${t('modelPricingPage.count_votes', { count: q.votes.toLocaleString(dateLocale('en-US')) })}${q.confirmed ? ` · ${t('modelPricingPage.confirmed_by_your_team')}` : ''}${q.stale ? ` · ${t('modelPricingPage.no_longer_on_the_leaderboard')}` : ''}`">
                   <b class="elo">{{ q.elo }}</b><small class="ci">±{{ q.ci }}</small>
                   <span class="bar wide"><span class="fill quality-fill" :style="{ width: eloBarWidth(q.elo, scale) }" /></span>
                   <small class="rank">#{{ q.rank }}</small>
-                  <small v-if="q.via" class="via">via {{ q.via }}</small>
-                  <small v-if="q.stale" class="via">no longer ranked</small>
+                  <small v-if="q.via" class="via">{{ t('modelPricingPage.via_via', { via: q.via }) }}</small>
+                  <small v-if="q.stale" class="via">{{ t("modelPricingPage.no_longer_ranked") }}</small>
                 </div>
                 <div v-else-if="q.kind === 'candidate'" class="candidate">
-                  <code class="cand-name" :title="q.arenaName">Arena: {{ q.arenaName }}</code>
-                  <Button v-if="canDecide" size="sm" :data-testid="`confirm-${p.modelId}`" @click="review(byId.get(p.modelId)?.modelKey ?? null)">Confirm match →</Button>
-                  <Pill v-else tone="warn">Awaiting confirmation</Pill>
+                  <code class="cand-name" :title="q.arenaName">{{ t("modelPricingPage.arena_name", { name: q.arenaName }) }}</code>
+                  <Button v-if="canDecide" size="sm" :data-testid="`confirm-${p.modelId}`" @click="review(byId.get(p.modelId)?.modelKey ?? null)">{{ t("modelPricingPage.confirm_match") }}</Button>
+                  <Pill v-else tone="warn">{{ t("modelPricingPage.awaiting_confirmation") }}</Pill>
                 </div>
-                <span v-else-if="q.kind === 'no_equivalent'" class="muted small">— Arena doesn't list it</span>
-                <span v-else class="muted small">— No Arena equivalent</span>
+                <span v-else-if="q.kind === 'no_equivalent'" class="muted small">{{ t("modelPricingPage.arena_doesn_t_list_it") }}</span>
+                <span v-else class="muted small">{{ t("modelPricingPage.no_arena_equivalent") }}</span>
               </template>
             </td>
             <td class="muted updated" :title="p.updatedAt">{{ formatRelativeTime(p.updatedAt, now) }}</td>
@@ -264,14 +265,14 @@ const items = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, 
       </DataTable>
     </Card>
 
-    <Pagination v-if="items.length > 0" v-model:page="page" :page-count="pageCount">{{ filtered.length }} models</Pagination>
+    <Pagination v-if="items.length > 0" v-model:page="page" :page-count="pageCount">{{ t("modelPricingPage.count_models", { count: filtered.length }) }}</Pagination>
 
     <p v-if="qualityAvailable && source" class="attribution muted small" data-testid="quality-attribution">
-      Quality is the Elo of the model's <a :href="source.url" target="_blank" rel="noopener">Arena</a> text leaderboard (overall), ± its 95 % interval. It measures human preference in chat, not accuracy on your task.
-      Leaderboard of {{ snapshotNote(source.publishedAt) }}, licensed {{ source.license }}.
+      {{ t('modelPricingPage.quality_is_the_elo_of_the') }} <a :href="source.url" target="_blank" rel="noopener">Arena</a> {{ t('modelPricingPage.text_leaderboard_overall_its_95_interval') }}
+      {{ t("modelPricingPage.leaderboard_of_when_licensed_license", { when: snapshotNote(source.publishedAt), license: source.license }) }}
     </p>
     <p v-else-if="experiment && !quality.loading.value && !quality.error.value && source" class="attribution muted small" data-testid="quality-pending-sync">
-      Quality scores from Arena appear here after the first daily sync.
+      {{ t("modelPricingPage.quality_scores_from_arena_appear_here") }}
     </p>
 
     <ModelMatchDrawer v-if="reviewing && experiment" :experiment-id="experiment.id" :focus-key="focusKey" @close="closeReview" @changed="reload" />

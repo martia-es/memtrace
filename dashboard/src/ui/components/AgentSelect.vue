@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import Select from "./Select.vue";
+import { t } from "../i18n";
 
 interface Props {
   modelValue: string | null;
@@ -25,7 +26,7 @@ const handleUpdate = (value: string) => {
     :model-value="modelValue"
     :options="selectOptions"
     :loading="loading"
-    placeholder="Select agent"
+    :placeholder="t('agentSelect.select_agent')"
     @update:model-value="handleUpdate"
   />
 </template>
