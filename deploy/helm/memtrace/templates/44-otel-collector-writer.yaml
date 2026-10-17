@@ -1,9 +1,8 @@
 # Collector de escritura (ADR-098): lee del broker y escribe en ClickHouse. Sin estado (lo pendiente está en Kafka, no aquí) y sin
 # cola en disco: puedes matarlo, reiniciarlo o tener varios; los de un mismo grupo (`group_id`) se reparten las particiones.
 #
-# Sin `batch` y sin cola, a propósito: el receptor de Kafka del Collector 0.96 da el mensaje por leído al entregarlo, así que
-# un lote guardado en memoria se perdería si el pod muriera. Cada mensaje ya es un lote (el del SDK, ~512 spans) y se inserta
-# de forma síncrona; ClickHouse junta los pequeños en el servidor con `async_insert` y no contesta hasta haberlos escrito
+# Sin `batch` y sin cola, a propósito: un lote guardado en memoria se perdería si el pod muriera. Cada mensaje ya es un lote (el
+# del SDK, ~512 spans) y se inserta de forma síncrona; ClickHouse junta los pequeños en el servidor con `async_insert` y no contesta hasta haberlos escrito
 # (`wait_for_async_insert`), de modo que "leído" solo ocurre tras estar en ClickHouse.
 #
 # Si ClickHouse cae, la inserción se reintenta y la partición se queda esperando (el atraso se acumula en Kafka y se ve en la
@@ -27,6 +26,13 @@ data:
         encoding: otlp_proto
         group_id: clickhouse-writers
         initial_offset: earliest
+        # Por defecto el receptor da el mensaje por leído en cuanto lo recibe, antes de procesarlo: si el pod muere o hay un
+        # rebalanceo (escalado, reinicio) con la inserción en curso o reintentándose, ese mensaje se pierde. Con `after: true` se
+        # marca solo cuando ClickHouse ya lo ha escrito, y si el pod cae se vuelve a entregar (a lo sumo duplicado, que ADR-099 funde).
+        # Medido: sin esto, con ClickHouse parado y el escritor escalando, 12 mensajes (uno por partición) se perdieron.
+        message_marking:
+          after: true
+          on_error: false
 
     exporters:
       clickhouse:

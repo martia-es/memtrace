@@ -97,3 +97,4 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 | 2026-10-17 | F10 fase 3 hecha: Apache Kafka entre un Collector de entrada y otro de escritura, ambos sin estado; prueba de caídas de ClickHouse, Kafka y pods (ADR-098) |
 | 2026-10-17 | F10: deduplicación de spans hecha (ADR-099): `otel_traces` pasa a ReplacingMergeTree sin parar la ingesta; las lecturas usan `final = 1` |
 | 2026-10-17 | F10: deduplicación medida con 17,8 M de spans: copia por trozos (antes se quedaba sin memoria), compactación horaria, lecturas con tres ajustes y ClickHouse 24.3 (ADR-099) |
+| 2026-10-17 | F10 cerrado en lo técnico: Kafka de 3 nodos sin pérdidas en 6 escenarios, hueco de pérdida del escritor cerrado (`message_marking`), autoescalado por CPU y por lag (ADR-098) |

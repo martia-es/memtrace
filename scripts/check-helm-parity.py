@@ -101,8 +101,12 @@ def main():
     mon_kust = load(run([a.kubectl, "kustomize", "k8s/monitoring"]))
     helm_on = load(run([a.helm, "template", "memtrace", "deploy/helm/memtrace", "--namespace", "memtrace", "--set", "monitoring.enabled=true"]))
     compare(mon_kust, {k: v for k, v in helm_on.items() if k not in helm}, bad, set())
-    kust = {**kust, **mon_kust}
-    helm = helm_on
+    # Autoescalado opcional (ADR-098): `k8s/autoscaling` frente a lo que el chart añade con `autoscaling.enabled=true`
+    auto_kust = load(run([a.kubectl, "kustomize", "k8s/autoscaling"]))
+    helm_auto = load(run([a.helm, "template", "memtrace", "deploy/helm/memtrace", "--namespace", "memtrace", "--set", "autoscaling.enabled=true"]))
+    compare(auto_kust, {k: v for k, v in helm_auto.items() if k not in helm}, bad, set())
+    kust = {**kust, **mon_kust, **auto_kust}
+    helm = {**helm_on, **helm_auto}
 
     if bad:
         print("\n\n".join(bad))

@@ -1,0 +1,19 @@
+# KEDA corre en su propio namespace (`keda`) y consulta a Kafka el lag del grupo: la política base de Kafka solo nombra a los
+# Collectors y al Job del tópico, así que aquí se le abre el puerto 9092 al operador de KEDA y a nadie más.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kafka-allow-keda
+  namespace: memtrace
+spec:
+  podSelector:
+    matchLabels: { app: kafka }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: keda }
+          podSelector:
+            matchLabels: { app: keda-operator }
+      ports:
+        - { protocol: TCP, port: 9092 }

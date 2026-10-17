@@ -1,0 +1,24 @@
+# Autoescalado del Collector de escritura por el atraso (lag) del grupo en Kafka, con KEDA (ADR-098): la CPU no dice si el escritor
+# va retrasado (puede estar parado esperando a ClickHouse); el lag sí. Un escritor más por cada `lagThreshold` mensajes sin leer
+# (cada mensaje es un lote de ~512 spans), sin pasar de las 12 particiones del tópico (más escritores no leerían nada). Opcional:
+# `make autoscaling` (necesita KEDA instalado: `make keda` en local).
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: otel-collector-writer
+  namespace: memtrace
+spec:
+  scaleTargetRef:
+    name: otel-collector-writer
+  minReplicaCount: 1
+  maxReplicaCount: 12
+  pollingInterval: 15
+  cooldownPeriod: 120
+  triggers:
+  - type: kafka
+    metadata:
+      bootstrapServers: kafka.memtrace.svc.cluster.local:9092   # desde el namespace de KEDA hace falta el nombre completo
+      consumerGroup: clickhouse-writers
+      topic: otel-traces
+      lagThreshold: "100"
+      offsetResetPolicy: earliest

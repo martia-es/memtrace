@@ -12,7 +12,7 @@ PRICING_IMAGE ?= localhost/memtrace/model-pricing:dev
 QUALITY_IMAGE ?= localhost/memtrace/model-quality:dev
 
 .DEFAULT_GOAL := help
-.PHONY: help check up images dashboard api ingest monitoring monitoring-down prune kafka-topics dedupe dedupe-cleanup compact status forward logs query migrate backfill-experiment-id netpol-check migrate-postgres pricing-sync quality-sync down reset db-reset dev-data docs weather weather-bg weather-stop weather-restart rag rag-bg rag-stop rag-restart
+.PHONY: help check up images dashboard api ingest monitoring monitoring-down prune kafka-topics dedupe dedupe-cleanup compact metrics-server keda autoscaling autoscaling-down status forward logs query migrate backfill-experiment-id netpol-check migrate-postgres pricing-sync quality-sync down reset db-reset dev-data docs weather weather-bg weather-stop weather-restart rag rag-bg rag-stop rag-restart
 
 help: ## Muestra esta ayuda
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-10s %s\n", $$1, $$2}'
@@ -108,6 +108,23 @@ api: ## Reconstruye y despliega solo la API (más rápido que make images)
 ingest: ## Reconstruye y despliega solo el servicio de ingesta (ADR-098); queda también en http://localhost:3002
 	$(call redeploy,ingest,$(INGEST_IMAGE),docker build --target ingest -t $(INGEST_IMAGE) api,3002:3002)
 	@echo "Ingesta actualizada: los SDK siguen enviando a http://localhost:8080/api/v1/ingest"
+
+metrics-server: ## Instala metrics-server en el clúster local (lo necesita el HPA; en un clúster gestionado ya viene)
+	curl -sL https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.7.2/components.yaml | \
+		sed 's|        - --metric-resolution=15s|        - --metric-resolution=15s\n        - --kubelet-insecure-tls|' | kubectl apply -f -
+	kubectl -n kube-system rollout status deployment/metrics-server --timeout=180s
+
+keda: ## Instala KEDA en el clúster local (lo necesita el autoescalado del escritor por lag; en la nube, instálalo con su chart)
+	kubectl apply --server-side -f https://github.com/kedacore/keda/releases/download/v2.16.1/keda-2.16.1.yaml
+	kubectl -n keda rollout status deployment/keda-operator deployment/keda-metrics-apiserver deployment/keda-admission --timeout=300s
+
+autoscaling: ## Activa el autoescalado (ADR-098): HPA por CPU en ingest y el Collector de entrada, KEDA por lag en el de escritura
+	kubectl apply -k k8s/autoscaling
+	@kubectl get hpa,scaledobject -n $(NS)
+
+autoscaling-down: ## Quita el autoescalado y deja cada pieza con 1 réplica
+	kubectl delete -k k8s/autoscaling --ignore-not-found
+	kubectl scale deployment/ingest deployment/otel-collector deployment/otel-collector-writer --replicas=1 -n $(NS)
 
 monitoring: ## Despliega Prometheus y Grafana (opcional, ADR-098) y abre Grafana en http://localhost:3000 (admin / memtrace-grafana-dev-only)
 	kubectl apply -k k8s/monitoring

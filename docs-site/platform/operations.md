@@ -189,6 +189,8 @@ kubectl -n memtrace scale deployment/ingest deployment/otel-collector --replicas
 kubectl -n memtrace scale deployment/otel-collector-writer --replicas=4
 ```
 
+**Autoscaling (optional).** `autoscaling.enabled=true` scales `ingest` and the entry Collector by CPU (needs metrics-server) and the writer by the lag of its group in Kafka with KEDA (`autoscaling.writer.mode: keda`, KEDA installed) or by CPU (`mode: hpa`). Locally: `make metrics-server`, `make keda`, `make autoscaling`. Keep `autoscaling.writer.max` at or below `broker.partitions`.
+
 **At-least-once delivery, without duplicates you can see.** To never lose a trace, a retry can write the same one twice (a killed pod, an agent that retries after a timeout). MemTrace stores each span once: copies are folded in the background and every read collapses them, so counts, costs and error rates are not inflated.
 
 **ClickHouse version.** MemTrace runs ClickHouse 24.3. If you point it at your own or a managed ClickHouse (`clickhouse.external.host`), use 24.3 or newer: reading without duplicates is as fast as before there, and several times slower on 23.8.
