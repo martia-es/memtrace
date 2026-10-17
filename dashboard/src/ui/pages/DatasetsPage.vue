@@ -17,6 +17,7 @@ import Button from "../components/Button.vue";
 import DataTable from "../components/DataTable.vue";
 import LoadingState from "../components/LoadingState.vue";
 import Card from "../components/Card.vue";
+import { t, tp } from "../i18n";
 
 const api = useTraceApi();
 const router = useRouter();
@@ -45,8 +46,8 @@ function setView(next: unknown) {
   }
 }
 const VIEW_OPTIONS = [
-  { value: "grid", label: "Files" },
-  { value: "list", label: "List" },
+  { value: "grid", get label() { return t("datasetsPage.files"); } },
+  { value: "list", get label() { return t("datasetsPage.list"); } },
 ];
 
 const search = ref("");
@@ -62,13 +63,13 @@ function openDataset(datasetId: string) {
 }
 
 function notifyError(action: string, error: unknown) {
-  const detail = error instanceof Error ? error.message : "Unknown error";
+  const detail = error instanceof Error ? error.message : t("datasetsPage.unknown_error");
   $q.notify({ message: `${action}: ${detail}`, color: "negative", timeout: 4000 });
 }
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const plural = (n: number, key: "versions" | "runs" | "items" | "rows") => tp(`datasetsPage.${key}`, n);
 const versionLabel = (d: DatasetDto) => `v${d.latestVersionMajor}.${d.latestVersionMinor}`;
-const meta = (d: DatasetDto) => `${plural(d.itemCount, "item")} · ${plural(d.runCount, "run")}`;
+const meta = (d: DatasetDto) => `${plural(d.itemCount, "items")} · ${plural(d.runCount, "runs")}`;
 
 /** Miniatura de hoja de cálculo: 5 filas × 2 columnas, con algunas celdas rellenas según las filas que tenga de verdad. */
 function thumbCells(d: DatasetDto): boolean[] {
@@ -89,7 +90,7 @@ async function createDataset() {
     await datasets.run();
     router.push({ name: "dataset", params: { datasetId: dataset.id } });
   } catch (error) {
-    notifyError("Could not create dataset", error);
+    notifyError(t("datasetsPage.could_not_create_dataset"), error);
   } finally {
     creating.value = false;
   }
@@ -102,24 +103,24 @@ const fileInput = ref<HTMLInputElement | null>(null);
 
 async function importFile(file: File) {
   if (!/\.(csv|tsv|txt)$/i.test(file.name)) {
-    notifyError("Could not import", new Error(`“${file.name}” is not a .csv file. Export your sheet as CSV first.`));
+    notifyError(t("datasetsPage.could_not_import"), new Error(t("datasetsPage.name_is_not_a_csv_file", { name: file.name })));
     return;
   }
   importing.value = true;
   try {
     const { add, skipped } = itemsFromCsv(await file.text());
     if (add.length === 0) {
-      notifyError("Could not import", new Error("The file has no rows with an input."));
+      notifyError(t("datasetsPage.could_not_import"), new Error(t("datasetsPage.the_file_has_no_rows_with")));
       return;
     }
     const dataset = await api.createDataset(file.name.replace(/\.[^.]+$/, ""));
     await api.commitDatasetChanges(dataset.id, { add });
-    const note = skipped > 0 ? ` (${plural(skipped, "row")} without input skipped)` : "";
-    $q.notify({ message: `Created “${dataset.name}” with ${plural(add.length, "item")}${note}`, color: "positive", timeout: 3500 });
+    const note = skipped > 0 ? ` (${t("datasetsPage.rows_without_input_skipped", { rows: plural(skipped, "rows") })})` : "";
+    $q.notify({ message: `${t("datasetsPage.created_name_with_items", { name: dataset.name, items: plural(add.length, "items") })}${note}`, color: "positive", timeout: 3500 });
     await datasets.run();
     openDataset(dataset.id);
   } catch (error) {
-    notifyError("Could not import", error);
+    notifyError(t("datasetsPage.could_not_import"), error);
   } finally {
     importing.value = false;
   }
@@ -148,7 +149,7 @@ async function confirmDelete() {
     toDelete.value = null;
     await datasets.run();
   } catch (error) {
-    notifyError("Could not delete dataset", error);
+    notifyError(t("datasetsPage.could_not_delete_dataset"), error);
   } finally {
     deleting.value = false;
   }
@@ -164,27 +165,27 @@ async function confirmDelete() {
     @dragleave.self.prevent="dragging = false"
     @drop.prevent="onDrop"
   >
-    <PageHeader :crumbs="[{ label: 'Evaluations' }, { label: 'Datasets' }]" icon="M4 6a2 2 0 0 1 2-2h3l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" title="Datasets">
+    <PageHeader :crumbs="[{ label: 'Evaluations' }, { label: 'Datasets' }]" icon="M4 6a2 2 0 0 1 2-2h3l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" :title="t('datasetsPage.datasets')">
       <div class="actions">
-        <TextInput type="search" v-model="search" placeholder="Filter by name…" class="search" />
-        <SegmentedControl :options="VIEW_OPTIONS" :model-value="view" size="sm" aria-label="View" @update:model-value="setView" />
-        <Button variant="primary" @click="showCreateModal = true" class="mt-new">+ New dataset</Button>
+        <TextInput type="search" v-model="search" :placeholder="t('datasetsPage.filter_by_name')" class="search" />
+        <SegmentedControl :options="VIEW_OPTIONS" :model-value="view" size="sm" :aria-label="t('datasetsPage.view')" @update:model-value="setView" />
+        <Button variant="primary" @click="showCreateModal = true" class="mt-new">{{ t("datasetsPage.new_dataset") }}</Button>
       </div>
     </PageHeader>
 
-    <input ref="fileInput" type="file" accept=".csv,.tsv,.txt,text/csv" class="file-input" aria-label="Choose a .csv file" @change="onPick" />
+    <input ref="fileInput" type="file" accept=".csv,.tsv,.txt,text/csv" class="file-input" :aria-label="t('datasetsPage.choose_a_csv_file')" @change="onPick" />
 
     <ErrorBanner v-if="datasets.error.value" :error="datasets.error.value" @retry="datasets.run()" />
     <LoadingState v-else-if="datasets.loading.value && !datasets.data.value" size="lg" />
-    <EmptyState v-else-if="(datasets.data.value?.items.length ?? 0) === 0" icon="science" title="No datasets yet">
-      Create one with "New dataset", drop a <code>.csv</code> here, or upload one from <code>memtrace.eval.run_experiment(data="…")</code>.
+    <EmptyState v-else-if="(datasets.data.value?.items.length ?? 0) === 0" icon="science" :title="t('datasetsPage.no_datasets_yet')">
+      {{ t("datasetsPage.create_one_with_new_dataset_drop") + " " }}<code>{{ t("datasetsPage.csv") }}</code>{{ " " + t("datasetsPage.here_or_upload_one_from") + " " }}<code>memtrace.eval.run_experiment(data="…")</code>.
     </EmptyState>
-    <EmptyState v-else-if="filtered.length === 0" icon="search_off" title="No matches">Try a different search.</EmptyState>
+    <EmptyState v-else-if="filtered.length === 0" icon="search_off" title="No matches">{{ t("datasetsPage.try_a_different_search") }}</EmptyState>
 
     <!-- ficheros -->
     <div v-else-if="view === 'grid'" class="files" data-testid="datasets-grid">
       <div v-for="d in filtered" :key="d.id" class="file" :data-testid="`dataset-file-${d.name}`">
-        <button type="button" class="file-open" :aria-label="`Open ${d.name}`" @click="openDataset(d.id)">
+        <button type="button" class="file-open" :aria-label="t('datasetsPage.open_name', { name: d.name })" @click="openDataset(d.id)">
           <span class="thumb" aria-hidden="true">
             <span class="sheet">
               <span class="sheet-head"></span>
@@ -198,18 +199,18 @@ async function confirmDelete() {
               <span class="version mono">{{ versionLabel(d) }}</span>
             </span>
             <span class="file-meta muted">{{ meta(d) }}</span>
-            <span class="file-meta muted">Edited {{ formatDateTime(d.updatedAt) }}</span>
+            <span class="file-meta muted">{{ t("datasetsPage.edited_when", { when: formatDateTime(d.updatedAt) }) }}</span>
           </span>
         </button>
-        <Button variant="icon" size="sm" class="file-delete" :aria-label="`Delete ${d.name}`" :title="`Delete ${d.name}`" @click="toDelete = d">
+        <Button variant="icon" size="sm" class="file-delete" :aria-label="t('datasetsPage.delete_name2', { name: d.name })" :title="t('datasetsPage.delete_name2', { name: d.name })" @click="toDelete = d">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6" /></svg>
         </Button>
       </div>
 
       <button type="button" class="file drop" :disabled="importing" @click="fileInput?.click()">
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16" /></svg>
-        <strong>{{ importing ? "Importing…" : "Drop a .csv here" }}</strong>
-        <span>or click to choose one. It becomes a new dataset.</span>
+        <strong>{{ importing ? t("datasetsPage.importing") : t("datasetsPage.drop_a_csv_here") }}</strong>
+        <span>{{ t("datasetsPage.or_click_to_choose_one_it") }}</span>
       </button>
     </div>
 
@@ -218,11 +219,11 @@ async function confirmDelete() {
       <DataTable class="datasets" sticky nowrap>
         <thead>
           <tr>
-            <th>Dataset</th>
-            <th class="num">Version</th>
-            <th class="num">Items</th>
-            <th class="num">Runs</th>
-            <th>Edited</th>
+            <th>{{ t("datasetsPage.dataset") }}</th>
+            <th class="num">{{ t("datasetsPage.version") }}</th>
+            <th class="num">{{ t("datasetsPage.items") }}</th>
+            <th class="num">{{ t("datasetsPage.runs") }}</th>
+            <th>{{ t("datasetsPage.edited") }}</th>
             <th></th>
           </tr>
         </thead>
@@ -234,7 +235,7 @@ async function confirmDelete() {
             <td class="num mono">{{ d.runCount }}</td>
             <td class="muted mono">{{ formatDateTime(d.updatedAt) }}</td>
             <td class="num">
-              <Button variant="icon" size="sm" :aria-label="`Delete ${d.name}`" :title="`Delete ${d.name}`" @click.stop="toDelete = d">
+              <Button variant="icon" size="sm" :aria-label="t('datasetsPage.delete_name2', { name: d.name })" :title="t('datasetsPage.delete_name2', { name: d.name })" @click.stop="toDelete = d">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6" /></svg>
               </Button>
             </td>
@@ -244,25 +245,24 @@ async function confirmDelete() {
     </Card>
 
     <p class="hint muted">
-      A dataset is a set of curated examples to evaluate your agent. Every change to its items creates a new <strong>version</strong> (see the Versions tab inside each dataset):
-      past runs keep pointing at the exact version they ran against.
+      {{ t("datasetsPage.a_dataset_is_a_set_of") + " " }}<strong>{{ t("datasetsPage.version2") }}</strong>{{ " " + t("datasetsPage.see_the_versions_tab_inside_each") }}
     </p>
 
-    <div v-if="dragging" class="drop-overlay" aria-hidden="true">Drop a .csv to create a dataset</div>
+    <div v-if="dragging" class="drop-overlay" aria-hidden="true">{{ t("datasetsPage.drop_a_csv_to_create_a") }}</div>
 
-    <Modal v-if="showCreateModal" title="New dataset" @close="showCreateModal = false">
+    <Modal v-if="showCreateModal" :title="t('datasetsPage.new_dataset2')" @close="showCreateModal = false">
       <form class="modal-form" @submit.prevent="createDataset">
-        <TextInput v-model="newDatasetName" placeholder="Dataset name" autofocus />
-        <Button variant="primary" type="submit" :disabled="creating || !newDatasetName.trim()">Create</Button>
+        <TextInput v-model="newDatasetName" :placeholder="t('datasetsPage.dataset_name')" autofocus />
+        <Button variant="primary" type="submit" :disabled="creating || !newDatasetName.trim()">{{ t("datasetsPage.create") }}</Button>
       </form>
     </Modal>
 
-    <Modal v-if="toDelete" :title="`Delete ${toDelete.name}?`" @close="toDelete = null">
+    <Modal v-if="toDelete" :title="t('datasetsPage.delete_name', { name: toDelete.name })" @close="toDelete = null">
       <div class="modal-form">
         <p class="muted confirm">
-          This removes the dataset with its {{ plural(toDelete.versionCount, "version") }} and {{ plural(toDelete.runCount, "run") }}. It cannot be undone.
+          {{ t("datasetsPage.this_removes_the_dataset_with_its", { versions: plural(toDelete.versionCount, "versions"), runs: plural(toDelete.runCount, "runs") }) }}
         </p>
-        <Button variant="danger" :disabled="deleting" @click="confirmDelete">{{ deleting ? "Deleting…" : "Delete dataset" }}</Button>
+        <Button variant="danger" :disabled="deleting" @click="confirmDelete">{{ deleting ? t("datasetsPage.deleting") : t("datasetsPage.delete_dataset") }}</Button>
       </div>
     </Modal>
   </div>

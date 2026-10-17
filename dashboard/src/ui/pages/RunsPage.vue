@@ -25,6 +25,7 @@ import Pagination from "../components/Pagination.vue";
 import DataTable from "../components/DataTable.vue";
 import LoadingState from "../components/LoadingState.vue";
 import Card from "../components/Card.vue";
+import { t, tp } from "../i18n";
 
 const PAGE_SIZE = 20;
 
@@ -105,20 +106,20 @@ function openRun(run: RunListItemDto) {
 
 <template>
   <div class="page">
-    <PageHeader :crumbs="[{ label: 'Evaluations' }, { label: 'Runs' }]" icon="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" title="Runs" />
+    <PageHeader :crumbs="[{ label: t('nav.evaluations') }, { label: t('nav.runs') }]" icon="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" :title="t('nav.runs')" />
 
     <div class="toolbar">
-      <FilterPill label="Dataset" :model-value="datasetId" :options="datasetOptions" all-label="All" @update:model-value="datasetId = $event" />
-      <TextInput type="search" v-model="search" placeholder="Filter runs…" class="search" />
+      <FilterPill :label="t('runsPage.dataset')" :model-value="datasetId" :options="datasetOptions" all-label="All" @update:model-value="datasetId = $event" />
+      <TextInput type="search" v-model="search" :placeholder="t('runsPage.filter_runs')" class="search" />
     </div>
 
     <section v-if="hasTrend" class="insights">
       <Card padding="none" block class="insight">
-        <h2>Score trend</h2>
-        <EChart :option="trendOption" height="150px" label="Pass rate per evaluator across runs" />
+        <h2>{{ t("runsPage.score_trend") }}</h2>
+        <EChart :option="trendOption" height="150px" :label="t('runsPage.pass_rate_per_evaluator_across_runs')" />
       </Card>
       <Card padding="none" block class="insight">
-        <h2>Latest vs previous run</h2>
+        <h2>{{ t("runsPage.latest_vs_previous_run") }}</h2>
         <div v-for="s in deltas" :key="s.name" class="delta-row">
           <span class="delta-name">{{ s.name }}</span>
           <span class="mono muted">{{ fmt(s.previous, s.kind) }} → <b class="ink">{{ fmt(s.latest, s.kind) }}</b></span>
@@ -130,20 +131,20 @@ function openRun(run: RunListItemDto) {
     <ErrorBanner v-if="runs.error.value" :error="runs.error.value" @retry="runs.run()" />
     <LoadingState v-else-if="runs.loading.value && !runs.data.value" size="lg" />
     <OfflineRunSteps v-else-if="(runs.data.value?.items.length ?? 0) === 0" :to="{ name: 'datasets' }" />
-    <EmptyState v-else-if="items.length === 0" icon="search_off" title="No matches">Try a different search or dataset.</EmptyState>
+    <EmptyState v-else-if="items.length === 0" icon="search_off" :title="t('runsPage.no_matches')">{{ t("runsPage.try_a_different_search_or_dataset") }}</EmptyState>
 
     <Card padding="none" block v-else class="table-card">
       <DataTable class="runs" sticky nowrap>
         <thead>
           <tr>
             <th class="pick" />
-            <th>Run</th>
-            <th>Dataset</th>
-            <th>Code version</th>
-            <th>When</th>
+            <th>{{ t("runsPage.run") }}</th>
+            <th>{{ t("runsPage.dataset") }}</th>
+            <th>{{ t("runsPage.code_version") }}</th>
+            <th>{{ t("runsPage.when") }}</th>
             <th v-for="m in metricNames" :key="m" class="center">{{ m }}</th>
-            <th class="num">Items</th>
-            <th>Status</th>
+            <th class="num">{{ t("runsPage.items") }}</th>
+            <th>{{ t("runsPage.status") }}</th>
           </tr>
         </thead>
         <tbody>
@@ -155,11 +156,11 @@ function openRun(run: RunListItemDto) {
                 data-testid="pick-run"
                 :checked="isPicked(r)"
                 :disabled="r.status !== 'completed'"
-                :title="r.status !== 'completed' ? 'Only completed runs can be compared' : undefined"
-                :aria-label="`Select ${r.name} to compare`"
+                :title="r.status !== 'completed' ? t('runsPage.only_completed_runs_can_be_compared') : undefined"
+                :aria-label="t('runsPage.select_name_to_compare', { name: r.name })"
                 @change="togglePick(r)" />
             </td>
-            <td class="name">{{ r.name }} <Pill v-if="r.executions > 1" tone="info" :title="`${r.executions} of ${r.expected} executions of the same run: the row shows their mean`" data-testid="executions-pill">× {{ r.executions }}</Pill></td>
+            <td class="name">{{ r.name }} <Pill v-if="r.executions > 1" tone="info" :title="t('runsPage.count_of_expected_executions_of_the', { count: r.executions, expected: r.expected })" data-testid="executions-pill">× {{ r.executions }}</Pill></td>
             <td class="muted">{{ r.datasetName }} <span class="mono faint">v{{ r.versionMajor }}.{{ r.versionMinor }}</span></td>
             <td @click.stop><CommitLink :revision="r.revision" :repo="repo" :dirty="r.revisionDirty" /></td>
             <td class="muted">{{ formatDateTime(r.createdAt) }}</td>
@@ -171,7 +172,7 @@ function openRun(run: RunListItemDto) {
             </td>
             <td class="num mono">{{ r.itemCount }}</td>
             <td>
-              <Pill :tone="r.status === 'running' ? 'warn' : 'ok'" :title="r.status === 'running' ? 'Still receiving results, or the process stopped before finishing' : undefined">{{ r.status === "running" ? "Running" : "Completed" }}</Pill>
+              <Pill :tone="r.status === 'running' ? 'warn' : 'ok'" :title="r.status === 'running' ? t('runsPage.still_receiving_results_or_the_process') : undefined">{{ r.status === "running" ? t('runsPage.running') : t('runsPage.completed') }}</Pill>
             </td>
           </tr>
         </tbody>
@@ -179,15 +180,15 @@ function openRun(run: RunListItemDto) {
     </Card>
 
     <div v-if="picked.length > 0" class="compare-bar" data-testid="compare-bar">
-      <span class="compare-title">{{ picked.length }} {{ picked.length === 1 ? "run" : "runs" }} selected</span>
-      <span class="compare-sub">{{ picked.length === 2 ? `${pickedRuns[0]?.name} (baseline) vs ${pickedRuns[1]?.name}` : "Pick one more run to compare" }}</span>
+      <span class="compare-title">{{ tp("runsPage.selected", picked.length) }}</span>
+      <span class="compare-sub">{{ picked.length === 2 ? t("runsPage.a_baseline_vs_b", { a: pickedRuns[0]?.name, b: pickedRuns[1]?.name }) : t("runsPage.pick_one_more_run_to_compare") }}</span>
       <div class="compare-actions">
-        <Button variant="link" class="compare-clear" @click="picked = []">Clear</Button>
-        <Button variant="primary" class="compare-go" data-testid="compare-go" :disabled="picked.length !== 2" @click="compare">Compare runs →</Button>
+        <Button variant="link" class="compare-clear" @click="picked = []">{{ t("runsPage.clear") }}</Button>
+        <Button variant="primary" class="compare-go" data-testid="compare-go" :disabled="picked.length !== 2" @click="compare">{{ t("runsPage.compare_runs") }}</Button>
       </div>
     </div>
 
-    <Pagination v-if="items.length > 0" v-model:page="page" :page-count="pageCount">{{ filtered.length }} run{{ filtered.length === 1 ? "" : "s" }}</Pagination>
+    <Pagination v-if="items.length > 0" v-model:page="page" :page-count="pageCount">{{ tp("runsPage.count", filtered.length) }}</Pagination>
   </div>
 </template>
 

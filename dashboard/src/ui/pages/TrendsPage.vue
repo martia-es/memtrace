@@ -4,6 +4,7 @@ import { useRoute } from "vue-router";
 import OfflineEvalPanel from "../components/OfflineEvalPanel.vue";
 import PageHeader from "../components/PageHeader.vue";
 import { useFilters } from "../composables/useFilters";
+import { t } from "../i18n";
 
 /**
  * Evaluations › Trends: how offline evaluation scores evolve across runs (ADR-059). It used to be the "Offline evals"
@@ -21,7 +22,7 @@ const compareIds = computed<[string, string] | null>(() => {
 
 <template>
   <div class="page">
-    <PageHeader :crumbs="[{ label: 'Evaluations' }, { label: 'Trends' }]" icon="M3 3v18h18M7 14l4-4 3 3 5-6" title="Trends" />
+    <PageHeader :crumbs="[{ label: 'Evaluations' }, { label: 'Trends' }]" icon="M3 3v18h18M7 14l4-4 3 3 5-6" :title="t('trendsPage.trends')" />
     <OfflineEvalPanel :experiment-id="experimentId" :range="range" :compare-ids="compareIds" />
   </div>
 </template>
