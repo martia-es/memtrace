@@ -1,6 +1,6 @@
 # ADR-098: Durable Ingestion Pipeline: Dedicated Ingest Service, Broker Between Collectors, Prometheus and Grafana
 
-* **Status**: Accepted — not implemented yet (phases at the end). The broker product (Redpanda or Apache Kafka) is decided in phase 3 by a short spike
+* **Status**: Accepted — phases 1 and 2 implemented (see the updates); phase 3 spike done, the broker is Apache Kafka
 * **Date**: 2026-10-17
 * **Deciders**: MemTrace Core Team
 * **Related**: [ADR-001](adr-001-otel-collector-clickhouse.md), [ADR-005](adr-005-persistent-storage-and-queue.md), [ADR-084](../storage/adr-084-data-protection-retention-masking-audit-and-export.md), [ADR-085](../identity/adr-085-ingest-gateway-validates-service-name.md), [ADR-089](../cybersecurity/adr-089-ingestion-identity-binding.md), [ADR-090](../cybersecurity/adr-090-network-segmentation-and-collector-access.md), [ADR-092](../cybersecurity/adr-092-security-headers-and-ingest-rate-limits.md), [ADR-096](adr-096-production-operations-backups-helm-load-gates.md), [ADR-099](../storage/adr-099-deduplicated-span-storage.md)
@@ -70,7 +70,7 @@ Requirements: Kafka-compatible API (the Collector has first-party exporter and r
 | Redis Streams | Simple | Weaker durability and replication; memory-bound |
 | Managed (MSK, Confluent Cloud, Event Hubs Kafka endpoint) | Nothing to operate | Cost and provider coupling; reachable through the external mode above |
 
-**Decision**: a Kafka-API broker. The phase 3 spike compares Redpanda and Apache Kafka on: local footprint, licence review, one-node and three-node installs from the chart, and behaviour in the chaos test. Whichever wins, the chart exposes the same values.
+**Decision**: a Kafka-API broker, and the product is **Apache Kafka (KRaft)**, decided by the phase 3 spike (see its update below). Redpanda or a managed cluster can replace it through the `broker.external.*` values, because the Collector only speaks the Kafka protocol.
 
 Topic settings: one topic `otel-traces`; partitions ≥ the maximum number of consumer Collectors wanted (start at 12, a partition count can grow but changes key distribution); replication factor 3 and `min.insync.replicas` 2 in cloud, 1 and 1 locally; retention by time (default 48 h) **and** by size, so a stalled consumer cannot fill the disk silently.
 
@@ -156,6 +156,28 @@ Each phase is a branch with its own test plan and leaves the system working. The
 - **Least privilege.** Prometheus and Grafana run non-root with no service account token and with their own network policies: Prometheus reaches only the three metrics ports and is reached only by Grafana; Grafana has no ingress (port-forward only) and reaches only Prometheus; the scraped pods accept Prometheus only on their metrics port. Grafana has sign-up, anonymous access and update checks disabled. The local Grafana password is a committed development value; the chart generates a random one.
 - **Verified on the local cluster.** The four targets are up, the 11 rules evaluate without errors, and all 23 dashboard queries return data after the load gate. Stopping `ingest` fired `IngestNoInstances` after 150 s and it resolved when restored; with Postgres down, `IngestIdentityStoreDown` fired after 86 s and the gauge returned to 1 afterwards. `ClickHouseDiskLow` is pending on that cluster because its node disk has 16 % free. Not checked: how the dashboard looks in a browser (only that its queries return data).
 - **Also verified here, now that `helm` was available:** `scripts/check-helm-parity.py` passes, covering the `ingest` service of phase 1 that could not be rendered before.
+
+## Update (2026-10-17): phase 3 spike (Apache Kafka or Redpanda)
+
+Both brokers were run in single-node mode next to the pinned Collector (`otelcol-contrib` 0.96.0): entry Collector (`otlp` receiver, `kafka` exporter), broker, consumer Collector (`kafka` receiver, `debug` exporter), with a trace sent over OTLP/HTTP.
+
+| | Apache Kafka 3.8.0 (KRaft) | Redpanda 24.2.7 |
+|---|---|---|
+| Start to ready | 3 s | 2 s |
+| Memory at rest (one trace sent) | 297 MB (JVM defaults) | 249 MB (`--memory 1G`) |
+| Image | 387 MB | 413 MB |
+| Entry and consumer Collector 0.96 | works | works |
+| Broker stopped, then restarted | `500` while down; consumer resumes, nothing is lost once back | same |
+| Licence | Apache 2.0 | Community edition under BSL (source available) |
+
+**Decision: Apache Kafka (KRaft).** On this machine the two are equivalent in start time, memory and behaviour with the Collector, so the licence decides: MemTrace is installed by third parties, and shipping a chart whose default image is source-available (BSL) forces every adopter to read a licence, while Apache Kafka is Apache 2.0 and is also what the managed offers (MSK, Confluent Cloud, Event Hubs) expose. Redpanda stays a valid drop-in through the `broker.external.*` values, because both speak the same protocol. Local mode is one KRaft node with replication 1; cloud values use three nodes, replication 3 and `min.insync.replicas` 2.
+
+What the spike found, which changes the plan:
+
+1. **Leave `protocol_version` at the Collector default.** Setting `2.6.2` made the Collector send Metadata v9 and Redpanda rejected it ("Unsupported version 9 for metadata API"); with the default both brokers work. `partition_traces_by_id`, `required_acks: -1` and `compression: zstd` are accepted by 0.96, and `kafka` is Beta for traces in both the exporter and the receiver.
+2. **The entry Collector answers `500` when the broker is down** (with no `sending_queue`, as designed: the error reaches the caller, so "received" is never said before the broker has the data). **OTLP exporters retry 429, 502, 503 and 504, not 500.** `ingest` currently passes the Collector's status through, so the SDK would not retry. In phase 3 `ingest` maps a Collector `5xx` other than 502, 503 and 504 to `503` with `Retry-After`, and counts it as `collector_status`.
+3. **The Collector does not start while the broker is unreachable** (the `kafka` exporter and receiver fail to build: "client has run out of available brokers"), and the receiver then panics in `Shutdown`. The pods restart until the broker is up, which Kubernetes handles, but it means the broker must be ready before the Collectors and the chart needs an init wait or a readiness gate. A broker outage after start is tolerated (checked above).
+4. **Not covered by the spike**: three-node replication, consumer group rebalancing with several Collectors, and throughput. They belong to the chaos test of phase 4.
 
 ## Consequences
 
