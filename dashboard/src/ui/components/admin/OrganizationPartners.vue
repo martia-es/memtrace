@@ -10,6 +10,7 @@ import { useIdentityApi } from "../../composables/useIdentityApi";
 import ErrorBanner from "../ErrorBanner.vue";
 import Button from "../Button.vue";
 import Pill from "../Pill.vue";
+import { t } from "../../i18n";
 
 /**
  * Consultoras con acceso a esta organización (ADR-091). El cliente decide quién de la consultora entra, con qué rol y en
@@ -23,13 +24,13 @@ const state = useAsync((signal) => api.listPartnerships(props.organization.id, s
 void state.run();
 const partnerships = computed(() => state.data.value ?? []);
 
-const experimentName = (id: string | null) => (id === null ? "Whole organization" : (props.experiments.find((e) => e.id === id)?.name ?? "Unknown experiment"));
-const targetOptions = computed(() => [{ label: "Whole organization", value: "" }, ...props.experiments.map((e) => ({ label: e.name, value: e.id }))]);
+const experimentName = (id: string | null) => (id === null ? t("organizationPartners.whole_organization") : (props.experiments.find((e) => e.id === id)?.name ?? t("organizationPartners.unknown_experiment")));
+const targetOptions = computed(() => [{ label: t("organizationPartners.whole_organization"), value: "" }, ...props.experiments.map((e) => ({ label: e.name, value: e.id }))]);
 
 // Un grant de partner nunca incluye exportar los datos, sea cual sea el rol (ADR-091).
 const ROLE_OPTIONS = [
-  { label: "technical (works with traces, prompts, datasets)", value: "technical" },
-  { label: "business (read-only dashboard, annotates)", value: "business" },
+  { get label() { return t("organizationPartners.technical_works_with_traces_prompts_data"); }, value: "technical" },
+  { get label() { return t("organizationPartners.business_read_only_dashboard_annotates"); }, value: "business" },
 ];
 
 const partnerId = ref("");
@@ -42,19 +43,19 @@ async function createPartnership() {
     partnerId.value = "";
     await state.run();
   } catch (error) {
-    notifyErrorWith($q.notify, "Could not add the partner", error);
+    notifyErrorWith($q.notify, t("organizationPartners.could_not_add_the_partner"), error);
   } finally {
     creating.value = false;
   }
 }
 
 async function revokePartnership(id: string, name: string) {
-  if (!window.confirm(`End the relationship with ${name}? Everyone from ${name} loses access immediately.`)) return;
+  if (!window.confirm(t("organizationPartners.end_the_relationship_with_name_everyone", { name }))) return;
   try {
     await api.revokePartnership(props.organization.id, id);
     await state.run();
   } catch (error) {
-    notifyErrorWith($q.notify, "Could not end the relationship", error);
+    notifyErrorWith($q.notify, t("organizationPartners.could_not_end_the_relationship"), error);
   }
 }
 
@@ -71,7 +72,7 @@ async function grant(partnershipId: string) {
     f.email = "";
     await state.run();
   } catch (error) {
-    notifyErrorWith($q.notify, "Could not give access", error);
+    notifyErrorWith($q.notify, t("organizationPartners.could_not_give_access"), error);
   } finally {
     granting.value = null;
   }
@@ -82,54 +83,52 @@ async function revokeGrant(partnershipId: string, grantId: string) {
     await api.revokePartnerGrant(props.organization.id, partnershipId, grantId);
     await state.run();
   } catch (error) {
-    notifyErrorWith($q.notify, "Could not remove the access", error);
+    notifyErrorWith($q.notify, t("organizationPartners.could_not_remove_the_access"), error);
   }
 }
 </script>
 
 <template>
   <div class="adm-card partners">
-    <h3 class="adm-section-title">Partners</h3>
+    <h3 class="adm-section-title">{{ t("organizationPartners.partners") }}</h3>
     <p class="adm-hint">
-      A partner is a consultancy that operates this organization for you. Being a partner gives it <strong>no access by itself</strong>: you choose each
-      person, their role and the experiments they can open, and you can take it back at any time. Partners can work with your traces, but
-      they <strong>cannot export your data</strong>. Everything they open is recorded in the audit log.
+      {{ t("organizationPartners.a_partner_is_a_consultancy_that") + " " }}<strong>{{ t("organizationPartners.no_access_by_itself") }}</strong>{{ t("organizationPartners.you_choose_each_person_their_role") + " " }}<strong>{{ t("organizationPartners.cannot_export_your_data") }}</strong>{{ t("organizationPartners.everything_they_open_is_recorded_in") }}
     </p>
 
     <ErrorBanner v-if="state.error.value" :error="state.error.value" />
 
     <form class="adm-form-row" @submit.prevent="createPartnership">
-      <TextInput mono v-model="partnerId" placeholder="Organization id of the consultancy" aria-label="Organization id of the consultancy" />
-      <Button variant="primary" type="submit" :disabled="creating || !partnerId.trim()">Add partner</Button>
+      <TextInput mono v-model="partnerId" :placeholder="t('organizationPartners.organization_id_of_the_consultancy')" :aria-label="t('organizationPartners.organization_id_of_the_consultancy')" />
+      <Button variant="primary" type="submit" :disabled="creating || !partnerId.trim()">{{ t("organizationPartners.add_partner") }}</Button>
     </form>
-    <p class="adm-hint">The consultancy gives you its organization id (it is shown on its “Clients” page).</p>
+    <p class="adm-hint">{{ t("organizationPartners.the_consultancy_gives_you_its_organizati") }}</p>
 
-    <p v-if="state.data.value && !partnerships.length" class="adm-empty">No partners yet.</p>
+    <p v-if="state.data.value && !partnerships.length" class="adm-empty">{{ t("organizationPartners.no_partners_yet") }}</p>
 
     <section v-for="p in partnerships" :key="p.id" class="partner" :data-testid="`partner-${p.id}`">
       <header class="partner-head">
         <div>
           <strong>{{ p.partnerOrganizationName }}</strong>
-          <span class="adm-hint"> · since {{ formatDate(p.createdAt) }}</span>
+          <span class="adm-hint"> · {{ t('organizationPartners.since_when', { when: formatDate(p.createdAt) }) }}</span>
         </div>
-        <Button @click="revokePartnership(p.id, p.partnerOrganizationName)">End relationship</Button>
+        <Button @click="revokePartnership(p.id, p.partnerOrganizationName)">{{ t("organizationPartners.end_relationship") }}</Button>
       </header>
 
-      <p v-if="!p.grants.length" class="adm-empty">Nobody from this partner has access yet.</p>
+      <p v-if="!p.grants.length" class="adm-empty">{{ t("organizationPartners.nobody_from_this_partner_has_access") }}</p>
       <ul v-else class="grants">
         <li v-for="g in p.grants" :key="g.id">
           <span class="who">{{ g.userName ?? g.userEmail }} <span v-if="g.userName" class="adm-hint">{{ g.userEmail }}</span></span>
           <Pill tone="neutral">{{ g.role }}</Pill>
           <span class="adm-hint">{{ experimentName(g.experimentId) }}</span>
-          <Button @click="revokeGrant(p.id, g.id)">Remove</Button>
+          <Button @click="revokeGrant(p.id, g.id)">{{ t("organizationPartners.remove") }}</Button>
         </li>
       </ul>
 
       <form class="adm-form-row" @submit.prevent="grant(p.id)">
-        <TextInput v-model="formOf(p.id).email" type="email" placeholder="Email of the person from the partner" aria-label="Email of the person from the partner" />
+        <TextInput v-model="formOf(p.id).email" type="email" :placeholder="t('organizationPartners.email_of_the_person_from_the')" :aria-label="t('organizationPartners.email_of_the_person_from_the')" />
         <Select v-model="formOf(p.id).role" :options="ROLE_OPTIONS" />
         <Select v-model="formOf(p.id).target" :options="targetOptions" />
-        <Button variant="primary" type="submit" :disabled="granting === p.id || !formOf(p.id).email.trim()">Give access</Button>
+        <Button variant="primary" type="submit" :disabled="granting === p.id || !formOf(p.id).email.trim()">{{ t("organizationPartners.give_access") }}</Button>
       </form>
     </section>
   </div>

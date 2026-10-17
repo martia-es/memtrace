@@ -10,6 +10,8 @@ import ApprovalFlowChart, { type FlowStep } from "../ApprovalFlowChart.vue";
 import Button from "../Button.vue";
 import Checkbox from "../Checkbox.vue";
 import Radio from "../Radio.vue";
+import { t, tp } from "../../i18n";
+import { lazyMessages } from "../../../domain/translate";
 
 /**
  * Reglas de aprobación de prompts (ADR-076), de la organización o de un experimento: por cada paso (publicar una versión y
@@ -109,14 +111,14 @@ const candidate = computed(() => ({
 /** La regla que se está escribiendo, dicha en una frase. */
 const preview = computed(() => {
   if (!editing.value) return "";
-  const what = editing.value.action === "publish" ? "publish a version" : `move ${editing.value.stage}`;
+  const what = editing.value.action === "publish" ? t("approvalRulesPanel.publish_a_version") : t("approvalRulesPanel.move_stage", { stage: editing.value.stage });
   const parts = [
-    ...candidate.value.requirements.map((r) => `${r.min} ${profileLabel(r.role).toLowerCase()} ${r.min > 1 ? "people" : "person"}`),
-    ...candidate.value.approvers.map((id) => names.value[id] ?? "someone"),
+    ...candidate.value.requirements.map((r) => tp("approvalRulesPanel.people", r.min, { profile: profileLabel(r.role).toLowerCase() })),
+    ...candidate.value.approvers.map((id) => names.value[id] ?? t("approvalRulesPanel.someone")),
   ];
   const total = candidate.value.requirements.reduce((n, r) => n + r.min, 0) + candidate.value.approvers.length;
-  if (parts.length === 0) return `Nobody has to approve: anyone who can ${what} does it straight away.`;
-  return `To ${what}, ${total} approval${total > 1 ? "s" : ""} ${total > 1 ? "are" : "is"} needed: ${parts.join(", ")}.`;
+  if (parts.length === 0) return t("approvalRulesPanel.nobody_has_to_approve_anyone_who", { what });
+  return tp("approvalRulesPanel.needed", total, { what, total, parts: parts.join(", ") });
 });
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "?";
 
@@ -126,9 +128,9 @@ const isEmpty = computed(() => candidate.value.requirements.length === 0 && cand
 /** Una regla sin perfiles ni personas no se guarda: se explica por qué y cómo quitar la que haya. */
 const emptyHint = computed(() => {
   if (!editing.value || !isEmpty.value || mode.value === "none") return null;
-  if (mode.value) return "Choose at least one profile or person, or pick \"No approval\" above.";
-  if (ownRuleOf(editing.value.action, editing.value.stage)) return "A rule needs at least one profile or person. To stop asking for approval in this step, use Remove rule.";
-  return "A rule needs at least one profile or person. Without one there is nothing to save: press Cancel.";
+  if (mode.value) return t("approvalRulesPanel.choose_at_least_one_profile_or");
+  if (ownRuleOf(editing.value.action, editing.value.stage)) return t("approvalRulesPanel.a_rule_needs_at_least_one");
+  return t("approvalRulesPanel.a_rule_needs_at_least_one2");
 });
 const canSave = computed(() => !saving.value && !floorProblem.value && (mode.value === "none" || !isEmpty.value));
 
@@ -143,11 +145,11 @@ function toggleApprover(userId: string, on: boolean) {
   draft.approvers = on ? [...draft.approvers, userId] : draft.approvers.filter((id) => id !== userId);
 }
 
-const MODE_SAVED: Record<StepMode, string> = {
-  follow: "This agent follows the organization's rule in this step",
-  own: "This agent uses its own rule in this step",
-  none: "This step needs no approval for this agent",
-};
+const MODE_SAVED: Record<StepMode, string> = lazyMessages({
+  follow: "approvalRulesPanel.this_agent_follows_the_organization_s",
+  own: "approvalRulesPanel.this_agent_uses_its_own_rule",
+  none: "approvalRulesPanel.this_step_needs_no_approval_for",
+});
 
 /**
  * Aplica lo que haga falta para el modo elegido, en el orden que la API exige: la exención va ANTES de la regla propia (si no, la
@@ -180,9 +182,9 @@ async function save() {
     const saved = mode.value;
     editing.value = null;
     await load();
-    $q.notify({ message: saved ? MODE_SAVED[saved] : "Approval rule saved", color: "positive", timeout: 3000 });
+    $q.notify({ message: saved ? MODE_SAVED[saved] : t("approvalRulesPanel.approval_rule_saved"), color: "positive", timeout: 3000 });
   } catch (error) {
-    $q.notify({ message: `Could not save the rule: ${describeApiError(error as Error)}`, color: "negative", timeout: 5000 });
+    $q.notify({ message: t("approvalRulesPanel.could_not_save_the_rule_error", { error: describeApiError(error as Error) }), color: "negative", timeout: 5000 });
   } finally {
     saving.value = false;
   }
@@ -194,9 +196,9 @@ async function remove(row: { action: "publish" | "promote"; stage: string }) {
     await api.deleteApprovalRule(props.scope, row.action, row.stage);
     if (editing.value?.action === row.action && editing.value.stage === row.stage) editing.value = null;
     await load();
-    $q.notify({ message: "Rule removed: no approval needed here", color: "positive", timeout: 3000 });
+    $q.notify({ message: t("approvalRulesPanel.rule_removed_no_approval_needed_here"), color: "positive", timeout: 3000 });
   } catch (error) {
-    $q.notify({ message: `Could not remove the rule: ${describeApiError(error as Error)}`, color: "negative", timeout: 5000 });
+    $q.notify({ message: t("approvalRulesPanel.could_not_remove_the_rule_error", { error: describeApiError(error as Error) }), color: "negative", timeout: 5000 });
   } finally {
     saving.value = false;
   }
@@ -205,50 +207,50 @@ async function remove(row: { action: "publish" | "promote"; stage: string }) {
 
 <template>
   <div class="rules" data-testid="approval-rules">
-    <p v-if="loading && !data" class="adm-hint">Loading the rules…</p>
+    <p v-if="loading && !data" class="adm-hint">{{ t("approvalRulesPanel.loading_the_rules") }}</p>
     <p v-else-if="loadError" class="adm-empty" role="alert" data-testid="rules-error">{{ loadError }}</p>
     <template v-else-if="data">
       <p class="intro">
-        <template v-if="isExperiment">A change travels left to right. This agent starts from the organization's rules and can only make them <b>stricter</b>: ask for more people or add a default approver, never fewer. Where the organization has a rule, an org admin can choose for each step to follow it, use a rule of its own instead, or ask for no approval.</template>
-        <template v-else>A change travels left to right. Each step can ask for a second opinion before it happens. A step without a rule works as before. Experiments can ask for more, never for less.</template>
+        <template v-if="isExperiment">{{ t("approvalRulesPanel.a_change_travels_left_to_right") + " " }}<b>{{ t("approvalRulesPanel.stricter") }}</b>{{ t("approvalRulesPanel.ask_for_more_people_or_add") }}</template>
+        <template v-else>{{ t("approvalRulesPanel.a_change_travels_left_to_right2") }}</template>
       </p>
       <p class="legend">
-        <span><i class="mark role">T</i>Any person with the profile</span>
-        <span><i class="mark person">MF</i>This person, always</span>
+        <span><i class="mark role">T</i>{{ t("approvalRulesPanel.any_person_with_the_profile") }}</span>
+        <span><i class="mark person">MF</i>{{ t("approvalRulesPanel.this_person_always") }}</span>
       </p>
 
       <ApprovalFlowChart :steps="flowSteps" :names="names" test-prefix="rule">
         <template #actions="{ step }">
           <Button size="sm" :class="isEditing(step) ? 'primary' : 'ghost'" :disabled="saving" data-testid="rule-edit" @click="edit(step)">
-            {{ isEditing(step) ? "Editing…" : ruleFor(data.rules, step.action, step.stage) ? "Edit rule" : "Set up" }}
+            {{ isEditing(step) ? t("approvalRulesPanel.editing") : ruleFor(data.rules, step.action, step.stage) ? t("approvalRulesPanel.edit_rule") : t("approvalRulesPanel.set_up") }}
           </Button>
         </template>
       </ApprovalFlowChart>
 
-      <section v-if="editing" class="editor" data-testid="rule-editor" aria-label="Edit the rule">
+      <section v-if="editing" class="editor" data-testid="rule-editor" :aria-label="t('approvalRulesPanel.edit_the_rule')">
         <span class="caret" :style="{ left: caretLeft }" aria-hidden="true" />
         <form @submit.prevent="save">
           <header>
-            <span class="env">{{ editing.action === "publish" ? "PUBLISH" : editing.stage }}</span>
-            <h4>Rule for {{ stepLabel(editing.action, editing.stage).toLowerCase() }}</h4>
-            <Button variant="danger" size="sm" v-if="!mode && ruleFor(data.rules, editing.action, editing.stage)" class="remove" :disabled="saving" data-testid="rule-remove" @click="remove(editing)">Remove rule</Button>
+            <span class="env">{{ editing.action === "publish" ? t("approvalRulesPanel.publish") : editing.stage }}</span>
+            <h4>{{ t("approvalRulesPanel.rule_for_step", { step: stepLabel(editing.action, editing.stage).toLowerCase() }) }}</h4>
+            <Button variant="danger" size="sm" v-if="!mode && ruleFor(data.rules, editing.action, editing.stage)" class="remove" :disabled="saving" data-testid="rule-remove" @click="remove(editing)">{{ t("approvalRulesPanel.remove_rule") }}</Button>
           </header>
-          <div v-if="mode" class="modes" role="radiogroup" aria-label="What this agent does in this step" data-testid="rule-modes">
-            <span class="kicker">In this step, this agent…</span>
+          <div v-if="mode" class="modes" role="radiogroup" :aria-label="t('approvalRulesPanel.what_this_agent_does_in_this')" data-testid="rule-modes">
+            <span class="kicker">{{ t("approvalRulesPanel.in_this_step_this_agent") }}</span>
             <Radio class="opt" :class="{ on: mode === 'follow' }" name="step-mode" value="follow" :model-value="mode" data-testid="mode-follow" @update:model-value="setMode">
-              <span class="txt"><b>Follow the organization's rule</b><span class="adm-hint">{{ describeRule(orgRuleOf(editing.action, editing.stage), names) }}. You can still add more people on top, never fewer.</span></span>
+              <span class="txt"><b>{{ t('approvalRulesPanel.follow_the_organization_s_rule') }}</b><span class="adm-hint">{{ t('approvalRulesPanel.rule_you_can_still_add_more', { rule: describeRule(orgRuleOf(editing.action, editing.stage), names) }) }}</span></span>
             </Radio>
             <Radio class="opt" :class="{ on: mode === 'own' }" name="step-mode" value="own" :model-value="mode" data-testid="mode-own" @update:model-value="setMode">
-              <span class="txt"><b>Use its own rule instead</b><span class="adm-hint">Replaces the organization's rule in this step, only for this agent. Choose who approves.</span></span>
+              <span class="txt"><b>{{ t("approvalRulesPanel.use_its_own_rule_instead") }}</b><span class="adm-hint">{{ t("approvalRulesPanel.replaces_the_organization_s_rule_in") }}</span></span>
             </Radio>
             <Radio class="opt" :class="{ on: mode === 'none' }" name="step-mode" value="none" :model-value="mode" data-testid="mode-none" @update:model-value="setMode">
-              <span class="txt"><b>No approval</b><span class="adm-hint">Whoever can do this does it straight away, only for this agent. It is recorded in the audit log.</span></span>
+              <span class="txt"><b>{{ t("approvalRulesPanel.no_approval") }}</b><span class="adm-hint">{{ t("approvalRulesPanel.whoever_can_do_this_does_it") }}</span></span>
             </Radio>
           </div>
           <div class="cols" :class="{ single: mode === 'none' }">
             <fieldset v-if="mode !== 'none'">
-              <legend>Profiles</legend>
-              <p v-if="editing.action === 'publish'" class="adm-hint">Publishing a version is a review of the text, so only technical profiles can approve it.</p>
+              <legend>{{ t("approvalRulesPanel.profiles") }}</legend>
+              <p v-if="editing.action === 'publish'" class="adm-hint">{{ t("approvalRulesPanel.publishing_a_version_is_a_review") }}</p>
               <label v-for="role in allowedRoles(editing.action)" :key="role" class="row" :class="{ on: (draft.mins[role] ?? 0) > 0 }">
                 <Checkbox :checked="(draft.mins[role] ?? 0) > 0" :data-testid="`role-${role}`" @change="toggleRole(role, ($event.target as HTMLInputElement).checked)" />
                 <span class="grow">{{ profileLabel(role) }}</span>
@@ -259,29 +261,29 @@ async function remove(row: { action: "publish" | "promote"; stage: string }) {
                   class="min"
                   :disabled="(draft.mins[role] ?? 0) === 0"
                   :value="draft.mins[role] || ''"
-                  :aria-label="`Approvals needed from ${profileLabel(role)}`"
+                  :aria-label="t('approvalRulesPanel.approvals_needed_from_profile', { profile: profileLabel(role) })"
                   :data-testid="`min-${role}`"
                   @input="setMin(role, ($event.target as HTMLInputElement).value)"
                 />
               </label>
-              <p class="adm-hint">A person counts for the profile they have.</p>
+              <p class="adm-hint">{{ t("approvalRulesPanel.a_person_counts_for_the_profile") }}</p>
             </fieldset>
             <fieldset v-if="mode !== 'none'">
-              <legend>People who must always approve <span>· optional</span></legend>
-              <p v-if="data.options.candidates.length === 0" class="adm-hint">Nobody can approve yet: add members with a technical or business role to an experiment first.</p>
+              <legend>{{ t("approvalRulesPanel.people_who_must_always_approve") + " " }}<span>{{ t("approvalRulesPanel.optional") }}</span></legend>
+              <p v-if="data.options.candidates.length === 0" class="adm-hint">{{ t("approvalRulesPanel.nobody_can_approve_yet_add_members") }}</p>
               <Checkbox v-for="c in data.options.candidates" :key="c.userId" class="row" :class="{ on: draft.approvers.includes(c.userId) }" :checked="draft.approvers.includes(c.userId)" :data-testid="`approver-${c.userId}`" @change="toggleApprover(c.userId, ($event.target as HTMLInputElement).checked)"> <span class="mark person">{{ initials(c.name?.trim() || c.email) }}</span>
                 <span class="grow">{{ c.name?.trim() || c.email }}</span>
                 <span class="adm-hint">{{ c.roles.map(profileLabel).join(", ") }}</span></Checkbox>
             </fieldset>
             <div class="means">
-              <span class="kicker">What this means</span>
+              <span class="kicker">{{ t("approvalRulesPanel.what_this_means") }}</span>
               <p data-testid="rule-preview">{{ preview }}</p>
-              <p class="small">The person who asks never counts as an approver. A rejection closes the request. It expires after 7 days.</p>
+              <p class="small">{{ t("approvalRulesPanel.the_person_who_asks_never_counts") }}</p>
               <p v-if="emptyHint" class="hint" role="note" data-testid="rule-empty-hint">{{ emptyHint }}</p>
               <p v-if="floorProblem" class="problem" role="alert" data-testid="rule-floor-problem">{{ floorProblem }}</p>
               <div class="actions">
-                <Button size="sm" @click="editing = null">Cancel</Button>
-                <Button variant="primary" size="sm" type="submit" :disabled="!canSave" data-testid="rule-save">{{ saving ? "Saving…" : "Save rule" }}</Button>
+                <Button size="sm" @click="editing = null">{{ t("approvalRulesPanel.cancel") }}</Button>
+                <Button variant="primary" size="sm" type="submit" :disabled="!canSave" data-testid="rule-save">{{ saving ? t("approvalRulesPanel.saving") : t("approvalRulesPanel.save_rule") }}</Button>
               </div>
             </div>
           </div>
