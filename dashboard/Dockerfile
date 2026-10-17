@@ -15,5 +15,5 @@ FROM nginxinc/nginx-unprivileged:1.27-alpine
 COPY dashboard/nginx/default.conf.template /etc/nginx/templates/default.conf.template
 COPY dashboard/nginx/security-headers.conf /etc/nginx/snippets/security-headers.conf
 COPY --from=build /app/dashboard/dist /usr/share/nginx/html
-ENV API_UPSTREAM=http://api:3001
+ENV API_UPSTREAM=http://api:3001 INGEST_UPSTREAM=http://ingest:3002
 EXPOSE 8080

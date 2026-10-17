@@ -74,7 +74,7 @@ Set `clickhouse.external.host` and/or `postgres.external.host` and the chart doe
 
 ### Network policies
 
-They are on by default and need a network plugin that enforces them (Calico, Cilium). Set `networkPolicy.ingressNamespace` to the namespace of your ingress controller and `networkPolicy.internalCidrs` to your cluster's pod and service ranges, so the API cannot reach them.
+They are on by default and need a network plugin that enforces them (Calico, Cilium). Set `networkPolicy.ingressNamespace` to the namespace of your ingress controller and `networkPolicy.internalCidrs` to your cluster's pod and service ranges, so the API cannot reach them. The `ingest` service talks only to Postgres (to check API keys) and to the Collector.
 
 ## Backups and restore
 
@@ -158,7 +158,7 @@ Stop the Collector (`kubectl -n memtrace scale deployment/otel-collector --repli
 
 ## Check performance (load gate)
 
-Before you trust a cluster with real traffic, or after changing its size, run the load gate. It sends traces the way a real agent does (SDK, then the API gateway, the Collector and ClickHouse), queries the API as a user would, and fails if something is below the bar.
+Before you trust a cluster with real traffic, or after changing its size, run the load gate. It sends traces the way a real agent does (SDK, then the ingest service, the Collector and ClickHouse), queries the API as a user would, and fails if something is below the bar.
 
 ```bash
 make load-gate            # against the cluster `kubectl` points to, namespace memtrace

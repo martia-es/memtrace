@@ -42,6 +42,10 @@ Consequences today:
 - A `service.name` mismatch is logged as `ingest.service_name_mismatch`; there is no metrics backend yet.
 - Item 5 (other write paths) was reviewed: feedback, evaluation uploads and prompt drafts already take the experiment and service from the API key, never from the body.
 
+## Update (2026-10-17): the gateway is now the `ingest` service
+
+[ADR-098](../infra/adr-098-durable-ingestion-pipeline-with-broker.md) moved the gateway out of the query API into its own stateless service. The code lives in `api/src/adapters/inbound/http/ingest-gateway.ts` and is served by `api/src/ingest/server.ts`; the public path, the behaviour above and the limits are unchanged, and the route file named in the context section no longer exists.
+
 ## Verification
 
 - Test: send spans with the key of A but `service.name` of B; they are stored under A.

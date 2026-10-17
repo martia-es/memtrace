@@ -1,4 +1,4 @@
-import { Pool } from "pg";
+import { Pool, type PoolConfig } from "pg";
 
 export interface PostgresConfig {
   host: string;
@@ -18,6 +18,6 @@ export function configFromEnv(env: NodeJS.ProcessEnv = process.env): PostgresCon
   };
 }
 
-export function createPool(config: PostgresConfig): Pool {
-  return new Pool(config);
+export function createPool(config: PostgresConfig, options: Omit<PoolConfig, keyof PostgresConfig> = {}): Pool {
+  return new Pool({ ...config, ...options });
 }

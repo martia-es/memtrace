@@ -27,16 +27,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Build the API image and load it into kind
+      - name: Build the API and ingest images and load them into kind
         run: |
           docker build -t memtrace/api:dev api
-          kind load docker-image memtrace/api:dev --name memtrace-load
+          docker build --target ingest -t memtrace/ingest:dev api
+          kind load docker-image memtrace/api:dev memtrace/ingest:dev --name memtrace-load
       - name: Install MemTrace with the Helm chart
         run: |
           helm install memtrace deploy/helm/memtrace -n memtrace --create-namespace
           kubectl -n memtrace rollout status statefulset/clickhouse statefulset/postgres --timeout=300s
           kubectl -n memtrace wait --for=condition=complete job/clickhouse-migrate-1 job/postgres-migrate-1 --timeout=300s
-          kubectl -n memtrace rollout status deployment/api deployment/otel-collector --timeout=300s
+          kubectl -n memtrace rollout status deployment/api deployment/ingest deployment/otel-collector --timeout=300s
       - name: Run the gate
         run: |
           python -m pip install --upgrade pip
@@ -54,3 +55,4 @@ jobs:
           kubectl -n memtrace get pods
           kubectl -n memtrace logs deployment/otel-collector --tail=100 || true
           kubectl -n memtrace logs deployment/api --tail=100 || true
+          kubectl -n memtrace logs deployment/ingest --tail=100 || true

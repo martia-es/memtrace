@@ -21,7 +21,8 @@ El entorno corre íntegramente de forma local sobre **Kubernetes** (`kind` / `k3
 
 ```mermaid
 graph LR
-    Agent["🤖 Agente de IA<br/>(SDK OpenTelemetry)"] -->|OTLP/HTTP + API key| Gateway["🚪 Pasarela de ingesta<br/>(API :3001, ADR-089)"]
+    Agent["🤖 Agente de IA<br/>(SDK OpenTelemetry)"] -->|OTLP/HTTP + API key| Gateway["🚪 Servicio ingest<br/>(:3002, ADR-089, ADR-098)"]
+    Gateway -->|validar API key| Postgres
     Gateway -->|OTLP/HTTP + token interno| Collector["📡 OpenTelemetry Collector<br/>(otelcol-contrib)"]
     Collector -->|Escritura por Lotes| ClickHouse["🗄️ ClickHouse DB<br/>(Almacén Columnar - Trazas)"]
     MigrateCH["⚙️ Job Migraciones<br/>(clickhouse-migrate)"] -->|Esquema SQL Versionado| ClickHouse
@@ -35,7 +36,7 @@ graph LR
 ```
 
 ### Componentes Principales:
-* **OpenTelemetry Collector:** Recibe trazas solo vía OTLP/HTTP (`4318`) y solo de la pasarela de ingesta de la API, que valida la API key y fija el experimento (ADR-089, ADR-090). Agrupa con cola persistente en disco.
+* **OpenTelemetry Collector:** Recibe trazas solo vía OTLP/HTTP (`4318`) y solo del servicio `ingest`, que valida la API key y fija el experimento (ADR-089, ADR-090, ADR-098). Agrupa con cola persistente en disco.
 * **ClickHouse Server:** Base de datos columnar optimizada para analítica de trazas de alto rendimiento.
 * **ClickHouse Migrations Job:** Orquestador declarativo que aplica migraciones SQL versionadas (`migrations/clickhouse/*.sql`).
 * **PostgreSQL:** Almacén de identidad transaccional (usuarios, organizaciones, experimentos, memberships y sesiones), independiente de ClickHouse — ver [ADR-013](docs/adrs/identity/adr-013-identity-postgres-and-oauth-rbac.md).

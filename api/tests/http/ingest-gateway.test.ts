@@ -11,11 +11,17 @@ const keys: Record<string, { experimentId: string; serviceName: string; createdB
   "mtk_agent_a": { experimentId: "exp-a", serviceName: "agent-a", createdByUserId: "u1" },
 };
 
-vi.mock("@/dependency-container", () => ({
-  getIdentity: () => ({ identityRepository: { resolveApiKey: async (key: string) => keys[key] ?? null } }),
-}));
-
-const { POST } = await import("@/app/api/v1/ingest/v1/traces/route");
+const { createIngestGateway } = await import("@/adapters/inbound/http/ingest-gateway");
+const POST = createIngestGateway({
+  resolveApiKey: async (key: string) => keys[key] ?? null,
+  collectorUrl: "http://otel-collector:4318",
+  collectorToken: "internal-token",
+  maxBodyBytes: 16 * 1024 * 1024,
+  maxDecompressedBytes: 64 * 1024 * 1024,
+  perExperimentLimitPerMinute: 600,
+  invalidKeyLimitPerMinute: 30,
+  forwardTimeoutMs: 10_000,
+});
 const { rewriteProtobuf } = await import("@/adapters/inbound/http/otlp-identity");
 
 const fixture = (name: string, ext: "pb" | "json" = "pb") => new Uint8Array(readFileSync(resolve(__dirname, `../fixtures/otlp/${name}.${ext}`)));

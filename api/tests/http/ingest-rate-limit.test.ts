@@ -1,19 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.hoisted(() => {
-  process.env.INGEST_RATE_LIMIT_PER_MINUTE = "3";
-  process.env.INGEST_INVALID_KEY_LIMIT_PER_MINUTE = "2";
-});
+import { createIngestGateway } from "@/adapters/inbound/http/ingest-gateway";
 
 const resolveApiKey = vi.fn();
-vi.mock("@/dependency-container", () => ({ getIdentity: () => ({ identityRepository: { resolveApiKey } }) }));
-
-import { POST } from "@/app/api/v1/ingest/v1/traces/route";
+let POST: (request: Request) => Promise<Response>;
 
 const post = (headers: Record<string, string>) =>
   POST(new Request("http://x/api/v1/ingest/v1/traces", { method: "POST", body: JSON.stringify({ resourceSpans: [] }), headers: { "content-type": "application/json", ...headers } }));
 
 beforeEach(() => {
+  // un gateway nuevo por prueba: los contadores de límite viven en él
+  POST = createIngestGateway({
+    resolveApiKey: (key) => resolveApiKey(key),
+    collectorUrl: "http://otel-collector:4318",
+    maxBodyBytes: 16 * 1024 * 1024,
+    maxDecompressedBytes: 64 * 1024 * 1024,
+    perExperimentLimitPerMinute: 3,
+    invalidKeyLimitPerMinute: 2,
+    forwardTimeoutMs: 10_000,
+  });
   resolveApiKey.mockReset();
   vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 200 })));
   vi.spyOn(console, "warn").mockImplementation(() => {});

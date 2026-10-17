@@ -2,8 +2,9 @@
 # Segmentación de red del namespace `memtrace` (ADR-090): todo cerrado salvo los flujos de la arquitectura.
 #
 #   dashboard ──► api ──► postgres
-#                  │ └──► clickhouse (lectura y escritura de evaluación)
-#                  └────► otel-collector ──► clickhouse   (la API es el ÚNICO cliente del Collector)
+#       │          └──────► clickhouse (lectura y escritura de evaluación)
+#       └─────► ingest ──► postgres (validar API keys)
+#                  └─────► otel-collector ──► clickhouse   (`ingest` es el ÚNICO cliente del Collector, ADR-098)
 #   jobs (migraciones, backfill, topic-extraction, model-pricing, model-quality, health-probe, retention-purge, alerts-evaluate) ──► postgres / clickhouse
 #
 # IMPORTANTE: una NetworkPolicy solo vale si el CNI del clúster la aplica. El `kindnet` por defecto de kind puede no
@@ -41,7 +42,7 @@ spec:
         - { protocol: UDP, port: 53 }
         - { protocol: TCP, port: 53 }
 ---
-# 3) Collector: solo la API le habla (4318), y él solo habla con ClickHouse (9000, protocolo nativo)
+# 3) Collector: solo `ingest` le habla (4318), y él solo habla con ClickHouse (9000, protocolo nativo)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -54,7 +55,7 @@ spec:
   ingress:
     - from:
         - podSelector:
-            matchLabels: { app: api }
+            matchLabels: { app: ingest }
       ports:
         - { protocol: TCP, port: 4318 }
   egress:
@@ -100,7 +101,7 @@ spec:
         - { protocol: TCP, port: 7171 }
         - { protocol: TCP, port: 8123 }
 ---
-# 5) PostgreSQL: la API y los jobs que leen el almacén de identidad
+# 5) PostgreSQL: la API, `ingest` (valida las API keys) y los jobs que leen el almacén de identidad
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -116,7 +117,7 @@ spec:
             matchExpressions:
               - key: app
                 operator: In
-                values: [api, health-probe, backfill-experiment-id, postgres-migrate, retention-purge, alerts-evaluate, postgres-backup, postgres-restore-check]
+                values: [api, ingest, health-probe, backfill-experiment-id, postgres-migrate, retention-purge, alerts-evaluate, postgres-backup, postgres-restore-check]
       ports:
         - { protocol: TCP, port: 5432 }
 ---
@@ -139,7 +140,7 @@ spec:
       ports:
         - { protocol: TCP, port: 3001 }
   egress:
-    # lo propio de la arquitectura: identidad, almacén analítico y Collector
+    # lo propio de la arquitectura: identidad y almacén analítico. Ya no el Collector: la ingesta es de `ingest` (ADR-098)
     - to:
         - podSelector:
             matchLabels: { app: postgres }
@@ -150,11 +151,6 @@ spec:
             matchLabels: { app: clickhouse }
       ports:
         - { protocol: TCP, port: 8123 }
-    - to:
-        - podSelector:
-            matchLabels: { app: otel-collector }
-      ports:
-        - { protocol: TCP, port: 4318 }
     # el resto es Internet: proveedor de identidad, Resend, GitHub, jueces LLM y el chat de los agentes (ADR-055, con su
     # propia protección SSRF). Nunca las redes del clúster, para que un fallo de la API no sea un salto lateral.
     # Ajusta `except` a los CIDR de pods y servicios de tu clúster (aquí, los de kind).
@@ -163,7 +159,38 @@ spec:
             cidr: 0.0.0.0/0
             except: {{ toJson .Values.networkPolicy.internalCidrs }}
 ---
-# 7) Dashboard (nginx): solo habla con la API; lo alcanza el controlador de ingress
+# 6b) Ingest (ADR-098): lo alcanza el dashboard (que hace de proxy de /api/v1/ingest) y, si lo hay, el controlador de ingress.
+# Solo habla con Postgres (validar keys) y con el Collector; nunca con ClickHouse ni con Internet
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ingest
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels: { app: ingest }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: dashboard }
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: {{ .Values.networkPolicy.ingressNamespace | quote }} }
+      ports:
+        - { protocol: TCP, port: 3002 }
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app: postgres }
+      ports:
+        - { protocol: TCP, port: 5432 }
+    - to:
+        - podSelector:
+            matchLabels: { app: otel-collector }
+      ports:
+        - { protocol: TCP, port: 4318 }
+---
+# 7) Dashboard (nginx): solo habla con la API y con `ingest`; lo alcanza el controlador de ingress
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -185,6 +212,11 @@ spec:
             matchLabels: { app: api }
       ports:
         - { protocol: TCP, port: 3001 }
+    - to:
+        - podSelector:
+            matchLabels: { app: ingest }
+      ports:
+        - { protocol: TCP, port: 3002 }
 ---
 # 8) Documentación: solo estáticos, sin salida
 apiVersion: networking.k8s.io/v1

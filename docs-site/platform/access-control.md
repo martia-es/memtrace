@@ -75,7 +75,7 @@ If you upgrade an installation that already holds data, run `make backfill-exper
 
 ## Network and database access
 
-Traces reach ClickHouse only through the ingest gateway: the OpenTelemetry Collector accepts OTLP over HTTP only, and only from the gateway (a shared token, plus a default-deny `NetworkPolicy` set in `k8s/05-network-policies.yaml`). Sending traces straight to the collector, or over gRPC, is no longer possible, so point your agents at `/api/v1/ingest` with an API key.
+Traces reach ClickHouse only through the ingest service (`ingest`, its own deployment, separate from the query API): the OpenTelemetry Collector accepts OTLP over HTTP only, and only from it (a shared token, plus a default-deny `NetworkPolicy` set in `k8s/05-network-policies.yaml`). Sending traces straight to the collector, or over gRPC, is no longer possible, so point your agents at `/api/v1/ingest` with an API key.
 
 The platform connects to ClickHouse with separate users: the API reads with a read-only user, evaluation data is written by an insert-only user, and the collector can only write traces. `make netpol-check` tells you whether your cluster's network plugin actually enforces the policies (kind's default one may not).
 
@@ -85,7 +85,7 @@ Agents authenticate with an API key tied to one experiment, not with a user acco
 
 - Keys look like `mtk_Ab3xY9...`. The plaintext is shown **once**; only its hash is stored.
 - A key works for OTLP ingestion and for the evaluation endpoints of its own experiment. It does not reach any other experiment.
-- An invalid or revoked key is rejected with `401`. Revoke a key with `DELETE /api/v1/experiments/{experimentId}/api-keys/{keyId}`.
+- An invalid or revoked key is rejected with `401`. Revoke a key with `DELETE /api/v1/experiments/{experimentId}/api-keys/{keyId}`. The ingest service remembers a valid key for 30 seconds, so a revoked key can keep sending traces for up to that long. If the identity database is unreachable it keeps accepting keys it validated in the last 10 minutes and answers `503` (which OTLP exporters retry) to the rest.
 - The ingest gateway checks that the key is valid **and** that every trace carries the `service.name` of the key's experiment: a request with another name, or with none, is refused with `403` and the message says which name to use. Once accepted, the gateway **assigns the tenant of every trace**: it sets `service.name` and `memtrace.experiment_id` from the key's experiment, discarding anything the agent declared, so a trace can never be written into another experiment.
 
 How the SDK sends the key is in [Authentication](/library/authentication).

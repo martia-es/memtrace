@@ -1,10 +1,18 @@
 import { gzipSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const resolveApiKey = vi.fn();
-vi.mock("@/dependency-container", () => ({ getIdentity: () => ({ identityRepository: { resolveApiKey } }) }));
+import { createIngestGateway } from "@/adapters/inbound/http/ingest-gateway";
 
-import { POST } from "@/app/api/v1/ingest/v1/traces/route";
+const resolveApiKey = vi.fn();
+const POST = createIngestGateway({
+  resolveApiKey: (key) => resolveApiKey(key),
+  collectorUrl: "http://otel-collector:4318",
+  maxBodyBytes: 16 * 1024 * 1024,
+  maxDecompressedBytes: 64 * 1024 * 1024,
+  perExperimentLimitPerMinute: 600,
+  invalidKeyLimitPerMinute: 30,
+  forwardTimeoutMs: 10_000,
+});
 
 const ACCESS = { experimentId: "exp-1", serviceName: "acme-chatbot", createdByUserId: "u1" };
 const json = (resourceAttrs: Array<{ key: string; value: { stringValue: string } }>) =>

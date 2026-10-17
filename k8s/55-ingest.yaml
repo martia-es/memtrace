@@ -1,0 +1,91 @@
+# Servicio de ingesta (ADR-098): la pasarela que valida la API key, fija el tenant y reenvía al Collector. Sin estado:
+# se puede escalar y matar sin perder nada. Solo necesita Postgres (validar keys) y el Collector; no tiene credenciales de
+# ClickHouse ni de login. La imagen `memtrace/ingest:dev` se construye con `make images`.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingest
+  namespace: memtrace
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ingest
+  template:
+    metadata:
+      labels:
+        app: ingest
+    spec:
+      terminationGracePeriodSeconds: 30   # el servicio deja de estar listo 5 s antes de cerrar, y luego termina lo que tenga en curso
+      containers:
+      - name: ingest
+        image: memtrace/ingest:dev
+        imagePullPolicy: IfNotPresent   # imagen local cargada en kind: no hay registro
+        env:
+        - name: OTEL_COLLECTOR_HTTP_URL
+          value: http://otel-collector:4318
+        # El Collector solo acepta lo que lleve este token (ADR-090): esta pasarela es su único cliente legítimo
+        - name: INGEST_INTERNAL_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: ingest-internal
+              key: token
+        # Validación de API keys (el resultado se recuerda unos segundos: INGEST_KEY_CACHE_TTL_SECONDS)
+        - name: POSTGRES_HOST
+          value: postgres
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_USER
+          value: memtrace
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: password
+        - name: POSTGRES_DATABASE
+          value: memtrace_identity
+        ports:
+        - containerPort: 3002
+          name: http
+        # Ninguna de las dos mira Postgres ni el Collector: con la caché de keys el servicio sigue aceptando datos sin
+        # Postgres, y sacarlo del Service por una caída ajena convertiría un fallo parcial en total
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 15
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ingest
+  namespace: memtrace
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3002
+    targetPort: 3002
+    name: http
+  selector:
+    app: ingest

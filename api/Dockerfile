@@ -9,8 +9,19 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build && npm run build:worker
+RUN npm run build && npm run build:worker && npm run build:ingest
 
+# Servicio de ingesta (ADR-098): un solo archivo y nada más. Sin Next, sin credenciales de ClickHouse ni de login.
+#   docker build --target ingest -t memtrace/ingest:dev api
+FROM node:24-alpine AS ingest
+WORKDIR /app
+ENV NODE_ENV=production PORT=3002 HOSTNAME=0.0.0.0
+COPY --from=build --chown=node:node /app/dist-ingest/ingest.cjs ./ingest.cjs
+USER 1000:1000
+EXPOSE 3002
+CMD ["node", "ingest.cjs"]
+
+# Etapa por defecto (la última): la API de consulta
 FROM node:24-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3001 HOSTNAME=0.0.0.0
