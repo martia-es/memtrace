@@ -13,6 +13,7 @@ resources:
   - k8s/35-postgres-migrations.yaml
   - k8s/40-otel-collector.yaml
   - k8s/50-api.yaml
+  - k8s/55-ingest.yaml
   - k8s/60-dashboard.yaml
   - k8s/70-docs.yaml
   - k8s/80-topic-extraction.yaml

@@ -6,6 +6,17 @@ server {
     gzip on;
     gzip_types text/css application/javascript application/json image/svg+xml;
 
+    # Ingesta de trazas de los agentes (ADR-098): servicio propio, sin estado, fuera de la API de consulta. La ruta no cambia
+    # para los SDK. El tope coincide con el del gateway (INGEST_MAX_BODY_BYTES): el de nginx por defecto es 1 MB.
+    location /api/v1/ingest/ {
+        include /etc/nginx/snippets/security-headers.conf;
+        client_max_body_size 16m;
+        proxy_pass ${INGEST_UPSTREAM};
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 30s;
+    }
+
     # Mismo origen para el navegador: sin CORS (ADR-009/ADR-011)
     location /api/ {
         include /etc/nginx/snippets/security-headers.conf;

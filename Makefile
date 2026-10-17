@@ -3,6 +3,7 @@ NS      ?= memtrace
 PYTHON  ?= python3
 # Nombre completo: Podman antepone "localhost/" a los nombres cortos y el pod (memtrace/api:dev) no la encontraría
 API_IMAGE  ?= docker.io/memtrace/api:dev
+INGEST_IMAGE ?= docker.io/memtrace/ingest:dev
 DASH_IMAGE ?= docker.io/memtrace/dashboard:dev
 DOCS_IMAGE ?= docker.io/memtrace/docs:dev
 # Debe coincidir con la imagen del CronJob (k8s/81-model-pricing-sync.yaml)
@@ -11,7 +12,7 @@ PRICING_IMAGE ?= localhost/memtrace/model-pricing:dev
 QUALITY_IMAGE ?= localhost/memtrace/model-quality:dev
 
 .DEFAULT_GOAL := help
-.PHONY: help check up images dashboard api status forward logs query migrate backfill-experiment-id netpol-check migrate-postgres pricing-sync quality-sync down reset db-reset dev-data docs weather weather-bg weather-stop weather-restart rag rag-bg rag-stop rag-restart
+.PHONY: help check up images dashboard api ingest status forward logs query migrate backfill-experiment-id netpol-check migrate-postgres pricing-sync quality-sync down reset db-reset dev-data docs weather weather-bg weather-stop weather-restart rag rag-bg rag-stop rag-restart
 
 help: ## Muestra esta ayuda
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-10s %s\n", $$1, $$2}'
@@ -38,6 +39,7 @@ up: check ## Levanta todo en 1 solo comando (clúster, despliegue, migraciones y
 	kubectl rollout status statefulset/postgres -n $(NS) --timeout=300s
 	kubectl rollout status deployment/otel-collector -n $(NS) --timeout=300s
 	kubectl rollout status deployment/api -n $(NS) --timeout=300s
+	kubectl rollout status deployment/ingest -n $(NS) --timeout=300s
 	kubectl rollout status deployment/dashboard -n $(NS) --timeout=300s
 	kubectl rollout status deployment/docs -n $(NS) --timeout=300s
 	@$(MAKE) --no-print-directory pricing-sync
@@ -58,21 +60,22 @@ up: check ## Levanta todo en 1 solo comando (clúster, despliegue, migraciones y
 	@echo "  • UI de ClickHouse:  http://localhost:8123/play (Usuario: default | Pass: memtrace-dev-only)"
 	@echo "  • Asistente del tiempo: http://localhost:8000 (logs: weather_assistant/uvicorn.log)"
 	@echo "  • Asistente RAG de FAQs: http://localhost:8001 (logs: rag_assistant/uvicorn.log)"
-	@echo "  • OTel Collector:    solo accesible desde la API (ingesta: http://localhost:3001/api/v1/ingest)"
+	@echo "  • OTel Collector:    solo accesible desde el servicio ingest (ingesta: http://localhost:8080/api/v1/ingest)"
 	@echo "  • Postgres:          localhost:5432 (Usuario: memtrace | DB: memtrace_identity | Pass: memtrace-dev-only)"
 	@echo ""
 
-images: ## Construye las imágenes de la API, el dashboard y la documentación y las carga en el clúster (reinicia sus pods)
+images: ## Construye las imágenes de la API, la ingesta, el dashboard y la documentación y las carga en el clúster (reinicia sus pods)
 	docker build -t $(API_IMAGE) api
+	docker build --target ingest -t $(INGEST_IMAGE) api
 	docker build -f dashboard/Dockerfile -t $(DASH_IMAGE) .
 	docker build -t $(DOCS_IMAGE) docs-site
 	docker build -t $(PRICING_IMAGE) analytics/model_pricing
 	docker build -t $(QUALITY_IMAGE) analytics/model_quality
 	@tmp=$$(mktemp -t memtrace-image.XXXXXX); \
-	for img in $(API_IMAGE) $(DASH_IMAGE) $(DOCS_IMAGE) $(PRICING_IMAGE) $(QUALITY_IMAGE); do \
+	for img in $(API_IMAGE) $(INGEST_IMAGE) $(DASH_IMAGE) $(DOCS_IMAGE) $(PRICING_IMAGE) $(QUALITY_IMAGE); do \
 		docker save -o $$tmp $$img && kind load image-archive $$tmp --name $(CLUSTER) || { rm -f $$tmp; exit 1; }; \
 	done; rm -f $$tmp
-	@kubectl rollout restart deployment/api deployment/dashboard deployment/docs -n $(NS) 2>/dev/null || true
+	@kubectl rollout restart deployment/api deployment/ingest deployment/dashboard deployment/docs -n $(NS) 2>/dev/null || true
 
 # Reconstruye UNA imagen, la carga en el clúster, reinicia su deployment y relanza solo su port-forward
 # $(1)=deployment  $(2)=imagen  $(3)=comando docker build  $(4)=puerto local:servicio
@@ -93,6 +96,10 @@ dashboard: ## Reconstruye y despliega solo el dashboard (más rápido que make i
 api: ## Reconstruye y despliega solo la API (más rápido que make images)
 	$(call redeploy,api,$(API_IMAGE),docker build -t $(API_IMAGE) api,3001:3001)
 	@echo "API actualizada: http://localhost:3001"
+
+ingest: ## Reconstruye y despliega solo el servicio de ingesta (ADR-098); queda también en http://localhost:3002
+	$(call redeploy,ingest,$(INGEST_IMAGE),docker build --target ingest -t $(INGEST_IMAGE) api,3002:3002)
+	@echo "Ingesta actualizada: los SDK siguen enviando a http://localhost:8080/api/v1/ingest"
 
 docs: ## Reconstruye y despliega solo la documentación (más rápido que make images)
 	$(call redeploy,docs,$(DOCS_IMAGE),docker build -t $(DOCS_IMAGE) docs-site,8081:8080)
@@ -187,7 +194,7 @@ db-reset: ## BORRA las tablas de Postgres y ClickHouse (conserva el clúster) y 
 		kubectl exec statefulset/postgres -n $(NS) -- sh -c 'psql -U memtrace -d memtrace_identity -v ON_ERROR_STOP=1 -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"' && \
 		kubectl exec statefulset/clickhouse -n $(NS) -- sh -c 'clickhouse-client --password "$$CLICKHOUSE_PASSWORD" --query "DROP DATABASE IF EXISTS memtrace SYNC"' && \
 		$(MAKE) --no-print-directory migrate migrate-postgres && \
-		kubectl rollout restart deployment/api deployment/otel-collector -n $(NS) && \
+		kubectl rollout restart deployment/api deployment/ingest deployment/otel-collector -n $(NS) && \
 		echo "Bases de datos reseteadas y migraciones aplicadas"; \
 	else \
 		echo "Cancelado"; \

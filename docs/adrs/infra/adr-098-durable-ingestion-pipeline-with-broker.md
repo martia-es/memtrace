@@ -135,6 +135,17 @@ Each phase is a branch with its own test plan and leaves the system working. The
 5. **ADR-099 migration** (deduplication).
 6. **Autoscaling** (HPA, KEDA) and tuning of partitions and batch sizes from real numbers.
 
+## Update (2026-10-17): phase 1 implemented
+
+- **Where it lives.** The gateway is `api/src/adapters/inbound/http/ingest-gateway.ts` (framework-free: a `Request` in, a `Response` out), the key cache is `api/src/application/api-key-cache.ts`, and the process is `api/src/ingest/server.ts` on plain `node:http`, bundled with esbuild into one file. It is the `ingest` target of `api/Dockerfile`, deployed by `k8s/55-ingest.yaml` and the chart. The route in the query API is gone.
+- **Same public path.** It serves `POST /api/v1/ingest/v1/traces`; the dashboard nginx routes `/api/v1/ingest/` to it, so SDKs, `.env` files and docs are unchanged. nginx also gets `client_max_body_size 16m`, equal to the gateway limit; its default is 1 MB.
+- **Least privilege, enforced by tests.** The pod has no ClickHouse or login credentials, a read-only filesystem, and a network policy that allows only Postgres and the Collector as destinations. The API no longer holds the Collector token and no longer reaches the Collector (`api/tests/k8s-security.test.ts`).
+- **Retryable errors.** A failure of Postgres or the Collector answers `503` with `Retry-After` instead of `500`: OTLP exporters retry 429, 502, 503 and 504, not 500. A Collector call has a timeout (10 s).
+- **Cache.** TTL 30 s and stale bound 10 min (`INGEST_KEY_CACHE_TTL_SECONDS`, `INGEST_KEY_CACHE_STALE_SECONDS`), keyed by the hash of the key, coalescing concurrent lookups, and with a 5 s back-off after a failure so requests do not each wait for the connection timeout. The Postgres pool has short timeouts for the same reason. A side effect: `api_keys.last_used_at` is refreshed at most once per TTL per key.
+- **Health.** `/health` and `/ready` do not look at Postgres or the Collector on purpose. `/ready` turns `503` when the pod is draining (SIGTERM, 5 s, then it closes with requests in flight).
+- **Load gate.** `load_gate.py` now forwards `svc/ingest` and the workflow builds and loads the `ingest` image.
+- **Not verified in a cluster.** Unit, HTTP and network-policy tests pass; the image was built and run as uid 1000 with a read-only filesystem and no capabilities, and the nginx template was checked with `nginx -t`. The Helm chart could not be rendered here (no `helm` binary), so `scripts/check-helm-parity.py` runs in CI; Kustomize renders. The end-to-end run on a real cluster is part of the phase's test plan.
+
 ## Consequences
 
 - **Positive**: no state in the processing tiers; any of them can be killed or scaled; ClickHouse outages are absorbed by the broker; ingest no longer competes with queries; the Postgres outage no longer stops ingestion; the same chart runs locally and in a cloud; masking happens before any buffer.

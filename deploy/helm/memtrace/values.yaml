@@ -37,6 +37,9 @@ images:
   docs:
     repository: memtrace/docs
     tag: dev
+  ingest:
+    repository: memtrace/ingest
+    tag: dev
   modelPricing:
     repository: localhost/memtrace/model-pricing
     tag: dev
@@ -84,6 +87,13 @@ resources:
     requests:
       cpu: 20m
       memory: 32Mi
+  ingest:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
 
 # Bases de datos. Por defecto corren dentro del clúster (un solo pod cada una). Con `external.host` no se despliega el pod:
 # el Service `clickhouse` / `postgres` pasa a ser un ExternalName hacia ese host y las copias de ClickHouse se desactivan.

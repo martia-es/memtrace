@@ -3,7 +3,7 @@
 
 Contra un clúster con MemTrace instalado (`make up` o el chart de Helm), este script:
   1. crea, solo en Postgres, un usuario (perfil `technical`), una organización, un experimento y una API key propios de esta ejecución;
-  2. manda trazas por el mismo camino que un agente real (SDK → pasarela de la API → Collector → ClickHouse), con los agentes
+  2. manda trazas por el mismo camino que un agente real (SDK → servicio ingest → Collector → ClickHouse), con los agentes
      simulados de `agent_load_test.py`;
   3. espera a que lleguen a ClickHouse y cuenta las que faltan;
   4. mide el p95 de la API de consulta con una sesión del usuario creado;
@@ -33,7 +33,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "sdk" / "python"))
 sys.path.insert(0, str(HERE))
 
-API_PORT, COLLECTOR_METRICS_PORT = 13001, 18888
+API_PORT, INGEST_PORT, COLLECTOR_METRICS_PORT = 13001, 13002, 18888
 logging.disable(logging.ERROR)   # los agentes simulados fallan a propósito el 5 % de las veces
 
 
@@ -133,14 +133,14 @@ class CountingExporter:
         return self.inner.force_flush(timeout_millis)
 
 
-async def send_load(creds, agents, rounds, burst_spans, api_port):
+async def send_load(creds, agents, rounds, burst_spans, ingest_port):
     import memtrace.adapters.outbound.otel.factory as factory
     from memtrace import init_tracer, shutdown, trace_step
     import agent_load_test as gen
 
     real_build = factory.build_otlp_exporter
     factory.build_otlp_exporter = lambda *a, **k: CountingExporter(real_build(*a, **k))
-    init_tracer(service_name=creds["service"], endpoint=f"http://127.0.0.1:{api_port}/api/v1/ingest",
+    init_tracer(service_name=creds["service"], endpoint=f"http://127.0.0.1:{ingest_port}/api/v1/ingest",
                 protocol="http/protobuf", headers={"authorization": f"Bearer {creds['api_key']}"})
     runner = gen.LoadTestRunner(num_agents=agents)
     start = time.time()
@@ -212,9 +212,10 @@ def main():
     try:
         creds = bootstrap(cl, run_id)
         cl.forward("svc/api", API_PORT, 3001)
+        cl.forward("svc/ingest", INGEST_PORT, 3002)   # la ingesta es un servicio propio (ADR-098)
         cl.forward("deploy/otel-collector", COLLECTOR_METRICS_PORT, 8888)
         print(f"Carga: {a.agents} agentes × {a.rounds} rondas contra {a.namespace} (servicio {creds['service']})")
-        expected, rejected, started = asyncio.run(send_load(creds, a.agents, a.rounds, a.burst_spans, API_PORT))
+        expected, rejected, started = asyncio.run(send_load(creds, a.agents, a.rounds, a.burst_spans, INGEST_PORT))
         seen, landed_at = wait_for_spans(cl, creds["service"], expected, a.wait)
         try:
             p95, p50 = query_p95(creds, API_PORT, a.query_samples)

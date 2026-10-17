@@ -452,7 +452,8 @@ export class PostgresIdentityRepository implements IdentityRepository {
     const row = rows[0];
     if (!row) return null;
     // no bloqueante: no hace falta esperar a que se confirme para responder al agente
-    void this.pool.query(`UPDATE api_keys SET last_used_at = now() WHERE id = $1`, [row.id]);
+    // y sin que un fallo aquí (Postgres caído justo ahora) sea un rechazo no capturado
+    void this.pool.query(`UPDATE api_keys SET last_used_at = now() WHERE id = $1`, [row.id]).catch(() => undefined);
     return { experimentId: row.experiment_id, serviceName: row.service_name, createdByUserId: row.created_by };
   }
 

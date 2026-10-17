@@ -102,7 +102,7 @@ Un usuario puede agrupar varias gráficas custom ya guardadas en un **informe** 
 - [x] Dashboard (Quasar) que consume únicamente la API de consulta
 - [x] Overview › Breakdown: todas las versiones de prompt (o todos los entornos) en una tabla con coste, errores con su margen del 95 %, latencia, tendencia de 7 días y 👍, y comparación de dos filas — [ADR-067](adrs/prompts/adr-067-prompt-registry-immutable-versions-and-tags.md) (actualización). Agrupa también por usuario con `enduser.id` (`user()` en los SDK de Python y TypeScript, migración 016)
 - [x] Manifiestos de Kubernetes (`k8s/`) con las 5 piezas como servicios independientes
-- [ ] **Ingesta resiliente a escala** (backlog F10): servicio `ingest` aparte de la API de consulta, Prometheus y Grafana, broker (API Kafka) entre dos niveles de Collector sin estado, y deduplicación de spans en ClickHouse; la misma topología en local y en la nube — [ADR-098](adrs/infra/adr-098-durable-ingestion-pipeline-with-broker.md) y [ADR-099](adrs/storage/adr-099-deduplicated-span-storage.md). Decididos, sin implementar
+- [~] **Ingesta resiliente a escala** (backlog F10; hecha la fase 1, el servicio `ingest` aparte de la API de consulta): servicio `ingest` aparte de la API de consulta, Prometheus y Grafana, broker (API Kafka) entre dos niveles de Collector sin estado, y deduplicación de spans en ClickHouse; la misma topología en local y en la nube — [ADR-098](adrs/infra/adr-098-durable-ingestion-pipeline-with-broker.md) y [ADR-099](adrs/storage/adr-099-deduplicated-span-storage.md). Decididos, sin implementar
 - [x] Documentación y ejemplos de integración
 
 ---

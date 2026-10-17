@@ -51,15 +51,27 @@ describe("network policies", () => {
     expect(workloads.filter((w) => w.app && !selected(w.app)).map((w) => w.name)).toEqual([]);
   });
 
-  it("only the API reaches the Collector, only on 4318", () => {
+  it("only the ingest service reaches the Collector, only on 4318 (ADR-098)", () => {
     const collector = policy("otel-collector");
-    expect(collector.spec.ingress).toEqual([{ from: [{ podSelector: { matchLabels: { app: "api" } } }], ports: [{ protocol: "TCP", port: 4318 }] }]);
+    expect(collector.spec.ingress).toEqual([{ from: [{ podSelector: { matchLabels: { app: "ingest" } } }], ports: [{ protocol: "TCP", port: 4318 }] }]);
     for (const p of policies) {
       for (const rule of p.spec.egress ?? []) {
         const targetsCollector = (rule.to ?? []).some((t: Doc) => t.podSelector?.matchLabels?.app === "otel-collector");
-        if (targetsCollector) expect(["api"]).toContain(p.spec.podSelector.matchLabels?.app);
+        if (targetsCollector) expect(["ingest"]).toContain(p.spec.podSelector.matchLabels?.app);
       }
     }
+  });
+
+  it("the ingest service talks only to Postgres and the Collector: no ClickHouse, no Internet", () => {
+    const targets = policy("ingest").spec.egress.flatMap((r: Doc) => r.to.map((t: Doc) => t.podSelector?.matchLabels?.app ?? `ipBlock:${t.ipBlock?.cidr}`));
+    expect(targets.sort()).toEqual(["otel-collector", "postgres"]);
+  });
+
+  it("the ingest service is reached only by the dashboard proxy and the ingress controller, on 3002", () => {
+    const rule = policy("ingest").spec.ingress;
+    expect(rule).toHaveLength(1);
+    expect(rule[0].ports).toEqual([{ protocol: "TCP", port: 3002 }]);
+    expect(rule[0].from.map((f: Doc) => f.podSelector?.matchLabels?.app ?? f.namespaceSelector?.matchLabels?.["kubernetes.io/metadata.name"])).toEqual(["dashboard", "ingress-nginx"]);
   });
 
   it("databases accept only the components that need them", () => {
@@ -71,7 +83,7 @@ describe("network policies", () => {
   });
 
   it("the dashboard and the docs cannot reach the stores", () => {
-    expect(policy("dashboard").spec.egress.map((r: Doc) => r.to[0].podSelector.matchLabels.app)).toEqual(["api"]);
+    expect(policy("dashboard").spec.egress.map((r: Doc) => r.to[0].podSelector.matchLabels.app)).toEqual(["api", "ingest"]);
     expect(policy("docs").spec.policyTypes).toEqual(["Ingress"]);
   });
 
@@ -99,18 +111,19 @@ describe("Collector", () => {
     expect(JSON.stringify(docs.map(({ doc }) => doc.spec?.ports ?? []))).not.toContain("4317");
   });
 
-  it("the gateway and the Collector read the token from the same secret", () => {
+  it("the ingest service and the Collector read the token from the same secret, and the API does not hold it", () => {
     const tokenRef = (app: string) => {
       const env = workloads.find((w) => w.app === app)!.template.spec.containers.flatMap((c: Doc) => c.env ?? []).find((e: Doc) => e.name === "INGEST_INTERNAL_TOKEN");
       return env?.valueFrom?.secretKeyRef;
     };
-    expect(tokenRef("api")).toBeDefined();
-    expect(tokenRef("api")).toEqual(tokenRef("otel-collector"));
+    expect(tokenRef("ingest")).toBeDefined();
+    expect(tokenRef("ingest")).toEqual(tokenRef("otel-collector"));
+    expect(tokenRef("api")).toBeUndefined();
   });
 });
 
 describe("containers", () => {
-  const hardened = ["api", "dashboard", "docs", "otel-collector", "health-probe", "backfill-experiment-id"];
+  const hardened = ["api", "ingest", "dashboard", "docs", "otel-collector", "health-probe", "backfill-experiment-id"];
   it.each(hardened)("%s drops privileges and runs as non-root", (app) => {
     const { template } = workloads.find((w) => w.app === app)!;
     const nonRoot = template.spec.securityContext?.runAsNonRoot === true || template.spec.containers.every((c: Doc) => c.securityContext?.runAsNonRoot === true);
@@ -119,6 +132,22 @@ describe("containers", () => {
       expect(c.securityContext?.allowPrivilegeEscalation).toBe(false);
       expect(c.securityContext?.capabilities?.drop).toEqual(["ALL"]);
     }
+  });
+});
+
+describe("the ingest service holds only what it needs (ADR-098)", () => {
+  const env = () => workloads.find((w) => w.app === "ingest")!.template.spec.containers.flatMap((c: Doc) => c.env ?? []) as Doc[];
+
+  it("has no ClickHouse or login credentials", () => {
+    const names = env().map((e) => e.name);
+    expect(names.filter((n) => /^(CLICKHOUSE|AUTH_|GOOGLE_|MICROSOFT_|RESEND|GITHUB_)/.test(n))).toEqual([]);
+  });
+
+  it("reports ready and alive without depending on Postgres or the Collector, and has a read-only filesystem", () => {
+    const container = workloads.find((w) => w.app === "ingest")!.template.spec.containers[0];
+    expect(container.readinessProbe.httpGet.path).toBe("/ready");
+    expect(container.livenessProbe.httpGet.path).toBe("/health");
+    expect(container.securityContext.readOnlyRootFilesystem).toBe(true);
   });
 });
 
