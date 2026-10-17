@@ -12,6 +12,7 @@ import NoiseVerdict from "./NoiseVerdict.vue";
 import Pill from "./Pill.vue";
 import DataTable from "./DataTable.vue";
 import Card from "./Card.vue";
+import { t } from "../i18n";
 
 const props = defineProps<{ runs: RunListItemDto[]; /** baseline and candidate chosen elsewhere (Evaluations → Compare runs) */ initialIds?: [string, string] | null }>();
 
@@ -148,29 +149,29 @@ const netVerdict = computed(() => (regressions.value === 0 && improvements.value
 <template>
   <div class="compare" v-if="runs.length >= 2">
     <div class="toolbar">
-      <label class="pick"><span class="lbl">A · baseline</span><Select :model-value="idA" :options="options" placeholder="Select run" @update:model-value="idA = $event" /></label>
+      <label class="pick"><span class="lbl">{{ t("offlineCompareView.a_baseline") }}</span><Select :model-value="idA" :options="options" :placeholder="t('offlineCompareView.select_run')" @update:model-value="idA = $event" /></label>
       <span class="arrow">→</span>
-      <label class="pick"><span class="lbl">B · candidate</span><Select :model-value="idB" :options="options" placeholder="Select run" @update:model-value="idB = $event" /></label>
+      <label class="pick"><span class="lbl">{{ t("offlineCompareView.b_candidate") }}</span><Select :model-value="idB" :options="options" :placeholder="t('offlineCompareView.select_run')" @update:model-value="idB = $event" /></label>
     </div>
 
-    <p v-if="idA === idB" class="hint">Pick two different runs.</p>
+    <p v-if="idA === idB" class="hint">{{ t("offlineCompareView.pick_two_different_runs") }}</p>
     <template v-else-if="runA && runB">
       <section v-if="!sameDataset" class="notice" role="alert">
-        <strong>These runs use different datasets</strong> ({{ runA.datasetName }} vs {{ runB.datasetName }}). Aggregates are shown but the differences are not a like-for-like comparison.
+        <strong>{{ t("offlineCompareView.these_runs_use_different_datasets") }}</strong> {{ t("offlineCompareView.a_vs_b_aggregates_are_shown", { a: runA.datasetName, b: runB.datasetName }) }}
       </section>
 
       <section class="runs-strip">
-        <div class="run-chip a"><span class="tag-ab">A · baseline</span><strong>{{ offlineRunLabel(runA) }}</strong><span class="meta">{{ runA.datasetName }} v{{ runA.versionMajor }}.{{ runA.versionMinor }} · {{ formatDateTime(runA.createdAt) }}</span></div>
+        <div class="run-chip a"><span class="tag-ab">{{ t("offlineCompareView.a_baseline") }}</span><strong>{{ offlineRunLabel(runA) }}</strong><span class="meta">{{ runA.datasetName }} v{{ runA.versionMajor }}.{{ runA.versionMinor }} · {{ formatDateTime(runA.createdAt) }}</span></div>
         <span class="strip-arrow">→</span>
-        <div class="run-chip b"><span class="tag-ab">B · candidate</span><strong>{{ offlineRunLabel(runB) }}</strong><span class="meta">{{ runB.datasetName }} v{{ runB.versionMajor }}.{{ runB.versionMinor }} · {{ formatDateTime(runB.createdAt) }}</span></div>
+        <div class="run-chip b"><span class="tag-ab">{{ t("offlineCompareView.b_candidate") }}</span><strong>{{ offlineRunLabel(runB) }}</strong><span class="meta">{{ runB.datasetName }} v{{ runB.versionMajor }}.{{ runB.versionMinor }} · {{ formatDateTime(runB.createdAt) }}</span></div>
       </section>
 
       <Card as="section" padding="lg" gap="md" class="card">
-        <div class="card-head"><h3>Metrics</h3><span class="legend"><i class="sw a" /> A <i class="sw b" /> B</span></div>
+        <div class="card-head"><h3>{{ t("offlineCompareView.metrics") }}</h3><span class="legend"><i class="sw a" /> A <i class="sw b" /> B</span></div>
         <div v-for="d in deltas" :key="d.name" class="metric">
           <div class="metric-name">
             <strong>{{ d.name }}</strong>
-            <Pill tone="warn" v-if="d.judgeChanged" title="The judge model or rubric differs between A and B (ADR-043)">⚠ judge changed</Pill>
+            <Pill tone="warn" v-if="d.judgeChanged" :title="t('offlineCompareView.the_judge_model_or_rubric_differs')">{{ t("offlineCompareView.judge_changed") }}</Pill>
           </div>
           <div class="bars">
             <div class="bar-row"><div class="track"><div class="fill a" :style="{ width: barWidth(d.a, d) }" /></div><span class="val">{{ fmt(d.a, d.isRate) }}</span></div>
@@ -181,16 +182,16 @@ const netVerdict = computed(() => (regressions.value === 0 && improvements.value
             <NoiseVerdict v-if="verdictFor(d.name)" :comparison="verdictFor(d.name)!" />
           </div>
         </div>
-        <p v-if="!deltas.length" class="hint">Neither run has numeric or boolean evaluators.</p>
+        <p v-if="!deltas.length" class="hint">{{ t("offlineCompareView.neither_run_has_numeric_or_boolean") }}</p>
       </Card>
 
       <ErrorBanner v-if="loaded.error.value" :error="loaded.error.value" @retry="loaded.run()" />
-      <div v-else-if="loaded.loading.value" class="hint">Loading items, traces and dataset changes…</div>
+      <div v-else-if="loaded.loading.value" class="hint">{{ t("offlineCompareView.loading_items_traces_and_dataset_changes") }}</div>
 
       <template v-else-if="loaded.data.value">
         <Card as="section" padding="lg" gap="md" class="card">
-          <h3>Dataset</h3>
-          <p v-if="sameVersion" class="hint">Same dataset version (v{{ runA.versionMajor }}.{{ runA.versionMinor }}): the difference does not come from the data.</p>
+          <h3>{{ t("offlineCompareView.dataset") }}</h3>
+          <p v-if="sameVersion" class="hint">{{ t("offlineCompareView.same_dataset_version_v_version_the", { version: `${runA.versionMajor}.${runA.versionMinor}` }) }}</p>
           <template v-else-if="sameDataset && loaded.data.value.diff">
             <p class="hint">
               v{{ loaded.data.value.diff.base?.major }}.{{ loaded.data.value.diff.base?.minor }} →
@@ -199,7 +200,7 @@ const netVerdict = computed(() => (regressions.value === 0 && improvements.value
               Metrics may move because the items changed, not only the agent.
             </p>
             <DataTable v-if="changes.length">
-              <thead><tr><th>Change</th><th>Input</th></tr></thead>
+              <thead><tr><th>{{ t("offlineCompareView.change") }}</th><th>{{ t("offlineCompareView.input") }}</th></tr></thead>
               <tbody>
                 <tr v-for="c in changes.slice(0, SHOWN)" :key="c.originItemId">
                   <td><Pill :tone="c.kind === 'added' ? 'ok' : c.kind === 'removed' ? 'error' : 'warn'">{{ c.kind }}</Pill></td>
@@ -207,26 +208,26 @@ const netVerdict = computed(() => (regressions.value === 0 && improvements.value
                 </tr>
               </tbody>
             </DataTable>
-            <p v-if="changes.length > SHOWN" class="hint">Showing {{ SHOWN }} of {{ changes.length }} changes.</p>
+            <p v-if="changes.length > SHOWN" class="hint">{{ t("offlineCompareView.showing.changes", { shown: SHOWN, total: changes.length }) }}</p>
           </template>
-          <p v-else class="hint">The dataset version diff is not available for these runs.</p>
+          <p v-else class="hint">{{ t("offlineCompareView.the_dataset_version_diff_is_not") }}</p>
         </Card>
 
         <Card as="section" padding="lg" gap="md" class="card">
-          <h3>Items <span class="hint">({{ loaded.data.value.pairing.paired.length }} in both · {{ loaded.data.value.pairing.onlyA.length }} only in A · {{ loaded.data.value.pairing.onlyB.length }} only in B)</span></h3>
+          <h3>{{ t('offlineCompareView.items') }} <span class="hint">{{ t('offlineCompareView.both_in_both_a_only_in', { both: loaded.data.value.pairing.paired.length, a: loaded.data.value.pairing.onlyA.length, b: loaded.data.value.pairing.onlyB.length }) }}</span></h3>
           <div class="outcomes" :class="netVerdict">
-            <div class="outcome bad"><strong>{{ regressions }}</strong><span>regressed</span></div>
-            <div class="outcome good"><strong>{{ improvements }}</strong><span>improved</span></div>
-            <div class="outcome flat"><strong>{{ unchangedPairs }}</strong><span>unchanged</span></div>
+            <div class="outcome bad"><strong>{{ regressions }}</strong><span>{{ t("offlineCompareView.regressed") }}</span></div>
+            <div class="outcome good"><strong>{{ improvements }}</strong><span>{{ t("offlineCompareView.improved") }}</span></div>
+            <div class="outcome flat"><strong>{{ unchangedPairs }}</strong><span>{{ t("offlineCompareView.unchanged") }}</span></div>
           </div>
           <div v-if="loaded.data.value.pairing.paired.length" class="stack" aria-hidden="true">
             <div class="seg bad" :style="{ flex: regressions }" />
             <div class="seg good" :style="{ flex: improvements }" />
             <div class="seg flat" :style="{ flex: unchangedPairs }" />
           </div>
-          <p class="hint">Items are matched by identical input.</p>
+          <p class="hint">{{ t("offlineCompareView.items_are_matched_by_identical_input") }}</p>
           <DataTable v-if="flips.length">
-            <thead><tr><th>Input</th><th>Evaluator</th><th>A → B</th><th>Dataset</th></tr></thead>
+            <thead><tr><th>{{ t("offlineCompareView.input") }}</th><th>{{ t("offlineCompareView.evaluator") }}</th><th>A → B</th><th>{{ t("offlineCompareView.dataset") }}</th></tr></thead>
             <tbody>
               <tr v-for="(f, i) in flips.slice(0, SHOWN)" :key="`${f.pair.key}-${f.evaluator}-${i}`">
                 <td class="preview" :title="preview(f.pair.a.input)">{{ preview(f.pair.a.input) }}</td>
@@ -236,11 +237,11 @@ const netVerdict = computed(() => (regressions.value === 0 && improvements.value
               </tr>
             </tbody>
           </DataTable>
-          <p v-if="flips.length > SHOWN" class="hint">Showing {{ SHOWN }} of {{ flips.length }}; regressions first.</p>
+          <p v-if="flips.length > SHOWN" class="hint">{{ t("offlineCompareView.showing.flips", { shown: SHOWN, total: flips.length }) }}</p>
         </Card>
 
         <Card as="section" padding="lg" gap="md" class="card">
-          <h3>Latency</h3>
+          <h3>{{ t("offlineCompareView.latency") }}</h3>
           <template v-if="hasLatency">
             <div v-for="r in latencyRows" :key="r.label" class="metric">
               <div class="metric-name"><strong>{{ r.label }}</strong></div>
@@ -251,17 +252,17 @@ const netVerdict = computed(() => (regressions.value === 0 && improvements.value
               <Pill :tone="latDelta(r).tone" class="delta-pill">{{ latDelta(r).text }}</Pill>
             </div>
             <div class="facts">
-              <div class="fact"><span>tokens in / out</span><strong>{{ loaded.data.value.latA.inputTokens }} / {{ loaded.data.value.latA.outputTokens }}</strong><i>→</i><strong>{{ loaded.data.value.latB.inputTokens }} / {{ loaded.data.value.latB.outputTokens }}</strong></div>
-              <div class="fact"><span>cost</span><strong>{{ costCell(loaded.data.value.latA) }}</strong><i>→</i><strong>{{ costCell(loaded.data.value.latB) }}</strong></div>
-              <div class="fact"><span>items with trace</span><strong>{{ loaded.data.value.latA.count }} / {{ loaded.data.value.latA.total }}</strong><i>→</i><strong>{{ loaded.data.value.latB.count }} / {{ loaded.data.value.latB.total }}</strong></div>
+              <div class="fact"><span>{{ t("offlineCompareView.tokens_in_out") }}</span><strong>{{ loaded.data.value.latA.inputTokens }} / {{ loaded.data.value.latA.outputTokens }}</strong><i>→</i><strong>{{ loaded.data.value.latB.inputTokens }} / {{ loaded.data.value.latB.outputTokens }}</strong></div>
+              <div class="fact"><span>{{ t("offlineCompareView.cost") }}</span><strong>{{ costCell(loaded.data.value.latA) }}</strong><i>→</i><strong>{{ costCell(loaded.data.value.latB) }}</strong></div>
+              <div class="fact"><span>{{ t("offlineCompareView.items_with_trace") }}</span><strong>{{ loaded.data.value.latA.count }} / {{ loaded.data.value.latA.total }}</strong><i>→</i><strong>{{ loaded.data.value.latB.count }} / {{ loaded.data.value.latB.total }}</strong></div>
             </div>
           </template>
-          <p v-else class="hint">Latency is not recorded for these runs: no item has a linked trace (ADR-044). Call <code>memtrace.init_tracer()</code> before <code>run_experiment</code>.</p>
+          <p v-else class="hint">{{ t("offlineCompareView.latency_is_not_recorded_for_these") + " " }}<code>memtrace.init_tracer()</code>{{ " " + t("offlineCompareView.before") + " " }}<code>run_experiment</code>.</p>
         </Card>
       </template>
     </template>
   </div>
-  <p v-else class="hint">At least two completed runs are needed to compare.</p>
+  <p v-else class="hint">{{ t("offlineCompareView.at_least_two_completed_runs_are") }}</p>
 </template>
 
 <style scoped>

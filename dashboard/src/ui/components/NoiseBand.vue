@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { t } from "../i18n";
 
 /**
  * Un delta frente al ruido (ADR-097): la banda es lo que la diferencia debe superar para no ser azar (± el margen) y el punto
@@ -15,9 +16,9 @@ const px = (v: number) => MID + (v / scale.value) * (MID - 8);
 const band = computed(() => (props.margin === null ? null : { x: px(-props.margin), w: px(props.margin) - px(-props.margin) }));
 const dot = computed(() => (props.delta === null ? null : px(props.delta)));
 const label = computed(() =>
-  props.delta === null ? "No result to compare"
-    : props.verdict === "above" ? "Difference outside the noise band"
-      : props.verdict === "within" ? "Difference inside the noise band" : "Noise not measured",
+  props.delta === null ? t("noiseBand.no_result_to_compare")
+    : props.verdict === "above" ? t("noiseBand.difference_outside_the_noise_band")
+      : props.verdict === "within" ? t("noiseBand.difference_inside_the_noise_band") : t("noiseBand.noise_not_measured"),
 );
 </script>
 

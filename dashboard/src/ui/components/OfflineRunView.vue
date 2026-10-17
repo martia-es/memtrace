@@ -17,6 +17,7 @@ import RunVariability from "./RunVariability.vue";
 import TabBar from "./TabBar.vue";
 import DataTable from "./DataTable.vue";
 import Card from "./Card.vue";
+import { t } from "../i18n";
 
 const props = defineProps<{ runs: RunListItemDto[]; runId: string | null }>();
 const emit = defineEmits<{ "update:runId": [id: string] }>();
@@ -29,7 +30,7 @@ const current = computed(() => props.runs.find((r) => r.id === props.runId) ?? p
 
 const section = ref<"summary" | "variability">("summary");
 const repeated = computed(() => (current.value as { executions?: number } | null)?.executions ?? 1);
-const sectionTabs = computed(() => [{ id: "summary", label: "Summary" }, { id: "variability", label: "Variability", ...(repeated.value > 1 ? { count: repeated.value } : {}) }]);
+const sectionTabs = computed(() => [{ id: "summary", label: t("offlineRunView.summary") }, { id: "variability", label: t("offlineRunView.variability"), ...(repeated.value > 1 ? { count: repeated.value } : {}) }]);
 
 const detail = useAsync((signal) => api.getDatasetRun(current.value!.datasetId, current.value!.id, signal));
 const latency = computed(() => (detail.data.value ? summarizeTelemetry(detail.data.value.items) : null));
@@ -59,11 +60,11 @@ function openFull() {
 <template>
   <div class="run-view" v-if="current">
     <div class="toolbar">
-      <div class="picker"><Select :model-value="current.id" :options="runOptions" placeholder="Select run" @update:model-value="emit('update:runId', $event)" /></div>
-      <Button variant="link" @click="openFull">Open full item list →</Button>
+      <div class="picker"><Select :model-value="current.id" :options="runOptions" :placeholder="t('offlineRunView.select_run')" @update:model-value="emit('update:runId', $event)" /></div>
+      <Button variant="link" @click="openFull">{{ t("offlineRunView.open_full_item_list") }}</Button>
     </div>
 
-    <p class="hint">{{ current.datasetName }} · dataset v{{ current.versionMajor }}.{{ current.versionMinor }} · {{ current.itemCount }} items · {{ formatDateTime(current.createdAt) }}</p>
+    <p class="hint">{{ current.datasetName }} · {{ t("offlineRunView.dataset_v_version", { version: `${current.versionMajor}.${current.versionMinor}` }) }} · {{ t("offlineRunView.count_items", { count: current.itemCount }) }} · {{ formatDateTime(current.createdAt) }}</p>
 
     <TabBar :tabs="sectionTabs" :model-value="section" @update:model-value="section = $event as 'summary' | 'variability'" />
 
@@ -77,26 +78,26 @@ function openFull() {
     </div>
 
     <Card as="section" padding="lg" gap="md" class="card">
-      <h3>Latency</h3>
-      <div v-if="detail.loading.value" class="hint">Reading linked traces…</div>
+      <h3>{{ t("offlineRunView.latency") }}</h3>
+      <div v-if="detail.loading.value" class="hint">{{ t("offlineRunView.reading_linked_traces") }}</div>
       <template v-else-if="latency && latency.count > 0">
         <div class="kpi-row">
           <KpiCard label="p50" :value="formatDuration(latency.p50!)" />
           <KpiCard label="p95" :value="formatDuration(latency.p95!)" />
           <KpiCard label="max" :value="formatDuration(latency.max!)" />
-          <KpiCard label="tokens in / out" :value="`${latency.inputTokens} / ${latency.outputTokens}`" />
+          <KpiCard :label="t('offlineRunView.tokens_in_out')" :value="`${latency.inputTokens} / ${latency.outputTokens}`" />
           <KpiCard v-if="latency.costUsd !== null" label="cost" :value="`$${latency.costUsd.toFixed(4)}`" />
         </div>
-        <p class="hint">Read from the traces linked to {{ latency.count }} of {{ latency.total }} items.</p>
+        <p class="hint">{{ t("offlineRunView.read_from_the_traces_linked_to", { count: latency.count, total: latency.total }) }}</p>
       </template>
-      <p v-else class="hint">Latency, tokens and cost come from each item's trace. None found for this run: call <code>memtrace.init_tracer()</code> before <code>run_experiment</code> so every item is traced.</p>
+      <p v-else class="hint">{{ t("offlineRunView.latency_tokens_and_cost_come_from") + " " }}<code>memtrace.init_tracer()</code> before <code>run_experiment</code>{{ " " + t("offlineRunView.so_every_item_is_traced") }}</p>
     </Card>
 
     <Card as="section" padding="lg" gap="md" class="card">
-      <h3>Items needing attention <span class="hint">({{ problemItems.length }} of {{ detail.data.value?.items.length ?? 0 }})</span></h3>
-      <p v-if="detail.data.value && problemItems.length === 0" class="hint">No item failed a boolean evaluator or errored.</p>
+      <h3>{{ t('offlineRunView.items_needing_attention') }} <span class="hint">{{ t('offlineRunView.count_of_total', { count: problemItems.length, total: detail.data.value?.items.length ?? 0 }) }}</span></h3>
+      <p v-if="detail.data.value && problemItems.length === 0" class="hint">{{ t("offlineRunView.no_item_failed_a_boolean_evaluator") }}</p>
       <DataTable v-else-if="problemItems.length" class="layout-fixed">
-        <thead><tr><th>Input</th><th>Output</th><th class="failed-col">Failed</th></tr></thead>
+        <thead><tr><th>{{ t("offlineRunView.input") }}</th><th>{{ t("offlineRunView.output") }}</th><th class="failed-col">{{ t("offlineRunView.failed") }}</th></tr></thead>
         <tbody>
           <tr v-for="item in problemItems.slice(0, SHOWN)" :key="item.itemIndex">
             <td class="preview" :title="preview(item.input)">{{ preview(item.input) }}</td>
@@ -105,7 +106,7 @@ function openFull() {
           </tr>
         </tbody>
       </DataTable>
-      <p v-if="problemItems.length > SHOWN" class="hint">Showing {{ SHOWN }}; open the full item list for the rest.</p>
+      <p v-if="problemItems.length > SHOWN" class="hint">{{ t("offlineRunView.showing_count_open_the_full_item", { count: SHOWN }) }}</p>
     </Card>
     </template>
   </div>

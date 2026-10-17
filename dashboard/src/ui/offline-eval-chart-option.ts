@@ -3,6 +3,7 @@ import type { EChartsCoreOption } from "echarts/core";
 import { aggregateTone, DEFAULT_TARGET_PASS_RATE, judgeChanged, judgeSignature, type AggregateTone } from "@/domain/evaluation";
 import { formatPercent } from "@/domain/format";
 import { chartColors } from "./chart-theme";
+import { t } from "./i18n";
 
 export type OfflineMetricKind = "passRate" | "average";
 
@@ -127,7 +128,7 @@ export function offlineEvalChartOption(runs: RunListItemDto[], series: OfflineSe
       lineStyle: { width: 2.5, color: c.series[i % c.series.length] },
       itemStyle: { color: c.series[i % c.series.length] },
       ...(drawTarget
-        ? { markLine: { silent: true, symbol: "none", label: { color: c.muted, fontSize: 10, position: "insideEndTop", formatter: `${pct(target)} target` }, lineStyle: { color: c.ok, type: "dashed", opacity: 0.6 }, data: [{ yAxis: target }] } }
+        ? { markLine: { silent: true, symbol: "none", label: { color: c.muted, fontSize: 10, position: "insideEndTop", formatter: t("offline-eval-chart-option.percent_target", { percent: pct(target) }) }, lineStyle: { color: c.ok, type: "dashed", opacity: 0.6 }, data: [{ yAxis: target }] } }
         : {}),
       // un rombo en el color de peligro marca dónde cambió el juez (ADR-043)
       data: s.values.map((value, idx) => (s.judgeChanged[idx] && value !== null ? { value, symbol: "diamond", symbolSize: 13, itemStyle: { color: c.danger } } : value)),
@@ -213,15 +214,15 @@ export interface OfflineVerdict {
 /** Respuesta a "¿cómo va el sistema?": el peor de los evaluadores booleanos del último run manda. */
 export function offlineVerdict(summary: EvaluatorSummary[]): OfflineVerdict {
   const rated = summary.filter((s) => s.kind === "passRate");
-  if (!rated.length) return { level: "unknown", title: "No pass/fail evaluators yet", detail: "Add a boolean evaluator (e.g. exact_match) to get a health verdict." };
+  if (!rated.length) return { level: "unknown", title: t("offline-eval-chart-option.no_pass_fail_evaluators_yet"), detail: t("offline-eval-chart-option.add_a_boolean_evaluator_e_g") };
   const failing = rated.filter((s) => s.tone === "negative");
   const regressing = rated.filter((s) => s.status === "regressing");
   const weak = rated.filter((s) => s.tone === "warning");
   const names = (list: EvaluatorSummary[]) => list.map((s) => s.name).join(", ");
-  if (failing.length) return { level: "failing", title: "Failing", detail: `Below 50% pass rate: ${names(failing)}.` };
-  if (regressing.length) return { level: "attention", title: "Regressing", detail: `Lower than the previous run: ${names(regressing)}.` };
-  if (weak.length) return { level: "attention", title: "Needs attention", detail: `Below target: ${names(weak)}.` };
-  return { level: "healthy", title: "Healthy", detail: "Every pass/fail evaluator meets its target." };
+  if (failing.length) return { level: "failing", title: t("offline-eval-chart-option.failing"), detail: t("offline-eval-chart-option.below_50_pass_rate_names", { names: names(failing) }) };
+  if (regressing.length) return { level: "attention", title: t("offline-eval-chart-option.regressing"), detail: t("offline-eval-chart-option.lower_than_the_previous_run_names", { names: names(regressing) }) };
+  if (weak.length) return { level: "attention", title: t("offline-eval-chart-option.needs_attention"), detail: t("offline-eval-chart-option.below_target_names", { names: names(weak) }) };
+  return { level: "healthy", title: t("offline-eval-chart-option.healthy"), detail: t("offline-eval-chart-option.every_pass_fail_evaluator_meets_its") };
 }
 
 export interface OfflineAttentionItem {
@@ -246,14 +247,14 @@ export function offlineAttention(runs: RunListItemDto[], summary: EvaluatorSumma
     if (!latest) continue;
     const label = offlineRunLabel(latest);
     if (s.kind === "passRate" && s.tone === "negative") {
-      items.push({ key: `failing:${s.name}`, tone: "error", title: `${s.name} passes only ${formatPercent(s.latest ?? 0)} of items`, text: `${s.failed} of ${s.count} items failed in ${label}.`, cta: "Inspect", runId: latest.id });
+      items.push({ key: `failing:${s.name}`, tone: "error", title: t("offline-eval-chart-option.name_passes_only_percent_of_items", { name: s.name, percent: formatPercent(s.latest ?? 0) }), text: t("offline-eval-chart-option.failed_of_count_items_failed_in", { failed: s.failed, count: s.count, label }), cta: t("offline-eval-chart-option.inspect"), runId: latest.id });
     } else if (s.status === "regressing" && prev) {
-      items.push({ key: `regressing:${s.name}`, tone: "warn", title: `${s.name} dropped since the previous run`, text: `${label} is lower than ${offlineRunLabel(prev)}.`, cta: "Compare", runId: latest.id, compare: [prev.id, latest.id] });
+      items.push({ key: `regressing:${s.name}`, tone: "warn", title: t("offline-eval-chart-option.name_dropped_since_the_previous_run", { name: s.name }), text: t("offline-eval-chart-option.label_is_lower_than_previous", { label, previous: offlineRunLabel(prev) }), cta: t("offline-eval-chart-option.compare"), runId: latest.id, compare: [prev.id, latest.id] });
     } else if (s.kind === "passRate" && s.tone === "warning") {
-      items.push({ key: `weak:${s.name}`, tone: "warn", title: `${s.name} is below the ${pct(s.target)} target`, text: `${formatPercent(s.latest ?? 0)} pass rate; ${s.failed} of ${s.count} items failed.`, cta: "Inspect", runId: latest.id });
+      items.push({ key: `weak:${s.name}`, tone: "warn", title: t("offline-eval-chart-option.name_is_below_the_target_target", { name: s.name, target: pct(s.target) }), text: t("offline-eval-chart-option.percent_pass_rate_failed_of_count", { percent: formatPercent(s.latest ?? 0), failed: s.failed, count: s.count }), cta: t("offline-eval-chart-option.inspect"), runId: latest.id });
     }
     if (s.status === "judge-changed" && prev) {
-      items.push({ key: `judge:${s.name}`, tone: "warn", title: `The judge for ${s.name} changed`, text: "Results are not comparable with the previous run.", cta: "Compare", runId: latest.id, compare: [prev.id, latest.id] });
+      items.push({ key: `judge:${s.name}`, tone: "warn", title: t("offline-eval-chart-option.the_judge_for_name_changed", { name: s.name }), text: t("offline-eval-chart-option.results_are_not_comparable_with_the"), cta: t("offline-eval-chart-option.compare"), runId: latest.id, compare: [prev.id, latest.id] });
     }
   }
   return items.sort((a, b) => Number(b.tone === "error") - Number(a.tone === "error"));
@@ -280,6 +281,6 @@ export function passFailChartOption(summary: EvaluatorSummary[], isDark: boolean
     tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
     xAxis: { type: "value", minInterval: 1, axisLabel: { color: c.muted, fontSize: 11 }, splitLine: { lineStyle: { color: c.grid, type: "dashed" } } },
     yAxis: { type: "category", inverse: true, data: rated.map((s) => s.name), axisLabel: { color: c.text, fontSize: 12 }, axisLine: { lineStyle: { color: c.grid } } },
-    series: [bar("Passed", c.ok, (s) => s.passed ?? 0), bar("Failed", c.danger, (s) => s.failed ?? 0)],
+    series: [bar(t("offline-eval-chart-option.passed"), c.ok, (s) => s.passed ?? 0), bar(t("offline-eval-chart-option.failed"), c.danger, (s) => s.failed ?? 0)],
   };
 }

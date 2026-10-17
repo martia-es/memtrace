@@ -20,6 +20,7 @@ import EChart from "./EChart.vue";
 import DataTable from "./DataTable.vue";
 import Card from "./Card.vue";
 import Button from "./Button.vue";
+import { t, tp } from "../i18n";
 
 const props = defineProps<{ runs: RunListItemDto[]; targets?: EvaluatorTargets }>();
 const emit = defineEmits<{ "open-run": [run: RunListItemDto]; compare: [ids: [string, string]] }>();
@@ -46,11 +47,11 @@ const judgeNotices = computed(() => judgeChangeNotices(props.runs));
 const newestFirst = computed(() => [...props.runs].reverse());
 
 const STATUS: Record<EvaluatorStatus, { label: string; hint: string }> = {
-  improving: { label: "Improving", hint: "Higher than the previous run" },
-  regressing: { label: "Regressing", hint: "Lower than the previous run" },
-  stable: { label: "Stable", hint: "Within noise of the previous run" },
-  "judge-changed": { label: "Judge changed", hint: "The judge or rubric differs, so the change is not comparable" },
-  "first-run": { label: "Baseline", hint: "Only one run has this evaluator" },
+  improving: { get label() { return t("offlineTrendView.improving"); }, get hint() { return t("offlineTrendView.higher_than_the_previous_run"); } },
+  regressing: { get label() { return t("offlineTrendView.regressing"); }, get hint() { return t("offlineTrendView.lower_than_the_previous_run"); } },
+  stable: { get label() { return t("offlineTrendView.stable"); }, get hint() { return t("offlineTrendView.within_noise_of_the_previous_run"); } },
+  "judge-changed": { get label() { return t("offlineTrendView.judge_changed"); }, get hint() { return t("offlineTrendView.the_judge_or_rubric_differs_so"); } },
+  "first-run": { get label() { return t("offlineTrendView.baseline"); }, get hint() { return t("offlineTrendView.only_one_run_has_this_evaluator"); } },
 };
 
 function fmt(v: number | null, kind: EvaluatorSummary["kind"]): string {
@@ -74,7 +75,7 @@ function sparkPoints(s: EvaluatorSummary): string {
 }
 
 function itemsLabel(s: EvaluatorSummary): string {
-  return s.passed !== null ? `${s.passed} of ${s.count} items passed` : `${s.count} items scored`;
+  return s.passed !== null ? t("offlineTrendView.passed_of_count_items_passed", { passed: s.passed, count: s.count }) : t("offlineTrendView.count_items_scored", { count: s.count });
 }
 
 function deltaTone(s: EvaluatorSummary): string {
@@ -98,15 +99,15 @@ function openAt(index: number) {
         <strong>{{ verdict.title }}</strong>
         <p>{{ verdict.detail }}</p>
       </div>
-      <span class="meta">{{ summary.length }} evaluators · {{ runs.length }} runs in range</span>
+      <span class="meta">{{ tp("offlineTrendView.evaluators", summary.length) }} · {{ tp("offlineTrendView.runsInRange", runs.length) }}</span>
     </section>
 
-    <section v-if="summary.length" class="attention" aria-label="Needs attention">
+    <section v-if="summary.length" class="attention" :aria-label="t('offlineTrendView.needs_attention')">
       <div class="attention-head">
-        <h3>Needs attention</h3>
+        <h3>{{ t("offlineTrendView.needs_attention") }}</h3>
         <span v-if="attention.length" class="attention-count">{{ attention.length }}</span>
       </div>
-      <p v-if="!attention.length" class="all-clear" data-testid="offline-all-clear">Nothing needs your attention in the latest run.</p>
+      <p v-if="!attention.length" class="all-clear" data-testid="offline-all-clear">{{ t("offlineTrendView.nothing_needs_your_attention_in_the") }}</p>
       <button v-for="a in attention" :key="a.key" type="button" class="attn" :class="a.tone" data-testid="offline-attention-item" @click="goToAttention(a)">
         <span class="attn-dot" aria-hidden="true" />
         <span class="attn-text"><strong>{{ a.title }}</strong><span>{{ a.text }}</span></span>
@@ -122,27 +123,27 @@ function openAt(index: number) {
         </header>
         <div class="score-main">
           <span class="score-value">{{ fmt(s.latest, s.kind) }}</span>
-          <span class="score-kind">{{ s.kind === "passRate" ? "pass rate" : "average score" }}</span>
+          <span class="score-kind">{{ s.kind === "passRate" ? t("offlineTrendView.pass_rate") : t("offlineTrendView.average_score") }}</span>
         </div>
-        <div v-if="s.kind === 'passRate'" class="bar" role="img" :aria-label="`${fmt(s.latest, s.kind)} pass rate`">
+        <div v-if="s.kind === 'passRate'" class="bar" role="img" :aria-label="t('offlineTrendView.value_pass_rate', { value: fmt(s.latest, s.kind) })">
           <span class="bar-fill" :style="{ width: `${(s.latest ?? 0) * 100}%` }" />
-          <span class="bar-target" :style="{ left: `${s.target * 100}%` }" :title="`${Math.round(s.target * 100)}% target`" />
+          <span class="bar-target" :style="{ left: `${s.target * 100}%` }" :title="t('offlineTrendView.percent_target', { percent: Math.round(s.target * 100) })" />
         </div>
         <footer class="score-foot">
           <span class="muted">{{ itemsLabel(s) }}</span>
-          <span v-if="s.delta !== null" :class="deltaTone(s)">{{ deltaLabel(s) }} vs previous</span>
-          <span v-else class="muted">No previous run</span>
+          <span v-if="s.delta !== null" :class="deltaTone(s)">{{ t("offlineTrendView.delta_vs_previous", { delta: deltaLabel(s) }) }}</span>
+          <span v-else class="muted">{{ t("offlineTrendView.no_previous_run") }}</span>
         </footer>
         <svg v-if="s.history.length > 1" class="spark" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true">
           <polyline :points="sparkPoints(s)" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke" />
         </svg>
       </article>
     </div>
-    <p v-else class="sub">No evaluator produced numeric or boolean results in this range.</p>
+    <p v-else class="sub">{{ t("offlineTrendView.no_evaluator_produced_numeric_or_boolean") }}</p>
 
     <div v-if="judgeNotices.length" class="notice" role="alert">
-      <strong>The judge changed between runs</strong>
-      <p>Pass rates before and after are not directly comparable. Changed points are marked with a red diamond.</p>
+      <strong>{{ t("offlineTrendView.the_judge_changed_between_runs") }}</strong>
+      <p>{{ t("offlineTrendView.pass_rates_before_and_after_are") }}</p>
       <ul>
         <li v-for="n in judgeNotices" :key="`${n.evaluator}-${n.toRun}`">
           <code>{{ n.evaluator }}</code>: {{ n.fromRun }} → {{ n.toRun }}
@@ -154,52 +155,52 @@ function openAt(index: number) {
       <Card as="section" padding="lg" v-if="hasPassFail" class="card">
         <header class="card-head">
           <div>
-            <h3>Latest run: passed vs failed</h3>
-            <p class="sub">Items per pass/fail evaluator in the most recent run. Red is what to fix.</p>
+            <h3>{{ t("offlineTrendView.latest_run_passed_vs_failed") }}</h3>
+            <p class="sub">{{ t("offlineTrendView.items_per_pass_fail_evaluator_in") }}</p>
           </div>
         </header>
-        <EChart :option="passFailOption" :height="`${Math.max(160, summary.length * 64 + 60)}px`" label="Passed and failed items per evaluator in the latest run" />
+        <EChart :option="passFailOption" :height="`${Math.max(160, summary.length * 64 + 60)}px`" :label="t('offlineTrendView.passed_and_failed_items_per_evaluator')" />
       </Card>
 
       <Card as="section" padding="lg" v-if="passRateSeries.length" class="card">
         <header class="card-head">
           <div>
-            <h3>Pass rate over runs</h3>
-            <p class="sub">Share of items passing each boolean evaluator. Click a point to open its run.</p>
+            <h3>{{ t("offlineTrendView.pass_rate_over_runs") }}</h3>
+            <p class="sub">{{ t("offlineTrendView.share_of_items_passing_each_boolean") }}</p>
           </div>
         </header>
-        <EChart v-if="hasTrend" :option="passRateOption" height="280px" label="Pass rate per evaluator across offline runs" @click="openAt" />
-        <p v-else class="empty-trend">Only one run so far. Change your agent and run <code>run_experiment</code> again to see whether it improves.</p>
+        <EChart v-if="hasTrend" :option="passRateOption" height="280px" :label="t('offlineTrendView.pass_rate_per_evaluator_across_offline')" @click="openAt" />
+        <p v-else class="empty-trend">{{ t("offlineTrendView.only_one_run_so_far_change") + " " }}<code>run_experiment</code>{{ " " + t("offlineTrendView.again_to_see_whether_it_improves") }}</p>
       </Card>
 
       <Card as="section" padding="lg" v-if="averageSeries.length" class="card">
         <header class="card-head">
           <div>
-            <h3>Average score over runs</h3>
-            <p class="sub">Mean of each numeric evaluator. Click a point to open its run.</p>
+            <h3>{{ t("offlineTrendView.average_score_over_runs") }}</h3>
+            <p class="sub">{{ t("offlineTrendView.mean_of_each_numeric_evaluator_click") }}</p>
           </div>
         </header>
-        <EChart v-if="hasTrend" :option="averageOption" height="280px" label="Average score per evaluator across offline runs" @click="openAt" />
-        <p v-else class="empty-trend">Only one run so far: the trend appears after the next one.</p>
+        <EChart v-if="hasTrend" :option="averageOption" height="280px" :label="t('offlineTrendView.average_score_per_evaluator_across_offli')" @click="openAt" />
+        <p v-else class="empty-trend">{{ t("offlineTrendView.only_one_run_so_far_the") }}</p>
       </Card>
     </div>
 
     <Card as="section" padding="lg" class="card">
       <header class="card-head">
         <div>
-          <h3>Runs</h3>
-          <p class="sub">Select a run to inspect its items, or compare two of them.</p>
+          <h3>{{ t("offlineTrendView.runs") }}</h3>
+          <p class="sub">{{ t("offlineTrendView.select_a_run_to_inspect_its") }}</p>
         </div>
       </header>
       <DataTable>
           <thead>
             <tr>
-              <th>Run</th>
-              <th>Dataset</th>
-              <th>Version</th>
-              <th class="num">Items</th>
-              <th>Created</th>
-              <th><span class="sr-only">Actions</span></th>
+              <th>{{ t("offlineTrendView.run") }}</th>
+              <th>{{ t("offlineTrendView.dataset") }}</th>
+              <th>{{ t("offlineTrendView.version") }}</th>
+              <th class="num">{{ t("offlineTrendView.items") }}</th>
+              <th>{{ t("offlineTrendView.created") }}</th>
+              <th><span class="sr-only">{{ t("offlineTrendView.actions") }}</span></th>
             </tr>
           </thead>
           <tbody>
@@ -209,7 +210,7 @@ function openAt(index: number) {
               <td class="muted">v{{ r.versionMajor }}.{{ r.versionMinor }}</td>
               <td class="num">{{ r.itemCount }}</td>
               <td class="muted">{{ formatDateTime(r.createdAt) }}</td>
-              <td class="actions"><Button size="sm" class="open" @click.stop="emit('open-run', r)">Open</Button></td>
+              <td class="actions"><Button size="sm" class="open" @click.stop="emit('open-run', r)">{{ t("offlineTrendView.open") }}</Button></td>
             </tr>
           </tbody>
       </DataTable>
