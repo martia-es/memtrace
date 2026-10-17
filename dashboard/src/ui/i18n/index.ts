@@ -53,6 +53,12 @@ export function t(key: MessageKey, params?: Record<string, string | number>): st
   return params ? message.replace(/\{(\w+)\}/g, (whole, name: string) => (name in params ? String(params[name]) : whole)) : message;
 }
 
+/** Plural pair: the catalog holds `<key>.one` and `<key>.other`; `{count}` is filled in automatically. */
+export function tp(key: string, count: number, params?: Record<string, string | number>): string {
+  const rule = new Intl.PluralRules(locale.value).select(count) === "one" ? "one" : "other";
+  return t(`${key}.${rule}` as MessageKey, { count, ...params });
+}
+
 export function useI18n() {
-  return { t, locale, locales: LOCALES, setLocale: (value: Locale) => (locale.value = value) };
+  return { t, tp, locale, locales: LOCALES, setLocale: (value: Locale) => (locale.value = value) };
 }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useRoute } from "vue-router";
 import { describeRule, requestTitle } from "@/domain/approvals";
-import { formatRelativeTime } from "@/domain/format";
+import { formatRelativeTime } from "../i18n/format";
 import { useApprovalInbox } from "../composables/useApprovalInbox";
 
 /**

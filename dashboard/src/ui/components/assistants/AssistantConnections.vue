@@ -5,7 +5,8 @@ import type { AssistantCardDto, ConnectionDto, ConnectionKindDto, ConnectionStat
 import { describeApiError } from "@/application/describe-api-error";
 import { useAsync } from "../../composables/useAsync";
 import { useAssistantApi } from "../../composables/useAssistantApi";
-import { formatCount, formatPercent, formatRelativeTime } from "@/domain/format";
+import { formatCount, formatPercent } from "@/domain/format";
+import { formatRelativeTime } from "../../i18n/format";
 import { ORIGIN_LABEL, connectionOrigin, errorRate, isPendingReview } from "@/domain/assistants";
 import EmptyState from "../EmptyState.vue";
 import ErrorBanner from "../ErrorBanner.vue";

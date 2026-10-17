@@ -3,6 +3,7 @@ import { ref, watch } from "vue";
 import { RANGE_PRESETS, earliestCustomDay, type CustomRange, type RangeSelection } from "@/domain/time-range";
 import Menu from "./Menu.vue";
 import Button from "./Button.vue";
+import { t } from "../i18n";
 
 const props = defineProps<{ range: RangeSelection; custom?: CustomRange }>();
 const emit = defineEmits<{ "update:range": [Exclude<RangeSelection, "custom">]; "update:custom": [CustomRange] }>();
@@ -21,15 +22,15 @@ const fmt = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString(undefine
 </script>
 
 <template>
-  <div class="range" role="group" aria-label="Time range">
-    <button v-for="p in RANGE_PRESETS" :key="p.key" type="button" :aria-pressed="p.key === range" @click="emit('update:range', p.key)">{{ p.label }}</button>
+  <div class="range" role="group" :aria-label="t('filter.timeRange')">
+    <button v-for="p in RANGE_PRESETS" :key="p.key" type="button" :aria-pressed="p.key === range" @click="emit('update:range', p.key)">{{ t(`range.${p.key}`) }}</button>
     <button type="button" class="custom" :aria-pressed="range === 'custom'" aria-haspopup="dialog" data-testid="custom-range">
-      {{ range === "custom" && custom ? `${fmt(custom.from)} – ${fmt(custom.to)}` : "Custom" }}
+      {{ range === "custom" && custom ? `${fmt(custom.from)} – ${fmt(custom.to)}` : t("filter.custom") }}
       <Menu ref="menu" anchor="bottom right" self="top right" :offset="[0, 6]">
         <form class="menu" @submit.prevent="valid() && apply()">
-          <label>From <input v-model="from" type="date" :min="earliestDay" :max="to || undefined" required /></label>
-          <label>To <input v-model="to" type="date" :min="from || earliestDay" required /></label>
-          <Button variant="primary" size="sm" type="submit" class="apply" :disabled="!valid()">Apply</Button>
+          <label>{{ t("filter.from") }} <input v-model="from" type="date" :min="earliestDay" :max="to || undefined" required /></label>
+          <label>{{ t("filter.to") }} <input v-model="to" type="date" :min="from || earliestDay" required /></label>
+          <Button variant="primary" size="sm" type="submit" class="apply" :disabled="!valid()">{{ t("common.apply") }}</Button>
         </form>
       </Menu>
     </button>

@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import type { AssistantCardDto, DeploymentSummaryDto, EnvironmentDto } from "@contract";
 import { useAsync } from "../../composables/useAsync";
 import { useAssistantApi } from "../../composables/useAssistantApi";
-import { formatRelativeTime } from "@/domain/format";
+import { formatRelativeTime } from "../../i18n/format";
 import { canDeploy as canDeployTo, productionDeployment } from "@/domain/assistants";
 import { canTalkTo } from "@/domain/chat-dock";
 import { useChatDock } from "../../composables/useChatDock";

@@ -5,7 +5,7 @@ import type { DeploymentSummaryDto } from "@contract";
 import { describeApiError } from "@/application/describe-api-error";
 import { useAsync } from "../../composables/useAsync";
 import { useAssistantApi } from "../../composables/useAssistantApi";
-import { formatRelativeTime } from "@/domain/format";
+import { formatRelativeTime } from "../../i18n/format";
 import { personLabel } from "@/domain/assistants";
 import EmptyState from "../EmptyState.vue";
 import ErrorBanner from "../ErrorBanner.vue";

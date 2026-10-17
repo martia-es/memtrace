@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import type { ErrorOverviewResponse } from "@contract";
-import { formatCount, formatRelativeTime } from "@/domain/format";
+import { formatCount } from "@/domain/format";
+import { formatRelativeTime } from "../i18n/format";
 import { errorTrend, impactLabel } from "@/domain/error-overview";
 import Card from "./Card.vue";
 

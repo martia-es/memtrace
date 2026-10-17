@@ -4,7 +4,7 @@ import { useRoute } from "vue-router";
 import type { AlertEventDto, AlertRuleDto, AlertRuleWithStatusDto, BudgetViewDto } from "@contract";
 import type { SavedCustomMetricDto } from "@/application/identity-api";
 import { describeApiError } from "@/application/describe-api-error";
-import { formatRelativeTime } from "@/domain/format";
+import { formatRelativeTime } from "../i18n/format";
 import AlertRuleModal from "../components/AlertRuleModal.vue";
 import BudgetModal from "../components/BudgetModal.vue";
 import Button from "../components/Button.vue";

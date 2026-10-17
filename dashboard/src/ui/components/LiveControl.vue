@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref } from "vue";
-import { formatRelativeTime } from "@/domain/format";
+import { formatRelativeTime } from "../i18n/format";
 import { REFRESH_OPTIONS, type RefreshSeconds } from "@/domain/refresh";
 import Menu from "./Menu.vue";
 import MenuItem from "./MenuItem.vue";
+import { t } from "../i18n";
 
 defineProps<{ seconds: RefreshSeconds; updatedAt: number | null; loading?: boolean }>();
 defineEmits<{ "update:seconds": [RefreshSeconds]; refresh: [] }>();
@@ -15,16 +16,16 @@ onBeforeUnmount(() => clearInterval(ticker));
 </script>
 
 <template>
-  <button type="button" class="live" aria-haspopup="menu" aria-label="Auto-refresh">
+  <button type="button" class="live" aria-haspopup="menu" :aria-label="t('live.autoRefresh')">
     <span class="dot" :class="{ on: seconds > 0 }" aria-hidden="true" />
-    {{ seconds > 0 ? "Live" : "Paused" }}
+    {{ seconds > 0 ? t("live.live") : t("live.paused") }}
     <Menu auto-close anchor="bottom right" self="top right" :offset="[0, 6]">
-      <div class="menu" role="group" aria-label="Refresh interval">
-        <span class="status" aria-live="off">{{ updatedAt ? `Updated ${formatRelativeTime(new Date(updatedAt).toISOString(), now)}` : "Loading…" }}</span>
+      <div class="menu" role="group" :aria-label="t('live.interval')">
+        <span class="status" aria-live="off">{{ updatedAt ? t("live.updated", { when: formatRelativeTime(new Date(updatedAt).toISOString(), now) }) : t("live.loading") }}</span>
         <MenuItem v-for="s in REFRESH_OPTIONS" :key="s" :active="s === seconds" @click="$emit('update:seconds', s)">
-          {{ s === 0 ? "Off" : `Every ${s} s` }}
+          {{ s === 0 ? t("live.off") : t("live.every", { s }) }}
         </MenuItem>
-        <MenuItem class="refresh" :disabled="loading" @click="$emit('refresh')">Refresh now</MenuItem>
+        <MenuItem class="refresh" :disabled="loading" @click="$emit('refresh')">{{ t("live.refreshNow") }}</MenuItem>
       </div>
     </Menu>
   </button>

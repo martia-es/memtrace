@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from "vue";
 import { describeApiError } from "@/application/describe-api-error";
-import { formatRelativeTime } from "@/domain/format";
+import { formatRelativeTime } from "../i18n/format";
 import { servingStatus, sortEnvironments } from "@/domain/prompt-release";
 import { useAsync } from "../composables/useAsync";
 import { usePromptApi } from "../composables/usePromptApi";
