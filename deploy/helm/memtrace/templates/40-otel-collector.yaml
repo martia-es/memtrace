@@ -12,9 +12,6 @@ data:
       # NetworkPolicy no aplicada, o un CNI que no las aplica), el Collector rechaza lo que no lo presente (ADR-090).
       bearertokenauth:
         token: ${env:INGEST_INTERNAL_TOKEN}
-      file_storage/queue:
-        directory: /var/lib/otelcol/queue
-        timeout: 10s
 
     receivers:
       # Solo OTLP/HTTP y solo detrás de la pasarela: no hay gRPC porque no pasaría por la validación de API key (ADR-090)
@@ -31,14 +28,8 @@ data:
         check_interval: 1s
         limit_percentage: 80
         spike_limit_percentage: 20
-      # Agrupa en lotes para maximizar la escritura columnar en ClickHouse
-      batch:
-        send_batch_size: 2000
-        timeout: 1s
-        send_batch_max_size: 5000
-
-      # Capa 2 de PII (ADR-084): enmascara con **** los datos personales de formato fijo ANTES de escribir en
-      # ClickHouse, para todos los agentes, hayan activado o no la anonimización del SDK. Los nombres propios y el
+      # Capa 2 de PII (ADR-084): enmascara con **** los datos personales de formato fijo ANTES de publicar en
+      # el broker (nada sin enmascarar llega a Kafka), para todos los agentes, hayan activado o no la anonimización del SDK. Los nombres propios y el
       # texto libre no tienen formato fijo y solo los cubre el SDK (Presidio). Los patrones son RE2; las pruebas
       # están en scripts/check_collector_pii.py. Un patrón nuevo se añade en los TRES bloques.
       transform/pii:
@@ -82,48 +73,31 @@ data:
               - 'replace_all_patterns(attributes, "value", "\\b(?:(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)\\b", "****")'
 
     exporters:
-      clickhouse:
-        endpoint: tcp://clickhouse.{{ .Release.Namespace }}.svc.cluster.local:9000
-        database: memtrace
-        # Usuario propio, solo INSERT en las tablas de trazas (ADR-090): no lee contenido ni toca el resto del esquema
-        username: collector
-        password: ${env:COLLECTOR_CLICKHOUSE_PASSWORD}
-        # el exporter 0.96 ejecuta CREATE ... IF NOT EXISTS al arrancar: por eso el usuario tiene CREATE sobre las tablas de
-        # trazas y su vista (no puede borrar, alterar ni leer contenido), ver el Job de migraciones
-        traces_table_name: otel_traces
-        timeout: 5s
-        retry_on_failure:
-          enabled: true
-          initial_interval: 5s
-          max_interval: 30s
-          max_elapsed_time: 3600s     # una caída de ClickHouse de hasta 1h no pierde datos
+      # Publica en Kafka (ADR-098). SIN cola ni reintentos propios: si el broker no confirma (acks=all, replicado), el error
+      # vuelve a `ingest` como 5xx y el agente reintenta. Así "recibido" solo se dice cuando el dato está a salvo en el broker.
+      # Sin `partition_traces_by_id`: con él el exportador parte cada petición en UN mensaje POR TRAZA (cientos por lote) y el
+      # escritor insertaría una a una; el orden no hace falta (se lee por TraceId). Cada petición de ingest es un solo mensaje.
+      # No se fija `protocol_version`: con 2.6.x Redpanda rechaza la petición y con el valor por defecto funcionan todos.
+      kafka:
+        brokers: [{{ range $i, $b := splitList "," (default "kafka:9092" .Values.broker.external.bootstrapServers) }}{{ if $i }}, {{ end }}{{ trim $b | quote }}{{ end }}]
+        topic: otel-traces
+        encoding: otlp_proto
+        producer:
+          required_acks: -1             # all: la confirmación espera a las réplicas en sincronía (min.insync.replicas)
+          compression: zstd
+          max_message_bytes: 10485760   # 10 MiB, como el tope del gateway
         sending_queue:
-          enabled: true
-          num_consumers: 4
-          queue_size: 5000            # lotes, no spans
-          storage: file_storage/queue # cola persistente en disco (ADR-005)
+          enabled: false
+        retry_on_failure:
+          enabled: false
 
     service:
-      extensions: [health_check, file_storage/queue, bearertokenauth]
+      extensions: [health_check, bearertokenauth]
       pipelines:
         traces:
           receivers: [otlp]
-          processors: [memory_limiter, transform/pii, batch]
-          exporters: [clickhouse]
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: otel-collector-queue
-  namespace: {{ .Release.Namespace }}
-spec:
-  accessModes: ["ReadWriteOnce"]
-  {{- with $.Values.storage.className }}
-  storageClassName: {{ . | quote }}
-  {{- end }}
-  resources:
-    requests:
-      storage: {{ .Values.storage.collectorQueue.size }}
+          processors: [memory_limiter, transform/pii]
+          exporters: [kafka]
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -131,9 +105,7 @@ metadata:
   name: otel-collector
   namespace: {{ .Release.Namespace }}
 spec:
-  replicas: 1
-  strategy:
-    type: Recreate            # el PVC es RWO: no pueden coexistir dos pods
+  replicas: 1                 # sin estado: se puede escalar (ADR-098)
   selector:
     matchLabels:
       app: otel-collector
@@ -142,28 +114,11 @@ spec:
       labels:
         app: otel-collector
     spec:
-      securityContext:
-        fsGroup: 10001        # usuario del contenedor contrib
-      initContainers:
-      # El provisioner local-path de k3d no siempre respeta fsGroup: se fijan permisos explícitamente
-      - name: fix-queue-permissions
-        image: {{ include "memtrace.image" .Values.images.busybox }}
-        command: ["sh", "-c", "chown -R 10001:10001 /var/lib/otelcol/queue"]
-        securityContext:
-          runAsUser: 0
-        volumeMounts:
-        - name: queue
-          mountPath: /var/lib/otelcol/queue
       containers:
       - name: otel-collector
         image: {{ include "memtrace.image" .Values.images.otelCollector }}
         args: ["--config=/etc/otelcol-contrib/otel-collector-config.yaml"]
         env:
-        - name: COLLECTOR_CLICKHOUSE_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: clickhouse-credentials
-              key: collector-password
         - name: INGEST_INTERNAL_TOKEN
           valueFrom:
             secretKeyRef:
@@ -190,8 +145,6 @@ spec:
         volumeMounts:
         - name: config-volume
           mountPath: /etc/otelcol-contrib
-        - name: queue
-          mountPath: /var/lib/otelcol/queue
         securityContext:
           runAsNonRoot: true
           runAsUser: 10001        # usuario del contenedor contrib
@@ -204,9 +157,6 @@ spec:
       - name: config-volume
         configMap:
           name: otel-collector-config
-      - name: queue
-        persistentVolumeClaim:
-          claimName: otel-collector-queue
 ---
 apiVersion: v1
 kind: Service
@@ -221,4 +171,3 @@ spec:
     name: otlp-http
   selector:
     app: otel-collector
-

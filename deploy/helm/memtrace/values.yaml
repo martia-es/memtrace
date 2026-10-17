@@ -43,6 +43,12 @@ images:
   ingest:
     repository: memtrace/ingest
     tag: dev
+  kafka:
+    repository: apache/kafka
+    tag: 3.8.0
+  kafkaExporter:
+    repository: danielqsj/kafka-exporter
+    tag: v1.8.0
   modelPricing:
     repository: localhost/memtrace/model-pricing
     tag: dev
@@ -69,7 +75,7 @@ storage:
   postgres: { size: 5Gi }
   prometheus: { size: 5Gi }     # solo con monitoring.enabled
   grafana: { size: 1Gi }        # idem
-  collectorQueue: { size: 2Gi }
+  kafka: { size: 10Gi }          # por nodo del broker
   backups: { size: 5Gi }
   topicModel: { size: 1Gi }
 
@@ -109,6 +115,20 @@ resources:
     requests:
       cpu: 50m
       memory: 64Mi
+  kafka:
+    limits:
+      cpu: '1'
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 768Mi
+  kafkaExporter:
+    limits:
+      cpu: 200m
+      memory: 128Mi
+    requests:
+      cpu: 20m
+      memory: 32Mi
   prometheus:
     limits:
       cpu: 500m
@@ -116,6 +136,24 @@ resources:
     requests:
       cpu: 50m
       memory: 128Mi
+
+# Broker de mensajes entre el Collector de entrada y el de escritura (ADR-098): Apache Kafka en modo KRaft. Por defecto, 1 nodo y
+# replicación 1 (desarrollo). En producción, 3 nodos: `replicas: 3`, `replicationFactor: 3`, `minInsyncReplicas: 2`. Los Collectors
+# sin estado se pueden escalar (`kubectl scale`), los de escritura hasta `partitions`.
+# Con un Kafka gestionado (MSK, Confluent Cloud, Event Hubs con endpoint Kafka...) o Redpanda, pon su dirección en
+# `external.bootstrapServers` (separadas por comas): no se despliega el StatefulSet y los Collectors apuntan a ella. Ajusta también
+# `networkPolicy` (las reglas apuntan a los pods del chart) y, si hace falta, autenticación en los Collectors.
+broker:
+  replicas: 1
+  replicationFactor: 1
+  minInsyncReplicas: 1
+  partitions: 12                      # tantos Collectors de escritura en paralelo como máximo; se pueden añadir, no quitar
+  retentionHours: 48                  # el broker es un amortiguador, no un archivo
+  retentionBytesPerPartition: 536870912   # 512 MiB por partición: un consumidor parado no llena el disco sin que se note
+  heap: "-Xms512m -Xmx512m"
+  createTopic: true                   # Job que crea el tópico `otel-traces` y reaplica sus ajustes en cada release
+  external:
+    bootstrapServers: ""
 
 # Bases de datos. Por defecto corren dentro del clúster (un solo pod cada una). Con `external.host` no se despliega el pod:
 # el Service `clickhouse` / `postgres` pasa a ser un ExternalName hacia ese host y las copias de ClickHouse se desactivan.

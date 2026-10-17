@@ -176,6 +176,13 @@ export function createIngestGateway(options: IngestGatewayOptions): (request: Re
       emit({ kind: "forwarded", outcome: "collector_unreachable", seconds: (Date.now() - startedForward) / 1000, bytes: rewritten.length });
       return unavailable("The ingestion pipeline is not accepting data right now; retry");
     }
+    // Un 5xx que los exportadores OTLP no reintentan (el 500 del Collector cuando el broker no confirma, ADR-098) se convierte en
+    // 503: reintentan 429, 502, 503 y 504, y el 500 haría perder el lote. Es un fallo transitorio de nuestro lado, no del agente.
+    if (upstream.status >= 500 && ![502, 503, 504].includes(upstream.status)) {
+      emit({ kind: "forwarded", outcome: "collector_status", seconds: (Date.now() - startedForward) / 1000, bytes: rewritten.length });
+      console.error(`[ingest] the Collector answered ${upstream.status}`);
+      return unavailable("The ingestion pipeline did not confirm the data; retry");
+    }
     // solo lo necesario de la respuesta del Collector: reenviar sus cabeceras tal cual puede describir un cuerpo que ya no es el mismo
     const headers = new Headers();
     for (const name of ["content-type", "retry-after"]) {

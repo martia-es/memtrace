@@ -1,0 +1,117 @@
+# Collector de escritura (ADR-098): lee del broker y escribe en ClickHouse. Sin estado (lo pendiente está en Kafka, no aquí) y sin
+# cola en disco: puedes matarlo, reiniciarlo o tener varios; los de un mismo grupo (`group_id`) se reparten las particiones.
+#
+# Sin `batch` y sin cola, a propósito: el receptor de Kafka del Collector 0.96 da el mensaje por leído al entregarlo, así que
+# un lote guardado en memoria se perdería si el pod muriera. Cada mensaje ya es un lote (el del SDK, ~512 spans) y se inserta
+# de forma síncrona; ClickHouse junta los pequeños en el servidor con `async_insert` y no contesta hasta haberlos escrito
+# (`wait_for_async_insert`), de modo que "leído" solo ocurre tras estar en ClickHouse.
+#
+# Si ClickHouse cae, la inserción se reintenta y la partición se queda esperando (el atraso se acumula en Kafka y se ve en la
+# métrica de lag); pasadas 24 h (la retención es de 48 h) se abandona ese mensaje para que uno imposible de insertar no bloquee
+# la partición para siempre.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-writer-config
+  namespace: {{ .Release.Namespace }}
+data:
+  otel-collector-writer-config.yaml: |
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+
+    receivers:
+      kafka:
+        brokers: [{{ range $i, $b := splitList "," (default "kafka:9092" .Values.broker.external.bootstrapServers) }}{{ if $i }}, {{ end }}{{ trim $b | quote }}{{ end }}]
+        topic: otel-traces
+        encoding: otlp_proto
+        group_id: clickhouse-writers
+        initial_offset: earliest
+
+    exporters:
+      clickhouse:
+        endpoint: tcp://clickhouse.{{ .Release.Namespace }}.svc.cluster.local:9000
+        database: memtrace
+        # Usuario propio, solo INSERT en las tablas de trazas (ADR-090): no lee contenido ni toca el resto del esquema
+        username: collector
+        password: ${env:COLLECTOR_CLICKHOUSE_PASSWORD}
+        # el exporter 0.96 ejecuta CREATE ... IF NOT EXISTS al arrancar: por eso el usuario tiene CREATE sobre las tablas de
+        # trazas y su vista (no puede borrar, alterar ni leer contenido), ver el Job de migraciones
+        traces_table_name: otel_traces
+        timeout: 30s
+        connection_params:
+          async_insert: "1"
+          wait_for_async_insert: "1"
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 86400s
+        sending_queue:
+          enabled: false
+
+    service:
+      extensions: [health_check]
+      pipelines:
+        traces:
+          receivers: [kafka]
+          exporters: [clickhouse]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector-writer
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1                 # sin estado: hasta 12 (las particiones del tópico), idealmente con KEDA sobre el lag
+  selector:
+    matchLabels:
+      app: otel-collector-writer
+  template:
+    metadata:
+      labels:
+        app: otel-collector-writer
+    spec:
+      containers:
+      - name: otel-collector-writer
+        image: {{ include "memtrace.image" .Values.images.otelCollector }}
+        args: ["--config=/etc/otelcol-contrib/otel-collector-writer-config.yaml"]
+        env:
+        - name: COLLECTOR_CLICKHOUSE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: clickhouse-credentials
+              key: collector-password
+        ports:
+        - containerPort: 13133
+          name: health
+        - containerPort: 8888
+          name: metrics
+        readinessProbe:
+          httpGet:
+            path: /
+            port: health
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /
+            port: health
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        resources:
+{{- toYaml .Values.resources.collector | nindent 10 }}
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/otelcol-contrib
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 10001        # usuario del contenedor contrib
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+      volumes:
+      - name: config-volume
+        configMap:
+          name: otel-collector-writer-config

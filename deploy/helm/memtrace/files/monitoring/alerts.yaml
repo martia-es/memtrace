@@ -1,11 +1,11 @@
 # Reglas de alerta del pipeline de ingesta (ADR-098). Prometheus las evalúa y las muestra en su pestaña Alerts y en Grafana.
 # No se envían a ningún sitio: el encaminamiento (Alertmanager, correo, Slack) lo pone quien opera la instalación.
-# Las alertas de lag y de disco del broker llegan con el broker (fase 3 del ADR-098).
+# El espacio en disco de Kafka no se mide aquí: lo acotan la retención por tiempo y por tamaño del tópico.
 groups:
   - name: memtrace-pipeline
     rules:
       - alert: TargetDown
-        expr: up{job=~"ingest|otel-collector|clickhouse"} == 0
+        expr: up{job=~"ingest|otel-collector|otel-collector-writer|kafka-exporter|clickhouse"} == 0
         for: 2m
         labels: { severity: critical }
         annotations:
@@ -59,8 +59,8 @@ groups:
         for: 2m
         labels: { severity: critical }
         annotations:
-          summary: "El Collector no puede escribir spans en ClickHouse"
-          description: "Los lotes se reintentan hasta 1 hora desde la cola en disco; pasado ese tiempo se descartan."
+          summary: "Un Collector no puede entregar spans (a Kafka o a ClickHouse)"
+          description: "El Collector de escritura reintenta cada lote hasta 24 h mientras el resto espera en Kafka; pasado ese tiempo lo abandona. El de entrada falla si no puede publicar en Kafka."
 
       - alert: CollectorRefusingData
         expr: sum(rate(otelcol_receiver_refused_spans[5m])) > 0
@@ -70,16 +70,40 @@ groups:
           summary: "El Collector rechaza spans (memoria)"
           description: "El limitador de memoria está activo: ingest recibe errores y el SDK reintenta."
 
-      - alert: CollectorQueueFilling
-        expr: max(otelcol_exporter_queue_size / otelcol_exporter_queue_capacity) > 0.8
+      - alert: KafkaNoWriters
+        expr: absent(kafka_consumergroup_members{consumergroup="clickhouse-writers"} > 0)
         for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "Ningún Collector de escritura está leyendo de Kafka"
+          description: "Las trazas se acumulan en el broker (se conservan 48 h o 512 MiB por partición) y no llegan a ClickHouse."
+
+      - alert: KafkaConsumerLagHigh
+        expr: sum(kafka_consumergroup_lag{consumergroup="clickhouse-writers", topic="otel-traces"}) > 1000
+        for: 10m
         labels: { severity: warning }
         annotations:
-          summary: "La cola del Collector supera el 80 %"
-          description: "ClickHouse escribe más despacio de lo que llegan los datos, o está caído."
+          summary: "El escritor de ClickHouse va con retraso (más de 1.000 mensajes sin escribir)"
+          description: "Cada mensaje es un lote de ~512 spans. ClickHouse escribe más despacio de lo que llegan los datos, está caído, o faltan Collectors de escritura. Si sigue creciendo, el broker acabará descartando lo más antiguo."
+
+      - alert: KafkaConsumerLagCritical
+        expr: sum(kafka_consumergroup_lag{consumergroup="clickhouse-writers", topic="otel-traces"}) > 20000
+        for: 10m
+        labels: { severity: critical }
+        annotations:
+          summary: "El retraso de escritura supera los 20.000 mensajes"
+          description: "Riesgo real de perder datos: la retención del broker (48 h o 512 MiB por partición) puede alcanzarse antes de que se escriban."
+
+      - alert: KafkaBrokerDown
+        expr: kafka_brokers < 1
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "El exportador no ve ningún nodo de Kafka"
+          description: "ingest devuelve 503 y el SDK reintenta; pasados 2.048 spans pendientes descarta."
 
       - alert: CollectorMemoryHigh
-        expr: max(otelcol_process_memory_rss) > 0.85 * 1024 * 1024 * 1024
+        expr: max by (job) (otelcol_process_memory_rss) > 0.85 * 1024 * 1024 * 1024
         for: 5m
         labels: { severity: warning }
         annotations:

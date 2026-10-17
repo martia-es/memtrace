@@ -22,7 +22,7 @@ const policies = docs.filter((d) => d.kind === "NetworkPolicy");
 const policy = (name: string) => policies.find((p) => p.metadata.name === name)!;
 const app = (name: string) => workloads.find((w) => w.metadata.name === name)!;
 const containers = (name: string): Doc[] => app(name).spec.template.spec.containers;
-const apps = (rule: Doc) => (rule.to ?? rule.from).map((t: Doc) => t.podSelector.matchLabels.app);
+const apps = (rule: Doc) => (rule.to ?? rule.from).flatMap((t: Doc) => t.podSelector.matchLabels?.app ?? t.podSelector.matchExpressions[0].values);
 
 describe("workloads", () => {
   it.each(["prometheus", "grafana"])("%s runs as non-root, drops privileges and has no Kubernetes API token", (name) => {
@@ -66,8 +66,8 @@ describe("network", () => {
     const p = policy("prometheus");
     expect(p.spec.ingress).toHaveLength(1);
     expect(apps(p.spec.ingress[0])).toEqual(["grafana"]);
-    const egress = p.spec.egress.map((r: Doc) => [apps(r)[0], r.ports[0].port]);
-    expect(egress.sort()).toEqual([["clickhouse", 9363], ["ingest", 3002], ["otel-collector", 8888]]);
+    const egress = p.spec.egress.flatMap((r: Doc) => apps(r).map((a: string) => [a, r.ports[0].port]));
+    expect(egress.sort()).toEqual([["clickhouse", 9363], ["ingest", 3002], ["kafka-exporter", 9308], ["otel-collector", 8888], ["otel-collector-writer", 8888]]);
     expect(JSON.stringify(p.spec.egress)).not.toContain("ipBlock"); // sin salida a Internet
   });
 
@@ -83,6 +83,7 @@ describe("network", () => {
     ["scrape-ingest", "ingest", 3002],
     ["scrape-otel-collector", "otel-collector", 8888],
     ["scrape-clickhouse", "clickhouse", 9363],
+    ["scrape-otel-collector-writer", "otel-collector-writer", 8888],
   ])("%s lets only Prometheus in, on the metrics port only", (name, target, port) => {
     const p = policy(name);
     expect(p.spec.podSelector.matchLabels.app).toBe(target);
@@ -99,11 +100,11 @@ describe("scrape configuration", () => {
   it("discovers targets by DNS, never through the Kubernetes API", () => {
     expect(JSON.stringify(config)).not.toContain("kubernetes_sd_configs");
     const dns = config.scrape_configs.flatMap((j: Doc) => (j.dns_sd_configs ?? []).flatMap((d: Doc) => d.names));
-    expect(dns.sort()).toEqual(["clickhouse-metrics", "ingest-metrics", "otel-collector-metrics"]);
+    expect(dns.sort()).toEqual(["clickhouse-metrics", "ingest-metrics", "kafka-exporter-metrics", "otel-collector-metrics", "otel-collector-writer-metrics"]);
   });
 
   it("each target is a headless Service, so every replica is measured and not one at random", () => {
-    for (const name of ["ingest-metrics", "otel-collector-metrics", "clickhouse-metrics"]) {
+    for (const name of ["ingest-metrics", "otel-collector-metrics", "otel-collector-writer-metrics", "kafka-exporter-metrics", "clickhouse-metrics"]) {
       const svc = docs.find((d) => d.kind === "Service" && d.metadata.name === name)!;
       expect(svc.spec.clusterIP).toBe("None");
     }
@@ -128,7 +129,7 @@ describe("alert rules", () => {
 
   it("covers the failures the ADR cares about", () => {
     const names = rules.map((r) => r.alert);
-    expect(names).toEqual(expect.arrayContaining(["TargetDown", "IngestNoInstances", "IngestHighErrorRate", "IngestIdentityStoreDown", "CollectorExportFailing", "CollectorQueueFilling"]));
+    expect(names).toEqual(expect.arrayContaining(["TargetDown", "IngestNoInstances", "IngestHighErrorRate", "IngestIdentityStoreDown", "CollectorExportFailing", "KafkaNoWriters", "KafkaConsumerLagHigh", "KafkaConsumerLagCritical", "KafkaBrokerDown"]));
   });
 });
 
@@ -139,6 +140,19 @@ describe("metrics referenced by alerts and the dashboard exist", () => {
 
   it.each(referenced(readFileSync(join(CONFIG, "alerts.yaml"), "utf8") + dashboardText))("the ingest service defines %s", (metric) => {
     expect(server).toContain(`"${metric}"`);
+  });
+
+  it("Kafka metrics are the ones kafka_exporter publishes", () => {
+    const text = readFileSync(join(CONFIG, "alerts.yaml"), "utf8") + dashboardText;
+    const names = [...new Set([...text.matchAll(/\bkafka_[a-z_]+/g)].map((m) => m[0]))];
+    const known = ["kafka_brokers", "kafka_consumergroup_lag", "kafka_consumergroup_members", "kafka_topic_partition_current_offset", "kafka_exporter"];
+    expect(names.length).toBeGreaterThan(2);
+    expect(names.filter((n) => !known.includes(n))).toEqual([]);
+  });
+
+  it("alerts and the dashboard no longer mention the Collector queue, which the new pipeline does not have", () => {
+    const text = readFileSync(join(CONFIG, "alerts.yaml"), "utf8") + dashboardText;
+    expect(text).not.toMatch(/exporter_queue/);
   });
 
   it("only uses Collector metric names that the pinned Collector exposes (no _total suffix in 0.96)", () => {

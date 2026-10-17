@@ -29,14 +29,14 @@ def load(text):
     for d in yaml.safe_load_all(HASHED.sub(lambda m: m.group(1), text)):
         if d:
             if d["kind"] == "Job":
-                d["metadata"]["name"] = re.sub(r"^((?:clickhouse|postgres)-migrate)-\d+$", r"\1", d["metadata"]["name"])
+                d["metadata"]["name"] = re.sub(r"^((?:clickhouse|postgres)-migrate|kafka-topics)-\d+$", r"\1", d["metadata"]["name"])
             docs[(d["kind"], d["metadata"]["name"])] = d
     return docs
 
 
 def normalise(d):
     d = yaml.safe_load(yaml.safe_dump(d))
-    if d["kind"] == "Job" and d["metadata"]["name"].startswith(("clickhouse-migrate", "postgres-migrate")):
+    if d["kind"] == "Job" and d["metadata"]["name"].startswith(("clickhouse-migrate", "postgres-migrate", "kafka-topics")):
         d["spec"].pop("ttlSecondsAfterFinished", None)   # el chart lanza un Job nuevo por revisión y lo caduca solo
     d["metadata"].pop("namespace", None)
     ann = d["metadata"].get("annotations")

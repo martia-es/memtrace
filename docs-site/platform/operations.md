@@ -156,6 +156,43 @@ Stop the Collector (`kubectl -n memtrace scale deployment/otel-collector --repli
 - **Disk space.** Backups live in a 5 Gi volume by default. Resize the `backups` PersistentVolumeClaim if your traces are large.
 - **A failed backup is visible.** `kubectl -n memtrace get jobs` shows the last runs; a failed one keeps its logs (`kubectl -n memtrace logs job/<name>`).
 
+## The ingestion pipeline (Kafka)
+
+Traces do not go straight from the Collector to ClickHouse. They pass through **Apache Kafka**, so that nothing is lost when ClickHouse is slow or down, and so that no pod that handles traffic keeps data of its own:
+
+```
+agent → ingest → Collector (entry) → Kafka → Collector (writer) → ClickHouse
+```
+
+- **`ingest` and the entry Collector** hold nothing: you can restart or scale them. The entry Collector masks personal data (a fixed-format subset, see [Data protection](/platform/data-protection)) and publishes to Kafka. It answers "received" only after Kafka has confirmed the write on every in-sync replica; if Kafka cannot, `ingest` answers `503` and the agent retries.
+- **Kafka** keeps the traces for **48 hours** or **512 MiB per partition**, whichever comes first. It is a buffer, not an archive: your retention of traces is the one of ClickHouse ([Data protection](/platform/data-protection)).
+- **The writer Collector** reads in a group and writes to ClickHouse. If ClickHouse is down, the writer waits and the traces pile up in Kafka (visible as *lag* in Grafana); when ClickHouse is back, they are written. You can run several writers, up to the number of partitions (12 by default).
+
+Settings (`values.yaml`, section `broker`):
+
+| Setting | Default | In production |
+|---|---|---|
+| `broker.replicas` | 1 | 3 |
+| `broker.replicationFactor` | 1 | 3 |
+| `broker.minInsyncReplicas` | 1 | 2 |
+| `broker.partitions` | 12 | the most writers you want in parallel (it can be raised, not lowered) |
+| `broker.retentionHours` / `broker.retentionBytesPerPartition` | 48 / 512 MiB | to taste, keeping disks in mind (`storage.kafka.size`, per node) |
+
+With three nodes, one can fail or be updated without losing data or stopping ingestion.
+
+**Use a managed Kafka** (Amazon MSK, Confluent Cloud, Azure Event Hubs with its Kafka endpoint) or another Kafka-compatible broker such as Redpanda: set `broker.external.bootstrapServers` to its addresses, separated by commas. The chart then does not deploy Kafka. Adjust `networkPolicy` (its rules point at the chart's own pods) and, if your broker requires it, authentication in the Collectors.
+
+Scale the stateless parts with `kubectl scale`:
+
+```bash
+kubectl -n memtrace scale deployment/ingest deployment/otel-collector --replicas=3
+kubectl -n memtrace scale deployment/otel-collector-writer --replicas=4
+```
+
+**At-least-once delivery.** To never lose a trace, a retry can write the same one twice (a killed pod, an agent that retries after a timeout). Counts can be slightly above the real number until duplicates are handled in storage, which is planned.
+
+**Upgrading from a version without Kafka.** The old single Collector kept a queue on a volume (`otel-collector-queue`). Wait until it is empty (the metric `otelcol_exporter_queue_size` was 0), upgrade, and then delete the volume: `kubectl -n memtrace delete pvc otel-collector-queue`.
+
 ## Monitoring (Prometheus and Grafana)
 
 An optional add-on that lets you **see** the ingestion pipeline instead of reading logs: how many traces arrive, how many are refused and why, how long they take, whether the Collector can write to ClickHouse, and whether the identity database answers. It is off by default.
@@ -173,8 +210,8 @@ What you get:
 
 | Piece | What it shows |
 |---|---|
-| Dashboard | Requests per second by status code, latency (p50, p95, p99), refusals by reason, deliveries to the Collector, API key cache, spans accepted and written by the Collector, its queue and memory, free disk in ClickHouse |
-| Alert rules | A pod that does not answer, no `ingest` replica alive, more than 5 % of requests failing, `ingest` unable to reach Postgres or the Collector, the Collector unable to write to ClickHouse, its queue above 80 %, ClickHouse below 20 % free disk |
+| Dashboard | Requests per second by status code, latency (p50, p95, p99), refusals by reason, deliveries to the Collector, API key cache, spans per stage (received, published to Kafka, written to ClickHouse), the lag of the writers in Kafka, memory, free disk in ClickHouse |
+| Alert rules | A pod that does not answer, no `ingest` replica alive, more than 5 % of requests failing, `ingest` unable to reach Postgres or the Collector, a Collector unable to deliver, no writer reading from Kafka, writers lagging by more than 1,000 messages (or 20,000), no Kafka node visible, ClickHouse below 20 % free disk |
 
 Good to know:
 
