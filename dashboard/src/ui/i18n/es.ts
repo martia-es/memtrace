@@ -3172,6 +3172,8 @@ const es: Record<keyof typeof en, string> = {
   "span-io.max_tokens": "Tokens máximos",
   "span-io.tool": "Herramienta",
   "span-io.tool_call_id": "ID de la llamada a la herramienta",
+  "promptPlayground.no_agent_has_reported_reading_this": "Ningún agente ha reportado leer este prompt en {env}. El playground solo funciona si el agente lo lee con",
+  "promptPlayground.and_that_the": "y que el",
 };
 
 export default es;

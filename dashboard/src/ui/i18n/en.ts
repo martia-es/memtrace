@@ -3171,4 +3171,6 @@ export default {
   "span-io.max_tokens": "Max tokens",
   "span-io.tool": "Tool",
   "span-io.tool_call_id": "Tool call ID",
+  "promptPlayground.no_agent_has_reported_reading_this": "No agent has reported reading this prompt in {env}. The playground only works if the agent reads it with",
+  "promptPlayground.and_that_the": "and that the",
 } as const;

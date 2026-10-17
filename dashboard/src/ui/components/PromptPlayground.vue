@@ -140,7 +140,7 @@ async function run() {
       </div>
 
       <p v-if="!reads" class="warn small" data-testid="playground-not-reading">
-        No agent has reported reading this prompt in {{ environmentKey }}. The playground only works if the agent reads it with <code>memtrace.prompts</code>
+        {{ t("promptPlayground.no_agent_has_reported_reading_this", { env: environmentKey }) }} <code>memtrace.prompts</code>
         {{ t("promptPlayground.and_runs_with") + " " }}<code>MEMTRACE_ALLOW_PROMPT_OVERRIDE=true</code>{{ " " + t("promptPlayground.and_the") + " " }}<code>PromptOverrideMiddleware</code>{{ t("promptPlayground.you_can_still_try_memtrace_tells") }}
       </p>
 
@@ -190,7 +190,7 @@ async function run() {
           <template v-else-if="o.result">
             <p v-if="!o.result.applied" class="warn small pad" :data-testid="`not-applied-${o.version}`">
               {{ t("promptPlayground.the_agent_answered_without_asking_for") + " " }}<b>{{ t("promptPlayground.this_answer_is_not_from_v", { version: o.version }) }}</b>{{ t("promptPlayground.check_that_it_reads_the_prompt") }}
-              <code>memtrace.prompts</code>{{ t("promptPlayground.that") + " " }}<code>MEMTRACE_ALLOW_PROMPT_OVERRIDE=true</code> and that the <code>PromptOverrideMiddleware</code>{{ " " + t("promptPlayground.is_installed") }}
+              <code>memtrace.prompts</code>{{ t("promptPlayground.that") + " " }}<code>MEMTRACE_ALLOW_PROMPT_OVERRIDE=true</code> {{ t("promptPlayground.and_that_the") }} <code>PromptOverrideMiddleware</code>{{ " " + t("promptPlayground.is_installed") }}
             </p>
             <pre>{{ o.result.reply }}</pre>
           </template>
