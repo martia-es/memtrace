@@ -4,15 +4,18 @@ The dashboard organizes what your agents did as a hierarchy: **conversations →
 
 ## Navigation
 
-The sidebar has five entries, plus **Settings** at the bottom:
+The sidebar groups its entries by what you want to do, under three small headings, plus **Workspace** and **Settings** at the bottom:
 
-| Entry | What it is for |
-|---|---|
-| **Overview** | How the assistant is doing right now, and what needs attention |
-| **Conversations** | Browse and read what your assistants did |
-| **Review** | Your inbox of conversations waiting for a human review |
-| **Evaluations** | Datasets and their runs |
-| **Costs** | Price and quality score per model, see [Model pricing and quality](/platform/model-pricing) |
+| Heading | Entry | What it is for |
+|---|---|---|
+| **Observe** | **Overview** | How the assistant is doing right now, and what needs attention |
+| | **Conversations** | Browse and read what your assistants did |
+| | **Analytics** | Dig deeper: **Breakdown**, **Compare**, **Charts** and **Reports** |
+| **Watch** | **Alerts & budget** | Rules that warn you, the monthly cost budget and what has fired |
+| **Improve** | **Review** | Your inbox of conversations waiting for a human review |
+| | **Prompts** | Versions of your prompts and where each one runs |
+| | **Evaluations** | **Datasets**, their **Runs** and the **Quality trends** |
+| **Workspace** | **Assistants**, **Model pricing** | Catalog of assistants and price and quality score per model, see [Model pricing and quality](/platform/model-pricing) |
 
 The **experiment** selector at the top of the sidebar switches between the agents you have access to. The badge next to **Review** is the number of items waiting for review.
 
@@ -49,7 +52,7 @@ Each span is a step: an LLM call, a tool, a retriever or an agent. Spans are col
 
 ## Overview
 
-The sidebar groups its pages in submenus. **Overview** opens **Summary**, **Compare**, **Breakdown**, **Custom charts** and **Reports**; each one is its own page with its own link, so you can bookmark or share it. The time range applies to all of them: from 15 minutes to **1 year** (presets 15 min, 1 h, 6 h, 24 h, 7 d, 30 d, 90 d and 1 y, or a custom range of up to 365 days). The range you pick is kept while you move between pages, switch experiment or go to another section, until you change it or close the browser tab. Traces older than the [retention period](data-protection#how-long-traces-are-kept) of the agent no longer exist, so a longer range shows only what is kept. In **Errors**, the comparison with the previous period is hidden when that period is older than the retention.
+The sidebar groups its pages in submenus. **Overview** is the summary page; **Analytics** opens **Breakdown**, **Compare**, **Charts** and **Reports**; each one is its own page with its own link, so you can bookmark or share it. The time range applies to all of them: from 15 minutes to **1 year** (presets 15 min, 1 h, 6 h, 24 h, 7 d, 30 d, 90 d and 1 y, or a custom range of up to 365 days). The range you pick is kept while you move between pages, switch experiment or go to another section, until you change it or close the browser tab. Traces older than the [retention period](data-protection#how-long-traces-are-kept) of the agent no longer exist, so a longer range shows only what is kept. In **Errors**, the comparison with the previous period is hidden when that period is older than the retention.
 
 ### Summary
 
@@ -94,9 +97,9 @@ Each row shows its traces, error rate, p95 latency, cost per trace, total cost, 
 
 Breakdown always compares **two at a time**: a baseline (**A**) against a candidate (**B**). Two slots above the table show what is still missing. Click a row to set it as A, then click another to set it as B; the dotted circle in each row shows the letter it would get. A is always turquoise and B always terracotta, the colors of the tool (also in dark mode): the slot, the circle, the highlighted row and the figures of the comparison, where the value on the left is A's and the one on the right is B's. Click a picked row again to clear it, or click a third row to replace B. As soon as both are set you get the change in errors, latency, cost and 👍 rate from A to B, each with a note on how far to trust it. With a single version there is nothing to compare, so the page says how to get a second one.
 
-A banner appears only when the worst and best rows are far enough apart to be reliable; **Compare with…** on it fills A and B for you. **Open in Custom charts** goes to the chart builder, and **Export CSV** downloads the table with the raw figures.
+A banner appears only when the worst and best rows are far enough apart to be reliable; **Compare with…** on it fills A and B for you. **Open in Charts** goes to the chart builder, and **Export CSV** downloads the table with the raw figures.
 
-### Custom charts
+### Charts
 
 A builder for charts over what your assistant does — model calls, tool calls and your own [custom steps](/library/tracing#custom-step-trees-fine-grained-non-llm-steps). It never requires writing a query, and it uses plain names (for example "Model calls" or "Tool calls") instead of technical ones.
 
@@ -112,8 +115,8 @@ Or build one from the panel on the left, with the result on the right:
 
 - **Right on the step.** Each step in **I want to see…** has a small pencil. Click it, type the name and press Enter (Esc cancels, empty goes back to the automatic name). A step with your own name has a dashed outline.
 - **Customize names**, the button next to **I want to see…**: a window with every step and detail, so you can rename several without leaving the builder.
-- **Overview › Alerts**: the agent's alerts, monthly cost budget and what has fired; the bell at the top right counts what is firing now. See [Alerts and cost budgets](/platform/alerts).
-- **Overview › Data catalog**, in the side menu: the same list as a full page with a search box. Edits there are held until you press **Save changes** (or **Discard** to drop them); rows with pending changes are marked on the left. Without the `catalog:manage` permission you can look at it but not change it.
+- **Alerts & budget**: the agent's alerts, monthly cost budget and what has fired; the bell at the top right counts what is firing now. See [Alerts and cost budgets](/platform/alerts).
+- **Analytics › Charts › Data catalog** (the link above the builder): the same list as a full page with a search box. Edits there are held until you press **Save changes** (or **Discard** to drop them); rows with pending changes are marked on the left. Without the `catalog:manage` permission you can look at it but not change it.
 
 In the list, type the name you want for each step and each detail (the hidden ones stay out until you tick **Show hidden details**). The field shows the automatic name until you write your own; empty it, or press **Reset**, to go back. A new name applies everywhere at once: the builder, its questions, the sentence under the chart, the **Saved charts** and the [reports](#reports), including charts you saved before renaming, because they remember the technical key and not the name. Two steps (or two details) cannot share a name. The names belong to the experiment, so everyone who opens it sees them. You need the `catalog:manage` permission, which the `technical` and `business` roles have.
 
@@ -146,15 +149,15 @@ While you build, the chart also shows the overall figure compared with the previ
 
 ### Reports
 
-A report groups several of your saved custom charts into one named view, laid out on a free grid — you choose where each chart sits and how big it is. Open **Overview → Reports** and click **+ New report** to create one. The page lists every report, and each one opens on its own page that any teammate with access to this experiment also sees (same visibility as a saved chart).
+A report groups several of your saved custom charts into one named view, laid out on a free grid — you choose where each chart sits and how big it is. Open **Analytics → Reports** and click **+ New report** to create one. The page lists every report, and each one opens on its own page that any teammate with access to this experiment also sees (same visibility as a saved chart).
 
-Click **Edit layout** on a report's page to drag and resize its charts, or add more from your already-saved charts — nothing is duplicated, a report only arranges charts you saved in Custom charts, so editing a chart there updates it everywhere it's used. **Save layout** commits the arrangement; **Cancel** discards it.
+Click **Edit layout** on a report's page to drag and resize its charts, or add more from your already-saved charts — nothing is duplicated, a report only arranges charts you saved in Charts, so editing a chart there updates it everywhere it's used. **Save layout** commits the arrangement; **Cancel** discards it.
 
 **Send by email** sends everyone you list a text summary of the report — one table of values per chart, recomputed at send time — directly to their inbox. There's no PDF or image attachment yet; it's a quick way to share current numbers without opening the dashboard.
 
 ## Evaluations
 
-**Evaluations** opens **Runs**, every run uploaded by the SDK; **Datasets**, the versioned sets of examples your agent is evaluated against; and **Trends**, how scores evolve across runs. To compare two runs, tick them in the Runs list (only completed runs can be compared) and choose **Compare runs**: it opens the comparison under **Evaluations → Trends**, with the first run you ticked as the baseline. See [Datasets & offline evals](/platform/evaluation).
+**Evaluations** opens **Runs**, every run uploaded by the SDK; **Datasets**, the versioned sets of examples your agent is evaluated against; and **Quality trends**, how scores evolve across runs. To compare two runs, tick them in the Runs list (only completed runs can be compared) and choose **Compare runs**: it opens the comparison under **Evaluations → Quality trends**, with the first run you ticked as the baseline. See [Datasets & offline evals](/platform/evaluation).
 
 ## Review
 

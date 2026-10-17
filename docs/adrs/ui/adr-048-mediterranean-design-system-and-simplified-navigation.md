@@ -54,3 +54,14 @@ Chart series are `turquoise, terracotta, deep sea, sun, sand, slate` (`chart-the
 - **Positive**: no API change and no new endpoint; the redesign can be reverted or evolved screen by screen.
 - **Follow-up** ([ADR-049](../README.md#retired-adrs)): conversations now carry a readable title and a cost, *Needs attention* also flags traces that reviewers rated low, and the whole UI is in English with `en-US` formats. The original design shipped without these because the API did not provide them.
 - **Negative**: *Needs attention* covers what MemTrace can measure today (errors, failing tools, human labels, review backlog). It has no signal from end-user ratings.
+
+## Amendment (2026-10-17): navigation grouped by intent
+
+Section 3 (five entries) stopped scaling: **Overview** held seven children mixing reading (Summary), analysis (Compare, Breakdown, Custom charts, Data catalog, Reports) and configuration (Alerts), and **Costs** was really the global model-price catalog. The sidebar now groups entries by the question the person is asking, under three small headings, with global items below:
+
+- **Observe**: Overview (the landing page only), Conversations, **Analytics** (Breakdown, Compare, Charts, Reports).
+- **Watch**: **Alerts & budget** (rules, monthly budget, history; one page).
+- **Improve**: Review, Prompts, Evaluations (Datasets, Runs, **Quality trends**).
+- **Workspace**: Assistants, **Model pricing** (was Costs).
+
+Renames: Custom charts → Charts (the Data catalog is reached from a link above the builder and keeps its route), Trends → Quality trends, Costs → Model pricing. No URL or endpoint changed; only `NAV`, breadcrumbs and `meta.title` did. Alternatives rejected: four verb blocks (Observe / Analyze / Monitor / Improve), which left Overview with one child, and a separate Budget page, which can be split from Alerts later without touching the navigation.

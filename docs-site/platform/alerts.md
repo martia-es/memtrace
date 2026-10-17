@@ -1,6 +1,6 @@
 # Alerts and cost budgets
 
-MemTrace tells you when something goes wrong instead of waiting for you to open the dashboard. Open **Overview › Alerts** in an agent to see its alerts, its monthly cost budget and what has fired.
+MemTrace tells you when something goes wrong instead of waiting for you to open the dashboard. Open **Alerts & budget** in an agent to see its alerts, its monthly cost budget and what has fired.
 
 Everyone who can read the agent can see its alerts. Creating, changing and deleting them needs the `alert:manage` permission, which the `technical` profile has.
 
@@ -20,7 +20,7 @@ Everyone who can read the agent can see its alerts. Creating, changing and delet
 | **Latency (p95)** | The time that 95 % of the answers stay under | milliseconds |
 | **Cost** | Estimated spend inside the window | USD |
 | **User satisfaction** | 👍 among the 👍 and 👎 votes of the end users | % |
-| **Custom chart** | The number of a chart you saved in [Custom charts](/platform/dashboard) | whatever the chart measures |
+| **Custom chart** | The number of a chart you saved in [Charts](/platform/dashboard) | whatever the chart measures |
 
 Each alert says *when the value goes above or falls below a threshold over the last 5 minutes to 24 hours*. A custom chart alert needs a chart about **one step** and **not split by a detail**, because an alert is a single number.
 

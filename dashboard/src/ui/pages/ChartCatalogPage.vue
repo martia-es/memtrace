@@ -55,10 +55,10 @@ void load();
 
 <template>
   <div class="page">
-    <PageHeader :crumbs="[{ label: 'Overview' }, { label: 'Data catalog' }]" icon="M4 6h16M4 12h16M4 18h10" title="Data catalog" />
+    <PageHeader :crumbs="[{ label: 'Analytics' }, { label: 'Charts', to: { name: 'overview-charts', params: { experimentId } } }, { label: 'Data catalog' }]" icon="M4 6h16M4 12h16M4 18h10" title="Data catalog" />
     <Card padding="none" block class="body" data-testid="catalog-page">
       <p class="intro">
-        Everything your agent reports that Custom charts can use. Name each step and attribute the way your team talks about it, and hide the details nobody needs to pick.
+        Everything your agent reports that Charts can use. Name each step and attribute the way your team talks about it, and hide the details nobody needs to pick.
         Names apply to every chart, including saved ones.
         <template v-if="!can('catalog:manage')"> You can look but not change it: editing needs the catalog permission.</template>
       </p>

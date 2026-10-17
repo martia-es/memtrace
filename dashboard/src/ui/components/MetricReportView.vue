@@ -229,9 +229,9 @@ async function sendEmail() {
     <ErrorBanner v-if="loadError" :error="loadError" @retry="loadReport" />
     <LoadingState v-else-if="loading && !report" size="lg" />
     <EmptyState v-else-if="report && !layout.length" icon="dashboard" :title="editMode ? 'Add a chart to get started' : 'No charts in this report yet'">
-      <template v-if="editMode">Use the chips above to add a chart you've already saved in Custom charts.</template>
+      <template v-if="editMode">Use the chips above to add a chart you've already saved in Charts.</template>
       <template v-else>
-        <p class="hint">Add charts you've already saved in Custom charts.</p>
+        <p class="hint">Add charts you've already saved in Charts.</p>
         <Button variant="primary" size="sm" @click="enterEdit">Edit layout</Button>
       </template>
     </EmptyState>

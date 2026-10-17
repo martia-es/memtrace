@@ -44,7 +44,7 @@ export const router = createRouter({
         { path: "overview", name: "overview", component: metricsPage, beforeEnter: legacyOverviewTab, meta: { title: "Overview", section: "overview", view: "summary" } },
         { path: "overview/compare", name: "overview-compare", component: metricsPage, meta: { title: "Compare", section: "compare", view: "compare" } },
         { path: "overview/breakdown", name: "overview-breakdown", component: () => import("./pages/BreakdownPage.vue"), meta: { title: "Breakdown", section: "breakdown" } },
-        { path: "overview/charts", name: "overview-charts", component: metricsPage, meta: { title: "Custom charts", section: "charts", view: "charts" } },
+        { path: "overview/charts", name: "overview-charts", component: metricsPage, meta: { title: "Charts", section: "charts", view: "charts" } },
         { path: "overview/catalog", name: "overview-catalog", component: () => import("./pages/ChartCatalogPage.vue"), meta: { title: "Data catalog", section: "catalog" } },
         { path: "alerts", name: "alerts", component: () => import("./pages/AlertsPage.vue"), meta: { title: "Alerts", section: "alerts", timeRange: false } },
         { path: "overview/reports", name: "overview-reports", component: metricsPage, meta: { title: "Reports", section: "reports", view: "reports" } },
@@ -64,7 +64,7 @@ export const router = createRouter({
         { path: "datasets/:datasetId", name: "dataset", component: () => import("./pages/DatasetDetailPage.vue"), props: true, meta: { title: "Dataset", section: "datasets", framed: true } },
         { path: "runs", name: "runs", component: () => import("./pages/RunsPage.vue"), meta: { title: "Runs", section: "runs" } },
         // antes la pestaña "Offline evals" de Overview (ADR-059)
-        { path: "evaluations/trends", name: "trends", component: () => import("./pages/TrendsPage.vue"), meta: { title: "Trends", section: "trends" } },
+        { path: "evaluations/trends", name: "trends", component: () => import("./pages/TrendsPage.vue"), meta: { title: "Quality trends", section: "trends" } },
         { path: "datasets/:datasetId/runs/:runId", name: "dataset-run", component: () => import("./pages/DatasetRunDetailPage.vue"), props: true, meta: { title: "Run", section: "runs", framed: true } },
       ],
     },

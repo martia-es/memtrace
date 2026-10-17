@@ -36,30 +36,30 @@ const canSeeAssistants = computed(() => (organizations.data.value ?? []).some((o
 
 const OTLP_ENDPOINT = import.meta.env.VITE_OTLP_ENDPOINT ?? "http://localhost:4318";
 
-// Navegación de 5 secciones (ADR-048) con submenús en vez de pestañas dentro de cada página (ADR-059).
-// Cada hijo es una ruta con su propia URL; "sections" son los meta.section que lo dejan activo. Un grupo con un
-// solo hijo se pinta como un item plano.
+// Navegación por intención (ADR-048, ampliado): tres bloques con título (Observe / Watch / Improve) y submenús en vez de
+// pestañas dentro de cada página (ADR-059). Cada hijo es una ruta con su propia URL; "sections" son los meta.section que lo
+// dejan activo. Un grupo con un solo hijo se pinta como un item plano. "heading" abre un bloque nuevo en ese grupo.
 interface NavChild { name: string; label: string; sections: readonly string[] }
-interface NavGroup { id: string; label: string; icon: string; children: readonly NavChild[] }
+interface NavGroup { id: string; label: string; icon: string; heading?: string; children: readonly NavChild[] }
 const NAV: readonly NavGroup[] = [
+  { id: "overview", label: "Overview", heading: "Observe", icon: "M3 11l9-8 9 8v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z", children: [{ name: "overview", label: "Overview", sections: ["overview"] }] },
+  { id: "conversations", label: "Conversations", icon: "M4 5h16v11H9l-5 4z", children: [{ name: "conversations", label: "Conversations", sections: ["conversations"] }] },
   {
-    id: "overview",
-    label: "Overview",
-    icon: "M3 11l9-8 9 8v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z",
+    id: "analytics",
+    label: "Analytics",
+    icon: "M4 20V10M10 20V4M16 20v-8M22 20H2",
     children: [
-      { name: "overview", label: "Summary", sections: ["overview"] },
-      { name: "overview-compare", label: "Compare", sections: ["compare"] },
       { name: "overview-breakdown", label: "Breakdown", sections: ["breakdown"] },
-      { name: "overview-charts", label: "Custom charts", sections: ["charts"] },
-      { name: "overview-catalog", label: "Data catalog", sections: ["catalog"] },
+      { name: "overview-compare", label: "Compare", sections: ["compare"] },
+      { name: "overview-charts", label: "Charts", sections: ["charts", "catalog"] },
       { name: "overview-reports", label: "Reports", sections: ["reports"] },
-      { name: "alerts", label: "Alerts", sections: ["alerts"] },
     ],
   },
-  { id: "conversations", label: "Conversations", icon: "M4 5h16v11H9l-5 4z", children: [{ name: "conversations", label: "Conversations", sections: ["conversations"] }] },
+  { id: "monitoring", label: "Alerts & budget", heading: "Watch", icon: "M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0", children: [{ name: "alerts", label: "Alerts & budget", sections: ["alerts"] }] },
   {
     id: "review",
     label: "Review",
+    heading: "Improve",
     icon: "M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11",
     children: [{ name: "annotation-queues", label: "Review", sections: ["review"] }],
   },
@@ -69,9 +69,9 @@ const NAV: readonly NavGroup[] = [
     label: "Evaluations",
     icon: "M3 3v18h18M7 14l4-4 3 3 5-6",
     children: [
-      { name: "runs", label: "Runs", sections: ["runs"] },
       { name: "datasets", label: "Datasets", sections: ["datasets"] },
-      { name: "trends", label: "Trends", sections: ["trends"] },
+      { name: "runs", label: "Runs", sections: ["runs"] },
+      { name: "trends", label: "Quality trends", sections: ["trends"] },
     ],
   },
 ];
@@ -202,6 +202,9 @@ function switchExperiment(experimentId: string | null) {
       <nav v-else aria-label="Main" class="nav">
         <template v-if="navExperimentId && navCanRead">
           <template v-for="g in NAV" :key="g.id">
+            <div v-if="g.heading" class="nav-heading" :class="{ collapsed: isCollapsed }" data-testid="nav-heading">
+              <span v-if="!isCollapsed">{{ g.heading }}</span>
+            </div>
             <router-link
               :to="navTo(g.children[0]!)"
               class="nav-item"
@@ -231,6 +234,7 @@ function switchExperiment(experimentId: string | null) {
             </div>
           </template>
         </template>
+        <div class="nav-heading" :class="{ collapsed: isCollapsed }" data-testid="nav-heading"><span v-if="!isCollapsed">Workspace</span></div>
         <router-link
           v-if="canSeeAssistants"
           :to="{ name: 'assistants' }"
@@ -247,10 +251,10 @@ function switchExperiment(experimentId: string | null) {
           class="nav-item"
           :class="{ active: route.name === 'model-pricing' }"
           :aria-current="route.name === 'model-pricing' ? 'page' : undefined"
-          :title="isCollapsed ? 'Costs' : undefined"
+          :title="isCollapsed ? 'Model pricing' : undefined"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="PRICING_ICON" /></svg>
-          <span v-if="!isCollapsed" class="nav-label">Costs</span>
+          <span v-if="!isCollapsed" class="nav-label">Model pricing</span>
         </router-link>
       </nav>
       <div class="sidebar-foot">
@@ -395,6 +399,23 @@ function switchExperiment(experimentId: string | null) {
 /* grupo con submenú abierto: el color lo lleva el hijo activo, no el padre */
 .nav-item.open {
   color: var(--mt-ink);
+}
+/* título de bloque (Observe / Watch / Improve / Workspace); plegado queda solo la línea separadora */
+.nav-heading {
+  margin: 12px 10px 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mt-muted);
+}
+.nav-heading.collapsed {
+  height: 1px;
+  margin: 8px 8px;
+  background: var(--mt-line);
+}
+.nav > .nav-heading:first-child {
+  margin-top: 0;
 }
 .nav-chevron {
   flex-shrink: 0;

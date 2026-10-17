@@ -137,9 +137,9 @@ const chartsRoute = computed(() => ({ name: "overview-charts", params: route.par
 
 <template>
   <div class="page" data-testid="breakdown-page">
-    <PageHeader :crumbs="[{ label: 'Overview' }, { label: 'Breakdown' }]" icon="M3 3v18h18M7 14l4-4 3 3 5-6" title="Breakdown">
+    <PageHeader :crumbs="[{ label: 'Analytics' }, { label: 'Breakdown' }]" icon="M3 3v18h18M7 14l4-4 3 3 5-6" title="Breakdown">
       <div class="actions">
-        <Button variant="link" :to="chartsRoute" data-testid="open-charts">Open in Custom charts →</Button>
+        <Button variant="link" :to="chartsRoute" data-testid="open-charts">Open in Charts →</Button>
         <Button variant="secondary" :disabled="items.length === 0" data-testid="export-csv" @click="exportCsv">Export CSV</Button>
       </div>
     </PageHeader>

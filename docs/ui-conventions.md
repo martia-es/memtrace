@@ -15,7 +15,7 @@ Reglas vigentes del dashboard (`dashboard/`). El sistema de diseño de base sigu
 
 ## 2. Navegación
 
-- La barra lateral tiene cinco secciones y una sección puede tener hijos, cada uno con su propia URL. Se expande el grupo de la página actual. El árbol vive en `NAV` (`MainLayout.vue`) y cada ruta marca su entrada con `meta.section`.
+- La barra lateral agrupa las entradas por intención en tres bloques con título (Observe: Overview, Conversations, Analytics · Watch: Alerts & budget · Improve: Review, Prompts, Evaluations) más Workspace (Assistants, Model pricing) abajo; los títulos se declaran con `heading` en `NAV` y plegado quedan como línea separadora. Overview es solo la portada: las herramientas de análisis cuelgan de Analytics. Lo global (Assistants, Model pricing) vive en Workspace, no entre las secciones del agente. Una sección puede tener hijos, cada uno con su propia URL. Se expande el grupo de la página actual. El árbol vive en `NAV` (`MainLayout.vue`) y cada ruta marca su entrada con `meta.section`.
 - **No hay pestañas dentro de las páginas** para navegar por la app. Solo las usan las páginas de detalle de un objeto (dataset: Items / Versions / Runs, asistente, admin), porque son secciones de una misma cosa.
 - Toda vista es enlazable y sobrevive a un reload; el rango y los filtros viajan en la query del enlace.
 - Barra superior global (52 px) con dos huecos, izquierdo (migas / título) y derecho (filtros y acciones). Las páginas no pintan cabecera: usan `PageHeader` / `TopbarSlot`, que teletransporta al hueco (`useTopbar`). Sin topbar (tests), el contenido se pinta en su sitio. `FilterBar` es el control de rango (presets + «Custom»).
@@ -81,7 +81,7 @@ Tres modos de visualización: `bubble` (ventana flotante), `dock` (panel lateral
 
 ## Cómo añadir cosas
 
-- Una sección nueva = un hijo en `NAV` + una ruta con su `meta.section`.
+- Una sección nueva = un hijo en `NAV` (en el bloque cuya pregunta responde: observar, vigilar o mejorar) + una ruta con su `meta.section`.
 - Un control nuevo = primero buscar si ya existe en la tabla de componentes; si no, crearlo allí y añadirlo a esta tabla.
 - Un color nuevo = un token `--mt-*` con valor claro y oscuro; nunca un hex dentro de un componente.
 
