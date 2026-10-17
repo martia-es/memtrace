@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { describeApiError } from "@/application/describe-api-error";
 import Button from "./Button.vue";
+import { t } from "../i18n";
 
 const props = defineProps<{ error: Error }>();
 defineEmits<{ retry: [] }>();
@@ -13,7 +14,7 @@ const message = computed(() => describeApiError(props.error));
   <div class="error-banner" role="alert">
     <q-icon name="error_outline" class="icon" />
     <span class="msg">{{ message }}</span>
-    <Button size="sm" class="retry" @click="$emit('retry')">Retry</Button>
+    <Button size="sm" class="retry" @click="$emit('retry')">{{ t("errorBanner.retry") }}</Button>
   </div>
 </template>
 

@@ -114,7 +114,7 @@ const organizationOptions = computed(() => readable.value.map((o) => ({ label: o
 
 <template>
   <div class="page">
-    <PageHeader :crumbs="[{ label: 'Assistants' }]" icon="M12 8V4M8 4h8M5 8h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2zM9 14h.01M15 14h.01" title="Assistants">
+    <PageHeader :crumbs="[{ label: 'Assistants' }]" icon="M12 8V4M8 4h8M5 8h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2zM9 14h.01M15 14h.01" :title="t('assistantsPage.assistants2')">
       <div class="actions">
         <div v-if="readable.length > 1" class="org-select"><Select v-model="organizationId" :options="organizationOptions" :aria-label="t('assistantsPage.organization')" /></div>
         <router-link v-if="canCreateAgents && organizationId" :to="{ name: 'admin-organization', params: { organizationId } }" class="primary mt-new" data-testid="create-agent">{{ t("assistantsPage.new_agent") }}</router-link>

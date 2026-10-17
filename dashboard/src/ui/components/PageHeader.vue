@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import TopbarSlot from "./TopbarSlot.vue";
+import { t } from "../i18n";
 
 const props = defineProps<{
   crumbs: { label: string; to?: { name: string; params?: Record<string, string> } }[];
@@ -15,7 +16,7 @@ const ancestors = computed(() => props.crumbs.slice(0, -1).filter((c) => c.label
 
 <template>
   <TopbarSlot side="left">
-    <nav class="crumbs" aria-label="Breadcrumb">
+    <nav class="crumbs" :aria-label="t('pageHeader.breadcrumb')">
       <template v-for="(c, i) in ancestors" :key="i">
         <router-link v-if="c.to" :to="c.to" class="crumb link">{{ c.label }}</router-link>
         <span v-else class="crumb">{{ c.label }}</span>

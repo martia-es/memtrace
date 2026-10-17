@@ -51,7 +51,7 @@ const lastCheck = computed(() => props.card.deployments.map((d) => d.healthCheck
         <ol>
           <li><strong>{{ t("assistantEnvironments.add_a_deployment") }}</strong>{{ " " + t("assistantEnvironments.pick_an_environment_dev_pre_pro") }}</li>
           <li><strong>{{ t("assistantEnvironments.expose_a_health_endpoint") }}</strong>{{ " " + t("assistantEnvironments.memtrace_calls") + " " }}<code>/health</code>{{ " " + t("assistantEnvironments.on_that_url_or_the_one") }}</li>
-          <li><strong>{{ t("assistantEnvironments.optional") }}</strong>{{ " " + t("assistantEnvironments.use") + " " }}<em>Edit details</em>{{ " " + t("assistantEnvironments.to_link_the_repository_so_you") }}</li>
+          <li><strong>{{ t("assistantEnvironments.optional") }}</strong>{{ " " + t("assistantEnvironments.use") + " " }}<em>{{ t("assistantEnvironments.edit_details") }}</em>{{ " " + t("assistantEnvironments.to_link_the_repository_so_you") }}</li>
         </ol>
         <Button variant="primary" v-if="canManage && free.length > 0" class="primary" data-testid="setup-add" @click="modal = {}">{{ t("assistantEnvironments.add_your_first_deployment") }}</Button>
         <p v-else-if="!canManage" class="muted">{{ t("assistantEnvironments.ask_someone_with_permission_to_manage") }}</p>

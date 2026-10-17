@@ -219,7 +219,7 @@ const goConversation = () => conversationId.value && void router.push({ name: "c
             <ConversationSteps :steps="steps" :can-open-trace="canTechnical" @open-span="openSpanInTrace" />
           </template>
         </ConversationThread>
-        <p v-else class="muted empty-thread">This trace has no message content saved. Enable <code>MEMTRACE_CAPTURE_CONTENT=true</code> on the agent to read the conversation here.</p>
+        <p v-else class="muted empty-thread">{{ t("traceDetailPage.this_trace_has_no_message_content") + " " }}<code>MEMTRACE_CAPTURE_CONTENT=true</code>{{ " " + t("traceDetailPage.on_the_agent_to_read_the") }}</p>
       </Card>
 
       <TraceOverviewBar

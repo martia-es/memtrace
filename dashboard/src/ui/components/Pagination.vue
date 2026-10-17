@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import Button from "./Button.vue";
+import { t } from "../i18n";
 
 /** Pie de listas paginadas: resumen a la izquierda (slot) y Prev / Page n / m / Next a la derecha. */
 const props = defineProps<{ page: number; pageCount: number }>();
@@ -10,9 +11,9 @@ const emit = defineEmits<{ "update:page": [page: number] }>();
   <div class="pager">
     <span class="muted"><slot /></span>
     <div class="controls">
-      <Button size="sm" :disabled="props.page <= 1" data-testid="page-prev" @click="emit('update:page', props.page - 1)">Prev</Button>
+      <Button size="sm" :disabled="props.page <= 1" data-testid="page-prev" @click="emit('update:page', props.page - 1)">{{ t("pagination.prev") }}</Button>
       <span class="muted mono">Page {{ props.page }} / {{ props.pageCount }}</span>
-      <Button size="sm" :disabled="props.page >= props.pageCount" data-testid="page-next" @click="emit('update:page', props.page + 1)">Next</Button>
+      <Button size="sm" :disabled="props.page >= props.pageCount" data-testid="page-next" @click="emit('update:page', props.page + 1)">{{ t("pagination.next") }}</Button>
     </div>
   </div>
 </template>

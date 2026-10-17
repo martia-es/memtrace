@@ -42,7 +42,7 @@ const barColor = (color: string, failed: boolean) => (failed ? "var(--mt-err-ink
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" class="icon"><path d="M3 6h10M7 12h13M5 18h8" /></svg>
       <span class="title">{{ t("traceTimeline.timeline") }}</span>
       <span class="meta mono">{{ formatDuration(timeline.totalMs) }} · {{ t("traceTimeline.count_spans", { count: trace.data.value!.spanCount }) }}</span>
-      <span v-if="!open && timeline.slowest" class="slowest">Slowest · <b>{{ timeline.slowest.label }} {{ formatDuration(timeline.slowest.node.durationMs) }}</b></span>
+      <span v-if="!open && timeline.slowest" class="slowest">{{ t("traceTimeline.slowest") + " " }}<b>{{ timeline.slowest.label }} {{ formatDuration(timeline.slowest.node.durationMs) }}</b></span>
       <q-icon name="expand_more" size="18px" class="chev" />
     </button>
 

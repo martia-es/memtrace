@@ -1,10 +1,11 @@
 <script setup lang="ts">
+import { t } from "../i18n";
 /** Indicador de carga propio (anillo). `size`: sm = 18 px (inline), md = 26 px, lg = 32 px (página). Hereda el color de acento. */
 withDefaults(defineProps<{ size?: "sm" | "md" | "lg" }>(), { size: "md" });
 </script>
 
 <template>
-  <span class="mt-spinner" :class="`s-${size}`" role="status" aria-label="Loading" />
+  <span class="mt-spinner" :class="`s-${size}`" role="status" :aria-label="t('spinner.loading')" />
 </template>
 
 <style scoped>

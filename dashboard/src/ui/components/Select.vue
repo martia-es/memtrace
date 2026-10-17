@@ -1,5 +1,6 @@
 <script setup lang="ts" generic="T extends string | number">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { t } from "../i18n";
 
 defineOptions({ inheritAttrs: false });
 
@@ -135,7 +136,7 @@ onBeforeUnmount(() => {
       <div v-if="isOpen" ref="menu" class="select-menu" role="listbox" :style="menuStyle" @keydown="onMenuKey">
         <div v-if="loading" class="select-loading">
           <div class="spinner"></div>
-          Loading...
+          {{ t("select.loading") }}
         </div>
         <template v-else>
           <button

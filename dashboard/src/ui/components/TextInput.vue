@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { t } from "../i18n";
 
 defineOptions({ inheritAttrs: false });
 
@@ -82,7 +83,7 @@ defineExpose({ focus: () => control.value?.focus() });
       @keydown.enter="emit('enter')"
       @keydown.escape="emit('escape')"
     />
-    <button v-if="showClear" type="button" class="ti-clear" aria-label="Clear" @click="clear">
+    <button v-if="showClear" type="button" class="ti-clear" :aria-label="t('textInput.clear')" @click="clear">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
         <path d="M6 6l12 12M18 6L6 18" />
       </svg>

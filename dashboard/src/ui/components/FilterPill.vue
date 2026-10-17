@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import Menu from "./Menu.vue";
 import MenuItem from "./MenuItem.vue";
+import { t } from "../i18n";
 
 export interface PillOption {
   label: string;
@@ -22,7 +23,7 @@ const current = computed(() => props.options.find((o) => o.value === props.model
       <div class="opts">
         <MenuItem :active="modelValue === undefined" @click="$emit('update:modelValue', undefined)">{{ allLabel ?? "All" }}</MenuItem>
         <MenuItem v-for="o in options" :key="o.value" :active="modelValue === o.value" @click="$emit('update:modelValue', o.value)">{{ o.label }}</MenuItem>
-        <span v-if="options.length === 0" class="none">No options</span>
+        <span v-if="options.length === 0" class="none">{{ t("filterPill.no_options") }}</span>
       </div>
     </Menu>
   </button>

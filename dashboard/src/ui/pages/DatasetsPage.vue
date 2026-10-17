@@ -180,7 +180,7 @@ async function confirmDelete() {
     <EmptyState v-else-if="(datasets.data.value?.items.length ?? 0) === 0" icon="science" :title="t('datasetsPage.no_datasets_yet')">
       {{ t("datasetsPage.create_one_with_new_dataset_drop") + " " }}<code>{{ t("datasetsPage.csv") }}</code>{{ " " + t("datasetsPage.here_or_upload_one_from") + " " }}<code>memtrace.eval.run_experiment(data="…")</code>.
     </EmptyState>
-    <EmptyState v-else-if="filtered.length === 0" icon="search_off" title="No matches">{{ t("datasetsPage.try_a_different_search") }}</EmptyState>
+    <EmptyState v-else-if="filtered.length === 0" icon="search_off" :title="t('datasetsPage.no_matches')">{{ t("datasetsPage.try_a_different_search") }}</EmptyState>
 
     <!-- ficheros -->
     <div v-else-if="view === 'grid'" class="files" data-testid="datasets-grid">

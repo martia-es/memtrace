@@ -263,7 +263,7 @@ const progress = computed(() => queue.value?.progress);
         <div class="buttons">
           <Button size="sm" :disabled="busy" data-testid="mark-unreviewable" @click="markUnreviewable">{{ t("annotationQueueReviewPage.mark_unreviewable") }}</Button>
           <Button size="sm" :disabled="busy" data-testid="skip" @click="skip">{{ t("annotationQueueReviewPage.skip") }}</Button>
-          <Button variant="primary" :disabled="busy || !ready" data-testid="submit" @click="submit">Submit &amp; next</Button>
+          <Button variant="primary" :disabled="busy || !ready" data-testid="submit" @click="submit">{{ t("annotationQueueReviewPage.submit_amp_next") }}</Button>
         </div>
         <p class="hint">{{ t("annotationQueueReviewPage.keys_1_9_pick_an_answer") }}</p>
       </Card>

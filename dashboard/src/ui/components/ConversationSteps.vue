@@ -99,7 +99,7 @@ const pct = (score: number) => Math.round(Math.min(Math.max(score, 0), 1) * 100)
                   </div>
                 </li>
               </ul>
-              <p v-else class="muted">The passages are saved when content capture is on for the agent (<code>MEMTRACE_CAPTURE_CONTENT=true</code>).</p>
+              <p v-else class="muted">{{ t("conversationSteps.the_passages_are_saved_when_content") }}<code>MEMTRACE_CAPTURE_CONTENT=true</code>).</p>
             </template>
 
             <template v-else-if="s.kind === 'tool'">

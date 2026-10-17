@@ -161,8 +161,7 @@ async function promote() {
 <template>
   <section class="results" data-testid="queue-results">
     <p class="intro" data-testid="results-intro">
-      <strong>Your task:</strong> 1) settle every disagreement (<em>Resolve</em>), 2) tick the rows that are good, 3) choose the dataset and where the expected output comes from, 4) press <em>{{ t("queueResults.add_to_dataset") }}</em>.
-      Open a row to read the conversation that was evaluated next to the reviewers' answers.
+      <strong>{{ t("queueResults.your_task") }}</strong>{{ " " + t("queueResults.1_settle_every_disagreement") }}<em>Resolve</em>{{ t("queueResults.2_tick_the_rows_that_are") + " " }}<em>{{ t("queueResults.add_to_dataset") }}</em>{{ t("queueResults.open_a_row_to_read_the") }}
     </p>
     <div class="toolbar">
       <Checkbox class="check" v-model="onlyDisagreements" data-testid="only-disagreements">{{ " " + t("queueResults.only_disagreements") }}</Checkbox>
