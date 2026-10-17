@@ -102,7 +102,7 @@ async function save() {
 
       <FormField v-if="form.metric === 'custom'" label="Chart" :error="errors.customMetricId" as="div" :hint="usableCharts.length ? 'Only charts about one step, with no split by a detail' : undefined">
         <Select v-if="usableCharts.length" v-model="form.customMetricId" :options="chartOptions" placeholder="Choose a saved chart" aria-label="Custom chart" />
-        <p v-else class="empty">You have no chart this can use yet. Save one in Overview › Custom charts, about a single step and without splitting it by a detail.</p>
+        <p v-else class="empty">You have no chart this can use yet. Save one in Analytics › Charts, about a single step and without splitting it by a detail.</p>
       </FormField>
 
       <div class="row">

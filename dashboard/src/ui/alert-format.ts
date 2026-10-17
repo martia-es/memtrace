@@ -10,7 +10,7 @@ export const METRICS: ReadonlyArray<{ value: AlertMetric; label: string; unit: s
   { value: "latency_p95", label: "Latency (p95)", unit: "ms", hint: "Time that 95 % of the answers stay under" },
   { value: "cost", label: "Cost", unit: "USD", hint: "Estimated spend in the window" },
   { value: "satisfaction", label: "User satisfaction", unit: "%", hint: "Share of 👍 among the 👍 and 👎 votes" },
-  { value: "custom", label: "Custom chart", unit: "", hint: "The number of a chart you saved in Custom charts" },
+  { value: "custom", label: "Custom chart", unit: "", hint: "The number of a chart you saved in Charts" },
 ];
 
 export const WINDOWS: ReadonlyArray<{ value: number; label: string }> = [
