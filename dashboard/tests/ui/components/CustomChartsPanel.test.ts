@@ -48,7 +48,7 @@ describe("CustomChartsPanel", () => {
     await mounted.findAll(".question-card")[0]!.trigger("click");
     await settle();
     for (let i = 0; i < total; i++) {
-      if (!mounted.find(".pill-row .mt-chip").exists()) await mounted.findAll("button.mt-btn.v-link").find((b) => b.text().startsWith("Try another"))!.trigger("click");
+      if (!mounted.find(".pill-row .mt-chip").exists()) await mounted.findAll("button.mt-btn.v-link").find((b) => b.text() === "Change")!.trigger("click");
       await mounted.findAll(".pill-row .mt-chip")[i]!.trigger("click");
       await settle();
       expect(vueErrors, `question ${i}`).toEqual([]);

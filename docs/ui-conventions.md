@@ -84,6 +84,7 @@ Tres modos de visualización: `bubble` (ventana flotante), `dock` (panel lateral
 - Una sección nueva = un hijo en `NAV` (en el bloque cuya pregunta responde: observar, vigilar o mejorar) + una ruta con su `meta.section`.
 - Un control nuevo = primero buscar si ya existe en la tabla de componentes; si no, crearlo allí y añadirlo a esta tabla.
 - Un color nuevo = un token `--mt-*` con valor claro y oscuro; nunca un hex dentro de un componente.
+- Constructores con muchos controles: lo esencial a la vista y lo opcional plegado en un bloque «Ajustar» cuya cabecera resume el estado actual (ejemplo: Analítica › Gráficas). Las acciones secundarias por elemento (renombrar un chip) aparecen solo al pasar el ratón o con foco.
 - Un solo acento por pantalla: tarjetas y paneles son neutros (blanco + `--mt-line`) y `--mt-accent` aparece solo en lo seleccionado o en hover. Los tonos rojo/ámbar/verde se reservan para estados (error, aviso, correcto), nunca para decorar listas (ejemplo: preguntas de Analítica › Gráficas).
 
 ## 11. Idiomas (en / es)

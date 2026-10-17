@@ -439,6 +439,35 @@ const filterAttributeOptions = computed(() => [
   { label: t("customChartsPanel.choose_a_detail"), value: "" },
   ...visibleAttributeKeys.value.map((k) => ({ label: attributeLabel(k.key, names.value), value: k.key })),
 ]);
+
+// ---- constructor compacto: lo esencial a la vista, el resto plegado en "Ajustar" ----
+const CHART_ICONS = {
+  line: "M3 17l5-5 4 4 8-9",
+  bar: "M5 20V10M12 20V4M19 20v-7",
+  pie: "M12 3v9h9a9 9 0 1 1-9-9z",
+  area: "M3 18l5-6 4 3 8-9v12z",
+  number: "M9 4L7 20M17 4l-2 16M4 9h16M3 15h16",
+  table: "M3 5h18v14H3zM3 10h18M9 10v9",
+};
+const adjustOpen = ref(false);
+const STEPS_COLLAPSED = 6;
+const stepsExpanded = ref(false);
+/** Con pocos pasos se ven todos; con muchos, los más usados y siempre los elegidos. */
+const shownStepKinds = computed(() =>
+  stepsExpanded.value || stepKinds.value.length <= STEPS_COLLAPSED + 1
+    ? stepKinds.value
+    : stepKinds.value.filter((k, i) => i < STEPS_COLLAPSED || selectedSteps.value.includes(k.stepType)),
+);
+const hiddenStepCount = computed(() => stepKinds.value.length - shownStepKinds.value.length);
+const activeQuestion = computed(() => templates.value.find((q) => q.id === activeTemplate.value)?.question ?? t("customChartsPanel.custom_chart"));
+const adjustSummary = computed(() => {
+  const conditions = filterRows.value.filter((r) => r.attribute && r.selected.size > 0).length;
+  return [
+    METRIC_LABELS[metric.value],
+    groupByAttribute.value ? t("customChartsPanel.split_by_attribute", { attribute: attributeLabel(groupByAttribute.value, names.value) }) : t("customChartsPanel.not_split"),
+    conditions ? tp("customChartsPanel.conditions_count", conditions) : t("customChartsPanel.no_conditions"),
+  ].join(" · ");
+});
 const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) => (def.groupByAttribute ? attributeLabel(def.groupByAttribute, names.value) : t("customChartsPanel.step"));
 </script>
 
@@ -463,23 +492,35 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
             </button>
           </div>
           <Button class="self-start" variant="link" v-if="templates.length > QUESTIONS_COLLAPSED" @click="showAllQuestions = !showAllQuestions">
-            {{ showAllQuestions ? "Show fewer questions" : `Show all ${templates.length} questions` }}
+            {{ showAllQuestions ? t("customChartsPanel.show_fewer_questions") : t("customChartsPanel.show_all_questions", { count: templates.length }) }}
           </Button>
           <div class="cc-divider" />
           <div class="eyebrow">{{ t("customChartsPanel.or_build_it_yourself") }}</div>
         </template>
 
+        <template v-if="templates.length && hasSteps">
+          <div class="field">
+            <label>{{ t("customChartsPanel.question") }}</label>
+            <div class="q-current">
+              <span class="q-current-text">{{ activeQuestion }}</span>
+              <Button variant="link" @click="questionsOpen = !questionsOpen">{{ questionsOpen ? t("customChartsPanel.hide_questions") : t("customChartsPanel.change_question") }}</Button>
+            </div>
+            <div v-if="questionsOpen" class="pill-row">
+              <ToggleChip v-for="q in templates" :key="q.id" :pressed="activeTemplate === q.id" @click="applyTemplate(q)">{{ q.question }}</ToggleChip>
+            </div>
+          </div>
+          <div class="cc-divider" />
+        </template>
+
         <div class="field">
-          <label>{{ t("customChartsPanel.i_want_to_see") }} <span class="label-note">{{ t("customChartsPanel.pick_one_or_several_to_compare") }}</span>
-            <Button v-if="can('catalog:manage')" size="sm" class="rename-btn" data-testid="open-catalog" @click="showCatalog = true">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
-              {{ t("customChartsPanel.customize_names") }}
-            </Button>
-          </label>
+          <div class="field-head">
+            <label>{{ t("customChartsPanel.i_want_to_see") }} <span class="label-note">{{ t("customChartsPanel.pick_one_or_several_to_compare") }}</span></label>
+            <Button v-if="can('catalog:manage')" variant="link" data-testid="open-catalog" @click="showCatalog = true">{{ t("customChartsPanel.customize_names") }}</Button>
+          </div>
           <div class="chip-select">
             <span v-if="stepKindsLoading" class="hint">{{ t("customChartsPanel.loading") }}</span>
             <span v-else-if="!stepKinds.length" class="hint">{{ t("customChartsPanel.no_activity_in_this_range_yet") }}</span>
-            <template v-for="k in stepKinds" :key="k.stepType">
+            <template v-for="k in shownStepKinds" :key="k.stepType">
               <span v-if="editingStep === k.stepType" class="chip-edit">
                 <input v-model="stepDraft" type="text" maxlength="80" :placeholder="stepLabel(k.stepType)" :aria-label="t('customChartsPanel.name_for_step', { step: k.stepType })" data-testid="step-rename-input" autofocus @keydown.enter.prevent="commitRename" @keydown.esc.prevent="editingStep = null" @blur="commitRename" />
               </span>
@@ -491,10 +532,20 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
               </span>
             </template>
           </div>
+          <Button v-if="hiddenStepCount > 0 || (stepsExpanded && stepKinds.length > STEPS_COLLAPSED + 1)" class="self-start" variant="link" @click="stepsExpanded = !stepsExpanded">
+            {{ stepsExpanded ? t("customChartsPanel.show_fewer") : t("customChartsPanel.show_more", { count: hiddenStepCount }) }}
+          </Button>
           <span v-if="stepRenameError" class="hint error-text" role="alert" data-testid="step-rename-error">{{ stepRenameError }}</span>
           <Button v-if="can('catalog:manage') && stepKinds.length" variant="link" class="self-start" data-testid="open-catalog-page" @click="router?.push({ name: 'overview-catalog', params: { experimentId } })">{{ t("customChartsPanel.manage_all_names_and_details") }}</Button>
         </div>
         <ChartCatalogEditor v-if="showCatalog" :experiment-id="experimentId" :range="range" :entries="catalogEntries" @close="showCatalog = false" @changed="catalogEntries = $event" />
+        <div class="adjust">
+          <button type="button" class="adjust-head" data-testid="adjust-toggle" :aria-expanded="adjustOpen" @click="adjustOpen = !adjustOpen">
+            <span class="adjust-title">{{ t("customChartsPanel.adjust") }}</span>
+            <span class="adjust-summary">{{ adjustSummary }}</span>
+            <svg class="adjust-chevron" :class="{ open: adjustOpen }" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+          </button>
+          <div v-show="adjustOpen" class="adjust-body">
         <div class="field">
           <label>{{ t("customChartsPanel.measured_as") }}</label>
           <Select v-model="metric" :options="METRICS" :disabled="!hasSteps" data-testid="metric-select" />
@@ -511,7 +562,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
           <span v-else-if="multiStep" class="hint">{{ t(chartType === "line" || chartType === "area" ? "customChartsPanel.comparing.line" : "customChartsPanel.comparing.bar", { count: selectedSteps.length }) }}</span>
           <span v-else-if="singleStep && !visibleAttributeKeys.length" class="hint">{{ t("customChartsPanel.nothing_to_split_by_for_this") }}</span>
           <Button class="self-start" variant="link" v-if="singleStep && (hiddenTechnicalCount > 0 || showTechnical)" @click="showTechnical = !showTechnical">
-            {{ showTechnical ? "Show fewer details" : `Show ${hiddenTechnicalCount} more detail${hiddenTechnicalCount === 1 ? "" : "s"}` }}
+            {{ showTechnical ? t("customChartsPanel.show_fewer_details") : tp("customChartsPanel.show_more_details", hiddenTechnicalCount) }}
           </Button>
         </div>
 
@@ -537,16 +588,8 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
             <Button variant="link" class="add-condition" :disabled="!singleStep" @click="addFilterRow">{{ t("customChartsPanel.add_condition") }}</Button>
           </div>
         </div>
-
-        <template v-if="templates.length && hasSteps">
-          <div class="cc-divider" />
-          <Button class="self-start" variant="link" @click="questionsOpen = !questionsOpen">
-            {{ questionsOpen ? "Hide questions" : `Try another question (${templates.length})` }}
-          </Button>
-          <div v-if="questionsOpen" class="pill-row">
-            <ToggleChip v-for="t in templates" :key="t.id" :pressed="activeTemplate === t.id" @click="applyTemplate(t)">{{ t.question }}</ToggleChip>
           </div>
-        </template>
+        </div>
       </div>
 
       <div class="cc-preview-card" :class="{ empty: !hasSteps }">
@@ -564,7 +607,12 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
               <TextInput v-model="newChartName" :placeholder="t('customChartsPanel.name_this_chart')" @update:model-value="nameTouched = true" />
               <span class="hint">{{ description }}</span>
             </div>
-            <SegmentedControl class="seg" :aria-label="t('customChartsPanel.chart_type')" :options="CHART_TYPES.map((t) => ({ value: t.value, label: t.label, class: 'seg-btn' }))" :model-value="chartType" @update:model-value="pickChartType($event as typeof chartType)" />
+            <SegmentedControl class="seg" :aria-label="t('customChartsPanel.chart_type')" :options="CHART_TYPES.map((c) => ({ value: c.value, label: c.label, class: 'seg-btn' }))" :model-value="chartType" @update:model-value="pickChartType($event as typeof chartType)">
+              <template #option="{ option }">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="CHART_ICONS[option.value as keyof typeof CHART_ICONS]" /></svg>
+                <span class="sr-only">{{ option.label }}</span>
+              </template>
+            </SegmentedControl>
           </div>
 
           <div class="preview-body" :class="{ stale: previewLoading }">
@@ -1027,6 +1075,31 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
 .chip-select :deep(.mt-chip.on),
 .pill-row :deep(.mt-chip.on) { background: var(--mt-accent-tint); border-color: var(--mt-accent); color: var(--mt-accent-text); }
 .pill-row :deep(.mt-chip:not(.on)) { background: var(--mt-card); border-color: var(--mt-line); color: var(--mt-ink); }
+.field-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.q-current { display: flex; align-items: center; gap: 10px; }
+.q-current-text { flex: 1; font-size: 14px; font-weight: 800; line-height: 1.3; }
+.adjust { border: 1px solid var(--mt-line); border-radius: var(--mt-radius-sm, 8px); }
+.adjust-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--mt-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.adjust-title { font-weight: 700; }
+.adjust-summary { flex: 1; min-width: 0; font-size: 12px; color: var(--mt-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+.adjust-chevron { flex: none; color: var(--mt-muted); transition: transform 0.15s ease; }
+.adjust-chevron.open { transform: rotate(180deg); }
+.adjust-body { display: flex; flex-direction: column; gap: 14px; padding: 4px 12px 14px; border-top: 1px solid var(--mt-line); padding-top: 14px; }
+.seg :deep(.seg-btn) { display: inline-flex; align-items: center; justify-content: center; min-width: 32px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.chip-pencil { opacity: 0; }
 .cc-preview-card.empty { border-color: var(--mt-line); }
 .ghost-label { background: var(--mt-line); }
 .ghost-bar { background: var(--mt-accent-soft); opacity: 1; }
