@@ -1,4 +1,4 @@
-/** Every key written literally in a `t()`, `tp()` or `tr()` call has an English message (and so a Spanish one, see i18n.test.ts). */
+/** Every message key written literally in the code (`t("area.key")`, ternaries, `tp` bases…) exists in the catalog. */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -13,8 +13,11 @@ function files(dir: string): string[] {
   });
 }
 
-const CALL = /(?<![\w.$])(t|tp|tr)\(\s*(["'])([A-Za-z][\w.]*)\2/g;
-const messages = en as Record<string, string>;
+const messages = Object.keys(en);
+const namespaces = new Set(messages.map((k) => k.split(".")[0]!));
+const LITERAL = /(?<!=)(["'])([a-z][A-Za-z0-9]*)\.([A-Za-z0-9_.]+)\1/g;
+
+const exists = (key: string) => messages.includes(key) || messages.includes(`${key}.one`) || messages.some((k) => k.startsWith(`${key}.`));
 
 describe("i18n keys", () => {
   it("every literal key used in the code exists in the catalog", () => {
@@ -22,9 +25,10 @@ describe("i18n keys", () => {
     for (const file of files(SRC)) {
       if (file.includes("/i18n/")) continue;
       const code = readFileSync(file, "utf8");
-      for (const [, fn, , key] of code.matchAll(CALL)) {
-        const keys = fn === "tp" ? [`${key}.one`, `${key}.other`] : [key!];
-        for (const k of keys) if (!(k in messages)) missing.push(`${file.replace(SRC, "src")}: ${k}`);
+      for (const [, , ns, rest] of code.matchAll(LITERAL)) {
+        if (!namespaces.has(ns!)) continue;
+        const key = `${ns}.${rest}`;
+        if (!exists(key)) missing.push(`${file.replace(SRC, "src")}: ${key}`);
       }
     }
     expect(missing).toEqual([]);

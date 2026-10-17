@@ -3,6 +3,7 @@ import type { ChartCatalogEntryDto } from "@contract";
 import type { RangeParams } from "@/application/trace-api";
 import ChartCatalogTable from "./ChartCatalogTable.vue";
 import Modal from "./Modal.vue";
+import { t } from "../i18n";
 
 /** "Customize names" (ADR-078): la tabla del catálogo en una ventana, para editar sin salir del builder de Custom charts. */
 defineProps<{ experimentId: string; range: RangeParams; entries: ChartCatalogEntryDto[] }>();
@@ -10,9 +11,9 @@ const emit = defineEmits<{ close: []; changed: [entries: ChartCatalogEntryDto[]]
 </script>
 
 <template>
-  <Modal title="Customize names" wide @close="emit('close')">
+  <Modal :title="t('chartCatalogEditor.customize_names')" wide @close="emit('close')">
     <div class="wrap">
-      <p class="intro">Give each step and attribute the name your team uses. The new name appears in every chart, including the ones already saved. Leave it empty to use the automatic name.</p>
+      <p class="intro">{{ t("chartCatalogEditor.give_each_step_and_attribute_the") }}</p>
       <ChartCatalogTable :experiment-id="experimentId" :range="range" :entries="entries" @changed="emit('changed', $event)" />
     </div>
   </Modal>

@@ -1,4 +1,5 @@
 import type { ApprovalRequestDto, ApprovalRuleDto } from "@contract";
+import { tr, lazyMessages } from "./translate";
 
 /**
  * Aprobaciones de prompts (ADR-076): cómo se presentan reglas y solicitudes a una persona. El servidor decide quién puede
@@ -8,7 +9,7 @@ import type { ApprovalRequestDto, ApprovalRuleDto } from "@contract";
 type Tone = "ok" | "error" | "warn" | "info" | "neutral";
 export type ApprovalAction = "publish" | "promote";
 
-const PROFILE_LABEL: Record<string, string> = { technical: "Technical", business: "Business" };
+const PROFILE_LABEL: Record<string, string> = lazyMessages({ technical: "approvals.technical", business: "approvals.business" });
 
 /** `technical` → "Technical"; un perfil a medida se humaniza. */
 export function profileLabel(role: string): string {
@@ -19,7 +20,7 @@ export function profileLabel(role: string): string {
 
 /** Nombre de un paso: publicar una versión, o mover el tag de un entorno. */
 export function stepLabel(action: ApprovalAction, stage: string): string {
-  return action === "publish" ? "Publish a version" : `Move ${stage}`;
+  return action === "publish" ? tr("approvals.publish_a_version") : tr("approvals.move_stage", { stage });
 }
 
 /** Los pasos que se pueden configurar, en orden: publicar y cada entorno. */
@@ -33,10 +34,10 @@ export function ruleFor<R extends Pick<ApprovalRuleDto, "action" | "stage">>(rul
 
 /** "1 Technical + 1 Business · always: Ana". Sin regla, "No approval needed". */
 export function describeRule(rule: ApprovalRuleDto | null, names: Record<string, string> = {}): string {
-  if (!rule) return "No approval needed";
+  if (!rule) return tr("approvals.no_approval_needed");
   const parts = rule.requirements.map((r) => `${r.min} ${profileLabel(r.role)}`);
   const base = parts.length > 0 ? parts.join(" + ") : "";
-  const always = rule.approvers.length > 0 ? `always: ${rule.approvers.map((id) => names[id] ?? "someone").join(", ")}` : "";
+  const always = rule.approvers.length > 0 ? tr("approvals.always_names", { names: rule.approvers.map((id) => names[id] ?? tr("approvals.someone")).join(", ") }) : "";
   return [base, always].filter(Boolean).join(" · ");
 }
 
@@ -45,9 +46,9 @@ export function belowFloor(candidate: Pick<ApprovalRuleDto, "requirements" | "ap
   if (!floor) return null;
   for (const req of floor.requirements) {
     const have = candidate.requirements.find((r) => r.role === req.role)?.min ?? 0;
-    if (have < req.min) return `The organization asks for ${req.min} ${profileLabel(req.role)}; this rule cannot ask for fewer.`;
+    if (have < req.min) return tr("approvals.the_organization_asks_for_min_profile", { min: req.min, profile: profileLabel(req.role) });
   }
-  if (floor.approvers.some((a) => !candidate.approvers.includes(a))) return "The organization's default approvers have to stay.";
+  if (floor.approvers.some((a) => !candidate.approvers.includes(a))) return tr("approvals.the_organization_s_default_approvers_hav");
   return null;
 }
 
@@ -58,11 +59,11 @@ export function belowFloor(candidate: Pick<ApprovalRuleDto, "requirements" | "ap
  */
 export type StepMode = "follow" | "own" | "none";
 
-export const STEP_MODE_LABEL: Record<StepMode, string> = {
-  follow: "Follows the organization",
-  own: "Own rule · this agent only",
-  none: "No approval · this agent only",
-};
+export const STEP_MODE_LABEL: Record<StepMode, string> = lazyMessages({
+  follow: "approvals.follows_the_organization",
+  own: "approvals.own_rule_this_agent_only",
+  none: "approvals.no_approval_this_agent_only",
+});
 
 export function stepMode(state: { exempt: boolean; hasOwnRule: boolean }): StepMode {
   return !state.exempt ? "follow" : state.hasOwnRule ? "own" : "none";
@@ -75,17 +76,17 @@ export function sameRule(a: Pick<ApprovalRuleDto, "requirements" | "approvers">,
 }
 
 export const REQUEST_STATUS: Record<ApprovalRequestDto["status"], { label: string; tone: Tone }> = {
-  pending: { label: "Waiting for approval", tone: "warn" },
-  approved: { label: "Approved", tone: "info" },
-  executed: { label: "Done", tone: "ok" },
-  rejected: { label: "Rejected", tone: "error" },
-  cancelled: { label: "Cancelled", tone: "neutral" },
-  expired: { label: "Expired", tone: "neutral" },
+  pending: { get label() { return tr("approvals.waiting_for_approval"); }, tone: "warn" },
+  approved: { get label() { return tr("approvals.approved"); }, tone: "info" },
+  executed: { get label() { return tr("approvals.done"); }, tone: "ok" },
+  rejected: { get label() { return tr("approvals.rejected"); }, tone: "error" },
+  cancelled: { get label() { return tr("approvals.cancelled"); }, tone: "neutral" },
+  expired: { get label() { return tr("approvals.expired"); }, tone: "neutral" },
 };
 
 /** Lo que pide la solicitud, en una frase: "Publish v3" o "Move pro to v4". */
 export function requestTitle(request: Pick<ApprovalRequestDto, "action" | "version" | "tag">): string {
-  return request.action === "publish" ? `Publish v${request.version}` : `Move ${request.tag} to v${request.version}`;
+  return request.action === "publish" ? tr("approvals.publish_v_version", { version: request.version }) : tr("approvals.move_tag_to_v_version", { tag: request.tag ?? "", version: request.version });
 }
 
 /** Una línea por perfil con cuántas aprobaciones hay de las que hacen falta: "Technical 1/2". */

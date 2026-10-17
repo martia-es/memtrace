@@ -12,6 +12,8 @@ import ErrorBanner from "./ErrorBanner.vue";
 import Select from "./Select.vue";
 import LoadingState from "./LoadingState.vue";
 import Button from "./Button.vue";
+import { t } from "../i18n";
+import { tr } from "../../domain/translate";
 
 const props = defineProps<{
   nameA: string;
@@ -38,7 +40,7 @@ function bar(change: number | null): { left: string; width: string } {
   const w = (Math.min(Math.abs(change ?? 0), TRACK_MAX) / TRACK_MAX) * 50;
   return { left: `${(change ?? 0) < 0 ? 50 - w : 50}%`, width: `${w}%` };
 }
-const toneLabel = (tone: CompareTone) => ({ better: `better in ${props.nameB}`, worse: `worse in ${props.nameB}`, neutral: "neutral" })[tone];
+const toneLabel = (tone: CompareTone) => ({ better: t("agentCompareView.better_in_name", { name: props.nameB }), worse: t("agentCompareView.worse_in_name", { name: props.nameB }), neutral: t("agentCompareView.neutral2") })[tone];
 
 const perExec = computed(() => {
   if (!props.a || !props.b) return null;
@@ -105,9 +107,9 @@ const charts = computed(() => {
   const a = props.a?.timeseries ?? [];
   const b = props.b?.timeseries ?? [];
   return [
-    { title: "Executions", option: lineOption(a.map((p) => p.traces), b.map((p) => p.traces)) },
-    { title: "Total tokens", option: lineOption(a.map((p) => p.totalTokens), b.map((p) => p.totalTokens), formatCount) },
-    { title: "Latency p95", option: lineOption(a.map((p) => p.p95Ms), b.map((p) => p.p95Ms), formatDuration) },
+    { title: t("agentCompareView.executions"), option: lineOption(a.map((p) => p.traces), b.map((p) => p.traces)) },
+    { title: t("agentCompareView.total_tokens"), option: lineOption(a.map((p) => p.totalTokens), b.map((p) => p.totalTokens), formatCount) },
+    { title: t("agentCompareView.latency_p95"), option: lineOption(a.map((p) => p.p95Ms), b.map((p) => p.p95Ms), formatDuration) },
   ];
 });
 </script>
@@ -117,18 +119,18 @@ const charts = computed(() => {
     <div class="ac-pick">
       <div class="ac-agent a">
         <span class="ac-dot a" aria-hidden="true" />
-        <div class="ac-agent-text"><strong>{{ nameA }}</strong><span>Selected experiment · change it with the selector at the top left</span></div>
+        <div class="ac-agent-text"><strong>{{ nameA }}</strong><span>{{ t("agentCompareView.selected_experiment_change_it_with_the") }}</span></div>
       </div>
-      <Button variant="icon" size="sm" class="ac-swap" aria-label="Swap the two experiments" title="Swap the two experiments" :disabled="!agentBId" @click="emit('swap')">
+      <Button variant="icon" size="sm" class="ac-swap" :aria-label="t('agentCompareView.swap_the_two_experiments')" :title="t('agentCompareView.swap_the_two_experiments')" :disabled="!agentBId" @click="emit('swap')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7" /></svg>
       </Button>
       <div class="ac-agent b">
         <span class="ac-dot b" aria-hidden="true" />
-        <div class="ac-agent-select"><span>Compare with</span><Select :model-value="agentBId" :options="options" placeholder="Choose an experiment to compare" @update:model-value="emit('update:agentBId', $event)" /></div>
+        <div class="ac-agent-select"><span>{{ t("agentCompareView.compare_with") }}</span><Select :model-value="agentBId" :options="options" :placeholder="t('agentCompareView.choose_an_experiment_to_compare')" @update:model-value="emit('update:agentBId', $event)" /></div>
       </div>
     </div>
 
-    <EmptyState v-if="!agentBId" icon="compare_arrows" title="Pick an experiment to compare">Choose the second experiment above to see how it differs from {{ nameA }}.</EmptyState>
+    <EmptyState v-if="!agentBId" icon="compare_arrows" :title="t('agentCompareView.pick_an_experiment_to_compare')">{{ t("agentCompareView.choose_the_second_experiment_above_to", { name: nameA }) }}</EmptyState>
     <ErrorBanner v-else-if="error" :error="error" @retry="emit('retry')" />
     <LoadingState v-else-if="loading && !b" size="lg" />
 
@@ -139,19 +141,19 @@ const charts = computed(() => {
           <span>{{ verdict.detail }}</span>
         </div>
         <div class="ac-counts">
-          <div class="better"><b>{{ verdict.better }}</b><span>Better</span></div>
-          <div class="worse"><b>{{ verdict.worse }}</b><span>Worse</span></div>
-          <div class="neutral"><b>{{ verdict.neutral }}</b><span>Neutral</span></div>
+          <div class="better"><b>{{ verdict.better }}</b><span>{{ t("agentCompareView.better") }}</span></div>
+          <div class="worse"><b>{{ verdict.worse }}</b><span>{{ t("agentCompareView.worse") }}</span></div>
+          <div class="neutral"><b>{{ verdict.neutral }}</b><span>{{ t("agentCompareView.neutral") }}</span></div>
         </div>
       </section>
 
       <div class="ac-grid">
         <section class="ac-card ac-deltas">
           <div class="ac-card-head">
-            <h3>{{ nameB }} compared with {{ nameA }}</h3>
-            <span class="ac-legend"><i class="better" />Better<i class="worse" />Worse<i class="neutral" />Neutral</span>
+            <h3>{{ t("agentCompareView.b_compared_with_a", { a: nameA, b: nameB }) }}</h3>
+            <span class="ac-legend"><i class="better" />{{ t("agentCompareView.better") }}<i class="worse" />{{ t("agentCompareView.worse") }}<i class="neutral" />{{ t("agentCompareView.neutral") }}</span>
           </div>
-          <div class="ac-delta-row head"><span>Metric</span><span>Values</span><span class="ac-axis"><span>◀ lower in {{ nameB }}</span><span>higher in {{ nameB }} ▶</span></span><span class="r">Change</span></div>
+          <div class="ac-delta-row head"><span>{{ t("agentCompareView.metric") }}</span><span>{{ t("agentCompareView.values") }}</span><span class="ac-axis"><span>{{ t("agentCompareView.lower_in_name", { name: nameB }) }}</span><span>{{ t("agentCompareView.higher_in_name", { name: nameB }) }}</span></span><span class="r">{{ t("agentCompareView.change") }}</span></div>
           <div v-for="r in rows" :key="r.key" class="ac-delta-row">
             <strong>{{ r.label }}</strong>
             <span class="ac-values">{{ r.a }} → <b>{{ r.b }}</b></span>
@@ -165,7 +167,7 @@ const charts = computed(() => {
 
         <div class="ac-side">
           <section v-if="perExec" class="ac-card">
-            <h3>Cost per execution</h3>
+            <h3>{{ t("agentCompareView.cost_per_execution") }}</h3>
             <div class="ac-perexec">
               <div><span class="lbl" :title="nameA">{{ nameA }}</span><span class="old">{{ perExec.a }}</span></div>
               <span class="arrow">→</span>
@@ -173,27 +175,27 @@ const charts = computed(() => {
               <span class="grow" />
               <span class="ac-pill" :class="perExec.change === null || Math.abs(perExec.change) < 0.05 ? 'neutral' : perExec.change < 0 ? 'better' : 'worse'">{{ perExec.text }}</span>
             </div>
-            <p class="ac-note">Total in this range: {{ perExec.totalA }} for {{ nameA }}, {{ perExec.totalB }} for {{ nameB }}.</p>
+            <p class="ac-note">{{ t('agentCompareView.total_in_this_range_totala_for', { totalA: perExec.totalA, nameA, totalB: perExec.totalB, nameB }) }}</p>
           </section>
 
           <section class="ac-card ac-grow">
             <div class="ac-card-head">
-              <h3>Input vs output tokens</h3>
-              <span class="ac-legend"><i class="input" />Input (prompt)<i class="output" />Output (answer)</span>
+              <h3>{{ t("agentCompareView.input_vs_output_tokens") }}</h3>
+              <span class="ac-legend"><i class="input" />{{ t("agentCompareView.input_prompt") }}<i class="output" />{{ t("agentCompareView.output_answer") }}</span>
             </div>
             <div v-for="t in tokenMix" :key="t.id" class="ac-mix">
               <div class="ac-mix-head">
                 <span class="ac-dot sm" :class="t.id" aria-hidden="true" />
                 <strong>{{ t.name }}</strong>
-                <span class="tot">{{ t.total }} total</span>
+                <span class="tot">{{ tr('agentCompareView.total_total', { total: t.total }) }}</span>
               </div>
-              <div class="bars" role="img" :aria-label="`${t.name}: ${t.inputPct}% input, ${t.outputPct}% output`">
+              <div class="bars" role="img" :aria-label="tr('agentCompareView.name_input_input_output_output', { name: t.name, input: t.inputPct, output: t.outputPct })">
                 <div class="in" :style="{ flexGrow: t.inputPct }">{{ t.inputPct >= 12 ? `${t.inputPct}%` : "" }}</div>
                 <div class="out" :style="{ flexGrow: t.outputPct }">{{ t.outputPct >= 12 ? `${t.outputPct}%` : "" }}</div>
               </div>
-              <span class="ac-note">{{ t.input }} input · {{ t.output }} output</span>
+              <span class="ac-note">{{ tr('agentCompareView.input_input_output_output', { input: t.input, output: t.output }) }}</span>
             </div>
-            <p class="ac-note">Each bar is 100% of that experiment's tokens. A higher output share means longer answers.</p>
+            <p class="ac-note">{{ t("agentCompareView.each_bar_is_100_of_that") }}</p>
           </section>
         </div>
       </div>
@@ -204,7 +206,7 @@ const charts = computed(() => {
             <h3>{{ ch.title }}</h3>
             <span class="ac-legend"><i class="line-a" />{{ nameA }}<i class="line-b" />{{ nameB }}</span>
           </div>
-          <EChart :option="ch.option" height="190px" :label="`${ch.title} comparison`" />
+          <EChart :option="ch.option" height="190px" :label="tr('agentCompareView.title_comparison', { title: ch.title })" />
         </section>
       </div>
     </template>

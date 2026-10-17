@@ -508,7 +508,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
           <label>{{ t("customChartsPanel.split_by_optional") }}</label>
           <Select v-model="groupByAttribute" :options="groupByOptions" :disabled="!singleStep" />
           <span v-if="attributeKeysLoading" class="hint">{{ t("customChartsPanel.loading_details") }}</span>
-          <span v-else-if="multiStep" class="hint">{{ tp(chartType === "line" || chartType === "area" ? "customChartsPanel.comparing.line" : "customChartsPanel.comparing.bar", selectedSteps.length) }}</span>
+          <span v-else-if="multiStep" class="hint">{{ t(chartType === "line" || chartType === "area" ? "customChartsPanel.comparing.line" : "customChartsPanel.comparing.bar", { count: selectedSteps.length }) }}</span>
           <span v-else-if="singleStep && !visibleAttributeKeys.length" class="hint">{{ t("customChartsPanel.nothing_to_split_by_for_this") }}</span>
           <Button class="self-start" variant="link" v-if="singleStep && (hiddenTechnicalCount > 0 || showTechnical)" @click="showTechnical = !showTechnical">
             {{ showTechnical ? "Show fewer details" : `Show ${hiddenTechnicalCount} more detail${hiddenTechnicalCount === 1 ? "" : "s"}` }}

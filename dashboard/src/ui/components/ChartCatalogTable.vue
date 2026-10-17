@@ -9,6 +9,7 @@ import { useIdentityApi } from "../composables/useIdentityApi";
 import { useTraceApi } from "../composables/useTraceApi";
 import Button from "./Button.vue";
 import Checkbox from "./Checkbox.vue";
+import { t } from "../i18n";
 
 /**
  * Tabla del catálogo (ADR-078, ADR-079): el nombre de negocio de cada paso y atributo que las Custom charts ofrecen. Se guarda por experimento
@@ -195,22 +196,22 @@ async function reset(r: Row) {
 
 <template>
     <div class="catalog" data-testid="catalog-editor">
-      <p v-if="loading" class="muted">Looking at what your agent reports…</p>
+      <p v-if="loading" class="muted">{{ t("chartCatalogTable.looking_at_what_your_agent_reports") }}</p>
 
       <template v-else>
-        <section v-for="section in [{ title: 'Steps', kind: 'step' as const, rows: stepRows }, { title: 'Attributes', kind: 'attribute' as const, rows: attributeRows }]" :key="section.kind">
+        <section v-for="section in [{ title: t('chartCatalogTable.steps'), kind: 'step' as const, rows: stepRows }, { title: t('chartCatalogTable.attributes'), kind: 'attribute' as const, rows: attributeRows }]" :key="section.kind">
           <header>
             <h3>{{ section.title }}</h3>
-            <Checkbox v-if="section.kind === 'attribute'" class="toggle" v-model="showHidden" data-testid="catalog-technical"> Show hidden details</Checkbox>
+            <Checkbox v-if="section.kind === 'attribute'" class="toggle" v-model="showHidden" data-testid="catalog-technical"> {{ t("chartCatalogTable.show_hidden_details") }}</Checkbox>
           </header>
-          <p v-if="section.rows.length === 0" class="muted" :data-testid="`catalog-empty-${section.kind}`">{{ search ? "Nothing matches your search." : "Nothing detected in this period." }}</p>
+          <p v-if="section.rows.length === 0" class="muted" :data-testid="`catalog-empty-${section.kind}`">{{ search ? t("chartCatalogTable.nothing_matches_your_search") : t("chartCatalogTable.nothing_detected_in_this_period") }}</p>
           <ul v-else>
             <li v-for="r in section.rows" :key="id(r.kind, r.key)" :class="{ dirty: manual && isDirty(r) }" :data-testid="`catalog-row-${r.kind}-${r.key}`">
               <div class="what">
                 <span class="key mono">{{ r.key }}</span>
-                <span class="n muted">{{ r.count === null ? "no activity in this period" : `${r.count.toLocaleString()} seen` }}<template v-if="r.info && distinctLabel(r.info)"> · {{ distinctLabel(r.info) }}</template></span>
+                <span class="n muted">{{ r.count === null ? t("chartCatalogTable.no_activity_in_this_period") : t("chartCatalogTable.count_seen", { count: r.count.toLocaleString() }) }}<template v-if="r.info && distinctLabel(r.info)"> · {{ distinctLabel(r.info) }}</template></span>
                 <span v-if="r.info" class="kind" :class="kindOf(r.info)" :data-testid="`catalog-kind-${r.kind}-${r.key}`">
-                  {{ KIND_LABEL[kindOf(r.info)] }}<template v-if="r.info.numeric && kindOf(r.info) === 'category'"> · numeric</template>
+                  {{ KIND_LABEL[kindOf(r.info)] }}<template v-if="r.info.numeric && kindOf(r.info) === 'category'"> {{ t("chartCatalogTable.numeric") }}</template>
                 </span>
                 <span v-if="r.info && hiddenReason(r.info, visibilityOf(r.key))" class="n muted" :data-testid="`catalog-why-${r.kind}-${r.key}`">{{ hiddenReason(r.info, visibilityOf(r.key)) }}</span>
               </div>
@@ -220,7 +221,7 @@ async function reset(r: Row) {
                 maxlength="80"
                 :value="value(r)"
                 :placeholder="automatic(r.kind, r.key)"
-                :aria-label="`Name for ${r.key}`"
+                :aria-label="t('chartCatalogTable.name_for_key', { key: r.key })"
                 :disabled="readonly || busy === id(r.kind, r.key)"
                 :data-testid="`catalog-input-${r.kind}-${r.key}`"
                 @input="drafts[id(r.kind, r.key)] = ($event.target as HTMLInputElement).value"
@@ -231,16 +232,16 @@ async function reset(r: Row) {
                 v-if="r.kind === 'attribute'"
                 class="vis"
                 :value="shownVisibility(r)"
-                :aria-label="`Visibility of ${r.key}`"
+                :aria-label="t('chartCatalogTable.visibility_of_key', { key: r.key })"
                 :disabled="readonly || busy === id(r.kind, r.key)"
                 :data-testid="`catalog-visibility-${r.kind}-${r.key}`"
                 @change="onVisibility(r, ($event.target as HTMLSelectElement).value as Visibility)"
               >
-                <option value="auto">{{ r.info ? automaticLabel(r.info) : "Automatic" }}</option>
-                <option value="shown">Always show</option>
-                <option value="hidden">Always hide</option>
+                <option value="auto">{{ r.info ? automaticLabel(r.info) : t("chartCatalogTable.automatic") }}</option>
+                <option value="shown">{{ t("chartCatalogTable.always_show") }}</option>
+                <option value="hidden">{{ t("chartCatalogTable.always_hide") }}</option>
               </select>
-              <Button variant="link" v-if="entryOf(r.kind, r.key) && entryOf(r.kind, r.key)!.displayName" class="reset" :disabled="readonly || busy === id(r.kind, r.key)" :data-testid="`catalog-reset-${r.kind}-${r.key}`" @click="reset(r)">Reset</Button>
+              <Button variant="link" v-if="entryOf(r.kind, r.key) && entryOf(r.kind, r.key)!.displayName" class="reset" :disabled="readonly || busy === id(r.kind, r.key)" :data-testid="`catalog-reset-${r.kind}-${r.key}`" @click="reset(r)">{{ t("chartCatalogTable.reset") }}</Button>
               <span v-else class="reset-space" />
               <p v-if="errors[id(r.kind, r.key)]" class="error" role="alert" :data-testid="`catalog-error-${r.kind}-${r.key}`">{{ errors[id(r.kind, r.key)] }}</p>
             </li>
