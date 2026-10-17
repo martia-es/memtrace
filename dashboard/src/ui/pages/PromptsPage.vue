@@ -219,7 +219,7 @@ async function create() {
             <td class="who">
               <div class="who-name">
                 <span class="name">{{ r.prompt.name }}</span>
-                <Pill v-if="r.prompt.archivedAt" :class="t('promptsPage.archived')">{{ t("promptsPage.archived") }}</Pill>
+                <Pill v-if="r.prompt.archivedAt" class="archived">{{ t("promptsPage.archived") }}</Pill>
                 <Pill v-if="awaitingMe.has(r.prompt.id)" :data-testid="`awaiting-${r.prompt.name}`" class="awaiting">{{ t("promptsPage.needs_your_approval") }}</Pill>
                 <span v-for="t in freeTags(r.prompt)" :key="t" class="free-tag mono" :data-testid="`tag-${r.prompt.name}-${t}`">{{ t }} → v{{ r.prompt.tags[t] }}</span>
               </div>

@@ -38,6 +38,8 @@ import LoadingState from "../components/LoadingState.vue";
 import Card from "../components/Card.vue";
 import Disclosure from "../components/Disclosure.vue";
 import SegmentedControl from "../components/SegmentedControl.vue";
+import { t, tp } from "../i18n";
+import { lazyMessages } from "../../domain/translate";
 
 const props = defineProps<{ promptId: string }>();
 const api = usePromptApi();
@@ -67,7 +69,7 @@ const selectedVersion = computed<PromptVersionDto | null>(() => versions.value.f
 
 const usageRows = computed(() => describeUsage(data.value?.usage ?? [], data.value?.tags ?? []));
 const running = (version: number) => environmentsRunning(data.value?.usage ?? [], version);
-const USAGE_LABEL: Record<UsageState, string> = { in_sync: "Up to date", behind: "Catching up", pinned: "Fixed version", stale: "Not reporting" };
+const USAGE_LABEL: Record<UsageState, string> = lazyMessages({ in_sync: "promptDetailPage.up_to_date", behind: "promptDetailPage.catching_up", pinned: "promptDetailPage.fixed_version2", stale: "promptDetailPage.not_reporting" });
 const nowMs = Date.now();
 
 const tagsByVersion = computed(() => {
@@ -138,14 +140,14 @@ function startDrawerResize(e: PointerEvent) {
 }
 const activeTab = computed(() => TAB_OF[mode.value]);
 const VIEW_TABS = [
-  { id: "prompt", label: "Prompt" },
-  { id: "compare", label: "Compare" },
-  { id: "test", label: "Test" },
+  { id: "prompt", get label() { return t("promptDetailPage.prompt"); } },
+  { id: "compare", get label() { return t("promptDetailPage.compare"); } },
+  { id: "test", get label() { return t("promptDetailPage.test"); } },
 ];
 function openTab(id: string) {
   if (TAB_OF[mode.value] !== id) mode.value = TAB_ROOT[id as ViewTab];
 }
-const TEST_OPTIONS = [{ value: "try", label: "A message", testid: "sub-try" }, { value: "fix", label: "A failed trace", testid: "sub-fix" }];
+const TEST_OPTIONS = [{ value: "try", get label() { return t("promptDetailPage.a_message"); }, testid: "sub-try" }, { value: "fix", get label() { return t("promptDetailPage.a_failed_trace"); }, testid: "sub-fix" }];
 const allVersionOptions = computed(() => versions.value.map((v) => ({ label: `v${v.version}${v.message ? ` · ${v.message}` : ""}`, value: v.version })));
 function pick(version: number) {
   selected.value = version;
@@ -183,10 +185,10 @@ const comparison = computed(() => {
   return base && target ? compareVersions(base, target) : null;
 });
 const missingEvidence = computed(() => [compareWith.value, selected.value].filter((v): v is number => v !== null && evidenceOf(v) === null));
-const TEXT_VIEW_OPTIONS = [{ value: "source", label: "Source", testid: "view-source" }, { value: "resolved", label: "Resolved", testid: "view-resolved" }];
+const TEXT_VIEW_OPTIONS = [{ value: "source", get label() { return t("promptDetailPage.source"); }, testid: "view-source" }, { value: "resolved", get label() { return t("promptDetailPage.resolved"); }, testid: "view-resolved" }];
 const USAGE_TONE: Record<UsageState, "ok" | "highlight" | "info" | "neutral"> = { in_sync: "ok", behind: "highlight", pinned: "info", stale: "neutral" };
 const DIRECTION_TONE = { better: "ok", worse: "error", same: "neutral", unknown: "neutral" } as const;
-const DIRECTION_LABEL = { better: "Better", worse: "Worse", same: "No change", unknown: "–" } as const;
+const DIRECTION_LABEL = lazyMessages({ better: "promptDetailPage.better", worse: "promptDetailPage.worse", same: "promptDetailPage.no_change", unknown: "–" });
 
 // ---- comparar ----
 const compareWith = ref<number | null>(null);
@@ -224,12 +226,12 @@ async function saveVersion(asDraft = false) {
     mode.value = "text";
     const needsApproval = !asDraft && saved.status === "draft";
     $q.notify({
-      message: asDraft ? `Saved as draft v${saved.version}` : needsApproval ? `Saved as draft v${saved.version}: publishing it needs approval` : `Saved as v${saved.version}`,
+      message: asDraft ? t("promptDetailPage.saved_as_draft_v_version", { version: saved.version }) : needsApproval ? t("promptDetailPage.saved_as_draft_v_version_publishing", { version: saved.version }) : t("promptDetailPage.saved_as_v_version", { version: saved.version }),
       color: "positive",
       timeout: needsApproval ? 5000 : 2500,
     });
   } catch (error) {
-    notifyError("Could not save the version", error);
+    notifyError(t("promptDetailPage.could_not_save_the_version"), error);
   } finally {
     saving.value = false;
   }
@@ -252,9 +254,9 @@ async function rebuildPrompt() {
     const saved = await api.rebuild(props.promptId);
     await detail.run();
     selected.value = saved.version;
-    $q.notify({ message: `Draft v${saved.version} saved with the current fragments`, color: "positive", timeout: 3000 });
+    $q.notify({ message: t("promptDetailPage.draft_v_version_saved_with_the", { version: saved.version }), color: "positive", timeout: 3000 });
   } catch (error) {
-    notifyError("Could not rebuild", error);
+    notifyError(t("promptDetailPage.could_not_rebuild"), error);
   } finally {
     draftBusy.value = false;
   }
@@ -264,10 +266,10 @@ async function rebuildDependents() {
   try {
     const { created, skipped } = await api.rebuildDependents(props.promptId);
     await detail.run();
-    const skippedNote = skipped.length > 0 ? `, ${skipped.length} skipped` : "";
-    $q.notify({ message: `${created.length} ${created.length === 1 ? "draft" : "drafts"} created${skippedNote}. Review them in each prompt`, color: skipped.length > 0 ? "warning" : "positive", timeout: 5000 });
+    const skippedNote = skipped.length > 0 ? `, ${t("promptDetailPage.count_skipped", { count: skipped.length })}` : "";
+    $q.notify({ message: `${tp("promptDetailPage.draftsCreated", created.length)}${skippedNote}. ${t("promptDetailPage.review_them_in_each_prompt")}`, color: skipped.length > 0 ? "warning" : "positive", timeout: 5000 });
   } catch (error) {
-    notifyError("Could not rebuild the prompts that use it", error);
+    notifyError(t("promptDetailPage.could_not_rebuild_the_prompts_that"), error);
   } finally {
     draftBusy.value = false;
   }
@@ -299,9 +301,9 @@ async function publishSelected() {
   try {
     await api.publishDraft(props.promptId, selected.value);
     await detail.run();
-    $q.notify({ message: `v${selected.value} published. It can take tags now`, color: "positive", timeout: 3000 });
+    $q.notify({ message: t("promptDetailPage.v_version_published_it_can_take", { version: selected.value }), color: "positive", timeout: 3000 });
   } catch (error) {
-    notifyError("Could not publish the draft", error);
+    notifyError(t("promptDetailPage.could_not_publish_the_draft"), error);
   } finally {
     draftBusy.value = false;
   }
@@ -314,9 +316,9 @@ async function discardSelected() {
     await api.discardDraft(props.promptId, gone);
     selected.value = null;
     await detail.run();
-    $q.notify({ message: `Draft v${gone} discarded`, color: "positive", timeout: 3000 });
+    $q.notify({ message: t("promptDetailPage.draft_v_version_discarded", { version: gone }), color: "positive", timeout: 3000 });
   } catch (error) {
-    notifyError("Could not discard the draft", error);
+    notifyError(t("promptDetailPage.could_not_discard_the_draft"), error);
   } finally {
     draftBusy.value = false;
   }
@@ -352,9 +354,9 @@ async function moveTag(tag: string, version: number | null) {
     reason.value = "";
     delete pending.value[tag];
     await detail.run();
-    $q.notify({ message: version === null ? `Tag "${tag}" removed` : `"${tag}" now points to v${version}`, color: "positive", timeout: 2500 });
+    $q.notify({ message: version === null ? t("promptDetailPage.tag_tag_removed", { tag }) : t("promptDetailPage.tag_now_points_to_v_version2", { tag, version }), color: "positive", timeout: 2500 });
   } catch (error) {
-    notifyError("Could not move the tag", error);
+    notifyError(t("promptDetailPage.could_not_move_the_tag"), error);
   } finally {
     moving.value = false;
   }
@@ -448,7 +450,7 @@ async function savePolicy() {
     editingPolicy.value = false;
     await detail.run();
   } catch (error) {
-    notifyError("Could not save the policy", error);
+    notifyError(t("promptDetailPage.could_not_save_the_policy"), error);
   } finally {
     savingPolicy.value = false;
   }
@@ -458,7 +460,7 @@ async function removePolicy() {
     await api.deletePolicy(props.promptId);
     await detail.run();
   } catch (error) {
-    notifyError("Could not remove the policy", error);
+    notifyError(t("promptDetailPage.could_not_remove_the_policy"), error);
   }
 }
 
@@ -468,7 +470,7 @@ async function toggleArchived() {
     await api.update(props.promptId, { archived: !archived.value });
     await detail.run();
   } catch (error) {
-    notifyError(archived.value ? "Could not restore the prompt" : "Could not archive the prompt", error);
+    notifyError(archived.value ? t("promptDetailPage.could_not_restore_the_prompt") : t("promptDetailPage.could_not_archive_the_prompt"), error);
   }
 }
 
@@ -534,11 +536,11 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
     <PageHeader
       :crumbs="[{ label: 'Prompts' }, { label: 'Prompts', to: { name: 'prompts', params: { experimentId: agentLabel } } }, { label: data?.prompt.name ?? 'Prompt' }]"
       icon="M4 6h16M4 12h16M4 18h10"
-      :title="data?.prompt.name ?? 'Prompt'"
+      :title="data?.prompt.name ?? t('promptDetailPage.prompt')"
     >
       <div class="actions">
-        <Pill v-if="archived" data-testid="archived-badge" class="archived">archived</Pill>
-        <Button v-if="can('prompt:write')" data-testid="toggle-archived" @click="toggleArchived">{{ archived ? "Restore" : "Archive" }}</Button>
+        <Pill v-if="archived" data-testid="archived-badge" class="archived">{{ t("promptDetailPage.archived") }}</Pill>
+        <Button v-if="can('prompt:write')" data-testid="toggle-archived" @click="toggleArchived">{{ archived ? t("promptDetailPage.restore") : t("promptDetailPage.archive") }}</Button>
       </div>
     </PageHeader>
 
@@ -549,18 +551,18 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
       <section class="title-row">
         <p class="description" data-testid="description">{{ data.prompt.description }}</p>
         <span class="grow" />
-        <Button data-testid="open-rules" @click="rulesOpen = true">Release rules<span v-if="openRequests.length > 0" class="pending-count" data-testid="rules-pending">{{ openRequests.length }} pending</span></Button>
+        <Button data-testid="open-rules" @click="rulesOpen = true">{{ t('promptDetailPage.release_rules') }}<span v-if="openRequests.length > 0" class="pending-count" data-testid="rules-pending">{{ t('promptDetailPage.count_pending', { count: openRequests.length }) }}</span></Button>
       </section>
 
       <div class="split">
-        <aside class="side" aria-label="Environments and versions">
-          <span class="eyebrow">ENVIRONMENTS</span>
+        <aside class="side" :aria-label="t('promptDetailPage.environments_and_versions')">
+          <span class="eyebrow">{{ t("promptDetailPage.environments") }}</span>
           <div v-if="envCards.length > 0" class="env-list" data-testid="env-strip">
             <div v-for="e in envCards" :key="e.key" class="env-card" :class="{ late: e.behind !== null && e.behind > 0 && e.key === 'pro' }" :data-testid="`env-card-${e.key}`">
               <div class="env-row">
                 <EnvFlag :env="e.key" />
                 <strong class="mono env-card-ver">{{ e.version === null ? "—" : `v${e.version}` }}</strong>
-                <Pill v-if="isProtected(e.key)" title="Needs a passing evaluation to be promoted" :data-testid="`protected-${e.key}`" class="protected">protected</Pill>
+                <Pill v-if="isProtected(e.key)" :title="t('promptDetailPage.needs_a_passing_evaluation_to_be')" :data-testid="`protected-${e.key}`" class="protected">{{ t("promptDetailPage.protected") }}</Pill>
                 <span class="grow" />
                 <Button
                   v-if="canPromote && latestVersion > 0 && e.version !== latestVersion"
@@ -570,82 +572,82 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   :data-testid="`promote-${e.key}`"
                   @click="promoteLatest(e.key)"
                 >{{ needsApproval(e.key, latestVersion) ? "Request approval" : `Promote v${latestVersion}` }}</Button>
-                <Button variant="icon" size="sm" :aria-label="`Options for ${e.key}`" :aria-expanded="envOpen === e.key" :data-testid="`env-menu-${e.key}`" @click="envOpen = envOpen === e.key ? null : e.key">⋯</Button>
+                <Button variant="icon" size="sm" :aria-label="t('promptDetailPage.options_for_key', { key: e.key })" :aria-expanded="envOpen === e.key" :data-testid="`env-menu-${e.key}`" @click="envOpen = envOpen === e.key ? null : e.key">⋯</Button>
               </div>
               <div class="env-card-meta">
                 <span class="env-card-note" :class="{ late: e.behind !== null && e.behind > 0 }" :data-testid="`env-note-${e.key}`">
                   {{ e.version === null ? "Not set" : e.behind === 0 ? "Up to date" : `${e.behind} ${e.behind === 1 ? "version" : "versions"} behind` }}
                 </span>
                 <span class="soft" :data-testid="`usage-${e.key}`">
-                  <template v-if="e.usage">· {{ e.usage.state === "behind" ? `agent on v${e.usage.version}` : formatRelativeTime(e.usage.lastSeenAt, nowMs) }}</template>
-                  <template v-else>· no agent has reported it yet</template>
+                  <template v-if="e.usage">· {{ e.usage.state === "behind" ? t("promptDetailPage.agent_on_v_version", { version: e.usage.version }) : formatRelativeTime(e.usage.lastSeenAt, nowMs) }}</template>
+                  <template v-else>{{ t("promptDetailPage.no_agent_has_reported_it_yet") }}</template>
                 </span>
               </div>
               <div v-if="envOpen === e.key" class="env-panel" :data-testid="`env-panel-${e.key}`">
                 <p v-if="!e.usage" class="soft small" data-testid="usage-empty">
-                  No agent has reported this environment yet. It shows up here once an agent loads the prompt with <code>memtrace.prompts.get()</code>.
+                  {{ t("promptDetailPage.no_agent_has_reported_this_environment") + " " }}<code>memtrace.prompts.get()</code>.
                 </p>
                 <div v-else class="usage-line">
                   <Pill :tone="USAGE_TONE[e.usage.state]" class="usage">{{ USAGE_LABEL[e.usage.state] }}</Pill>
-                  <span class="soft">{{ e.usage.tag ? `follows “${e.usage.tag}”` : "fixed version" }}<template v-if="e.usage.state === 'behind'"> · “{{ e.usage.tag }}” now points to v{{ e.usage.tagVersion }}</template></span>
+                  <span class="soft">{{ e.usage.tag ? t('promptDetailPage.follows_tag', { tag: e.usage.tag }) : t('promptDetailPage.fixed_version') }}<template v-if="e.usage.state === 'behind'"> · {{ t('promptDetailPage.tag_now_points_to_v_version', { tag: e.usage.tag, version: e.usage.tagVersion }) }}</template></span>
                 </div>
                 <template v-if="canPromote">
-                  <TextInput v-model="reason" placeholder="Reason for the change (optional, saved in the history)" data-testid="tag-reason" />
+                  <TextInput v-model="reason" :placeholder="t('promptDetailPage.reason_for_the_change_optional_saved')" data-testid="tag-reason" />
                   <div class="move">
-                    <Select :model-value="pending[e.key] ?? e.version" :options="versionOptions" placeholder="Point to…" @update:model-value="pending[e.key] = $event" />
-                    <Button size="sm" :disabled="moving || pending[e.key] == null || pending[e.key] === e.version" :data-testid="`move-${e.key}`" @click="moveEnvironment(e.key)">{{ pending[e.key] != null && needsApproval(e.key, pending[e.key]!) ? "Request approval" : "Move" }}</Button>
-                    <Button variant="icon" size="sm" v-if="e.version !== null" :aria-label="`Remove the ${e.key} tag`" title="Remove the tag" @click="moveTag(e.key, null)">×</Button>
+                    <Select :model-value="pending[e.key] ?? e.version" :options="versionOptions" :placeholder="t('promptDetailPage.point_to')" @update:model-value="pending[e.key] = $event" />
+                    <Button size="sm" :disabled="moving || pending[e.key] == null || pending[e.key] === e.version" :data-testid="`move-${e.key}`" @click="moveEnvironment(e.key)">{{ pending[e.key] != null && needsApproval(e.key, pending[e.key]!) ? t("promptDetailPage.request_approval") : t("promptDetailPage.move") }}</Button>
+                    <Button variant="icon" size="sm" v-if="e.version !== null" :aria-label="t('promptDetailPage.remove_the_tag_tag', { tag: e.key })" :title="t('promptDetailPage.remove_the_tag')" @click="moveTag(e.key, null)">×</Button>
                   </div>
                 </template>
-                <p v-else class="soft small">Moving this tag needs the promote permission.</p>
+                <p v-else class="soft small">{{ t("promptDetailPage.moving_this_tag_needs_the_promote") }}</p>
               </div>
             </div>
           </div>
           <div class="tags-row" data-testid="custom-tags">
-            <span class="eyebrow">CUSTOM TAGS</span>
-            <button v-for="t in freeTags" :key="t.tag" type="button" class="tag-chip mono" :class="{ on: openTag === t.tag }" :aria-expanded="openTag === t.tag" :data-testid="`chip-${t.tag}`" @click="openTag = openTag === t.tag ? null : t.tag">
-              {{ t.tag }} → <b>v{{ t.version }}</b><span v-if="followers(t.tag).length" class="soft"> · {{ followers(t.tag).length }} {{ followers(t.tag).length === 1 ? "agent" : "agents" }}</span>
+            <span class="eyebrow">{{ t("promptDetailPage.custom_tags") }}</span>
+            <button v-for="ft in freeTags" :key="ft.tag" type="button" class="tag-chip mono" :class="{ on: openTag === ft.tag }" :aria-expanded="openTag === ft.tag" :data-testid="`chip-${ft.tag}`" @click="openTag = openTag === ft.tag ? null : ft.tag">
+              {{ ft.tag }} → <b>v{{ ft.version }}</b><span v-if="followers(ft.tag).length" class="soft"> · {{ tp("promptDetailPage.followers", followers(ft.tag).length) }}</span>
             </button>
-            <button v-if="canWrite && selected !== null" type="button" class="tag-chip add" data-testid="new-tag-toggle" :aria-expanded="addingTag" @click="addingTag = !addingTag">+ New tag</button>
-            <span v-if="freeTags.length === 0 && !addingTag" class="soft small" data-testid="no-custom-tags">None yet</span>
+            <button v-if="canWrite && selected !== null" type="button" class="tag-chip add" data-testid="new-tag-toggle" :aria-expanded="addingTag" @click="addingTag = !addingTag">{{ t("promptDetailPage.new_tag") }}</button>
+            <span v-if="freeTags.length === 0 && !addingTag" class="soft small" data-testid="no-custom-tags">{{ t("promptDetailPage.none_yet") }}</span>
           </div>
-                          <div v-for="t in openFreeTags" :key="t.tag" class="free-card" :data-testid="`free-tag-${t.tag}`">
+                          <div v-for="ft in openFreeTags" :key="ft.tag" class="free-card" :data-testid="`free-tag-${ft.tag}`">
                             <div class="free-row">
-                              <span class="free-tag mono">{{ t.tag }}</span>
-                              <strong class="mono">v{{ t.version }}</strong>
+                              <span class="free-tag mono">{{ ft.tag }}</span>
+                              <strong class="mono">v{{ ft.version }}</strong>
                               <span class="grow"></span>
                               <div v-if="canWrite" class="move">
-                                <Select :model-value="pending[t.tag] ?? t.version" :options="versionOptions" placeholder="Point to…" @update:model-value="pending[t.tag] = $event" />
-                                <Button size="sm" :disabled="moving || pending[t.tag] == null || pending[t.tag] === t.version" :data-testid="`move-${t.tag}`" @click="moveTag(t.tag, pending[t.tag]!)">Move</Button>
-                                <Button variant="icon" :aria-label="`Remove the ${t.tag} tag`" title="Remove the tag" @click="moveTag(t.tag, null)">×</Button>
+                                <Select :model-value="pending[ft.tag] ?? ft.version" :options="versionOptions" :placeholder="t('promptDetailPage.point_to')" @update:model-value="pending[ft.tag] = $event" />
+                                <Button size="sm" :disabled="moving || pending[ft.tag] == null || pending[ft.tag] === ft.version" :data-testid="`move-${ft.tag}`" @click="moveTag(ft.tag, pending[ft.tag]!)">{{ t("promptDetailPage.move") }}</Button>
+                                <Button variant="icon" :aria-label="t('promptDetailPage.remove_the_tag_tag', { tag: ft.tag })" :title="t('promptDetailPage.remove_the_tag')" @click="moveTag(ft.tag, null)">×</Button>
                               </div>
                             </div>
-                            <ul v-if="followers(t.tag).length" class="followers" :data-testid="`followers-${t.tag}`">
-                              <li v-for="u in followers(t.tag)" :key="`${u.experimentId}-${u.environment}-${u.version}`">
+                            <ul v-if="followers(ft.tag).length" class="followers" :data-testid="`followers-${ft.tag}`">
+                              <li v-for="u in followers(ft.tag)" :key="`${u.experimentId}-${u.environment}-${u.version}`">
                                 <Pill :tone="USAGE_TONE[u.state]" class="usage">{{ USAGE_LABEL[u.state] }}</Pill>
-                                <span>{{ u.environment || "no environment" }} · running <strong class="mono">v{{ u.version }}</strong></span>
+                                <span>{{ u.environment || t('promptDetailPage.no_environment') }} · {{ t('promptDetailPage.running') }} <strong class="mono">v{{ u.version }}</strong></span>
                                 <span class="grow"></span>
                                 <span class="soft">{{ formatRelativeTime(u.lastSeenAt, nowMs) }}</span>
                               </li>
                             </ul>
-                            <div v-else class="no-followers" :data-testid="`no-followers-${t.tag}`">
-                              <span class="soft">No agent has reported this tag yet.</span>
+                            <div v-else class="no-followers" :data-testid="`no-followers-${ft.tag}`">
+                              <span class="soft">{{ t("promptDetailPage.no_agent_has_reported_this_tag") }}</span>
                               <span class="snippet">
-                                <code>{{ snippetOf(t.tag) }}</code>
-                                <button type="button" class="copy" @click="copySnippet(t.tag)">{{ copiedTag === t.tag ? "Copied" : "Copy" }}</button>
+                                <code>{{ snippetOf(ft.tag) }}</code>
+                                <button type="button" class="copy" @click="copySnippet(ft.tag)">{{ copiedTag === ft.tag ? t("promptDetailPage.copied") : t("promptDetailPage.copy") }}</button>
                               </span>
                             </div>
                           </div>
           <div v-if="addingTag && canWrite && selected !== null" class="free-card" data-testid="new-tag-panel">
             <p class="soft other-help">
-              A custom tag is a channel with your own name. An agent follows it with <code>tag="canary"</code> and receives the version it points to, so moving the tag updates the agent without a deploy. No approval needed.
+              {{ t("promptDetailPage.a_custom_tag_is_a_channel") + " " }}<code>tag="canary"</code>{{ " " + t("promptDetailPage.and_receives_the_version_it_points") }}
             </p>
             <form class="add-tag" @submit.prevent="addFreeTag">
               <TextInput v-model="newTag" placeholder="new-tag" mono size="sm" data-testid="new-tag" />
-              <Button variant="primary" size="sm" type="submit" :disabled="moving || !newTag.trim() || !!newTagError" data-testid="add-tag">Tag v{{ selected }}</Button>
+              <Button variant="primary" size="sm" type="submit" :disabled="moving || !newTag.trim() || !!newTagError" data-testid="add-tag">{{ t('promptDetailPage.tag_v_version', { version: selected }) }}</Button>
             </form>
             <p v-if="newTagError" class="soft tag-error" data-testid="new-tag-error">{{ newTagError }}</p>
-            <p v-else class="soft">Lowercase letters, digits, “-” and “_”, starting with a letter. dev, pre and pro are environments and have their own rules.</p>
+            <p v-else class="soft">{{ t("promptDetailPage.lowercase_letters_digits_and_starting_wi") }}</p>
           </div>
           <div class="versions-box" data-testid="versions-box">
             <PromptVersionList :versions="versions" :selected="selected" :tags-by-version="tagsByVersion" :pinned="[]" :running="running" :author-name="authorName" @pick="pick" />
@@ -656,11 +658,11 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
           <header v-if="selectedVersion" class="vhead" data-testid="version-head">
             <strong class="mono vnum" data-testid="version-picker">v{{ selected }}</strong>
             <EnvFlag v-for="tag in tagsByVersion.get(selected ?? -1) ?? []" :key="tag" :env="tag" />
-            <Pill v-if="isDraft" class="draft-pill">draft</Pill>
+            <Pill v-if="isDraft" class="draft-pill">{{ t("promptDetailPage.draft") }}</Pill>
             <span v-if="selectedVersion.message" class="vmsg">{{ selectedVersion.message }}</span>
-            <span class="soft">Saved {{ formatDateTime(selectedVersion.createdAt) }}<template v-if="authorName(selectedVersion.createdBy)"> · {{ authorName(selectedVersion.createdBy) }}</template><template v-if="parentOfSelected"> · from v{{ parentOfSelected.version }}</template></span>
+            <span class="soft">{{ t("promptDetailPage.saved_when", { when: formatDateTime(selectedVersion.createdAt) }) }}<template v-if="authorName(selectedVersion.createdBy)"> · {{ authorName(selectedVersion.createdBy) }}</template><template v-if="parentOfSelected"> · {{ t('promptDetailPage.from_v_version', { version: parentOfSelected.version }) }}</template></span>
             <span class="grow" />
-            <Button variant="primary" v-if="canWrite && mode === 'text' && !editing" data-testid="edit-version" @click="startEdit">Edit as new version</Button>
+            <Button variant="primary" v-if="canWrite && mode === 'text' && !editing" data-testid="edit-version" @click="startEdit">{{ t("promptDetailPage.edit_as_new_version") }}</Button>
           </header>
           <TabBar :tabs="VIEW_TABS" :model-value="activeTab" @update:model-value="openTab" />
 
@@ -668,11 +670,11 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
             <div v-if="selectedVersion" class="pane" data-testid="pane-content">
               <section v-if="isDraft && !editing && selectedVersion" class="draft-banner" data-testid="draft-banner">
                 <div>
-                  <b>Draft — not reviewed yet.</b> It has no tag and no environment can use it.
-                  <template v-if="approvalRules.publish"> It needs approval before it can be published.</template>
+                  <b>{{ t("promptDetailPage.draft_not_reviewed_yet") }}</b>{{ " " + t("promptDetailPage.it_has_no_tag_and_no") }}
+                  <template v-if="approvalRules.publish">{{ " " + t("promptDetailPage.it_needs_approval_before_it_can") }}</template>
                   <template v-if="selectedVersion.origin">
                     <p class="small" data-testid="draft-origin">
-                      Proposed to fix <span v-if="selectedVersion.origin.cause">“{{ selectedVersion.origin.cause }}”</span>
+                      {{ t("promptDetailPage.proposed_to_fix") + " " }}<span v-if="selectedVersion.origin.cause">“{{ selectedVersion.origin.cause }}”</span>
                       <template v-if="selectedVersion.origin.traceIds.length > 0">
                         (<router-link v-for="t in selectedVersion.origin.traceIds" :key="t" :to="{ name: 'trace', params: { experimentId: String(route.params.experimentId), traceId: t } }" class="link mono">{{ t.slice(0, 8) }}</router-link>)
                       </template>.
@@ -681,16 +683,16 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   </template>
                 </div>
                 <div v-if="canWrite" class="draft-actions">
-                  <Button data-testid="draft-test" @click="testDraft(selectedVersion.version, selectedVersion.parentVersion, selectedVersion.origin?.traceIds[0] ?? null)">Test it</Button>
-                  <Button variant="primary" v-if="approvalRules.publish" :disabled="draftBusy" data-testid="draft-request" @click="requesting = { action: 'publish', version: selectedVersion.version }">Request approval</Button>
-                  <Button variant="primary" v-else :disabled="draftBusy" data-testid="draft-publish" @click="publishSelected">Publish</Button>
-                  <Button :disabled="draftBusy" data-testid="draft-discard" @click="discardSelected">Discard</Button>
+                  <Button data-testid="draft-test" @click="testDraft(selectedVersion.version, selectedVersion.parentVersion, selectedVersion.origin?.traceIds[0] ?? null)">{{ t("promptDetailPage.test_it") }}</Button>
+                  <Button variant="primary" v-if="approvalRules.publish" :disabled="draftBusy" data-testid="draft-request" @click="requesting = { action: 'publish', version: selectedVersion.version }">{{ t("promptDetailPage.request_approval") }}</Button>
+                  <Button variant="primary" v-else :disabled="draftBusy" data-testid="draft-publish" @click="publishSelected">{{ t("promptDetailPage.publish") }}</Button>
+                  <Button :disabled="draftBusy" data-testid="draft-discard" @click="discardSelected">{{ t("promptDetailPage.discard") }}</Button>
                 </div>
               </section>
               <section v-if="!editing && data.prompt.kind === 'fragment' && outdatedDependents > 0" class="dependents-banner" data-testid="dependents-banner">
                 <div>
-                  <b>{{ outdatedDependents }} {{ outdatedDependents === 1 ? "prompt still includes" : "prompts still include" }} an older version of this fragment.</b>
-                  <p class="small">Nothing changes in production by itself. MemTrace can prepare a draft in {{ outdatedDependents === 1 ? "it" : "each one" }}; you review, test it in the playground and publish.</p>
+                  <b>{{ tp("promptDetailPage.outdated", outdatedDependents) }}</b>
+                  <p class="small">{{ tp("promptDetailPage.outdatedNote", outdatedDependents) }}</p>
                 </div>
                 <Button variant="primary" v-if="canWrite" :disabled="draftBusy" data-testid="rebuild-dependents" @click="rebuildDependents">
                   Prepare {{ outdatedDependents === 1 ? "a draft" : `drafts for ${outdatedDependents} prompts` }}
@@ -700,85 +702,85 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                 <div class="code-card">
                   <div v-if="hasIncludes" class="code-head">
                     <span class="grow" />
-                    <SegmentedControl size="sm" class="view-toggle" aria-label="Text shown" :options="TEXT_VIEW_OPTIONS" :model-value="view" @update:model-value="view = $event as typeof view" />
+                    <SegmentedControl size="sm" class="view-toggle" :aria-label="t('promptDetailPage.text_shown')" :options="TEXT_VIEW_OPTIONS" :model-value="view" @update:model-value="view = $event as typeof view" />
                   </div>
                   <pre class="code" data-testid="version-content"><span v-for="line in codeLines" :key="line.n" class="ln" :class="{ changed: line.changed, heading: line.heading }"><span v-for="(part, i) in line.parts" :key="i" :class="{ variable: part.variable }">{{ part.text }}</span></span></pre>
-                  <div v-if="!showingSource && changedLines.size > 0" class="code-foot"><i /> Lines changed since v{{ parentOfSelected?.version }}</div>
+                  <div v-if="!showingSource && changedLines.size > 0" class="code-foot"><i /> {{ t("promptDetailPage.lines_changed_since_v_version", { version: parentOfSelected?.version }) }}</div>
                   <div class="props" data-testid="props">
                     <div class="prop" data-testid="variables-card">
-                      <span class="eyebrow">VARIABLES</span>
+                      <span class="eyebrow">{{ t("promptDetailPage.variables") }}</span>
                       <code v-for="name in selectedVersion.variables" :key="name" class="var">{{ asVariable(name) }}</code>
-                      <span v-if="selectedVersion.variables.length === 0" class="soft">none</span>
+                      <span v-if="selectedVersion.variables.length === 0" class="soft">{{ t("promptDetailPage.none2") }}</span>
                     </div>
                     <div v-if="hasIncludes" class="prop" data-testid="includes-card">
-                      <span class="eyebrow">INCLUDES</span>
+                      <span class="eyebrow">{{ t("promptDetailPage.includes") }}</span>
                       <span v-for="i in selectedVersion.includes" :key="`${i.name}@${i.ref}`" class="include" :data-testid="`include-${i.name}`">
                         <router-link :to="{ name: 'prompts', params: { experimentId: String(route.params.experimentId) } }" class="link mono">{{ i.name }}@{{ i.ref }}</router-link>
                         → <b class="mono">v{{ i.version }}</b>
-                        <Pill v-if="includeOutdated(i.name, i.ref)" :data-testid="`outdated-${i.name}`" class="draft-pill">now v{{ includeOutdated(i.name, i.ref) }}</Pill>
+                        <Pill v-if="includeOutdated(i.name, i.ref)" :data-testid="`outdated-${i.name}`" class="draft-pill">{{ t('promptDetailPage.now_v_version', { version: includeOutdated(i.name, i.ref) }) }}</Pill>
                       </span>
-                      <Button variant="primary" size="sm" v-if="canWrite && isLatestPublished && anyOutdated" :disabled="draftBusy" data-testid="rebuild" @click="rebuildPrompt">Rebuild with the current fragments</Button>
+                      <Button variant="primary" size="sm" v-if="canWrite && isLatestPublished && anyOutdated" :disabled="draftBusy" data-testid="rebuild" @click="rebuildPrompt">{{ t("promptDetailPage.rebuild_with_the_current_fragments") }}</Button>
                     </div>
                     <div v-if="data.prompt.kind === 'fragment'" class="prop used-by" data-testid="used-by-card">
-                      <span class="eyebrow">USED BY</span>
-                      <span v-if="data.usedBy.length === 0" class="soft" data-testid="used-by-empty">No prompt includes this fragment yet. Write <code>{{ includeExample(data.prompt.name) }}</code> in a prompt to use it.</span>
+                      <span class="eyebrow">{{ t("promptDetailPage.used_by") }}</span>
+                      <span v-if="data.usedBy.length === 0" class="soft" data-testid="used-by-empty">{{ t("promptDetailPage.no_prompt_includes_this_fragment_yet") + " " }}<code>{{ includeExample(data.prompt.name) }}</code>{{ " " + t("promptDetailPage.in_a_prompt_to_use_it") }}</span>
                       <span v-for="u in data.usedBy" :key="u.promptId" class="include" :data-testid="`used-by-${u.name}`">
                         <router-link :to="{ name: 'prompt', params: { experimentId: String(route.params.experimentId), promptId: u.promptId } }" class="link mono">{{ u.name }}</router-link> <span class="soft">v{{ u.version }}</span>
-                        <Pill v-if="u.outdated" class="draft-pill">behind</Pill>
-                        <Pill v-else class="ok-pill">up to date</Pill>
+                        <Pill v-if="u.outdated" class="draft-pill">{{ t("promptDetailPage.behind") }}</Pill>
+                        <Pill v-else class="ok-pill">{{ t("promptDetailPage.up_to_date2") }}</Pill>
                       </span>
                     </div>
                   </div>
                 </div>
                 <Card class="deps-fold" data-testid="pane-map">
                   <Disclosure :open="mapOpen" toggle-testid="deps-toggle" @toggle="mapOpen = !mapOpen">
-                    <template #head><strong>Dependencies</strong><span class="soft">agents that read it, fragments and prompts around it</span></template>
+                    <template #head><strong>{{ t("promptDetailPage.dependencies") }}</strong><span class="soft">{{ t("promptDetailPage.agents_that_read_it_fragments_and") }}</span></template>
                     <PromptDependencyMap :prompt-id="promptId" :kind="data.prompt.kind" :name="data.prompt.name" :tag-versions="tagVersionMap" :latest="latestVersion" />
                   </Disclosure>
                 </Card>
               </div>
               <div v-else class="editor-layout">
                 <form class="editor" @submit.prevent="saveVersion(false)">
-                  <p class="muted">Editing from v{{ selected }}. Saving creates a new version; the previous ones are not modified.</p>
+                  <p class="muted">{{ t("promptDetailPage.editing_from_v_version_saving_creates", { version: selected }) }}</p>
                   <PromptEditor v-model="draft" :experiment-id="String(route.params.experimentId)" :fragments="data.prompt.kind !== 'fragment'" :rows="18" />
-                  <TextInput v-model="message" placeholder="What changed and why? (optional)" data-testid="version-message" />
+                  <TextInput v-model="message" :placeholder="t('promptDetailPage.what_changed_and_why_optional')" data-testid="version-message" />
                   <div class="row">
-                    <Button variant="primary" type="submit" :disabled="saving || !draft.trim() || draft === (selectedVersion.source ?? selectedVersion.content)" data-testid="save-version">Save as new version</Button>
-                    <Button :disabled="saving || !draft.trim() || draft === (selectedVersion.source ?? selectedVersion.content)" data-testid="save-draft" @click="saveVersion(true)">Save as draft</Button>
-                    <Button @click="editing = false">Cancel</Button>
+                    <Button variant="primary" type="submit" :disabled="saving || !draft.trim() || draft === (selectedVersion.source ?? selectedVersion.content)" data-testid="save-version">{{ t("promptDetailPage.save_as_new_version") }}</Button>
+                    <Button :disabled="saving || !draft.trim() || draft === (selectedVersion.source ?? selectedVersion.content)" data-testid="save-draft" @click="saveVersion(true)">{{ t("promptDetailPage.save_as_draft") }}</Button>
+                    <Button @click="editing = false">{{ t("promptDetailPage.cancel") }}</Button>
                   </div>
                 </form>
               </div>
             </div>
           </template>
           <div v-else class="view" :data-testid="`view-${mode}`">
-            <SegmentedControl v-if="mode === 'try' || mode === 'fix'" class="test-switch" size="sm" aria-label="Kind of test" :options="TEST_OPTIONS" :model-value="mode" @update:model-value="mode = $event as Mode" />
+            <SegmentedControl v-if="mode === 'try' || mode === 'fix'" class="test-switch" size="sm" :aria-label="t('promptDetailPage.kind_of_test')" :options="TEST_OPTIONS" :model-value="mode" @update:model-value="mode = $event as Mode" />
             <div v-if="mode === 'compare' && selectedVersion" class="pane" data-testid="pane-compare">
               <div class="compare-bar compare-toolbar">
-                <span class="muted">Compare</span>
+                <span class="muted">{{ t("promptDetailPage.compare") }}</span>
                 <div class="bar-select"><Select v-model="selected" :options="allVersionOptions" data-testid="compare-version" /></div>
-                <span class="muted">with</span>
+                <span class="muted">{{ t("promptDetailPage.with") }}</span>
                 <div v-if="compareOptions.length > 0" class="bar-select"><Select v-model="compareWith" :options="compareOptions" data-testid="compare-with" /></div>
-                <span v-else class="muted">nothing: this is the first version</span>
+                <span v-else class="muted">{{ t("promptDetailPage.nothing_this_is_the_first_version") }}</span>
                 <span class="grow" />
-                <span class="muted">over the last</span>
+                <span class="muted">{{ t("promptDetailPage.over_the_last") }}</span>
                 <div class="bar-select"><Select v-model="rangeKey" :options="rangeOptions" data-testid="behaviour-range" /></div>
               </div>
               <section v-if="compareVersion" class="behaviour" data-testid="behaviour">
                 <LoadingState v-if="evidence.loading.value && !evidence.data.value" size="md" />
-                <p v-else-if="evidence.error.value" class="muted small" data-testid="behaviour-error">Could not load the evidence: {{ evidence.error.value.message }}</p>
+                <p v-else-if="evidence.error.value" class="muted small" data-testid="behaviour-error">{{ t("promptDetailPage.could_not_load_the_evidence_error", { error: evidence.error.value.message }) }}</p>
                 <p v-else-if="!comparison" class="muted small" data-testid="behaviour-empty">
-                  No traces used {{ missingEvidence.map((v) => `v${v}`).join(" or ") }} in the last {{ rangeLabel }}, so there is nothing to compare yet.
+                  {{ t("promptDetailPage.no_traces_used_versions_in_the", { versions: missingEvidence.map((v) => `v${v}`).join(` ${t("promptDetailPage.or")} `), range: rangeLabel }) }}
                 </p>
                 <template v-else>
                   <p v-if="!comparison.reliable" class="warn-banner small" data-testid="behaviour-unreliable">
                     <svg class="warn-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 3 2 20h20L12 3Zm0 6v5m0 3v.01" /></svg>
-                    At least one of the two versions has fewer than {{ MIN_TRACES }} traces: treat these differences as indicative, they may be chance.
+                    {{ t("promptDetailPage.at_least_one_of_the_two", { min: MIN_TRACES }) }}
                   </p>
                   <div class="tiles" data-testid="behaviour-table">
                     <div v-for="d in comparison.deltas" :key="d.key" class="tile" :data-testid="`delta-${d.key}`">
                       <span class="eyebrow">{{ d.label.toUpperCase() }}</span>
-                      <div class="tile-value"><strong>{{ d.target }}</strong><span class="soft">was {{ d.base }}</span></div>
+                      <div class="tile-value"><strong>{{ d.target }}</strong><span class="soft">{{ t('promptDetailPage.was_value', { value: d.base }) }}</span></div>
                       <Pill :class="d.direction" class="direction">{{ d.change }} · {{ DIRECTION_LABEL[d.direction] }}</Pill>
                       <div v-if="d.bars" class="bars" aria-hidden="true">
                         <span class="bar base"><i :style="{ width: `${Math.max(2, d.bars.base * 100)}%` }" /></span>
@@ -792,21 +794,21 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
               <PromptDiff v-if="compareVersion" :old-text="compareVersion.content" :new-text="selectedVersion.content" :old-label="`v${compareVersion.version}`" :new-label="`v${selectedVersion.version}`" />
               <Card class="all-versions" data-testid="pane-evidence">
                 <Disclosure :open="allVersionsOpen" toggle-testid="all-versions-toggle" @toggle="allVersionsOpen = !allVersionsOpen">
-                  <template #head><strong>All versions side by side</strong><span class="soft">{{ evidenceVersions.length }} {{ evidenceVersions.length === 1 ? "version" : "versions" }} with traces in the last {{ rangeLabel }}</span></template>
+                  <template #head><strong>{{ t('promptDetailPage.all_versions_side_by_side') }}</strong><span class="soft">{{ tp("promptDetailPage.versionsWithTraces", evidenceVersions.length, { range: rangeLabel }) }}</span></template>
                   <div class="all-versions-body">
                     <ErrorBanner v-if="evidence.error.value" :error="evidence.error.value" @retry="evidence.run()" />
                     <LoadingState v-else-if="evidence.loading.value && !evidence.data.value" size="md" />
                     <p v-else-if="evidenceVersions.length === 0" class="muted small" data-testid="evidence-empty">
-                      No trace used this prompt in the last {{ rangeLabel }}. Traces show up here when an agent calls <code>compile()</code> inside a traced step.
+                      {{ t("promptDetailPage.no_trace_used_this_prompt_in", { range: rangeLabel }) }} <code>compile()</code> {{ t("promptDetailPage.inside_a_traced_step") }}
                     </p>
                     <template v-else>
                 <div class="table-scroll evidence-card">
                   <table class="evidence" data-testid="evidence-table">
                     <thead>
                       <tr>
-                        <th>Version</th><th>Traces</th><th>Errors</th><th class="num">Latency p95</th><th class="num">Cost / trace</th><th class="num">User approval</th>
+                        <th>{{ t("promptDetailPage.version") }}</th><th>{{ t("promptDetailPage.traces") }}</th><th>{{ t("promptDetailPage.errors") }}</th><th class="num">{{ t("promptDetailPage.latency_p95") }}</th><th class="num">{{ t("promptDetailPage.cost_trace") }}</th><th class="num">{{ t("promptDetailPage.user_approval") }}</th>
                         <th v-for="name in evaluatorColumns" :key="name" class="num">{{ name }}</th>
-                        <th>Main failure</th>
+                        <th>{{ t("promptDetailPage.main_failure") }}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -816,7 +818,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                           <span class="env-stack"><EnvFlag v-for="tag in tagsByVersion.get(e.version) ?? []" :key="tag" :env="tag" /></span>
                         </td>
                         <td class="mono">
-                          <span class="cell-top">{{ formatCount(e.traces) }}<Pill v-if="sampleQuality(e.traces) === 'low'" :title="`Fewer than ${MIN_TRACES} traces: the figures are only indicative`" class="low-sample">few traces</Pill></span>
+                          <span class="cell-top">{{ formatCount(e.traces) }}<Pill v-if="sampleQuality(e.traces) === 'low'" :title="t('promptDetailPage.fewer_than_min_traces_the_figures', { min: MIN_TRACES })" class="low-sample">{{ t("promptDetailPage.few_traces") }}</Pill></span>
                           <span class="meter"><span :style="{ width: `${Math.max(3, (e.traces / maxTraces) * 100)}%` }" /></span>
                         </td>
                         <td class="mono" :class="{ bad: e.errorRate >= 0.1 }">
@@ -824,7 +826,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                           <span class="meter" :class="{ bad: e.errorRate >= 0.1 }"><span :style="{ width: `${Math.min(100, e.errorRate * 800)}%` }" /></span>
                         </td>
                         <td class="num mono">{{ formatDuration(e.latencyMs.p95) }}</td>
-                        <td class="num mono">{{ formatCostUsd(e.costPerTraceUsd) ?? "–" }}<span v-if="e.costPerTraceUsd !== null && !e.costComplete" class="muted" title="Some model has no known price: the real cost is higher"> +</span></td>
+                        <td class="num mono">{{ formatCostUsd(e.costPerTraceUsd) ?? "–" }}<span v-if="e.costPerTraceUsd !== null && !e.costComplete" class="muted" :title="t('promptDetailPage.some_model_has_no_known_price')"> +</span></td>
                         <td class="num mono">{{ e.feedback.satisfaction === null ? "–" : `${e.feedback.satisfaction.toFixed(0)}%` }}<span v-if="e.feedback.ratedTraces > 0" class="muted"> ({{ e.feedback.ratedTraces }})</span></td>
                         <td v-for="name in evaluatorColumns" :key="name" class="num mono"><span class="score">{{ evaluatorCell(e, name) }}</span></td>
                         <td>
@@ -836,8 +838,8 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   </table>
                 </div>
                 <div v-if="failures.length > 0" class="failures" data-testid="failures">
-                  <span class="eyebrow">WHAT FAILED MOST</span>
-                  <p class="soft">Main failure causes across these versions, by number of traces.</p>
+                  <span class="eyebrow">{{ t("promptDetailPage.what_failed_most") }}</span>
+                  <p class="soft">{{ t("promptDetailPage.main_failure_causes_across_these_version") }}</p>
                   <div v-for="f in failures" :key="f.title" class="failure">
                     <span class="failure-title">{{ f.title }}</span>
                     <span class="failure-bar"><span :style="{ width: `${(f.traces / maxFailure) * 100}%` }" /></span>
@@ -850,9 +852,9 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                 </Disclosure>
               </Card>
               <div class="traces-link">
-                <span class="soft">A trace counts for every version it used.</span>
+                <span class="soft">{{ t("promptDetailPage.a_trace_counts_for_every_version") }}</span>
                 <span class="grow" />
-                <router-link :to="tracesLink" class="link" data-testid="traces-open-all">Open the traces in Conversations →</router-link>
+                <router-link :to="tracesLink" class="link" data-testid="traces-open-all">{{ t("promptDetailPage.open_the_traces_in_conversations") }}</router-link>
               </div>
             </div>
             <div v-if="mode === 'fix'" class="pane" data-testid="pane-fix">
@@ -888,49 +890,49 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
           <div v-if="rulesOpen" class="drawer-backdrop" data-testid="drawer-backdrop" @click="rulesOpen = false" />
         </Transition>
         <Transition name="drawer-slide">
-        <aside v-if="rulesOpen" class="drawer" role="dialog" aria-label="Release rules" data-testid="drawer" :style="{ width: `min(${drawerWidth}px, 100vw)` }">
-          <div class="drawer-resize" role="separator" aria-orientation="vertical" aria-label="Resize panel" data-testid="drawer-resize" @pointerdown="startDrawerResize" @dblclick="toggleDrawerWidth" />
+        <aside v-if="rulesOpen" class="drawer" role="dialog" :aria-label="t('promptDetailPage.release_rules')" data-testid="drawer" :style="{ width: `min(${drawerWidth}px, 100vw)` }">
+          <div class="drawer-resize" role="separator" aria-orientation="vertical" :aria-label="t('promptDetailPage.resize_panel')" data-testid="drawer-resize" @pointerdown="startDrawerResize" @dblclick="toggleDrawerWidth" />
           <header class="drawer-head">
-            <strong>Release rules</strong>
+            <strong>{{ t("promptDetailPage.release_rules") }}</strong>
             <span class="grow" />
-            <Button variant="icon" :aria-label="drawerWide ? 'Narrow panel' : 'Widen panel'" data-testid="drawer-widen" @click="toggleDrawerWidth">{{ drawerWide ? "⇥" : "⇤" }}</Button>
-            <Button variant="icon" aria-label="Close" data-testid="drawer-close" @click="rulesOpen = false">×</Button>
+            <Button variant="icon" :aria-label="drawerWide ? t('promptDetailPage.narrow_panel') : t('promptDetailPage.widen_panel')" data-testid="drawer-widen" @click="toggleDrawerWidth">{{ drawerWide ? "⇥" : "⇤" }}</Button>
+            <Button variant="icon" :aria-label="t('promptDetailPage.close')" data-testid="drawer-close" @click="rulesOpen = false">×</Button>
           </header>
           <div class="drawer-body">
             <div class="pane tags-pane" data-testid="pane-tags">
               <section class="card policy-card">
-                <header class="card-head"><h3>Promotion policy</h3></header>
+                <header class="card-head"><h3>{{ t("promptDetailPage.promotion_policy") }}</h3></header>
                 <div class="card-body">
                 <div v-if="!editingPolicy" data-testid="policy">
                   <p v-if="!policy" class="muted small" data-testid="policy-none">
-                    No policy: any version can be promoted. Add one to require a passing evaluation before {{ gated.join(" and ") || "protected environments" }} can use a version.
+                    {{ t("promptDetailPage.no_policy_any_version_can_be", { envs: gated.join(` ${t("promptDetailPage.and")} `) || t("promptDetailPage.protected_environments") }) }}
                   </p>
                   <template v-else>
                     <p class="small" data-testid="policy-summary">
-                      A version needs <b>{{ policy.requiredRuns }}</b> passing evaluation{{ policy.requiredRuns > 1 ? "s in a row" : "" }} on
-                      <b>{{ datasetName(policy.datasetId) ?? "a dataset that no longer exists" }}</b> to be promoted to {{ gated.join(" or ") }}.
-                      <span v-if="policy.datasetId === null" class="warn" data-testid="policy-broken">The dataset was deleted: promotions are blocked until you choose another.</span>
+                      {{ t(policy.requiredRuns > 1 ? "promptDetailPage.passing.other" : "promptDetailPage.passing.one", { count: policy.requiredRuns }) }}
+                      <b>{{ datasetName(policy.datasetId) ?? t("promptDetailPage.a_dataset_that_no_longer_exists") }}</b> {{ t("promptDetailPage.to_be_promoted_to_envs", { envs: gated.join(` ${t("promptDetailPage.or")} `) }) }}
+                      <span v-if="policy.datasetId === null" class="warn" data-testid="policy-broken">{{ t("promptDetailPage.the_dataset_was_deleted_promotions_are") }}</span>
                     </p>
-                    <p class="muted small">The evaluation has to run with the agent reading that exact version through <code>memtrace.prompts</code>. Each evaluator must reach its target pass rate.</p>
+                    <p class="muted small">{{ t("promptDetailPage.the_evaluation_has_to_run_with") + " " }}<code>memtrace.prompts</code>{{ t("promptDetailPage.each_evaluator_must_reach_its_target") }}</p>
                   </template>
                   <div v-if="canPromote" class="row">
-                    <Button size="sm" data-testid="edit-policy" @click="startPolicy">{{ policy ? "Edit policy" : "Add policy" }}</Button>
-                    <Button size="sm" v-if="policy" data-testid="remove-policy" @click="removePolicy">Remove policy</Button>
+                    <Button size="sm" data-testid="edit-policy" @click="startPolicy">{{ policy ? t("promptDetailPage.edit_policy") : t("promptDetailPage.add_policy") }}</Button>
+                    <Button size="sm" v-if="policy" data-testid="remove-policy" @click="removePolicy">{{ t("promptDetailPage.remove_policy") }}</Button>
                   </div>
                 </div>
                 <form v-else class="policy-form" data-testid="policy-form" @submit.prevent="savePolicy">
                   <div class="row">
-                    <span class="muted">Evaluate against</span>
-                    <Select v-model="policyDataset" :options="datasetOptions" placeholder="Choose a dataset…" data-testid="policy-dataset" />
+                    <span class="muted">{{ t("promptDetailPage.evaluate_against") }}</span>
+                    <Select v-model="policyDataset" :options="datasetOptions" :placeholder="t('promptDetailPage.choose_a_dataset')" data-testid="policy-dataset" />
                   </div>
                   <div class="row">
-                    <span class="muted">Passing runs in a row</span>
+                    <span class="muted">{{ t("promptDetailPage.passing_runs_in_a_row") }}</span>
                     <input v-model.number="policyRuns" type="number" min="1" max="10" class="runs" data-testid="policy-runs" />
                   </div>
-                  <p class="muted small">Protected: {{ gated.join(", ") || "none" }}. {{ environmentKeys[0] ?? "The first environment" }} stays free to iterate.</p>
+                  <p class="muted small">{{ t("promptDetailPage.protected_envs_first_stays_free_to", { envs: gated.join(", ") || t("promptDetailPage.none"), first: environmentKeys[0] ?? t("promptDetailPage.the_first_environment") }) }}</p>
                   <div class="row">
-                    <Button variant="primary" size="sm" type="submit" :disabled="savingPolicy || policyDataset === null" data-testid="save-policy">Save policy</Button>
-                    <Button size="sm" @click="editingPolicy = false">Cancel</Button>
+                    <Button variant="primary" size="sm" type="submit" :disabled="savingPolicy || policyDataset === null" data-testid="save-policy">{{ t("promptDetailPage.save_policy") }}</Button>
+                    <Button size="sm" @click="editingPolicy = false">{{ t("promptDetailPage.cancel") }}</Button>
                   </div>
                 </form>
                 </div>
@@ -939,21 +941,21 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
               <PromptApprovals :prompt-id="promptId" :environments="environmentKeys" @changed="detail.run(); approvalInfo.run()" />
               </div>
               <section class="card history">
-                <header class="card-head"><h3>History</h3><span class="muted small">Every tag move, newest first.</span></header>
-                <p v-if="data.events.length === 0" class="empty muted small">No tag has been moved yet.</p>
+                <header class="card-head"><h3>{{ t("promptDetailPage.history") }}</h3><span class="muted small">{{ t("promptDetailPage.every_tag_move_newest_first") }}</span></header>
+                <p v-if="data.events.length === 0" class="empty muted small">{{ t("promptDetailPage.no_tag_has_been_moved_yet") }}</p>
                 <ul v-else class="events" data-testid="tag-events">
                   <li v-for="ev in data.events" :key="ev.id">
                     <i class="dot" :class="environmentKeys.includes(ev.tag) ? ev.tag : 'free'" />
                     <span class="ev-what mono">
                       <b>{{ ev.tag }}</b>
-                      <template v-if="ev.toVersion === null"> removed (was {{ ev.fromVersion === null ? "none" : `v${ev.fromVersion}` }})</template>
-                      <template v-else-if="ev.fromVersion === null"> added at v{{ ev.toVersion }}</template>
+                      <template v-if="ev.toVersion === null"> {{ t('promptDetailPage.removed_was_from', { from: ev.fromVersion === null ? t('promptDetailPage.none2') : `v${ev.fromVersion}` }) }}</template>
+                      <template v-else-if="ev.fromVersion === null"> {{ t('promptDetailPage.added_at_v_version', { version: ev.toVersion }) }}</template>
                       <template v-else> v{{ ev.fromVersion }} → v{{ ev.toVersion }}</template>
                     </span>
                     <span class="ev-note">
                       <template v-if="ev.reason">“{{ ev.reason }}”</template>
-                      <span v-if="ev.gateBypassed" class="warn" :data-testid="`bypassed-${ev.id}`"> skipped the evaluation: “{{ ev.bypassReason }}”</span>
-                      <span v-if="authorName(ev.changedBy)" class="muted" :data-testid="`event-author-${ev.id}`"> by {{ authorName(ev.changedBy) }}</span>
+                      <span v-if="ev.gateBypassed" class="warn" :data-testid="`bypassed-${ev.id}`"> {{ t("promptDetailPage.skipped_the_evaluation_reason", { reason: ev.bypassReason }) }}</span>
+                      <span v-if="authorName(ev.changedBy)" class="muted" :data-testid="`event-author-${ev.id}`"> {{ t('promptDetailPage.by_name', { name: authorName(ev.changedBy) }) }}</span>
                     </span>
                     <span class="ev-date mono">{{ formatDateTime(ev.createdAt) }}</span>
                   </li>
