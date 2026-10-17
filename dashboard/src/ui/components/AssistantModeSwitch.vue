@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { allowedModes, MODE_LABELS, type AssistantDisplayMode, type AssistantDisplayTheme } from "@/domain/assistant-display";
 import { setUserMode } from "../composables/useAssistantDisplay";
+import { t } from "../i18n";
 
 /** Selector de modo en la cabecera del chat: solo ofrece los que la organización permite. */
 const props = defineProps<{ theme: AssistantDisplayTheme | null; current: AssistantDisplayMode }>();
@@ -16,7 +17,7 @@ function pick(mode: AssistantDisplayMode) {
 </script>
 
 <template>
-  <div v-if="modes.length > 1" class="switch" role="group" aria-label="Assistant view">
+  <div v-if="modes.length > 1" class="switch" role="group" :aria-label="t('assistantModeSwitch.assistant_view')">
     <button v-for="m in modes" :key="m" type="button" class="mode" :class="{ on: m === current }" :aria-pressed="m === current" :title="MODE_LABELS[m]" :aria-label="MODE_LABELS[m]" :data-testid="`mode-${m}`" @click="pick(m)">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <template v-if="m === 'bubble'"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></template>

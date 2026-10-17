@@ -6,6 +6,7 @@ import { personLabel } from "@/domain/assistants";
 import { useAssistantApi } from "../../composables/useAssistantApi";
 import PersonAvatar from "./PersonAvatar.vue";
 import Button from "../Button.vue";
+import { t } from "../../i18n";
 
 /** Selector de una persona de la organización: se busca por nombre o email y cada opción lleva su foto. */
 const props = defineProps<{ experimentId: string; modelValue: AssistantPersonDto | null }>();
@@ -79,12 +80,12 @@ const empty = computed(() => !loading.value && !failed.value && results.value.le
     <div v-if="modelValue" class="chosen">
       <PersonAvatar :name="modelValue.name" :email="modelValue.email" :image="modelValue.image" :size="28" />
       <span class="who"><strong>{{ personLabel(modelValue) }}</strong><small v-if="modelValue.name">{{ modelValue.email }}</small></span>
-      <Button variant="link" @click="clear">Change</Button>
+      <Button variant="link" @click="clear">{{ t("personPicker.change") }}</Button>
     </div>
     <template v-else>
       <TextInput
         v-model="query"
-        placeholder="Search by name or email"
+        :placeholder="t('personPicker.search_by_name_or_email')"
         role="combobox"
         aria-autocomplete="list"
         :aria-expanded="open"
@@ -98,9 +99,9 @@ const empty = computed(() => !loading.value && !failed.value && results.value.le
           <PersonAvatar :name="p.name" :email="p.email" :image="p.image" :size="28" />
           <span class="who"><strong>{{ personLabel(p) }}</strong><small v-if="p.name">{{ p.email }}</small></span>
         </li>
-        <li v-if="loading" class="note">Searching…</li>
-        <li v-else-if="failed" class="note">Could not search people.</li>
-        <li v-else-if="empty" class="note">No one matches.</li>
+        <li v-if="loading" class="note">{{ t("personPicker.searching") }}</li>
+        <li v-else-if="failed" class="note">{{ t("personPicker.could_not_search_people") }}</li>
+        <li v-else-if="empty" class="note">{{ t("personPicker.no_one_matches") }}</li>
       </ul>
     </template>
   </div>

@@ -16,6 +16,7 @@ import Button from "../Button.vue";
 import DataTable from "../DataTable.vue";
 import LoadingState from "../LoadingState.vue";
 import Card from "../Card.vue";
+import { t, tp } from "../../i18n";
 
 /** Pestaña «Connections»: servidores MCP, tools y agentes, declarados y observados (ADR-053). */
 const props = defineProps<{ card: AssistantCardDto; canManage: boolean; canGovern: boolean; nowMs: number }>();
@@ -30,14 +31,14 @@ const declaring = ref(false);
 const busy = ref(false);
 
 const GROUPS: { kind: ConnectionKindDto; title: string; hint: string }[] = [
-  { kind: "mcp_server", title: "MCP servers", hint: "Tool servers the assistant connects to" },
-  { kind: "tool", title: "Tools", hint: "Derived from tool spans, last 7 days" },
-  { kind: "agent", title: "Agents it talks to", hint: "Other agents it calls" },
+  { kind: "mcp_server", get title() { return t("assistantConnections.mcp_servers"); }, get hint() { return t("assistantConnections.tool_servers_the_assistant_connects_to"); } },
+  { kind: "tool", get title() { return t("assistantConnections.tools"); }, get hint() { return t("assistantConnections.derived_from_tool_spans_last_7"); } },
+  { kind: "agent", get title() { return t("assistantConnections.agents_it_talks_to"); }, get hint() { return t("assistantConnections.other_agents_it_calls"); } },
 ];
 const STATUS = {
-  approved: { tone: "ok", label: "Approved" },
-  pending: { tone: "warn", label: "Pending review" },
-  blocked: { tone: "error", label: "Blocked" },
+  approved: { tone: "ok", get label() { return t("assistantConnections.approved"); } },
+  pending: { tone: "warn", get label() { return t("assistantConnections.pending_review"); } },
+  blocked: { tone: "error", get label() { return t("assistantConnections.blocked"); } },
 } as const;
 
 const groups = computed(() => GROUPS.map((g) => ({ ...g, items: (connections.data.value ?? []).filter((c) => c.kind === g.kind) })));
@@ -55,59 +56,59 @@ async function guarded(action: () => Promise<unknown>, failure: string) {
     busy.value = false;
   }
 }
-const decide = (c: ConnectionDto, status: ConnectionStatusDto) => guarded(() => api.decideConnection(props.card.experimentId, c.id, status, null), "Could not save the decision");
-const undeclare = (c: ConnectionDto) => guarded(() => api.undeclareConnection(props.card.experimentId, c.id), "Could not remove the declaration");
+const decide = (c: ConnectionDto, status: ConnectionStatusDto) => guarded(() => api.decideConnection(props.card.experimentId, c.id, status, null), t("assistantConnections.could_not_save_the_decision"));
+const undeclare = (c: ConnectionDto) => guarded(() => api.undeclareConnection(props.card.experimentId, c.id), t("assistantConnections.could_not_remove_the_declaration"));
 const sync = () =>
   guarded(async () => {
     const { observed } = await api.syncConnections(props.card.experimentId);
-    $q.notify({ message: observed === 0 ? "No tool calls found in the last 7 days." : `${observed} tools found in traces.`, color: "primary", timeout: 3000 });
-  }, "Could not read traces");
+    $q.notify({ message: observed === 0 ? t("assistantConnections.no_tool_calls_found_in_the") : t("assistantConnections.count_tools_found_in_traces", { count: observed }), color: "primary", timeout: 3000 });
+  }, t("assistantConnections.could_not_read_traces"));
 </script>
 
 <template>
   <div class="connections">
     <section v-if="pending.length > 0" class="drift" role="status" data-testid="drift-banner">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /></svg>
-      <span><b>{{ pending.length }} {{ pending.length === 1 ? "connection was" : "connections were" }} seen in traces but not approved:</b> {{ pending.map((c) => c.name).join(", ") }}.</span>
+      <span><b>{{ tp("assistantConnections.seen", pending.length) }}</b> {{ pending.map((c) => c.name).join(", ") }}.</span>
     </section>
 
     <div v-if="canManage" class="toolbar">
-      <Button :disabled="busy" @click="sync">Find tools in traces</Button>
-      <Button @click="declaring = true">Declare connection</Button>
+      <Button :disabled="busy" @click="sync">{{ t("assistantConnections.find_tools_in_traces") }}</Button>
+      <Button @click="declaring = true">{{ t("assistantConnections.declare_connection") }}</Button>
     </div>
 
     <ErrorBanner v-if="connections.error.value" :error="connections.error.value" @retry="connections.run()" />
     <LoadingState v-else-if="connections.loading.value && !connections.data.value" size="md" />
-    <EmptyState v-else-if="(connections.data.value ?? []).length === 0" icon="hub" title="No connections yet">
-      Declare what this assistant should use, or find the tools it already calls in its traces.
+    <EmptyState v-else-if="(connections.data.value ?? []).length === 0" icon="hub" :title="t('assistantConnections.no_connections_yet')">
+      {{ t("assistantConnections.declare_what_this_assistant_should_use") }}
     </EmptyState>
 
     <template v-else>
       <Card as="section" padding="none" block v-for="g in groups" :key="g.kind" class="group" :data-testid="`group-${g.kind}`">
         <header><h2>{{ g.title }}</h2><span>{{ g.hint }}</span></header>
-        <p v-if="g.items.length === 0" class="none">None yet.</p>
+        <p v-if="g.items.length === 0" class="none">{{ t("assistantConnections.none_yet") }}</p>
         <div v-else class="scroll">
           <DataTable class="grid" bare>
             <thead>
               <tr>
-                <th>Name</th><th v-if="g.kind === 'tool'">Via</th><th>Source</th><th v-if="g.kind !== 'agent'" class="num">Calls</th><th v-if="g.kind !== 'agent'" class="num">Errors</th><th>Last seen</th><th>Status</th><th />
+                <th>{{ t("assistantConnections.name") }}</th><th v-if="g.kind === 'tool'">{{ t("assistantConnections.via") }}</th><th>{{ t("assistantConnections.source") }}</th><th v-if="g.kind !== 'agent'" class="num">{{ t("assistantConnections.calls") }}</th><th v-if="g.kind !== 'agent'" class="num">{{ t("assistantConnections.errors") }}</th><th>{{ t("assistantConnections.last_seen") }}</th><th>{{ t("assistantConnections.status") }}</th><th />
               </tr>
             </thead>
             <tbody>
               <tr v-for="c in g.items" :key="c.id">
-                <td class="name">{{ c.name }}<span v-if="g.kind === 'agent' && !c.peerExperimentId" class="outside">Not in catalog</span></td>
-                <td v-if="g.kind === 'tool'" class="mono muted">{{ c.via ?? "local function" }}</td>
+                <td class="name">{{ c.name }}<span v-if="g.kind === 'agent' && !c.peerExperimentId" class="outside">{{ t("assistantConnections.not_in_catalog") }}</span></td>
+                <td v-if="g.kind === 'tool'" class="mono muted">{{ c.via ?? t("assistantConnections.local_function") }}</td>
                 <td class="muted">{{ ORIGIN_LABEL[connectionOrigin(c)] }}</td>
                 <td v-if="g.kind !== 'agent'" class="num mono">{{ c.usage ? formatCount(c.usage.calls) : "–" }}</td>
                 <td v-if="g.kind !== 'agent'" class="num mono" :class="{ bad: (errorRate(c.usage) ?? 0) >= 0.02 }">{{ errorRate(c.usage) === null ? "–" : formatPercent(errorRate(c.usage)!) }}</td>
-                <td class="muted">{{ c.lastSeenAt ? formatRelativeTime(c.lastSeenAt, nowMs) : "never" }}</td>
+                <td class="muted">{{ c.lastSeenAt ? formatRelativeTime(c.lastSeenAt, nowMs) : t("assistantConnections.never") }}</td>
                 <td><StatusChip :tone="STATUS[c.status].tone" :label="STATUS[c.status].label" /></td>
                 <td class="actions">
                   <template v-if="canGovern">
-                    <Button variant="link" v-if="c.status !== 'approved'" :disabled="busy" @click="decide(c, 'approved')">Approve</Button>
-                    <Button variant="link" v-if="c.status !== 'blocked'" :disabled="busy" @click="decide(c, 'blocked')" class="danger">Block</Button>
+                    <Button variant="link" v-if="c.status !== 'approved'" :disabled="busy" @click="decide(c, 'approved')">{{ t("assistantConnections.approve") }}</Button>
+                    <Button variant="link" v-if="c.status !== 'blocked'" :disabled="busy" @click="decide(c, 'blocked')" class="danger">{{ t("assistantConnections.block") }}</Button>
                   </template>
-                  <Button variant="link" v-if="canManage && c.declared" :disabled="busy" @click="undeclare(c)" class="muted">Remove declaration</Button>
+                  <Button variant="link" v-if="canManage && c.declared" :disabled="busy" @click="undeclare(c)" class="muted">{{ t("assistantConnections.remove_declaration") }}</Button>
                 </td>
               </tr>
             </tbody>

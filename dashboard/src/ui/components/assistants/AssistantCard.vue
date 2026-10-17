@@ -4,6 +4,7 @@ import type { AssistantCardDto, EnvironmentDto } from "@contract";
 import { formatClock, formatDuration } from "@/domain/format";
 import { HEALTH_LABEL, ROLE_LABEL, accessSummary, authSummary, cardTone, featuredDeployment, formatUptime, headline, initials, personLabel } from "@/domain/assistants";
 import PersonAvatar from "./PersonAvatar.vue";
+import { t, tp } from "../../i18n";
 
 /**
  * Tarjeta de presentación de un asistente en el catálogo (ADR-053): cabecera tintada con su estado, una caja por entorno,
@@ -17,14 +18,14 @@ const featured = computed(() => featuredDeployment(props.card));
 const envSlots = computed(() =>
   props.slots.map((slot) => {
     const d = props.card.deployments.find((x) => x.environment.key === slot.key);
-    if (!d) return { key: slot.key, label: slot.label, state: "none", status: "Not deployed", detail: "" };
+    if (!d) return { key: slot.key, label: slot.label, state: "none", status: t("assistantCard.not_deployed"), detail: "" };
     const detail =
-      d.healthStatus === "down" && d.healthStatusSince ? `since ${formatClock(d.healthStatusSince, false)}` : d.healthStatus === "unknown" ? "no check yet" : d.healthLatencyMs !== null ? formatDuration(d.healthLatencyMs) : "";
+      d.healthStatus === "down" && d.healthStatusSince ? t("assistantCard.since_when", { when: formatClock(d.healthStatusSince, false) }) : d.healthStatus === "unknown" ? t("assistantCard.no_check_yet") : d.healthLatencyMs !== null ? formatDuration(d.healthLatencyMs) : "";
     return { key: slot.key, label: slot.label, state: d.healthStatus, status: HEALTH_LABEL[d.healthStatus], detail };
   }),
 );
 const bars = computed(() => featured.value?.recent.buckets ?? []);
-const barsLabel = computed(() => (featured.value ? `${featured.value.environment.label} · last 24 h` : "Not deployed"));
+const barsLabel = computed(() => (featured.value ? t("assistantCard.env_last_24_h", { env: featured.value.environment.label }) : t("assistantCard.not_deployed")));
 const uptime = computed(() => (featured.value ? formatUptime(featured.value.recent.uptimePercent) : ""));
 
 const counts = computed(() => props.card.connectionCounts);
@@ -35,7 +36,7 @@ const mcpChips = computed(() => {
   const rest = counts.value.mcpServers - chips.length;
   return rest > 0 ? [...chips, `+${rest} MCP`] : chips;
 });
-const access = computed(() => (featured.value ? accessSummary(featured.value) : "Nothing deployed yet"));
+const access = computed(() => (featured.value ? accessSummary(featured.value) : t("assistantCard.nothing_deployed_yet")));
 const auth = computed(() => (featured.value ? `${authSummary(featured.value)} · ${featured.value.environment.label}` : ""));
 // quien participa en el experimento (técnicos y negocio): su foto, o sus iniciales
 const people = computed(() => props.card.members.preview);
@@ -50,11 +51,11 @@ const peopleLabel = computed(() => props.card.members.preview.map((m) => `${pers
         <span class="avatar" aria-hidden="true">{{ initials(card.name) }}</span>
         <div class="who">
           <span class="name">{{ card.name }}</span>
-          <span class="meta">Owned by <b>{{ card.owner?.name ?? card.owner?.email ?? "nobody yet" }}</b></span>
+          <span class="meta">{{ t("assistantCard.owned_by") + " " }}<b>{{ card.owner?.name ?? card.owner?.email ?? t("assistantCard.nobody_yet") }}</b></span>
         </div>
         <span class="pill" :class="head.tone" data-testid="status-badge"><span class="dot" aria-hidden="true" />{{ head.label }}</span>
       </div>
-      <p class="desc">{{ card.description || "No description yet." }}</p>
+      <p class="desc">{{ card.description || t("assistantCard.no_description_yet") }}</p>
     </header>
 
     <div class="body">
@@ -75,21 +76,21 @@ const peopleLabel = computed(() => props.card.members.preview.map((m) => `${pers
 
     <div class="chips">
       <span v-for="m in mcpChips" :key="m" class="chip mcp"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0zM12 18v4" /></svg>{{ m }}</span>
-      <span class="chip tools"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.7 2.7-2.3-.7-.7-2.3z" /></svg>{{ counts.tools }} {{ counts.tools === 1 ? "tool" : "tools" }}</span>
-      <span class="chip agents"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8.6 13.5l6.8 4M15.4 6.5l-6.8 4" /></svg>{{ counts.agents }} {{ counts.agents === 1 ? "agent" : "agents" }}</span>
+      <span class="chip tools"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.7 2.7-2.3-.7-.7-2.3z" /></svg>{{ tp("assistantCard.tools", counts.tools) }}</span>
+      <span class="chip agents"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8.6 13.5l6.8 4M15.4 6.5l-6.8 4" /></svg>{{ tp("assistantCard.agents", counts.agents) }}</span>
     </div>
 
     <footer class="foot">
-      <div v-if="people.length > 0" class="faces" role="img" :aria-label="`People in this experiment: ${peopleLabel}`" data-testid="members">
+      <div v-if="people.length > 0" class="faces" role="img" :aria-label="t('assistantCard.people_in_this_experiment_people', { people: peopleLabel })" data-testid="members">
         <PersonAvatar v-for="m in people" :key="m.userId" :name="m.name" :email="m.email" :image="m.image" :title="`${personLabel(m)} · ${ROLE_LABEL[m.role] ?? m.role}`" class="face" :class="m.role" />
-        <span v-if="moreMembers > 0" class="face more" :title="`${moreMembers} more`">+{{ moreMembers }}</span>
+        <span v-if="moreMembers > 0" class="face more" :title="t('assistantCard.count_more', { count: moreMembers })">+{{ moreMembers }}</span>
       </div>
       <div class="foot-main">
         <span class="access" :class="{ none: !featured }">{{ access }}</span>
         <span v-if="auth" class="auth">{{ auth }}</span>
       </div>
-      <span v-if="counts.toReview > 0" class="review">{{ counts.toReview }} to review</span>
-      <span class="open">Open →</span>
+      <span v-if="counts.toReview > 0" class="review">{{ t('assistantCard.count_to_review', { count: counts.toReview }) }}</span>
+      <span class="open">{{ t("assistantCard.open") }}</span>
     </footer>
   </router-link>
 </template>

@@ -10,6 +10,7 @@ import Modal from "../Modal.vue";
 import PersonPicker from "./PersonPicker.vue";
 import Button from "../Button.vue";
 import FormField from "../FormField.vue";
+import { t } from "../../i18n";
 
 /** Añade quién puede llamar a un despliegue. MemTrace lo documenta y lo sincroniza; no lo hace cumplir (ADR-053). */
 const props = defineProps<{ experimentId: string; deploymentId: string; envLabel: string }>();
@@ -34,32 +35,32 @@ async function save() {
     emit("saved");
     emit("close");
   } catch (error) {
-    $q.notify({ message: `Could not add access: ${describeApiError(error as Error)}`, color: "negative", timeout: 4000 });
+    $q.notify({ message: t("addAccessModal.could_not_add_access_error", { error: describeApiError(error as Error) }), color: "negative", timeout: 4000 });
   } finally {
     saving.value = false;
   }
 }
 const SUBJECT_OPTIONS: { label: string; value: GrantSubjectTypeDto }[] = [
-  { label: "A group from your identity provider (Okta, Entra ID…)", value: "group" },
-  { label: "One person", value: "user" },
-  { label: "Everyone in the organization", value: "everyone" },
+  { get label() { return t("addAccessModal.a_group_from_your_identity_provider"); }, value: "group" },
+  { get label() { return t("addAccessModal.one_person"); }, value: "user" },
+  { get label() { return t("addAccessModal.everyone_in_the_organization"); }, value: "everyone" },
 ];
 </script>
 
 <template>
-  <Modal :title="`Who can call ${envLabel}`" @close="emit('close')">
+  <Modal :title="t('addAccessModal.who_can_call_env', { env: envLabel })" @close="emit('close')">
     <form class="modal-form" @submit.prevent="save">
-      <FormField label="Add">
+      <FormField :label="t('addAccessModal.add')">
         <Select v-model="form.subjectType" :options="SUBJECT_OPTIONS" data-testid="grant-type" />
       </FormField>
       <template v-if="form.subjectType === 'group'">
-        <FormField label="Group"><TextInput v-model="form.group" placeholder="Support-Agents" autofocus /></FormField>
-        <FormField label="People in the group (optional)"><TextInput v-model="form.members" type="number" min="0" /></FormField>
-        <p class="hint">Use the same group name or id you mapped in Settings → Identity.</p>
+        <FormField :label="t('addAccessModal.group')"><TextInput v-model="form.group" :placeholder="t('addAccessModal.support_agents')" autofocus /></FormField>
+        <FormField :label="t('addAccessModal.people_in_the_group_optional')"><TextInput v-model="form.members" type="number" min="0" /></FormField>
+        <p class="hint">{{ t("addAccessModal.use_the_same_group_name_or") }}</p>
       </template>
-      <FormField v-else-if="form.subjectType === 'user'" as="div" label="Person"><PersonPicker v-model="form.person" :experiment-id="experimentId" /></FormField>
-      <p v-else class="hint">Anyone signed in to the organization will be listed as allowed.</p>
-      <div class="actions"><Button variant="primary" type="submit" :disabled="saving || !canSave">Add access</Button></div>
+      <FormField v-else-if="form.subjectType === 'user'" as="div" :label="t('addAccessModal.person')"><PersonPicker v-model="form.person" :experiment-id="experimentId" /></FormField>
+      <p v-else class="hint">{{ t("addAccessModal.anyone_signed_in_to_the_organization") }}</p>
+      <div class="actions"><Button variant="primary" type="submit" :disabled="saving || !canSave">{{ t("addAccessModal.add_access") }}</Button></div>
     </form>
   </Modal>
 </template>

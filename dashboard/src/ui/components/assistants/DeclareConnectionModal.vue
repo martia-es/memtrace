@@ -9,6 +9,7 @@ import { useAssistantApi } from "../../composables/useAssistantApi";
 import Modal from "../Modal.vue";
 import Button from "../Button.vue";
 import FormField from "../FormField.vue";
+import { t } from "../../i18n";
 
 /** Declara una conexión que el asistente debe usar: servidor MCP, tool o agente (ADR-053). */
 const props = defineProps<{ experimentId: string }>();
@@ -27,28 +28,28 @@ async function save() {
     emit("saved");
     emit("close");
   } catch (error) {
-    $q.notify({ message: `Could not declare the connection: ${describeApiError(error as Error)}`, color: "negative", timeout: 4000 });
+    $q.notify({ message: t("declareConnectionModal.could_not_declare_the_connection_error", { error: describeApiError(error as Error) }), color: "negative", timeout: 4000 });
   } finally {
     saving.value = false;
   }
 }
 const KIND_OPTIONS: { label: string; value: ConnectionKindDto }[] = [
   { label: "MCP server", value: "mcp_server" },
-  { label: "Tool", value: "tool" },
-  { label: "Agent", value: "agent" },
+  { get label() { return t("declareConnectionModal.tool"); }, value: "tool" },
+  { get label() { return t("declareConnectionModal.agent"); }, value: "agent" },
 ];
 </script>
 
 <template>
-  <Modal title="Declare a connection" @close="emit('close')">
+  <Modal :title="t('declareConnectionModal.declare_a_connection')" @close="emit('close')">
     <form class="modal-form" @submit.prevent="save">
-      <FormField label="Type">
+      <FormField :label="t('declareConnectionModal.type')">
         <Select v-model="form.kind" :options="KIND_OPTIONS" data-testid="connection-kind" />
       </FormField>
-      <FormField label="Name"><TextInput v-model="form.name" placeholder="weather-mcp" autofocus /></FormField>
-      <FormField label="Exposed by MCP server (optional)" v-if="form.kind === 'tool'"><TextInput v-model="form.via" placeholder="weather-mcp" /></FormField>
-      <p class="hint">Declared connections are approved by governance. Anything the assistant uses that is not declared shows up for review once it appears in traces.</p>
-      <div class="actions"><Button variant="primary" type="submit" :disabled="saving || !canSave">Declare</Button></div>
+      <FormField :label="t('declareConnectionModal.name')"><TextInput v-model="form.name" placeholder="weather-mcp" autofocus /></FormField>
+      <FormField :label="t('declareConnectionModal.exposed_by_mcp_server_optional')" v-if="form.kind === 'tool'"><TextInput v-model="form.via" placeholder="weather-mcp" /></FormField>
+      <p class="hint">{{ t("declareConnectionModal.declared_connections_are_approved_by_gov") }}</p>
+      <div class="actions"><Button variant="primary" type="submit" :disabled="saving || !canSave">{{ t("declareConnectionModal.declare") }}</Button></div>
     </form>
   </Modal>
 </template>

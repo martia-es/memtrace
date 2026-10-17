@@ -13,6 +13,7 @@ import DeploymentCard from "./DeploymentCard.vue";
 import DeploymentModal from "./DeploymentModal.vue";
 import DeployModal from "./DeployModal.vue";
 import Button from "../Button.vue";
+import { t } from "../../i18n";
 
 /** Pestaña «Environments» de la ficha: un despliegue por entorno y, debajo, quién puede llamar al seleccionado (ADR-053). */
 const props = defineProps<{ card: AssistantCardDto; canManage: boolean; canGovern: boolean; canDeploy?: boolean; nowMs: number }>();
@@ -39,21 +40,21 @@ const lastCheck = computed(() => props.card.deployments.map((d) => d.healthCheck
 <template>
   <div class="envs">
     <div class="bar">
-      <span v-if="lastCheck" class="muted">Last health check {{ formatRelativeTime(lastCheck, nowMs) }}</span>
+      <span v-if="lastCheck" class="muted">{{ t("assistantEnvironments.last_health_check_when", { when: formatRelativeTime(lastCheck, nowMs) }) }}</span>
       <div class="spacer" />
-      <Button variant="link" v-if="canManage && free.length > 0" class="add" @click="modal = {}">Add deployment</Button>
+      <Button variant="link" v-if="canManage && free.length > 0" class="add" @click="modal = {}">{{ t("assistantEnvironments.add_deployment") }}</Button>
     </div>
-    <EmptyState v-if="card.deployments.length === 0" icon="cloud_off" title="No deployments yet">
-      Add the API of this assistant in each environment to start checking its health.
+    <EmptyState v-if="card.deployments.length === 0" icon="cloud_off" :title="t('assistantEnvironments.no_deployments_yet')">
+      {{ t("assistantEnvironments.add_the_api_of_this_assistant") }}
       <section class="setup" data-testid="setup-guide">
-        <h3>Set up</h3>
+        <h3>{{ t("assistantEnvironments.set_up") }}</h3>
         <ol>
-          <li><strong>Add a deployment.</strong> Pick an environment (DEV, PRE, PRO) and paste the base URL of your assistant's API.</li>
-          <li><strong>Expose a health endpoint.</strong> MemTrace calls <code>/health</code> on that URL, or the one you set, every minute.</li>
-          <li><strong>Optional:</strong> use <em>Edit details</em> to link the repository, so you can deploy from here and trace each version of the code.</li>
+          <li><strong>{{ t("assistantEnvironments.add_a_deployment") }}</strong>{{ " " + t("assistantEnvironments.pick_an_environment_dev_pre_pro") }}</li>
+          <li><strong>{{ t("assistantEnvironments.expose_a_health_endpoint") }}</strong>{{ " " + t("assistantEnvironments.memtrace_calls") + " " }}<code>/health</code>{{ " " + t("assistantEnvironments.on_that_url_or_the_one") }}</li>
+          <li><strong>{{ t("assistantEnvironments.optional") }}</strong>{{ " " + t("assistantEnvironments.use") + " " }}<em>Edit details</em>{{ " " + t("assistantEnvironments.to_link_the_repository_so_you") }}</li>
         </ol>
-        <Button variant="primary" v-if="canManage && free.length > 0" class="primary" data-testid="setup-add" @click="modal = {}">Add your first deployment</Button>
-        <p v-else-if="!canManage" class="muted">Ask someone with permission to manage this assistant to add its deployments.</p>
+        <Button variant="primary" v-if="canManage && free.length > 0" class="primary" data-testid="setup-add" @click="modal = {}">{{ t("assistantEnvironments.add_your_first_deployment") }}</Button>
+        <p v-else-if="!canManage" class="muted">{{ t("assistantEnvironments.ask_someone_with_permission_to_manage") }}</p>
       </section>
     </EmptyState>
     <template v-else>

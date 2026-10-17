@@ -17,6 +17,7 @@ import TabBar from "../components/TabBar.vue";
 import { initials } from "@/domain/assistants";
 import Button from "../components/Button.vue";
 import LoadingState from "../components/LoadingState.vue";
+import { t } from "../i18n";
 
 /** Ficha de un asistente (ADR-053): entornos con su salud y accesos, y conexiones declaradas y observadas. */
 const props = defineProps<{ experimentId: string }>();
@@ -41,8 +42,8 @@ onBeforeUnmount(() => clearInterval(timer));
 
 const tab = computed(() => (route.query.tab === "connections" ? "connections" : "environments"));
 const tabs = computed(() => [
-  { id: "environments", label: "Environments", count: card.data.value?.deployments.length },
-  { id: "connections", label: "Connections", count: card.data.value ? card.data.value.connectionCounts.mcpServers + card.data.value.connectionCounts.tools + card.data.value.connectionCounts.agents : undefined },
+  { id: "environments", label: t("assistantDetailPage.environments"), count: card.data.value?.deployments.length },
+  { id: "connections", label: t("assistantDetailPage.connections"), count: card.data.value ? card.data.value.connectionCounts.mcpServers + card.data.value.connectionCounts.tools + card.data.value.connectionCounts.agents : undefined },
 ]);
 function selectTab(id: string) {
   void router.replace({ query: { ...route.query, tab: id } });
@@ -56,7 +57,7 @@ const editing = ref(false);
     <PageHeader
       :crumbs="[{ label: 'Assistants', to: { name: 'assistants' } }, { label: card.data.value?.name ?? '…' }]"
       icon="M12 8V4M8 4h8M5 8h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2zM9 14h.01M15 14h.01"
-      :title="card.data.value?.name ?? 'Assistant'"
+      :title="card.data.value?.name ?? t('assistantDetailPage.assistant')"
     >
       <StatusChip v-if="head" :tone="head.tone" :label="head.label" />
     </PageHeader>
@@ -68,43 +69,43 @@ const editing = ref(false);
       <section class="intro">
         <span class="avatar" aria-hidden="true">{{ initials(card.data.value.name) }}</span>
         <div class="intro-main">
-          <p class="desc">{{ card.data.value.description || "No description yet." }}</p>
+          <p class="desc">{{ card.data.value.description || t("assistantDetailPage.no_description_yet") }}</p>
           <dl class="facts">
             <div class="fact">
-              <dt>Owner</dt>
+              <dt>{{ t("assistantDetailPage.owner") }}</dt>
               <dd v-if="card.data.value.owner" class="owner">
                 <PersonAvatar :name="card.data.value.owner.name" :email="card.data.value.owner.email" :image="card.data.value.owner.image" :size="22" />{{ card.data.value.owner.name ?? card.data.value.owner.email }}
               </dd>
-              <dd v-else>Nobody yet</dd>
+              <dd v-else>{{ t("assistantDetailPage.nobody_yet") }}</dd>
             </div>
             <div class="fact">
-              <dt>Traces service</dt>
+              <dt>{{ t("assistantDetailPage.traces_service") }}</dt>
               <dd>
                 <span class="mono">{{ card.data.value.serviceName }}</span>
-                <router-link :to="{ name: 'overview', params: { experimentId } }" class="traces">Open traces →</router-link>
+                <router-link :to="{ name: 'overview', params: { experimentId } }" class="traces">{{ t("assistantDetailPage.open_traces") }}</router-link>
               </dd>
             </div>
             <div v-if="card.data.value.repo" class="fact" data-testid="repo">
-              <dt>Repository</dt>
+              <dt>{{ t("assistantDetailPage.repository") }}</dt>
               <dd><a :href="card.data.value.repo.url" target="_blank" rel="noopener noreferrer" class="mono">{{ card.data.value.repo.url.replace(/^https:\/\//, "") }}</a></dd>
             </div>
             <div class="fact people" data-testid="people">
-              <dt>People</dt>
+              <dt>{{ t("assistantDetailPage.people") }}</dt>
               <dd>
-                <span v-if="card.data.value.members.total === 0" class="muted">Nobody yet.</span>
+                <span v-if="card.data.value.members.total === 0" class="muted">{{ t("assistantDetailPage.nobody_yet2") }}</span>
                 <ul v-else class="members">
                   <li v-for="m in card.data.value.members.preview" :key="m.userId">
                     <PersonAvatar :name="m.name" :email="m.email" :image="m.image" :size="24" :class="m.role" />
                     <span>{{ personLabel(m) }} <small>{{ ROLE_LABEL[m.role] ?? m.role }}</small></span>
                   </li>
-                  <li v-if="card.data.value.members.total > card.data.value.members.preview.length" class="more">+{{ card.data.value.members.total - card.data.value.members.preview.length }} more</li>
+                  <li v-if="card.data.value.members.total > card.data.value.members.preview.length" class="more">{{ t("assistantDetailPage.more", { count: card.data.value.members.total - card.data.value.members.preview.length }) }}</li>
                 </ul>
-                <router-link v-if="canManagePeople" :to="{ name: 'admin-experiment', params: { expId: experimentId }, query: { tab: 'members' } }" class="traces" data-testid="manage-people">Manage people →</router-link>
+                <router-link v-if="canManagePeople" :to="{ name: 'admin-experiment', params: { expId: experimentId }, query: { tab: 'members' } }" class="traces" data-testid="manage-people">{{ t("assistantDetailPage.manage_people") }}</router-link>
               </dd>
             </div>
           </dl>
         </div>
-        <Button v-if="canManage" data-testid="edit-assistant" @click="editing = true">Edit details</Button>
+        <Button v-if="canManage" data-testid="edit-assistant" @click="editing = true">{{ t("assistantDetailPage.edit_details") }}</Button>
       </section>
 
       <CiSetup :repo="card.data.value.repo" />

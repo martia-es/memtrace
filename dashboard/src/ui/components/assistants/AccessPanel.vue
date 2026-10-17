@@ -15,6 +15,8 @@ import Button from "../Button.vue";
 import DataTable from "../DataTable.vue";
 import Card from "../Card.vue";
 import Pill from "../Pill.vue";
+import { t } from "../../i18n";
+import { lazyMessages } from "../../../domain/translate";
 
 /** Quién puede llamar a un entorno (ADR-053). Documentado y sincronizado desde el proveedor de identidad; MemTrace no lo hace cumplir. */
 const props = defineProps<{ experimentId: string; deployment: DeploymentSummaryDto; canGovern: boolean; nowMs: number }>();
@@ -27,8 +29,8 @@ onMounted(() => void grants.run());
 watch(() => props.deployment.id, () => void grants.run());
 
 const adding = ref(false);
-const TYPE_LABEL = { user: "User", group: "Group", everyone: "Everyone" } as const;
-const SOURCE_LABEL = { manual: "Added manually", oidc: "Synced at sign-in", scim: "Synced by SCIM" } as const;
+const TYPE_LABEL = lazyMessages({ user: "accessPanel.user", group: "accessPanel.group", everyone: "accessPanel.everyone" });
+const SOURCE_LABEL = lazyMessages({ manual: "accessPanel.added_manually", oidc: "accessPanel.synced_at_sign_in", scim: "accessPanel.synced_by_scim" });
 
 async function remove(grantId: string) {
   try {
@@ -36,7 +38,7 @@ async function remove(grantId: string) {
     await grants.run();
     emit("changed");
   } catch (error) {
-    $q.notify({ message: `Could not remove access: ${describeApiError(error as Error)}`, color: "negative", timeout: 4000 });
+    $q.notify({ message: t("accessPanel.could_not_remove_access_error", { error: describeApiError(error as Error) }), color: "negative", timeout: 4000 });
   }
 }
 function saved() {
@@ -49,27 +51,27 @@ function saved() {
   <Card as="section" padding="none" block class="panel" data-testid="access-panel">
     <header class="head">
       <div class="title">
-        <h2>Who can call it in <span class="mono">{{ deployment.environment.label }}</span></h2>
-        <p>Documented here and synced from the identity provider. MemTrace does not enforce it.</p>
+        <h2>{{ t("accessPanel.who_can_call_it_in") + " " }}<span class="mono">{{ deployment.environment.label }}</span></h2>
+        <p>{{ t("accessPanel.documented_here_and_synced_from_the") }}</p>
       </div>
-      <Button variant="primary" v-if="canGovern" @click="adding = true">Add access</Button>
+      <Button variant="primary" v-if="canGovern" @click="adding = true">{{ t("accessPanel.add_access") }}</Button>
     </header>
     <ErrorBanner v-if="grants.error.value" :error="grants.error.value" @retry="grants.run()" />
-    <EmptyState v-else-if="(grants.data.value ?? []).length === 0 && !grants.loading.value" icon="lock_open" title="No access defined">
+    <EmptyState v-else-if="(grants.data.value ?? []).length === 0 && !grants.loading.value" icon="lock_open" :title="t('accessPanel.no_access_defined')">
       Nobody is listed yet for {{ deployment.environment.label }}.
     </EmptyState>
     <DataTable v-else class="grid" bare>
-      <thead><tr><th>Who</th><th>Type</th><th>People</th><th>Source</th><th /></tr></thead>
+      <thead><tr><th>{{ t("accessPanel.who") }}</th><th>{{ t("accessPanel.type") }}</th><th>{{ t("accessPanel.people") }}</th><th>{{ t("accessPanel.source") }}</th><th /></tr></thead>
       <tbody>
         <tr v-for="g in grants.data.value ?? []" :key="g.id">
           <td class="who">
             <span v-if="g.user" class="person-cell"><PersonAvatar :name="g.user.name" :email="g.user.email" :image="g.user.image" :size="22" />{{ personLabel(g.user) }}</span>
-            <template v-else>{{ g.subjectType === "everyone" ? "Everyone in the organization" : g.externalGroup ?? g.userId }}</template>
+            <template v-else>{{ g.subjectType === "everyone" ? t("accessPanel.everyone_in_the_organization") : g.externalGroup ?? g.userId }}</template>
           </td>
           <td><Pill :tone="g.subjectType === 'group' ? 'info' : g.subjectType === 'everyone' ? 'highlight' : 'neutral'">{{ TYPE_LABEL[g.subjectType] }}</Pill></td>
           <td class="mono">{{ g.memberCount ?? (g.subjectType === "user" ? 1 : "–") }}</td>
           <td class="muted">{{ SOURCE_LABEL[g.source] }}<template v-if="g.syncedAt"> · {{ formatRelativeTime(g.syncedAt, nowMs) }}</template></td>
-          <td class="end"><Button variant="link" v-if="canGovern" @click="remove(g.id)">Remove</Button></td>
+          <td class="end"><Button variant="link" v-if="canGovern" @click="remove(g.id)">{{ t("accessPanel.remove") }}</Button></td>
         </tr>
       </tbody>
     </DataTable>
