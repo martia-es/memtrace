@@ -1,5 +1,7 @@
 import { ref, watch } from "vue";
 import { Lang } from "quasar";
+import quasarEn from "quasar/lang/en-US";
+import quasarEs from "quasar/lang/es";
 import { setLocaleProvider, setTranslator } from "@/domain/translate";
 import en from "./en";
 import es from "./es";
@@ -30,16 +32,14 @@ function detect(): Locale {
 /** Shared across the app and persisted: the user picks it once from UserMenu (same pattern as useTheme). */
 export const locale = ref<Locale>(detect());
 
-const QUASAR_PACKS: Record<Locale, () => Promise<{ default: unknown }>> = {
-  en: () => import("quasar/lang/en-US"),
-  es: () => import("quasar/lang/es"),
-};
+// importados de forma estática: un import() dinámico del idioma por defecto de Quasar crea un ciclo de chunks en la build
+const QUASAR_PACKS: Record<Locale, unknown> = { en: quasarEn, es: quasarEs };
 
 watch(
   locale,
   (value) => {
     document.documentElement.lang = value;
-    void QUASAR_PACKS[value]().then((pack) => Lang.set(pack.default as Parameters<typeof Lang.set>[0]));
+    Lang.set(QUASAR_PACKS[value] as Parameters<typeof Lang.set>[0]);
     try {
       localStorage.setItem(STORAGE_KEY, value);
     } catch {
