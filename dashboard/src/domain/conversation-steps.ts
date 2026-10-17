@@ -2,6 +2,7 @@ import type { SpanNodeDto } from "@contract";
 import { humanizeName } from "./review-thread";
 import { spanIo } from "./span-io";
 import { isGuardrailBlock, isGuardrailSpan } from "./trace-summary";
+import { tr } from "./translate";
 
 export interface StepChunk {
   rank: number;
@@ -80,7 +81,7 @@ const base = (node: SpanNodeDto): StepBase => ({
   spanId: node.spanId,
   durationMs: node.durationMs,
   failed: node.status.code === "error",
-  error: node.status.code === "error" ? node.status.message || "The step ended with an error" : null,
+  error: node.status.code === "error" ? node.status.message || tr("conversation-steps.the_step_ended_with_an_error") : null,
 });
 
 function* walk(roots: SpanNodeDto[]): Generator<SpanNodeDto> {
@@ -111,12 +112,12 @@ export function conversationSteps(roots: SpanNodeDto[]): ConversationStep[] {
       if (isGuardrailBlock(node)) {
         guardrails.failed = true;
         const check = node.attributes["guardrail.check"];
-        guardrails.error = check ? `Blocked by the ${humanizeName(check).toLowerCase()} check` : "The message was blocked";
+        guardrails.error = check ? tr("conversation-steps.blocked_by_the_check_check", { check: humanizeName(check).toLowerCase() }) : tr("conversation-steps.the_message_was_blocked");
       } else {
         const failed = node.status.code === "error";
         if (failed) {
           guardrails.failed = true;
-          guardrails.error = guardrails.error ?? (node.status.message || "A check failed");
+          guardrails.error = guardrails.error ?? (node.status.message || tr("conversation-steps.a_check_failed"));
         }
         guardrails.checks.push({ spanId: node.spanId, name: humanizeName(node.name.replace(/^guardrail\./, "")), failed });
       }

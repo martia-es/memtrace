@@ -1,4 +1,5 @@
 import type { IoBlock, ToolCall } from "./span-io";
+import { tr } from "./translate";
 
 /** What a business reviewer sees: the conversation without ids, raw JSON or system prompts. */
 export type Turn =
@@ -20,7 +21,7 @@ const scalar = (v: unknown): string => (v !== null && typeof v === "object" ? JS
 export function describeCall(call: ToolCall): string {
   const args = Object.entries(call.args).filter(([, v]) => v !== null && v !== undefined && v !== "");
   const detail = args.map(([k, v]) => `${k.replace(/_/g, " ")}: ${scalar(v)}`).join(", ");
-  return `Used ${humanizeName(call.name)}${detail ? ` (${detail})` : ""}`;
+  return tr("review-thread.used_name_detail", { name: humanizeName(call.name), detail: detail ? ` (${detail})` : "" });
 }
 
 export function conversationTurns(blocks: IoBlock[]): Turn[] {
