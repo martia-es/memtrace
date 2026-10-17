@@ -35,14 +35,6 @@
   --mt-info-bg: #e6f8f7;
   --mt-info-ink: #00605c;
 
-  /* comparación A/B (Breakdown): fijos, no siguen el acento de la organización para que A y B siempre se distingan */
-  --mt-cmp-a: #2563eb;
-  --mt-cmp-a-soft: #dbe7fe;
-  --mt-cmp-a-ink: #1d4ed8;
-  --mt-cmp-b: #c2410c;
-  --mt-cmp-b-soft: #ffe6d5;
-  --mt-cmp-b-ink: #9a3412;
-
   /* bordes de 1 px y sin sombras; solo lo que flota (menús, modales) lleva sombra */
   --mt-shadow: none;
   --mt-shadow-float: 0 8px 24px rgba(10, 35, 33, 0.14);
@@ -105,13 +97,6 @@ body.body--dark {
   --mt-warn-ink: #ffd27a;
   --mt-info-bg: #0c2d2c;
   --mt-info-ink: #86e8e2;
-
-  --mt-cmp-a: #6ea0ff;
-  --mt-cmp-a-soft: #14264d;
-  --mt-cmp-a-ink: #a9c4ff;
-  --mt-cmp-b: #ff9a62;
-  --mt-cmp-b-soft: #3a1c0c;
-  --mt-cmp-b-ink: #ffc0a0;
   --mt-shadow-float: 0 8px 24px rgba(0, 0, 0, 0.5);
 
   --q-primary: #2bc4bd;
