@@ -84,6 +84,7 @@ Tres modos de visualización: `bubble` (ventana flotante), `dock` (panel lateral
 - Una sección nueva = un hijo en `NAV` (en el bloque cuya pregunta responde: observar, vigilar o mejorar) + una ruta con su `meta.section`.
 - Un control nuevo = primero buscar si ya existe en la tabla de componentes; si no, crearlo allí y añadirlo a esta tabla.
 - Un color nuevo = un token `--mt-*` con valor claro y oscuro; nunca un hex dentro de un componente.
+- Un solo acento por pantalla: tarjetas y paneles son neutros (blanco + `--mt-line`) y `--mt-accent` aparece solo en lo seleccionado o en hover. Los tonos rojo/ámbar/verde se reservan para estados (error, aviso, correcto), nunca para decorar listas (ejemplo: preguntas de Analítica › Gráficas).
 
 ## 6. Costs › Model pricing: calidad y confirmación de coincidencias
 
