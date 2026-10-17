@@ -159,7 +159,7 @@ spec:
             matchExpressions:
               - key: app
                 operator: In
-                values: [api, health-probe, topic-extraction, topic-extraction-fit-initial, model-pricing-sync, model-quality-sync, backfill-experiment-id, clickhouse-migrate, retention-purge, alerts-evaluate]
+                values: [api, health-probe, topic-extraction, topic-extraction-fit-initial, model-pricing-sync, model-quality-sync, backfill-experiment-id, dedupe-otel-traces, clickhouse-migrate, retention-purge, alerts-evaluate]
       ports:
         - { protocol: TCP, port: 8123 }
         - { protocol: TCP, port: 9000 }
@@ -319,7 +319,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [clickhouse-migrate, postgres-migrate, backfill-experiment-id, topic-extraction, topic-extraction-fit-initial, model-pricing-sync, model-quality-sync, health-probe, retention-purge, alerts-evaluate]
+        values: [clickhouse-migrate, postgres-migrate, backfill-experiment-id, dedupe-otel-traces, topic-extraction, topic-extraction-fit-initial, model-pricing-sync, model-quality-sync, health-probe, retention-purge, alerts-evaluate]
   policyTypes: [Egress]
   egress:
     - to:

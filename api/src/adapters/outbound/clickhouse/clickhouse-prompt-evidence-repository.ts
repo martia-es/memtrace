@@ -1,4 +1,5 @@
 import type { ClickHouseClient } from "@clickhouse/client";
+import { DEDUPED_READS } from "./client";
 import { RepositoryUnavailableError } from "@/application/errors";
 import type { PromptEvidenceRepository } from "@/application/ports/prompt-evidence-repository";
 import type { PromptEvidenceRows } from "@/domain/prompt-evidence";
@@ -154,7 +155,7 @@ export class ClickHousePromptEvidenceRepository implements PromptEvidenceReposit
   private async rows(query: string, params: Params): Promise<Row[]> {
     try {
       return await this.limiter.run(async () => {
-        const result = await this.client.query({ query, query_params: params, format: "JSONEachRow" });
+        const result = await this.client.query({ query, query_params: params, format: "JSONEachRow", clickhouse_settings: DEDUPED_READS });
         return await result.json<Row>();
       });
     } catch (error) {

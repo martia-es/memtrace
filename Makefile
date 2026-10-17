@@ -12,7 +12,7 @@ PRICING_IMAGE ?= localhost/memtrace/model-pricing:dev
 QUALITY_IMAGE ?= localhost/memtrace/model-quality:dev
 
 .DEFAULT_GOAL := help
-.PHONY: help check up images dashboard api ingest monitoring monitoring-down prune kafka-topics status forward logs query migrate backfill-experiment-id netpol-check migrate-postgres pricing-sync quality-sync down reset db-reset dev-data docs weather weather-bg weather-stop weather-restart rag rag-bg rag-stop rag-restart
+.PHONY: help check up images dashboard api ingest monitoring monitoring-down prune kafka-topics dedupe dedupe-cleanup status forward logs query migrate backfill-experiment-id netpol-check migrate-postgres pricing-sync quality-sync down reset db-reset dev-data docs weather weather-bg weather-stop weather-restart rag rag-bg rag-stop rag-restart
 
 help: ## Muestra esta ayuda
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-10s %s\n", $$1, $$2}'
@@ -33,6 +33,8 @@ up: check ## Levanta todo en 1 solo comando (clúster, despliegue, migraciones y
 	fi
 	kubectl config use-context kind-$(CLUSTER)
 	@$(MAKE) --no-print-directory images
+	# los Jobs son inmutables: estos dos son idempotentes y se recrean en cada despliegue (un cambio en su spec haría fallar el apply)
+	kubectl delete job kafka-topics dedupe-otel-traces -n $(NS) --ignore-not-found
 	kubectl apply -k .
 	kubectl wait --for=condition=complete job/clickhouse-migrate -n $(NS) --timeout=300s
 	kubectl rollout status statefulset/clickhouse -n $(NS) --timeout=300s
@@ -155,8 +157,24 @@ kafka-topics: ## Relanza el Job que crea y ajusta el tópico de trazas en Kafka 
 	kubectl apply -f k8s/43-kafka-topics.yaml
 	kubectl wait --for=condition=complete job/kafka-topics -n $(NS) --timeout=300s
 
+dedupe: ## Relanza el Job que cambia otel_traces a su versión sin duplicados (ADR-099); es idempotente
+	kubectl delete job dedupe-otel-traces -n $(NS) --ignore-not-found
+	kubectl apply -f k8s/88-dedupe-otel-traces.yaml
+	kubectl wait --for=condition=complete job/dedupe-otel-traces -n $(NS) --timeout=3600s
+	kubectl logs job/dedupe-otel-traces -n $(NS) --tail=20
+
+dedupe-cleanup: ## Borra la tabla antigua otel_traces_pre_dedup (ocupa disco) una vez comprobado el cambio (pide confirmación)
+	@read -p "Borra la copia de otel_traces anterior al cambio de motor (ADR-099). ¿Seguro? [y/N] " ans; \
+	if [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]; then \
+		pw=$$(kubectl get secret clickhouse-credentials -n $(NS) -o jsonpath='{.data.password}' | base64 -d); \
+		ch="kubectl exec statefulset/clickhouse -n $(NS) -c clickhouse -- clickhouse-client --password $$pw"; \
+		done=$$($$ch --query "SELECT count() FROM memtrace.schema_migrations WHERE version = 'dedupe-otel-traces'"); \
+		[ "$$done" = "1" ] || { echo "El cambio aún no está verificado: ejecuta antes make dedupe"; exit 1; }; \
+		$$ch --query "DROP TABLE IF EXISTS memtrace.otel_traces_pre_dedup SYNC" && echo "Tabla antigua borrada"; \
+	else echo "Cancelado"; fi
+
 migrate: ## Relanza las migraciones de ClickHouse
-	kubectl delete job clickhouse-migrate -n $(NS) --ignore-not-found
+	kubectl delete job clickhouse-migrate kafka-topics dedupe-otel-traces -n $(NS) --ignore-not-found
 	kubectl apply -k .
 	kubectl wait --for=condition=complete job/clickhouse-migrate -n $(NS) --timeout=300s
 

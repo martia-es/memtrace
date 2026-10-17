@@ -1,0 +1,47 @@
+# Cambio de `otel_traces` a su versión sin duplicados (ADR-099), sin parar la ingesta y sin perder spans. Espera a que la migración 017
+# haya creado la tabla nueva, copia el histórico, intercambia las dos tablas y recoge lo que llegó entretanto. Idempotente: si ya
+# está hecho, termina enseguida. La tabla antigua queda como `otel_traces_pre_dedup` por si hay que volver atrás: se quita con
+# `make dedupe-cleanup` cuando lo hayas comprobado.
+# Misma imagen que la API (`make api` la reconstruye). Para relanzarlo a mano: `make dedupe`.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: dedupe-otel-traces-{{ .Release.Revision }}   # un Job nuevo por revisión: los Job son inmutables y el cambio es idempotente
+  namespace: {{ .Release.Namespace }}
+spec:
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        app: dedupe-otel-traces
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: dedupe
+          image: {{ include "memtrace.image" .Values.images.api }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          command: ["node", "worker/dedupe-otel-traces.cjs"]
+          env:
+            # necesita CREATE/DROP/EXCHANGE/INSERT: el usuario `default` (el mismo que usa el Job de migraciones)
+            - name: CLICKHOUSE_URL
+              value: http://clickhouse:8123
+            - name: CLICKHOUSE_USER
+              value: default
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: clickhouse-credentials
+                  key: password
+            - name: CLICKHOUSE_DATABASE
+              value: memtrace
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: 25m, memory: 64Mi }
+            limits: { memory: 256Mi }
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
