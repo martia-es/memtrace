@@ -20,7 +20,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   loading: false,
   disabled: false,
-  placeholder: "Select",
+  get placeholder() { return t("select.select"); },
 });
 
 const emit = defineEmits<{ "update:modelValue": [value: T] }>();

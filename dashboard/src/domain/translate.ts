@@ -20,6 +20,26 @@ export function lazyMessages<K extends string>(keys: Record<K, string>): Record<
   return out;
 }
 
+let localeProvider: () => string = () => "en-US";
+
+/** La interfaz registra aquí cómo obtener el locale activo (para `Intl`); por defecto, en-US. */
+export function setLocaleProvider(fn: () => string): void {
+  localeProvider = fn;
+}
+
+export const currentLocale = (): string => localeProvider();
+
+/** Crea un formateador por locale y lo guarda: el idioma puede cambiar mientras la app está abierta. */
+export function perLocale<T>(make: (locale: string) => T): () => T {
+  const cache = new Map<string, T>();
+  return () => {
+    const locale = localeProvider();
+    let value = cache.get(locale);
+    if (value === undefined) cache.set(locale, (value = make(locale)));
+    return value;
+  };
+}
+
 export function tr(key: string, params?: Record<string, string | number | boolean | null | undefined>): string {
   return translator ? translator(key, params) : key;
 }

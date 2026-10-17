@@ -91,7 +91,7 @@ Tres modos de visualización: `bubble` (ventana flotante), `dock` (panel lateral
 - Se usa con `t("clave", { param })` de `ui/i18n` (módulo propio, sin plugin: funciona en tests sin montarlo). El idioma activo es un `ref` compartido, persistido en `memtrace.locale`; por defecto el del navegador (`es*` → español, el resto inglés). Se cambia desde el menú de usuario y actualiza `<html lang>` y el paquete de idioma de Quasar.
 - Las tablas de datos con textos (p. ej. `NAV`) guardan la clave y traducen al pintar, no al declarar.
 - El dominio traduce con `tr()` / `lazyMessages()` (`domain/translate.ts`, un puerto que registra `ui/i18n`); las constantes con etiquetas usan `get label()` o `lazyMessages` para seguir el idioma activo. Un `v-for="t in …"` tapa la función `t`: renombra la variable.
-- Pendiente: formatos de fecha y número de `domain/format.ts` (fijos en en-US) y algunos textos sueltos; ver el backlog.
+- Fechas y números siguen el idioma activo: `domain/format.ts` usa `perLocale()` (locale registrado por `ui/i18n`) y la UI usa `dateLocale()`.
 
 ## 6. Costs › Model pricing: calidad y confirmación de coincidencias
 

@@ -4,12 +4,13 @@ import type { RepoConfigDto } from "@contract";
 import { commitUrl } from "@/domain/assistants";
 import { shortRevision } from "@/domain/format";
 import Pill from "./Pill.vue";
+import { t } from "../i18n";
 
 /** Versión del código (ADR-065): SHA corto, enlazado al commit si el agente declara su repositorio. */
 const props = defineProps<{ revision: string | null; repo?: RepoConfigDto | null; dirty?: boolean | null }>();
 const href = computed(() => (props.revision ? commitUrl(props.repo, props.revision) : null));
 const title = computed(() =>
-  props.revision ? `Code version ${props.revision}${props.dirty ? " (uncommitted changes)" : ""}` : "No code version: the agent does not send its commit (see Configuration → Code version on every trace)",
+  props.revision ? `${t("commitLink.code_version_revision", { revision: props.revision })}${props.dirty ? ` ${t("commitLink.uncommitted_changes")}` : ""}` : t("commitLink.no_code_version_the_agent_does"),
 );
 </script>
 

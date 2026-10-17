@@ -12,7 +12,7 @@ const emit = defineEmits<{ "update:page": [page: number] }>();
     <span class="muted"><slot /></span>
     <div class="controls">
       <Button size="sm" :disabled="props.page <= 1" data-testid="page-prev" @click="emit('update:page', props.page - 1)">{{ t("pagination.prev") }}</Button>
-      <span class="muted mono">Page {{ props.page }} / {{ props.pageCount }}</span>
+      <span class="muted mono">{{ t("pagination.page_page_total", { page: props.page, total: props.pageCount }) }}</span>
       <Button size="sm" :disabled="props.page >= props.pageCount" data-testid="page-next" @click="emit('update:page', props.page + 1)">{{ t("pagination.next") }}</Button>
     </div>
   </div>

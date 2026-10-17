@@ -12,9 +12,9 @@ const text = computed(() => (typeof props.value === "string" ? props.value : JSO
 async function copy() {
   try {
     await navigator.clipboard.writeText(text.value);
-    $q.notify({ message: "Copiado", timeout: 1200, position: "bottom" });
+    $q.notify({ message: t("jsonBlock.copied"), timeout: 1200, position: "bottom" });
   } catch {
-    $q.notify({ message: "Could not copy", color: "negative", timeout: 1500 });
+    $q.notify({ message: t("jsonBlock.could_not_copy"), color: "negative", timeout: 1500 });
   }
 }
 </script>

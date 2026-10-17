@@ -1,6 +1,6 @@
 import { ref, watch } from "vue";
 import { Lang } from "quasar";
-import { setTranslator } from "@/domain/translate";
+import { setLocaleProvider, setTranslator } from "@/domain/translate";
 import en from "./en";
 import es from "./es";
 
@@ -57,6 +57,8 @@ export function t(key: MessageKey, params?: Params): string {
 
 // el dominio traduce a través de este puerto (domain/translate.ts)
 setTranslator((key, params) => t(key as MessageKey, params));
+
+setLocaleProvider(() => (locale.value === "es" ? "es-ES" : "en-US"));
 
 /** Plural pair: the catalog holds `<key>.one` and `<key>.other`; `{count}` is filled in automatically. */
 export function tp(key: string, count: number, params?: Params): string {

@@ -21,7 +21,7 @@ const current = computed(() => props.options.find((o) => o.value === props.model
     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
     <Menu auto-close anchor="bottom left" self="top left" :offset="[0, 6]" class="pill-menu">
       <div class="opts">
-        <MenuItem :active="modelValue === undefined" @click="$emit('update:modelValue', undefined)">{{ allLabel ?? "All" }}</MenuItem>
+        <MenuItem :active="modelValue === undefined" @click="$emit('update:modelValue', undefined)">{{ allLabel ?? t("filterPill.all") }}</MenuItem>
         <MenuItem v-for="o in options" :key="o.value" :active="modelValue === o.value" @click="$emit('update:modelValue', o.value)">{{ o.label }}</MenuItem>
         <span v-if="options.length === 0" class="none">{{ t("filterPill.no_options") }}</span>
       </div>

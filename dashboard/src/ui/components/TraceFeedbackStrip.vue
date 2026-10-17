@@ -35,7 +35,7 @@ const comments = computed(() => votes.value.filter((v) => v.comment));
     <div class="line">
       <span class="verdict" aria-hidden="true"><ThumbIcon :direction="tone === 'error' ? 'down' : 'up'" :size="18" filled /></span>
       <b>{{ t("traceFeedbackStrip.user_feedback") }}</b>
-      <span class="counts mono" :aria-label="`${up} positive, ${down} negative`">
+      <span class="counts mono" :aria-label="t('traceFeedbackStrip.up_positive_down_negative', { up, down })">
         <span class="count"><ThumbIcon direction="up" :size="13" />{{ up }}</span>
         <span class="count"><ThumbIcon direction="down" :size="13" />{{ down }}</span>
       </span>

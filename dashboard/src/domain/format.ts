@@ -1,8 +1,10 @@
-// Toda la interfaz está en inglés (ADR-048): números y fechas siguen el mismo idioma.
-const number = new Intl.NumberFormat("en-US");
-const compact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
-const dateTimeThisYear = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
-const dateTimeOtherYear = new Intl.DateTimeFormat("en-US", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+import { perLocale } from "./translate";
+
+// Números y fechas siguen el idioma activo de la interfaz (inglés por defecto).
+const number = perLocale((l) => new Intl.NumberFormat(l));
+const compact = perLocale((l) => new Intl.NumberFormat(l, { notation: "compact", maximumFractionDigits: 1 }));
+const dateTimeThisYear = perLocale((l) => new Intl.DateTimeFormat(l, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }));
+const dateTimeOtherYear = perLocale((l) => new Intl.DateTimeFormat(l, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }));
 
 export function formatDuration(ms: number): string {
   if (!Number.isFinite(ms)) return "–";
@@ -17,7 +19,7 @@ export function formatDuration(ms: number): string {
 }
 
 export function formatCount(value: number): string {
-  return value >= 10_000 ? compact.format(value) : number.format(value);
+  return value >= 10_000 ? compact().format(value) : number().format(value);
 }
 
 export function formatPercent(ratio: number): string {
@@ -35,18 +37,18 @@ export function formatRelativeTime(iso: string, nowMs: number): string {
   return `${Math.round(hours / 24)} d ago`;
 }
 
-const clock = new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
-const clockShort = new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+const clock = perLocale((l) => new Intl.DateTimeFormat(l, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }));
+const clockShort = perLocale((l) => new Intl.DateTimeFormat(l, { hour: "2-digit", minute: "2-digit", hour12: false }));
 
 /** Hora del día (HH:MM:SS, o HH:MM con `seconds: false`) en la zona del navegador. */
 export function formatClock(iso: string, seconds = true): string {
-  return (seconds ? clock : clockShort).format(new Date(iso));
+  return (seconds ? clock() : clockShort()).format(new Date(iso));
 }
 
 /** "Sep 26, 13:24:00"; con el año solo si no es el actual. */
 export function formatDateTime(iso: string): string {
   const date = new Date(iso);
-  return (date.getFullYear() === new Date().getFullYear() ? dateTimeThisYear : dateTimeOtherYear).format(date);
+  return (date.getFullYear() === new Date().getFullYear() ? dateTimeThisYear() : dateTimeOtherYear()).format(date);
 }
 
 export function shortId(id: string): string {
@@ -58,18 +60,18 @@ export function shortRevision(revision: string | null | undefined): string {
   return revision ? revision.slice(0, 7) : "–";
 }
 
-const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+const usd = perLocale((l) => new Intl.NumberFormat(l, { style: "currency", currency: "USD" }));
 /** Precios de un único span suelen ser fracciones de centavo: más decimales para no redondear a $0.00. */
-const usdPrecise = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 4, maximumFractionDigits: 6 });
+const usdPrecise = perLocale((l) => new Intl.NumberFormat(l, { style: "currency", currency: "USD", minimumFractionDigits: 4, maximumFractionDigits: 6 }));
 
 /** null si no hay coste conocido (span sin tokens, o sin precio para su modelo; ver ADR-025). */
 export function formatCostUsd(value: number | null): string | null {
   if (value === null) return null;
-  if (value === 0) return "$0.00";
-  return value < 0.01 ? usdPrecise.format(value) : usd.format(value);
+  if (value === 0) return usd().format(0);
+  return value < 0.01 ? usdPrecise().format(value) : usd().format(value);
 }
 
 /** Precio por token expresado por millón de tokens: la convención habitual al listar precios de modelos. */
 export function formatPricePerMillion(pricePerToken: number): string {
-  return usd.format(pricePerToken * 1_000_000);
+  return usd().format(pricePerToken * 1_000_000);
 }

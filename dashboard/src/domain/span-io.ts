@@ -1,5 +1,6 @@
 import type { SpanNodeDto } from "@contract";
 import { formatCount } from "./format";
+import { tr } from "./translate";
 
 /** A text block from the input/output panel of a span. */
 export interface IoBlock {
@@ -294,18 +295,18 @@ export function genAiRows(node: SpanNodeDto): [string, string | number][] {
   if (!g) return [];
   const num = (v: number | null) => (v === null ? null : formatCount(v));
   const rows: [string, string | number | null][] = [
-    ["Operation", g.operation],
-    ["Provider", g.provider],
-    ["Request model", g.requestModel],
-    ["Response model", g.responseModel],
-    ["Input tokens", num(g.inputTokens)],
-    ["Output tokens", num(g.outputTokens)],
-    ["Total tokens", num(g.totalTokens)],
-    ["Finish reason", g.finishReasons.join(", ") || null],
-    ["Temperature", g.temperature],
-    ["Max tokens", g.maxTokens],
-    ["Tool", g.toolName],
-    ["Tool call ID", g.toolCallId],
+    [tr("span-io.operation"), g.operation],
+    [tr("span-io.provider"), g.provider],
+    [tr("span-io.request_model"), g.requestModel],
+    [tr("span-io.response_model"), g.responseModel],
+    [tr("span-io.input_tokens"), num(g.inputTokens)],
+    [tr("span-io.output_tokens"), num(g.outputTokens)],
+    [tr("span-io.total_tokens"), num(g.totalTokens)],
+    [tr("span-io.finish_reason"), g.finishReasons.join(", ") || null],
+    [tr("span-io.temperature"), g.temperature],
+    [tr("span-io.max_tokens"), g.maxTokens],
+    [tr("span-io.tool"), g.toolName],
+    [tr("span-io.tool_call_id"), g.toolCallId],
   ];
   return rows.filter((r): r is [string, string | number] => r[1] !== null && r[1] !== undefined);
 }
