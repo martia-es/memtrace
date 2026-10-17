@@ -12,6 +12,13 @@ Que MemTrace **descubra por sí mismo qué falla de forma recurrente** en un age
 
 Mem no sustituye a la persona que mejora el agente: le entrega candidatos con evidencia, en lugar de que tenga que encontrarlos mirando trazas una a una.
 
+Hay dos tipos de candidato, según dónde esté el problema:
+
+| Tipo | Qué entrega | Qué puede hacer el usuario |
+|---|---|---|
+| **Cambio de prompt** | Un texto de cambio sobre el prompt que el agente tiene en uso | Botón **«Aplicar cambios»**: crea una nueva versión en borrador a partir de la versión actual |
+| **Recomendación de código** | Hipótesis (qué falla y por qué creemos que es el código) y recomendación (qué cambiar), con las trazas que la respaldan | Solo consultarla o descartarla. MemTrace no toca código ni crea ninguna versión |
+
 ## 2. Principio rector
 
 > **Mem genera candidatos; la Fase 1 los gobierna.**
@@ -30,6 +37,7 @@ Consecuencias:
 | Agrupar fallos por causa | Resumen de errores de negocio, reglas deterministas por causa, impacto y tendencia (ADR-066) | Agrupar por **similitud** (embeddings, clustering) y por **secuencias de acciones**, no solo por regla |
 | Proponer un arreglo | «Del fallo al prompt» y `prompts.propose_fix` a partir de **un** caso (ADR-072) | Proponer a partir de un **patrón** que abarca muchas trazas |
 | Inyectar conocimiento en el agente | Prompts versionados, fragmentos `{{> x@pro}}`, borradores (ADR-067, 072, 073) | Decidir **qué** texto se añade y a qué prompt o fragmento |
+| Decidir si el fallo es de prompt o de código | Nada | Clasificación por señales de la traza y redacción de hipótesis o recomendación |
 | Aplicar con garantías | Gate de promoción, aprobaciones, despliegue con gate (ADR-070, 076, 064) | Nada: se reutiliza tal cual |
 | Medir si mejora | Evidencia por versión, evaluaciones offline, ruido (ADR-069, 097) | Atribuir la mejora a **un aprendizaje concreto** |
 | Relaciones agente/tool/modelo/error/estrategia | Tools y conexiones observadas en el registro de agentes (ADR-053/056) | El **grafo** de relaciones y su consulta |
@@ -46,7 +54,7 @@ Lo realmente nuevo es **descubrir patrones entre trazas** y **atribuir resultado
 
 **Fuera (de momento)**
 - Aplicar cambios automáticamente sin revisión humana.
-- Modificar código del agente, tools o configuración de modelos (solo prompts y fragmentos).
+- **Aplicar** cambios de código, de tools o de configuración de modelos. Mem sí emite una hipótesis y una recomendación para el código, pero la persona la implementa fuera de MemTrace. Solo los prompts y fragmentos se aplican desde la plataforma.
 - Aprendizaje entre organizaciones o entre clientes de una consultora (ver sección 7).
 - Fine-tuning de modelos.
 
@@ -70,6 +78,52 @@ Piezas:
 
 El stack de la visión original (FastAPI, scikit-learn, Sentence Transformers) encaja como implementación del analizador, pero **no se asume** hasta resolver las preguntas de abajo.
 
+### 5.1 Cómo se resuelve técnicamente
+
+1. **Huella del error.** Cada span fallido se normaliza a una huella: `servicio + tipo de paso o tool + tipo de error + mensaje sin ids, números ni hashes`. Mismo fallo, misma huella. Es determinista y barata, y es la base de todo. Se guarda como columna materializada en ClickHouse (como las `memtrace.prompt.*`, migración 012) para poder filtrar y medir por ella.
+2. **Patrones recurrentes (2.0).** El job agrupa por huella y cuenta trazas, tendencia e impacto. Las secuencias de pasos previas al fallo se obtienen con las funciones de ClickHouse (`sequenceMatch`, `sequenceCount`). Un patrón solo cuenta si aparece mucho más en fallos que en éxitos y supera el umbral mínimo de trazas (ADR-069).
+3. **Similitud (2.1).** Embeddings del error y su contexto, con clustering por experimento, para unir huellas distintas con la misma causa. Los fallos son una fracción pequeña de las trazas, así que el clustering cabe en memoria y no hace falta una base vectorial dedicada.
+4. **Clasificación prompt o código.** Primero reglas sobre señales de la traza:
+   - el fallo nace en la salida de un LLM (formato inválido, argumentos de tool inventados, instrucción ignorada): apunta al **prompt**;
+   - el fallo nace en código determinista (excepción, timeout, 5xx, validación de esquema): apunta al **código**.
+
+   Un LLM, con la clave del propio equipo como los jueces, redacta la hipótesis y devuelve `{tipo, hipótesis, recomendación, confianza}`. Si el patrón es ambiguo se muestran las dos opciones y la persona decide.
+5. **Candidatos.** Para el prompt, se genera el texto del cambio a partir de los casos del patrón (generaliza `propose_fix`, ADR-072). Para el código, solo se guarda la hipótesis y la recomendación.
+6. **Medición.** Como la huella es determinista, se mide si **ese patrón sigue apareciendo** en las trazas de la versión nueva frente a la base, con la evidencia por versión y el ruido que ya existen (ADR-069, 097).
+
+**Almacenamiento**: tablas en Postgres (`error_patterns`, `pattern_traces`, `improvement_candidates`). Guardan `trace_id` y nunca contenido copiado, por PII y retención. Los volúmenes son bajos y curados, el mismo criterio que datasets e identidad.
+
+**Ejecución**: CronJob como los demás workers, endpoints nuevos en la API de consulta con el middleware de siempre y una pestaña nueva en el dashboard.
+
+### 5.2 Botón «Aplicar cambios»
+
+Solo existe en candidatos de tipo cambio de prompt. Llama a un endpoint que crea un **borrador** a partir de la versión que el agente tiene en uso (el handle de ADR-068 ya sabe cuál es), con el candidato como origen y un diff visible.
+
+- No publica ni mueve ningún tag: eso sigue siendo una decisión humana y pasa por el gate y las aprobaciones si el experimento las exige (ADR-070, 076).
+- Si la versión base cambió desde que se generó el candidato, avisa antes de crear el borrador.
+- Un candidato aplicado queda enlazado a su versión y no se vuelve a proponer.
+- Permiso: crear el borrador usa `prompt:write`; ver candidatos, el mismo criterio de lectura que la evidencia.
+
+### 5.3 Trazabilidad
+
+La cadena debe poder recorrerse en ambos sentidos:
+
+```
+patrón (huella) ─► trazas que lo respaldan ─► candidato ─► versión en borrador ─► versión publicada ─► efecto medido
+```
+
+El borrador ya guarda el fallo de origen (ADR-072); hace falta añadir el **candidato que lo generó** en la versión y, en el candidato, la versión creada. Desde una versión se ve «nació de este patrón» y desde un patrón se ve «estas versiones lo intentaron resolver y este fue el resultado».
+
+### 5.4 Por qué no grafo de conocimiento ahora
+
+- **Nada de lo que se pide recorre relaciones.** Agrupar, contar, enlazar un patrón con sus trazas y un candidato con su versión son agregaciones y claves foráneas.
+- **El valor de un grafo está en preguntas multi-salto entre agentes**, como «qué estrategias resolvieron errores en tools parecidas en otros agentes». Eso exige aprender entre agentes o clientes, que queda fuera por el aislamiento multi-tenant (sección 7), y sin datos acumulados el grafo estaría casi vacío.
+- **Los nodos del roadmap ya existen en otro sitio**: agentes, tools y modelos están en ClickHouse y en el registro de agentes, y los patrones serán una tabla. Un grafo sería una copia.
+- **Es caro y difícil de revertir**: un tercer almacén que operar, respaldar (ADR-096), cifrar y aislar por tenant (pendientes P1 de seguridad), y que copiaría contenido de trazas, con las complicaciones de retención y PII.
+- **Riesgo de producto, por verificar**: se cree que Redis dio de baja RedisGraph, que sería la base del grafo en Redis Stack. Comprobarlo antes del ADR de Q1.
+
+No se descarta: la fase 2.4 lo reevalúa si 2.0 a 2.3 muestran que hacen falta consultas multi-salto. Para no cerrar esa puerta, los patrones llevan ids estables y las relaciones se modelan como tablas, así que migrar a un grafo sería exportar filas.
+
 ## 6. Fases de entrega propuestas
 
 Cada fase aporta valor por sí sola y se puede parar sin dejar el sistema a medias.
@@ -78,7 +132,7 @@ Cada fase aporta valor por sí sola y se puede parar sin dejar el sistema a medi
 |---|---|---|---|
 | **2.0** | **Patrones sin IA ni almacén nuevo**: ampliar las reglas de ADR-066 a secuencias de spans (tool X seguida de error Y) y mostrarlos como «patrones recurrentes» en Overview | Útil ya, sin riesgo, y valida qué patrones merecen la pena | — |
 | **2.1** | **Similitud**: embeddings de trazas fallidas y clustering; «trazas parecidas» en la página de una traza | Encuentra fallos que las reglas no ven | Q1, Q2 |
-| **2.2** | **Candidatos**: de un patrón a un borrador de prompt o fragmento con su evidencia, entrando al flujo de aprobaciones | Cierra el bucle patrón → arreglo | 2.0 o 2.1, ADR-072 |
+| **2.2** | **Candidatos**: clasificación prompt o código; para el prompt, botón «Aplicar cambios» que crea un borrador (entra al flujo de aprobaciones); para el código, hipótesis y recomendación | Cierra el bucle patrón → arreglo | 2.0 o 2.1, ADR-072 |
 | **2.3** | **Medición de efecto**: atribuir mejora a un aprendizaje y mostrar su evolución en el tiempo | Responde «¿ha servido?» | 2.2, ADR-097 |
 | **2.4** | **Grafo de conocimiento** (si 2.0 a 2.3 demuestran que hace falta) | Consultas multi-salto sobre agente/tool/error/estrategia | Q1 |
 
@@ -96,13 +150,15 @@ El grafo queda el último a propósito: es la parte más cara y la menos probada
 
 | # | Pregunta | Opciones | Impacto |
 |---|---|---|---|
-| Q1 | ¿Qué almacén para patrones y, si llega, el grafo? | (a) Redis Stack, como dice el roadmap; (b) Postgres con `pgvector`; (c) ClickHouse con índices vectoriales; (d) solo tablas normales hasta 2.4 | **Alto, difícil de revertir, pide ADR.** Hoy Postgres tiene datos curados y ClickHouse las trazas; Redis sería un tercer almacén a operar, respaldar y asegurar (F8, ADR-096) |
+| Q1 | ¿Qué almacén para patrones y, si llega, el grafo? | (a) Redis Stack, como dice el roadmap; (b) Postgres con `pgvector`; (c) ClickHouse con índices vectoriales; (d) solo tablas normales hasta 2.4 | **Alto, difícil de revertir, pide ADR.** Recomendación: tablas en Postgres hasta 2.4 (sección 5.4). Hoy Postgres tiene datos curados y ClickHouse las trazas; Redis sería un tercer almacén a operar, respaldar y asegurar (F8, ADR-096) |
 | Q2 | ¿Dónde se calculan los embeddings? | Modelo local (Sentence Transformers) o proveedor externo | Alto: un proveedor externo envía contenido de trazas a un tercero, lo que toca los «flujos hacia terceros» pendientes en `security-pending.md` |
 | Q3 | ¿Cómo entra el conocimiento al agente? | Fragmento versionado en el prompt existente, o prompt propio de «aprendizajes» | Medio. Recomendación: fragmento, para reutilizar ADR-073 y el mapa de dependencias |
 | Q4 | ¿Qué es «éxito» o «fallo» de una traza? | Cualquier span fallido (como hoy), feedback 👍/👎, resultado de evaluadores, o combinación | Medio. Condiciona todo el análisis; hoy «error» es cualquier span fallido |
 | Q5 | ¿Quién revisa los candidatos? | Cola de revisión como las de anotación (negocio etiqueta, `technical` promueve), o directamente el flujo de aprobaciones | Medio. Encaja con la regla actual: negocio etiqueta, solo `technical` promueve |
 | Q6 | ¿Cómo se atribuye una mejora a un aprendizaje? | Comparar versiones con y sin el fragmento, con repeticiones para medir ruido | Alto para 2.3. Sin atribución fiable, Mem no puede demostrar su valor |
 | Q7 | ¿Qué volumen de trazas hace falta para que un patrón sea fiable? | Umbral mínimo como el aviso de muestra pequeña (<30 trazas) de ADR-069 | Medio |
+| Q9 | ¿Qué hace Mem cuando no sabe si es prompt o código? | Mostrar las dos (recomendado) o elegir una | Medio. Equivocarse al clasificar es fácil y dejar elegir a la persona es barato |
+| Q10 | ¿Dónde corre el LLM que redacta hipótesis y candidatos? | En el servidor (guarda la clave del equipo) o en un job del equipo con el SDK | Alto: toca los «flujos hacia terceros» de `security-pending.md` |
 | Q8 | ¿Se aplica algo sin revisión humana alguna vez? | No (recomendado), o solo en `dev` | Alto en confianza; decide si hay modo automático |
 
 ## 9. Riesgos
@@ -114,7 +170,7 @@ El grafo queda el último a propósito: es la parte más cara y la menos probada
 
 ## 10. Siguientes pasos
 
-1. Resolver Q1, Q2 y Q4 (condicionan el resto) y, si procede, escribir el ADR de almacén en `docs/adrs/storage/`.
+1. Resolver Q1, Q2, Q4 y Q10 (condicionan el resto) y, si procede, escribir el ADR de almacén en `docs/adrs/storage/`.
 2. Confirmar el principio de la sección 2 y actualizar el texto de la Fase 2 en el roadmap para que lo refleje.
 3. Definir la fase 2.0: qué patrones de secuencia detectar primero, con datos reales de trazas del weather assistant y el RAG assistant.
 4. Añadir los deliverables resultantes a [roadmap.md](roadmap.md) y los pendientes a [backlog.md](backlog.md).
