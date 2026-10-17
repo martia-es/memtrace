@@ -1,0 +1,9 @@
+# Autoescalado opcional (ADR-098): HPA por CPU para ingest y el Collector de entrada, y KEDA por lag para el de escritura.
+# No forma parte del `kustomization.yaml` de la raíz: `make autoscaling` / `make autoscaling-down`.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: memtrace
+resources:
+  - 10-hpa.yaml
+  - 20-keda-writer.yaml
+  - 30-network-policies.yaml

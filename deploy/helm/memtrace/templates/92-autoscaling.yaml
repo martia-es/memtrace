@@ -1,0 +1,124 @@
+{{- if .Values.autoscaling.enabled }}
+# Autoescalado opcional (ADR-098). Equivale a `k8s/autoscaling/` en Kustomize.
+# Autoescalado de las piezas sin estado de la ingesta (ADR-098). Opcional: `make autoscaling`. Necesita metrics-server (en un
+# clúster gestionado ya viene; en kind, `make metrics-server`). Escala por CPU respecto a lo solicitado (requests) de cada pod.
+# Baja despacio (5 min de estabilización) para no oscilar con tráfico a ráfagas.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ingest
+  namespace: {{ .Release.Namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ingest
+  minReplicas: {{ .Values.autoscaling.ingest.min }}
+  maxReplicas: {{ .Values.autoscaling.ingest.max }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.autoscaling.ingest.cpu }}
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: otel-collector
+  namespace: {{ .Release.Namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: otel-collector
+  minReplicas: {{ .Values.autoscaling.entryCollector.min }}
+  maxReplicas: {{ .Values.autoscaling.entryCollector.max }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.autoscaling.entryCollector.cpu }}
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+---
+{{- if eq .Values.autoscaling.writer.mode "keda" }}
+# Autoescalado del Collector de escritura por el atraso (lag) del grupo en Kafka, con KEDA (ADR-098): la CPU no dice si el escritor
+# va retrasado (puede estar parado esperando a ClickHouse); el lag sí. Un escritor más por cada `lagThreshold` mensajes sin leer
+# (cada mensaje es un lote de ~512 spans), sin pasar de las 12 particiones del tópico (más escritores no leerían nada). Opcional:
+# `make autoscaling` (necesita KEDA instalado: `make keda` en local).
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: otel-collector-writer
+  namespace: {{ .Release.Namespace }}
+spec:
+  scaleTargetRef:
+    name: otel-collector-writer
+  minReplicaCount: {{ .Values.autoscaling.writer.min }}
+  maxReplicaCount: {{ .Values.autoscaling.writer.max }}
+  pollingInterval: 15
+  cooldownPeriod: 120
+  triggers:
+  - type: kafka
+    metadata:
+      bootstrapServers: {{ default (printf "kafka.%s.svc.cluster.local:9092" .Release.Namespace) .Values.broker.external.bootstrapServers | quote }}   # desde el namespace de KEDA hace falta el nombre completo
+      consumerGroup: clickhouse-writers
+      topic: otel-traces
+      lagThreshold: {{ .Values.autoscaling.writer.lagThreshold | quote }}
+      offsetResetPolicy: earliest
+{{- else }}
+# Sin KEDA: el escritor escala por CPU (menos preciso que el lag, pero no necesita nada más que metrics-server)
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: otel-collector-writer
+  namespace: {{ .Release.Namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: otel-collector-writer
+  minReplicas: {{ .Values.autoscaling.writer.min }}
+  maxReplicas: {{ .Values.autoscaling.writer.max }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.autoscaling.writer.cpu }}
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+{{- end }}
+---
+{{- if and .Values.networkPolicy.enabled (eq .Values.autoscaling.writer.mode "keda") }}
+# KEDA corre en su propio namespace (`keda`) y consulta a Kafka el lag del grupo: la política base de Kafka solo nombra a los
+# Collectors y al Job del tópico, así que aquí se le abre el puerto 9092 al operador de KEDA y a nadie más.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kafka-allow-keda
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels: { app: kafka }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: {{ .Values.autoscaling.keda.namespace | quote }} }
+          podSelector:
+            matchLabels: { app: keda-operator }
+      ports:
+        - { protocol: TCP, port: 9092 }
+{{- end }}
+{{- end }}

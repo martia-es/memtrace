@@ -178,6 +178,8 @@ describe("the pipeline between the Collectors (ADR-098)", () => {
     expect(config.exporters.clickhouse.sending_queue.enabled).toBe(false);
     expect(config.exporters.clickhouse.connection_params.wait_for_async_insert).toBe("1");
     expect(config.receivers.kafka.group_id).toBe("clickhouse-writers");
+    // la marca de «leído» se pone DESPUÉS de escribir: si no, un rebalanceo con la inserción en curso pierde el mensaje
+    expect(config.receivers.kafka.message_marking).toEqual({ after: true, on_error: false });
     expect(config.receivers.kafka.topic).toBe(collectorConfig().exporters.kafka.topic);
   });
 

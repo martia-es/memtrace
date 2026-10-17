@@ -213,6 +213,22 @@ backup:
 monitoring:
   enabled: false
 
+# Autoescalado opcional de la ingesta (ADR-098), apagado por defecto. `ingest` y el Collector de entrada escalan por CPU (HPA, necesita
+# metrics-server). El Collector de escritura, por el lag del grupo en Kafka con KEDA (`mode: keda`, necesita KEDA instalado y que
+# `keda.namespace` sea el suyo) o, sin KEDA, por CPU (`mode: hpa`). El máximo del escritor no debe pasar de `broker.partitions`.
+autoscaling:
+  enabled: false
+  ingest: { min: 1, max: 6, cpu: 70 }
+  entryCollector: { min: 1, max: 6, cpu: 70 }
+  writer:
+    mode: keda
+    min: 1
+    max: 12
+    lagThreshold: 100          # mensajes (lotes de ~512 spans) sin leer por cada escritor
+    cpu: 70                    # solo con mode: hpa
+  keda:
+    namespace: keda
+
 # Acceso desde fuera. El dashboard hace de proxy de /api, así que un solo host basta (también para la ingesta de trazas).
 ingress:
   enabled: false
