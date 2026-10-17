@@ -430,44 +430,44 @@ const chartsRoute = computed(() => ({ name: "overview-charts", params: route.par
   border-style: solid;
   border-color: var(--mt-accent);
 }
-/* A y B tienen cada una su color en todo el flujo: hueco, círculo, fila, etiqueta y cifras de la comparación */
+/* A usa el acento (turquesa) y B el terracota de la marca; cada una su color en todo el flujo: hueco, círculo, fila, etiqueta y cifras de la comparación */
 .slot.role-a.next,
 .slot.role-a.filled {
-  border-color: var(--mt-cmp-a);
+  border-color: var(--mt-accent);
 }
 .slot.role-b.next,
 .slot.role-b.filled {
-  border-color: var(--mt-cmp-b);
+  border-color: var(--mt-highlight);
 }
 .slot.role-a.next {
-  box-shadow: 0 0 0 3px var(--mt-cmp-a-soft);
+  box-shadow: 0 0 0 3px var(--mt-accent-soft);
 }
 .slot.role-b.next {
-  box-shadow: 0 0 0 3px var(--mt-cmp-b-soft);
+  box-shadow: 0 0 0 3px var(--mt-highlight-soft);
 }
 .slot.role-a .letter,
 .slot.role-a .slot-role {
-  border-color: var(--mt-cmp-a);
-  color: var(--mt-cmp-a-ink);
+  border-color: var(--mt-accent);
+  color: var(--mt-accent-text);
 }
 .slot.role-b .letter,
 .slot.role-b .slot-role {
-  border-color: var(--mt-cmp-b);
-  color: var(--mt-cmp-b-ink);
+  border-color: var(--mt-highlight);
+  color: var(--mt-highlight-ink);
 }
 .slot.role-a.filled .letter {
-  background: var(--mt-cmp-a);
-  color: #fff;
+  background: var(--mt-accent);
+  color: var(--mt-accent-ink);
 }
 .slot.role-b.filled .letter {
-  background: var(--mt-cmp-b);
-  color: #fff;
+  background: var(--mt-highlight);
+  color: var(--mt-card);
 }
 .slot.role-a.next .slot-empty {
-  color: var(--mt-cmp-a-ink);
+  color: var(--mt-accent-text);
 }
 .slot.role-b.next .slot-empty {
-  color: var(--mt-cmp-b-ink);
+  color: var(--mt-highlight-ink);
 }
 .letter {
   flex: none;
@@ -549,12 +549,12 @@ tr.few td.pick {
   opacity: 1;
 }
 tr.on-a {
-  background: var(--mt-cmp-a-soft);
-  box-shadow: inset 3px 0 0 var(--mt-cmp-a);
+  background: var(--mt-accent-soft);
+  box-shadow: inset 3px 0 0 var(--mt-accent);
 }
 tr.on-b {
-  background: var(--mt-cmp-b-soft);
-  box-shadow: inset 3px 0 0 var(--mt-cmp-b);
+  background: var(--mt-highlight-soft);
+  box-shadow: inset 3px 0 0 var(--mt-highlight);
 }
 /* círculo de la fila: punteado con la letra que recibiría; lleno cuando ya es A o B */
 .pick-btn {
@@ -570,15 +570,15 @@ tr.on-b {
 }
 .pick-btn.set {
   border-style: solid;
-  color: #fff;
+  color: var(--mt-card);
 }
 .pick-btn.a {
-  border-color: var(--mt-cmp-a);
-  background: var(--mt-cmp-a);
+  border-color: var(--mt-accent);
+  background: var(--mt-accent);
 }
 .pick-btn.b {
-  border-color: var(--mt-cmp-b);
-  background: var(--mt-cmp-b);
+  border-color: var(--mt-highlight);
+  background: var(--mt-highlight);
 }
 tr.pickable:hover .pick-btn:not(.set) {
   border-color: var(--mt-accent);
@@ -603,15 +603,15 @@ tr.pickable:hover .pick-btn:not(.set) {
   justify-content: center;
   font-size: 11px;
   font-weight: 800;
-  color: #fff;
+  color: var(--mt-card);
 }
 .badge-a,
 .tag-a {
-  background: var(--mt-cmp-a);
+  background: var(--mt-accent);
 }
 .badge-b,
 .tag-b {
-  background: var(--mt-cmp-b);
+  background: var(--mt-highlight);
 }
 .chips {
   display: inline-flex;
@@ -709,11 +709,11 @@ tr.pickable:hover .pick-btn:not(.set) {
   font-variant-numeric: tabular-nums;
 }
 .cell-range .from {
-  color: var(--mt-cmp-a-ink);
+  color: var(--mt-accent-text);
   font-weight: 700;
 }
 .cell-range .to {
-  color: var(--mt-cmp-b-ink);
+  color: var(--mt-highlight-ink);
 }
 .cell-delta {
   font-size: 18px;
