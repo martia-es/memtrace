@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { RouterLink, type RouteLocationRaw } from "vue-router";
+import Spinner from "./Spinner.vue";
 
 /**
  * Botón de acción único del dashboard. Sustituye a las clases locales
@@ -26,7 +27,7 @@ const props = withDefaults(defineProps<Props>(), { variant: "secondary", size: "
     <slot />
   </RouterLink>
   <button v-else :type="type" class="mt-btn" :class="[`v-${variant}`, `s-${size}`, { loading }]" :disabled="disabled || loading" :aria-busy="loading || undefined">
-    <span v-if="loading" class="spin" aria-hidden="true" />
+    <span v-if="loading" class="spin" aria-hidden="true"><Spinner size="sm" tone="current" /></span>
     <slot />
   </button>
 </template>
@@ -68,13 +69,5 @@ const props = withDefaults(defineProps<Props>(), { variant: "secondary", size: "
 .v-icon:not(:disabled):hover { background: var(--mt-soft); color: var(--mt-ink); }
 .v-icon.s-md { width: 36px; height: 36px; }
 
-.spin {
-  width: 12px;
-  height: 12px;
-  border: 2px solid currentColor;
-  border-right-color: transparent;
-  border-radius: 50%;
-  animation: mt-btn-spin 0.7s linear infinite;
-}
-@keyframes mt-btn-spin { to { transform: rotate(360deg); } }
+.spin { display: inline-flex; }
 </style>
