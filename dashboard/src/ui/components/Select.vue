@@ -1,6 +1,7 @@
 <script setup lang="ts" generic="T extends string | number">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { t } from "../i18n";
+import Spinner from "./Spinner.vue";
 
 defineOptions({ inheritAttrs: false });
 
@@ -135,7 +136,7 @@ onBeforeUnmount(() => {
     <transition name="dropdown">
       <div v-if="isOpen" ref="menu" class="select-menu" role="listbox" :style="menuStyle" @keydown="onMenuKey">
         <div v-if="loading" class="select-loading">
-          <div class="spinner"></div>
+          <span aria-hidden="true"><Spinner size="sm" tone="current" /></span>
           {{ t("select.loading") }}
         </div>
         <template v-else>
@@ -260,21 +261,6 @@ onBeforeUnmount(() => {
   height: 60px;
   color: var(--mt-muted);
   font-size: 12px;
-}
-
-.spinner {
-  width: 12px;
-  height: 12px;
-  border: 1.5px solid var(--mt-line);
-  border-top-color: var(--mt-accent);
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 .select-option {

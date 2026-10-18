@@ -35,7 +35,8 @@ Los controles son componentes propios; Quasar queda solo para el armazón de pá
 | `DataTable` | Cabecera, borde de fila y hover; el contenido (`thead` / `tbody`) lo pone la página. `bare`, `sticky`, `density="sm"`, `nowrap`. |
 | `Card`, `Pagination`, `FormField` | Superficie con borde, paginador y campo con etiqueta, pista y error. Los estilos base usan `:where()` para que una página pueda sobrescribir una propiedad sin subir especificidad. |
 | `SegmentedControl`, `ToggleChip`, `Disclosure`, `TabPanel`, `TabBar` | Grupos segmentados, filtros, secciones plegables y pestañas de detalle. |
-| `Menu`, `MenuItem`, `Modal`, `Spinner`, `LoadingState` | Popover, diálogo (con slot `footer`) y estados de carga. |
+| `Menu`, `MenuItem`, `Modal`, `LoadingState` | Popover, diálogo (con slot `footer`) y estado de carga centrado de una zona. |
+| `Spinner` | Único indicador de carga: el logo animado (trazas que se funden en una barra coral). `size` = `sm` / `md` / `lg`; `tone` = `brand` (colores del logo sobre su baldosa, por defecto) o `current` (color del texto, para botones y controles). No dibujes spinners propios; `Button loading` y `Select loading` ya lo usan. |
 
 Un `<button>` crudo solo se admite en las interioridades de estos componentes y en piezas cuyo diseño es el botón entero (disparadores de popover, filas desplegables, cabeceras ordenables, respuestas con atajo de teclado, botones OAuth). La lista, con su motivo, está en `Widgets.test.ts`.
 
