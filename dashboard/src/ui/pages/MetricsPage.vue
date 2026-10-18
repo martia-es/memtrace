@@ -51,7 +51,7 @@ void experiments.run();
 
 const agentOptions = computed(() => (experiments.data.value ?? []).map((e) => ({ label: e.name, value: e.id })));
 const goToErrors = () => {
-  router.push({ name: "conversations", params: { experimentId: experimentId.value }, query: { ...f.shared.value, status: "error" } });
+  router.push({ name: "conversations", params: { experimentId: experimentId.value }, query: { ...f.shared.value, hasErrors: "1" } });
 };
 
 const overview = useAsync((signal) => api.getOverview({ ...f.resolve(), service: f.service.value }, signal));
