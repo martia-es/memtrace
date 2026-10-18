@@ -15,11 +15,26 @@ NON_CAPITALS = ["Girona", "Bilbao", "Porto", "Lyon", "Turin", "Leeds"]
 
 # plantillas por intención y idioma; {c} y {d} son ciudades
 MESSAGES = {
-    "weather_today": {"en": "What is the weather like in {c} today?", "es": "¿Qué tiempo hace hoy en {c}?"},
-    "forecast_week": {"en": "Give me the forecast for {c} for the next week", "es": "Dame la previsión de {c} para la próxima semana"},
-    "compare_cities": {"en": "Is it warmer in {c} or in {d}?", "es": "¿Hace más calor en {c} o en {d}?"},
-    "clothing_advice": {"en": "What should I wear in {c} tomorrow?", "es": "¿Qué ropa me pongo mañana en {c}?"},
-    "no_city": {"en": "Will it rain tomorrow?", "es": "¿Va a llover mañana?"},
+    "weather_today": {
+        "en": ["What is the weather like in {c} today?", "How's the weather in {c} right now?", "Tell me today's conditions in {c}", "Is it sunny in {c} today?"],
+        "es": ["¿Qué tiempo hace hoy en {c}?", "¿Cómo está el clima en {c} ahora mismo?", "Dime las condiciones de hoy en {c}", "¿Hace sol hoy en {c}?"],
+    },
+    "forecast_week": {
+        "en": ["Give me the forecast for {c} for the next week", "What will the weather be in {c} over the next seven days?", "I need the weekly forecast for {c}"],
+        "es": ["Dame la previsión de {c} para la próxima semana", "¿Qué tiempo hará en {c} los próximos siete días?", "Necesito la previsión semanal de {c}"],
+    },
+    "compare_cities": {
+        "en": ["Is it warmer in {c} or in {d}?", "Which is hotter right now, {c} or {d}?", "Compare the temperature in {c} and {d}"],
+        "es": ["¿Hace más calor en {c} o en {d}?", "¿Cuál está más caliente ahora, {c} o {d}?", "Compara la temperatura de {c} y {d}"],
+    },
+    "clothing_advice": {
+        "en": ["What should I wear in {c} tomorrow?", "Do I need a jacket in {c} tomorrow?", "Help me pack for {c} tomorrow"],
+        "es": ["¿Qué ropa me pongo mañana en {c}?", "¿Necesito chaqueta mañana en {c}?", "Ayúdame a preparar la maleta para {c} mañana"],
+    },
+    "no_city": {
+        "en": ["Will it rain tomorrow?", "Do I need an umbrella tomorrow?", "Is it going to be cold this weekend?"],
+        "es": ["¿Va a llover mañana?", "¿Necesito paraguas mañana?", "¿Va a hacer frío este fin de semana?"],
+    },
 }
 INTENT_WEIGHTS = {"weather_today": 40, "forecast_week": 25, "compare_cities": 12, "clothing_advice": 13, "no_city": 10}
 
@@ -68,7 +83,7 @@ def make_trace(rnd: random.Random, base: datetime, day: int):
     prompt_version = 1 if day < PROMPT_CHANGE_DAY else 2
     city = rnd.choice(CAPITALS + NON_CAPITALS)
     other = rnd.choice([c for c in CAPITALS + NON_CAPITALS if c != city])
-    message = MESSAGES[intent][lang].format(c=city, d=other)
+    message = rnd.choice(MESSAGES[intent][lang]).format(c=city, d=other)
     trace_id = uuid.UUID(int=rnd.getrandbits(128)).hex
     start = base + timedelta(seconds=rnd.randrange(86400))
     attrs = {
