@@ -1,9 +1,15 @@
 # ADR-100: ArcadeDB as the Knowledge Store of Phase 2 (Mem), Optional and Behind a Port
 
-* **Status**: Accepted — not implemented. The choice is fixed; the points marked **To verify** are gates of a proof of concept that must pass before phase 2.1 is built (see section 6)
+* **Status**: Accepted — **deferred**: ArcadeDB is the chosen store for the relations graph, but it is not deployed until phase 2.4 (see the update below). Not implemented. The points marked **To verify** are gates of a proof of concept that must pass before it is built (section 6)
 * **Date**: 2026-10-18
 * **Deciders**: MemTrace Core Team
 * **Related**: [ADR-003](adr-003-clickhouse-schema-and-migrations.md), [ADR-084](adr-084-data-protection-retention-masking-audit-and-export.md), [ADR-088](../cybersecurity/adr-088-strict-tenant-isolation-in-clickhouse.md), [ADR-096](../infra/adr-096-production-operations-backups-helm-load-gates.md), [ADR-099](adr-099-deduplicated-span-storage.md), [roadmap, phase 2](../../roadmap.md)
+
+## Update (2026-10-18): scope narrowed to the graph
+
+The phase 2 design was revised ([phase_2_design.md](../../archive/phase_2_design.md)) around lessons that agents apply. Under it, data lives by one rule: **what is computed from traces lives in ClickHouse; what a person decides lives in Postgres.** Episodes, outcomes, embeddings and clusters are derived, recomputable and expire with their trace, and at tens of thousands of failed episodes cosine distance runs in ClickHouse without a vector index. Lessons, their state and their approvals go to Postgres. That removes the need for a third store in phases 2.0 to 2.3.
+
+What this ADR still decides: **if and when the multi-hop relations graph (phase 2.4) is built, the store is ArcadeDB, optional and behind the `KnowledgeStore` port**, with the fallback of section 7. Sections 1, 2 and 6 below describe the original, wider scope (patterns, evidence and embeddings in ArcadeDB); read them as applying to the graph only. First results of the proof of concept (5,000 vectors of 64 dimensions): a filter applied after asking for exactly k neighbours returned 1 of 10 for a rare experiment, while a vertex type with its own index per experiment returned 10; cross-database access was denied; deleting an experiment removed it from the index results; backup and restore worked once local restore was enabled; openCypher multi-hop, variable-length, aggregation and `OPTIONAL MATCH` worked. With 384-dimension vectors the incremental index build became very slow (30,000 vectors in about 700 s with a 4 GB heap) and 100,000 exhausted the heap, so the footprint gate is **not passed** at that scale; this is one more reason not to put embeddings there.
 
 ## Context and Problem Statement
 

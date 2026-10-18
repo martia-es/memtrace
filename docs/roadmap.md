@@ -305,70 +305,28 @@ Un usuario puede agrupar varias gráficas custom ya guardadas en un **informe** 
 
 ## Fase 2: Mem - Aprendizaje Iterativo del Agente
 
-**Objetivo**: Extraer conocimiento de las trazas para mejorar el comportamiento del agente y evitar errores recurrentes.
+**Objetivo**: Convertir los fallos de un agente en lecciones duraderas, guardarlas por agente, aplicarlas para que no se repita el error y proponer arreglos ahora, midiendo si funcionaron. Diseño completo en [phase_2_design.md](archive/phase_2_design.md).
 
-### Componentes Técnicos
+**Principio**: Mem propone, las personas aprueban y la Fase 1 gobierna y mide. Una lección solo llega al agente si está aprobada, versionada por entorno y sellada en la traza.
 
-#### 2.1 Motor de Análisis de Trazas
-- **Tecnología**: tablas existentes en la fase 2.0; ArcadeDB (opcional, detrás de un puerto) desde la 2.1 — [ADR-100](adrs/storage/adr-100-arcadedb-knowledge-store.md)
-- **Propósito**: Procesar trazas para extraer patrones de éxito/fallo
-- **Operaciones**:
-  - Clasificar trazas: exitosas vs fallidas
-  - Identificar causas raíz de fallos
-  - Extraer patrones recurrentes (ej: "el agente falla cuando usa tool X con parametro Y")
-  - Generar embeddings de trazas fallidas para similitud
+**Datos**: lo derivado de las trazas (episodios, resultado, embeddings, clusters) en ClickHouse; lo que decide una persona (lecciones, estado, aprobaciones) en Postgres. ArcadeDB solo para el grafo de la fase 2.4 ([ADR-100](adrs/storage/adr-100-arcadedb-knowledge-store.md), aplazado). Redis Stack descartado.
 
-#### 2.2 Knowledge Graph
-- **Almacenamiento**: ArcadeDB (grafo + vectores), opt-in y con prueba de concepto previa ([ADR-100](adrs/storage/adr-100-arcadedb-knowledge-store.md)). Redis Stack descartado: RedisGraph está descontinuado
-- **Nodos**:
-  - Agentes
-  - Herramientas/Tools
-  - Modelos LLM
-  - Patrones de error
-  - Estrategias exitosas
-- **Relaciones**:
-  - Agent usa Tool
-  - Tool falla en contexto X
-  - Estrategia Y resuelve error Z
+### Fases
 
-#### 2.3 Feedback Loop del Agente
-- **Mecanismo**: Inyectar conocimiento en el prompt/contexto del agente
-- **Ejemplos**:
-  - Ejemplos de uso correcto de tools fallidos
-  - Patrones de error a evitar
-  - Estrategias alternativas cuando falla una herramienta
-  - Instrucciones contextuales basadas en historial
-
-#### 2.4 Sistema de Métricas de Aprendizaje
-- **Tracking**:
-  - Tasa de éxito del agente en el tiempo
-  - Reducción de errores recurrentes
-  - Mejora en latencia/tokens tras aplicar feedback
-  - Precisión de las correcciones sugeridas
-
-### Algoritmos de Extracción de Conocimiento
-
-1. **Clustering de Fallos**: Agrupar trazas fallidas por causa raíz
-2. **Pattern Mining**: Identificar secuencias de acciones que llevan a fallo
-3. **Embeddings + RAG**: Buscar trazas similares en el knowledge graph
-4. **Scoring**: Calificar qué aprendizajes son más valiosos
+- 2.0 Observar: episodios, resultado multi-señal, paso decisivo y patrones deterministas (bucles, qué precede al fallo)
+- 2.1 Descubrir: clusters (`sentence-transformers`, UMAP, HDBSCAN), contraste éxito/fallo con tests estadísticos y causa raíz
+- 2.2 Destilar: lecciones con ciclo de vida (redactadas en el lado del usuario, como `propose_fix`) y borrador de arreglo por el flujo de ADR-072
+- 2.3 Aplicar: lecciones aprobadas en ejecución con `{{lessons}}` en el prompt y sello en la traza
+- 2.4 Medir y conectar: repetición contrafactual, reincidencia y, si hace falta, el grafo
 
 ### Deliverables Fase 2
 
-- [ ] Motor de análisis de trazas (lee de ClickHouse; sin almacén nuevo en la 2.0)
-- [ ] Prueba de concepto de ArcadeDB contra los criterios del ADR-100 y esquema del grafo
-- [ ] Pipeline de extracción de patrones y reglas
-- [ ] Servicio de recomendación de feedback para agentes
-- [ ] API para inyectar contexto en prompts
-- [ ] Dashboard de evolución del agente (métrica en el tiempo)
+- [ ] Worker `analytics/mem` y tabla `mem_episodes` en ClickHouse
+- [ ] Resultado multi-señal de una traza y paso decisivo
+- [ ] Patrones recurrentes en Overview
+- [ ] Clusters y contraste éxito/fallo con significación estadística
+- [ ] Modelo de datos de lecciones en Postgres, estados y permisos (`lesson:*`)
+- [ ] `memtrace.mem.distill` en los SDK y pantalla *Learning* (con propuesta de interfaz previa)
+- [ ] `memtrace.lessons.get` y variable `{{lessons}}` en el SDK
+- [ ] Medición de efecto y reincidencia, con alerta
 - [ ] Documentación de integración con agentes
-
-### Stack Técnico
-
-```
-Análisis: Python (pandas, scikit-learn)
-Knowledge Store: ArcadeDB (graph + vector), con PostgreSQL + pgvector como alternativa (ADR-100)
-API: FastAPI
-Embeddings: Sentence Transformers / OpenAI
-Monitoreo: Prometheus + Grafana (opcional)
-```
