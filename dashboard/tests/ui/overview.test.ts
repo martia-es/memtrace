@@ -78,6 +78,17 @@ describe("Overview (MetricsPage)", () => {
     await flushPromises();
     expect(router.currentRoute.value.name).toBe("annotation-queues");
   });
+
+  it("opens Conversations filtered by errors from the banner button", async () => {
+    const api = new FakeTraceApi();
+    api.overview = overview({ errorTraces: 8, errorRate: 0.08 });
+    const { wrapper, router } = await setup(MetricsPage, api, "/overview");
+
+    await wrapper.get('[data-testid="health-banner"] button').trigger("click");
+    await flushPromises();
+    expect(router.currentRoute.value.name).toBe("conversations");
+    expect(router.currentRoute.value.query.hasErrors).toBe("1");
+  });
 });
 
 describe("Overview low-rated traces (ADR-049)", () => {
