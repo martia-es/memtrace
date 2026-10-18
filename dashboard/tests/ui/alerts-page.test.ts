@@ -473,7 +473,7 @@ describe("the bell", () => {
   }
   const open = (over: Record<string, unknown> = {}) => ({
     ruleId: "r1", ruleName: "Too many errors", experimentId: "exp-9", experimentName: "Support bot", metric: "error_rate" as const, since: new Date(Date.now() - 5 * 60_000).toISOString(),
-    lastValue: 9, threshold: 5, comparator: "above" as const, windowMinutes: 5, recipients: 1, ...over,
+    lastValue: 9, threshold: 5, comparator: "above" as const, windowMinutes: 5, recipients: 1, read: false, ...over,
   });
 
   it("shows nothing but the bell when no alert is firing", async () => {
@@ -636,8 +636,24 @@ describe("the bell", () => {
       expect(api.notificationCalls).toEqual(["read"]);
       expect(document.body.querySelector("[data-testid='bell-unread']")).toBeNull();
       expect(q("bell-count")).toBeNull();
-      expect(q("bell-mark-read")).toBeNull(); // ya no hay nada nuevo
+      expect(q("bell-mark-read")!.hasAttribute("disabled")).toBe(true); // ya no hay nada nuevo
       expect(document.body.querySelector("[role='menu']")).not.toBeNull();
+    });
+
+    it("'Mark all as read' is there on every tab and also clears the alerts firing now", async () => {
+      const api = new Api();
+      api.openAlerts = { items: [open()] };
+      await openBell(api);
+      chip("Firing").click();
+      await flushPromises();
+      expect(q("bell-mark-read")!.hasAttribute("disabled")).toBe(false);
+      expect(q("bell-firing-dot")).not.toBeNull();
+      q("bell-mark-read")!.click();
+      await flushPromises();
+      expect(api.notificationCalls).toEqual(["read"]);
+      expect(q("bell-firing-dot")).toBeNull();
+      expect(q("bell-count")).toBeNull();
+      expect(document.body.querySelectorAll("[data-testid='bell-item']").length).toBe(1); // sigue disparada, solo está leída
     });
 
     it("opens the agent's alerts when a notice is chosen", async () => {

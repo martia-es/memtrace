@@ -85,9 +85,11 @@ export class AlertService {
     return this.repo.listEvents(experimentId, Math.min(Math.max(options.limit ?? 50, 1), 200), options.cursor);
   }
 
-  /** Alertas disparadas en esos experimentos (los que la persona puede leer), para la campana. */
-  listOpen(experimentIds: string[]): Promise<OpenAlert[]> {
-    return this.repo.listOpen(experimentIds);
+  /** Alertas disparadas en esos experimentos (los que la persona puede leer), para la campana; leída = marcada después de dispararse. */
+  async listOpen(userId: string, experimentIds: string[]): Promise<Array<OpenAlert & { read: boolean }>> {
+    const [items, readAt] = await Promise.all([this.repo.listOpen(experimentIds), this.repo.getNotificationsReadAt(userId)]);
+    const mark = readAt === null ? null : new Date(readAt).getTime();
+    return items.map((a) => ({ ...a, read: mark !== null && new Date(a.since).getTime() <= mark }));
   }
 
   /** Los avisos recientes de los experimentos que la persona puede leer, cada uno marcado como leído o no según su marca. */

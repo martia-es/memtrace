@@ -164,6 +164,7 @@ export class FakeIdentityApi implements IdentityApi {
   async markNotificationsRead(): Promise<void> {
     this.notificationCalls.push("read");
     this.notifications = { items: this.notifications.items.map((n) => ({ ...n, read: true })), unread: 0 };
+    this.openAlerts = { items: this.openAlerts.items.map((a) => ({ ...a, read: true })) };
   }
   modelQuality: ModelQualityResponse = { source: { name: "Arena", board: "text", category: "overall", license: "CC BY 4.0", url: "https://arena.ai", publishedAt: null, syncedAt: null }, items: [], counts: { needsReview: 0, pending: 0, inUse: 0 } };
   modelQualityCandidates: ModelQualityCandidatesResponse = { items: [] };

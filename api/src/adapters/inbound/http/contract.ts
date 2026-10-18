@@ -1753,6 +1753,8 @@ export interface OpenAlertDto {
   comparator: "above" | "below";
   windowMinutes: number;
   recipients: number;
+  /** la persona ya marcó como leído después de que se disparara */
+  read: boolean;
 }
 
 export interface OpenAlertsDto {

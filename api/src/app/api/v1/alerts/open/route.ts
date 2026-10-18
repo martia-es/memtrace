@@ -15,6 +15,6 @@ export async function GET() {
     if (user instanceof Response) return user;
     const experiments = await getIdentity().identityRepository.listExperimentsForUser(user.id);
     const readable = experiments.filter((e) => e.permissions.includes("experiment:read")).map((e) => e.id);
-    return json({ items: await getAlerts().listOpen(readable) });
+    return json({ items: await getAlerts().listOpen(user.id, readable) });
   });
 }
