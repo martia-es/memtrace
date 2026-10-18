@@ -11,9 +11,9 @@ export type Locale = "en" | "es";
 export type MessageKey = keyof typeof en;
 
 const STORAGE_KEY = "memtrace.locale";
-export const LOCALES: readonly { id: Locale; label: string }[] = [
-  { id: "en", label: "English" },
-  { id: "es", label: "Español" },
+export const LOCALES: readonly { id: Locale; label: string; flag: string }[] = [
+  { id: "en", label: "English", flag: "🇬🇧" },
+  { id: "es", label: "Español", flag: "🇪🇸" },
 ];
 const CATALOGS: Record<Locale, Record<string, string>> = { en, es };
 

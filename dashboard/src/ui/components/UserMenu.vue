@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { fetchCsrfToken, postSignOut } from "@/adapters/outbound/browser-auth";
 import { useAsync } from "../composables/useAsync";
 import { useIdentityApi } from "../composables/useIdentityApi";
@@ -19,6 +19,8 @@ void me.run();
 
 const { theme, toggle: toggleTheme } = useTheme();
 const { t, locale, locales, setLocale } = useI18n();
+const langOpen = ref(false);
+const current = computed(() => locales.find((l) => l.id === locale.value) ?? locales[0]!);
 
 const handleSignOut = async () => {
   try {
@@ -69,12 +71,19 @@ const initials = computed(() => {
             <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
           </svg>
           {{ t("common.documentation") }}</MenuItem>
-        <MenuItem v-for="l in locales" :key="l.id" :data-testid="`locale-${l.id}`" @click="setLocale(l.id)">
+        <MenuItem class="lang-toggle" :aria-expanded="langOpen" data-testid="language-toggle" @click.stop="langOpen = !langOpen">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
           </svg>
-          {{ t("common.language") }}: {{ l.label }}<template v-if="locale === l.id"> ✓</template>
+          <span class="lang-name">{{ t("common.language") }}</span>
+          <span class="lang-current">{{ current.flag }} {{ current.label }}</span>
+          <span class="lang-chevron" :class="{ open: langOpen }" aria-hidden="true">›</span>
         </MenuItem>
+        <div v-if="langOpen" class="lang-list" role="group" :aria-label="t('common.language')">
+          <MenuItem v-for="l in locales" :key="l.id" :active="locale === l.id" :data-testid="`locale-${l.id}`" @click="setLocale(l.id)">
+            <span class="lang-flag" aria-hidden="true">{{ l.flag }}</span>{{ l.label }}
+          </MenuItem>
+        </div>
         <div class="menu-divider" />
         <MenuItem danger @click="handleSignOut">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -149,6 +158,12 @@ const initials = computed(() => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.lang-toggle .lang-name { flex: 1; }
+.lang-toggle .lang-current { color: var(--mt-muted); font-size: 12px; }
+.lang-toggle .lang-chevron { color: var(--mt-muted); transition: transform 0.15s ease; }
+.lang-toggle .lang-chevron.open { transform: rotate(90deg); }
+.lang-list { padding-left: 14px; }
+.lang-flag { font-size: 16px; line-height: 1; }
 </style>
 
 <style>
