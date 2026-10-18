@@ -350,7 +350,7 @@ export class HttpIdentityApi implements IdentityApi {
       body: JSON.stringify(body),
     });
     if (!response.ok) throw await toApiError(response);
-    return (await response.json()) as T;
+    return response.status === 204 ? (undefined as T) : ((await response.json()) as T);
   }
 
   private async patch<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {

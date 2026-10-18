@@ -34,8 +34,10 @@ const openRules = computed(() => new Set(items.value.map((a) => a.ruleId)));
 const earlier = computed(() => (feed.data.value?.items ?? []).filter((n) => !(n.kind === "fired" && n.ruleId !== null && openRules.value.has(n.ruleId))));
 const budgetItems = computed(() => earlier.value.filter((n) => n.kind.startsWith("budget_")));
 const unreadEarlier = computed(() => earlier.value.filter((n) => !n.read).length);
-// el número de la campana: lo que está roto ahora más lo nuevo que no ha visto
-const attention = computed(() => items.value.length + unreadEarlier.value + (pendingModels.value.total > 0 ? 1 : 0));
+const unreadFiring = computed(() => items.value.filter((a) => !a.read).length);
+// el número de la campana: lo que está roto ahora y no ha visto, más lo nuevo que no ha visto
+const attention = computed(() => unreadFiring.value + unreadEarlier.value + (pendingModels.value.total > 0 ? 1 : 0));
+const unreadTotal = computed(() => unreadFiring.value + unreadEarlier.value);
 
 const showFiring = computed(() => tab.value === "all" || tab.value === "firing");
 const showEarlier = computed(() => tab.value === "all" || tab.value === "budget");
@@ -66,7 +68,7 @@ async function markAllRead() {
   try {
     await api.markNotificationsRead();
   } finally {
-    await feed.run();
+    await Promise.all([feed.run(), open.run()]);
   }
 }
 /** Cuántas direcciones reciben también el correo de lo que se gestiona desde «Manage alerts». */
@@ -90,7 +92,7 @@ const modelNames = computed(() => {
   return names.length > 2 ? t("bell.namesMore", { a: names[0]!, b: names[1]!, n: names.length - 2 }) : names.length === 2 ? t("bell.namesAnd", { a: names[0]!, b: names[1]! }) : names.join("");
 });
 const label = computed(() => {
-  if (items.value.length) return t("bell.label.firing", { count: items.value.length });
+  if (unreadFiring.value) return t("bell.label.firing", { count: unreadFiring.value });
   if (pendingModels.value.total) return t("bell.label.models", { count: pendingModels.value.total });
   return unreadEarlier.value ? t("bell.label.unread", { count: unreadEarlier.value }) : t("nav.alerts");
 });
@@ -102,11 +104,11 @@ const label = computed(() => {
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" />
       </svg>
-      <span v-if="attention" class="badge" :class="{ calm: items.length === 0 }" data-testid="bell-count">{{ attention > 9 ? "9+" : attention }}</span>
+      <span v-if="attention" class="badge" :class="{ calm: unreadFiring === 0 }" data-testid="bell-count">{{ attention > 9 ? "9+" : attention }}</span>
       <Menu ref="menu" anchor="bottom right" self="top right" :offset="[0, 6]" class="bell-menu">
         <div class="head">
           <span class="head-title">{{ t("bell.notifications") }}</span>
-          <Button v-if="unreadEarlier > 0" size="sm" variant="link" data-testid="bell-mark-read" @click="markAllRead">{{ t("bell.markAllRead") }}</Button>
+          <Button size="sm" variant="link" :disabled="unreadTotal === 0" data-testid="bell-mark-read" @click="markAllRead">{{ t("bell.markAllRead") }}</Button>
         </div>
         <TabBar class="tabs" :class="{ alarmed: items.length > 0 }" :tabs="tabs" :model-value="tab" @update:model-value="tab = $event as Tab" />
 
@@ -140,7 +142,7 @@ const label = computed(() => {
               <span class="meta">{{ a.experimentName }} · {{ openAlertView(a).detail }}</span>
               <span class="cta">{{ t("bell.viewAlertCta") }}</span>
             </span>
-            <span class="dot t-error" data-testid="bell-firing-dot" :aria-label="t('bell.firingNowLabel')" />
+            <span v-if="!a.read" class="dot t-error" data-testid="bell-firing-dot" :aria-label="t('bell.firingNowLabel')" />
           </MenuItem>
         </template>
 
