@@ -74,6 +74,7 @@ Do **not** write one for a new screen, an endpoint that follows an existing patt
 | 098 | Durable Ingestion Pipeline: Dedicated Ingest Service, Broker Between Collectors, Prometheus and Grafana | [infra/adr-098-durable-ingestion-pipeline-with-broker.md](infra/adr-098-durable-ingestion-pipeline-with-broker.md) |
 | 099 | Deduplicated Span Storage with ReplacingMergeTree | [storage/adr-099-deduplicated-span-storage.md](storage/adr-099-deduplicated-span-storage.md) |
 | 100 | ArcadeDB as the Knowledge Store of Phase 2 (Mem), Optional and Behind a Port | [storage/adr-100-arcadedb-knowledge-store.md](storage/adr-100-arcadedb-knowledge-store.md) |
+| 101 | LLM Provider Keys Held by MemTrace, Sealed for a Single Worker | [cybersecurity/adr-101-provider-keys-held-by-memtrace.md](cybersecurity/adr-101-provider-keys-held-by-memtrace.md) |
 
 ## Retired ADRs
 

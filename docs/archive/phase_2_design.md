@@ -46,7 +46,7 @@ Riesgos documentados: una reflexión incorrecta que persiste puede ser grave, y 
 | 5 | **Agrupar** episodios fallidos | Embeddings con `sentence-transformers` (modelo local de ADR-022), UMAP + HDBSCAN, n-gramas de secuencias de tools con `pandas` | Parcial |
 | 6 | **¿Real o ruido?** | `scipy` y `statsmodels`: Fisher, intervalos de Wilson, Benjamini-Hochberg, contra trazas exitosas de la misma intención; soporte mínimo de 30 trazas | Nuevo |
 | 7 | **Causa raíz** | Catálogo de ADR-066 más nombre del cluster con c-TF-IDF de BERTopic; sin LLM | Reutiliza |
-| 8 | **Redactar la lección** | En el lado del usuario: `memtrace.mem.distill(cluster, llm=...)`, mismo patrón que `propose_fix`; salida JSON validada con `pydantic` | Patrón existe |
+| 8 | **Redactar la lección** | Worker `analytics/mem` con la clave del proveedor que la organización guardó en Ajustes ([ADR-101](../adrs/cybersecurity/adr-101-provider-keys-held-by-memtrace.md)); salida JSON validada con `pydantic`. Sin clave guardada, `memtrace.mem.distill(cluster, llm=...)` en el lado del usuario | Nuevo |
 | 9 | **Guardar** | Postgres: `lessons`, `lesson_evidence`, `lesson_events`. API con un `LessonRepository` | Nuevo |
 | 10 | **Revisar y aprobar** | Cola de anotación (negocio confirma, `technical` aprueba) y reglas de aprobación de ADR-076 | Reutiliza |
 | 11a | **Arreglar ahora** | «Crear borrador» llama a `propose_fix` con varios casos (ya los acepta) y sigue el flujo de ADR-072 | Reutiliza |
@@ -82,7 +82,13 @@ ClickHouse (derivado, recalculable)           Postgres (curado, fuente de verdad
 
 ## 6. Dónde corre el LLM
 
-MemTrace no guarda claves de proveedores. La redacción de lecciones (paso 8) corre **en el lado del usuario**, con su clave, igual que `propose_fix` y los jueces. El servidor hace solo lo que no necesita LLM (pasos 2 a 7). Una opción en que el servidor guarde la clave, para que un botón lo haga solo, queda como mejora posterior y es una frontera de seguridad nueva (ver `security-pending.md`).
+Redactar una lección necesita un LLM, y que sea automático exige que MemTrace lo llame. Decisión ([ADR-101](../adrs/cybersecurity/adr-101-provider-keys-held-by-memtrace.md)): **el usuario pega su clave una vez en Ajustes** y MemTrace la guarda cifrada de forma que solo el worker de Mem pueda descifrarla; ni la API ni el dashboard pueden leerla de vuelta.
+
+- La función está **desactivada por defecto** por organización, y al activarla se muestra una vista previa de lo que se enviará (solo evidencia enmascarada y acotada, nunca trazas completas).
+- Hay un límite de gasto mensual y de tokens por ejecución; al alcanzarlo se pausa y se avisa.
+- Cada uso queda en el registro de auditoría. Solo `org_admin` gestiona la clave (`provider_key:manage`).
+- Quien no quiera dar una clave a MemTrace puede seguir redactando lecciones desde su código con `memtrace.mem.distill(...)`, como hoy hace `propose_fix`.
+- Los pasos 2 a 7 no usan LLM y corren en el servidor igual que antes.
 
 ## 7. Fases de entrega
 
@@ -118,6 +124,7 @@ La pantalla *Learning* es un cambio importante de interfaz: antes de construirla
 | Q6 | Cómo se atribuye una mejora | Repetición contrafactual con ruido medido; el diseño del job de reincidencia (grupo de control) queda para la 2.4 |
 | Q7 | Soporte mínimo de un patrón | Propuesta: 30 trazas, como ADR-069; se afinará con datos |
 | Q8 | ¿Se aplica algo sin revisión humana? | No |
+| Q11 | ¿Quién llama al LLM que redacta las lecciones? | Resuelta: el worker de Mem con la clave guardada por la organización, sellada ([ADR-101](../adrs/cybersecurity/adr-101-provider-keys-held-by-memtrace.md)); el modo en el lado del usuario sigue disponible |
 | Q9 | Forma exacta de `memtrace.lessons.get` y de `{{lessons}}` | Abierta; irá a un ADR de SDK antes de la 2.3 |
 | Q10 | Taxonomía de causas para un solo agente | Abierta; partir de ADR-066 y adaptar MAST |
 
