@@ -1,6 +1,6 @@
 # Fase 2 (Mem): documento de diseño
 
-**Estado**: borrador para discusión. Nada de esto está decidido ni implementado. Cuando una pregunta de la sección 8 se resuelva, se mueve a un ADR (si es difícil de revertir) y se actualiza [roadmap.md](roadmap.md).
+**Estado**: borrador para discusión. Q1 está resuelta ([ADR-100](../adrs/storage/adr-100-arcadedb-knowledge-store.md): ArcadeDB, opcional y detrás de un puerto, sujeto a una prueba de concepto); el resto no está decidido ni implementado. Cuando una pregunta de la sección 8 se resuelva, se mueve a un ADR (si es difícil de revertir) y se actualiza [roadmap.md](roadmap.md).
 
 Complementa la sección «Fase 2» del roadmap, que describe la visión original (Redis Stack, knowledge graph, feedback loop). Este documento la contrasta con lo que la Fase 1 ya construyó.
 
@@ -96,10 +96,10 @@ El grafo queda el último a propósito: es la parte más cara y la menos probada
 
 | # | Pregunta | Opciones | Impacto |
 |---|---|---|---|
-| Q1 | ¿Qué almacén para patrones y, si llega, el grafo? | (a) Redis Stack, como dice el roadmap; (b) Postgres con `pgvector`; (c) ClickHouse con índices vectoriales; (d) solo tablas normales hasta 2.4 | **Alto, difícil de revertir, pide ADR.** Hoy Postgres tiene datos curados y ClickHouse las trazas; Redis sería un tercer almacén a operar, respaldar y asegurar (F8, ADR-096) |
+| Q1 | ¿Qué almacén para patrones y, si llega, el grafo? | **Resuelta ([ADR-100](../adrs/storage/adr-100-arcadedb-knowledge-store.md))**: ArcadeDB (Apache 2.0), opt-in y detrás del puerto `KnowledgeStore`; la fase 2.0 no lo necesita. Alternativa si falla la prueba de concepto: Postgres con `pgvector`. Redis Stack, FalkorDB y Neo4j Community descartados | Cerrada |
 | Q2 | ¿Dónde se calculan los embeddings? | Modelo local (Sentence Transformers) o proveedor externo | Alto: un proveedor externo envía contenido de trazas a un tercero, lo que toca los «flujos hacia terceros» pendientes en `security-pending.md` |
 | Q3 | ¿Cómo entra el conocimiento al agente? | Fragmento versionado en el prompt existente, o prompt propio de «aprendizajes» | Medio. Recomendación: fragmento, para reutilizar ADR-073 y el mapa de dependencias |
-| Q4 | ¿Qué es «éxito» o «fallo» de una traza? | Cualquier span fallido (como hoy), feedback 👍/👎, resultado de evaluadores, o combinación | Medio. Condiciona todo el análisis; hoy «error» es cualquier span fallido |
+| Q4 | ¿Qué es «éxito» o «fallo» de una traza? | **Resuelta para la fase 2.0**: fallo = cualquier span fallido, como hoy (ADR-066). Feedback 👍/👎 y resultados de evaluadores se añaden en fases posteriores | Cerrada para 2.0 |
 | Q5 | ¿Quién revisa los candidatos? | Cola de revisión como las de anotación (negocio etiqueta, `technical` promueve), o directamente el flujo de aprobaciones | Medio. Encaja con la regla actual: negocio etiqueta, solo `technical` promueve |
 | Q6 | ¿Cómo se atribuye una mejora a un aprendizaje? | Comparar versiones con y sin el fragmento, con repeticiones para medir ruido | Alto para 2.3. Sin atribución fiable, Mem no puede demostrar su valor |
 | Q7 | ¿Qué volumen de trazas hace falta para que un patrón sea fiable? | Umbral mínimo como el aviso de muestra pequeña (<30 trazas) de ADR-069 | Medio |
@@ -114,7 +114,7 @@ El grafo queda el último a propósito: es la parte más cara y la menos probada
 
 ## 10. Siguientes pasos
 
-1. Resolver Q1, Q2 y Q4 (condicionan el resto) y, si procede, escribir el ADR de almacén en `docs/adrs/storage/`.
+1. ~~Resolver Q1~~ (hecho, ADR-100). Q4 queda resuelta para la 2.0. Queda Q2, que condiciona la 2.1, y la prueba de concepto de ArcadeDB antes de la fase 2.1.
 2. Confirmar el principio de la sección 2 y actualizar el texto de la Fase 2 en el roadmap para que lo refleje.
 3. Definir la fase 2.0: qué patrones de secuencia detectar primero, con datos reales de trazas del weather assistant y el RAG assistant.
 4. Añadir los deliverables resultantes a [roadmap.md](roadmap.md) y los pendientes a [backlog.md](backlog.md).
