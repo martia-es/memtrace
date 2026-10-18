@@ -1,120 +1,138 @@
 # Fase 2 (Mem): documento de diseño
 
-**Estado**: borrador para discusión. Q1 está resuelta ([ADR-100](../adrs/storage/adr-100-arcadedb-knowledge-store.md): ArcadeDB, opcional y detrás de un puerto, sujeto a una prueba de concepto); el resto no está decidido ni implementado. Cuando una pregunta de la sección 8 se resuelva, se mueve a un ADR (si es difícil de revertir) y se actualiza [roadmap.md](roadmap.md).
-
-Complementa la sección «Fase 2» del roadmap, que describe la visión original (Redis Stack, knowledge graph, feedback loop). Este documento la contrasta con lo que la Fase 1 ya construyó.
+**Estado**: diseño revisado el 2026-10-18 y aceptado en sus líneas generales. Nada está implementado. Las decisiones difíciles de revertir van a ADR cuando se vayan a construir; las preguntas abiertas están en la sección 9. Complementa la sección «Fase 2» de [roadmap.md](../roadmap.md).
 
 ---
 
 ## 1. Objetivo
 
-Que MemTrace **descubra por sí mismo qué falla de forma recurrente** en un agente y **proponga cambios** que lo corrijan, de modo que el equipo los revise, los evalúe y los promueva con las garantías que ya existen.
+> Convertir los fallos de un agente en **lecciones duraderas**, guardarlas a largo plazo por agente, **aplicarlas** para que no se repita el error y **proponer arreglos ahora**, midiendo si funcionaron.
 
-Mem no sustituye a la persona que mejora el agente: le entrega candidatos con evidencia, en lugar de que tenga que encontrarlos mirando trazas una a una.
+Mem tiene dos salidas:
+
+- **Arreglar ahora**: un borrador de prompt o fragmento con la evidencia que lo justifica.
+- **Que no se repita**: una lección aprobada que el agente recibe en ejecución cuando se da la situación.
+
+Mem no sustituye a la persona que mejora el agente: le entrega candidatos con evidencia en vez de obligarle a mirar trazas una a una.
 
 ## 2. Principio rector
 
-> **Mem genera candidatos; la Fase 1 los gobierna.**
+> **Mem propone; las personas aprueban; la Fase 1 gobierna y mide.**
 
-Todo cambio que Mem quiera aplicar a un agente entra por los mecanismos existentes (borrador de prompt o fragmento → evaluación → aprobación → promoción por entorno). Mem **nunca** inyecta contexto en producción por una vía propia.
+- Un borrador entra por el flujo existente: evaluar, aprobar y promover por entorno ([ADR-070](../adrs/prompts/adr-070-prompt-promotion-gate.md), [ADR-076](../adrs/governance/adr-076-prompt-approvals.md), [ADR-064](../adrs/governance/adr-064-ci-triggered-deployments-with-evaluation-gate.md)).
+- Una lección solo llega al agente si está **aprobada, versionada por entorno y sellada en la traza**, igual que la versión del prompt ([ADR-068](../adrs/prompts/adr-068-prompt-handle-trace-link-and-usage-report.md)). Así su efecto se mide y se apaga sin tocar código.
+- Nada se aplica sin revisión humana.
 
-Consecuencias:
-- No se salta el gate de promoción (ADR-070), las aprobaciones (ADR-076) ni el gate de despliegue (ADR-064).
-- El efecto de un aprendizaje se mide con las herramientas actuales (evidencia por versión, ADR-069; ruido, ADR-097), sin construir otra medición.
-- Un aprendizaje es siempre reversible: es una versión de prompt, y el rollback ya existe.
+## 3. Cómo se resuelve hoy (resumen de la investigación)
 
-## 3. Qué ya existe y qué es nuevo
-
-| Capacidad que pide la Fase 2 | Ya existe (Fase 1) | Es nuevo en Mem |
+| Enfoque | Qué hace | Lo que tomamos |
 |---|---|---|
-| Agrupar fallos por causa | Resumen de errores de negocio, reglas deterministas por causa, impacto y tendencia (ADR-066) | Agrupar por **similitud** (embeddings, clustering) y por **secuencias de acciones**, no solo por regla |
-| Proponer un arreglo | «Del fallo al prompt» y `prompts.propose_fix` a partir de **un** caso (ADR-072) | Proponer a partir de un **patrón** que abarca muchas trazas |
-| Inyectar conocimiento en el agente | Prompts versionados, fragmentos `{{> x@pro}}`, borradores (ADR-067, 072, 073) | Decidir **qué** texto se añade y a qué prompt o fragmento |
-| Aplicar con garantías | Gate de promoción, aprobaciones, despliegue con gate (ADR-070, 076, 064) | Nada: se reutiliza tal cual |
-| Medir si mejora | Evidencia por versión, evaluaciones offline, ruido (ADR-069, 097) | Atribuir la mejora a **un aprendizaje concreto** |
-| Relaciones agente/tool/modelo/error/estrategia | Tools y conexiones observadas en el registro de agentes (ADR-053/056) | El **grafo** de relaciones y su consulta |
+| Reflexion y ExpeL | Reflexión tras fallar; ExpeL compara trayectorias buenas y malas y extrae reglas | Contrastar éxito y fallo de la misma intención |
+| Capas de memoria (Mem0, Zep/Graphiti, Letta, LangMem) | Memoria persistente; Graphiti invalida hechos contradichos | Validez temporal de una lección |
+| Observabilidad (LangSmith Insights y Engine, Braintrust Topics, Arize Signal) | Clusters de trazas; Engine propone un PR | Agrupar y proponer; falta ciclo de vida y medición |
+| GEPA / DSPy | Evoluciona prompts reflexionando sobre trazas | Valida la vía «sugerir mejora» |
+| MAST | Taxonomía de 14 modos de fallo | Taxonomía de causas, no clusters libres |
 
-Lo realmente nuevo es **descubrir patrones entre trazas** y **atribuir resultados a aprendizajes**.
+Riesgos documentados: una reflexión incorrecta que persiste puede ser grave, y la memoria puede envenenarse si contenido de un atacante entra en ella. El hueco que nadie cubre bien es el ciclo con gobierno y medición, que la Fase 1 ya tiene.
 
-## 4. Alcance
+## 4. Flujo
 
-**Dentro**
-- Detección de patrones de fallo recurrentes sobre las trazas de un experimento.
-- Candidatos de cambio (borrador de prompt o fragmento) con la evidencia que los justifica.
-- Métricas de si un aprendizaje aplicado ha servido.
-- Conocimiento consultable: «qué sabemos sobre la tool X o el error Y».
+| # | Paso | Herramienta y dónde corre | Estado |
+|---|---|---|---|
+| 1 | El agente genera trazas | SDK → Collector → Kafka → ClickHouse (`otel_traces`) | Existe |
+| 2 | **Episodio** por traza: objetivo, pasos ordenados, resultado | Worker Python `analytics/mem` (CronJob), `clickhouse-connect`; tabla `mem_episodes` en ClickHouse, como `span_topics` ([ADR-022](../adrs/observability/adr-022-topic-extraction-bertopic.md)) | Nuevo |
+| 3 | **Resultado** (fallo, sospechoso, ok) con motivos y confianza | Reglas en Python sobre: span en error, guardrail, feedback ([ADR-062](../adrs/observability/adr-062-end-user-feedback-on-traces.md)), evaluadores, anotaciones, bucles de reintento, usuario que repite la pregunta | Señales existen, combinador nuevo |
+| 4 | **Paso decisivo** donde se rompe | Span fallido más profundo (lógica de ADR-066); en fallos silenciosos, el paso con peor puntuación | Reutiliza |
+| 5 | **Agrupar** episodios fallidos | Embeddings con `sentence-transformers` (modelo local de ADR-022), UMAP + HDBSCAN, n-gramas de secuencias de tools con `pandas` | Parcial |
+| 6 | **¿Real o ruido?** | `scipy` y `statsmodels`: Fisher, intervalos de Wilson, Benjamini-Hochberg, contra trazas exitosas de la misma intención; soporte mínimo de 30 trazas | Nuevo |
+| 7 | **Causa raíz** | Catálogo de ADR-066 más nombre del cluster con c-TF-IDF de BERTopic; sin LLM | Reutiliza |
+| 8 | **Redactar la lección** | En el lado del usuario: `memtrace.mem.distill(cluster, llm=...)`, mismo patrón que `propose_fix`; salida JSON validada con `pydantic` | Patrón existe |
+| 9 | **Guardar** | Postgres: `lessons`, `lesson_evidence`, `lesson_events`. API con un `LessonRepository` | Nuevo |
+| 10 | **Revisar y aprobar** | Cola de anotación (negocio confirma, `technical` aprueba) y reglas de aprobación de ADR-076 | Reutiliza |
+| 11a | **Arreglar ahora** | «Crear borrador» llama a `propose_fix` con varios casos (ya los acepta) y sigue el flujo de ADR-072 | Reutiliza |
+| 11b | **Que no se repita** | SDK `memtrace.lessons.get(...)` devuelve lecciones aprobadas; el agente las incluye con la variable `{{lessons}}` del prompt | Nuevo |
+| 12 | **Medir** | Antes: dataset desde la evidencia y `run_experiment(repeats=N)` con y sin lección ([ADR-097](../adrs/evaluation/adr-097-repeated-executions-to-measure-evaluation-noise.md)). Después: job de reincidencia y alerta ([ADR-086](../adrs/observability/adr-086-alerts-and-cost-budgets.md)) | Reutiliza |
 
-**Fuera (de momento)**
-- Aplicar cambios automáticamente sin revisión humana.
-- Modificar código del agente, tools o configuración de modelos (solo prompts y fragmentos).
-- Aprendizaje entre organizaciones o entre clientes de una consultora (ver sección 7).
-- Fine-tuning de modelos.
+### Aplicar una lección en ejecución (11b)
 
-## 5. Arquitectura propuesta
+- La coincidencia es **determinista**: nombre de la tool, categoría de error o intención. No se calculan embeddings en cada petición.
+- Se devuelven como máximo N lecciones dentro de un presupuesto de tokens.
+- La traza guarda los ids de las lecciones aplicadas.
+
+### Estados de una lección
+
+propuesta → revisada → aprobada → activa → obsoleta → retirada. Se invalida si cambia el modelo o el prompt, o si deja de dispararse. Cada candidato puede descartarse y no volver a proponerse.
+
+## 5. Dónde vive cada dato
+
+> **Lo que se calcula a partir de las trazas vive en ClickHouse. Lo que decide una persona vive en Postgres.**
 
 ```
-ClickHouse (trazas)  ──►  Analizador  ──►  Patrones  ──►  Candidatos  ──►  Flujo Fase 1.8
-   (solo lectura)         (job batch)    (almacén N)     (borradores)     (evaluar, aprobar,
-                                              │                            promocionar)
-                                              ▼
-                                      Medición de efecto  ◄── evidencia por versión (ADR-069)
+ClickHouse (derivado, recalculable)           Postgres (curado, fuente de verdad)
+  trazas                                        lecciones y su estado
+  episodios y resultado de cada traza           evidencia (ids de trazas)
+  embeddings y clusters                         aprobaciones y auditoría
 ```
 
-Piezas:
+- No se añade ningún almacén: son los dos de la Fase 1.
+- Si se pierde ClickHouse se recalculan episodios y clusters; las decisiones humanas están en Postgres, con copias ([ADR-096](../adrs/infra/adr-096-production-operations-backups-helm-load-gates.md)).
+- Los embeddings caducan con la retención de la traza de origen ([ADR-084](../adrs/storage/adr-084-data-protection-retention-masking-audit-and-export.md)).
+- A esta escala (decenas de miles de episodios fallidos) la distancia coseno se calcula en ClickHouse sin índice vectorial.
+- **ArcadeDB queda aplazado** hasta el grafo de relaciones (fase 2.4): [ADR-100](../adrs/storage/adr-100-arcadedb-knowledge-store.md).
 
-1. **Analizador**: job periódico (mismo patrón que los workers existentes: CronJob, evaluador de alertas, `analytics/model_quality`). Lee de ClickHouse con `final = 1` (ADR-099) y respeta la retención y el enmascarado de PII ya aplicados.
-2. **Almacén de patrones**: guarda patrones, trazas que los respaldan y relaciones. **Decisión abierta (Q1)**.
-3. **Generador de candidatos**: convierte un patrón en un borrador de prompt o fragmento, usando el LLM y la clave del propio equipo, igual que `propose_fix` y los jueces.
-4. **Medición**: compara la versión con el aprendizaje frente a la base con las mismas reglas que Compare runs.
-5. **API y dashboard**: nuevos endpoints en la API de consulta (pieza 4), con el mismo middleware de autorización. El dashboard solo habla con la API, como siempre.
+## 6. Dónde corre el LLM
 
-El stack de la visión original (FastAPI, scikit-learn, Sentence Transformers) encaja como implementación del analizador, pero **no se asume** hasta resolver las preguntas de abajo.
+MemTrace no guarda claves de proveedores. La redacción de lecciones (paso 8) corre **en el lado del usuario**, con su clave, igual que `propose_fix` y los jueces. El servidor hace solo lo que no necesita LLM (pasos 2 a 7). Una opción en que el servidor guarde la clave, para que un botón lo haga solo, queda como mejora posterior y es una frontera de seguridad nueva (ver `security-pending.md`).
 
-## 6. Fases de entrega propuestas
+## 7. Fases de entrega
 
 Cada fase aporta valor por sí sola y se puede parar sin dejar el sistema a medias.
 
-| Fase | Entrega | Valor | Depende de |
-|---|---|---|---|
-| **2.0** | **Patrones sin IA ni almacén nuevo**: ampliar las reglas de ADR-066 a secuencias de spans (tool X seguida de error Y) y mostrarlos como «patrones recurrentes» en Overview | Útil ya, sin riesgo, y valida qué patrones merecen la pena | — |
-| **2.1** | **Similitud**: embeddings de trazas fallidas y clustering; «trazas parecidas» en la página de una traza | Encuentra fallos que las reglas no ven | Q1, Q2 |
-| **2.2** | **Candidatos**: de un patrón a un borrador de prompt o fragmento con su evidencia, entrando al flujo de aprobaciones | Cierra el bucle patrón → arreglo | 2.0 o 2.1, ADR-072 |
-| **2.3** | **Medición de efecto**: atribuir mejora a un aprendizaje y mostrar su evolución en el tiempo | Responde «¿ha servido?» | 2.2, ADR-097 |
-| **2.4** | **Grafo de conocimiento** (si 2.0 a 2.3 demuestran que hace falta) | Consultas multi-salto sobre agente/tool/error/estrategia | Q1 |
+| Fase | Entrega | Qué ve el usuario |
+|---|---|---|
+| **2.0 Observar** | Episodios, resultado multi-señal, paso decisivo y patrones deterministas (bucles, qué precede al fallo) | «Patrones recurrentes» en Overview |
+| **2.1 Descubrir** | Clusters, contraste éxito/fallo, causa raíz con taxonomía | Fallos agrupados con ejemplos |
+| **2.2 Destilar** | Lecciones con ciclo de vida y borrador de arreglo | Pantalla *Learning* y «crear borrador» |
+| **2.3 Aplicar** | Lecciones en ejecución con `{{lessons}}` y sello en la traza | El agente deja de repetir el error |
+| **2.4 Medir y conectar** | Repetición contrafactual, reincidencia y, si hace falta, el grafo | Impacto de cada lección |
 
-El grafo queda el último a propósito: es la parte más cara y la menos probada. Las fases 2.0 a 2.3 pueden funcionar con tablas normales.
+La pantalla *Learning* es un cambio importante de interfaz: antes de construirla se presenta una propuesta en el artefacto de diseño del proyecto.
 
-## 7. Restricciones transversales
+## 8. Restricciones transversales
 
-- **PII y retención** (ADR-084): el analizador lee contenido ya enmascarado y los patrones guardados no pueden sobrevivir a la retención del experimento. Un embedding de un texto con PII es también un dato personal.
-- **Multi-tenant** (Fase 1.96, ADR-087/093): los patrones pertenecen a un experimento y a su organización. Una consultora no puede aprender de los datos de un cliente para aplicarlos a otro.
-- **Permisos**: ver candidatos, aprobarlos y aplicarlos son permisos distintos, con la misma lógica que `prompt:read|write|promote`. Encaja con el modelo de perfiles: el perfil de negocio puede revisar la evidencia, solo `technical` promueve.
-- **Coste**: embeddings y generación de candidatos consumen LLM. Deben tener límite por organización, como los jueces y el playground.
-- **Salida del sistema**: cada candidato debe poder descartarse y no volver a proponerse.
+- **PII y retención**: el analizador lee contenido ya enmascarado. Una lección es texto generado y nunca copia contenido de usuario.
+- **Multi-tenant** ([ADR-088](../adrs/cybersecurity/adr-088-strict-tenant-isolation-in-clickhouse.md), [ADR-091](../adrs/cybersecurity/adr-091-client-boundary-for-multi-client-organizations.md)): las lecciones pertenecen a un experimento y a su organización; una consultora no aprende de un cliente para aplicarlo a otro.
+- **Permisos**: `lesson:read`, `lesson:review` y `lesson:approve`, con la lógica de `prompt:read|write|promote`.
+- **Coste**: la redacción consume LLM del usuario, con límite configurable.
+- **Seguridad de la memoria**: aprobación humana siempre, límite de tamaño de lo que se inyecta y caducidad de lecciones que ya no se disparan.
 
-## 8. Preguntas abiertas
+## 9. Preguntas abiertas
 
-| # | Pregunta | Opciones | Impacto |
-|---|---|---|---|
-| Q1 | ¿Qué almacén para patrones y, si llega, el grafo? | **Resuelta ([ADR-100](../adrs/storage/adr-100-arcadedb-knowledge-store.md))**: ArcadeDB (Apache 2.0), opt-in y detrás del puerto `KnowledgeStore`; la fase 2.0 no lo necesita. Alternativa si falla la prueba de concepto: Postgres con `pgvector`. Redis Stack, FalkorDB y Neo4j Community descartados | Cerrada |
-| Q2 | ¿Dónde se calculan los embeddings? | Modelo local (Sentence Transformers) o proveedor externo | Alto: un proveedor externo envía contenido de trazas a un tercero, lo que toca los «flujos hacia terceros» pendientes en `security-pending.md` |
-| Q3 | ¿Cómo entra el conocimiento al agente? | Fragmento versionado en el prompt existente, o prompt propio de «aprendizajes» | Medio. Recomendación: fragmento, para reutilizar ADR-073 y el mapa de dependencias |
-| Q4 | ¿Qué es «éxito» o «fallo» de una traza? | **Resuelta para la fase 2.0**: fallo = cualquier span fallido, como hoy (ADR-066). Feedback 👍/👎 y resultados de evaluadores se añaden en fases posteriores | Cerrada para 2.0 |
-| Q5 | ¿Quién revisa los candidatos? | Cola de revisión como las de anotación (negocio etiqueta, `technical` promueve), o directamente el flujo de aprobaciones | Medio. Encaja con la regla actual: negocio etiqueta, solo `technical` promueve |
-| Q6 | ¿Cómo se atribuye una mejora a un aprendizaje? | Comparar versiones con y sin el fragmento, con repeticiones para medir ruido | Alto para 2.3. Sin atribución fiable, Mem no puede demostrar su valor |
-| Q7 | ¿Qué volumen de trazas hace falta para que un patrón sea fiable? | Umbral mínimo como el aviso de muestra pequeña (<30 trazas) de ADR-069 | Medio |
-| Q8 | ¿Se aplica algo sin revisión humana alguna vez? | No (recomendado), o solo en `dev` | Alto en confianza; decide si hay modo automático |
+| # | Pregunta | Estado |
+|---|---|---|
+| Q1 | Almacén | Resuelta: ClickHouse (derivado) y Postgres (curado); ArcadeDB solo para el grafo ([ADR-100](../adrs/storage/adr-100-arcadedb-knowledge-store.md)) |
+| Q2 | Dónde se calculan los embeddings | Resuelta: modelo local, como ADR-022; nada sale a terceros |
+| Q3 | Cómo entra el conocimiento al agente | Resuelta: variable `{{lessons}}` en el prompt, más borradores por el flujo existente |
+| Q4 | Qué es éxito o fallo | **Reabierta**: resultado multi-señal. Falta fijar pesos y umbrales en la fase 2.0 |
+| Q5 | Quién revisa | Resuelta: cola de anotación; negocio confirma, `technical` aprueba |
+| Q6 | Cómo se atribuye una mejora | Repetición contrafactual con ruido medido; el diseño del job de reincidencia (grupo de control) queda para la 2.4 |
+| Q7 | Soporte mínimo de un patrón | Propuesta: 30 trazas, como ADR-069; se afinará con datos |
+| Q8 | ¿Se aplica algo sin revisión humana? | No |
+| Q9 | Forma exacta de `memtrace.lessons.get` y de `{{lessons}}` | Abierta; irá a un ADR de SDK antes de la 2.3 |
+| Q10 | Taxonomía de causas para un solo agente | Abierta; partir de ADR-066 y adaptar MAST |
 
-## 9. Riesgos
+## 10. Riesgos
 
-- **Aprender del ruido**: un patrón detectado con pocas trazas o con un fallo transitorio genera candidatos inútiles. Mitigación: umbral mínimo y medición con repeticiones (ADR-097).
-- **Prompts que crecen sin control**: acumular «errores a evitar» degrada el prompt. Mitigación: límite de tamaño del fragmento y caducidad de aprendizajes que ya no se disparan.
-- **Un tercer almacén sin necesidad**: se evita con la fase 2.0, que no lo requiere, y con el ADR de Q1 antes de construir 2.1.
-- **Doble mecanismo**: si Mem inyecta por una vía propia, se pierde la gobernanza. Lo previene el principio de la sección 2.
+- **Aprender del ruido**: umbral mínimo, tests estadísticos y repetición con ruido medido.
+- **Memoria envenenada o reflexión incorrecta**: aprobación humana, texto generado y no copiado, sello en la traza y apagado por lección.
+- **Prompts que crecen sin control**: presupuesto de tokens y caducidad.
+- **Datos de pruebas pobres**: los datos locales de desarrollo son pocos y con pocos tipos de fallo; la validación necesita trazas generadas con fallos variados.
+- **Dependencia del modelo**: una lección se invalida si cambia el modelo.
 
-## 10. Siguientes pasos
+## 11. Siguientes pasos
 
-1. ~~Resolver Q1~~ (hecho, ADR-100). Q4 queda resuelta para la 2.0. Queda Q2, que condiciona la 2.1, y la prueba de concepto de ArcadeDB antes de la fase 2.1.
-2. Confirmar el principio de la sección 2 y actualizar el texto de la Fase 2 en el roadmap para que lo refleje.
-3. Definir la fase 2.0: qué patrones de secuencia detectar primero, con datos reales de trazas del weather assistant y el RAG assistant.
-4. Añadir los deliverables resultantes a [roadmap.md](roadmap.md) y los pendientes a [backlog.md](backlog.md).
+1. Fijar la definición de resultado multi-señal (Q4) y el esquema de `mem_episodes`.
+2. Construir la fase 2.0 con trazas sintéticas con fallos variados, sin depender de datos reales.
+3. ADR de las lecciones (modelo de datos, estados y permisos) antes de la 2.2.
+4. ADR del SDK de lecciones (Q9) antes de la 2.3.
+5. Propuesta de interfaz de *Learning* antes de la 2.2.
