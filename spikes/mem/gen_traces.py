@@ -89,7 +89,6 @@ def make_trace(rnd: random.Random, base: datetime, day: int):
     attrs = {
         "user.message": message,
         "user.lang": lang,
-        "intent": intent,
         "gen_ai.request.model": model,
         "prompt.version": str(prompt_version),
         "enduser.id": f"user-{rnd.randrange(400)}",

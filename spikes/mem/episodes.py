@@ -24,6 +24,14 @@ def normalise(msg: str) -> str:
     return msg.strip()[:80]
 
 
+def has_empty_arg(args: str) -> bool:
+    """¿Alguna llamada a una herramienta lleva un argumento vacío? Vale para cualquier herramienta."""
+    try:
+        return any(v in ("", None) for v in json.loads(args).values())
+    except (ValueError, AttributeError):
+        return False
+
+
 def load_jsonl(name):
     with open(DATA / name) as f:
         return [json.loads(line) for line in f]
@@ -82,6 +90,11 @@ def build():
             "model": attrs.get("gen_ai.request.model", ""),
             "prompt_version": attrs.get("prompt.version", ""),
             "tools": ">".join(tool_names),
+            # insumos para los rasgos automáticos de discover.py: todos los pasos en orden, herramientas con
+            # algún argumento vacío, y los atributos de la traza (sin el texto libre ni el id de usuario)
+            "steps": ">".join(s["name"] for s in steps),
+            "empty_arg_tools": ",".join(sorted({s["name"] for s in steps if s["name"] != "chat" and has_empty_arg(s["args"])})),
+            "attrs": {k: v for k, v in attrs.items() if k not in ("user.message", "enduser.id")},
             "n_chat": n_chat,
             "n_tools": len(tool_names),
             "decisive_step": decisive["name"] if decisive else "",
