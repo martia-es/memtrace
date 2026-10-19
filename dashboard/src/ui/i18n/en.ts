@@ -2569,6 +2569,7 @@ export default {
   "auditLogPanel.set_the_cost_budget": "Set the cost budget",
   "auditLogPanel.removed_the_cost_budget": "Removed the cost budget",
   "auditLogPanel.decided_an_arena_match_for_a": "Decided an Arena match for a model",
+  "auditLogPanel.classified_the_risk_of_an_agent": "Classified the risk of an agent",
   "auditLogPanel.exempted_an_agent_from_an_approval": "Exempted an agent from an approval rule",
   "auditLogPanel.brought_back_an_approval_rule_for": "Brought back an approval rule for an agent",
   "auditLogPanel.added_a_partner": "Added a partner",

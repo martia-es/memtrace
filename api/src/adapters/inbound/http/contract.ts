@@ -1091,6 +1091,14 @@ export interface ChatResponseDto {
   latencyMs: number;
 }
 
+export interface RiskClassificationDto {
+  level: "minimal" | "limited" | "high" | null;
+  intendedPurpose: string;
+  knownLimitations: string;
+  classifiedBy: { id: string; name: string | null; email: string } | null;
+  classifiedAt: string | null;
+}
+
 export interface AssistantCardDto {
   experimentId: string;
   name: string;
@@ -1102,6 +1110,8 @@ export interface AssistantCardDto {
   chat: ChatConfigDto | null;
   /** null = el agente no declara repositorio */
   repo: RepoConfigDto | null;
+  /** clasificación de riesgo declarada (ADR-102); `level: null` = sin clasificar */
+  risk: RiskClassificationDto;
   createdAt: string;
   updatedAt: string;
   deployments: DeploymentSummaryDto[];

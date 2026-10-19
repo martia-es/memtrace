@@ -32,6 +32,7 @@ import {
   type RepoProvider,
 } from "@/domain/assistant-registry";
 import { AssistantInvariantError } from "@/domain/errors";
+import type { RiskInput, RiskLevel } from "@/domain/risk";
 
 const UNIQUE_VIOLATION = "23505";
 const FK_VIOLATION = "23503";
@@ -206,6 +207,13 @@ export class PostgresAssistantRegistryRepository implements AssistantRegistryRep
       repo_provider: RepoProvider | null;
       deploy_workflow: string | null;
       pr_gate_enabled: boolean;
+      risk_level: RiskLevel | null;
+      intended_purpose: string;
+      known_limitations: string;
+      risk_classified_by: string | null;
+      risk_classified_at: Ts | null;
+      risk_by_name: string | null;
+      risk_by_email: string | null;
       created_at: Ts;
       updated_at: Ts;
       name: string;
@@ -217,8 +225,10 @@ export class PostgresAssistantRegistryRepository implements AssistantRegistryRep
       `SELECT e.id AS experiment_id, e.description, e.owner_user_id, e.lifecycle, e.created_at, e.updated_at,
               e.chat_path, e.chat_request_field, e.chat_response_field, e.chat_session_field, e.chat_trace_id_field,
               e.repo_url, e.repo_provider, e.deploy_workflow, e.pr_gate_enabled,
+              e.risk_level, e.intended_purpose, e.known_limitations, e.risk_classified_by, e.risk_classified_at,
+              rb.name AS risk_by_name, rb.email AS risk_by_email,
               e.name, e.service_name, u.name AS owner_name, u.email AS owner_email, u.image AS owner_image
-         FROM experiments e LEFT JOIN users u ON u.id = e.owner_user_id
+         FROM experiments e LEFT JOIN users u ON u.id = e.owner_user_id LEFT JOIN users rb ON rb.id = e.risk_classified_by
         WHERE ${where} ORDER BY e.name`,
       params,
     );
@@ -276,6 +286,13 @@ export class PostgresAssistantRegistryRepository implements AssistantRegistryRep
           ? { path: r.chat_path, requestField: r.chat_request_field, responseField: r.chat_response_field, sessionField: r.chat_session_field, traceIdField: r.chat_trace_id_field }
           : null,
         repo: r.repo_url && r.repo_provider ? { url: r.repo_url, provider: r.repo_provider, deployWorkflow: r.deploy_workflow, prGate: r.pr_gate_enabled } : null,
+        risk: {
+          level: r.risk_level,
+          intendedPurpose: r.intended_purpose,
+          knownLimitations: r.known_limitations,
+          classifiedBy: r.risk_classified_by ? { id: r.risk_classified_by, name: r.risk_by_name, email: r.risk_by_email ?? "" } : null,
+          classifiedAt: r.risk_classified_at ? iso(r.risk_classified_at) : null,
+        },
         createdAt: iso(r.created_at),
         updatedAt: iso(r.updated_at),
         name: r.name,
@@ -365,6 +382,15 @@ export class PostgresAssistantRegistryRepository implements AssistantRegistryRep
       add("pr_gate_enabled", patch.repo?.prGate ?? false);
     }
     const { rowCount } = await this.pool.query(`UPDATE experiments SET ${[...sets, "updated_at = now()"].join(", ")} WHERE id = $1`, values);
+    return rowCount ? this.getCard(experimentId) : null;
+  }
+
+  async setRisk(experimentId: string, input: RiskInput, classifiedBy: string, at: Date): Promise<AssistantCard | null> {
+    if (!UUID.test(experimentId)) return null;
+    const { rowCount } = await this.pool.query(
+      `UPDATE experiments SET risk_level = $2, intended_purpose = $3, known_limitations = $4, risk_classified_by = $5, risk_classified_at = $6, updated_at = now() WHERE id = $1`,
+      [experimentId, input.level, input.intendedPurpose, input.knownLimitations, classifiedBy, at],
+    );
     return rowCount ? this.getCard(experimentId) : null;
   }
 

@@ -79,6 +79,15 @@ describe.skipIf(!url)("assistant registry (postgres)", () => {
     expect(rows[0]).toEqual({ description: "Finds places" });
   });
 
+  it("stores the risk classification with who made it; an agent starts unclassified (ADR-102)", async () => {
+    expect((await repo.getCard(peerId))!.risk).toEqual({ level: null, intendedPurpose: "", knownLimitations: "", classifiedBy: null, classifiedAt: null });
+    const at = new Date("2026-10-19T10:00:00Z");
+    const card = (await repo.setRisk(peerId, { level: "high", intendedPurpose: "Claims triage", knownLimitations: "Spanish only" }, userId, at))!;
+    expect(card.risk).toMatchObject({ level: "high", intendedPurpose: "Claims triage", knownLimitations: "Spanish only", classifiedBy: { id: userId, name: "Owner" }, classifiedAt: at.toISOString() });
+    expect(await repo.setRisk("00000000-0000-0000-0000-000000000000", { level: "minimal", intendedPurpose: "", knownLimitations: "" }, userId, at)).toBeNull();
+    await expect(pool.query(`UPDATE experiments SET risk_level = 'prohibited' WHERE id = $1`, [peerId])).rejects.toThrow();
+  });
+
   it("creates one deployment per environment and never uses an environment of another organization", async () => {
     const pro = await repo.createDeployment(experimentId, { ...base, environmentKey: "pro", apiUrl: "https://api.acme.test/weather" });
     expect(pro.healthStatus).toBe("unknown");

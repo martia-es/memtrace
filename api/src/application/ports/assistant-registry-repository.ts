@@ -1,3 +1,4 @@
+import type { RiskInput } from "@/domain/risk";
 import type {
   AccessGrant,
   AssistantPerson,
@@ -31,6 +32,8 @@ export interface AssistantRegistryRepository {
   getCard(experimentId: string): Promise<AssistantCard | null>;
   /** Devuelve null si el experimento no existe. */
   update(experimentId: string, patch: AssistantPatch): Promise<AssistantCard | null>;
+  /** Guarda la clasificación de riesgo y quién la hizo (ADR-102). Devuelve null si el experimento no existe. */
+  setRisk(experimentId: string, input: RiskInput, classifiedBy: string, at: Date): Promise<AssistantCard | null>;
 
   /** Lanza `AssistantInvariantError` si el entorno no existe en la organización o ya hay un despliegue en él. */
   createDeployment(experimentId: string, input: NewDeployment): Promise<Deployment>;

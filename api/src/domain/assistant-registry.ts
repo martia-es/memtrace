@@ -1,4 +1,5 @@
 import { ValidationError } from "./errors";
+import type { RiskClassification } from "./risk";
 
 /**
  * Registro de asistentes para gobernanza de la IA (ADR-053). Tipos del modelo y reglas puras: estado global de un
@@ -112,6 +113,8 @@ export interface Assistant {
   chat: ChatConfig | null;
   /** null = el agente no declara repositorio */
   repo: RepoConfig | null;
+  /** clasificación de riesgo declarada (ADR-102); `level: null` = sin clasificar */
+  risk: RiskClassification;
   createdAt: string;
   updatedAt: string;
 }

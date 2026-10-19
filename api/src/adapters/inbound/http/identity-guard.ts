@@ -1,6 +1,7 @@
 import { RepositoryUnavailableError } from "@/application/errors";
 import {
   AnnotationForbiddenError,
+  AssistantForbiddenError,
   AssistantInvariantError,
   AssistantUpstreamError,
   CiUnavailableError,
@@ -57,6 +58,7 @@ export async function identityGuard(run: () => Promise<Response>): Promise<Respo
     if (error instanceof PartnershipNotFoundError) return problem(404, "Not Found", error.message);
     if (error instanceof PartnershipInvariantError) return problem(409, "Conflict", error.message);
     if (error instanceof AssistantNotFoundError) return problem(404, "Not Found", error.message);
+    if (error instanceof AssistantForbiddenError) return problem(403, "Forbidden", error.message);
     if (error instanceof AssistantInvariantError) return problem(409, "Conflict", error.message);
     if (error instanceof AssistantUpstreamError) return problem(502, "Bad Gateway", error.message);
     if (error instanceof CiUnavailableError) return problem(503, "Service Unavailable", error.message);

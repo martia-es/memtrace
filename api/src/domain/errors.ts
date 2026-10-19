@@ -121,6 +121,14 @@ export class AssistantInvariantError extends Error {
   }
 }
 
+/** Quien pide el cambio no puede hacerlo (p. ej. bajar el nivel de riesgo de un agente, ADR-102). Sale como 403. */
+export class AssistantForbiddenError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AssistantForbiddenError";
+  }
+}
+
 /** El asistente no respondió al chat de forma válida (caído, timeout, respuesta que no encaja con su contrato). Sale como 502 (ADR-055). */
 export class AssistantUpstreamError extends Error {
   constructor(message: string) {

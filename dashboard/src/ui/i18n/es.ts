@@ -2570,6 +2570,7 @@ const es: Record<keyof typeof en, string> = {
   "auditLogPanel.set_the_cost_budget": "Fijó el presupuesto de coste",
   "auditLogPanel.removed_the_cost_budget": "Quitó el presupuesto de coste",
   "auditLogPanel.decided_an_arena_match_for_a": "Decidió una equivalencia de Arena para un modelo",
+  "auditLogPanel.classified_the_risk_of_an_agent": "Clasificó el riesgo de un agente",
   "auditLogPanel.exempted_an_agent_from_an_approval": "Eximió a un agente de una regla de aprobación",
   "auditLogPanel.brought_back_an_approval_rule_for": "Recuperó una regla de aprobación para un agente",
   "auditLogPanel.added_a_partner": "Añadió un socio",

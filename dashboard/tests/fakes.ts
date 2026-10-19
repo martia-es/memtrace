@@ -930,7 +930,7 @@ export function assistantCard(overrides: Partial<AssistantCardDto> = {}): Assist
   const deployments = overrides.deployments ?? [deploymentDto("dev", "up"), deploymentDto("pro", "up")];
   return {
     experimentId: "exp-1", name: "weather-assistant", serviceName: "weather-assistant", description: "Answers forecast questions", owner: { id: "u1", name: "Marta F.", email: "m@acme.test", image: null },
-    lifecycle: "active", chat: null, repo: null, createdAt: "2026-09-12T00:00:00.000Z", updatedAt: "2026-09-12T00:00:00.000Z",
+    lifecycle: "active", chat: null, repo: null, risk: { level: null, intendedPurpose: "", knownLimitations: "", classifiedBy: null, classifiedAt: null }, createdAt: "2026-09-12T00:00:00.000Z", updatedAt: "2026-09-12T00:00:00.000Z",
     connectionCounts: { mcpServers: 2, tools: 7, agents: 1, toReview: 0 }, mcpServerNames: ["weather-mcp", "geocoding-mcp"], members: { total: 2, preview: [{ userId: "u1", name: "Marta Fernández", email: "m@acme.test", image: "https://photos.example/marta.png", role: "technical" }, { userId: "u2", name: null, email: "luis@acme.test", image: null, role: "business" }] }, status: "up", ...overrides, deployments,
   };
 }

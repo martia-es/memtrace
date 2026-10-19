@@ -37,6 +37,7 @@ const ACTIONS: { value: string; label: string }[] = [
   { value: "model_match.update", get label() { return t("auditLogPanel.decided_an_arena_match_for_a"); } },
   { value: "approval_exemption.grant", get label() { return t("auditLogPanel.exempted_an_agent_from_an_approval"); } },
   { value: "approval_exemption.revoke", get label() { return t("auditLogPanel.brought_back_an_approval_rule_for"); } },
+  { value: "risk.classify", get label() { return t("auditLogPanel.classified_the_risk_of_an_agent"); } },
   { value: "partnership.create", get label() { return t("auditLogPanel.added_a_partner"); } },
   { value: "partnership.revoke", get label() { return t("auditLogPanel.ended_a_partnership"); } },
   { value: "partner_grant.create", get label() { return t("auditLogPanel.granted_a_partner_access"); } },
