@@ -1099,6 +1099,13 @@ export interface RiskClassificationDto {
   classifiedAt: string | null;
 }
 
+/** Cuerpo de `PUT /experiments/{id}/risk` (ADR-102). */
+export interface RiskInputDto {
+  level: "minimal" | "limited" | "high";
+  intendedPurpose: string;
+  knownLimitations: string;
+}
+
 export interface AssistantCardDto {
   experimentId: string;
   name: string;
