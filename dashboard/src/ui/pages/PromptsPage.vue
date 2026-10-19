@@ -163,7 +163,7 @@ async function create() {
 
 <template>
   <div class="page">
-    <PageHeader :crumbs="[{ label: 'Prompts' }, { label: 'Prompts' }]" icon="M4 6h16M4 12h16M4 18h10" :title="t('promptsPage.prompts')">
+    <PageHeader :crumbs="[{ label: 'Prompts' }]" icon="M4 6h16M4 12h16M4 18h10" :title="t('promptsPage.prompts')">
       <div class="actions">
         <TextInput v-model="search" type="search" :placeholder="t('promptsPage.filter_by_name')" class="search" />
         <Button v-if="can('prompt:write')" data-testid="new-fragment" @click="openCreate('fragment')">{{ t("promptsPage.new_fragment2") }}</Button>

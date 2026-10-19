@@ -176,7 +176,7 @@ function switchExperiment(experimentId: string | null) {
       </div>
       <ExperimentSelect
         v-if="!isCollapsed && !settingsNav"
-        :model-value="currentExperimentId"
+        :model-value="navExperimentId"
         :options="experimentOptions"
         :loading="experiments.loading.value"
         @update:model-value="switchExperiment"

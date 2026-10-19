@@ -109,7 +109,7 @@ function openRun(run: RunListItemDto) {
     <PageHeader :crumbs="[{ label: t('nav.evaluations') }, { label: t('nav.runs') }]" icon="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" :title="t('nav.runs')" />
 
     <div class="toolbar">
-      <FilterPill :label="t('runsPage.dataset')" :model-value="datasetId" :options="datasetOptions" all-label="All" @update:model-value="datasetId = $event" />
+      <FilterPill :label="t('runsPage.dataset')" :model-value="datasetId" :options="datasetOptions" @update:model-value="datasetId = $event" />
       <TextInput type="search" v-model="search" :placeholder="t('runsPage.filter_runs')" class="search" />
     </div>
 

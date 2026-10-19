@@ -33,6 +33,8 @@ import LoadingState from "../components/LoadingState.vue";
 import Card from "../components/Card.vue";
 import SegmentedControl from "../components/SegmentedControl.vue";
 import Button from "../components/Button.vue";
+import Disclosure from "../components/Disclosure.vue";
+import { RANGE_PRESETS } from "@/domain/time-range";
 import { t, tp } from "../i18n";
 
 const PAGE_SIZE = 50;
@@ -159,7 +161,7 @@ const quick = computed<"all" | "errors" | "slow">(() => (f.hasErrors.value ? "er
 const quickViews = computed(() => {
   const errors = overview.data.value?.totals.errorTraces;
   return [
-    { key: "all" as const, label: "All", count: null },
+    { key: "all" as const, label: t("common.all"), count: null },
     { key: "errors" as const, label: t("conversationsPage.with_errors"), count: errors ?? null },
     ...(grouped.value ? [] : [{ key: "slow" as const, label: t("conversationsPage.slow_seconds_s", { seconds: SLOW_MS / 1000 }), count: null }]),
   ];
@@ -233,9 +235,22 @@ const openConversation = (conversationId: string) => void router.push({ name: "c
 
 const footer = computed(() => {
   const n = active.value.items.value.length;
-  const noun = grouped.value ? (n === 1 ? "conversation" : "conversations") : n === 1 ? "trace" : "traces";
-  return `${n} ${noun}${active.value.nextCursor.value ? " · more available" : ""}`;
+  const count = tp(grouped.value ? "conversationsPage.count.conversation" : "conversationsPage.count.trace", n);
+  return active.value.nextCursor.value ? `${count} · ${t("conversationsPage.more_available")}` : count;
 });
+
+// ---- sin resultados: qué filtros lo causan y cómo salir, en vez de un hueco en blanco ----
+const hasListFilters = computed(() => Boolean(f.text.value || f.hasErrors.value || f.minDurationMs.value || f.revision.value || f.prompt.value));
+const noResults = computed(() => !active.value.loading.value && active.value.items.value.length === 0 && !active.value.error.value);
+/** Rangos más amplios que el actual (como mucho tres), para ofrecerlos como salida. */
+const widerRanges = computed(() => {
+  const i = RANGE_PRESETS.findIndex((p) => p.key === f.range.value);
+  const after = f.range.value === "custom" ? RANGE_PRESETS.filter((p) => p.key === "24h" || p.key === "7d" || p.key === "30d") : RANGE_PRESETS.slice(i + 1).filter((p) => p.ms >= 24 * 3_600_000);
+  return after.slice(0, 3);
+});
+// con un rango de una semana o más vacío, lo probable es que aún no lleguen datos: la guía de conexión sale abierta
+const connectOverride = ref<boolean | null>(null);
+const connectOpen = computed(() => connectOverride.value ?? (f.range.value === "custom" || ["7d", "30d", "90d", "365d"].includes(f.range.value)));
 </script>
 
 <template>
@@ -315,12 +330,24 @@ const footer = computed(() => {
             @open-conversation="openConversation"
           />
 
-          <div v-if="!active.loading.value && active.items.value.length === 0 && !active.error.value && f.text.value" class="no-match">{{ t("conversationsPage.no_matches_for_text_in_this", { text: f.text.value }) }}</div>
-          <OnboardingGuide
-            v-else-if="!active.loading.value && active.items.value.length === 0 && !active.error.value"
-            :service-name="currentExperiment?.serviceName ?? ''"
-            :experiment-id="experimentId"
-          />
+          <div v-if="noResults && hasListFilters" class="no-match" data-testid="no-results-filtered">
+            <strong>{{ f.text.value ? t("conversationsPage.no_matches_for_text_in_this", { text: f.text.value }) : t("conversationsPage.empty.filtered_title") }}</strong>
+            <span>{{ t("conversationsPage.empty.filtered_hint") }}</span>
+            <Button size="sm" data-testid="clear-filters" @click="f.clearListFilters">{{ t("conversationsPage.empty.clear_filters") }}</Button>
+          </div>
+          <template v-else-if="noResults">
+            <div class="no-match" data-testid="no-results-range">
+              <strong>{{ t("conversationsPage.empty.range_title") }}</strong>
+              <span>{{ t("conversationsPage.empty.range_hint") }}</span>
+              <div v-if="widerRanges.length" class="no-match-actions">
+                <Button v-for="r in widerRanges" :key="r.key" size="sm" :data-testid="`widen-${r.key}`" @click="f.setRange(r.key)">{{ t("conversationsPage.empty.try_range", { range: t(`range.${r.key}`) }) }}</Button>
+              </div>
+            </div>
+            <Disclosure :open="connectOpen" class="connect" @toggle="connectOverride = !connectOpen">
+              <template #head>{{ t("conversationsPage.empty.not_receiving") }}</template>
+              <OnboardingGuide :service-name="currentExperiment?.serviceName ?? ''" :experiment-id="experimentId" />
+            </Disclosure>
+          </template>
           <LoadingState v-if="active.loading.value && active.items.value.length === 0" size="md" />
         </div>
 
@@ -507,9 +534,27 @@ const footer = computed(() => {
   color: var(--mt-faint);
 }
 .no-match {
-  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 48px 24px 32px;
   text-align: center;
   color: var(--mt-muted);
+}
+.no-match strong {
+  color: var(--mt-ink);
+  font-size: 15px;
+}
+.no-match-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.connect {
+  border-top: 1px solid var(--mt-line);
 }
 .footer {
   display: flex;

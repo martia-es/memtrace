@@ -1,22 +1,19 @@
 import { ApiError } from "@/application/trace-api";
+import { tr } from "@/domain/translate";
 
 /** Mensaje según el error que devuelve la API; el `detail` (problem+json) distingue las casuísticas de 404 y 403. */
 export function describeApiError(e: Error): string {
   if (!(e instanceof ApiError)) return e.message;
   const detail = e.detail ?? "";
-  if (e.status === 0) return "Could not reach the API. Is it running (`npm run dev` in api/) and does the proxy point to it?";
-  if (e.status === 401) return "Your session has expired. Sign in again to continue.";
-  if (e.status === 403) return "You don't have access to this experiment. Ask an admin of the experiment or organization to add you.";
-  if (e.status === 503) return "The trace store (ClickHouse) is not responding. Check `make status`.";
+  if (e.status === 0) return tr("apiError.unreachable");
+  if (e.status === 401) return tr("apiError.sessionExpired");
+  if (e.status === 403) return tr("apiError.forbidden");
+  if (e.status === 503) return tr("apiError.storeDown");
   if (e.status === 404) {
-    if (/experiment/i.test(detail)) {
-      return "This experiment doesn't exist or no experiment is selected. You don't have any yet? Create one in Administration.";
-    }
-    if (/trace|span/i.test(detail)) {
-      return "This trace could not be found. It may be outside the retention period of this experiment.";
-    }
-    if (/conversation/i.test(detail)) return "This conversation could not be found. It may be outside the retention period of this experiment.";
-    return detail || "Not found. If it's a trace, it may be outside the retention period of this experiment.";
+    if (/experiment/i.test(detail)) return tr("apiError.experimentMissing");
+    if (/trace|span/i.test(detail)) return tr("apiError.traceMissing");
+    if (/conversation/i.test(detail)) return tr("apiError.conversationMissing");
+    return detail || tr("apiError.notFound");
   }
   return detail || e.title;
 }

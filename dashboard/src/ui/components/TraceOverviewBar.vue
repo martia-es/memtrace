@@ -33,7 +33,7 @@ const stats = computed(() => {
 const chips = computed(() => {
   const s = props.summary;
   return [
-    { value: "all" as const, label: "All", count: s.spans },
+    { value: "all" as const, label: t("common.all"), count: s.spans },
     { value: "llm" as const, label: t("traceOverviewBar.model_calls"), count: s.modelCalls },
     { value: "tool" as const, label: t("traceOverviewBar.tools"), count: s.tools },
     { value: "retriever" as const, label: t("traceOverviewBar.retrieval"), count: s.retrievals },

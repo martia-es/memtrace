@@ -194,11 +194,37 @@ describe("ConversationsPage", () => {
     expect(api.listCalls.at(-1)).toMatchObject({ minDurationMs: 5000 });
   });
 
-  it("explains an empty result", async () => {
+  it("explains an empty range and offers wider ones, with the connect guide folded", async () => {
     const api = new FakeTraceApi();
     api.overview = overview();
-    const { wrapper } = await setup(ConversationsPage, api, "/conversations");
+    const { wrapper, router } = await setup(ConversationsPage, api, "/conversations");
+    expect(wrapper.find("[data-testid='no-results-range']").text()).toContain("No conversations in this range");
+    expect(wrapper.text()).not.toContain("No traces detected yet");
+    await wrapper.find("[data-testid='widen-7d']").trigger("click");
+    await flushPromises();
+    expect(router.currentRoute.value.query.range).toBe("7d");
+  });
+
+  it("opens the connect guide when a week or more is empty", async () => {
+    const api = new FakeTraceApi();
+    api.overview = overview();
+    const { wrapper } = await setup(ConversationsPage, api, "/conversations?range=30d");
     expect(wrapper.text()).toContain("No traces detected yet");
+    // regresión: los imports del componente se habían colado dentro de un texto de ejemplo y sus controles no se pintaban
+    expect(wrapper.find(".mt-segmented").exists()).toBe(true);
+    expect(wrapper.find("[data-testid='widen-90d']").exists()).toBe(true);
+    expect(wrapper.find("[data-testid='widen-7d']").exists()).toBe(false);
+  });
+
+  it("says which filters hide everything and clears them in one click", async () => {
+    const api = new FakeTraceApi();
+    api.overview = overview();
+    const { wrapper, router } = await setup(ConversationsPage, api, "/conversations?hasErrors=1&rev=abc");
+    expect(wrapper.find("[data-testid='no-results-filtered']").text()).toContain("Nothing matches these filters");
+    await wrapper.find("[data-testid='clear-filters']").trigger("click");
+    await flushPromises();
+    expect(router.currentRoute.value.query.hasErrors).toBeUndefined();
+    expect(router.currentRoute.value.query.rev).toBeUndefined();
   });
 
   it("shows an actionable message when the API is unreachable", async () => {
@@ -377,7 +403,13 @@ describe("TraceDetailPage", () => {
   });
 
   it("explains a missing trace", async () => {
-    const wrapper = mount(ErrorBanner, { props: { error: new ApiError(404, "Not Found") }, global: { plugins: [[Quasar, {}]] } });
+    const wrapper = mount(ErrorBanner, { props: { error: new ApiError(404, "Not Found", "Trace abc not found") }, global: { plugins: [[Quasar, {}]] } });
     expect(wrapper.text()).toContain("retention");
+  });
+
+  it("does not blame the retention period when the 404 is not about a trace", async () => {
+    const wrapper = mount(ErrorBanner, { props: { error: new ApiError(404, "Not Found") }, global: { plugins: [[Quasar, {}]] } });
+    expect(wrapper.text()).not.toContain("retention");
+    expect(wrapper.text()).toContain("couldn't find");
   });
 });

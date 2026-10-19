@@ -139,8 +139,8 @@ const organizationOptions = computed(() => readable.value.map((o) => ({ label: o
 
       <div class="filters">
         <TextInput type="search" v-model="search" :placeholder="t('assistantsPage.search_by_name_description_or_owner')" class="search" />
-        <FilterPill :label="t('assistantsPage.environment')" :model-value="environment" :options="environmentOptions" all-label="All" @update:model-value="environment = $event" />
-        <FilterPill :label="t('assistantsPage.status')" :model-value="status" :options="statusOptions" all-label="All" @update:model-value="status = $event" />
+        <FilterPill :label="t('assistantsPage.environment')" :model-value="environment" :options="environmentOptions" @update:model-value="environment = $event" />
+        <FilterPill :label="t('assistantsPage.status')" :model-value="status" :options="statusOptions" @update:model-value="status = $event" />
         <Checkbox class="toggle" v-model="onlyIssues">{{ t("assistantsPage.only_with_issues") }}</Checkbox>
       </div>
 

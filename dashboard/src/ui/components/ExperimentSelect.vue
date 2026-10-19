@@ -30,7 +30,7 @@ const pick = (id: string) => {
 </script>
 
 <template>
-  <button type="button" class="exp-trigger" aria-haspopup="listbox" data-testid="experiment-switcher">
+  <button type="button" class="exp-trigger" :title="current?.name" aria-haspopup="listbox" data-testid="experiment-switcher">
     <span class="exp-avatar" aria-hidden="true">{{ initials(current?.name ?? "MT") }}</span>
     <span class="exp-text">
       <span class="exp-label">{{ t("experiment.experiment") }}</span>

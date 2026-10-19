@@ -32,9 +32,9 @@ async function setup(component: object, api: FakeTraceApi, path: string) {
 // ECharts needs a real canvas, which jsdom does not have: the charts are not what these tests are about
 vi.mock("@/ui/components/EChart.vue", () => ({ default: { name: "EChart", template: "<div class=\"echart-stub\" />" } }));
 
-const overview = (over: { errorTraces?: number; errorRate?: number; byTool?: { tool: string; calls: number; errors: number; p95Ms: number }[] } = {}) => ({
+const overview = (over: { traces?: number; errorTraces?: number; errorRate?: number; byTool?: { tool: string; calls: number; errors: number; p95Ms: number }[] } = {}) => ({
   range: { from: "", to: "", bucketSeconds: 60 },
-  totals: { traces: 100, spans: 900, conversations: 40, errorTraces: over.errorTraces ?? 0, errorRate: over.errorRate ?? 0, inputTokens: 10, outputTokens: 5, totalTokens: 15, costUsd: 1.5 },
+  totals: { traces: over.traces ?? 100, spans: 900, conversations: 40, errorTraces: over.errorTraces ?? 0, errorRate: over.errorRate ?? 0, inputTokens: 10, outputTokens: 5, totalTokens: 15, costUsd: 1.5 },
   latencyMs: { p50: 100, p95: 4800, p99: 9000 },
   timeseries: [],
   byModel: [{ model: "sonnet-4-5", calls: 3, inputTokens: 1, outputTokens: 1, p95Ms: 10, costUsd: 1 }],
@@ -51,6 +51,18 @@ describe("Overview (MetricsPage)", () => {
     expect(wrapper.get('[data-testid="health-banner"]').classes()).toContain("ok");
     expect(wrapper.find('[data-testid="all-clear"]').exists()).toBe(true);
     expect(wrapper.findAll('[data-testid="attention-item"]')).toHaveLength(0);
+  });
+
+  it("does not give a verdict nor draw sparklines when there are too few runs", async () => {
+    const api = new FakeTraceApi();
+    api.overview = { ...overview({ traces: 3, errorTraces: 1, errorRate: 1 / 3 }), timeseries: [{ bucket: "a", traces: 1, errorTraces: 0, p95Ms: 10, totalTokens: 1 }, { bucket: "b", traces: 2, errorTraces: 1, p95Ms: 20, totalTokens: 2 }] } as never;
+    const { wrapper } = await setup(MetricsPage, api, "/overview");
+    const banner = wrapper.get('[data-testid="health-banner"]');
+    expect(banner.classes()).toContain("neutral");
+    expect(banner.text()).toContain("Small sample");
+    expect(banner.text()).not.toContain("Your assistant needs attention");
+    expect(wrapper.get('[data-testid="kpi-success"]').text()).toContain("Small sample");
+    expect(wrapper.find(".kpi-spark").exists()).toBe(false);
   });
 
   it("lists what needs attention (errors, failing tools, pending reviews), each with a direct action", async () => {
