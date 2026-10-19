@@ -289,9 +289,10 @@ function switchExperiment(experimentId: string | null) {
       </header>
       <main class="content" :class="{ scroll: !framed }">
         <LoadingState v-if="booting" size="lg" />
-        <router-view v-else-if="framed" />
+        <!-- key por experimento: al cambiar de experimento la misma ruta se remonta y recarga sus datos -->
+        <router-view v-else-if="framed" :key="currentExperimentId ?? undefined" />
         <q-layout v-else view="hHh lpR fFf" container class="layout">
-          <q-page-container><router-view /></q-page-container>
+          <q-page-container><router-view :key="currentExperimentId ?? undefined" /></q-page-container>
         </q-layout>
       </main>
     </div>
