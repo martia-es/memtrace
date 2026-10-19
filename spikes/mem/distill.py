@@ -4,6 +4,8 @@ Solo se envían datos sintéticos del spike. La clave se lee del entorno y nunca
 """
 import json
 import os
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -41,8 +43,15 @@ def call_llm(prompt: str) -> dict:
     }
     req = urllib.request.Request(url, data=json.dumps(body).encode(), method="POST",
                                  headers={"Content-Type": "application/json", "x-goog-api-key": key})
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        data = json.loads(resp.read())
+    for attempt in range(6):
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                data = json.loads(resp.read())
+            break
+        except urllib.error.HTTPError as e:
+            if e.code not in (429, 500, 503) or attempt == 5:
+                raise
+            time.sleep(10 * 2 ** attempt)
     text = data["candidates"][0]["content"]["parts"][0]["text"]
     return json.loads(text)
 
