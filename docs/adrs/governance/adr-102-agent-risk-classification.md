@@ -1,9 +1,10 @@
 # ADR-102: Agent Risk Classification and Risk-Based Requirements
 
-* **Status**: Accepted — classification (data model, API, audit) implemented; risk policy (requirements per level) and dashboard pending
+* **Status**: Accepted — classification (data model, API, audit) implemented; retention per level and dashboard pending
 * **Date**: 2026-10-19
 * **Deciders**: MemTrace Core Team
 * **Extends**: [ADR-054](adr-054-experiment-is-an-agent.md), [ADR-076](adr-076-prompt-approvals.md)
+* **Amends**: [ADR-084](../storage/adr-084-data-protection-retention-masking-audit-and-export.md) (retention)
 * **Related**: [ADR-053](adr-053-assistant-registry-data-model.md), [ADR-064](adr-064-ci-triggered-deployments-with-evaluation-gate.md), [ADR-084](../storage/adr-084-data-protection-retention-masking-audit-and-export.md)
 
 ## Context and Problem Statement
@@ -41,9 +42,18 @@ Columns on `experiments` (migration 050), because an experiment is an agent (ADR
 
 `PUT /api/v1/experiments/{id}/risk` with `{ level, intendedPurpose, knownLimitations }`. It is a dedicated endpoint, not a field of `PATCH .../assistant`, because it has its own permission rule and its own audit action. The card (`GET .../assistant`, catalog) returns `risk` as part of `AssistantCardDto`.
 
-### 4. Requirements per level (next step, same ADR)
+### 4. Retention per level: the first requirement, and the only place to set it
 
-A per-organization policy, `risk_policies (organization_id, risk_level, require_pro_approval, max_eval_age_days, min_retention_days)`, edited only by `org_admin`. Without a row, domain defaults apply (6 months of retention for `high`, nothing else): the feature is opt-in, like ADR-076. A pure `effectiveRequirements(level, policy)` is consumed by the deploy gate (age of the last evaluation of the SHA), the retention service (refuses to go below the minimum) and, once ADR-064 gets approvals in PRO, the approval rules. The policy is a floor: an experiment may ask for more, never for less.
+The organization's risk policy holds the trace retention of each level: `risk_policies (organization_id, risk_level, retention_days)` with the levels `unclassified`, `minimal`, `limited` and `high`. It replaces the organization default and the experiment override of ADR-084 (see its amendment): there is no other place to configure retention.
+
+- **The user chooses, the AI Act is the floor.** `high` and `unclassified` cannot be below 180 days (art. 26.6); the rule is a constant in the domain and is checked by the API, so no client can bypass it. All levels are capped at 365 days (the ClickHouse TTL).
+- **`unclassified` follows the floor of `high`** until somebody classifies the agent: purging a record before the classification would lose it for good.
+- Edited by `org_admin` (`retention:manage`) in Admin › organization › Risk policy. Every change goes to the audit log with the level, the old and the new period.
+- A pure `retentionDaysFor(level, policy)` is read by the purge job and by the Errors-page lookup.
+
+### 5. Other requirements per level (later, same table)
+
+`require_pro_approval` and `max_eval_age_days` columns, applied by the deploy gate (ADR-064) and the approval rules (ADR-076). They follow the same rule: the organization sets them, an agent may ask for more, never for less. Not implemented yet.
 
 ## Alternatives Considered
 
@@ -57,4 +67,5 @@ A per-organization policy, `risk_policies (organization_id, risk_level, require_
 
 - Every agent has a `risk` object; clients must treat `level: null` as "unclassified".
 - Legal review of the classification is outside MemTrace: it records the declaration and who made it, not whether it is right.
-- The requirements (point 4) will reuse existing gates, so they add no new enforcement point.
+- Retention has one source of truth; the deploy and approval requirements (point 5) will reuse existing gates, so they add no new enforcement point.
+- Reclassifying an agent to a lower level can shorten its retention and the next purge deletes the difference: only an organization admin can do it and the dialog warns.

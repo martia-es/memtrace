@@ -1,6 +1,6 @@
 # ADR-084: Data Protection — Retention, PII Masking, Audit Log and Export
 
-* **Status**: Accepted
+* **Status**: Accepted. Amended 2026-10-19 by [ADR-102](../governance/adr-102-agent-risk-classification.md): retention is set per risk level, not per organization or experiment
 * **Date**: 2026-10-10
 * **Deciders**: MemTrace Core Team
 * **Related**: [ADR-013](../identity/adr-013-identity-postgres-and-oauth-rbac.md), [ADR-021](../sdk/adr-021-sdk-explicit-tracer-provider-and-content-redaction.md), [ADR-045](../README.md#retired-adrs), [ADR-052](../identity/adr-052-permission-based-roles-and-external-identity-mapping.md)
@@ -48,6 +48,18 @@ The mask is the same fixed `****` everywhere (secrets in the SDK, Presidio, the 
 ### 4. Export as streamed JSONL
 
 `GET /experiments/{id}/export?kind=traces|annotations|feedback|scores&from&to` streams newline-delimited JSON from ClickHouse, limited to 31 days per call. It needs permission `data:export`, which goes to the `technical` role and not to `org_admin`: `org_admin` manages people and settings but by design reads no data (ADR-052), and an export is reading data. It is recorded before the first byte is sent and goes through the existing query limiter. One `kind` per call keeps the files composable and the memory flat. A `dryRun=1` variant validates and counts without recording anything, so the screen can explain a bad range or an oversized export before the browser starts a download that it cannot recover from; the download itself is a plain streamed response, never buffered in memory. Above 2,000,000 records the request is refused and the range must be narrowed.
+
+### Amendment (2026-10-19): retention per risk level
+
+*Problem.* Log retention is a legal requirement that depends on how risky the agent is (EU AI Act, arts. 12 and 26.6: at least six months for high-risk systems), yet it was configured in two other places, the organization default and a per-experiment override that could only shorten it. Anyone with `retention:manage` could set a period below the legal floor, and an agent nobody had classified was purged after 30 days.
+
+*Decision.* Retention is managed in **one place**, the organization's risk policy (ADR-102), as one period per risk level (`unclassified`, `minimal`, `limited`, `high`). The retention of an agent is the period of its level (`unclassified` while it has none). What stays as decided above: the daily job, the `retention_worker` user, the 365-day ceiling (the ClickHouse TTL), the scope (spans and topics) and `retention:manage`.
+
+- **Floor in the domain, not only in the UI.** `high` and `unclassified` cannot be below 180 days (`AI_ACT_MIN_RETENTION_DAYS`); the API answers 422 with the reason. Above the floor the organization chooses freely, up to 365. `unclassified` has the same floor because an agent that is purged before anybody classifies it as high-risk loses records that cannot be recovered.
+- **Removed.** The organization default and the experiment override are no longer configurable, in the UI or in the API; Data protection links to the risk policy. `effectiveRetentionDays(org, override)` becomes `retentionDaysFor(level, policy)`; the purge targets and the Errors-page lookup read the same function.
+- **Migration.** `risk_policies` is seeded per organization: `minimal` and `limited` with the current organization period, `high` and `unclassified` with `max(current, 180)`. Overrides are dropped, so an agent that had a shorter one now follows its level and keeps its traces longer; each one is written to the audit log (`retention.update`, actor: system, with the old override) so the change can be traced. The two old columns stay unused for one release and are dropped afterwards.
+- **Lowering a period deletes data.** The next nightly purge applies it and what it deletes cannot be recovered. Lowering a level's period asks for confirmation and shows how many agents and how many spans it affects. Reclassifying an agent to a lower level has the same effect and the classification dialog says so.
+- **Not an absolute rule.** Art. 26.6 allows other Union or national law (the GDPR) to provide otherwise, which is why the policy has a floor and no minimum for the other levels, and why the legal review of the numbers stays outside MemTrace.
 
 ## Considered Options
 
