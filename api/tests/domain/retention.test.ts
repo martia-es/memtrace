@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ValidationError } from "@/domain/errors";
-import { MAX_RETENTION_DAYS, effectiveRetentionDays, retentionCutoff, validateRetentionDays } from "@/domain/retention";
+import { AI_ACT_MIN_RETENTION_DAYS, MAX_RETENTION_DAYS, defaultRetentionDays, minRetentionDays, retentionCutoff, retentionDaysFor, validateLevelRetention, validateRetentionDays, type RetentionDaysByLevel } from "@/domain/retention";
 
 describe("retention rules (ADR-084)", () => {
   it("accepts whole days from 1 to 365", () => {
@@ -21,10 +21,35 @@ describe("retention rules (ADR-084)", () => {
     }
   });
 
-  it("an override can shorten the organization's retention but never lengthen it", () => {
-    expect(effectiveRetentionDays(30, null)).toBe(30);
-    expect(effectiveRetentionDays(30, 7)).toBe(7);
-    expect(effectiveRetentionDays(30, 90)).toBe(30);
+  it("high-risk and unclassified agents cannot keep traces less than the AI Act floor; the other levels can", () => {
+    expect(AI_ACT_MIN_RETENTION_DAYS).toBe(180);
+    for (const level of ["high", "unclassified"] as const) {
+      expect(minRetentionDays(level)).toBe(180);
+      expect(() => validateLevelRetention(level, 179)).toThrow(ValidationError);
+      expect(validateLevelRetention(level, 180)).toBe(180);
+      expect(validateLevelRetention(level, 365)).toBe(365);
+    }
+    for (const level of ["limited", "minimal"] as const) expect(validateLevelRetention(level, 1)).toBe(1);
+  });
+
+  it("the floor still respects the range: nothing above 365 and only whole days", () => {
+    expect(() => validateLevelRetention("high", 400)).toThrow(ValidationError);
+    expect(() => validateLevelRetention("high", 200.5)).toThrow(ValidationError);
+    expect(() => validateLevelRetention("minimal", "30")).toThrow(ValidationError);
+  });
+
+  it("a level not set by the organization defaults to 30 days, or to the floor if it has one", () => {
+    expect(defaultRetentionDays("minimal")).toBe(30);
+    expect(defaultRetentionDays("limited")).toBe(30);
+    expect(defaultRetentionDays("high")).toBe(180);
+    expect(defaultRetentionDays("unclassified")).toBe(180);
+  });
+
+  it("an agent keeps its traces for the period of its level; unclassified has its own", () => {
+    const days: RetentionDaysByLevel = { high: 365, limited: 90, minimal: 30, unclassified: 180 };
+    expect(retentionDaysFor("high", days)).toBe(365);
+    expect(retentionDaysFor("minimal", days)).toBe(30);
+    expect(retentionDaysFor(null, days)).toBe(180);
   });
 
   it("the cutoff is exactly N days before now", () => {

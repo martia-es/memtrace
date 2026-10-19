@@ -5,13 +5,20 @@ import type { RetentionRepository } from "@/application/ports/retention-reposito
 import type { TracePurger } from "@/application/ports/trace-purger";
 import { RetentionService } from "@/application/retention-service";
 import type { AuditEntryInput } from "@/domain/audit";
-import { RetentionTargetNotFoundError, ValidationError } from "@/domain/errors";
-import { effectiveRetentionDays, type PurgeTarget, type RetentionPolicy } from "@/domain/retention";
+import { RetentionConfirmationRequiredError, RetentionTargetNotFoundError, ValidationError } from "@/domain/errors";
+import { RETENTION_LEVELS, minRetentionDays, retentionDaysFor, retentionLevelOf, type PurgeTarget, type RetentionDaysByLevel, type RetentionPolicy } from "@/domain/retention";
+import type { RiskLevel } from "@/domain/risk";
+import type { TraceCounter } from "@/application/ports/trace-counter";
 
 const actor = { userId: "u1", email: "admin@example.com" };
 
-function fakes(initial: { defaultDays?: number; overrides?: Record<string, number | null>; targets?: PurgeTarget[] } = {}) {
-  const state = { defaultDays: initial.defaultDays ?? 30, overrides: { exp1: null, exp2: null, ...(initial.overrides ?? {}) } as Record<string, number | null> };
+type Agent = { id: string; level: RiskLevel | null };
+
+function fakes(initial: { days?: Partial<RetentionDaysByLevel>; agents?: Agent[]; targets?: PurgeTarget[]; counted?: number } = {}) {
+  const state = {
+    days: { high: 365, limited: 90, minimal: 30, unclassified: 180, ...(initial.days ?? {}) } as RetentionDaysByLevel,
+    agents: initial.agents ?? [{ id: "exp1", level: "minimal" as RiskLevel | null }, { id: "exp2", level: null as RiskLevel | null }],
+  };
   const audit: AuditEntryInput[] = [];
   const auditRepo: AuditRepository = {
     append: async (e) => void audit.push(e),
@@ -24,22 +31,16 @@ function fakes(initial: { defaultDays?: number; overrides?: Record<string, numbe
         ? null
         : ({
             organizationId,
-            defaultDays: state.defaultDays,
             minDays: 1,
             maxDays: 365,
-            experiments: Object.entries(state.overrides).map(([id, o]) => ({ experimentId: id, name: id, serviceName: id, overrideDays: o, effectiveDays: effectiveRetentionDays(state.defaultDays, o) })),
+            aiActFloorDays: 180,
+            levels: RETENTION_LEVELS.map((level) => ({ level, days: state.days[level], minDays: minRetentionDays(level), agents: state.agents.filter((a) => retentionLevelOf(a.level) === level).length })),
+            agents: state.agents.map((a) => ({ experimentId: a.id, name: a.id, serviceName: a.id, level: a.level, effectiveDays: retentionDaysFor(a.level, state.days), intendedPurpose: "", classifiedBy: null, classifiedAt: null })),
           } satisfies RetentionPolicy),
-    effectiveDaysForService: async () => state.defaultDays,
-    setOrganizationDefault: async (organizationId, days) => {
-      if (organizationId === "missing") return null;
-      state.defaultDays = days;
-      const cleared = Object.entries(state.overrides).filter(([, o]) => o !== null && o > days).map(([id]) => id);
-      for (const id of cleared) state.overrides[id] = null;
-      return { clearedExperimentIds: cleared };
-    },
-    setExperimentOverride: async (_org, experimentId, days) => {
-      if (!(experimentId in state.overrides)) return false;
-      state.overrides[experimentId] = days;
+    effectiveDaysForService: async () => state.days.minimal,
+    setLevelDays: async (organizationId, level, days) => {
+      if (organizationId === "missing") return false;
+      state.days[level] = days;
       return true;
     },
     listPurgeTargets: async () => initial.targets ?? [],
@@ -52,57 +53,84 @@ function fakes(initial: { defaultDays?: number; overrides?: Record<string, numbe
       return { spans: service === "empty" ? 0 : 5 };
     },
   };
-  return { service: new RetentionService(repo, new AuditService(auditRepo), purger), audit, purged, state };
+  const counted: { experimentId: string; cutoff: Date }[] = [];
+  const counter: TraceCounter = {
+    countOlderThan: async ({ experimentId }, cutoff) => {
+      counted.push({ experimentId, cutoff });
+      return initial.counted ?? 100;
+    },
+  };
+  return { service: new RetentionService(repo, new AuditService(auditRepo), purger, counter), audit, purged, counted, state, repo };
 }
 
-describe("RetentionService", () => {
-  it("shows the effective retention of each experiment", async () => {
-    const { service } = fakes({ overrides: { exp1: 7 } });
+describe("RetentionService (ADR-102)", () => {
+  it("shows the period of each level and the one each agent gets from its level", async () => {
+    const { service } = fakes();
     const policy = await service.getPolicy("org1");
-    expect(policy.experiments.map((e) => e.effectiveDays)).toEqual([7, 30]);
+    expect(policy.levels.map((l) => [l.level, l.days, l.agents])).toEqual([["high", 365, 0], ["limited", 90, 0], ["minimal", 30, 1], ["unclassified", 180, 1]]);
+    expect(policy.agents.map((a) => a.effectiveDays)).toEqual([30, 180]);
   });
 
   it("refuses an unknown organization", async () => {
     await expect(fakes().service.getPolicy("missing")).rejects.toBeInstanceOf(RetentionTargetNotFoundError);
   });
 
-  it("changing the organization default is audited and validated", async () => {
-    const { service, audit } = fakes();
-    await service.setOrganizationDefault("org1", 90, actor);
+  it("changing a level is audited with the old and the new period", async () => {
+    const { service, audit, state } = fakes();
+    await service.setLevelDays("org1", "limited", 120, actor);
+    expect(state.days.limited).toBe(120);
     expect(audit).toHaveLength(1);
-    expect(audit[0]).toMatchObject({ action: "retention.update", targetType: "organization", actorLabel: "admin@example.com", metadata: { days: 90, clearedOverrides: 0 } });
-    await expect(service.setOrganizationDefault("org1", 0, actor)).rejects.toBeInstanceOf(ValidationError);
-    await expect(service.setOrganizationDefault("org1", 400, actor)).rejects.toBeInstanceOf(ValidationError);
-    expect(audit).toHaveLength(1);
+    expect(audit[0]).toMatchObject({ action: "retention.update", targetType: "risk_level", targetId: "limited", actorLabel: "admin@example.com", metadata: { level: "limited", days: 120, previousDays: 90 } });
   });
 
-  it("shortening the organization removes the overrides that would be longer", async () => {
-    const { service, audit, state } = fakes({ defaultDays: 90, overrides: { exp1: 60, exp2: 10 } });
-    await service.setOrganizationDefault("org1", 30, actor);
-    expect(state.overrides).toEqual({ exp1: null, exp2: 10 });
-    expect(audit[0]!.metadata).toMatchObject({ days: 30, clearedOverrides: 1 });
+  it("never lets high or unclassified go below the AI Act floor, and does not audit the attempt", async () => {
+    const { service, audit, state } = fakes();
+    await expect(service.setLevelDays("org1", "high", 179, actor)).rejects.toBeInstanceOf(ValidationError);
+    await expect(service.setLevelDays("org1", "unclassified", 30, actor, true)).rejects.toBeInstanceOf(ValidationError);
+    await expect(service.setLevelDays("org1", "minimal", 400, actor)).rejects.toBeInstanceOf(ValidationError);
+    expect(state.days).toMatchObject({ high: 365, unclassified: 180, minimal: 30 });
+    expect(audit).toHaveLength(0);
   });
 
-  it("an experiment can be shorter than its organization, not longer", async () => {
-    const { service, state } = fakes({ defaultDays: 30 });
-    await service.setExperimentOverride("org1", "exp1", 7, actor);
-    expect(state.overrides.exp1).toBe(7);
-    await expect(service.setExperimentOverride("org1", "exp1", 60, actor)).rejects.toBeInstanceOf(ValidationError);
-    expect(state.overrides.exp1).toBe(7);
+  it("lowering a level with agents asks for confirmation and says what would be lost", async () => {
+    const { service, audit, state, counted } = fakes({ counted: 1200 });
+    const error = await service.setLevelDays("org1", "minimal", 10, actor).catch((e) => e);
+    expect(error).toBeInstanceOf(RetentionConfirmationRequiredError);
+    expect(error.preview).toEqual({ level: "minimal", previousDays: 30, days: 10, lowering: true, agents: 1, spans: 1200 });
+    expect(counted.map((c) => c.experimentId)).toEqual(["exp1"]);
+    expect(state.days.minimal).toBe(30);
+    expect(audit).toHaveLength(0);
+
+    await service.setLevelDays("org1", "minimal", 10, actor, true);
+    expect(state.days.minimal).toBe(10);
+    expect(audit[0]!.metadata).toMatchObject({ days: 10, previousDays: 30, agents: 1 });
   });
 
-  it("null removes the override, and an experiment of another organization is not found", async () => {
-    const { service, state } = fakes({ overrides: { exp1: 7 } });
-    await service.setExperimentOverride("org1", "exp1", null, actor);
-    expect(state.overrides.exp1).toBeNull();
-    await expect(service.setExperimentOverride("org1", "other-org-exp", 7, actor)).rejects.toBeInstanceOf(RetentionTargetNotFoundError);
+  it("lowering a level nobody is in, or raising one, needs no confirmation", async () => {
+    const { service, state } = fakes();
+    await service.setLevelDays("org1", "limited", 10, actor);
+    await service.setLevelDays("org1", "minimal", 60, actor);
+    expect(state.days).toMatchObject({ limited: 10, minimal: 60 });
+    const preview = await service.previewLevelChange("org1", "minimal", 90);
+    expect(preview).toMatchObject({ lowering: false, agents: 0, spans: 0 });
+  });
+
+  it("a preview that cannot count spans still says how many agents are affected", async () => {
+    const base = fakes();
+    const failing: TraceCounter = { countOlderThan: async () => Promise.reject(new Error("clickhouse down")) };
+    const service = new RetentionService(base.repo, new AuditService({ append: async () => undefined, list: async () => ({ items: [], nextCursor: null }), purgeOlderThan: async () => 0 }), undefined, failing);
+    expect(await service.previewLevelChange("org1", "minimal", 5)).toMatchObject({ lowering: true, agents: 1, spans: null });
+  });
+
+  it("an unknown organization is not found", async () => {
+    await expect(fakes().service.setLevelDays("missing", "limited", 10, actor)).rejects.toBeInstanceOf(RetentionTargetNotFoundError);
   });
 
   it("a failed audit write stops a retention change from being reported as done", async () => {
     const failing: AuditRepository = { append: async () => Promise.reject(new Error("db down")), list: async () => ({ items: [], nextCursor: null }), purgeOlderThan: async () => 0 };
     const base = fakes();
-    const service = new RetentionService({ ...(base.service as unknown as { repo: RetentionRepository }).repo }, new AuditService(failing));
-    await expect(service.setOrganizationDefault("org1", 10, actor)).rejects.toThrow("db down");
+    const service = new RetentionService(base.repo, new AuditService(failing));
+    await expect(service.setLevelDays("org1", "limited", 100, actor)).rejects.toThrow("db down");
   });
 
   describe("purgeExpired", () => {

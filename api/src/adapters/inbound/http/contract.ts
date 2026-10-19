@@ -1602,20 +1602,36 @@ export interface PromptListResponse {
   items: PromptSummaryDto[];
 }
 
-/** Retención de trazas (ADR-084): el plazo de la organización y el efectivo de cada experimento. */
+/** Retención de trazas por nivel de riesgo (ADR-084, ADR-102): el plazo de cada nivel y el de cada agente, que es el de su nivel. */
+export type RetentionLevelDto = "unclassified" | "minimal" | "limited" | "high";
 export interface RetentionPolicyDto {
   organizationId: string;
-  defaultDays: number;
   minDays: number;
   maxDays: number;
-  experiments: {
+  /** suelo del AI Act (art. 26.6) para `high` y `unclassified` */
+  aiActFloorDays: number;
+  levels: { level: RetentionLevelDto; days: number; minDays: number; agents: number }[];
+  agents: {
     experimentId: string;
     name: string;
     serviceName: string;
-    /** null = sin plazo propio: vale el de la organización */
-    overrideDays: number | null;
+    /** null = sin clasificar */
+    level: "minimal" | "limited" | "high" | null;
     effectiveDays: number;
+    intendedPurpose: string;
+    classifiedBy: { id: string; name: string | null; email: string } | null;
+    classifiedAt: string | null;
   }[];
+}
+
+/** Lo que pasaría al cambiar el plazo de un nivel (409 al bajarlo sin confirmar). `spans` null = no se pudo contar. */
+export interface LevelChangePreviewDto {
+  level: RetentionLevelDto;
+  previousDays: number;
+  days: number;
+  lowering: boolean;
+  agents: number;
+  spans: number | null;
 }
 
 /** Una entrada del registro de auditoría (ADR-084). Solo identificadores, nunca contenido. */

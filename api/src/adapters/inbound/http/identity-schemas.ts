@@ -87,11 +87,8 @@ export async function parseJsonOrThrow<T>(schema: z.ZodType<T>, request: Request
 /** Un objeto JSON cualquiera: el dominio valida los campos y dice cuál falla (ADR-086). */
 export const looseObjectBody = z.record(z.string(), z.unknown());
 
-/** Plazo de retención de la organización (ADR-084). El rango lo valida el dominio. */
-export const organizationRetentionBody = z.object({ days: z.number() });
-
-/** Plazo propio de un experimento; `null` quita el override y vuelve al de la organización (ADR-084). */
-export const experimentRetentionBody = z.object({ days: z.number().nullable() });
+/** Plazo de retención de un nivel de riesgo (ADR-102). El rango y el suelo del AI Act los valida el dominio; `confirmLowering` confirma que se borrarán datos. */
+export const levelRetentionBody = z.object({ days: z.number(), confirmLowering: z.boolean().default(false) });
 
 /** Decisión sobre qué entrada de Arena es un modelo del catálogo (ADR-025). Las entradas se validan contra el leaderboard en el servicio. */
 const arenaName = z.string().trim().min(1).max(300);

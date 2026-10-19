@@ -1,3 +1,5 @@
+import type { LevelChangePreview } from "./retention";
+
 export class ValidationError extends Error {
   constructor(
     message: string,
@@ -102,6 +104,17 @@ export class DatasetRunNotFoundError extends Error {
   constructor(readonly datasetRunId: string) {
     super(`Dataset run ${datasetRunId} not found`);
     this.name = "DatasetRunNotFoundError";
+  }
+}
+
+/**
+ * Bajar el plazo de un nivel borra datos en la próxima purga (ADR-102): hay que confirmarlo. Lleva lo que se perdería para que
+ * la pantalla lo enseñe. Sale como 409.
+ */
+export class RetentionConfirmationRequiredError extends Error {
+  constructor(readonly preview: LevelChangePreview) {
+    super("Lowering this retention deletes traces at the next purge: confirm it");
+    this.name = "RetentionConfirmationRequiredError";
   }
 }
 
