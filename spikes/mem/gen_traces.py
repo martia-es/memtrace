@@ -7,6 +7,7 @@ import argparse
 import json
 import random
 import uuid
+import zlib
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -37,6 +38,33 @@ MESSAGES = {
     },
 }
 INTENT_WEIGHTS = {"weather_today": 40, "forecast_week": 25, "compare_cities": 12, "clothing_advice": 13, "no_city": 10}
+
+SKY = {"en": ["sunny", "cloudy", "rainy"], "es": ["soleado", "nublado", "lluvioso"]}
+
+
+def temp_c(city: str) -> int:
+    return 8 + zlib.crc32(city.encode()) % 20
+
+
+def sky(city: str, lang: str) -> str:
+    return SKY[lang][zlib.crc32(city[::-1].encode()) % 3]
+
+
+def weather_answer(city, lang, fahrenheit=False):
+    t = temp_c(city)
+    temp = f"{round(t * 9 / 5 + 32)} °F" if fahrenheit else f"{t} °C"
+    return f"It is {temp} and {sky(city, lang)} in {city}." if lang == "en" else f"Hoy en {city} hay {temp} y está {sky(city, lang)}."
+
+
+def compare_answer(city, other, lang, only_one=False):
+    if only_one:
+        return weather_answer(city, lang)
+    tc, to = temp_c(city), temp_c(other)
+    warmer, colder = (city, other) if tc >= to else (other, city)
+    if lang == "en":
+        return f"{warmer} is warmer ({max(tc, to)} °C vs {min(tc, to)} °C in {colder})."
+    return f"En {warmer} hace más calor ({max(tc, to)} °C frente a {min(tc, to)} °C en {colder})."
+
 
 DAYS = 30
 PROMPT_CHANGE_DAY = 15  # F7
@@ -98,7 +126,7 @@ def make_trace(rnd: random.Random, base: datetime, day: int):
     root = b.span("conversation_turn", None, 0)
     agent = b.span("invoke_agent agent", root, 0)
 
-    def tool(name, args, fail=None):
+    def tool(name, args, fail=None, result=None):
         """fail = (status_message, exception_type) o None."""
         if fail is None and rnd.random() < 0.02:  # F6: ruido transitorio
             fail = ("Connection reset by peer", "ConnectionResetError")
@@ -107,14 +135,23 @@ def make_trace(rnd: random.Random, base: datetime, day: int):
             b.span(f"execute_tool {name}", agent, rnd.randint(30, 400), "STATUS_CODE_ERROR", fail[0], fail[1], fail[0],
                    {"tool.name": name, "tool.args": json.dumps(args)})
             return False
-        b.span(f"execute_tool {name}", agent, rnd.randint(30, 400), "STATUS_CODE_OK", extra={"tool.name": name, "tool.args": json.dumps(args)})
+        b.span(f"execute_tool {name}", agent, rnd.randint(30, 400), "STATUS_CODE_OK",
+               extra={"tool.name": name, "tool.args": json.dumps(args), "tool.result": json.dumps(result or {}, ensure_ascii=False)})
         return True
 
-    def chat(status="STATUS_CODE_OK", message="", exc_type=""):
-        b.span(f"chat {model}", agent, rnd.randint(300, 1500), status, message, exc_type, message)
+    def chat(status="STATUS_CODE_OK", message="", exc_type="", answer=None):
+        b.span(f"chat {model}", agent, rnd.randint(300, 1500), status, message, exc_type, message,
+               {"gen_ai.completion": answer} if answer else None)
+
+    def geo(c):
+        return {"lat": round(30 + zlib.crc32(c.encode()) % 3000 / 100, 2), "lon": round(zlib.crc32(c[::-1].encode()) % 2000 / 100, 2)}
+
+    def fc(c):
+        return {"temp_c": temp_c(c), "conditions": sky(c, "en")}
 
     silent_wrong = False
     errored = False
+    answer = None
 
     # F2: bucle de reintentos tras un 429 (cualquier intención)
     if rnd.random() < 0.03:
@@ -130,30 +167,35 @@ def make_trace(rnd: random.Random, base: datetime, day: int):
                 modes.append("F1")
                 errored = not tool("get_forecast", {"city": ""}, ("city must not be empty", "ValueError"))
             else:
-                chat()  # el agente pregunta por la ciudad
+                chat(answer="Which city do you mean?" if lang == "en" else "¿De qué ciudad hablas?")  # el agente pregunta por la ciudad
         elif intent == "compare_cities":
-            tool("geocode", {"city": city})
-            tool("get_forecast", {"city": city})
+            tool("geocode", {"city": city}, result=geo(city))
+            tool("get_forecast", {"city": city}, result=fc(city))
             if rnd.random() < 0.85:  # F3: se olvida de la segunda ciudad, sin error
                 modes.append("F3")
                 silent_wrong = True
+                answer = compare_answer(city, other, lang, only_one=True)
             else:
-                tool("get_forecast", {"city": other})
+                tool("get_forecast", {"city": other}, result=fc(other))
+                answer = compare_answer(city, other, lang)
         else:
             wrong_order = intent == "forecast_week" and city in NON_CAPITALS and rnd.random() < 0.6
             if wrong_order:  # F4
                 modes.append("F4")
-                ok = tool("get_forecast", {"city": city}, ("LocationNotFound: city not found", "LocationNotFound") if rnd.random() < 0.8 else None)
+                ok = tool("get_forecast", {"city": city}, ("LocationNotFound: city not found", "LocationNotFound") if rnd.random() < 0.8 else None,
+                          result=fc(city))
                 errored = not ok
-                tool("geocode", {"city": city})
+                tool("geocode", {"city": city}, result=geo(city))
             else:
-                tool("geocode", {"city": city})
-                tool("get_forecast", {"city": city})
+                tool("geocode", {"city": city}, result=geo(city))
+                tool("get_forecast", {"city": city}, result=fc(city))
+            answer = weather_answer(city, lang)
             if lang == "es" and model == "model_b" and rnd.random() < 0.7:  # F5: unidades mal, sin error
                 modes.append("F5")
                 silent_wrong = True
+                answer = weather_answer(city, lang, fahrenheit=True)
         if not errored:
-            chat()
+            chat(answer=answer)
 
     # cierre de spans padre: heredan el error del hijo más profundo, como en la realidad
     if errored:

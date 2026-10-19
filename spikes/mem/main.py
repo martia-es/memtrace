@@ -34,9 +34,10 @@ PASOS = [
      "    No sabe qué fallos se sembraron. Produce 'hallazgos' (reglas), todavía sin redactar.",
      "Fase 2.1 (Descubrir): clustering y minería de contrastes."),
     (4, "distill.py",
-     "Por cada hallazgo prepara un paquete de evidencia (cuántas trazas, dónde se rompe, ejemplos que fallaron\n"
-     "    y que funcionaron) y se lo manda a un LLM (Gemini) para que redacte la lección. Necesita la clave en .env.",
-     "Fase 2.2 (Destilar): el worker de Mem con la clave guardada (ADR-101)."),
+     "Agrupa los fallos por lo que ocurrió (paso + error) y redacta una lección por grupo: con una PLANTILLA si el\n"
+     "    patrón es estructural (argumento vacío, orden de herramientas, reintentos...) o con un LLM (Gemini) que lee\n"
+     "    conversaciones completas, fallidas y correctas. Luego verifica cada lección con conversaciones que no usó.",
+     "Fase 2.2 (Destilar): el worker de Mem; el LLM usa la clave guardada (ADR-101)."),
     (5, "evaluate.py",
      "Compara lo descubierto con los fallos que se sembraron en el paso 1 y dice qué encontró y qué no.\n"
      "    Es el ÚNICO script que conoce la solución; los demás nunca la ven. Solo sirve para medir el spike.",

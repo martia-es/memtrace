@@ -54,7 +54,9 @@ def build():
             tool = r["SpanAttributes"].get("tool.name", "")
             steps.append({"name": "chat" if r["SpanName"].startswith("chat ") else tool, "status": r["StatusCode"],
                           "msg": r["StatusMessage"], "exc": r["ExceptionType"],
-                          "args": r["SpanAttributes"].get("tool.args", "")})
+                          "args": r["SpanAttributes"].get("tool.args", ""),
+                          "result": r["SpanAttributes"].get("tool.result", ""),
+                          "answer": r["SpanAttributes"].get("gen_ai.completion", "")})
         # paso decisivo: el span fallido más profundo (los padres heredan el error y se ignoran)
         failing = [s for s in steps if s["status"] == "STATUS_CODE_ERROR"]
         decisive = failing[0] if failing else None
@@ -95,6 +97,9 @@ def build():
             "steps": ">".join(s["name"] for s in steps),
             "empty_arg_tools": ",".join(sorted({s["name"] for s in steps if s["name"] != "chat" and has_empty_arg(s["args"])})),
             "attrs": {k: v for k, v in attrs.items() if k not in ("user.message", "enduser.id")},
+            # lo que ve una persona (o un LLM) al leer la conversación: pasos con argumentos, resultado y respuesta
+            "step_log": steps,
+            "answer": next((s["answer"] for s in reversed(steps) if s["answer"]), ""),
             "n_chat": n_chat,
             "n_tools": len(tool_names),
             "decisive_step": decisive["name"] if decisive else "",
