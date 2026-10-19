@@ -68,7 +68,7 @@ const SNIPPET = `run_experiment(
               <td v-for="(v, i) in e.values" :key="i" class="num mono">{{ fmt(v, e) }}</td>
               <td class="num mono">{{ fmt(e.mean, e) }}</td>
               <td class="num mono">{{ fmtNoise(e) }}</td>
-              <td class="num mono">{{ instabilityOf(e.name) ? `${instabilityOf(e.name)!.unstable} of ${instabilityOf(e.name)!.total}` : "–" }}</td>
+              <td class="num mono">{{ instabilityOf(e.name) ? t("runVariability.unstable_of_total", { unstable: instabilityOf(e.name)!.unstable, total: instabilityOf(e.name)!.total }) : "–" }}</td>
             </tr>
           </tbody>
         </DataTable>

@@ -166,12 +166,14 @@ async function confirmDelete() {
     @drop.prevent="onDrop"
   >
     <PageHeader :crumbs="[{ label: 'Evaluations' }, { label: 'Datasets' }]" icon="M4 6a2 2 0 0 1 2-2h3l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" :title="t('datasetsPage.datasets')">
-      <div class="actions">
-        <TextInput type="search" v-model="search" :placeholder="t('datasetsPage.filter_by_name')" class="search" />
-        <SegmentedControl :options="VIEW_OPTIONS" :model-value="view" size="sm" :aria-label="t('datasetsPage.view')" @update:model-value="setView" />
-        <Button variant="primary" @click="showCreateModal = true" class="mt-new">{{ t("datasetsPage.new_dataset") }}</Button>
-      </div>
+      <Button variant="primary" @click="showCreateModal = true" class="mt-new">{{ t("datasetsPage.new_dataset") }}</Button>
     </PageHeader>
+
+    <!-- la barra superior solo lleva la acción principal: buscar y cambiar la vista no deben comerse la miga de pan -->
+    <div class="toolbar">
+      <TextInput type="search" v-model="search" :placeholder="t('datasetsPage.filter_by_name')" class="search" />
+      <SegmentedControl :options="VIEW_OPTIONS" :model-value="view" size="sm" :aria-label="t('datasetsPage.view')" @update:model-value="setView" />
+    </div>
 
     <input ref="fileInput" type="file" accept=".csv,.tsv,.txt,text/csv" class="file-input" :aria-label="t('datasetsPage.choose_a_csv_file')" @change="onPick" />
 
@@ -280,7 +282,7 @@ async function confirmDelete() {
   background: var(--mt-bg);
   overflow: auto;
 }
-.actions {
+.toolbar {
   display: flex;
   align-items: center;
   gap: 8px;

@@ -200,8 +200,8 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
     </PageHeader>
 
     <div class="filters">
-      <SegmentedControl v-model="scope" :aria-label="t('annotationQueuesPage.queues_to_show')" :options="[{ value: 'assigned', label: 'Assigned to me', testid: 'scope-assigned' }, { value: 'all', label: 'All queues', testid: 'scope-all' }]" />
-      <SegmentedControl v-model="status" :aria-label="t('annotationQueuesPage.queue_status')" :options="[{ value: 'active', label: 'Active', testid: 'status-active' }, { value: 'archived', label: 'Archived', testid: 'status-archived' }]" />
+      <SegmentedControl v-model="scope" :aria-label="t('annotationQueuesPage.queues_to_show')" :options="[{ value: 'assigned', label: t('annotationQueuesPage.scope_assigned'), testid: 'scope-assigned' }, { value: 'all', label: t('annotationQueuesPage.scope_all'), testid: 'scope-all' }]" />
+      <SegmentedControl v-model="status" :aria-label="t('annotationQueuesPage.queue_status')" :options="[{ value: 'active', label: t('annotationQueuesPage.status_active'), testid: 'status-active' }, { value: 'archived', label: t('annotationQueuesPage.status_archived'), testid: 'status-archived' }]" />
     </div>
 
     <section v-if="pendingTotal > 0" class="inbox" data-testid="inbox">
@@ -251,7 +251,7 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
         <div class="progress-cell">
           <div class="progress-top">
             <span class="done-count">{{ t('annotationQueuesPage.done_of_total', { done: q.progress.completed, total: total(q) }) }}</span>
-            <span class="state" :class="{ done: q.progress.pending === 0 }" data-testid="queue-pending">{{ q.progress.pending > 0 ? `${q.progress.pending} pending` : "Done" }}</span>
+            <span class="state" :class="{ done: q.progress.pending === 0 }" data-testid="queue-pending">{{ q.progress.pending > 0 ? t("annotationQueuesPage.pending_count", { count: q.progress.pending }) : t("annotationQueuesPage.state_done") }}</span>
           </div>
           <div class="bar" aria-hidden="true"><div class="bar-fill" :class="{ complete: q.progress.pending === 0 }" :style="{ width: `${percent(q)}%` }" /></div>
           <span v-if="canCurate && q.toCurate > 0" class="curate-note" data-testid="queue-to-curate">{{ t("annotationQueuesPage.count_to_review_add_to_a", { count: q.toCurate }) }}</span>

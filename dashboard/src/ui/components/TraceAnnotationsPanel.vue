@@ -124,7 +124,7 @@ async function retract(annotation: AnnotationDto) {
 
 // ---- controls per data type ----
 function choices(config: ScoreConfigDto): Array<{ value: string; label: string }> | null {
-  if (config.dataType === "boolean") return [{ value: "true", label: "Yes" }, { value: "false", label: "No" }];
+  if (config.dataType === "boolean") return [{ value: "true", label: t("common.yes") }, { value: "false", label: t("common.no") }];
   if (config.dataType === "categorical") return (config.categories ?? []).map((c) => ({ value: c.label, label: c.label }));
   return numericChoices(config)?.map((n) => ({ value: String(n), label: String(n) })) ?? null;
 }

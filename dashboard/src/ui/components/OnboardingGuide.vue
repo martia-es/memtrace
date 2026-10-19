@@ -3,6 +3,9 @@ import { ref, computed } from "vue";
 import { useQuasar } from "quasar";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { t } from "../i18n";
+import Card from "./Card.vue";
+import SegmentedControl from "./SegmentedControl.vue";
+import Button from "./Button.vue";
 
 const props = defineProps<{ serviceName: string; experimentId: string }>();
 
@@ -205,9 +208,6 @@ with session(conversation_id):
     install: "npm install memtrace-ai pydantic-ai",
     example: `import { initTracer, session, traceStep } from "memtrace-ai";
 import { Agent } from "pydantic-ai";
-import Card from "./Card.vue";
-import SegmentedControl from "./SegmentedControl.vue";
-import Button from "./Button.vue";
 
 initTracer({ serviceName: "my-agent" });
 

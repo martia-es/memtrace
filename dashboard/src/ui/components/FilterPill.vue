@@ -12,7 +12,7 @@ export interface PillOption {
 const props = defineProps<{ label: string; modelValue: string | undefined; options: PillOption[]; allLabel?: string }>();
 defineEmits<{ "update:modelValue": [string | undefined] }>();
 
-const current = computed(() => props.options.find((o) => o.value === props.modelValue)?.label ?? props.modelValue ?? props.allLabel ?? "All");
+const current = computed(() => props.options.find((o) => o.value === props.modelValue)?.label ?? props.modelValue ?? props.allLabel ?? t("filterPill.all"));
 </script>
 
 <template>

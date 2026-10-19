@@ -58,7 +58,7 @@ const all = computed(() => recent.data.value?.items ?? []);
 const failures = computed(() => (reason.value === "all" ? all.value : all.value.filter((f) => f.reasons.includes(reason.value as FailureReason))));
 const visible = computed(() => failures.value.slice(0, shown.value));
 const counts = computed(() => recent.data.value?.counts ?? { error: 0, low_score: 0, human_low: 0, user_dislike: 0 });
-const filters = computed(() => [{ key: "all" as const, label: "All", n: all.value.length }, ...FAILURE_REASONS.filter((r) => counts.value[r] > 0).map((r) => ({ key: r, label: FAILURE_REASON_LABELS[r], n: counts.value[r] }))]);
+const filters = computed(() => [{ key: "all" as const, label: t("common.all"), n: all.value.length }, ...FAILURE_REASONS.filter((r) => counts.value[r] > 0).map((r) => ({ key: r, label: FAILURE_REASON_LABELS[r], n: counts.value[r] }))]);
 const picking = computed(() => !loadedTrace.value);
 const pasteOpen = ref(false);
 watch(reason, () => (shown.value = PAGE));

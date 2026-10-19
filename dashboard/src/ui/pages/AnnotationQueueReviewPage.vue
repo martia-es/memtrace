@@ -69,7 +69,7 @@ const earlierCount = computed(() => folded.value.earlier.filter((turn) => turn.k
 const hasAnswer = computed(() => turns.value.some((t) => t.kind === "answer"));
 
 function choices(config: ScoreConfigDto): Array<{ value: string; label: string }> | null {
-  if (config.dataType === "boolean") return [{ value: "true", label: "Yes" }, { value: "false", label: "No" }];
+  if (config.dataType === "boolean") return [{ value: "true", label: t("common.yes") }, { value: "false", label: t("common.no") }];
   if (config.dataType === "categorical") return (config.categories ?? []).map((c) => ({ value: c.label, label: c.label }));
   return numericChoices(config)?.map((n) => ({ value: String(n), label: String(n) })) ?? null;
 }

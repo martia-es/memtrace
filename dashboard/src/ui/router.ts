@@ -54,7 +54,7 @@ export const router = createRouter({
         // antes "Metrics": se mantiene el path para enlaces guardados (ADR-048)
         { path: "metrics", redirect: (to) => ({ name: "overview", params: to.params, query: to.query }) },
         // Review: una sola pantalla de colas; el alcance y el estado son filtros en la URL (?scope=all, ?status=archived)
-        { path: "annotation-queues", name: "annotation-queues", component: queuesPage, meta: { title: "Review", section: "review" } },
+        { path: "annotation-queues", name: "annotation-queues", component: queuesPage, meta: { title: "Review", section: "review", timeRange: false } },
         // rutas anteriores (favoritos): redirigen a la pantalla única con el filtro equivalente
         { path: "annotation-queues/all", redirect: (to) => ({ name: "annotation-queues", params: to.params, query: { scope: "all" } }) },
         { path: "annotation-queues/archived", redirect: (to) => ({ name: "annotation-queues", params: to.params, query: { scope: "all", status: "archived" } }) },
@@ -62,12 +62,12 @@ export const router = createRouter({
         // registro de prompts (ADR-067): versiones inmutables y tags por entorno
         { path: "prompts", name: "prompts", component: () => import("./pages/PromptsPage.vue"), meta: { title: "Prompts", section: "prompts", timeRange: false } },
         { path: "prompts/:promptId", name: "prompt", component: () => import("./pages/PromptDetailPage.vue"), props: true, meta: { title: "Prompt", section: "prompts", framed: true, timeRange: false } },
-        { path: "datasets", name: "datasets", component: () => import("./pages/DatasetsPage.vue"), meta: { title: "Datasets", section: "datasets" } },
-        { path: "datasets/:datasetId", name: "dataset", component: () => import("./pages/DatasetDetailPage.vue"), props: true, meta: { title: "Dataset", section: "datasets", framed: true } },
-        { path: "runs", name: "runs", component: () => import("./pages/RunsPage.vue"), meta: { title: "Runs", section: "runs" } },
+        { path: "datasets", name: "datasets", component: () => import("./pages/DatasetsPage.vue"), meta: { title: "Datasets", section: "datasets", timeRange: false } },
+        { path: "datasets/:datasetId", name: "dataset", component: () => import("./pages/DatasetDetailPage.vue"), props: true, meta: { title: "Dataset", section: "datasets", framed: true, timeRange: false } },
+        { path: "runs", name: "runs", component: () => import("./pages/RunsPage.vue"), meta: { title: "Runs", section: "runs", timeRange: false } },
         // antes la pestaña "Offline evals" de Overview (ADR-059)
         { path: "evaluations/trends", name: "trends", component: () => import("./pages/TrendsPage.vue"), meta: { title: "Quality trends", section: "trends" } },
-        { path: "datasets/:datasetId/runs/:runId", name: "dataset-run", component: () => import("./pages/DatasetRunDetailPage.vue"), props: true, meta: { title: "Run", section: "runs", framed: true } },
+        { path: "datasets/:datasetId/runs/:runId", name: "dataset-run", component: () => import("./pages/DatasetRunDetailPage.vue"), props: true, meta: { title: "Run", section: "runs", framed: true, timeRange: false } },
       ],
     },
     { path: "/:pathMatch(.*)*", redirect: { name: "home" } },

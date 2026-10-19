@@ -178,7 +178,7 @@ const items = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, 
   <div class="page">
     <PageHeader :crumbs="[{ label: 'Model pricing' }]" icon="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" :title="t('modelPricingPage.model_pricing')">
       <div class="actions">
-        <FilterPill :label="t('modelPricingPage.provider')" :model-value="provider" :options="providerOptions" all-label="All providers" @update:model-value="provider = $event" />
+        <FilterPill :label="t('modelPricingPage.provider')" :model-value="provider" :options="providerOptions" :all-label="t('modelPricingPage.all_providers')" @update:model-value="provider = $event" />
         <TextInput type="search" v-model="search" :placeholder="t('modelPricingPage.filter_by_model')" class="search" />
       </div>
     </PageHeader>

@@ -23,7 +23,7 @@ The **experiment** selector at the top of the sidebar switches between the agent
 
 ## Conversations
 
-By default the list shows one row per conversation: traces that share the same conversation id (see [Conversations](/library/conversations)) are grouped together. Switch to **Traces** to see every run of your agent as its own row. Use the search box to find conversations (or traces) by text in the captured input or output; it needs message content capture enabled.
+By default the list shows one row per conversation: traces that share the same conversation id (see [Conversations](/library/conversations)) are grouped together. Switch to **Traces** to see every run of your agent as its own row. Use the search box to find conversations (or traces) by text in the captured input or output; it needs message content capture enabled. When nothing shows up, the page tells you why: if filters are hiding everything it offers **Clear filters**; if the range is simply empty it suggests wider ranges, and a collapsed **Connect your agent** guide (open by default from 7 days) walks you through sending your first traces.
 
 - **Quick views.** **All**, **With errors** and, in the Traces view, **Slow (≥ 5 s)** are shortcuts to the filters you use most. The time range, live refresh and the summary figures sit above the list.
 - **Readable rows.** Each conversation is named after the user's first message (the id stays underneath) and shows its cost. If the agent did not capture content, the id is the name and the cost shows only when the model has a known price.
@@ -56,7 +56,7 @@ The sidebar groups its pages in submenus. **Overview** is the summary page; **An
 
 ### Summary
 
-It starts with a plain statement of health ("Your assistant is healthy", "Some executions are failing" or "Your assistant needs attention") and one card per key figure, each with a small trend: conversations, success rate, response time p95, errors and cost.
+It starts with a plain statement of health ("Your assistant is healthy", "Some executions are failing" or "Your assistant needs attention") and one card per key figure, each with a small trend: conversations, success rate, response time p95, errors and cost. With fewer than 20 executions in the range, the banner says "Small sample" instead of passing a verdict and the trend lines are hidden, because a percentage over a handful of runs says little.
 
 ### Goals
 

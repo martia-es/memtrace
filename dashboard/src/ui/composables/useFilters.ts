@@ -125,6 +125,8 @@ export function useFilters() {
     setHasErrors: (value: boolean) => update({ hasErrors: value ? "1" : undefined }),
     /** vistas rápidas de la lista (ADR-048): las dos condiciones se aplican en un único cambio de URL */
     setQuickView: (value: "all" | "errors" | "slow") => update({ hasErrors: value === "errors" ? "1" : undefined, min: value === "slow" ? "5000" : undefined }),
+    /** quita de una vez los filtros de la lista (texto, errores, lentas, versión y prompt); el rango y el servicio se quedan */
+    clearListFilters: () => update({ q: undefined, hasErrors: undefined, min: undefined, rev: undefined, prompt: undefined, pv: undefined }),
     setConversation: (value: string | undefined) => update({ conversation: value }),
     setMinDuration: (value: number | undefined) => update({ min: value ? String(value) : undefined }),
     /** query que se conserva al navegar entre secciones */

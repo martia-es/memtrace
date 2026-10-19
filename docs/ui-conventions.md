@@ -23,6 +23,10 @@ Reglas vigentes del dashboard (`dashboard/`). El sistema de diseño de base sigu
 - **Menú contextual de Settings**: en `/admin/organizations/:id` las secciones de la organización no son pestañas, sustituyen al menú principal en el mismo sidebar (grupos Workspace / Governance / Organization, enlace «Back to app» arriba). La página las registra con `useSettingsNav` y `MainLayout` las pinta mientras estén registradas; la sección activa viaja en `?tab=`. Un menú nuevo de este tipo = registrar secciones desde la página, no añadir un segundo sidebar.
 - **Filtros en vez de submenú para la misma entidad**: si varias entradas del sidebar solo muestran la misma lista con otro recorte (p. ej. Review: asignadas a mí / todas, activas / archivadas), son una sola pantalla con filtros (`SegmentedControl`) guardados en la query de la URL (`?scope=all`, `?status=archived`; el valor por defecto no se escribe). Las rutas antiguas redirigen al filtro equivalente. Submenú solo cuando cada entrada es una pantalla con contenido propio.
 
+- **El selector de rango solo donde manda**: `meta.timeRange: false` en la ruta oculta el rango y «En vivo» de la barra superior. Se declara en toda pantalla que no filtre por tiempo (Review, Datasets, Runs, Prompts, Alerts); hoy solo lo usan Overview, Conversations, Analytics y Quality trends.
+- **La barra superior lleva la acción principal**: buscador, cambio de vista y filtros van en una fila dentro de la página, no en el hueco derecho, para no recortar la miga de pan. Las migas se traducen con `routeTitle` (clave `routeTitle.<texto>`); no repitas el nombre de la página como ancestro.
+- **El selector de experimento no se queda vacío**: en pantallas globales (Assistants, Model pricing, Admin) muestra el experimento de contexto (el último usado), que es al que apuntan los enlaces del sidebar.
+
 ## 3. Componentes propios
 
 Los controles son componentes propios; Quasar queda solo para el armazón de página (`q-layout`, `q-page-container`, `q-page`), los iconos (`q-icon`) y los plugins `Notify` y `Dark`. Un test guardián falla si aparece otro `<q-*>`.
@@ -95,6 +99,8 @@ Tres modos de visualización: `bubble` (ventana flotante), `dock` (panel lateral
 - El dominio traduce con `tr()` / `lazyMessages()` (`domain/translate.ts`, un puerto que registra `ui/i18n`); las constantes con etiquetas usan `get label()` o `lazyMessages` para seguir el idioma activo. Un `v-for="t in …"` tapa la función `t`: renombra la variable.
 - Fechas y números siguen el idioma activo: `domain/format.ts` usa `perLocale()` (locale registrado por `ui/i18n`) y la UI usa `dateLocale()`.
 
+- Ningún texto de interfaz va literal en una plantilla o en un `computed`: ni etiquetas de `SegmentedControl`, ni `all-label`, ni «Yes/No», ni los mensajes de error de la API. Los mensajes de `describeApiError` salen del dominio con `tr("apiError.*")`. Un 404 sin pista no culpa a la retención: solo lo hace si el `detail` habla de una traza o conversación.
+
 ## 6. Costs › Model pricing: calidad y confirmación de coincidencias
 
 - La tabla de precios gana una columna **Quality · Arena Elo** (`domain/model-quality.ts` decide qué dice cada celda: puntuación, candidato, sin equivalente o no disponible). Una celda con candidato lleva el nombre de Arena y un botón «Confirm match →»; quien no puede decidir (`pricing:manage`) ve «Awaiting confirmation». Antes de la primera sincronización la columna no se pinta y los precios funcionan igual.
@@ -136,3 +142,9 @@ Pantalla `AnnotationQueueReviewPage` (sin endpoint ni almacén nuevos; propuesta
 - **Un solo botón primario**: «Submit & next» (con `Intro`); «Skip» y «Mark unreviewable» son enlaces discretos debajo.
 - **Traza técnica**: ya no se despliega en la pantalla; el enlace «Technical trace ↗» (solo con `trace:read_technical`) abre el detalle de la traza en otra pestaña.
 - **Sin selector de fechas**: la ruta lleva `timeRange: false` porque el rango no afecta a lo que se revisa.
+
+## 12. Estados vacíos y muestras pequeñas
+
+- **Sin resultados, explica la causa y ofrece la salida**: con filtros de lista activos (texto, errores, lentas, versión, prompt) la lista dice «Nothing matches these filters» y `Quitar filtros` (`clearListFilters` de `useFilters`, un solo cambio de URL). Sin filtros, dice «No conversations in this range» y propone los tres rangos más amplios; la guía de conexión (`OnboardingGuide`) queda plegada, y abierta desde 7 días. Nunca un recuadro en blanco.
+- **Pocas ejecuciones, sin veredicto**: por debajo de `MIN_RELIABLE_RUNS` (20, `domain/sample-size.ts`), el banner de Overview pasa a neutro «Small sample» con el número de ejecuciones, la tarjeta de éxito lo repite y se ocultan las sparklines. Con 0 ejecuciones sigue siendo «sin datos». Cualquier KPI de tasa nueva debe aplicar la misma regla.
+- **Un verbo por acción**: los enlaces de «Needs attention» usan «View» para ir a ver algo y «Review» para abrir la cola de revisión; no mezcles Inspect / Open latest / Start.

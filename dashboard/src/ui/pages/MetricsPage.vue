@@ -7,6 +7,7 @@ import { formatCostUsd, formatCount, formatDuration, formatPercent } from "@/dom
 import { formatRelativeTime } from "../i18n/format";
 import { aggregateTone, aggregateValueLabel } from "@/domain/evaluation";
 import { formatSatisfaction } from "@/domain/feedback";
+import { isSmallSample } from "@/domain/sample-size";
 import { budgetGoalOf, goalOf, missingStarterGoals, starterRuleBody, STARTER_GOALS, limitText } from "@/domain/goals";
 import { windowText } from "../alert-format";
 import { usePermissions } from "../composables/usePermissions";
@@ -81,9 +82,12 @@ const customChartsRange = computed(() => f.resolve());
 const empty = computed(() => data.value !== null && data.value.totals.traces === 0 && data.value.totals.spans === 0);
 
 const successRate = computed(() => (data.value ? 1 - data.value.totals.errorRate : 1));
+/** Con pocas ejecuciones el porcentaje de éxito, el banner y las sparklines exageran: se avisa en vez de dar un veredicto. */
+const smallSample = computed(() => isSmallSample(data.value?.totals.traces ?? 0));
 const health = computed(() => {
   const rate = data.value?.totals.errorRate ?? 0;
   const executions = formatCount(data.value?.totals.traces ?? 0);
+  if (smallSample.value) return { key: "neutral", title: t("overviewSample.small"), text: t("overviewSample.hint", { count: executions }) };
   const ok = t("metricsPage.percent_of_the_executions_executions_in", { percent: formatPercent(successRate.value), executions });
   if (rate === 0) return { key: "ok", title: t("metricsPage.your_assistant_is_healthy"), text: ok };
   if (rate < 0.05) return { key: "warn", title: t("metricsPage.some_executions_are_failing"), text: ok };
@@ -333,7 +337,7 @@ void reviewQuality.run();
 
 // sparklines de las tarjetas KPI (58×24), normalizadas al rango de cada serie
 function sparkPoints(values: number[]): string {
-  if (values.length < 2) return "";
+  if (values.length < 2 || smallSample.value) return "";
   const min = Math.min(...values);
   const span = Math.max(...values) - min || 1;
   return values.map((v, i) => `${((i / (values.length - 1)) * 58).toFixed(1)},${(21 - ((v - min) / span) * 18).toFixed(1)}`).join(" ");
@@ -462,7 +466,7 @@ function swapAgents() {
             </span>
             <div class="health-body">
               <h2>{{ health.title }}</h2>
-              <p>{{ health.text }}<template v-if="attention.length"> {{ tp("metricsPage.things", attention.length) }}</template></p>
+              <p>{{ health.text }}{{ attention.length ? " " + tp("metricsPage.things", attention.length) : "" }}</p>
             </div>
             <Button v-if="attention.length" @click="goToFirstAttention">{{ t("metricsPage.see_what_needs_attention") }}</Button>
           </section>
@@ -586,7 +590,7 @@ function swapAgents() {
       </TabPanel>
 
       <TabPanel :active="activePanel === 'custom'" class="metrics-tab-panel">
-        <router-link class="catalog-link" :to="{ name: 'overview-catalog', params: { experimentId } }" data-testid="catalog-link">What can I chart? Data catalog →</router-link>
+        <router-link class="catalog-link" :to="{ name: 'overview-catalog', params: { experimentId } }" data-testid="catalog-link">{{ t("metricsPage.chart_catalog_link") }}</router-link>
         <CustomChartsPanel :experiment-id="experimentId" :range="customChartsRange" />
       </TabPanel>
 
@@ -686,6 +690,8 @@ function swapAgents() {
 }
 .health.ok { background: var(--mt-ok-bg); color: var(--mt-ok-ink); border-color: color-mix(in srgb, var(--mt-ok) 25%, transparent); }
 .health.warn { background: var(--mt-warn-bg); color: var(--mt-warn-ink); border-color: color-mix(in srgb, var(--mt-warn) 30%, transparent); }
+.health.neutral { background: var(--mt-card); color: var(--mt-muted); border-color: var(--mt-line); }
+.health.neutral h2 { color: var(--mt-ink); }
 .health.error { background: var(--mt-err-bg); color: var(--mt-err-ink); border-color: color-mix(in srgb, var(--mt-err) 25%, transparent); }
 .health-icon {
   display: flex;
@@ -700,6 +706,7 @@ function swapAgents() {
 .health.ok .health-icon { background: var(--mt-ok); }
 .health.warn .health-icon { background: var(--mt-warn); }
 .health.error .health-icon { background: var(--mt-err); }
+.health.neutral .health-icon { background: var(--mt-muted); }
 .health-body { flex: 1; min-width: 0; }
 .health-body h2 { margin: 0; font-size: 16px; font-weight: 800; letter-spacing: -0.01em; }
 .health-body p { margin: 2px 0 0; font-weight: 500; }
