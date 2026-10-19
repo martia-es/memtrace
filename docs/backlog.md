@@ -100,3 +100,4 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 | 2026-10-17 | F10 cerrado en lo técnico: Kafka de 3 nodos sin pérdidas en 6 escenarios, hueco de pérdida del escritor cerrado (`message_marking`), autoescalado por CPU y por lag (ADR-098) |
 | 2026-10-18 | Fase 2 (Mem): ADR-100 elige ArcadeDB (Apache 2.0) como almacén de conocimiento, opcional y detrás de un puerto; Redis Stack descartado. Pendiente: prueba de concepto antes de la fase 2.1 |
 | 2026-10-18 | Fase 2 (Mem) rediseñada en torno a lecciones que el agente aplica; datos en ClickHouse (derivado) y Postgres (curado); ADR-100 aplazado a la fase 2.4 |
+| 2026-10-18 | Fase 2 (Mem): ADR-101 decide que la clave del proveedor LLM la guarde MemTrace, sellada para un solo worker, para que las lecciones se redacten solas. Sin implementar |

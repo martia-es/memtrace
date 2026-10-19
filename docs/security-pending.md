@@ -61,6 +61,7 @@ El agente debe enviar OTLP por HTTP a la pasarela: el Collector ya no acepta gRP
 | Alarma por filas sin `ExperimentId` | Mientras el backfill no corra son invisibles y no se purgan | P1 |
 | Política de PII en el servidor | Hoy depende del SDK y del Collector; falta una política por organización al ingerir | P1 |
 | Flujos hacia terceros | Jueces LLM, playground y asistentes envían contenido a proveedores externos: inventariar, mostrar y poder desactivar | P1 |
+| Claves de proveedor guardadas por MemTrace | Decidido en [ADR-101](adrs/cybersecurity/adr-101-provider-keys-held-by-memtrace.md) para la Fase 2: sellar la clave para un solo worker, límites de gasto, vista previa y egress restringido. Sin implementar | P1 |
 | Copias de seguridad cifradas | Con retención acorde al borrado del cliente y prueba de restauración | P2 |
 
 ## P2 y cumplimiento

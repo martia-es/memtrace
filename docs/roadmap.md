@@ -326,7 +326,8 @@ Un usuario puede agrupar varias gráficas custom ya guardadas en un **informe** 
 - [ ] Patrones recurrentes en Overview
 - [ ] Clusters y contraste éxito/fallo con significación estadística
 - [ ] Modelo de datos de lecciones en Postgres, estados y permisos (`lesson:*`)
-- [ ] `memtrace.mem.distill` en los SDK y pantalla *Learning* (con propuesta de interfaz previa)
+- [ ] Ajustes: clave del proveedor LLM sellada para el worker de Mem, con límites y vista previa ([ADR-101](adrs/cybersecurity/adr-101-provider-keys-held-by-memtrace.md))
+- [ ] `memtrace.mem.distill` en los SDK (modo sin clave guardada) y pantalla *Learning* (con propuesta de interfaz previa)
 - [ ] `memtrace.lessons.get` y variable `{{lessons}}` en el SDK
 - [ ] Medición de efecto y reincidencia, con alerta
 - [ ] Documentación de integración con agentes
