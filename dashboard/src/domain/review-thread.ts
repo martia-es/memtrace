@@ -7,7 +7,9 @@ export type Turn =
   | { kind: "message"; text: string }
   | { kind: "answer"; text: string }
   | { kind: "action"; summary: string }
-  | { kind: "data"; source: string | null; json: string };
+  | { kind: "data"; source: string | null; json: string }
+  /** consecutive tool calls and their data folded into one row (only `foldForReview` produces it) */
+  | { kind: "steps"; actions: string[]; data: Array<{ source: string | null; json: string }> };
 
 /** "get_weather" → "Get weather" */
 export const humanizeName = (name: string): string => {
@@ -51,4 +53,25 @@ export function conversationTurns(blocks: IoBlock[]): Turn[] {
     }
   }
   return turns;
+}
+
+/**
+ * The thread as a reviewer needs it: what came before the user's last message is set aside (`earlier`), and the tool
+ * calls and data after it become one folded `steps` row, so the question and the reply to review fill the screen.
+ */
+export function foldForReview(turns: Turn[]): { earlier: Turn[]; recent: Turn[] } {
+  const from = Math.max(turns.map((t) => t.kind).lastIndexOf("user"), 0);
+  const recent: Turn[] = [];
+  for (const turn of turns.slice(from)) {
+    if (turn.kind !== "action" && turn.kind !== "data") {
+      recent.push(turn);
+      continue;
+    }
+    const last = recent.at(-1);
+    const steps = last?.kind === "steps" ? last : { kind: "steps" as const, actions: [], data: [] };
+    if (turn.kind === "action") steps.actions.push(turn.summary);
+    else steps.data.push({ source: turn.source, json: turn.json });
+    if (steps !== last) recent.push(steps);
+  }
+  return { earlier: turns.slice(0, from), recent };
 }

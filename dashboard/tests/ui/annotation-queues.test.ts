@@ -346,12 +346,19 @@ describe("AnnotationQueueReviewPage", () => {
     return setup(AnnotationQueueReviewPage, api, "/e/e1/annotation-queues/q-1/review", { queueId: "q-1" }).then((r) => ({ api, ...r }));
   };
 
-  it("shows the trace next to the rubric and instructions", async () => {
+  const press = async (key: string) => {
+    window.dispatchEvent(new KeyboardEvent("keydown", { key }));
+    await flushPromises();
+  };
+
+  it("shows the conversation next to the rubric and instructions, and links to the technical trace instead of unfolding it", async () => {
     const { wrapper } = await open();
     expect(wrapper.find('[data-testid="thread"]').exists()).toBe(true);
     expect(wrapper.find('[role="treeitem"]').exists()).toBe(false);
-    await wrapper.get('[data-testid="trace-toggle"]').trigger("click");
-    expect(wrapper.find('[role="treeitem"]').text()).toContain("agent.run");
+    expect(wrapper.find('[data-testid="trace-toggle"]').exists()).toBe(false);
+    const link = wrapper.get('[data-testid="trace-link"]');
+    expect(link.attributes("href")).toBe("/e/e1/traces/trace-abc");
+    expect(link.attributes("target")).toBe("_blank");
     expect(wrapper.get('[data-testid="rubric"]').text()).toContain("Be strict");
     expect(wrapper.get('[data-testid="rubric-config"]').text()).toContain("tone");
   });
@@ -360,11 +367,12 @@ describe("AnnotationQueueReviewPage", () => {
     const { wrapper, api } = await open();
     const submit = wrapper.get('[data-testid="submit"]');
     expect(submit.attributes("disabled")).toBeDefined();
+    expect(submit.text()).toContain("Submit & next");
 
-    await wrapper.findAll(".choice").find((b) => b.text().startsWith("4"))!.trigger("click");
-    expect(submit.attributes("disabled")).toBeUndefined();
     await wrapper.findAll("button").find((b) => b.text() === "+ Add note")!.trigger("click");
     await wrapper.get('textarea[aria-label="tone note"]').setValue("good");
+    await wrapper.findAll(".choice").find((b) => b.text().startsWith("4"))!.trigger("click");
+    expect(submit.attributes("disabled")).toBeUndefined();
     await submit.trigger("click");
     await flushPromises();
 
@@ -372,6 +380,41 @@ describe("AnnotationQueueReviewPage", () => {
     // the form starts clean for the next item
     expect(wrapper.get('[data-testid="submit"]').attributes("disabled")).toBeDefined();
     expect(api.nextItems).toHaveLength(0);
+  });
+
+  it("answers with the number keys, folds the answered criterion, lets it be changed and submits with Enter", async () => {
+    const { wrapper, api } = await open();
+    expect(wrapper.get(".choice kbd").text()).toBe("1");
+    await press("4");
+    // the criterion is now one line with its answer; the choices are gone until "Change"
+    expect(wrapper.findAll(".choice")).toHaveLength(0);
+    expect(wrapper.get('[data-testid="rubric-config"]').text()).toContain("4");
+    await wrapper.get('[data-testid="rubric-config"] button').trigger("click");
+    expect(wrapper.findAll(".choice").length).toBeGreaterThan(0);
+    await press("2");
+    expect(wrapper.get('[data-testid="rubric-config"]').text()).toContain("2");
+    await press("Enter");
+    expect(api.completed).toEqual([{ queueId: "q-1", itemId: "i1", labels: [{ configId: "cfg-1", value: "2", comment: null }] }]);
+  });
+
+  it("skips with S and ignores the shortcuts while typing", async () => {
+    const { wrapper, api } = await open();
+    await wrapper.findAll("button").find((b) => b.text() === "+ Add note")!.trigger("click");
+    const note = wrapper.get('textarea[aria-label="tone note"]').element;
+    note.dispatchEvent(new KeyboardEvent("keydown", { key: "s", bubbles: true }));
+    await flushPromises();
+    expect(api.skipped).toEqual([]);
+    await press("s");
+    expect(api.skipped).toEqual(["i1"]);
+  });
+
+  it("folds the instructions after the first item", async () => {
+    const { wrapper } = await open();
+    expect(wrapper.find(".instructions").exists()).toBe(true);
+    await press("s");
+    expect(wrapper.find(".instructions").exists()).toBe(false);
+    await wrapper.get('[data-testid="instructions-toggle"]').trigger("click");
+    expect(wrapper.get(".instructions").text()).toContain("Be strict");
   });
 
   it("skips an item without sending labels", async () => {

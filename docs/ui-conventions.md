@@ -125,3 +125,14 @@ Tres modos de visualización: `bubble` (ventana flotante), `dock` (panel lateral
 - El nivel de un agente se **declara solo desde esa pantalla** (modal `ClassifyRiskModal`). En el catálogo (chip en la tarjeta, filtro «Risk» y contador de sin clasificar) y en la ficha (dato «Risk» con enlace a Settings) es solo lectura. `Unclassified` es un aviso (`warn`), nunca «riesgo bajo».
 - **Bajar un plazo borra datos**: antes de guardar se pide la vista previa (`previewLevelRetention`) y se enseña un aviso ámbar con los agentes y spans afectados y los botones «Cancel» / «Lower and delete»; la API lo exige con `confirmLowering`. Cambiar un agente a un nivel con menos retención avisa en el modal.
 - Los permisos se aplican por mitades: los plazos exigen `retention:manage` (si falta, los campos quedan en solo lectura) y clasificar `governance:manage` (si falta, no hay botones); bajar el nivel de un agente solo lo hace un administrador de la organización.
+
+## 12. Review: revisar rápido
+
+Pantalla `AnnotationQueueReviewPage` (sin endpoint ni almacén nuevos; propuesta en el canvas, tablero 85). El principio es que revisar un item cueste una tecla por criterio y un Intro.
+
+- **Conversación**: `foldForReview` (`domain/review-thread.ts`, función pura) separa lo anterior al último mensaje del usuario (botón «N earlier messages») y pliega las tool calls y sus datos de después en una fila `steps` que `ConversationThread` pinta como una línea («Used Get weather (…)» o «N tool calls») con Show/Hide. La pregunta y la respuesta a revisar son lo único que ocupa la pantalla.
+- **Rúbrica**: el criterio activo (el que responden las teclas) lleva borde de acento y la tecla en cada botón. Un criterio con respuestas fijas (sí/no, categorías, escala numérica acotada) se pliega a una línea con su valor, su nota y «Change» al contestarlo; un campo numérico libre nunca se pliega. Las instrucciones de la cola están abiertas en el primer item y plegadas después (botón «Instructions»).
+- **Teclado**: `1-9` elige y pasa al siguiente criterio, `Intro` envía, `S` salta, `N` abre la nota del criterio activo. Se ignoran dentro de campos de texto y con Ctrl/Cmd/Alt. «Mark unreviewable» no tiene atajo a propósito: retira el item para todos.
+- **Un solo botón primario**: «Submit & next» (con `Intro`); «Skip» y «Mark unreviewable» son enlaces discretos debajo.
+- **Traza técnica**: ya no se despliega en la pantalla; el enlace «Technical trace ↗» (solo con `trace:read_technical`) abre el detalle de la traza en otra pestaña.
+- **Sin selector de fechas**: la ruta lleva `timeRange: false` porque el rango no afecta a lo que se revisa.

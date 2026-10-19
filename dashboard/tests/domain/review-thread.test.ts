@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { conversationTurns, humanizeName } from "@/domain/review-thread";
+import { conversationTurns, foldForReview, humanizeName } from "@/domain/review-thread";
 import { langchainAdapter } from "@/domain/span-io";
 
 describe("conversationTurns", () => {
@@ -37,5 +37,30 @@ describe("conversationTurns", () => {
   it("humanizes function names", () => {
     expect(humanizeName("get_weather")).toBe("Get weather");
     expect(humanizeName("searchOrders")).toBe("Search orders");
+  });
+});
+
+describe("foldForReview", () => {
+  const history = [
+    { role: "user", content: "Hola" },
+    { role: "assistant", content: "¡Hola! ¿En qué puedo ayudarte?" },
+    { role: "user", content: "¿qué tiempo hace en Asturias?" },
+    { role: "assistant", content: [{ type: "tool_call", id: "c1", name: "get_weather", arguments: { location: "Asturias" } }, { type: "tool_call", id: "c2", name: "get_uv_and_pollen", arguments: { location: "Asturias" } }] },
+    { role: "user", content: [{ type: "tool_call_response", id: "c1", result: { t: 26 } }, { type: "tool_call_response", id: "c2", result: { uv: 2 } }] },
+    { role: "assistant", content: "Hay 26 °C." },
+  ];
+
+  it("sets aside what came before the last user message and folds the tool steps after it into one row", () => {
+    const { earlier, recent } = foldForReview(conversationTurns(langchainAdapter.parse(history)));
+    expect(earlier.map((t) => t.kind)).toEqual(["user", "message"]);
+    expect(recent.map((t) => t.kind)).toEqual(["user", "steps", "answer"]);
+    const steps = recent[1]!;
+    expect(steps.kind === "steps" && steps.actions).toHaveLength(2);
+    expect(steps.kind === "steps" && steps.data[0]?.source).toBe("Get weather");
+  });
+
+  it("leaves a conversation without earlier messages or tools as it is", () => {
+    const turns = conversationTurns(langchainAdapter.parse([{ role: "user", content: "Hola" }, { role: "assistant", content: "Buenas" }]));
+    expect(foldForReview(turns)).toEqual({ earlier: [], recent: turns });
   });
 });

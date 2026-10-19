@@ -58,7 +58,7 @@ export const router = createRouter({
         // rutas anteriores (favoritos): redirigen a la pantalla única con el filtro equivalente
         { path: "annotation-queues/all", redirect: (to) => ({ name: "annotation-queues", params: to.params, query: { scope: "all" } }) },
         { path: "annotation-queues/archived", redirect: (to) => ({ name: "annotation-queues", params: to.params, query: { scope: "all", status: "archived" } }) },
-        { path: "annotation-queues/:queueId/review", name: "annotation-queue-review", component: () => import("./pages/AnnotationQueueReviewPage.vue"), props: true, meta: { title: "Review", section: "review", framed: true } },
+        { path: "annotation-queues/:queueId/review", name: "annotation-queue-review", component: () => import("./pages/AnnotationQueueReviewPage.vue"), props: true, meta: { title: "Review", section: "review", framed: true, timeRange: false } },
         // registro de prompts (ADR-067): versiones inmutables y tags por entorno
         { path: "prompts", name: "prompts", component: () => import("./pages/PromptsPage.vue"), meta: { title: "Prompts", section: "prompts", timeRange: false } },
         { path: "prompts/:promptId", name: "prompt", component: () => import("./pages/PromptDetailPage.vue"), props: true, meta: { title: "Prompt", section: "prompts", framed: true, timeRange: false } },
