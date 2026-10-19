@@ -34,6 +34,12 @@ export const updateAssistantBody = z
   })
   .partial();
 
+export const riskBody = z.object({
+  level: z.enum(["minimal", "limited", "high"]),
+  intendedPurpose: text(2000).default(""),
+  knownLimitations: text(2000).default(""),
+});
+
 export const deployBody = z.object({
   /** solo para saltarse el gate (hotfix): el motivo queda en el historial */
   bypassReason: z.string().max(500).nullable().default(null),

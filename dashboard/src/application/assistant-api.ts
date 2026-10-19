@@ -1,4 +1,4 @@
-import type {
+import type { RiskInputDto,
   AccessGrantDto,
   AssistantPersonDto,
   AssistantCardDto,
@@ -53,6 +53,8 @@ export interface AssistantApi {
   /** Todo experimento tiene ficha: un experimento es un agente (ADR-054). */
   getAssistant(experimentId: string, signal?: AbortSignal): Promise<AssistantCardDto>;
   updateAssistant(experimentId: string, patch: AssistantPatchInput, signal?: AbortSignal): Promise<AssistantCardDto>;
+  /** Clasifica el riesgo del agente (ADR-102). Bajar el nivel exige ser administrador de la organización (403 si no). */
+  classifyRisk(experimentId: string, input: RiskInputDto, signal?: AbortSignal): Promise<AssistantCardDto>;
 
   listEnvironments(experimentId: string, signal?: AbortSignal): Promise<EnvironmentDto[]>;
   createDeployment(experimentId: string, environmentKey: string, input: DeploymentInput, signal?: AbortSignal): Promise<DeploymentDto>;

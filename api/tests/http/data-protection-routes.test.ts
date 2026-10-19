@@ -3,6 +3,7 @@
  * cada una cierra la puerta sin el permiso exacto, con los módulos de sesión y de composición sustituidos por dobles.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { RetentionConfirmationRequiredError } from "@/domain/errors";
 
 const state = {
   user: { id: "u1", email: "ana@example.com", name: "Ana", image: null } as { id: string; email: string; name: string | null; image: string | null } | null,
@@ -28,9 +29,12 @@ vi.mock("@/dependency-container", () => ({
     identityRepository: { getExperiment: async () => ({ id: "exp1", organizationId: "org1", name: "Weather", serviceName: "weather" }) },
   }),
   getRetention: () => ({
-    getPolicy: async () => ({ organizationId: "org1", defaultDays: 30, minDays: 1, maxDays: 365, experiments: [] }),
-    setOrganizationDefault: async (_o: string, days: number) => ({ organizationId: "org1", defaultDays: days, minDays: 1, maxDays: 365, experiments: [] }),
-    setExperimentOverride: async () => ({ organizationId: "org1", defaultDays: 30, minDays: 1, maxDays: 365, experiments: [] }),
+    getPolicy: async () => ({ organizationId: "org1", minDays: 1, maxDays: 365, aiActFloorDays: 180, levels: [], agents: [] }),
+    setLevelDays: async (_o: string, level: string, days: number, _actor: unknown, confirm: boolean) => {
+      if (level === "minimal" && days < 30 && !confirm) throw new RetentionConfirmationRequiredError({ level: "minimal", previousDays: 30, days, lowering: true, agents: 2, spans: 10 });
+      return { organizationId: "org1", minDays: 1, maxDays: 365, aiActFloorDays: 180, levels: [{ level, days, minDays: 1, agents: 0 }], agents: [] };
+    },
+    previewLevelChange: async (_o: string, level: string, days: number) => ({ level, previousDays: 30, days, lowering: days < 30, agents: 0, spans: 0 }),
   }),
   getAudit: () => ({ list: async (...args: unknown[]) => (state.audit.push(args), { items: [], nextCursor: null }) }),
   getExport: () => ({
@@ -42,13 +46,14 @@ vi.mock("@/dependency-container", () => ({
   }),
 }));
 
-const { GET: getRetention, PUT: putRetention } = await import("@/app/api/v1/organizations/[organizationId]/retention/route");
-const { PUT: putExperimentRetention } = await import("@/app/api/v1/organizations/[organizationId]/experiments/[experimentId]/retention/route");
+const { GET: getRetention } = await import("@/app/api/v1/organizations/[organizationId]/risk-policy/route");
+const { PUT: putRetention } = await import("@/app/api/v1/organizations/[organizationId]/risk-policy/[level]/route");
+const { GET: previewRetention } = await import("@/app/api/v1/organizations/[organizationId]/risk-policy/[level]/preview/route");
 const { GET: getAudit } = await import("@/app/api/v1/organizations/[organizationId]/audit/route");
 const { GET: getExport } = await import("@/app/api/v1/experiments/[experimentId]/export/route");
 
 const orgCtx = { params: Promise.resolve({ organizationId: "org1" }) };
-const expOrgCtx = { params: Promise.resolve({ organizationId: "org1", experimentId: "exp1" }) };
+const levelCtx = (level: string) => ({ params: Promise.resolve({ organizationId: "org1", level }) });
 const expCtx = { params: Promise.resolve({ experimentId: "exp1" }) };
 const put = (body: unknown) => new Request("http://x/", { method: "PUT", body: JSON.stringify(body), headers: { "content-type": "application/json" } });
 
@@ -61,13 +66,20 @@ beforeEach(() => {
   state.exportPreviews = [];
 });
 
-describe("retention routes", () => {
-  it("need retention:manage to read or change", async () => {
+describe("risk policy routes (retention per level, ADR-102)", () => {
+  it("changing a period needs retention:manage; other organization permissions are not enough", async () => {
+    expect((await putRetention(put({ days: 10 }), levelCtx("limited"))).status).toBe(403);
+    expect((await previewRetention(new Request("http://x/?days=10"), levelCtx("limited"))).status).toBe(403);
+    state.orgPermissions = ["audit:read", "org:manage", "governance:manage"];
+    expect((await putRetention(put({ days: 10 }), levelCtx("limited"))).status).toBe(403);
+  });
+
+  it("reading needs retention:manage or governance:read", async () => {
     expect((await getRetention(new Request("http://x/"), orgCtx)).status).toBe(403);
-    expect((await putRetention(put({ days: 10 }), orgCtx)).status).toBe(403);
-    expect((await putExperimentRetention(put({ days: 10 }), expOrgCtx)).status).toBe(403);
-    state.orgPermissions = ["audit:read", "org:manage"]; // otros permisos de org no bastan
-    expect((await putRetention(put({ days: 10 }), orgCtx)).status).toBe(403);
+    state.orgPermissions = ["governance:read"];
+    expect((await getRetention(new Request("http://x/"), orgCtx)).status).toBe(200);
+    state.orgPermissions = ["retention:manage"];
+    expect((await getRetention(new Request("http://x/"), orgCtx)).status).toBe(200);
   });
 
   it("need a session", async () => {
@@ -75,14 +87,29 @@ describe("retention routes", () => {
     expect((await getRetention(new Request("http://x/"), orgCtx)).status).toBe(401);
   });
 
-  it("work with the permission, and reject a body that is not a number", async () => {
+  it("work with the permission, and reject a body that is not a number or a level that does not exist", async () => {
     state.orgPermissions = ["retention:manage"];
-    expect((await getRetention(new Request("http://x/"), orgCtx)).status).toBe(200);
-    const ok = await putRetention(put({ days: 10 }), orgCtx);
+    const ok = await putRetention(put({ days: 90 }), levelCtx("limited"));
     expect(ok.status).toBe(200);
-    expect((await ok.json()).defaultDays).toBe(10);
-    expect((await putRetention(put({ days: "ten" }), orgCtx)).status).toBe(400);
-    expect((await putExperimentRetention(put({ days: null }), expOrgCtx)).status).toBe(200);
+    expect((await ok.json()).levels[0]).toMatchObject({ level: "limited", days: 90 });
+    expect((await putRetention(put({ days: "ten" }), levelCtx("limited"))).status).toBe(400);
+    expect((await putRetention(put({ days: 10 }), levelCtx("critical"))).status).toBe(404);
+    expect((await previewRetention(new Request("http://x/?days=10"), levelCtx("critical"))).status).toBe(404);
+  });
+
+  it("lowering answers 409 with what would be lost, and goes through with confirmLowering", async () => {
+    state.orgPermissions = ["retention:manage"];
+    const refused = await putRetention(put({ days: 10 }), levelCtx("minimal"));
+    expect(refused.status).toBe(409);
+    expect((await refused.json()).preview).toMatchObject({ level: "minimal", agents: 2, spans: 10 });
+    expect((await putRetention(put({ days: 10, confirmLowering: true }), levelCtx("minimal"))).status).toBe(200);
+  });
+
+  it("the preview shows the effect without changing anything", async () => {
+    state.orgPermissions = ["retention:manage"];
+    const res = await previewRetention(new Request("http://x/?days=10"), levelCtx("minimal"));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ lowering: true, days: 10 });
   });
 });
 

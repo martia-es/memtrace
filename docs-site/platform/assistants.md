@@ -57,10 +57,21 @@ jobs:
 
 Deploying from MemTrace works with GitHub for now, and your administrator must set it up once (the full step-by-step guide, including the public address for local use, is [Set up deploys from MemTrace](./deploy-setup)): create a GitHub App with *Contents: read*, *Actions: write* and *Metadata: read*, install it on the repositories of your assistants and point its webhook (event *Workflow runs*) to `/api/v1/webhooks/github`. Its credentials live in the server's environment (`GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_WEBHOOK_SECRET`), never in the database or the browser. Without them everything else works and **Deploy** says it is not configured.
 
+## Risk classification
+
+Each agent declares how risky its use case is: `minimal`, `limited` or `high` (in the spirit of the EU AI Act), plus its **intended purpose** and **known limitations**. The purpose is required for `high`. A new agent is **unclassified**, which is not the same as `minimal`: it means nobody has reviewed it yet, so it shows as a warning.
+
+The level is declared and managed in **Settings › organization › Risk & retention**, next to the retention period of each level: the traces of an agent are kept for the period of its level ([Data protection](./data-protection#how-long-traces-are-kept)). There each agent has **Classify** or **Change level**, which opens a dialog with the level, the purpose and the limitations, and warns if the new level shortens the retention of its traces.
+
+Everywhere else the level is read-only: a chip on each card of the catalog (**High risk**, **Minimal risk**, **Unclassified**) with a **Risk** filter and a count of the unclassified agents, and a **Risk** line on the agent's page with a link to Settings.
+
+Classifying needs the `governance:manage` permission. **Lowering** the level needs an organization admin (`org:manage`), so the people subject to the requirements of a level cannot remove them. Every change goes to the [audit log](./data-protection#the-audit-log) with the previous and the new level. The level is a declaration: it depends on the use case, not on the traces, and MemTrace does not check that it is right.
+
 ## API
 
 | Endpoint | Description |
 |---|---|
+| `PUT /experiments/{experimentId}/risk` | Classify the agent: `{ level, intendedPurpose, knownLimitations }`. Returns the card, whose `risk` has the level (`null` = unclassified), who classified it and when. `403` if you try to lower the level without being an organization admin |
 | `GET /organizations/{organizationId}/assistants` | The catalog |
 | `GET, PATCH /experiments/{experimentId}/assistant` | The card of an experiment; edit its description, owner, lifecycle or chat endpoint (`chat`: `path`, `requestField`, `responseField`, `sessionField`; `null` removes it) |
 | `GET /experiments/{experimentId}/assistant/deploy-gate?sha=` | Can this commit be deployed? Answers `allowed`, and a `verdict` (`allowed`, `rollback`, `no_evaluation`, `evaluation_running`, `only_dirty_runs`, `failed`, `insufficient_runs`) with the reason and the evaluations that were checked. A commit can be deployed when its latest offline evaluation, run from the CI on that exact commit, reaches the pass-rate target of every boolean evaluator (80% unless the evaluator's score config says otherwise) and scored every item of the run: if some items failed to run (an LLM quota, a timeout), the evaluators only scored the rest and the run is rejected. Evaluations run with uncommitted changes do not count |

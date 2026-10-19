@@ -23,6 +23,8 @@ export const AUDIT_ACTIONS = [
   /** un `org_admin` eximió a un agente de la regla de aprobación de la organización en un paso, o lo revirtió (ADR-076) */
   "approval_exemption.grant",
   "approval_exemption.revoke",
+  /** una persona clasificó el riesgo de un agente o cambió su nivel (ADR-102) */
+  "risk.classify",
   "partnership.create",
   "partnership.revoke",
   "partner_grant.create",

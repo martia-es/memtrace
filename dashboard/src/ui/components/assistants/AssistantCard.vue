@@ -3,6 +3,8 @@ import { computed } from "vue";
 import type { AssistantCardDto, EnvironmentDto } from "@contract";
 import { formatClock, formatDuration } from "@/domain/format";
 import { HEALTH_LABEL, ROLE_LABEL, accessSummary, authSummary, cardTone, featuredDeployment, formatUptime, headline, initials, personLabel } from "@/domain/assistants";
+import { RISK_LABEL, RISK_TONE, levelOf } from "@/domain/risk";
+import Pill from "../Pill.vue";
 import PersonAvatar from "./PersonAvatar.vue";
 import { t, tp } from "../../i18n";
 
@@ -75,6 +77,7 @@ const peopleLabel = computed(() => props.card.members.preview.map((m) => `${pers
     </div>
 
     <div class="chips">
+      <Pill :tone="RISK_TONE[levelOf(card.risk)]" data-testid="risk-chip">{{ card.risk.level === null ? RISK_LABEL.unclassified : t("assistantCard.risk_level", { level: RISK_LABEL[levelOf(card.risk)] }) }}</Pill>
       <span v-for="m in mcpChips" :key="m" class="chip mcp"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0zM12 18v4" /></svg>{{ m }}</span>
       <span class="chip tools"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.7 2.7-2.3-.7-.7-2.3z" /></svg>{{ tp("assistantCard.tools", counts.tools) }}</span>
       <span class="chip agents"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8.6 13.5l6.8 4M15.4 6.5l-6.8 4" /></svg>{{ tp("assistantCard.agents", counts.agents) }}</span>

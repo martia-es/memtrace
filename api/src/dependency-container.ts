@@ -45,6 +45,7 @@ import { PromptFailureService } from "@/application/prompt-failure-service";
 import { PromptMapService } from "@/application/prompt-map-service";
 import { ChartCatalogService } from "@/application/chart-catalog-service";
 import { MAX_RETENTION_DAYS } from "@/domain/retention";
+import { ClickHouseTraceCounter } from "@/adapters/outbound/clickhouse/clickhouse-trace-counter";
 import { RetentionService } from "@/application/retention-service";
 import { ModelQualityService } from "@/application/model-quality-service";
 import { PostgresModelQualityRepository } from "@/adapters/outbound/postgres/postgres-model-quality-repository";
@@ -358,9 +359,13 @@ export function getAudit(): AuditService {
   return globalForContainer.__memtraceAudit;
 }
 
-/** Plazos de retención (ADR-084). La API solo los cambia; el borrado lo hace el CronJob `retention-purge`, que lleva su propio cliente. */
+/** Plazos de retención por nivel de riesgo (ADR-084, ADR-102). La API solo los cambia; el borrado lo hace el CronJob `retention-purge`, que lleva su propio cliente. */
 export function getRetention(): RetentionService {
-  if (!globalForContainer.__memtraceRetention) globalForContainer.__memtraceRetention = new RetentionService(new PostgresRetentionRepository(getPostgresPool()), getAudit());
+  if (!globalForContainer.__memtraceRetention) {
+    const config = configFromEnv();
+    // el contador solo lee (cliente de solo lectura): la API sigue sin poder borrar (ADR-084)
+    globalForContainer.__memtraceRetention = new RetentionService(new PostgresRetentionRepository(getPostgresPool()), getAudit(), undefined, new ClickHouseTraceCounter(createReadOnlyClient(config), config.database));
+  }
   return globalForContainer.__memtraceRetention;
 }
 

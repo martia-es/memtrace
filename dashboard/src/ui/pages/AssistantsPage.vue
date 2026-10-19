@@ -7,6 +7,7 @@ import { useAssistantApi } from "../composables/useAssistantApi";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { hasPermission } from "../composables/usePermissions";
 import { HEALTH_LABEL } from "@/domain/assistants";
+import { RISK_LABEL, levelOf } from "@/domain/risk";
 import AssistantCard from "../components/assistants/AssistantCard.vue";
 import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
@@ -74,6 +75,7 @@ const cards = computed(() => catalog.data.value ?? []);
 const search = ref("");
 const environment = ref<string | undefined>(undefined);
 const status = ref<string | undefined>(undefined);
+const risk = ref<string | undefined>(undefined);
 const onlyIssues = ref(false);
 
 const slots = computed(() => {
@@ -83,6 +85,7 @@ const slots = computed(() => {
 });
 const environmentOptions = computed(() => slots.value.map((s) => ({ label: s.label, value: s.key })));
 const statusOptions = (["up", "degraded", "down", "unknown"] as const).map((s) => ({ label: HEALTH_LABEL[s], value: s }));
+const riskOptions = (["high", "limited", "minimal", "unclassified"] as const).map((l) => ({ label: RISK_LABEL[l], value: l }));
 
 const visible = computed(() => {
   const q = search.value.trim().toLowerCase();
@@ -90,6 +93,7 @@ const visible = computed(() => {
     if (q && ![c.name, c.description, c.owner?.name ?? "", c.owner?.email ?? ""].some((t) => t.toLowerCase().includes(q))) return false;
     if (environment.value && !c.deployments.some((d) => d.environment.key === environment.value)) return false;
     if (status.value && !c.deployments.some((d) => d.healthStatus === status.value && (!environment.value || d.environment.key === environment.value))) return false;
+    if (risk.value && levelOf(c.risk) !== risk.value) return false;
     if (onlyIssues.value && !(c.status === "down" || c.status === "degraded" || c.connectionCounts.toReview > 0)) return false;
     return true;
   });
@@ -104,6 +108,7 @@ const summary = computed(() => {
     deployed: deployments.length,
     attention: deployments.filter((d) => d.healthStatus === "down" || d.healthStatus === "degraded").length,
     toReview: cards.value.reduce((n, c) => n + c.connectionCounts.toReview, 0),
+    unclassified: cards.value.filter((c) => c.risk.level === null).length,
   };
 });
 
@@ -133,6 +138,7 @@ const organizationOptions = computed(() => readable.value.map((o) => ({ label: o
         <div class="stat ok"><b>{{ summary.up }} / {{ summary.deployed }}</b><span>{{ t("assistantsPage.environments_up") }}</span></div>
         <div class="stat" :class="{ err: summary.attention > 0 }"><b>{{ summary.attention }}</b><span>{{ t("assistantsPage.degraded_or_down") }}</span></div>
         <div class="stat" :class="{ warn: summary.toReview > 0 }"><b>{{ summary.toReview }}</b><span>{{ t("assistantsPage.connections_to_review") }}</span></div>
+        <div class="stat" :class="{ warn: summary.unclassified > 0 }" data-testid="unclassified-count"><b>{{ summary.unclassified }}</b><span>{{ t("assistantsPage.unclassified") }}</span></div>
         <div class="grow" />
         <span class="hint">{{ t("assistantsPage.health_is_checked_automatically_this_pag") }}</span>
       </Card>
@@ -141,6 +147,7 @@ const organizationOptions = computed(() => readable.value.map((o) => ({ label: o
         <TextInput type="search" v-model="search" :placeholder="t('assistantsPage.search_by_name_description_or_owner')" class="search" />
         <FilterPill :label="t('assistantsPage.environment')" :model-value="environment" :options="environmentOptions" all-label="All" @update:model-value="environment = $event" />
         <FilterPill :label="t('assistantsPage.status')" :model-value="status" :options="statusOptions" all-label="All" @update:model-value="status = $event" />
+        <FilterPill :label="t('assistantsPage.risk')" :model-value="risk" :options="riskOptions" all-label="All" @update:model-value="risk = $event" />
         <Checkbox class="toggle" v-model="onlyIssues">{{ t("assistantsPage.only_with_issues") }}</Checkbox>
       </div>
 

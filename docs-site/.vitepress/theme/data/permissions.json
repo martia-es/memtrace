@@ -134,6 +134,7 @@
         "Registering assistants in the catalog",
         "Approving or blocking the tools, MCP servers and agents an assistant uses",
         "Adding or removing who can call each environment",
+        "Declaring the risk level of an agent (lowering it needs an organization admin)",
         "Skipping the evaluation gate when promoting a prompt (an emergency), with a written reason"
       ]
     },
@@ -233,10 +234,10 @@
     {
       "id": "retention:manage",
       "group": "Data protection",
-      "description": "Choose how many days traces are kept, for the organization and for each experiment.",
+      "description": "Choose how many days traces are kept for each risk level (High and Unclassified never below 180).",
       "unlocks": [
-        "Setting the default retention of the organization (1 to 365 days)",
-        "Giving one experiment a shorter retention than the organization"
+        "Setting the retention of each risk level (1 to 365 days, at least 180 for High and Unclassified)",
+        "Confirming a lower period, which deletes the traces older than it"
       ]
     },
     {

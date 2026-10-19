@@ -75,6 +75,7 @@ Do **not** write one for a new screen, an endpoint that follows an existing patt
 | 099 | Deduplicated Span Storage with ReplacingMergeTree | [storage/adr-099-deduplicated-span-storage.md](storage/adr-099-deduplicated-span-storage.md) |
 | 100 | ArcadeDB as the Knowledge Store of Phase 2 (Mem), Optional and Behind a Port | [storage/adr-100-arcadedb-knowledge-store.md](storage/adr-100-arcadedb-knowledge-store.md) |
 | 101 | LLM Provider Keys Held by MemTrace, Sealed for a Single Worker | [cybersecurity/adr-101-provider-keys-held-by-memtrace.md](cybersecurity/adr-101-provider-keys-held-by-memtrace.md) |
+| 102 | Agent Risk Classification and Risk-Based Requirements | [governance/adr-102-agent-risk-classification.md](governance/adr-102-agent-risk-classification.md) |
 
 ## Retired ADRs
 

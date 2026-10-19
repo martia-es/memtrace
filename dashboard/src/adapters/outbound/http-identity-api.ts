@@ -1,4 +1,4 @@
-import type { AlertEventsPageDto, AlertRuleDto, AlertsOverviewDto, AuditPageDto, BudgetViewDto, ChartCatalogEntryDto, CustomMetricDefinitionDto, ModelMatchBody, ModelQualityCandidatesResponse, ModelQualityPendingResponse, ModelQualityResponse, NotificationsDto, OpenAlertsDto, PartnerClientDto, PartnerGrantDto, PartnershipDto, RetentionPolicyDto, ScoreConfigDto } from "@contract";
+import type { AlertEventsPageDto, AlertRuleDto, AlertsOverviewDto, AuditPageDto, BudgetViewDto, ChartCatalogEntryDto, CustomMetricDefinitionDto, ModelMatchBody, ModelQualityCandidatesResponse, ModelQualityPendingResponse, ModelQualityResponse, NotificationsDto, OpenAlertsDto, PartnerClientDto, PartnerGrantDto, PartnershipDto, LevelChangePreviewDto, RetentionLevelDto, RetentionPolicyDto, ScoreConfigDto } from "@contract";
 import { ApiError } from "@/application/trace-api";
 import type {
   AlertRuleBody,
@@ -118,16 +118,16 @@ export class HttpIdentityApi implements IdentityApi {
     return this.get("/model-quality/pending", signal);
   }
 
-  getRetention(organizationId: string, signal?: AbortSignal): Promise<RetentionPolicyDto> {
-    return this.get(`/organizations/${encodeURIComponent(organizationId)}/retention`, signal);
+  getRiskPolicy(organizationId: string, signal?: AbortSignal): Promise<RetentionPolicyDto> {
+    return this.get(`/organizations/${encodeURIComponent(organizationId)}/risk-policy`, signal);
   }
 
-  setOrganizationRetention(organizationId: string, days: number, signal?: AbortSignal): Promise<RetentionPolicyDto> {
-    return this.put(`/organizations/${encodeURIComponent(organizationId)}/retention`, { days }, signal);
+  previewLevelRetention(organizationId: string, level: RetentionLevelDto, days: number, signal?: AbortSignal): Promise<LevelChangePreviewDto> {
+    return this.get(`/organizations/${encodeURIComponent(organizationId)}/risk-policy/${level}/preview?days=${days}`, signal);
   }
 
-  setExperimentRetention(organizationId: string, experimentId: string, days: number | null, signal?: AbortSignal): Promise<RetentionPolicyDto> {
-    return this.put(`/organizations/${encodeURIComponent(organizationId)}/experiments/${encodeURIComponent(experimentId)}/retention`, { days }, signal);
+  setLevelRetention(organizationId: string, level: RetentionLevelDto, days: number, confirmLowering: boolean, signal?: AbortSignal): Promise<RetentionPolicyDto> {
+    return this.put(`/organizations/${encodeURIComponent(organizationId)}/risk-policy/${level}`, { days, confirmLowering }, signal);
   }
 
   listAuditLog(organizationId: string, filter: { action?: string; experimentId?: string; from?: string; to?: string; cursor?: string; limit?: number }, signal?: AbortSignal): Promise<AuditPageDto> {

@@ -3,7 +3,7 @@ import { AssistantRegistryService } from "@/application/assistant-registry-servi
 import type { AssistantRegistryRepository } from "@/application/ports/assistant-registry-repository";
 import type { ChatCallResult, ChatClient } from "@/application/ports/chat-client";
 import type { AssistantCard, Connection, Deployment } from "@/domain/assistant-registry";
-import { AssistantInvariantError, AssistantNotFoundError, AssistantUpstreamError, ValidationError } from "@/domain/errors";
+import { AssistantForbiddenError, AssistantInvariantError, AssistantNotFoundError, AssistantUpstreamError, ValidationError } from "@/domain/errors";
 
 const NOW = new Date("2026-10-05T12:00:00Z");
 const connection = (o: Partial<Connection>): Connection => ({
@@ -170,5 +170,32 @@ describe("AssistantRegistryService.chat (ADR-055)", () => {
     await expect(service.update("e1", { chat: { ...chatConfig, path: "api/chat" } })).rejects.toBeInstanceOf(ValidationError);
     await expect(service.update("e1", { chat: { ...chatConfig, traceIdField: "bad key" } })).rejects.toBeInstanceOf(ValidationError);
     expect(update).not.toHaveBeenCalled();
+  });
+  describe("classifyRisk (ADR-102)", () => {
+    const input = { level: "limited" as const, intendedPurpose: "Answers weather questions", knownLimitations: "" };
+    const withLevel = (level: AssistantCard["risk"]["level"]) => ({ risk: { level } }) as unknown as AssistantCard;
+
+    it("classifies an unclassified agent and returns the previous level for the audit", async () => {
+      const setRisk = vi.fn(async () => withLevel("limited"));
+      const { service } = build({ getCard: async () => withLevel(null), setRisk });
+      const out = await service.classifyRisk("e1", input, { id: "u1", canLower: false });
+      expect(out.previous).toBeNull();
+      expect(setRisk).toHaveBeenCalledWith("e1", input, "u1", NOW);
+    });
+
+    it("refuses to lower the level unless the actor administers the organization", async () => {
+      const setRisk = vi.fn(async () => withLevel("limited"));
+      const { service } = build({ getCard: async () => withLevel("high"), setRisk });
+      await expect(service.classifyRisk("e1", input, { id: "u1", canLower: false })).rejects.toBeInstanceOf(AssistantForbiddenError);
+      expect(setRisk).not.toHaveBeenCalled();
+      await expect(service.classifyRisk("e1", input, { id: "u2", canLower: true })).resolves.toMatchObject({ previous: "high" });
+    });
+
+    it("validates before touching the store", async () => {
+      const getCard = vi.fn();
+      const { service } = build({ getCard });
+      await expect(service.classifyRisk("e1", { ...input, level: "high", intendedPurpose: "" }, { id: "u1", canLower: true })).rejects.toBeInstanceOf(ValidationError);
+      expect(getCard).not.toHaveBeenCalled();
+    });
   });
 });

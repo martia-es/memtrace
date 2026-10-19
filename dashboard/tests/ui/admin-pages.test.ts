@@ -121,7 +121,7 @@ describe("admin pages", () => {
     const { wrapper } = await setup(AdminOrganizationPage, "/admin/organizations/org-1", new AdminFakeIdentityApi([org], [exp]));
     const nav = useSettingsNav().settingsNav.value!;
     expect(nav.title).toBe(org.name);
-    expect(nav.sections.map((s) => s.label)).toEqual(["Experiments", "Members", "Approvals", "Data protection", "Partners", "Identity", "Appearance"]);
+    expect(nav.sections.map((s) => s.label)).toEqual(["Experiments", "Members", "Approvals", "Risk & retention", "Data protection", "Partners", "Identity", "Appearance"]);
     expect(nav.sections.find((s) => s.id === "experiments")?.count).toBe(1);
     wrapper.unmount();
     expect(useSettingsNav().settingsNav.value).toBeNull();

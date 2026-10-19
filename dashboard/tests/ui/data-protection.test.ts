@@ -64,16 +64,7 @@ const type = (el: Element | null | undefined, value: string) => {
 };
 const button = (wrapper: ReturnType<typeof mount>, text: string) => wrapper.findAll("button").filter((b) => b.text() === text);
 
-function withRetention(identity: Fake) {
-  identity.retention = {
-    organizationId: "org-1", defaultDays: 90, minDays: 1, maxDays: 365,
-    experiments: [
-      { experimentId: "exp-1", name: "Support bot", serviceName: "support-bot", overrideDays: null, effectiveDays: 90 },
-      { experimentId: "exp-2", name: "Sensitive bot", serviceName: "sensitive-bot", overrideDays: 7, effectiveDays: 7 },
-    ],
-  };
-  return identity;
-}
+const withRetention = (identity: Fake) => identity;
 
 describe("Data protection tab (organization)", () => {
   it("is offered to people who can manage retention or read the audit log, and to nobody else", async () => {
@@ -86,80 +77,118 @@ describe("Data protection tab (organization)", () => {
     expect(sectionLabels()).not.toContain("Data protection");
   });
 
-  it("shows the audit log without the retention panel when only audit:read is granted", async () => {
+  it("shows the audit log and points to Risk & retention, where retention is now set", async () => {
     const identity = new Fake([{ ...org, permissions: ["org:manage", "audit:read"] }], [exp()]);
     const { wrapper } = await setup(AdminOrganizationPage, "/admin/organizations/org-1?tab=data", identity);
     expect(wrapper.text()).toContain("Audit log");
     expect(wrapper.text()).not.toContain("How long traces are kept");
+    expect(wrapper.find('input[type="number"]').exists()).toBe(false);
+    expect(wrapper.get('[data-testid="retention-moved"]').text()).toContain("Risk & retention");
   });
 
-  describe("retention", () => {
-    const open = async () => {
-      const identity = withRetention(new Fake([org], [exp()]));
-      const { wrapper } = await setup(AdminOrganizationPage, "/admin/organizations/org-1?tab=data", identity);
+  describe("risk & retention (ADR-102)", () => {
+    const open = async (over: Partial<OrganizationDto> = {}, configure: (identity: Fake) => void = () => undefined) => {
+      const identity = new Fake([{ ...org, ...over }], [exp()]);
+      configure(identity);
+      const { wrapper } = await setup(AdminOrganizationPage, "/admin/organizations/org-1?tab=risk", identity);
       return { identity, wrapper };
     };
+    const days = (wrapper: ReturnType<typeof mount>, level: string) => wrapper.get(`input[aria-label="Retention of ${level} agents in days"]`);
 
-    it("shows the organization default and the effective period of every experiment", async () => {
+    it("is a section of the Governance group, offered to who manages retention or reads governance", async () => {
+      await open();
+      expect(sectionLabels()).toContain("Risk & retention");
+      await setup(AdminOrganizationPage, "/admin/organizations/org-1", new Fake([{ ...org, myRole: null, permissions: [] }], [exp()]));
+      expect(sectionLabels()).not.toContain("Risk & retention");
+    });
+
+    it("shows one block per level with its period, the AI Act floor and the agents in it", async () => {
       const { wrapper } = await open();
-      expect(wrapper.text()).toContain("How long traces are kept");
-      expect((wrapper.get('input[aria-label="Organization retention in days"]').element as HTMLInputElement).value).toBe("90");
-      const rows = wrapper.findAll("tbody tr").filter((r) => r.text().includes("bot"));
-      expect(rows[0]!.text()).toContain("90 days");
-      expect(rows[1]!.text()).toContain("7 days");
+      expect(wrapper.text()).toContain("cannot go below 180 days");
+      for (const [level, value] of [["High", "365"], ["Limited", "90"], ["Minimal", "30"], ["Unclassified", "180"]] as Array<[string, string]>) {
+        expect((days(wrapper, level).element as HTMLInputElement).value).toBe(value);
+      }
+      expect(wrapper.get('[data-testid="level-high"]').text()).toContain("claims-assistant");
+      expect(wrapper.get('[data-testid="level-high"]').text()).toContain("Marta F.");
+      expect(wrapper.get('[data-testid="level-unclassified"]').text()).toContain("rag-assistant");
+      expect(wrapper.get('[data-testid="level-unclassified"]').text()).toContain("Never classified");
+      expect(wrapper.get('[data-testid="level-limited"]').text()).toContain("No agents at this level");
     });
 
-    it("says that the dashboard can show up to a year, and that older data no longer exists", async () => {
+    it("saves a period only when it changed and is valid, and never below the floor", async () => {
+      const { wrapper, identity } = await open();
+      const save = () => wrapper.get('[data-testid="save-high"]');
+      expect(save().attributes("disabled")).toBeDefined();
+      type(days(wrapper, "High").element, "100"); // por debajo del suelo del AI Act
+      await flushPromises();
+      expect(save().attributes("disabled")).toBeDefined();
+      expect(wrapper.get('[data-testid="level-high"]').text()).toContain("Choose a whole number from 180 to 365");
+      type(days(wrapper, "High").element, "400");
+      await flushPromises();
+      expect(save().attributes("disabled")).toBeDefined();
+      type(days(wrapper, "High").element, "365");
+      await flushPromises();
+      expect(save().attributes("disabled")).toBeDefined(); // igual que lo guardado
+      type(days(wrapper, "Limited").element, "120");
+      await flushPromises();
+      await wrapper.get('[data-testid="save-limited"]').trigger("click");
+      await flushPromises();
+      expect(identity.retentionCalls).toEqual([{ level: "limited", days: 120, confirmLowering: false }]);
+    });
+
+    it("lowering a period with agents shows what would be lost and needs confirmation", async () => {
+      const { wrapper, identity } = await open({}, (i) => { i.previewAgents = 1; i.previewSpans = 1200; });
+      type(days(wrapper, "Minimal").element, "10");
+      await flushPromises();
+      await wrapper.get('[data-testid="save-minimal"]').trigger("click");
+      await flushPromises();
+      expect(identity.retentionCalls).toEqual([]);
+      const confirm = wrapper.get('[data-testid="confirm-lowering"]');
+      expect(confirm.text()).toContain("Lowering Minimal from 30 to 10 days affects 1 agent");
+      expect(confirm.text()).toContain("1,200 spans");
+      expect(confirm.text()).toContain("cannot be recovered");
+      await wrapper.get('[data-testid="confirm-lower"]').trigger("click");
+      await flushPromises();
+      expect(identity.retentionCalls).toEqual([{ level: "minimal", days: 10, confirmLowering: true }]);
+      expect(wrapper.find('[data-testid="confirm-lowering"]').exists()).toBe(false);
+    });
+
+    it("cancelling a lowering keeps the old period and saves nothing", async () => {
+      const { wrapper, identity } = await open({}, (i) => { i.previewAgents = 1; });
+      type(days(wrapper, "Minimal").element, "10");
+      await flushPromises();
+      await wrapper.get('[data-testid="save-minimal"]').trigger("click");
+      await flushPromises();
+      await button(wrapper, "Cancel")[0]!.trigger("click");
+      expect((days(wrapper, "Minimal").element as HTMLInputElement).value).toBe("30");
+      expect(identity.retentionCalls).toEqual([]);
+    });
+
+    it("lowering a level nobody is in saves straight away", async () => {
+      const { wrapper, identity } = await open();
+      type(days(wrapper, "Limited").element, "10");
+      await flushPromises();
+      await wrapper.get('[data-testid="save-limited"]').trigger("click");
+      await flushPromises();
+      expect(identity.retentionCalls).toEqual([{ level: "limited", days: 10, confirmLowering: false }]);
+    });
+
+    it("without retention:manage the periods are read-only", async () => {
+      const { wrapper } = await open({ permissions: ["governance:read", "governance:manage", "org:manage"] });
+      expect(wrapper.find('[data-testid="retention-readonly"]').exists()).toBe(true);
+      expect(days(wrapper, "High").attributes("disabled")).toBeDefined();
+      expect(wrapper.find('[data-testid="save-high"]').exists()).toBe(false);
+    });
+
+    it("without governance:manage nobody can change an agent's level", async () => {
+      const { wrapper } = await open({ permissions: ["governance:read", "retention:manage", "org:manage"] });
+      expect(wrapper.find('[data-testid="classify-rag-assistant"]').exists()).toBe(false);
+    });
+
+    it("an unclassified agent offers Classify and a classified one Change level", async () => {
       const { wrapper } = await open();
-      expect(wrapper.text()).toContain("can show up to a year");
-    });
-
-    it("saves a new organization period only when it changed and is valid", async () => {
-      const { wrapper, identity } = await open();
-      const save = () => button(wrapper, "Save")[0]!;
-      expect(save().attributes("disabled")).toBeDefined();
-      const input = wrapper.get('input[aria-label="Organization retention in days"]');
-      type(input.element, "0");
-      await flushPromises();
-      expect(save().attributes("disabled")).toBeDefined();
-      expect(wrapper.text()).toContain("Choose a whole number from 1 to 365");
-      type(input.element, "400");
-      await flushPromises();
-      expect(save().attributes("disabled")).toBeDefined();
-      type(input.element, "60");
-      await flushPromises();
-      expect(save().attributes("disabled")).toBeUndefined();
-      await save().trigger("click");
-      await flushPromises();
-      expect(identity.retentionCalls).toEqual([{ scope: "organization", id: "org-1", days: 60 }]);
-    });
-
-    it("warns, before saving, that a shorter organization period replaces longer own periods", async () => {
-      const identity = withRetention(new Fake([org], [exp()]));
-      identity.retention.experiments[1]!.overrideDays = 60;
-      identity.retention.experiments[1]!.effectiveDays = 60;
-      const { wrapper } = await setup(AdminOrganizationPage, "/admin/organizations/org-1?tab=data", identity);
-      type(wrapper.get('input[aria-label="Organization retention in days"]').element, "30");
-      await flushPromises();
-      expect(wrapper.text()).toContain("1 experiment with a longer own period will use this one instead");
-    });
-
-    it("sets an own period for an experiment, within the organization's, and goes back to the default", async () => {
-      const { wrapper, identity } = await open();
-      const input = wrapper.get('input[aria-label="Own retention of Support bot in days"]');
-      type(input.element, "120"); // más largo que la organización: no se puede
-      await flushPromises();
-      const rowSave = () => wrapper.findAll("tbody tr").find((r) => r.text().includes("Support bot"))!.findAll("button").find((b) => b.text() === "Save")!;
-      expect(rowSave().attributes("disabled")).toBeDefined();
-      type(input.element, "14");
-      await flushPromises();
-      await rowSave().trigger("click");
-      await flushPromises();
-      expect(identity.retentionCalls).toEqual([{ scope: "experiment", id: "exp-1", days: 14 }]);
-
-      await button(wrapper, "Use default")[1]!.trigger("click"); // el de «Sensitive bot», que tenía 7
-      await flushPromises();
-      expect(identity.retentionCalls[1]).toEqual({ scope: "experiment", id: "exp-2", days: null });
+      expect(wrapper.get('[data-testid="classify-rag-assistant"]').text()).toBe("Classify");
+      expect(wrapper.get('[data-testid="classify-claims-assistant"]').text()).toBe("Change level");
     });
   });
 

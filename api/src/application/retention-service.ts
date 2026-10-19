@@ -1,8 +1,9 @@
 import type { AuditService } from "@/application/audit-service";
 import type { RetentionRepository } from "@/application/ports/retention-repository";
+import type { TraceCounter } from "@/application/ports/trace-counter";
 import type { TracePurger } from "@/application/ports/trace-purger";
-import { RetentionTargetNotFoundError, ValidationError } from "@/domain/errors";
-import { retentionCutoff, validateRetentionDays, type RetentionPolicy } from "@/domain/retention";
+import { RetentionConfirmationRequiredError, RetentionTargetNotFoundError } from "@/domain/errors";
+import { retentionCutoff, retentionLevelOf, validateLevelRetention, type LevelChangePreview, type RetentionLevel, type RetentionPolicy } from "@/domain/retention";
 
 export interface Actor {
   userId: string;
@@ -16,7 +17,7 @@ export interface PurgeSummary {
 }
 
 /**
- * Retención de trazas (ADR-084): lo que ve y cambia una persona con `retention:manage` (la ruta lo comprueba) y la pasada
+ * Retención de trazas (ADR-084, ADR-102): lo que ve y cambia una persona con `retention:manage` (la ruta lo comprueba) y la pasada
  * diaria que borra lo vencido. Cada cambio y cada borrado queda en el registro de auditoría.
  */
 export class RetentionService {
@@ -24,6 +25,7 @@ export class RetentionService {
     private readonly repo: RetentionRepository,
     private readonly audit: AuditService,
     private readonly purger?: TracePurger,
+    private readonly counter?: TraceCounter,
   ) {}
 
   async getPolicy(organizationId: string): Promise<RetentionPolicy> {
@@ -32,41 +34,46 @@ export class RetentionService {
     return policy;
   }
 
-  /** Cambia el plazo de la organización. Si acorta, los overrides más largos que el nuevo plazo se quitan. */
-  async setOrganizationDefault(organizationId: string, days: unknown, actor: Actor): Promise<RetentionPolicy> {
-    const value = validateRetentionDays(days);
-    const result = await this.repo.setOrganizationDefault(organizationId, value);
-    if (!result) throw new RetentionTargetNotFoundError("Organization not found");
+  /** Qué pasaría al dejar un nivel en `days`: cuántos agentes y cuántos spans perderían datos. No cambia nada. */
+  async previewLevelChange(organizationId: string, level: RetentionLevel, days: unknown): Promise<LevelChangePreview> {
+    const value = validateLevelRetention(level, days);
+    const policy = await this.getPolicy(organizationId);
+    const previousDays = policy.levels.find((l) => l.level === level)!.days;
+    const lowering = value < previousDays;
+    const affected = lowering ? policy.agents.filter((a) => retentionLevelOf(a.level) === level) : [];
+    let spans: number | null = lowering ? null : 0;
+    if (lowering && this.counter && affected.length > 0) {
+      try {
+        const cutoff = retentionCutoff(new Date(), value);
+        spans = 0;
+        for (const a of affected) spans += await this.counter.countOlderThan({ experimentId: a.experimentId, serviceName: a.serviceName }, cutoff);
+      } catch (error) {
+        spans = null;
+        console.error("[retention] could not count spans for the preview:", error);
+      }
+    } else if (lowering && affected.length === 0) {
+      spans = 0;
+    }
+    return { level, previousDays, days: value, lowering, agents: affected.length, spans };
+  }
+
+  /**
+   * Fija el plazo de un nivel. El suelo del AI Act lo impone el dominio. Bajarlo con agentes en ese nivel borra datos en la
+   * próxima purga y no se deshace: pide `confirmLowering` (la pantalla enseña antes lo que se perdería).
+   */
+  async setLevelDays(organizationId: string, level: RetentionLevel, days: unknown, actor: Actor, confirmLowering = false): Promise<RetentionPolicy> {
+    const preview = await this.previewLevelChange(organizationId, level, days);
+    if (preview.lowering && preview.agents > 0 && !confirmLowering) throw new RetentionConfirmationRequiredError(preview);
+    if (!(await this.repo.setLevelDays(organizationId, level, preview.days))) throw new RetentionTargetNotFoundError("Organization not found");
     await this.audit.record({
       organizationId,
       experimentId: null,
       actorUserId: actor.userId,
       actorLabel: actor.email,
       action: "retention.update",
-      targetType: "organization",
-      targetId: organizationId,
-      metadata: { days: value, clearedOverrides: result.clearedExperimentIds.length },
-    });
-    return this.getPolicy(organizationId);
-  }
-
-  /** Pone o quita (null) el plazo propio de un experimento. No puede ser más largo que el de la organización. */
-  async setExperimentOverride(organizationId: string, experimentId: string, days: unknown, actor: Actor): Promise<RetentionPolicy> {
-    const policy = await this.getPolicy(organizationId);
-    const value = days === null ? null : validateRetentionDays(days);
-    if (value !== null && value > policy.defaultDays) {
-      throw new ValidationError("Invalid retention", { days: `An experiment can keep traces for less time than its organization (${policy.defaultDays} days), not more` });
-    }
-    if (!(await this.repo.setExperimentOverride(organizationId, experimentId, value))) throw new RetentionTargetNotFoundError("Experiment not found in this organization");
-    await this.audit.record({
-      organizationId,
-      experimentId,
-      actorUserId: actor.userId,
-      actorLabel: actor.email,
-      action: "retention.update",
-      targetType: "experiment",
-      targetId: experimentId,
-      metadata: { days: value },
+      targetType: "risk_level",
+      targetId: level,
+      metadata: { level, days: preview.days, previousDays: preview.previousDays, agents: preview.agents },
     });
     return this.getPolicy(organizationId);
   }

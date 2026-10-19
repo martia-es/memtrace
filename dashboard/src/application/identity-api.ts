@@ -15,6 +15,8 @@ import type {
   PartnerClientDto,
   PartnerGrantDto,
   PartnershipDto,
+  LevelChangePreviewDto,
+  RetentionLevelDto,
   RetentionPolicyDto,
   ScoreConfigDto,
 } from "@contract";
@@ -196,11 +198,12 @@ export interface IdentityApi {
   addOrgAdmin(organizationId: string, email: string, signal?: AbortSignal): Promise<void>;
   listOrgMembers(organizationId: string, signal?: AbortSignal): Promise<MembersResponseDto>;
   updateOrganizationTheme(organizationId: string, theme: OrganizationThemeDto, signal?: AbortSignal): Promise<OrganizationDto>;
-  /** Retención de trazas (ADR-084): plazo de la organización y efectivo de cada experimento. Exige `retention:manage`. */
-  getRetention(organizationId: string, signal?: AbortSignal): Promise<RetentionPolicyDto>;
-  setOrganizationRetention(organizationId: string, days: number, signal?: AbortSignal): Promise<RetentionPolicyDto>;
-  /** `days: null` quita el plazo propio del experimento. No puede superar el de la organización. */
-  setExperimentRetention(organizationId: string, experimentId: string, days: number | null, signal?: AbortSignal): Promise<RetentionPolicyDto>;
+  /** Retención de trazas por nivel de riesgo (ADR-102): el plazo de cada nivel y el de cada agente. Exige `retention:manage` o `governance:read`. */
+  getRiskPolicy(organizationId: string, signal?: AbortSignal): Promise<RetentionPolicyDto>;
+  /** Qué agentes y cuántos spans perderían datos al dejar el nivel en `days`. No cambia nada. */
+  previewLevelRetention(organizationId: string, level: RetentionLevelDto, days: number, signal?: AbortSignal): Promise<LevelChangePreviewDto>;
+  /** Fija el plazo de un nivel. Bajarlo con agentes en él exige `confirmLowering`. `high` y `unclassified` no bajan de 180 días. */
+  setLevelRetention(organizationId: string, level: RetentionLevelDto, days: number, confirmLowering: boolean, signal?: AbortSignal): Promise<RetentionPolicyDto>;
   /** Registro de auditoría de la organización, de más reciente a más antiguo (ADR-084). Exige `audit:read`. */
   listAuditLog(organizationId: string, filter: { action?: string; experimentId?: string; from?: string; to?: string; cursor?: string; limit?: number }, signal?: AbortSignal): Promise<AuditPageDto>;
   /** Consultoras con acceso a la organización y las personas concretas con su rol (ADR-091). Solo org_admin. */

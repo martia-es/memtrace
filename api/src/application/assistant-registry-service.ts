@@ -32,7 +32,8 @@ import {
   type ProbeResult,
   type ProbeTarget,
 } from "@/domain/assistant-registry";
-import { AssistantInvariantError, AssistantNotFoundError, AssistantUpstreamError, ValidationError } from "@/domain/errors";
+import { isLowering, validateRiskInput, type RiskInput } from "@/domain/risk";
+import { AssistantForbiddenError, AssistantInvariantError, AssistantNotFoundError, AssistantUpstreamError, ValidationError } from "@/domain/errors";
 
 /** Uso de tools observado en trazas (ClickHouse). Puerto propio para no acoplar el registro al repositorio de trazas. */
 export interface ToolUsageSource {
@@ -75,6 +76,21 @@ export class AssistantRegistryService {
     const card = await this.repo.update(experimentId, patch);
     if (!card) throw new AssistantNotFoundError("Assistant");
     return card;
+  }
+
+  /**
+   * Clasifica el riesgo del agente (ADR-102). Bajar el nivel exige `canLower` (administrar la organización): quien está
+   * sujeto a los requisitos de un nivel no puede quitárselos. Devuelve la ficha y el nivel anterior, para la auditoría.
+   */
+  async classifyRisk(experimentId: string, input: RiskInput, actor: { id: string; canLower: boolean }): Promise<{ card: AssistantCard; previous: RiskInput["level"] | null }> {
+    validateRiskInput(input);
+    const previous = (await this.getCard(experimentId)).risk.level;
+    if (isLowering(previous, input.level) && !actor.canLower) {
+      throw new AssistantForbiddenError("Only an organization admin can lower the risk level of an agent");
+    }
+    const card = await this.repo.setRisk(experimentId, input, actor.id, this.now());
+    if (!card) throw new AssistantNotFoundError("Agent");
+    return { card, previous };
   }
 
   // ── Despliegues ─────────────────────────────────────────────────────────────────────────────────────────────

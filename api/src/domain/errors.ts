@@ -1,3 +1,5 @@
+import type { LevelChangePreview } from "./retention";
+
 export class ValidationError extends Error {
   constructor(
     message: string,
@@ -105,6 +107,17 @@ export class DatasetRunNotFoundError extends Error {
   }
 }
 
+/**
+ * Bajar el plazo de un nivel borra datos en la próxima purga (ADR-102): hay que confirmarlo. Lleva lo que se perdería para que
+ * la pantalla lo enseñe. Sale como 409.
+ */
+export class RetentionConfirmationRequiredError extends Error {
+  constructor(readonly preview: LevelChangePreview) {
+    super("Lowering this retention deletes traces at the next purge: confirm it");
+    this.name = "RetentionConfirmationRequiredError";
+  }
+}
+
 /** El asistente (o el despliegue, la conexión, el acceso) pedido no existe en ese experimento (ADR-053). */
 export class AssistantNotFoundError extends Error {
   constructor(readonly what: string) {
@@ -118,6 +131,14 @@ export class AssistantInvariantError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "AssistantInvariantError";
+  }
+}
+
+/** Quien pide el cambio no puede hacerlo (p. ej. bajar el nivel de riesgo de un agente, ADR-102). Sale como 403. */
+export class AssistantForbiddenError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AssistantForbiddenError";
   }
 }
 

@@ -5,6 +5,8 @@ import { useAsync } from "../composables/useAsync";
 import { useAssistantAccess } from "../composables/useAssistantAccess";
 import { useAssistantApi } from "../composables/useAssistantApi";
 import { ROLE_LABEL, headline, personLabel } from "@/domain/assistants";
+import { RISK_LABEL, RISK_TONE, levelOf } from "@/domain/risk";
+import Pill from "../components/Pill.vue";
 import PersonAvatar from "../components/assistants/PersonAvatar.vue";
 import AssistantConnections from "../components/assistants/AssistantConnections.vue";
 import AssistantEnvironments from "../components/assistants/AssistantEnvironments.vue";
@@ -26,7 +28,7 @@ const REFRESH_MS = 30_000;
 const route = useRoute();
 const router = useRouter();
 const api = useAssistantApi();
-const { canManage, canGovern, canDeploy, canManagePeople } = useAssistantAccess(() => props.experimentId);
+const { canManage, canGovern, canDeploy, canManagePeople, organizationId } = useAssistantAccess(() => props.experimentId);
 
 const card = useAsync((signal) => api.getAssistant(props.experimentId, signal));
 void card.run();
@@ -88,6 +90,13 @@ const editing = ref(false);
             <div v-if="card.data.value.repo" class="fact" data-testid="repo">
               <dt>{{ t("assistantDetailPage.repository") }}</dt>
               <dd><a :href="card.data.value.repo.url" target="_blank" rel="noopener noreferrer" class="mono">{{ card.data.value.repo.url.replace(/^https:\/\//, "") }}</a></dd>
+            </div>
+            <div class="fact" data-testid="risk">
+              <dt>{{ t("assistantDetailPage.risk") }}</dt>
+              <dd>
+                <Pill :tone="RISK_TONE[levelOf(card.data.value.risk)]">{{ RISK_LABEL[levelOf(card.data.value.risk)] }}</Pill>
+                <router-link v-if="organizationId" :to="{ name: 'admin-organization', params: { organizationId }, query: { tab: 'risk' } }" class="traces" data-testid="manage-risk">{{ t("assistantDetailPage.manage_in_settings") }}</router-link>
+              </dd>
             </div>
             <div class="fact people" data-testid="people">
               <dt>{{ t("assistantDetailPage.people") }}</dt>
