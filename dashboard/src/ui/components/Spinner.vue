@@ -3,7 +3,7 @@ import { t } from "../i18n";
 /**
  * Indicador de carga propio: el logo de MemTrace "destilando" trazas en conocimiento. Tres trazas (turquesa)
  * se escriben, se juntan y se funden en una barra coral.
- * `size`: sm = 18 px (inline), md = 36 px, lg = 64 px (página).
+ * `size`: sm = 18 px (inline), md = 48 px, lg = 96 px (página).
  * `tone`: `brand` pinta el logo con sus colores, turquesa y coral, directamente sobre el fondo (por defecto);
  * `current` usa solo el color del texto, para ir dentro de botones y controles.
  */
@@ -32,8 +32,8 @@ withDefaults(defineProps<{ size?: "sm" | "md" | "lg"; tone?: "brand" | "current"
 .mt-spinner svg { width: 100%; height: 100%; display: block; }
 /* Prefijo propio: LoadingState y otros padres definen `.s-sm/.s-md/.s-lg` y, siendo scoped, también pegarían en esta raíz. */
 .spin-sm { width: 18px; height: 18px; }
-.spin-md { width: 36px; height: 36px; }
-.spin-lg { width: 64px; height: 64px; }
+.spin-md { width: 48px; height: 48px; }
+.spin-lg { width: 96px; height: 96px; }
 
 .b {
   fill: #00b3ad;

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import Spinner from "./Spinner.vue";
 
-/** Estado de carga centrado de una zona (página, tarjeta o panel). El tamaño marca también el aire alrededor. */
+/** Estado de carga centrado de una zona (página, tarjeta o panel). El tamaño marca también el aire alrededor; `lg` ocupa buena parte de la altura para que el loader quede centrado. */
 withDefaults(defineProps<{ size?: "sm" | "md" | "lg" }>(), { size: "lg" });
 </script>
 
@@ -13,5 +13,5 @@ withDefaults(defineProps<{ size?: "sm" | "md" | "lg" }>(), { size: "lg" });
 .mt-loading { display: flex; align-items: center; justify-content: center; }
 .s-sm { padding: 10px; }
 .s-md { padding: 24px; }
-.s-lg { padding: 60px; }
+.s-lg { min-height: min(60vh, 480px); padding: 24px; }
 </style>
