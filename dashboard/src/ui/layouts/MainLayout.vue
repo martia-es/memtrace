@@ -19,6 +19,7 @@ import LiveControl from "../components/LiveControl.vue";
 import { liveSeconds, liveUpdatedAt, requestRefresh, setRefreshSeconds } from "../composables/useLiveRefresh";
 import { useTopbar } from "../composables/useTopbar";
 import Button from "../components/Button.vue";
+import LoadingState from "../components/LoadingState.vue";
 import { useSettingsNav, withGroupHeaders } from "../composables/useSettingsNav";
 import { routeTitle, t, type MessageKey } from "../i18n";
 
@@ -106,6 +107,8 @@ const navTo = (c: NavChild) => ({ name: c.name, params: { experimentId: navExper
 // design screens (conversations, trace) manage their own scroll; the rest go in a card that scrolls
 const framed = computed(() => route.meta.framed === true);
 const experimentOptions = computed(() => experiments.data.value ?? []);
+/** Al abrir la app, el guard del router espera a la identidad y a la lista de experimentos antes de resolver la ruta: mientras tanto no hay vista y se muestra el loader. */
+const booting = computed(() => !route.name || route.name === "home");
 const currentExperimentId = computed(() => (route.params.experimentId as string | undefined) ?? null);
 const currentExperiment = computed(() => experimentOptions.value.find((e) => e.id === currentExperimentId.value) ?? null);
 provide(CURRENT_EXPERIMENT, currentExperiment);
@@ -285,7 +288,8 @@ function switchExperiment(experimentId: string | null) {
         <AlertBell />
       </header>
       <main class="content" :class="{ scroll: !framed }">
-        <router-view v-if="framed" />
+        <LoadingState v-if="booting" size="lg" />
+        <router-view v-else-if="framed" />
         <q-layout v-else view="hHh lpR fFf" container class="layout">
           <q-page-container><router-view /></q-page-container>
         </q-layout>

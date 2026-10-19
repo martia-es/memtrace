@@ -11,7 +11,7 @@ withDefaults(defineProps<{ size?: "sm" | "md" | "lg"; tone?: "brand" | "current"
 </script>
 
 <template>
-  <span class="mt-spinner" :class="[`s-${size}`, `tone-${tone}`]" role="status" :aria-label="t('spinner.loading')">
+  <span class="mt-spinner" :class="[`spin-${size}`, `tone-${tone}`]" role="status" :aria-label="t('spinner.loading')">
     <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">
       <rect class="b b1" x="5" y="7" width="15" height="5" rx="2.5" />
       <rect class="b b2t" x="10" y="14" width="18" height="5" rx="2.5" />
@@ -30,9 +30,10 @@ withDefaults(defineProps<{ size?: "sm" | "md" | "lg"; tone?: "brand" | "current"
  */
 .mt-spinner { display: inline-flex; flex: none; line-height: 0; }
 .mt-spinner svg { width: 100%; height: 100%; display: block; }
-.s-sm { width: 18px; height: 18px; }
-.s-md { width: 36px; height: 36px; }
-.s-lg { width: 64px; height: 64px; }
+/* Prefijo propio: LoadingState y otros padres definen `.s-sm/.s-md/.s-lg` y, siendo scoped, también pegarían en esta raíz. */
+.spin-sm { width: 18px; height: 18px; }
+.spin-md { width: 36px; height: 36px; }
+.spin-lg { width: 64px; height: 64px; }
 
 .b {
   fill: #00b3ad;
