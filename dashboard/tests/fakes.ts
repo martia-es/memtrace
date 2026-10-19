@@ -1,5 +1,5 @@
 import { permissionsOf } from "./permissions";
-import type { AlertEventsPageDto, AlertRuleDto, AlertsOverviewDto, MonthCostDto, AuditPageDto, BudgetViewDto, ChartCatalogEntryDto, ModelMatchBody, ModelQualityCandidatesResponse, ModelQualityPendingResponse, ModelQualityResponse, NotificationsDto, OpenAlertsDto, PartnerClientDto, PartnerGrantDto, PartnershipDto, RetentionPolicyDto } from "@contract";
+import type { AlertEventsPageDto, AlertRuleDto, AlertsOverviewDto, MonthCostDto, AuditPageDto, BudgetViewDto, ChartCatalogEntryDto, ModelMatchBody, ModelQualityCandidatesResponse, ModelQualityPendingResponse, ModelQualityResponse, NotificationsDto, OpenAlertsDto, PartnerClientDto, PartnerGrantDto, PartnershipDto, LevelChangePreviewDto, RetentionLevelDto, RetentionPolicyDto } from "@contract";
 import type {
   AddQueueItemsResponse,
   BreakdownResponse,
@@ -93,6 +93,25 @@ import {
 const NO_THEME: OrganizationThemeDto = EMPTY_THEME;
 
 /** Puerto de identidad (ADR-013): usada solo por OnboardingGuide en estas pruebas de UI, sin sesión real. */
+/** Política de riesgo de ejemplo (ADR-102): un agente en cada nivel, con el plazo de su nivel. */
+export function riskPolicy(over: Partial<RetentionPolicyDto> = {}): RetentionPolicyDto {
+  return {
+    organizationId: "org-1", minDays: 1, maxDays: 365, aiActFloorDays: 180,
+    levels: [
+      { level: "high", days: 365, minDays: 180, agents: 1 },
+      { level: "limited", days: 90, minDays: 1, agents: 0 },
+      { level: "minimal", days: 30, minDays: 1, agents: 1 },
+      { level: "unclassified", days: 180, minDays: 180, agents: 1 },
+    ],
+    agents: [
+      { experimentId: "exp-1", name: "claims-assistant", serviceName: "claims", level: "high", effectiveDays: 365, intendedPurpose: "Classifies motor-insurance claims by type and urgency.", classifiedBy: { id: "u1", name: "Marta F.", email: "m@acme.test" }, classifiedAt: "2026-10-19T10:00:00.000Z" },
+      { experimentId: "exp-2", name: "weather-assistant", serviceName: "weather", level: "minimal", effectiveDays: 30, intendedPurpose: "", classifiedBy: null, classifiedAt: null },
+      { experimentId: "exp-3", name: "rag-assistant", serviceName: "rag", level: null, effectiveDays: 180, intendedPurpose: "", classifiedBy: null, classifiedAt: null },
+    ],
+    ...over,
+  };
+}
+
 export class FakeIdentityApi implements IdentityApi {
   async getMe(): Promise<CurrentUser | null> {
     return null;
@@ -190,26 +209,22 @@ export class FakeIdentityApi implements IdentityApi {
   async getModelQualityPending(): Promise<ModelQualityPendingResponse> {
     return this.modelQualityPending;
   }
-  retention: RetentionPolicyDto = { organizationId: "org-1", defaultDays: 30, minDays: 1, maxDays: 365, experiments: [] };
-  retentionCalls: Array<{ scope: "organization" | "experiment"; id: string; days: number | null }> = [];
-  async getRetention(): Promise<RetentionPolicyDto> {
+  retention: RetentionPolicyDto = riskPolicy();
+  retentionCalls: Array<{ level: string; days: number; confirmLowering: boolean }> = [];
+  /** lo que contestaría la vista previa de un cambio de plazo */
+  previewAgents = 0;
+  previewSpans: number | null = 0;
+  async getRiskPolicy(): Promise<RetentionPolicyDto> {
     return this.retention;
   }
-  async setOrganizationRetention(_organizationId: string, days: number): Promise<RetentionPolicyDto> {
-    this.retentionCalls.push({ scope: "organization", id: _organizationId, days });
-    this.retention = {
-      ...this.retention,
-      defaultDays: days,
-      experiments: this.retention.experiments.map((e) => ({ ...e, overrideDays: e.overrideDays !== null && e.overrideDays > days ? null : e.overrideDays, effectiveDays: Math.min(days, e.overrideDays ?? days) })),
-    };
-    return this.retention;
+  async previewLevelRetention(_organizationId: string, level: RetentionLevelDto, days: number): Promise<LevelChangePreviewDto> {
+    const previousDays = this.retention.levels.find((l) => l.level === level)!.days;
+    const lowering = days < previousDays;
+    return { level, previousDays, days, lowering, agents: lowering ? this.previewAgents : 0, spans: lowering ? this.previewSpans : 0 };
   }
-  async setExperimentRetention(_organizationId: string, experimentId: string, days: number | null): Promise<RetentionPolicyDto> {
-    this.retentionCalls.push({ scope: "experiment", id: experimentId, days });
-    this.retention = {
-      ...this.retention,
-      experiments: this.retention.experiments.map((e) => (e.experimentId === experimentId ? { ...e, overrideDays: days, effectiveDays: days ?? this.retention.defaultDays } : e)),
-    };
+  async setLevelRetention(_organizationId: string, level: RetentionLevelDto, days: number, confirmLowering: boolean): Promise<RetentionPolicyDto> {
+    this.retentionCalls.push({ level, days, confirmLowering });
+    this.retention = { ...this.retention, levels: this.retention.levels.map((l) => (l.level === level ? { ...l, days } : l)) };
     return this.retention;
   }
   auditPage: AuditPageDto = { items: [], nextCursor: null };
@@ -956,6 +971,7 @@ export class FakeAssistantApi implements AssistantApi {
   async listCatalog() { return this.catalog; }
   async getAssistant() { return this.card; }
   async updateAssistant(experimentId: string, patch: unknown) { this.record("updateAssistant", experimentId, patch); return this.card; }
+  async classifyRisk(experimentId: string, input: unknown) { this.record("classifyRisk", experimentId, input); return this.card; }
   async listEnvironments() { return [{ id: "env-pre", key: "pre", label: "PRE", position: 1, isProduction: false, healthIntervalSeconds: 300 }]; }
   async createDeployment(experimentId: string, key: string, input: unknown) { this.record("createDeployment", experimentId, key, input); return deploymentDto(key, "unknown"); }
   async updateDeployment(experimentId: string, id: string, patch: unknown) { this.record("updateDeployment", experimentId, id, patch); return deploymentDto("pro", "up"); }

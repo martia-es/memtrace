@@ -13,7 +13,7 @@ import InviteForm from "../../components/admin/InviteForm.vue";
 import OrganizationAppearance from "../../components/admin/OrganizationAppearance.vue";
 import OrganizationIdentity from "../../components/admin/OrganizationIdentity.vue";
 import ApprovalRulesPanel from "../../components/admin/ApprovalRulesPanel.vue";
-import OrganizationRetention from "../../components/admin/OrganizationRetention.vue";
+import OrganizationRiskPolicy from "../../components/admin/OrganizationRiskPolicy.vue";
 import AuditLogPanel from "../../components/admin/AuditLogPanel.vue";
 import OrganizationPartners from "../../components/admin/OrganizationPartners.vue";
 import { hasPermission } from "../../composables/usePermissions";
@@ -43,12 +43,15 @@ const orgExperiments = computed(() => dir.experiments.value.filter((e) => e.orga
 const orgMembers = computed(() => dir.membersByOrg[props.organizationId]);
 // protección de datos (ADR-084): retención y registro de auditoría, cada uno con su permiso
 const canRetention = computed(() => hasPermission(organization.value, "retention:manage"));
+const canGovernanceRead = computed(() => hasPermission(organization.value, "governance:read"));
+const canGovernanceManage = computed(() => hasPermission(organization.value, "governance:manage"));
 const canAudit = computed(() => hasPermission(organization.value, "audit:read"));
 
 const ICONS = {
   experiments: "M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3",
   members: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8",
   approvals: "M9 12l2 2 4-4M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z",
+  risk: "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM12 8v4M12 16h.01",
   data: "M6 11h12v10H6zM8 11V7a4 4 0 0 1 8 0v4",
   partners: "M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1",
   identity: "M3 5h18v14H3zM8 11a2 2 0 1 0 0-4 2 2 0 0 0 0 4M5 17c0-2 1.5-3 3-3s3 1 3 3M14 9h4M14 13h4",
@@ -59,7 +62,8 @@ const sections = computed<SettingsSection[]>(() => {
   if (isOrgAdmin.value) {
     list.push({ id: "members", label: t("adminOrganizationPage.members"), icon: ICONS.members, group: t("adminOrganizationPage.workspace"), count: (orgMembers.value?.members.length ?? 0) + (orgMembers.value?.pendingInvitations.length ?? 0) });
     list.push({ id: "approvals", label: t("adminOrganizationPage.approvals"), icon: ICONS.approvals, group: t("adminOrganizationPage.governance") });
-    if (canRetention.value || canAudit.value) list.push({ id: "data", label: t("adminOrganizationPage.data_protection"), icon: ICONS.data, group: t("adminOrganizationPage.governance") });
+    if (canRetention.value || canGovernanceRead.value) list.push({ id: "risk", label: t("adminOrganizationPage.risk_retention"), icon: ICONS.risk, group: t("adminOrganizationPage.governance") });
+    if (canAudit.value) list.push({ id: "data", label: t("adminOrganizationPage.data_protection"), icon: ICONS.data, group: t("adminOrganizationPage.governance") });
     list.push({ id: "partners", label: t("adminOrganizationPage.partners"), icon: ICONS.partners, group: t("adminOrganizationPage.organization") });
     list.push({ id: "identity", label: t("adminOrganizationPage.identity"), icon: ICONS.identity, group: t("adminOrganizationPage.organization") });
     list.push({ id: "appearance", label: t("adminOrganizationPage.appearance"), icon: ICONS.appearance, group: t("adminOrganizationPage.organization") });
@@ -185,8 +189,14 @@ async function inviteOrgAdmin({ email }: { email: string }) {
           </div>
         </section>
 
+        <section v-if="tab === 'risk' && organization && isOrgAdmin" class="panel">
+          <OrganizationRiskPolicy :organization="organization" :can-classify="canGovernanceManage" :can-edit-retention="canRetention" :can-lower="isOrgAdmin" />
+        </section>
+
         <section v-if="tab === 'data' && organization && isOrgAdmin" class="panel">
-          <OrganizationRetention v-if="canRetention" :organization="organization" />
+          <p class="adm-hint" data-testid="retention-moved">
+            {{ t("adminOrganizationPage.trace_retention_is_set_by_risk_level_in") + " " }}<router-link :to="{ name: 'admin-organization', params: { organizationId }, query: { tab: 'risk' } }">{{ t("adminOrganizationPage.risk_retention") }}</router-link>.
+          </p>
           <AuditLogPanel v-if="canAudit" :organization="organization" :experiments="orgExperiments" />
         </section>
 

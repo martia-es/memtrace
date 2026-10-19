@@ -21,5 +21,11 @@ export function useAssistantAccess(experimentId: MaybeRefOrGetter<string>) {
   const canDeploy = computed(() => governs.value || hasPermission(experiment.value, "deploy:run"));
   // quién forma parte del agente se elige en los miembros del experimento (Settings): hace falta `member:manage`
   const canManagePeople = computed(() => hasPermission(experiment.value, "member:manage"));
-  return { canManage, canGovern, canDeploy, canManagePeople, loading: computed(() => experiments.loading.value || organizations.loading.value) };
+  // el riesgo se gestiona en Settings de la organización: el enlace solo se ofrece a quien puede leer la gobernanza (ADR-102)
+  const organizationId = computed(() => {
+    const orgId = experiment.value?.organizationId;
+    const org = (organizations.data.value ?? []).find((o) => o.id === orgId);
+    return orgId && org && (hasPermission(org, "governance:read") || hasPermission(org, "retention:manage")) ? orgId : null;
+  });
+  return { canManage, canGovern, canDeploy, canManagePeople, organizationId, loading: computed(() => experiments.loading.value || organizations.loading.value) };
 }

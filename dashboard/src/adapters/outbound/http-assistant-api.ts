@@ -1,4 +1,4 @@
-import type { AccessGrantDto, AssistantPersonDto, AssistantCardDto, ChatResponseDto, ConnectionDto, ConnectionKindDto, ConnectionStatusDto, DeployPreviewDto, DeployRunDto, DeploymentDto, EnvironmentDto, HealthCheckDto } from "@contract";
+import type { RiskInputDto, AccessGrantDto, AssistantPersonDto, AssistantCardDto, ChatResponseDto, ConnectionDto, ConnectionKindDto, ConnectionStatusDto, DeployPreviewDto, DeployRunDto, DeploymentDto, EnvironmentDto, HealthCheckDto } from "@contract";
 import type { AssistantApi, AssistantPatchInput, DeploymentInput, NewGrantInput } from "@/application/assistant-api";
 import { ApiError } from "@/application/trace-api";
 
@@ -20,6 +20,10 @@ export class HttpAssistantApi implements AssistantApi {
   }
   updateAssistant(experimentId: string, patch: AssistantPatchInput, signal?: AbortSignal): Promise<AssistantCardDto> {
     return this.request("PATCH", this.assistant(experimentId), patch, signal);
+  }
+
+  classifyRisk(experimentId: string, input: RiskInputDto, signal?: AbortSignal): Promise<AssistantCardDto> {
+    return this.request("PUT", `/experiments/${e(experimentId)}/risk`, input, signal);
   }
 
   async listEnvironments(experimentId: string, signal?: AbortSignal): Promise<EnvironmentDto[]> {
