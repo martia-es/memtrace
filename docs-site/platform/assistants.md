@@ -59,9 +59,13 @@ Deploying from MemTrace works with GitHub for now, and your administrator must s
 
 ## Risk classification
 
-Each agent can declare how risky its use case is: `minimal`, `limited` or `high` (in the spirit of the EU AI Act), plus its **intended purpose** and **known limitations**. The purpose is required for `high`. A new agent is **unclassified**, which is not the same as `minimal`: it means nobody has reviewed it yet. MemTrace records who classified the agent and when, and every change goes to the [audit log](./data-protection#the-audit-log) with the previous and the new level.
+Each agent declares how risky its use case is: `minimal`, `limited` or `high` (in the spirit of the EU AI Act), plus its **intended purpose** and **known limitations**. The purpose is required for `high`. A new agent is **unclassified**, which is not the same as `minimal`: it means nobody has reviewed it yet, so it shows as a warning.
 
-Classifying needs the `governance:manage` permission. **Lowering** the level needs an organization admin (`org:manage`), so the people subject to the requirements of a level cannot remove them. The level is a declaration: it depends on the use case, not on the traces, and MemTrace does not check that it is right.
+The level is declared and managed in **Settings › organization › Risk & retention**, next to the retention period of each level: the traces of an agent are kept for the period of its level ([Data protection](./data-protection#how-long-traces-are-kept)). There each agent has **Classify** or **Change level**, which opens a dialog with the level, the purpose and the limitations, and warns if the new level shortens the retention of its traces.
+
+Everywhere else the level is read-only: a chip on each card of the catalog (**High risk**, **Minimal risk**, **Unclassified**) with a **Risk** filter and a count of the unclassified agents, and a **Risk** line on the agent's page with a link to Settings.
+
+Classifying needs the `governance:manage` permission. **Lowering** the level needs an organization admin (`org:manage`), so the people subject to the requirements of a level cannot remove them. Every change goes to the [audit log](./data-protection#the-audit-log) with the previous and the new level. The level is a declaration: it depends on the use case, not on the traces, and MemTrace does not check that it is right.
 
 ## API
 

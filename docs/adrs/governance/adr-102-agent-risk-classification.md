@@ -1,6 +1,6 @@
 # ADR-102: Agent Risk Classification and Risk-Based Requirements
 
-* **Status**: Accepted — classification (data model, API, audit) implemented; retention per level and dashboard pending
+* **Status**: Accepted — classification, retention per level (migration 051) and dashboard implemented; the other requirements per level (§5) pending
 * **Date**: 2026-10-19
 * **Deciders**: MemTrace Core Team
 * **Extends**: [ADR-054](adr-054-experiment-is-an-agent.md), [ADR-076](adr-076-prompt-approvals.md)

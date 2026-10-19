@@ -38,12 +38,26 @@ These patterns are part of the Collector configuration (`k8s/40-otel-collector.y
 
 ## How long traces are kept
 
-By default traces are kept for **30 days**. An `org_admin` can change it in **Admin › organization › Data protection**:
+How long an agent's traces are kept depends on its **risk level**. An `org_admin` sets one period per level in **Settings › organization › Risk & retention**, which is the only place retention is configured:
 
-- **Organization default**: from 1 to 365 days, for every experiment of the organization.
-- **Own period for an experiment**: an agent that handles sensitive data can keep its traces for less time than the rest. It can be shorter than the organization's period, never longer. Leave it empty to use the organization's.
+| Level | Minimum | Default | Why |
+|---|---|---|---|
+| **High** | 180 days | 180 days | EU AI Act, art. 26.6: the logs of a high-risk system are kept at least six months |
+| **Unclassified** | 180 days | 180 days | An agent nobody has classified yet could turn out to be high-risk, and a trace deleted before that cannot be recovered |
+| **Limited** | 1 day | 30 days | No legal minimum: set what your policy needs |
+| **Minimal** | 1 day | 30 days | No legal minimum: set what your policy needs |
 
-Every night (03:30 UTC) MemTrace deletes the spans and extracted topics older than the period of each experiment. If you shorten the organization's period, the own periods that were longer than the new one are removed (they would mean the same). Changes and deletions are recorded in the audit log.
+You can set any whole number of days from the minimum up to **365**; MemTrace refuses a lower value for High and Unclassified, in the dashboard and in the API. The risk level of each agent is declared on the same page (see [Risk classification](./assistants#risk-classification)): an agent keeps its traces for the period of its level, so changing its level changes its period.
+
+Every night (03:30 UTC) MemTrace deletes the spans and extracted topics older than the period of each agent. Changes and deletions are recorded in the audit log.
+
+::: warning Lowering a period deletes data
+The next nightly purge applies the new period and what it deletes cannot be recovered. When you lower the period of a level that has agents, MemTrace shows how many agents and about how many spans are affected, and asks you to confirm. Moving an agent to a lower level can shorten its period in the same way, and the dialog tells you. Only an organization admin can lower a level.
+:::
+
+::: tip Coming from an older version
+Retention used to be an organization default plus an own period per experiment. On upgrade, each level starts with the old organization period (High and Unclassified with at least 180 days) and the own periods are dropped: those agents now follow their level and keep their traces longer. Each dropped period is written to the audit log with its old value.
+:::
 
 What it covers and what it does not:
 
