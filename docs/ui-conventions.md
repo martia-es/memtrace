@@ -118,3 +118,14 @@ Tres modos de visualización: `bubble` (ventana flotante), `dock` (panel lateral
 - Retriever, tool y cualquier paso fallido empiezan abiertos; el resto, plegados. El enlace «Open in technical trace →» solo aparece con `trace:read_technical` y abre la pestaña técnica con `?span=`.
 - **Pestaña Technical trace**: `TraceOverviewBar` (franja resumen + chips de filtro por tipo + «Group guardrails») encima de la cascada. El resumen y los filtros son funciones puras de `domain/trace-summary.ts`. Con un filtro activo la cascada pasa a ser una lista plana de los spans que lo cumplen (`buildRows(..., filter)`); «Group guardrails» pliega por defecto los spans cuyos hijos son todos comprobaciones `guardrail.*`, salvo que alguna falle o el span seleccionado esté dentro. El span más lento (LLM, tool o retriever) lleva la etiqueta «Slowest».
 - **Argumentos y resultados como tabla**: en `IoPanel`, un bloque estructurado de tool (objeto JSON) se pinta con `StructuredData` (filas clave/valor, un nivel de objetos anidados con claves con puntos y las listas de objetos como tabla de hasta 5 filas visibles). El JSON crudo sigue en la vista «JSON» del panel.
+
+## 12. Review: revisar rápido
+
+Pantalla `AnnotationQueueReviewPage` (sin endpoint ni almacén nuevos; propuesta en el canvas, tablero 85). El principio es que revisar un item cueste una tecla por criterio y un Intro.
+
+- **Conversación**: `foldForReview` (`domain/review-thread.ts`, función pura) separa lo anterior al último mensaje del usuario (botón «N earlier messages») y pliega las tool calls y sus datos de después en una fila `steps` que `ConversationThread` pinta como una línea («Used Get weather (…)» o «N tool calls») con Show/Hide. La pregunta y la respuesta a revisar son lo único que ocupa la pantalla.
+- **Rúbrica**: el criterio activo (el que responden las teclas) lleva borde de acento y la tecla en cada botón. Un criterio con respuestas fijas (sí/no, categorías, escala numérica acotada) se pliega a una línea con su valor, su nota y «Change» al contestarlo; un campo numérico libre nunca se pliega. Las instrucciones de la cola están abiertas en el primer item y plegadas después (botón «Instructions»).
+- **Teclado**: `1-9` elige y pasa al siguiente criterio, `Intro` envía, `S` salta, `N` abre la nota del criterio activo. Se ignoran dentro de campos de texto y con Ctrl/Cmd/Alt. «Mark unreviewable» no tiene atajo a propósito: retira el item para todos.
+- **Un solo botón primario**: «Submit & next» (con `Intro`); «Skip» y «Mark unreviewable» son enlaces discretos debajo.
+- **Traza técnica**: ya no se despliega en la pantalla; el enlace «Technical trace ↗» (solo con `trace:read_technical`) abre el detalle de la traza en otra pestaña.
+- **Sin selector de fechas**: la ruta lleva `timeRange: false` porque el rango no afecta a lo que se revisa.

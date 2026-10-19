@@ -9,6 +9,8 @@ import { t } from "../i18n";
  * The `steps` slot goes right after the user's last message, where the assistant started working on the reply.
  */
 const props = defineProps<{ turns: Turn[]; answerLabel?: string }>();
+const stepsTitle = (turn: Extract<Turn, { kind: "steps" }>): string =>
+  turn.actions.length === 1 ? turn.actions[0]! : turn.actions.length ? t("conversationThread.tool_calls", { count: turn.actions.length }) : t("conversationThread.data_retrieved");
 const stepsAt = computed(() => props.turns.map((t) => t.kind).lastIndexOf("user") + 1);
 </script>
 
@@ -24,6 +26,15 @@ const stepsAt = computed(() => props.turns.map((t) => t.kind).lastIndexOf("user"
         <q-icon name="build_circle" size="16px" />
         <span>{{ turn.summary }}</span>
       </div>
+      <details v-else-if="turn.kind === 'steps'" class="data" data-testid="turn-steps">
+        <summary>
+          <q-icon name="build_circle" size="16px" />
+          <span>{{ stepsTitle(turn) }}</span>
+          <span class="toggle"><span class="when-closed">{{ t("conversationThread.show") }}</span><span class="when-open">{{ t("conversationThread.hide") }}</span><q-icon name="expand_more" size="18px" class="chev" /></span>
+        </summary>
+        <p v-for="(action, k) in turn.actions" :key="`a${k}`" class="step">{{ action }}</p>
+        <pre v-for="(d, k) in turn.data" :key="`d${k}`">{{ d.source ? `${d.source}\n` : "" }}{{ d.json }}</pre>
+      </details>
       <details v-else-if="turn.kind === 'data'" class="data" data-testid="turn-data">
         <summary>
           <q-icon name="dataset" size="16px" />
@@ -153,6 +164,10 @@ const stepsAt = computed(() => props.turns.map((t) => t.kind).lastIndexOf("user"
 }
 .data[open] .chev {
   transform: rotate(180deg);
+}
+.data .step {
+  margin: 8px 0 0;
+  color: var(--mt-ink);
 }
 .data pre {
   margin: 8px 0 0;
