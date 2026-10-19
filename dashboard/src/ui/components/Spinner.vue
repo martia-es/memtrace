@@ -4,8 +4,8 @@ import { t } from "../i18n";
  * Indicador de carga propio: el logo de MemTrace "destilando" trazas en conocimiento. Tres trazas (turquesa)
  * se escriben, se juntan y se funden en una barra coral.
  * `size`: sm = 18 px (inline), md = 36 px, lg = 64 px (página).
- * `tone`: `brand` pinta el logo con sus colores sobre su baldosa verde (por defecto); `current` usa solo el color
- * del texto, sin baldosa, para ir dentro de botones y controles.
+ * `tone`: `brand` pinta el logo con sus colores, turquesa y coral, directamente sobre el fondo (por defecto);
+ * `current` usa solo el color del texto, para ir dentro de botones y controles.
  */
 withDefaults(defineProps<{ size?: "sm" | "md" | "lg"; tone?: "brand" | "current" }>(), { size: "md", tone: "brand" });
 </script>
@@ -13,7 +13,6 @@ withDefaults(defineProps<{ size?: "sm" | "md" | "lg"; tone?: "brand" | "current"
 <template>
   <span class="mt-spinner" :class="[`s-${size}`, `tone-${tone}`]" role="status" :aria-label="t('spinner.loading')">
     <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-      <rect v-if="tone === 'brand'" class="tile" width="32" height="32" rx="7" />
       <rect class="b b1" x="5" y="7" width="15" height="5" rx="2.5" />
       <rect class="b b2t" x="10" y="14" width="18" height="5" rx="2.5" />
       <rect class="b b2k" x="10" y="14" width="18" height="5" rx="2.5" />
@@ -35,7 +34,6 @@ withDefaults(defineProps<{ size?: "sm" | "md" | "lg"; tone?: "brand" | "current"
 .s-md { width: 36px; height: 36px; }
 .s-lg { width: 64px; height: 64px; }
 
-.tile { fill: #0a2321; }
 .b {
   fill: #00b3ad;
   animation-duration: 2.8s;
