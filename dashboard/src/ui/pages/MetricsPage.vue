@@ -446,6 +446,8 @@ function swapAgents() {
 
     <div class="metrics-tab-panels">
       <TabPanel :active="activePanel === 'overview'" class="metrics-tab-panel">
+        <!-- TEMPORAL (depuración del Spinner): siempre visible. Quitar. -->
+        <div style="padding: 16px"><Spinner size="lg" /></div>
         <ApprovalInbox class="overview-approvals" />
         <ErrorBanner v-if="overview.error.value" :error="overview.error.value" @retry="reload" />
         <div v-else-if="overview.loading.value && !data" class="loading-box">
