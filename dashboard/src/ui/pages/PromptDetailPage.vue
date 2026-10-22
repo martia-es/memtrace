@@ -557,7 +557,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
 
       <section class="envs" :aria-label="t('promptDetailPage.environments')">
           <div v-if="envCards.length > 0" class="env-list" data-testid="env-strip">
-            <div v-for="e in envCards" :key="e.key" class="env-card" :class="{ late: e.behind !== null && e.behind > 0 && e.key === 'pro' }" :data-testid="`env-card-${e.key}`">
+            <div v-for="e in envCards" :key="e.key" class="env-card" :class="[`env-${e.key === 'dev' || e.key === 'pre' || e.key === 'pro' ? e.key : 'other'}`, { late: e.behind !== null && e.behind > 0 && e.key === 'pro' }]" :data-testid="`env-card-${e.key}`">
               <div class="env-row">
                 <EnvFlag :env="e.key" />
                 <strong class="mono env-card-ver">{{ e.version === null ? "—" : `v${e.version}` }}</strong>
@@ -658,6 +658,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
         </aside>
 
         <div class="detail">
+          <span v-if="selectedVersion" class="eyebrow viewing">{{ t("promptDetailPage.selected_version") }}</span>
           <header v-if="selectedVersion" class="vhead" data-testid="version-head">
             <strong class="mono vnum" data-testid="version-picker">v{{ selected }}</strong>
             <Pill v-if="isDraft" class="draft-pill">{{ t("promptDetailPage.draft") }}</Pill>
@@ -1739,6 +1740,26 @@ ul.plain {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  padding: 12px 16px 14px;
+  border-radius: 12px;
+  background: var(--mt-soft);
+}
+.env-card.env-dev,
+.env-card.env-pre,
+.env-card.env-pro {
+  border-top-width: 3px;
+}
+.env-card.env-dev {
+  border-top-color: var(--mt-muted);
+}
+.env-card.env-pre {
+  border-top-color: var(--mt-warn-ink);
+}
+.env-card.env-pro {
+  border-top-color: var(--mt-accent);
+}
+.viewing {
+  margin-bottom: -6px;
 }
 .side {
   order: 2;

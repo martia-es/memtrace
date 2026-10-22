@@ -1680,6 +1680,7 @@ const es: Record<keyof typeof en, string> = {
   "promptDetailPage.prompt": "Prompt",
   "promptDetailPage.restore": "Restaurar",
   "promptDetailPage.archive": "Archivar",
+  "promptDetailPage.selected_version": "VERSIÓN SELECCIONADA",
   "promptDetailPage.release_rules": "Reglas de publicación",
   "promptDetailPage.count_pending": "{count} pendientes",
   "promptDetailPage.options_for_key": "Opciones de {key}",

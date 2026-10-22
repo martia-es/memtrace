@@ -1679,6 +1679,7 @@ export default {
   "promptDetailPage.prompt": "Prompt",
   "promptDetailPage.restore": "Restore",
   "promptDetailPage.archive": "Archive",
+  "promptDetailPage.selected_version": "SELECTED VERSION",
   "promptDetailPage.release_rules": "Release rules",
   "promptDetailPage.count_pending": "{count} pending",
   "promptDetailPage.options_for_key": "Options for {key}",
