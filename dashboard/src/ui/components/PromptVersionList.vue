@@ -6,6 +6,7 @@
 import { computed, ref } from "vue";
 import type { PromptVersionDto } from "@contract";
 import { formatDateTime } from "@/domain/format";
+import { formatRelativeTime } from "../i18n/format";
 import { filterVersions, groupByMonth } from "@/domain/prompt-release";
 import EnvFlag from "./EnvFlag.vue";
 import Pill from "./Pill.vue";
@@ -24,6 +25,7 @@ const props = defineProps<{
 }>();
 defineEmits<{ pick: [version: number] }>();
 
+const nowMs = Date.now();
 const query = ref("");
 const visible = computed(() => filterVersions(props.versions, query.value));
 const groups = computed(() => groupByMonth(visible.value));
@@ -71,7 +73,7 @@ const groups = computed(() => groupByMonth(visible.value));
             <Pill v-if="v.status === 'draft'" :data-testid="`draft-${v.version}`" class="draft-pill">{{ t("promptVersionList.draft") }}</Pill>
             <EnvFlag v-for="tag in tagsByVersion.get(v.version) ?? []" :key="tag" :env="tag" />
             <span class="grow" />
-            <span class="mono version-date">{{ formatDateTime(v.createdAt) }}</span>
+            <span class="mono version-date" :title="formatDateTime(v.createdAt)">{{ formatRelativeTime(v.createdAt, nowMs) }}</span>
           </span>
           <span v-if="v.message" class="version-msg">{{ v.message }}</span>
           <span v-if="authorName(v.createdBy)" class="version-author" :data-testid="`author-${v.version}`">{{ t("promptVersionList.by_name", { name: authorName(v.createdBy) }) }}</span>

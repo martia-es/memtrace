@@ -62,6 +62,7 @@ Un `<button>` crudo solo se admite en las interioridades de estos componentes y 
 - Lo que no es de una versión (reglas y aprobaciones, actividad, quién lo usa) va en un único panel lateral, «Release rules» (política, aprobaciones, historial), que se abre desde la cabecera (`?tab=` antiguo lo abre). Mismo patrón para cualquier otra información secundaria de un objeto: panel lateral, no una pestaña más.
 - Las reglas de «detrás» y de agrupación son funciones puras en `domain/prompt-release.ts`; `EnvFlag` pinta la etiqueta de entorno.
 - Un mensaje de versión vacío no se pinta («No message» no aporta nada).
+- Una versión por detrás en `pro` no es un error: la tarjeta lleva una marca ámbar (`--mt-warn-ink`) en el borde, nunca fondo rojo. Una inclusión `{{> nombre@ref}}` del texto se pinta con el tinte de acento, no como variable. En la línea de tiempo las fechas son relativas (la exacta, en el tooltip) y los tags de entorno de una versión solo salen ahí y en las tarjetas, no en la cabecera de la versión.
 - Limitación: la tabla asume los tres entornos habituales; con otros nombres las etiquetas extra salen junto al nombre.
 
 ## 6. Asistente embebido

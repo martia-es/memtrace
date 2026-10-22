@@ -534,7 +534,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
 <template>
   <div class="page">
     <PageHeader
-      :crumbs="[{ label: 'Prompts' }, { label: 'Prompts', to: { name: 'prompts', params: { experimentId: agentLabel } } }, { label: data?.prompt.name ?? 'Prompt' }]"
+      :crumbs="[{ label: 'Prompts', to: { name: 'prompts', params: { experimentId: agentLabel } } }, { label: data?.prompt.name ?? 'Prompt' }]"
       icon="M4 6h16M4 12h16M4 18h10"
       :title="data?.prompt.name ?? t('promptDetailPage.prompt')"
     >
@@ -549,7 +549,8 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
 
     <template v-else>
       <section class="title-row">
-        <p class="description" data-testid="description">{{ data.prompt.description }}</p>
+        <span class="eyebrow">{{ t("promptDetailPage.environments") }}</span>
+        <p v-if="data.prompt.description" class="description" data-testid="description">{{ data.prompt.description }}</p>
         <span class="grow" />
         <Button data-testid="open-rules" @click="rulesOpen = true">{{ t('promptDetailPage.release_rules') }}<span v-if="openRequests.length > 0" class="pending-count" data-testid="rules-pending">{{ t('promptDetailPage.count_pending', { count: openRequests.length }) }}</span></Button>
       </section>
@@ -659,7 +660,6 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
         <div class="detail">
           <header v-if="selectedVersion" class="vhead" data-testid="version-head">
             <strong class="mono vnum" data-testid="version-picker">v{{ selected }}</strong>
-            <EnvFlag v-for="tag in tagsByVersion.get(selected ?? -1) ?? []" :key="tag" :env="tag" />
             <Pill v-if="isDraft" class="draft-pill">{{ t("promptDetailPage.draft") }}</Pill>
             <span v-if="selectedVersion.message" class="vmsg">{{ selectedVersion.message }}</span>
             <span class="soft">{{ t("promptDetailPage.saved_when", { when: formatDateTime(selectedVersion.createdAt) }) }}<template v-if="authorName(selectedVersion.createdBy)"> · {{ authorName(selectedVersion.createdBy) }}</template><template v-if="parentOfSelected"> · {{ t('promptDetailPage.from_v_version', { version: parentOfSelected.version }) }}</template></span>
@@ -706,7 +706,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                     <span class="grow" />
                     <SegmentedControl size="sm" class="view-toggle" :aria-label="t('promptDetailPage.text_shown')" :options="TEXT_VIEW_OPTIONS" :model-value="view" @update:model-value="view = $event as typeof view" />
                   </div>
-                  <pre class="code" data-testid="version-content"><span v-for="line in codeLines" :key="line.n" class="ln" :class="{ changed: line.changed, heading: line.heading }"><span v-for="(part, i) in line.parts" :key="i" :class="{ variable: part.variable }">{{ part.text }}</span></span></pre>
+                  <pre class="code" data-testid="version-content"><span v-for="line in codeLines" :key="line.n" class="ln" :class="{ changed: line.changed, heading: line.heading }"><span v-for="(part, i) in line.parts" :key="i" :class="{ variable: part.variable && !part.text.startsWith('{{>'), 'inc-ref': part.text.startsWith('{{>') }">{{ part.text }}</span></span></pre>
                   <div v-if="!showingSource && changedLines.size > 0" class="code-foot"><i /> {{ t("promptDetailPage.lines_changed_since_v_version", { version: parentOfSelected?.version }) }}</div>
                   <div class="props" data-testid="props">
                     <div class="prop" data-testid="variables-card">
@@ -1125,7 +1125,7 @@ h3 {
   left: 14px;
   width: 22px;
   text-align: right;
-  color: var(--mt-line);
+  color: var(--mt-faint);
   font-size: 11px;
   user-select: none;
 }
@@ -1145,6 +1145,13 @@ h3 {
   width: 3px;
   border-radius: 2px;
   background: var(--mt-brand);
+}
+.inc-ref {
+  padding: 0 2px;
+  border-radius: 3px;
+  background: var(--mt-accent-tint);
+  color: var(--mt-ok-ink);
+  font-weight: 500;
 }
 .variable {
   padding: 0 2px;
@@ -1758,8 +1765,7 @@ ul.plain {
   background: var(--mt-card);
 }
 .env-card.late {
-  background: var(--mt-highlight-soft);
-  border-color: var(--mt-highlight);
+  box-shadow: inset 3px 0 0 var(--mt-warn-ink);
 }
 .env-card-ver {
   font-size: 28px;
@@ -1772,7 +1778,7 @@ ul.plain {
   color: var(--mt-ok-ink);
 }
 .env-card-note.late {
-  color: var(--mt-highlight-ink);
+  color: var(--mt-warn-ink);
 }
 .env-row {
   display: flex;
@@ -1842,7 +1848,7 @@ ul.plain {
   gap: 8px;
 }
 .versions-box {
-  flex: 1;
+  flex: 0 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
