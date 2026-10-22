@@ -548,16 +548,11 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
     <LoadingState v-else-if="!data" size="lg" />
 
     <template v-else>
-      <section class="title-row">
-        <span class="eyebrow">{{ t("promptDetailPage.environments") }}</span>
-        <p v-if="data.prompt.description" class="description" data-testid="description">{{ data.prompt.description }}</p>
-        <span class="grow" />
-        <Button data-testid="open-rules" @click="rulesOpen = true">{{ t('promptDetailPage.release_rules') }}<span v-if="openRequests.length > 0" class="pending-count" data-testid="rules-pending">{{ t('promptDetailPage.count_pending', { count: openRequests.length }) }}</span></Button>
-      </section>
+      <p v-if="data.prompt.description" class="description" data-testid="description">{{ data.prompt.description }}</p>
 
       <section class="envs" :aria-label="t('promptDetailPage.environments')">
           <div v-if="envCards.length > 0" class="env-list" data-testid="env-strip">
-            <div v-for="e in envCards" :key="e.key" class="env-card" :class="[`env-${e.key === 'dev' || e.key === 'pre' || e.key === 'pro' ? e.key : 'other'}`, { late: e.behind !== null && e.behind > 0 && e.key === 'pro' }]" :data-testid="`env-card-${e.key}`">
+            <div v-for="e in envCards" :key="e.key" class="env-card" :class="[{ open: envOpen === e.key }, `env-${e.key === 'dev' || e.key === 'pre' || e.key === 'pro' ? e.key : 'other'}`, { late: e.behind !== null && e.behind > 0 && e.key === 'pro' }]" :data-testid="`env-card-${e.key}`">
               <div class="env-row">
                 <EnvFlag :env="e.key" />
                 <strong class="mono env-card-ver">{{ e.version === null ? "—" : `v${e.version}` }}</strong>
@@ -601,6 +596,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                 <p v-else class="soft small">{{ t("promptDetailPage.moving_this_tag_needs_the_promote") }}</p>
               </div>
             </div>
+            <Button class="rules-btn" data-testid="open-rules" @click="rulesOpen = true">{{ t('promptDetailPage.release_rules') }}<span v-if="openRequests.length > 0" class="pending-count" data-testid="rules-pending">{{ t('promptDetailPage.count_pending', { count: openRequests.length }) }}</span></Button>
           </div>
           <div class="tags-row" data-testid="custom-tags">
             <span class="eyebrow">{{ t("promptDetailPage.custom_tags") }}</span>
@@ -658,9 +654,9 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
         </aside>
 
         <div class="detail">
-          <span v-if="selectedVersion" class="eyebrow viewing">{{ t("promptDetailPage.selected_version") }}</span>
           <header v-if="selectedVersion" class="vhead" data-testid="version-head">
             <strong class="mono vnum" data-testid="version-picker">v{{ selected }}</strong>
+            <EnvFlag v-for="tag in tagsByVersion.get(selected ?? -1) ?? []" :key="tag" :env="tag" />
             <Pill v-if="isDraft" class="draft-pill">{{ t("promptDetailPage.draft") }}</Pill>
             <span v-if="selectedVersion.message" class="vmsg">{{ selectedVersion.message }}</span>
             <span class="soft">{{ t("promptDetailPage.saved_when", { when: formatDateTime(selectedVersion.createdAt) }) }}<template v-if="authorName(selectedVersion.createdBy)"> · {{ authorName(selectedVersion.createdBy) }}</template><template v-if="parentOfSelected"> · {{ t('promptDetailPage.from_v_version', { version: parentOfSelected.version }) }}</template></span>
@@ -1718,13 +1714,7 @@ ul.plain {
 
 
 /* ---- dos columnas: entornos y versiones | versión elegida ---- */
-.title-row {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.title-row .description {
+.description {
   margin: 0;
   font-size: 13px;
   color: var(--mt-muted);
@@ -1740,7 +1730,7 @@ ul.plain {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 12px 16px 14px;
+  padding: 10px 12px;
   border-radius: 12px;
   background: var(--mt-soft);
 }
@@ -1758,12 +1748,9 @@ ul.plain {
 .env-card.env-pro {
   border-top-color: var(--mt-accent);
 }
-.viewing {
-  margin-bottom: -6px;
-}
+
 .side {
-  order: 2;
-  width: 340px;
+  width: 300px;
   flex: none;
   min-height: 0;
   display: flex;
@@ -1771,10 +1758,25 @@ ul.plain {
   gap: 10px;
 }
 .env-list {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: start;
-  gap: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px;
+}
+.env-list .env-card {
+  flex: 1 1 230px;
+  gap: 4px;
+  padding: 8px 12px;
+}
+.env-list .env-card.open {
+  flex-basis: 100%;
+}
+.env-list .env-card-ver {
+  font-size: 18px;
+}
+.rules-btn {
+  align-self: center;
+  margin-left: auto;
 }
 .env-card {
   display: flex;
