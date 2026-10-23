@@ -1589,6 +1589,7 @@ export default {
   "promotePromptModal.could_not_promote_error": "Could not promote: {error}",
   "promptVersionList.no_version_matches_query": "No version matches “{query}”.",
   "promptVersionList.by_name": "by {name}",
+  "promptVersionList.behind_by": "{count} behind",
   "promptVersionList.running_in_envs": "Running in {envs}",
   "promptEditor.code": "Code",
   "promptEditor.rendered": "Rendered",

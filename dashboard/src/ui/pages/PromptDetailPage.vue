@@ -96,6 +96,11 @@ const envCards = computed(() =>
     return { key, version, behind: version === null ? null : Math.max(0, latestVersion.value - version), usage: usageOf(key) };
   }),
 );
+/** Versiones que va por detrás el entorno protegido (pro) que sirve `version`, para marcarlo en la línea de versiones. */
+function behindBy(version: number): number {
+  const pro = envCards.value.find((e) => e.key === "pro" && e.version === version);
+  return pro?.behind ?? 0;
+}
 /** Pone un entorno en la última versión publicada, por la misma vía que Release (aprobación o gate si toca). */
 function promoteLatest(key: string) {
   if (latestVersion.value === 0) return;
@@ -540,6 +545,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
     >
       <div class="actions">
         <Pill v-if="archived" data-testid="archived-badge" class="archived">{{ t("promptDetailPage.archived") }}</Pill>
+        <Button v-if="data" class="rules-btn" data-testid="open-rules" @click="rulesOpen = true">{{ t('promptDetailPage.release_rules') }}<span v-if="openRequests.length > 0" class="pending-count" data-testid="rules-pending">{{ t('promptDetailPage.count_pending', { count: openRequests.length }) }}</span></Button>
         <Button v-if="can('prompt:write')" data-testid="toggle-archived" @click="toggleArchived">{{ archived ? t("promptDetailPage.restore") : t("promptDetailPage.archive") }}</Button>
       </div>
     </PageHeader>
@@ -550,106 +556,10 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
     <template v-else>
       <p v-if="data.prompt.description" class="description" data-testid="description">{{ data.prompt.description }}</p>
 
-      <section class="envs" :aria-label="t('promptDetailPage.environments')">
-          <div v-if="envCards.length > 0" class="env-list" data-testid="env-strip">
-            <div v-for="e in envCards" :key="e.key" class="env-card" :class="[{ open: envOpen === e.key }, `env-${e.key === 'dev' || e.key === 'pre' || e.key === 'pro' ? e.key : 'other'}`, { late: e.behind !== null && e.behind > 0 && e.key === 'pro' }]" :data-testid="`env-card-${e.key}`">
-              <div class="env-row">
-                <EnvFlag :env="e.key" />
-                <strong class="mono env-card-ver">{{ e.version === null ? "—" : `v${e.version}` }}</strong>
-                <Pill v-if="isProtected(e.key)" :title="t('promptDetailPage.needs_a_passing_evaluation_to_be')" :data-testid="`protected-${e.key}`" class="protected">{{ t("promptDetailPage.protected") }}</Pill>
-                <span class="grow" />
-                <Button
-                  v-if="canPromote && latestVersion > 0 && e.version !== latestVersion"
-                  size="sm"
-                  :variant="e.key === 'pro' ? 'primary' : 'secondary'"
-                  :disabled="moving"
-                  :data-testid="`promote-${e.key}`"
-                  @click="promoteLatest(e.key)"
-                >{{ needsApproval(e.key, latestVersion) ? "Request approval" : `Promote v${latestVersion}` }}</Button>
-                <Button variant="icon" size="sm" :aria-label="t('promptDetailPage.options_for_key', { key: e.key })" :aria-expanded="envOpen === e.key" :data-testid="`env-menu-${e.key}`" @click="envOpen = envOpen === e.key ? null : e.key">⋯</Button>
-              </div>
-              <div class="env-card-meta">
-                <span class="env-card-note" :class="{ late: e.behind !== null && e.behind > 0 }" :data-testid="`env-note-${e.key}`">
-                  {{ e.version === null ? "Not set" : e.behind === 0 ? "Up to date" : `${e.behind} ${e.behind === 1 ? "version" : "versions"} behind` }}
-                </span>
-                <span class="soft" :data-testid="`usage-${e.key}`">
-                  <template v-if="e.usage">· {{ e.usage.state === "behind" ? t("promptDetailPage.agent_on_v_version", { version: e.usage.version }) : formatRelativeTime(e.usage.lastSeenAt, nowMs) }}</template>
-                  <template v-else>{{ t("promptDetailPage.no_agent_has_reported_it_yet") }}</template>
-                </span>
-              </div>
-              <div v-if="envOpen === e.key" class="env-panel" :data-testid="`env-panel-${e.key}`">
-                <p v-if="!e.usage" class="soft small" data-testid="usage-empty">
-                  {{ t("promptDetailPage.no_agent_has_reported_this_environment") + " " }}<code>memtrace.prompts.get()</code>.
-                </p>
-                <div v-else class="usage-line">
-                  <Pill :tone="USAGE_TONE[e.usage.state]" class="usage">{{ USAGE_LABEL[e.usage.state] }}</Pill>
-                  <span class="soft">{{ e.usage.tag ? t('promptDetailPage.follows_tag', { tag: e.usage.tag }) : t('promptDetailPage.fixed_version') }}<template v-if="e.usage.state === 'behind'"> · {{ t('promptDetailPage.tag_now_points_to_v_version', { tag: e.usage.tag, version: e.usage.tagVersion }) }}</template></span>
-                </div>
-                <template v-if="canPromote">
-                  <TextInput v-model="reason" :placeholder="t('promptDetailPage.reason_for_the_change_optional_saved')" data-testid="tag-reason" />
-                  <div class="move">
-                    <Select :model-value="pending[e.key] ?? e.version" :options="versionOptions" :placeholder="t('promptDetailPage.point_to')" @update:model-value="pending[e.key] = $event" />
-                    <Button size="sm" :disabled="moving || pending[e.key] == null || pending[e.key] === e.version" :data-testid="`move-${e.key}`" @click="moveEnvironment(e.key)">{{ pending[e.key] != null && needsApproval(e.key, pending[e.key]!) ? t("promptDetailPage.request_approval") : t("promptDetailPage.move") }}</Button>
-                    <Button variant="icon" size="sm" v-if="e.version !== null" :aria-label="t('promptDetailPage.remove_the_tag_tag', { tag: e.key })" :title="t('promptDetailPage.remove_the_tag')" @click="moveTag(e.key, null)">×</Button>
-                  </div>
-                </template>
-                <p v-else class="soft small">{{ t("promptDetailPage.moving_this_tag_needs_the_promote") }}</p>
-              </div>
-            </div>
-            <Button class="rules-btn" data-testid="open-rules" @click="rulesOpen = true">{{ t('promptDetailPage.release_rules') }}<span v-if="openRequests.length > 0" class="pending-count" data-testid="rules-pending">{{ t('promptDetailPage.count_pending', { count: openRequests.length }) }}</span></Button>
-          </div>
-          <div class="tags-row" data-testid="custom-tags">
-            <span class="eyebrow">{{ t("promptDetailPage.custom_tags") }}</span>
-            <button v-for="ft in freeTags" :key="ft.tag" type="button" class="tag-chip mono" :class="{ on: openTag === ft.tag }" :aria-expanded="openTag === ft.tag" :data-testid="`chip-${ft.tag}`" @click="openTag = openTag === ft.tag ? null : ft.tag">
-              {{ ft.tag }} → <b>v{{ ft.version }}</b><span v-if="followers(ft.tag).length" class="soft"> · {{ tp("promptDetailPage.followers", followers(ft.tag).length) }}</span>
-            </button>
-            <button v-if="canWrite && selected !== null" type="button" class="tag-chip add" data-testid="new-tag-toggle" :aria-expanded="addingTag" @click="addingTag = !addingTag">{{ t("promptDetailPage.new_tag") }}</button>
-            <span v-if="freeTags.length === 0 && !addingTag" class="soft small" data-testid="no-custom-tags">{{ t("promptDetailPage.none_yet") }}</span>
-          </div>
-                          <div v-for="ft in openFreeTags" :key="ft.tag" class="free-card" :data-testid="`free-tag-${ft.tag}`">
-                            <div class="free-row">
-                              <span class="free-tag mono">{{ ft.tag }}</span>
-                              <strong class="mono">v{{ ft.version }}</strong>
-                              <span class="grow"></span>
-                              <div v-if="canWrite" class="move">
-                                <Select :model-value="pending[ft.tag] ?? ft.version" :options="versionOptions" :placeholder="t('promptDetailPage.point_to')" @update:model-value="pending[ft.tag] = $event" />
-                                <Button size="sm" :disabled="moving || pending[ft.tag] == null || pending[ft.tag] === ft.version" :data-testid="`move-${ft.tag}`" @click="moveTag(ft.tag, pending[ft.tag]!)">{{ t("promptDetailPage.move") }}</Button>
-                                <Button variant="icon" :aria-label="t('promptDetailPage.remove_the_tag_tag', { tag: ft.tag })" :title="t('promptDetailPage.remove_the_tag')" @click="moveTag(ft.tag, null)">×</Button>
-                              </div>
-                            </div>
-                            <ul v-if="followers(ft.tag).length" class="followers" :data-testid="`followers-${ft.tag}`">
-                              <li v-for="u in followers(ft.tag)" :key="`${u.experimentId}-${u.environment}-${u.version}`">
-                                <Pill :tone="USAGE_TONE[u.state]" class="usage">{{ USAGE_LABEL[u.state] }}</Pill>
-                                <span>{{ u.environment || t('promptDetailPage.no_environment') }} · {{ t('promptDetailPage.running') }} <strong class="mono">v{{ u.version }}</strong></span>
-                                <span class="grow"></span>
-                                <span class="soft">{{ formatRelativeTime(u.lastSeenAt, nowMs) }}</span>
-                              </li>
-                            </ul>
-                            <div v-else class="no-followers" :data-testid="`no-followers-${ft.tag}`">
-                              <span class="soft">{{ t("promptDetailPage.no_agent_has_reported_this_tag") }}</span>
-                              <span class="snippet">
-                                <code>{{ snippetOf(ft.tag) }}</code>
-                                <button type="button" class="copy" @click="copySnippet(ft.tag)">{{ copiedTag === ft.tag ? t("promptDetailPage.copied") : t("promptDetailPage.copy") }}</button>
-                              </span>
-                            </div>
-                          </div>
-          <div v-if="addingTag && canWrite && selected !== null" class="free-card" data-testid="new-tag-panel">
-            <p class="soft other-help">
-              {{ t("promptDetailPage.a_custom_tag_is_a_channel") + " " }}<code>tag="canary"</code>{{ " " + t("promptDetailPage.and_receives_the_version_it_points") }}
-            </p>
-            <form class="add-tag" @submit.prevent="addFreeTag">
-              <TextInput v-model="newTag" placeholder="new-tag" mono size="sm" data-testid="new-tag" />
-              <Button variant="primary" size="sm" type="submit" :disabled="moving || !newTag.trim() || !!newTagError" data-testid="add-tag">{{ t('promptDetailPage.tag_v_version', { version: selected }) }}</Button>
-            </form>
-            <p v-if="newTagError" class="soft tag-error" data-testid="new-tag-error">{{ newTagError }}</p>
-            <p v-else class="soft">{{ t("promptDetailPage.lowercase_letters_digits_and_starting_wi") }}</p>
-          </div>
-      </section>
-
       <div class="split">
         <aside class="side" :aria-label="t('promptDetailPage.environments_and_versions')">
           <div class="versions-box" data-testid="versions-box">
-            <PromptVersionList :versions="versions" :selected="selected" :tags-by-version="tagsByVersion" :pinned="[]" :running="running" :author-name="authorName" @pick="pick" />
+            <PromptVersionList :versions="versions" :selected="selected" :tags-by-version="tagsByVersion" :pinned="[]" :running="running" :author-name="authorName" :behind-by="behindBy" @pick="pick" />
           </div>
         </aside>
 
@@ -663,6 +573,100 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
             <span class="grow" />
             <Button variant="primary" v-if="canWrite && mode === 'text' && !editing" data-testid="edit-version" @click="startEdit">{{ t("promptDetailPage.edit_as_new_version") }}</Button>
           </header>
+        <section class="envs" :aria-label="t('promptDetailPage.environments')">
+            <div v-if="envCards.length > 0" class="env-list" data-testid="env-strip">
+              <div v-for="e in envCards" :key="e.key" class="env-card" :class="[{ open: envOpen === e.key }, `env-${e.key === 'dev' || e.key === 'pre' || e.key === 'pro' ? e.key : 'other'}`, { late: e.behind !== null && e.behind > 0 && e.key === 'pro' }]" :data-testid="`env-card-${e.key}`">
+                <div class="env-row">
+                  <EnvFlag :env="e.key" />
+                  <strong class="mono env-card-ver">{{ e.version === null ? "—" : `v${e.version}` }}</strong>
+                  <Pill v-if="isProtected(e.key)" :title="t('promptDetailPage.needs_a_passing_evaluation_to_be')" :data-testid="`protected-${e.key}`" class="protected">{{ t("promptDetailPage.protected") }}</Pill>
+                  <span class="grow" />
+                  <Button
+                    v-if="canPromote && latestVersion > 0 && e.version !== latestVersion"
+                    size="sm"
+                    :variant="e.key === 'pro' ? 'primary' : 'secondary'"
+                    :disabled="moving"
+                    :data-testid="`promote-${e.key}`"
+                    @click="promoteLatest(e.key)"
+                  >{{ needsApproval(e.key, latestVersion) ? "Request approval" : `Promote v${latestVersion}` }}</Button>
+                  <Button variant="icon" size="sm" :aria-label="t('promptDetailPage.options_for_key', { key: e.key })" :aria-expanded="envOpen === e.key" :data-testid="`env-menu-${e.key}`" @click="envOpen = envOpen === e.key ? null : e.key">⋯</Button>
+                </div>
+                <div class="env-card-meta">
+                  <span class="env-card-note" :class="{ late: e.behind !== null && e.behind > 0 }" :data-testid="`env-note-${e.key}`">
+                    {{ e.version === null ? "Not set" : e.behind === 0 ? "Up to date" : `${e.behind} ${e.behind === 1 ? "version" : "versions"} behind` }}
+                  </span>
+                  <span class="soft" :data-testid="`usage-${e.key}`">
+                    <template v-if="e.usage">· {{ e.usage.state === "behind" ? t("promptDetailPage.agent_on_v_version", { version: e.usage.version }) : formatRelativeTime(e.usage.lastSeenAt, nowMs) }}</template>
+                    <template v-else>{{ t("promptDetailPage.no_agent_has_reported_it_yet") }}</template>
+                  </span>
+                </div>
+                <div v-if="envOpen === e.key" class="env-panel" :data-testid="`env-panel-${e.key}`">
+                  <p v-if="!e.usage" class="soft small" data-testid="usage-empty">
+                    {{ t("promptDetailPage.no_agent_has_reported_this_environment") + " " }}<code>memtrace.prompts.get()</code>.
+                  </p>
+                  <div v-else class="usage-line">
+                    <Pill :tone="USAGE_TONE[e.usage.state]" class="usage">{{ USAGE_LABEL[e.usage.state] }}</Pill>
+                    <span class="soft">{{ e.usage.tag ? t('promptDetailPage.follows_tag', { tag: e.usage.tag }) : t('promptDetailPage.fixed_version') }}<template v-if="e.usage.state === 'behind'"> · {{ t('promptDetailPage.tag_now_points_to_v_version', { tag: e.usage.tag, version: e.usage.tagVersion }) }}</template></span>
+                  </div>
+                  <template v-if="canPromote">
+                    <TextInput v-model="reason" :placeholder="t('promptDetailPage.reason_for_the_change_optional_saved')" data-testid="tag-reason" />
+                    <div class="move">
+                      <Select :model-value="pending[e.key] ?? e.version" :options="versionOptions" :placeholder="t('promptDetailPage.point_to')" @update:model-value="pending[e.key] = $event" />
+                      <Button size="sm" :disabled="moving || pending[e.key] == null || pending[e.key] === e.version" :data-testid="`move-${e.key}`" @click="moveEnvironment(e.key)">{{ pending[e.key] != null && needsApproval(e.key, pending[e.key]!) ? t("promptDetailPage.request_approval") : t("promptDetailPage.move") }}</Button>
+                      <Button variant="icon" size="sm" v-if="e.version !== null" :aria-label="t('promptDetailPage.remove_the_tag_tag', { tag: e.key })" :title="t('promptDetailPage.remove_the_tag')" @click="moveTag(e.key, null)">×</Button>
+                    </div>
+                  </template>
+                  <p v-else class="soft small">{{ t("promptDetailPage.moving_this_tag_needs_the_promote") }}</p>
+                </div>
+              </div>
+            </div>
+            <div class="tags-row" data-testid="custom-tags">
+              <span class="eyebrow">{{ t("promptDetailPage.custom_tags") }}</span>
+              <button v-for="ft in freeTags" :key="ft.tag" type="button" class="tag-chip mono" :class="{ on: openTag === ft.tag }" :aria-expanded="openTag === ft.tag" :data-testid="`chip-${ft.tag}`" @click="openTag = openTag === ft.tag ? null : ft.tag">
+                {{ ft.tag }} → <b>v{{ ft.version }}</b><span v-if="followers(ft.tag).length" class="soft"> · {{ tp("promptDetailPage.followers", followers(ft.tag).length) }}</span>
+              </button>
+              <button v-if="canWrite && selected !== null" type="button" class="tag-chip add" data-testid="new-tag-toggle" :aria-expanded="addingTag" @click="addingTag = !addingTag">{{ t("promptDetailPage.new_tag") }}</button>
+              <span v-if="freeTags.length === 0 && !addingTag" class="soft small" data-testid="no-custom-tags">{{ t("promptDetailPage.none_yet") }}</span>
+            </div>
+                            <div v-for="ft in openFreeTags" :key="ft.tag" class="free-card" :data-testid="`free-tag-${ft.tag}`">
+                              <div class="free-row">
+                                <span class="free-tag mono">{{ ft.tag }}</span>
+                                <strong class="mono">v{{ ft.version }}</strong>
+                                <span class="grow"></span>
+                                <div v-if="canWrite" class="move">
+                                  <Select :model-value="pending[ft.tag] ?? ft.version" :options="versionOptions" :placeholder="t('promptDetailPage.point_to')" @update:model-value="pending[ft.tag] = $event" />
+                                  <Button size="sm" :disabled="moving || pending[ft.tag] == null || pending[ft.tag] === ft.version" :data-testid="`move-${ft.tag}`" @click="moveTag(ft.tag, pending[ft.tag]!)">{{ t("promptDetailPage.move") }}</Button>
+                                  <Button variant="icon" :aria-label="t('promptDetailPage.remove_the_tag_tag', { tag: ft.tag })" :title="t('promptDetailPage.remove_the_tag')" @click="moveTag(ft.tag, null)">×</Button>
+                                </div>
+                              </div>
+                              <ul v-if="followers(ft.tag).length" class="followers" :data-testid="`followers-${ft.tag}`">
+                                <li v-for="u in followers(ft.tag)" :key="`${u.experimentId}-${u.environment}-${u.version}`">
+                                  <Pill :tone="USAGE_TONE[u.state]" class="usage">{{ USAGE_LABEL[u.state] }}</Pill>
+                                  <span>{{ u.environment || t('promptDetailPage.no_environment') }} · {{ t('promptDetailPage.running') }} <strong class="mono">v{{ u.version }}</strong></span>
+                                  <span class="grow"></span>
+                                  <span class="soft">{{ formatRelativeTime(u.lastSeenAt, nowMs) }}</span>
+                                </li>
+                              </ul>
+                              <div v-else class="no-followers" :data-testid="`no-followers-${ft.tag}`">
+                                <span class="soft">{{ t("promptDetailPage.no_agent_has_reported_this_tag") }}</span>
+                                <span class="snippet">
+                                  <code>{{ snippetOf(ft.tag) }}</code>
+                                  <button type="button" class="copy" @click="copySnippet(ft.tag)">{{ copiedTag === ft.tag ? t("promptDetailPage.copied") : t("promptDetailPage.copy") }}</button>
+                                </span>
+                              </div>
+                            </div>
+            <div v-if="addingTag && canWrite && selected !== null" class="free-card" data-testid="new-tag-panel">
+              <p class="soft other-help">
+                {{ t("promptDetailPage.a_custom_tag_is_a_channel") + " " }}<code>tag="canary"</code>{{ " " + t("promptDetailPage.and_receives_the_version_it_points") }}
+              </p>
+              <form class="add-tag" @submit.prevent="addFreeTag">
+                <TextInput v-model="newTag" placeholder="new-tag" mono size="sm" data-testid="new-tag" />
+                <Button variant="primary" size="sm" type="submit" :disabled="moving || !newTag.trim() || !!newTagError" data-testid="add-tag">{{ t('promptDetailPage.tag_v_version', { version: selected }) }}</Button>
+              </form>
+              <p v-if="newTagError" class="soft tag-error" data-testid="new-tag-error">{{ newTagError }}</p>
+              <p v-else class="soft">{{ t("promptDetailPage.lowercase_letters_digits_and_starting_wi") }}</p>
+            </div>
+        </section>
           <TabBar :tabs="VIEW_TABS" :model-value="activeTab" @update:model-value="openTab" />
 
           <template v-if="mode === 'text'">
@@ -1672,9 +1676,6 @@ ul.plain {
 }
 
 @media (max-width: 1100px) {
-  .env-list {
-    grid-template-columns: 1fr;
-  }
   .body {
     flex-direction: column;
   }
@@ -1729,24 +1730,7 @@ ul.plain {
   flex: none;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: var(--mt-soft);
-}
-.env-card.env-dev,
-.env-card.env-pre,
-.env-card.env-pro {
-  border-top-width: 3px;
-}
-.env-card.env-dev {
-  border-top-color: var(--mt-muted);
-}
-.env-card.env-pre {
-  border-top-color: var(--mt-warn-ink);
-}
-.env-card.env-pro {
-  border-top-color: var(--mt-accent);
+  gap: 8px;
 }
 
 .side {
@@ -1757,43 +1741,26 @@ ul.plain {
   flex-direction: column;
   gap: 10px;
 }
+/* entornos: filas planas (sin tarjetas); la versión que sirve cada uno ya se ve en la línea de versiones */
 .env-list {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 10px;
-}
-.env-list .env-card {
-  flex: 1 1 230px;
-  gap: 4px;
-  padding: 8px 12px;
-}
-.env-list .env-card.open {
-  flex-basis: 100%;
-}
-.env-list .env-card-ver {
-  font-size: 18px;
-}
-.rules-btn {
-  align-self: center;
-  margin-left: auto;
+  flex-direction: column;
+  border-top: 1px solid var(--mt-line);
 }
 .env-card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px 18px;
-  border: 1px solid var(--mt-line);
-  border-radius: 12px;
-  background: var(--mt-card);
+  gap: 4px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--mt-line);
 }
 .env-card.late {
   box-shadow: inset 3px 0 0 var(--mt-warn-ink);
+  padding-left: 12px;
 }
 .env-card-ver {
-  font-size: 28px;
+  font-size: 14px;
   font-weight: 800;
-  letter-spacing: -0.02em;
 }
 .env-card-note {
   font-size: 12px;
@@ -1841,7 +1808,7 @@ ul.plain {
   min-height: 28px;
   padding: 0 10px;
   border: 1px solid var(--mt-line);
-  border-radius: 999px;
+  border-radius: var(--mt-radius-sm);
   background: var(--mt-card);
   color: inherit;
   font-size: 12px;
@@ -1876,7 +1843,7 @@ ul.plain {
   display: flex;
   flex-direction: column;
   border: 1px solid var(--mt-line);
-  border-radius: 12px;
+  border-radius: var(--mt-radius-sm);
   background: var(--mt-card);
   overflow: hidden;
 }

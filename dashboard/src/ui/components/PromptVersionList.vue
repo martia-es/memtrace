@@ -22,6 +22,8 @@ const props = defineProps<{
   /** entornos donde corre una versión */
   running: (version: number) => string[];
   authorName: (userId: string | null) => string | null;
+  /** cuántas versiones va por detrás el entorno protegido que sirve esta versión (0 si ninguno o está al día) */
+  behindBy?: (version: number) => number;
 }>();
 defineEmits<{ pick: [version: number] }>();
 
@@ -73,6 +75,7 @@ const groups = computed(() => groupByMonth(visible.value));
             <Pill v-if="v.status === 'draft'" :data-testid="`draft-${v.version}`" class="draft-pill">{{ t("promptVersionList.draft") }}</Pill>
             <EnvFlag v-for="tag in tagsByVersion.get(v.version) ?? []" :key="tag" :env="tag" />
             <span class="grow" />
+            <span v-if="(behindBy?.(v.version) ?? 0) > 0" class="behind" :data-testid="`behind-${v.version}`">{{ t("promptVersionList.behind_by", { count: behindBy!(v.version) }) }}</span>
             <span class="mono version-date" :title="formatDateTime(v.createdAt)">{{ formatRelativeTime(v.createdAt, nowMs) }}</span>
           </span>
           <span v-if="v.message" class="version-msg">{{ v.message }}</span>
@@ -168,7 +171,7 @@ const groups = computed(() => groupByMonth(visible.value));
   width: 8px;
   height: 8px;
   box-sizing: border-box;
-  border-radius: 50%;
+  border-radius: 2px;
   border: 2px solid var(--mt-muted);
   background: var(--mt-card);
 }
@@ -239,6 +242,11 @@ const groups = computed(() => groupByMonth(visible.value));
   font-size: 11.5px;
   font-weight: 600;
   color: var(--mt-ok-ink);
+}
+.behind {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--mt-warn-ink);
 }
 .draft-pill {
   background: var(--mt-warn-bg);

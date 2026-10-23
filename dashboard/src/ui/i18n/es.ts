@@ -1590,6 +1590,7 @@ const es: Record<keyof typeof en, string> = {
   "promotePromptModal.could_not_promote_error": "No se pudo promover: {error}",
   "promptVersionList.no_version_matches_query": "Ninguna versión coincide con «{query}».",
   "promptVersionList.by_name": "por {name}",
+  "promptVersionList.behind_by": "{count} por detrás",
   "promptVersionList.running_in_envs": "Ejecutándose en {envs}",
   "promptEditor.code": "Código",
   "promptEditor.rendered": "Renderizado",
