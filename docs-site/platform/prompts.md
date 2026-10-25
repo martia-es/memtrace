@@ -21,14 +21,14 @@ A prompt page has the environments across the top and, below, the selected versi
 **On the right**, the version you picked, with **Edit as new version** and three tabs:
 
 - **Prompt**: the text, with numbered lines, highlighted `{{variables}}`, and below it the variables, the fragments the version includes and a folded **Dependencies** map.
-- **Compare**: the text diff against any other version, and above it how each one behaved on real traces (last 24 hours, 7 or 30 days). **All versions side by side** unfolds the figures of every version, and **Open the traces in Conversations** takes you to the traces behind the numbers.
+- **Changes**: the text diff against any other version, and above it how each one behaved on real traces (last 24 hours, 7 or 30 days). **All versions side by side** unfolds the figures of every version, and **Open the traces in Conversations** takes you to the traces behind the numbers. **See all versions in Analytics** opens [Breakdown](/platform/dashboard#breakdown) with every version of the agent side by side.
 - **Test**: run the real agent with **A message**, or start from **A failed trace**.
 
 Everything that is not about one version opens in a single side panel, **Release rules**, from the top (it shows how many requests are pending): the promotion policy, the approvals and the history of every tag move, newest first. Old links with `?tab=` still open the right view.
 
-To change a prompt, open a version and press **Edit as new version**. The new version remembers the one it started from, which is what **Compare** uses by default.
+To change a prompt, open a version and press **Edit as new version**. The new version remembers the one it started from, which is what **Changes** uses by default.
 
-**Compare** shows two versions side by side, line by line, with line numbers and a summary (*2 lines rewritten, 1 added*): red is what was removed, green what was added. You can compare the selected version with any other.
+**Changes** shows two versions side by side, line by line, with line numbers and a summary (*2 lines rewritten, 1 added*): red is what was removed, green what was added. You can compare the selected version with any other.
 
 ## Tags: which version runs where
 
@@ -66,7 +66,7 @@ Each environment card says what the agents report for it, and its **⋯** option
 
 ## Traces of a version
 
-**Open the traces in Conversations**, in **Compare**, takes you to the traces that used the selected version, so you can open the conversation behind any number in Evidence.
+**Open the traces in Conversations**, in **Changes**, takes you to the traces that used the selected version, so you can open the conversation behind any number in Evidence.
 
 The link also works the other way. A trace, a conversation and every item of an evaluation run show the **prompt and version** that produced them (`weather-system v2`), and clicking it opens that version here. In **Conversations**, `?prompt=weather-system&pv=2` filters the list to one version, and a *Prompt* column shows it on every row.
 
@@ -74,7 +74,7 @@ An agent only shows up when it reads the prompt with [`memtrace.prompts`](/libra
 
 ## Evidence: what each version did
 
-**All versions side by side**, in **Compare**, shows, for every version that had traffic in the last 24 hours, 7 or 30 days, what happened in the traces that used it:
+**All versions side by side**, in **Changes**, shows, for every version that had traffic in the last 24 hours, 7 or 30 days, what happened in the traces that used it:
 
 | Column | Meaning |
 |---|---|

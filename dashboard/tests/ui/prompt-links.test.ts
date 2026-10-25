@@ -24,6 +24,7 @@ async function mountAt(component: object, path: string, props: Record<string, un
       { path: "/e/:experimentId/traces/:traceId", name: "trace", component: stub },
       { path: "/e/:experimentId/prompts", name: "prompts", component: stub },
       { path: "/e/:experimentId/prompts/:promptId", name: "prompt", component: stub },
+      { path: "/e/:experimentId/overview/breakdown", name: "overview-breakdown", component: stub },
     ],
   });
   await router.push(path);

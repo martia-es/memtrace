@@ -10,7 +10,7 @@ The sidebar groups its entries by what you want to do, under three small heading
 |---|---|---|
 | **Observe** | **Overview** | How the assistant is doing right now, and what needs attention |
 | | **Conversations** | Browse and read what your assistants did |
-| | **Analytics** | Dig deeper: **Breakdown**, **Compare**, **Charts** and **Reports** |
+| | **Analytics** | Dig deeper: **Breakdown**, **Compare agents**, **Charts** and **Reports** |
 | **Watch** | **Alerts & budget** | Rules that warn you, the monthly cost budget and what has fired |
 | **Improve** | **Review** | Your inbox of conversations waiting for a human review |
 | | **Prompts** | Versions of your prompts and where each one runs |
@@ -52,7 +52,7 @@ Each span is a step: an LLM call, a tool, a retriever or an agent. Spans are col
 
 ## Overview
 
-The sidebar groups its pages in submenus. **Overview** is the summary page; **Analytics** opens **Breakdown**, **Compare**, **Charts** and **Reports**; each one is its own page with its own link, so you can bookmark or share it. The time range applies to all of them: from 15 minutes to **1 year** (presets 15 min, 1 h, 6 h, 24 h, 7 d, 30 d, 90 d and 1 y, or a custom range of up to 365 days). The range you pick is kept while you move between pages, switch experiment or go to another section, until you change it or close the browser tab. Traces older than the [retention period](data-protection#how-long-traces-are-kept) of the agent no longer exist, so a longer range shows only what is kept. In **Errors**, the comparison with the previous period is hidden when that period is older than the retention.
+The sidebar groups its pages in submenus. **Overview** is the summary page; **Analytics** opens **Breakdown**, **Compare agents**, **Charts** and **Reports**; each one is its own page with its own link, so you can bookmark or share it. The time range applies to all of them: from 15 minutes to **1 year** (presets 15 min, 1 h, 6 h, 24 h, 7 d, 30 d, 90 d and 1 y, or a custom range of up to 365 days). The range you pick is kept while you move between pages, switch experiment or go to another section, until you change it or close the browser tab. Traces older than the [retention period](data-protection#how-long-traces-are-kept) of the agent no longer exist, so a longer range shows only what is kept. In **Errors**, the comparison with the previous period is hidden when that period is older than the retention.
 
 ### Summary
 
@@ -76,9 +76,9 @@ At the bottom, three cards: **Models** (p95 latency and cost per model), **Human
 
 Below, when anything failed, **What is going wrong** explains the failures by cause in plain language, without reading traces: *AI provider usage limit reached*, *A service took too long to respond*, *An external service was unavailable*, *Access or credentials problem*, *Conversation too long for the model*, *Answer blocked by safety filters*, and so on. Each cause shows how many conversations it affects (and what share of the total), when it last happened, which tools or models are involved, and whether it grew or shrank compared with the previous period of the same length. Click a cause to see what it means, what to do and who to ask, plus the technical detail for your technical colleagues. Failures that match no known cause appear as *A tool failed for an unrecognised reason*; the technical team can use the detail to add a rule for them. Only the deepest failing step of each execution is counted, so one broken tool is not counted again in the steps that contain it. No AI is involved: the causes come from a fixed set of rules.
 
-### Compare
+### Compare agents
 
-Puts two experiments side by side over the same time range. They are different agents that evolve on their own, not two versions of the same one, so the page always uses their names: the selected experiment (the one in the selector at the top left) and the one you choose in **Compare with**. Use the swap button to exchange them. It requires access to at least 2 experiments.
+Puts two experiments side by side over the same time range. They are different agents that evolve on their own, not two versions of the same one, so the page always uses their names: the selected experiment (the one in the selector at the top left) and the one you choose in **Compare with**. Use the swap button to exchange them. It requires access to at least 2 experiments. To compare versions, environments or users of the same agent, use [Breakdown](#breakdown); to compare two versions of a prompt, see the **Changes** tab in [Prompts](/platform/prompts).
 
 - **Verdict**: one sentence on how the second experiment differs from the first (for example "vueling_faqa is cheaper and faster, but failing more often than weather-assistant") and how many metrics are better, worse or neutral for it.
 - **"second compared with first"**: one bar per metric (cost, tokens, latency p50/p95/p99, error rate, conversations, executions) showing the % change. Green is better, red is worse, grey is neutral. Lower cost, tokens, latency and error rate count as better; conversations and executions are volume, so they are never good or bad. Changes under 5% are shown as neutral to avoid highlighting noise.
@@ -95,9 +95,9 @@ The same figures as **Summary**, split by prompt version or environment: every v
 
 Each row shows its traces, error rate, p95 latency, cost per trace, total cost, a 7-day error trend and the 👍 rate from [user feedback](/library/feedback). The number after **±** is the 95 % margin of the error rate. When the margins of two rows overlap, the difference may be noise, so do not act on it. Rows with fewer than 20 traces are dimmed. Costs marked **≥** are a minimum, because some model has no price in the [price catalog](/platform/dashboard); the page says how many tokens are left without price. Traces from the prompt playground do not count.
 
-Breakdown always compares **two at a time**: a baseline (**A**) against a candidate (**B**). Two slots above the table show what is still missing. Click a row to set it as A, then click another to set it as B; the dotted circle in each row shows the letter it would get. A is always turquoise and B always terracotta, the colors of the tool (also in dark mode): the slot, the circle, the highlighted row and the figures of the comparison, where the value on the left is A's and the one on the right is B's. Click a picked row again to clear it, or click a third row to replace B. As soon as both are set you get the change in errors, latency, cost and 👍 rate from A to B, each with a note on how far to trust it. With a single version there is nothing to compare, so the page says how to get a second one.
+Breakdown compares rows of **one agent**; for two different agents use [Compare agents](#compare-agents). It always compares **two at a time**: a baseline (**A**) against a candidate (**B**). Two slots above the table show what is still missing. Click a row to set it as A, then click another to set it as B; the dotted circle in each row shows the letter it would get. A is always turquoise and B always terracotta, the colors of the tool (also in dark mode): the slot, the circle, the highlighted row and the figures of the comparison, where the value on the left is A's and the one on the right is B's. Click a picked row again to clear it, or click a third row to replace B. As soon as both are set you get the change in errors, latency, cost and 👍 rate from A to B, each with a note on how far to trust it. With a single version there is nothing to compare, so the page says how to get a second one.
 
-A banner appears only when the worst and best rows are far enough apart to be reliable; **Compare with…** on it fills A and B for you. **Open in Charts** goes to the chart builder, and **Export CSV** downloads the table with the raw figures.
+A banner appears only when the worst and best rows are far enough apart to be reliable; **Pick … as B** on it fills A and B for you. **Open in Charts** goes to the chart builder, and **Export CSV** downloads the table with the raw figures.
 
 ### Charts
 

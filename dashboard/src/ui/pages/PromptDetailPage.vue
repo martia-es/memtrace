@@ -146,7 +146,7 @@ function startDrawerResize(e: PointerEvent) {
 const activeTab = computed(() => TAB_OF[mode.value]);
 const VIEW_TABS = [
   { id: "prompt", get label() { return t("promptDetailPage.prompt"); } },
-  { id: "compare", get label() { return t("promptDetailPage.compare"); } },
+  { id: "compare", get label() { return t("promptDetailPage.changes"); } },
   { id: "test", get label() { return t("promptDetailPage.test"); } },
 ];
 function openTab(id: string) {
@@ -766,6 +766,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                 <div v-if="compareOptions.length > 0" class="bar-select"><Select v-model="compareWith" :options="compareOptions" data-testid="compare-with" /></div>
                 <span v-else class="muted">{{ t("promptDetailPage.nothing_this_is_the_first_version") }}</span>
                 <span class="grow" />
+                <router-link class="breakdown-link" data-testid="see-in-breakdown" :to="{ name: 'overview-breakdown', params: { experimentId: route.params.experimentId as string }, query: { groupBy: 'prompt_version' } }">{{ t("promptDetailPage.see_all_in_breakdown") }}</router-link>
                 <span class="muted">{{ t("promptDetailPage.over_the_last") }}</span>
                 <div class="bar-select"><Select v-model="rangeKey" :options="rangeOptions" data-testid="behaviour-range" /></div>
               </div>
@@ -1230,6 +1231,8 @@ h3 {
 .compare-toolbar {
   flex-wrap: wrap;
 }
+.breakdown-link { font-size: 13px; color: var(--mt-accent-ink, var(--mt-accent)); text-decoration: none; }
+.breakdown-link:hover { text-decoration: underline; }
 .bar-select {
   flex: none;
   width: 120px;
