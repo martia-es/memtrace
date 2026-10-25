@@ -84,7 +84,7 @@ const pickTool = async (w: VueWrapper) => {
   await chip(w, "Tool calls").trigger("click");
   await settle();
 };
-const measuredAs = (w: VueWrapper) => w.findAll(".field").find((f) => f.find("label").exists() && f.find("label").text().startsWith("Measured as"))!;
+const measuredAs = (w: VueWrapper) => w.findAll(".fold").find((f) => f.find(".fold-label").text().startsWith("Measured as"))!;
 
 describe("measuring a number in the builder (ADR-078, phase 3)", () => {
   it("offers the metrics over a number only when the step has numbers, and lists those numbers", async () => {
