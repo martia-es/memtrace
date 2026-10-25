@@ -77,7 +77,7 @@ def serve(message: str) -> str:
         if verdict.blocked:
             return "I can't do that."          # the developer decides: here, stop
     for verdict in (security.secret_leak(text), security.pii_leak(text), security.system_prompt_leak(text, SYSTEM_PROMPT)):
-        if verdict.error:
+        if verdict.detected:
             return "I can't share that."
     return text
 
