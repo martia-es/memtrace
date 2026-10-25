@@ -1,6 +1,6 @@
 # Library
 
-`memtrace-ai` is the Python SDK that instruments your agent (the [TypeScript SDK](./typescript) does the same for Node.js) and exports traces over OTLP, following the OpenTelemetry [GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/) (`gen_ai.*`).
+The MemTrace library instruments your agent in Python (`memtrace-ai`) or TypeScript / Node.js (`@memtrace-ai/sdk`); every example in these pages has a tab per language and exports traces over OTLP, following the OpenTelemetry [GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/) (`gen_ai.*`).
 
 Traces go out as standard OTLP, over HTTP by default. The SDK knows nothing about where they are stored, so your agent code doesn't change if the backend does: you can send them to the MemTrace platform, to your own OpenTelemetry Collector or to any other OTLP backend ([Bring your own backend](./bring-your-own-backend)).
 
@@ -11,7 +11,7 @@ Traces go out as standard OTLP, over HTTP by default. The SDK knows nothing abou
 - **Safe by default**: prompts and completions are not captured unless you enable it, and the SDK never raises into your code.
 
 <div class="mt-cards">
-  <a class="mt-card" href="./installation"><span class="mt-card-tag">Start</span><strong>Installation</strong><span>Install memtrace-ai and its extras.</span></a>
+  <a class="mt-card" href="./installation"><span class="mt-card-tag">Start</span><strong>Installation</strong><span>Install the Python or TypeScript SDK.</span></a>
   <a class="mt-card" href="./quickstart"><span class="mt-card-tag">Start</span><strong>Quickstart</strong><span>Your first trace in a few lines.</span></a>
   <a class="mt-card" href="./tracing"><span class="mt-card-tag">Core</span><strong>Tracing steps</strong><span>Decorators and trace_llm_call.</span></a>
   <a class="mt-card" href="./conversations"><span class="mt-card-tag">Core</span><strong>Conversations</strong><span>Group chat turns into one conversation.</span></a>

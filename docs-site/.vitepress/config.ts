@@ -23,7 +23,6 @@ export default defineConfig({
             { text: "Conversations", link: "/library/conversations" },
             { text: "Users", link: "/library/users" },
             { text: "Integrations", link: "/library/integrations" },
-            { text: "TypeScript SDK", link: "/library/typescript" },
             { text: "Bring your own backend", link: "/library/bring-your-own-backend" },
             { text: "Configuration", link: "/library/configuration" },
             { text: "Personal data (PII)", link: "/library/pii" },

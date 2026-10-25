@@ -1,8 +1,10 @@
 # Tracing steps
 
-## `init_tracer`
+## `init_tracer` / `initTracer`
 
-```python
+::: code-group
+
+```python [Python]
 init_tracer(
     service_name=None,      # service.name; defaults to MEMTRACE_SERVICE_NAME
     endpoint=None,          # OTLP endpoint
@@ -12,16 +14,38 @@ init_tracer(
 )
 ```
 
+```ts [TypeScript]
+initTracer({
+  serviceName: "my-agent",   // service.name; defaults to MEMTRACE_SERVICE_NAME
+  endpoint: undefined,       // OTLP/HTTP endpoint
+  headers: { authorization: "Bearer mtk_..." },
+  redact: undefined,         // hook for personal data, see Personal data (PII)
+});
+```
+
+:::
+
 Idempotent and never raises. Every argument falls back to a `MEMTRACE_*` [environment variable](./configuration). With `MEMTRACE_ENABLED=false` the whole SDK is a no-op.
 
-## `@trace_step`
+## `@trace_step` / `traceStep`
 
-```python
+::: code-group
+
+```python [Python]
 @trace_step(name="lookup", step_type="tool")
 def lookup(key: str) -> str: ...
 ```
 
-Works on functions and methods, sync or `async`. `name` defaults to the function name. Spans created inside the function, including those from LangChain or auto-instrumented libraries, become children of the step.
+```ts [TypeScript]
+const lookup = traceStep(async (key: string): Promise<string> => { /* ... */ }, { name: "lookup", stepType: "tool" });
+
+// or wrap a block instead of a function
+await withStep("lookup", "tool", async () => { /* ... */ });
+```
+
+:::
+
+Works on functions and methods, sync or `async` (in TypeScript, `traceStep` wraps a function and `withStep` a block, both sync or async, and a thrown error marks the step as failed). `name` defaults to the function name. Spans created inside the function, including those from LangChain or auto-instrumented libraries, become children of the step.
 
 `step_type` is one of:
 
@@ -47,11 +71,13 @@ with trace_step_context("rank_results", step_type="chain") as run_id:
     ...
 ```
 
-## `trace_llm_call`
+## `trace_llm_call` / `traceLlmCall`
 
 Records standardized GenAI attributes on the **current** span. Call it inside a step.
 
-```python
+::: code-group
+
+```python [Python]
 trace_llm_call(
     "openai", "gpt-4o",          # provider and model; everything else is keyword-only
     operation="chat",
@@ -63,6 +89,15 @@ trace_llm_call(
     attributes=None,   # extra span attributes
 )
 ```
+
+```ts [TypeScript]
+traceLlmCall("openai", "gpt-4o", {   // provider and model, then the options
+  inputMessages: [/* ... */], outputMessages: [/* ... */],
+  inputTokens: 180, outputTokens: 52,
+});
+```
+
+:::
 
 Every tracing entry point (`trace_step`, `trace_step_context`, `trace_llm_call`) also takes `service=`, the object returned by `init_tracer()`, when you need a tracer other than the global one.
 

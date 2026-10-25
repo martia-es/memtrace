@@ -16,7 +16,13 @@ Not needed if you only use local data and `sink=None` and pass your own `LLMClie
 
 ## Quick start
 
-```python
+::: tip TypeScript
+Evaluators and judges receive one object (`{ input, output, expectedOutput, metadata }`). A judge uses **your** model through an `LLMClient` (`complete({ system, prompt, model? })`); there is no default provider. Names are camelCase (`runExperiment`, `exactMatch`, `expectedOutput`).
+:::
+
+::: code-group
+
+```python [Python]
 from memtrace.eval import run_experiment, exact_match
 
 def my_agent(*, item):
@@ -33,6 +39,21 @@ result = run_experiment(
 for item_result in result.items:
     print(item_result.output, [(s.name, s.value) for s in item_result.scores])
 ```
+
+```ts [TypeScript]
+import { runExperiment, exactMatch } from "@memtrace-ai/sdk";
+
+const result = await runExperiment({
+  data: [{ input: "2+2?", expectedOutput: "4" }],
+  task: (item) => callMyAgent(String(item.input)),
+  evaluators: [exactMatch],
+  name: "smoke-test",
+});
+
+for (const itemResult of result.items) console.log(itemResult.output, itemResult.scores.map((s) => [s.name, s.value]));
+```
+
+:::
 
 For each item in `data`, `run_experiment` calls `task`, then runs every evaluator in `evaluators` on `(input, output, expected_output)`, and returns an `ExperimentResult` with one row per item.
 
@@ -280,7 +301,9 @@ for s in result.summary():      # one entry per evaluator
 
 An agent and an LLM judge are not deterministic: running the **same** code on the **same** dataset twice can give 70 % and then 75 %. Before you read a +5 between two runs as an improvement, you need to know how much the result moves when nothing changes. Ask for repetitions:
 
-```python
+::: code-group
+
+```python [Python]
 result = run_experiment(
     data="<dataset_id>", task=my_agent, evaluators=[exact_match], name="prompt-v7",
     repeats=3,          # default 1: one execution, no extra cost
@@ -289,6 +312,17 @@ result = run_experiment(
 for s in result.summary():                       # one entry per boolean or numeric evaluator
     print(s.name, s.values, s.mean, s.noise)     # e.g. exact_match (0.88, 0.92, 0.90) 0.90 0.02
 ```
+
+```ts [TypeScript]
+const result = await runExperiment({
+  data: { datasetId: "<dataset_id>" }, task: myAgent, evaluators: [exactMatch], name: "prompt-v7",
+  repeats: 3,          // default 1: one execution, no extra cost
+});
+
+for (const s of result.summary()) console.log(s.name, s.values, s.mean, s.noise);   // RepeatedExperimentResult
+```
+
+:::
 
 With `repeats=3` the whole experiment runs three times, one after another, in the same call: same code, same dataset version, same evaluators. That is what makes the executions comparable: any difference between them is chance, not something you changed.
 
