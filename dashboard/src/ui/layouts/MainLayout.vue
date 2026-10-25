@@ -188,12 +188,15 @@ function switchExperiment(experimentId: string | null) {
         :loading="experiments.loading.value"
         @update:model-value="switchExperiment"
       />
-      <nav v-if="settingsNav" :aria-label="t('common.settings')" class="nav" data-testid="settings-nav">
+      <nav v-if="settingsNav" :aria-label="t('common.settings')" class="nav nav-settings" data-testid="settings-nav">
         <router-link :to="backToApp.to" class="nav-item nav-back" :title="isCollapsed ? backToApp.label : undefined" data-testid="settings-back">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6" /></svg>
           <span v-if="!isCollapsed" class="nav-label">{{ backToApp.label }}</span>
         </router-link>
-        <p v-if="!isCollapsed" class="nav-title">{{ settingsNav.title }}</p>
+        <div v-if="!isCollapsed" class="nav-mode" data-testid="settings-mode">
+          <span class="nav-mode-pill">{{ t("nav.settingsMode") }}</span>
+          <p class="nav-title">{{ settingsNav.title }}</p>
+        </div>
         <template v-for="{ section: s, header } in settingsItems" :key="s.id">
           <p v-if="header && !isCollapsed" class="nav-group">{{ header }}</p>
           <router-link
@@ -442,8 +445,32 @@ function switchExperiment(experimentId: string | null) {
 .nav-back {
   margin-bottom: 4px;
 }
+.nav-settings {
+  animation: nav-settings-in 0.25s ease-out;
+}
+@keyframes nav-settings-in {
+  from { opacity: 0; transform: translateX(-8px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-settings { animation: none; }
+}
+.nav-mode {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-left: 3px solid var(--mt-brand);
+  border-radius: var(--mt-radius-sm);
+  background: var(--mt-soft);
+}
+.nav-mode-pill {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mt-brand);
+}
 .nav-title {
-  margin: 8px 10px 0;
+  margin: 2px 0 0;
   font-size: 15px;
   font-weight: 800;
   letter-spacing: -0.01em;

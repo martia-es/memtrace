@@ -3187,6 +3187,7 @@ const es: Record<keyof typeof en, string> = {
   "nav.watch": "Vigilar",
   "nav.improve": "Mejorar",
   "nav.workspace": "Espacio de trabajo",
+  "nav.settingsMode": "Ajustes de la organización",
   "nav.modelPricing": "Precios de modelos",
   "routeTitle.Charts": "Gráficas",
   "routeTitle.Quality trends": "Tendencias de calidad",
