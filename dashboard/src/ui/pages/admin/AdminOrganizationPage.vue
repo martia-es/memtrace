@@ -150,15 +150,15 @@ async function inviteOrgAdmin({ email }: { email: string }) {
             <Button variant="primary" v-if="isOrgAdmin" @click="showCreate = true" class="mt-new">{{ t("adminOrganizationPage.new_experiment") }}</Button>
           </div>
 
-          <ul v-if="orgExperiments.length" class="adm-list">
+          <ul v-if="orgExperiments.length" class="exp-grid">
             <li v-for="e in orgExperiments" :key="e.id">
-              <router-link class="adm-item" :to="{ name: 'admin-experiment', params: { expId: e.id } }">
-                <div class="adm-item-main">
-                  <span class="adm-item-title">{{ e.name }}</span>
-                  <span class="adm-item-meta">{{ t("adminOrganizationPage.service_name") + " " }}<span class="mono">{{ e.serviceName }}</span></span>
+              <router-link class="exp-card" :to="{ name: 'admin-experiment', params: { expId: e.id } }">
+                <div class="exp-head">
+                  <span class="exp-title">{{ e.name }}</span>
+                  <Pill :tone="roleTone(e.myRole)">{{ ROLE_LABEL[e.myRole] }}</Pill>
                 </div>
-                <Pill :tone="roleTone(e.myRole)">{{ ROLE_LABEL[e.myRole] }}</Pill>
-                <span class="chevron" aria-hidden="true">›</span>
+                <span class="exp-meta">{{ t("adminOrganizationPage.service_name") + " " }}<span class="mono">{{ e.serviceName }}</span></span>
+                <span class="exp-open" aria-hidden="true">›</span>
               </router-link>
             </li>
           </ul>
@@ -254,7 +254,52 @@ async function inviteOrgAdmin({ email }: { email: string }) {
 .mono {
   font-family: var(--mt-mono);
 }
-.chevron {
+.exp-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+.exp-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  padding: 16px 18px;
+  border: 1px solid var(--mt-line-2);
+  border-radius: var(--mt-radius-lg);
+  background: var(--mt-card);
+  color: inherit;
+  text-decoration: none;
+}
+.exp-card:hover {
+  border-color: var(--mt-accent);
+  box-shadow: inset 3px 0 0 var(--mt-accent);
+}
+.exp-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.exp-title {
+  font-size: 14px;
+  font-weight: 600;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.exp-meta {
+  font-size: 12px;
+  color: var(--mt-muted);
+  overflow-wrap: anywhere;
+}
+.exp-open {
+  position: absolute;
+  right: 16px;
+  bottom: 10px;
   color: var(--mt-muted);
   font-size: 18px;
 }
