@@ -18,6 +18,16 @@ The SDK is the strongest layer, but it only works if the agent turns it on. As a
 
 ## Install
 
+::: tip TypeScript
+Presidio has no JavaScript engine, so `presidioRedactor` asks a Presidio analyzer service (same recognizers and models as the Python SDK) and masks the findings with `****`. Run the service next to the agent, because the text of your spans is sent to it:
+
+```bash
+docker run -p 5002:3000 mcr.microsoft.com/presidio-analyzer
+```
+
+If it stops answering, the content is replaced by `[UNSERIALIZABLE]` and never exported unmasked. The rest of this page describes the Python SDK.
+:::
+
 ```bash
 pip install "memtrace-ai[pii]"
 python -m spacy download en_core_web_sm      # English
@@ -38,12 +48,22 @@ Or declare it as a dependency in your `pyproject.toml` with the same URL.
 
 ## Turn it on
 
-```python
+::: code-group
+
+```python [Python]
 from memtrace import init_tracer
 from memtrace.pii import presidio_redactor
 
 init_tracer(redact=presidio_redactor(language="es"))
 ```
+
+```ts [TypeScript]
+import { initTracer, presidioRedactor } from "@memtrace-ai/sdk";
+
+initTracer({ redact: await presidioRedactor({ language: "es", url: "http://localhost:5002" }) });
+```
+
+:::
 
 With `MEMTRACE_CAPTURE_CONTENT=true`, a span that would have stored
 

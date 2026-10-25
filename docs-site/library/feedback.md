@@ -2,7 +2,9 @@
 
 Let the people who use your agent say whether an answer was good. The vote is saved on the **trace** that produced the answer, next to its latency, cost and reviewer labels.
 
-```python
+::: code-group
+
+```python [Python]
 import memtrace
 
 def answer(message: str) -> dict:
@@ -15,7 +17,24 @@ def answer(message: str) -> dict:
 memtrace.feedback(trace_id, "down", end_user_id="user-42", comment="Wrong city")
 ```
 
-Needs `pip install "memtrace-ai[eval]"`, `MEMTRACE_API_URL` (with the experiment id, like [offline evaluation](./evaluation#send-them-to-memtrace-dataset-id)) and `MEMTRACE_API_KEY`. **Call it from your server**, never from the browser: the API key must not reach your users.
+```ts [TypeScript]
+import { withStep, currentTraceId, feedback } from "@memtrace-ai/sdk";
+
+async function answer(message: string) {
+  return withStep("conversation_turn", "chain", async () => {
+    const reply = await runAgent(message);
+    const traceId = currentTraceId();   // return it to your UI with the answer
+    return { reply, traceId };
+  });
+}
+
+// when the person votes (from your server)
+await feedback(traceId, "down", { endUserId: "user-42", comment: "Wrong city" });
+```
+
+:::
+
+Needs `pip install "memtrace-ai[eval]"` (nothing extra in TypeScript), `MEMTRACE_API_URL` (with the experiment id, like [offline evaluation](./evaluation#send-them-to-memtrace-dataset-id)) and `MEMTRACE_API_KEY`. **Call it from your server**, never from the browser: the API key must not reach your users.
 
 ## Functions
 

@@ -176,6 +176,14 @@ body { font-size: 14px; letter-spacing: 0; }
 
 /* Code: tinted block with syntax colors (shiki github themes), turquoise top rule */
 .vp-doc div[class*="language-"] { background: #061a19 !important; border: 1px solid #1d3c3a; margin: 20px 0; display: flow-root; overflow: hidden; height: auto; }
+/* Code groups (tabs per language): the rule above forces display on every block, so hide the inactive ones again */
+.vp-doc .vp-code-group { margin: 20px 0; border-radius: var(--mt-radius-lg); overflow: hidden; border: 1px solid #1d3c3a; background: #061a19; }
+.vp-doc .vp-code-group .tabs { background: #0b2523; border-bottom: 1px solid #1d3c3a; --vp-code-tab-divider: #1d3c3a; --vp-code-tab-text-color: #86a9a5; --vp-code-tab-bg: #0b2523; --vp-code-tab-hover-text-color: #cfe6e3; --vp-code-tab-active-text-color: #86e8e2; --vp-code-tab-active-bg: #061a19; }
+.vp-doc .vp-code-group .tabs label { color: #86a9a5; }
+.vp-doc .vp-code-group .tabs input:checked + label { color: #86e8e2; }
+.vp-doc .vp-code-group .tabs input:checked + label::after { background: #86e8e2; }
+.vp-doc .vp-code-group .blocks > div[class*="language-"] { display: none; margin: 0; border: 0; border-radius: 0 !important; }
+.vp-doc .vp-code-group .blocks > div[class*="language-"].active { display: block; }
 .vp-doc div[class*="language-"] pre { overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; scrollbar-color: #2a4f4c transparent; }
 .vp-doc div[class*="language-"] pre::-webkit-scrollbar { height: 8px; }
 .vp-doc div[class*="language-"] pre::-webkit-scrollbar-track { background: transparent; }

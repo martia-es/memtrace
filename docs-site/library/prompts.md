@@ -2,7 +2,9 @@
 
 Read your agent's prompts from the [MemTrace registry](../platform/prompts) instead of hard-coding them. Then the version of each environment is a tag you move in MemTrace (no redeploy), and every trace tells you which version produced it.
 
-```python
+::: code-group
+
+```python [Python]
 from memtrace import prompts
 
 weather = prompts.get("weather-system")        # load once: module level or your lifespan
@@ -12,7 +14,24 @@ def answer(city: str) -> str:
     return run_agent(system, ...)
 ```
 
+```ts [TypeScript]
+import { prompts } from "@memtrace-ai/sdk";
+
+const weather = await prompts.get("weather-system");   // load once: async here
+
+async function answer(city: string) {
+  const system = weather.compile({ city });             // on every request: in memory, compile() is synchronous
+  return runAgent(system, /* ... */);
+}
+```
+
+:::
+
 Needs `pip install "memtrace-ai[eval]"`, `MEMTRACE_API_URL` (with the experiment id, like [offline evaluation](./evaluation#send-them-to-memtrace-dataset-id)) and `MEMTRACE_API_KEY`. The prompt has to belong to that agent in MemTrace (creating it from the agent's **Prompts** page does it).
+
+::: tip TypeScript
+To let the [playground](../platform/prompts) try a version in the real agent, mount `prompts.promptOverrideMiddleware()` after your body parser.
+:::
 
 ## `get()` returns a handle, not text
 

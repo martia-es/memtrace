@@ -2,13 +2,25 @@
 
 Wrap each turn of a chat in `session(...)` and the dashboard groups the traces into one conversation:
 
-```python
+::: code-group
+
+```python [Python]
 import memtrace
 
 def handle_message(conversation_id: str, text: str) -> str:
     with memtrace.session(conversation_id):
         return run_agent(text)
 ```
+
+```ts [TypeScript]
+import { session } from "@memtrace-ai/sdk";
+
+async function handleMessage(conversationId: string, text: string) {
+  return session(conversationId, () => runAgent(text));
+}
+```
+
+:::
 
 The id must be:
 

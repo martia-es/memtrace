@@ -2,7 +2,9 @@
 
 Wrap each request in `user(...)` and the dashboard can show what each end user costs, in **Overview › Breakdown › User**:
 
-```python
+::: code-group
+
+```python [Python]
 import memtrace
 
 def handle_message(user_id: str, conversation_id: str, text: str) -> str:
@@ -10,11 +12,13 @@ def handle_message(user_id: str, conversation_id: str, text: str) -> str:
         return run_agent(text)
 ```
 
-```ts
+```ts [TypeScript]
 import { user, session } from "@memtrace-ai/sdk";
 
 await user(userId, () => session(conversationId, () => runAgent(text)));
 ```
+
+:::
 
 Every span opened inside the block carries the id, including those of auto-instrumented libraries. For LangChain and LangGraph, pass `user_id` in the run `metadata` instead.
 

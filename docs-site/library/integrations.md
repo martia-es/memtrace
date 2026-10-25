@@ -8,7 +8,9 @@ Two options. Pick one.
 
 **Manual (recommended)**: attach the callback handler per call.
 
-```python
+::: code-group
+
+```python [Python]
 from memtrace import init_tracer
 from memtrace.langchain import MemTraceCallbackHandler
 
@@ -16,9 +18,19 @@ init_tracer(service_name="my-agent")
 chain.invoke(x, config={"callbacks": [MemTraceCallbackHandler()]})
 ```
 
-Requires `pip install "memtrace-ai[langchain]"`.
+```ts [TypeScript]
+import { initTracer } from "@memtrace-ai/sdk";
+import { MemTraceCallbackHandler } from "@memtrace-ai/sdk/langchain";
 
-**Automatic**: instrument LangChain once, after `init_tracer`.
+initTracer({ serviceName: "my-agent" });
+await chain.invoke(x, { callbacks: [new MemTraceCallbackHandler()] });   // thread_id is the conversation
+```
+
+:::
+
+Requires `pip install "memtrace-ai[langchain]"` (Python) or `npm install @langchain/core` (TypeScript, which has no automatic mode).
+
+**Automatic (Python only)**: instrument LangChain once, after `init_tracer`.
 
 ```python
 from memtrace import init_tracer
@@ -147,7 +159,9 @@ The `enable_*` functions raise `ImportError` when their extra is missing; every 
 
 The Agents SDK has its own tracing: each run is a trace made of agent, model, tool, handoff and guardrail spans. One call sends all of them to MemTrace, after `init_tracer`:
 
-```python
+::: code-group
+
+```python [Python]
 import memtrace
 from memtrace.openai_agents import enable_openai_agents_instrumentation
 
@@ -155,7 +169,17 @@ memtrace.init_tracer(service_name="my-agent")
 enable_openai_agents_instrumentation()
 ```
 
-Requires `pip install "memtrace-ai[openai-agents]"`. Safe to call more than once.
+```ts [TypeScript]
+import { initTracer } from "@memtrace-ai/sdk";
+import { enableOpenAIAgentsInstrumentation } from "@memtrace-ai/sdk/openai-agents";
+
+initTracer({ serviceName: "my-agent" });
+enableOpenAIAgentsInstrumentation();
+```
+
+:::
+
+Requires `pip install "memtrace-ai[openai-agents]"` (Python) or `npm install @openai/agents` (TypeScript). Safe to call more than once.
 
 | In the Agents SDK | In MemTrace |
 |---|---|
