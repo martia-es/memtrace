@@ -9,6 +9,7 @@ import { usePromptApi } from "../../composables/usePromptApi";
 import ApprovalFlowChart, { type FlowStep } from "../ApprovalFlowChart.vue";
 import Button from "../Button.vue";
 import Checkbox from "../Checkbox.vue";
+import LoadingState from "../LoadingState.vue";
 import Radio from "../Radio.vue";
 import { t, tp } from "../../i18n";
 import { lazyMessages } from "../../../domain/translate";
@@ -207,7 +208,7 @@ async function remove(row: { action: "publish" | "promote"; stage: string }) {
 
 <template>
   <div class="rules" data-testid="approval-rules">
-    <p v-if="loading && !data" class="adm-hint">{{ t("approvalRulesPanel.loading_the_rules") }}</p>
+    <LoadingState v-if="loading && !data" fill data-testid="rules-loading" />
     <p v-else-if="loadError" class="adm-empty" role="alert" data-testid="rules-error">{{ loadError }}</p>
     <template v-else-if="data">
       <p class="intro">

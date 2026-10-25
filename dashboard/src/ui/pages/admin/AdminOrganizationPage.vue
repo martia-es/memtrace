@@ -20,6 +20,7 @@ import { hasPermission } from "../../composables/usePermissions";
 import { useSettingsNav, type SettingsSection } from "../../composables/useSettingsNav";
 import Button from "../../components/Button.vue";
 import Pill from "../../components/Pill.vue";
+import LoadingState from "../../components/LoadingState.vue";
 import { t } from "../../i18n";
 
 /** Nivel 2: una organización. Secciones en el menú lateral (`?tab=` en la URL): experimentos siempre; el resto solo para org_admin. */
@@ -121,7 +122,8 @@ async function inviteOrgAdmin({ email }: { email: string }) {
 
 <template>
   <q-page>
-    <div class="adm-page">
+    <LoadingState v-if="!loaded" fill data-testid="org-loading" />
+    <div v-else class="adm-page">
       <PageHeader
         :crumbs="[{ label: 'MemTrace' }, { label: 'Admin', to: { name: 'admin' } }, { label: organization?.name ?? 'Organization' }]"
         icon="M3 21h18M5 21V7l7-4 7 4v14"
