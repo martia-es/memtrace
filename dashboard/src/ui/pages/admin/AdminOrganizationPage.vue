@@ -159,7 +159,7 @@ async function inviteOrgAdmin({ email }: { email: string }) {
                   </span>
                   <div class="exp-id">
                     <span class="exp-title">{{ e.name }}</span>
-                    <span class="exp-meta">{{ t("adminOrganizationPage.service_name") + " " }}<span class="mono">{{ e.serviceName }}</span></span>
+                    <span class="exp-meta mono">{{ e.serviceName }}</span>
                   </div>
                 </div>
                 <div class="exp-foot">
@@ -280,7 +280,7 @@ async function inviteOrgAdmin({ email }: { email: string }) {
   padding: 18px 20px;
   border: 1px solid var(--mt-line-2);
   border-radius: var(--mt-radius-lg);
-  background: linear-gradient(145deg, color-mix(in srgb, var(--mt-accent) 9%, var(--mt-card)), var(--mt-card) 62%);
+  background: var(--mt-card);
   color: inherit;
   text-decoration: none;
   transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
@@ -290,8 +290,7 @@ async function inviteOrgAdmin({ email }: { email: string }) {
   position: absolute;
   inset: 0 0 auto 0;
   height: 3px;
-  background: linear-gradient(90deg, var(--mt-accent), #ff6b4a);
-  opacity: 0.85;
+  background: var(--mt-accent);
 }
 .exp-card:hover {
   transform: translateY(-3px);
@@ -312,7 +311,7 @@ async function inviteOrgAdmin({ email }: { email: string }) {
   height: 42px;
   border-radius: 12px;
   color: #fff;
-  background: linear-gradient(135deg, var(--mt-accent), color-mix(in srgb, var(--mt-accent) 55%, #00b3ad));
+  background: var(--mt-accent);
 }
 .exp-id {
   display: flex;
