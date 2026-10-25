@@ -96,4 +96,26 @@ describe("CustomChartsPanel", () => {
     await head.trigger("click");
     expect(head.attributes("aria-expanded")).toBe("true");
   });
+
+  it("shows the MemTrace loader until the first load finishes, then the builder", async () => {
+    let release!: () => void;
+    class Slow extends Api {
+      async getStepKinds() {
+        await new Promise<void>((r) => { release = r; });
+        return super.getStepKinds();
+      }
+    }
+    mounted = mount(CustomChartsPanel, {
+      props: { experimentId: "e1", range: { from: "2026-10-01T00:00:00.000Z", to: "2026-10-08T00:00:00.000Z" } },
+      global: { plugins: [[Quasar, { plugins: { Dark, Notify } }]], provide: { [TRACE_API as symbol]: new Slow(), [IDENTITY_API as symbol]: new FakeIdentityApi() } },
+      attachTo: document.body,
+    });
+    await flushPromises();
+    expect(mounted.find("[data-testid='charts-loading']").exists()).toBe(true);
+    expect(mounted.text()).not.toContain("What do you want to know?");
+    release();
+    await flushPromises();
+    expect(mounted.find("[data-testid='charts-loading']").exists()).toBe(false);
+    expect(mounted.text()).toContain("What do you want to know?");
+  });
 });
