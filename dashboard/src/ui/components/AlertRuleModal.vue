@@ -130,38 +130,36 @@ async function save() {
 </script>
 
 <template>
-  <Modal :title="rule ? t('alertRuleModal.edit_alert') : t('alertRuleModal.new_alert')" @close="emit('close')">
+  <Modal :title="rule ? t('alertRuleModal.edit_alert') : t('alertRuleModal.new_alert')" medium @close="emit('close')">
     <form class="form" data-testid="alert-form" @submit.prevent="save">
-      <FormField :label="t('alertRuleModal.name')" :error="errors.name">
-        <TextInput v-model="form.name" :placeholder="t('alertRuleModal.e_g_too_many_errors')" autofocus :aria-label="t('alertRuleModal.alert_name')" />
-      </FormField>
-
       <FormField :label="t('alertRuleModal.kind')" :hint="kindHint" as="div">
         <SegmentedControl :model-value="form.kind" :options="KIND_OPTIONS" :aria-label="t('alertRuleModal.kind')" data-testid="alert-kind" @update:model-value="pickKind($event as AlertKind)" />
       </FormField>
 
-      <FormField :label="t('alertRuleModal.measure')" :hint="metricHint" :error="errors.metric" as="div">
+      <FormField class="half" :label="t('alertRuleModal.name')" :error="errors.name">
+        <TextInput v-model="form.name" :placeholder="t('alertRuleModal.e_g_too_many_errors')" autofocus :aria-label="t('alertRuleModal.alert_name')" />
+      </FormField>
+
+      <FormField class="half" :label="t('alertRuleModal.measure')" :hint="metricHint" :error="errors.metric" as="div">
         <Select v-model="form.metric" :options="metricOptions" :aria-label="t('alertRuleModal.metric')" />
       </FormField>
 
       <template v-if="isSecurity">
-        <div class="row">
-          <FormField :label="t('alertRuleModal.detector')" :hint="t('alertRuleModal.detector_hint')" :error="errors['params.detector']">
-            <TextInput v-model="form.detector" placeholder="secret_leak" :aria-label="t('alertRuleModal.detector')" />
-          </FormField>
-          <FormField :label="t('alertRuleModal.severity')" :error="errors['params.severity']">
-            <TextInput v-model="form.severity" :placeholder="t('alertRuleModal.any')" :aria-label="t('alertRuleModal.severity')" />
-          </FormField>
-        </div>
+        <FormField class="half" :label="t('alertRuleModal.detector')" :hint="t('alertRuleModal.detector_hint')" :error="errors['params.detector']">
+          <TextInput v-model="form.detector" placeholder="secret_leak" :aria-label="t('alertRuleModal.detector')" />
+        </FormField>
+        <FormField class="half" :label="t('alertRuleModal.severity')" :error="errors['params.severity']">
+          <TextInput v-model="form.severity" :placeholder="t('alertRuleModal.any')" :aria-label="t('alertRuleModal.severity')" />
+        </FormField>
         <p class="note" data-testid="security-note">{{ t("alertRuleModal.security_note") }}</p>
       </template>
 
       <template v-if="isEvaluation">
-        <FormField :label="t('alertRuleModal.target')" :hint="t('alertRuleModal.target_hint')" :error="errors['params.target']">
+        <FormField class="half" :label="t('alertRuleModal.target')" :hint="t('alertRuleModal.target_hint')" :error="errors['params.target']">
           <TextInput v-model="form.target" placeholder="redteam/" :aria-label="t('alertRuleModal.target')" data-testid="alert-target" />
         </FormField>
         <template v-if="isScore">
-          <FormField :label="t('alertRuleModal.score')" :hint="t('alertRuleModal.score_hint')" :error="errors['params.score']">
+          <FormField class="half" :label="t('alertRuleModal.score')" :hint="t('alertRuleModal.score_hint')" :error="errors['params.score']">
             <TextInput v-model="form.score" :placeholder="t('alertRuleModal.any_check')" :aria-label="t('alertRuleModal.score')" />
           </FormField>
           <FormField :label="t('alertRuleModal.fire_when')" :error="errors['params.mode']" as="div">
@@ -200,11 +198,11 @@ async function save() {
         <TextInput v-model="form.minSamples" type="number" :aria-label="t('alertRuleModal.minimum_samples')" />
       </FormField>
 
-      <FormField :label="t('alertRuleModal.email')" :error="errors.recipients" :hint="t('alertRuleModal.one_address_per_line_up_to')">
+      <FormField class="half" :label="t('alertRuleModal.email')" :error="errors.recipients" :hint="t('alertRuleModal.one_address_per_line_up_to')">
         <TextInput v-model="form.recipients" multiline :rows="3" :placeholder="t('alertRuleModal.oncall_example_com')" :aria-label="t('alertRuleModal.recipients')" />
       </FormField>
 
-      <FormField :label="t('alertRuleModal.remind_me')" :error="errors.reminderMinutes" as="div">
+      <FormField class="half" :label="t('alertRuleModal.remind_me')" :error="errors.reminderMinutes" as="div">
         <Select v-model="form.reminder" :options="REMINDER_OPTIONS" :aria-label="t('alertRuleModal.reminder')" />
       </FormField>
 
@@ -220,7 +218,10 @@ async function save() {
 </template>
 
 <style scoped>
-.form { display: flex; flex-direction: column; gap: 14px; }
+.form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; align-items: start; }
+/* los campos van a ancho completo salvo los marcados `half`, que se emparejan de dos en dos */
+.form > * { grid-column: 1 / -1; }
+.form > .half { grid-column: auto; }
 .row { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start; }
 .with-unit { display: inline-flex; align-items: center; gap: 8px; }
 .unit { font-size: 13px; color: var(--mt-muted); }
