@@ -22,6 +22,7 @@ const emit = defineEmits<{ select: []; edit: []; checked: []; talk: []; deploy: 
 const api = useAssistantApi();
 const $q = useQuasar();
 const checking = ref(false);
+const open = ref(false);
 const history = useAsync((signal) => api.getHealthHistory(props.experimentId, props.deployment.id, 24, signal));
 onMounted(() => void history.run());
 // último despliegue lanzado desde MemTrace (ADR-064); se vuelve a leer tras lanzar uno
@@ -74,44 +75,56 @@ const mono = computed(() => new Set([t("deploymentCard.api"), t("deploymentCard.
       <Button variant="link" v-if="canManage" :disabled="checking" data-testid="check-now" @click="checkNow"><q-icon name="sync" size="14px" :class="{ spin: checking }" />{{ checking ? t("deploymentCard.syncing") : t("deploymentCard.sync") }}</Button>
       <Button variant="link" v-if="canManage" @click="emit('edit')"><q-icon name="edit" size="14px" />{{ t("deploymentCard.edit") }}</Button>
     </header>
-    <div class="uptime">
-      <HealthBars :checks="checks" :now-ms="nowMs" />
-      <div class="uptime-legend"><span>{{ t("deploymentCard.24_h_ago") }}</span><span><b>{{ formatUptime(uptimePercent(checks)) }}</b>{{ " " + t("deploymentCard.uptime") }}</span><span>{{ t("deploymentCard.now") }}</span></div>
+    <div class="metrics">
+      <div class="metric"><b class="big">{{ formatUptime(uptimePercent(checks)) }}</b><span>{{ t("deploymentCard.uptime_last_24_h") }}</span></div>
+      <div class="metric end"><b class="mid">{{ d.healthLatencyMs !== null ? formatDuration(d.healthLatencyMs) : "–" }}</b><span>{{ t("deploymentCard.latency") }}</span></div>
     </div>
-    <dl class="rows">
+    <HealthBars :checks="checks" :now-ms="nowMs" />
+    <div class="ident">
+      <span v-if="d.version" class="ver">{{ d.version }}</span>
+      <span class="api" :title="d.apiUrl">{{ d.apiUrl }}</span>
+    </div>
+    <dl v-show="open" class="rows">
       <template v-for="[label, value] in rows" :key="label">
         <dt>{{ label }}</dt>
         <dd v-if="label === 'Deployed' && deployed" class="deployed" data-testid="deployed-commit"><CommitLink :revision="deployed.commitSha" :repo="repo" /><span class="muted">{{ value }}</span></dd>
         <dd v-else :class="{ mono: mono.has(label) }" :title="value">{{ value }}</dd>
       </template>
     </dl>
-    <Button size="sm" class="select" :aria-pressed="selected" @click="emit('select')">{{ selected ? t("deploymentCard.showing_who_can_call_it") : t("deploymentCard.show_who_can_call_it") }}</Button>
+    <Button variant="link" class="foot" :aria-pressed="selected" :title="selected ? t('deploymentCard.showing_who_can_call_it') : t('deploymentCard.show_who_can_call_it')" @click="emit('select')">
+      <span class="who">{{ accessSummary(d) }}</span>
+      <span class="grow" />
+      <q-icon :name="selected ? 'expand_more' : 'chevron_right'" size="18px" />
+    </Button>
+    <Button variant="link" class="more" :aria-expanded="open" @click="open = !open">{{ open ? t("deploymentCard.hide_details") : t("deploymentCard.details") }}</Button>
   </article>
 </template>
 
 <style scoped>
-.env { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 14px 16px; background: var(--mt-card); border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); }
-.env.selected { border-color: var(--mt-accent); }
+.env { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 14px 16px; background: var(--mt-card); border: 1px solid var(--mt-line); border-radius: var(--mt-radius-lg); }
+.env.selected { border: 2px solid var(--mt-accent); padding: 13px 15px; box-shadow: 0 4px 14px color-mix(in srgb, var(--mt-accent) 14%, transparent); }
 .head { display: flex; align-items: center; gap: 10px; }
-.key { font-family: var(--mt-mono); font-size: 14px; font-weight: 500; letter-spacing: 0.02em; }
+.key { font-family: var(--mt-mono); font-size: 15px; font-weight: 500; letter-spacing: 0.02em; }
 .spacer { flex: 1; }
-.link { display: inline-flex; align-items: center; gap: 4px; }
-
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.link { font: inherit; font-size: 12px; font-weight: 700; color: var(--mt-accent-text); background: none; border: none; padding: 0; cursor: pointer; }
-
-.link:hover:not(:disabled) { text-decoration: underline; }
-.link:disabled { opacity: 0.5; cursor: default; }
-.head .link + .link { margin-left: 4px; }
-.select { align-self: flex-start; }
-.uptime { display: flex; flex-direction: column; gap: 5px; }
-.uptime-legend { display: flex; justify-content: space-between; font-size: 11px; color: var(--mt-faint); }
-.uptime-legend b { font-family: var(--mt-mono); font-weight: 500; color: var(--mt-ink); }
+.metrics { display: flex; align-items: flex-end; gap: 16px; }
+.metric { display: flex; flex-direction: column; gap: 3px; line-height: 1.1; }
+.metric.end { margin-left: auto; text-align: right; }
+.metric span { font-size: 11px; color: var(--mt-faint); }
+.big { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; }
+.mid { font-size: 18px; font-weight: 800; letter-spacing: -0.01em; }
+.ident { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ver { flex: none; padding: 2px 8px; border-radius: var(--mt-radius-xs); background: var(--mt-bg); color: var(--mt-muted); font-family: var(--mt-mono); font-size: 11.5px; }
+.api { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mt-mono); font-size: 11.5px; color: var(--mt-muted); }
 .rows { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 7px 10px; margin: 0; padding-top: 8px; border-top: 1px solid var(--mt-line-2); font-size: 12px; }
 dt { color: var(--mt-muted); }
 .deployed { display: flex; align-items: center; gap: 8px; }
 .muted { color: var(--mt-muted); }
 dd { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 dd.mono { font-family: var(--mt-mono); font-size: 11.5px; }
+.foot { display: flex; align-items: center; gap: 10px; padding: 11px 0 0; font: inherit; font-weight: 700; color: var(--mt-ink); background: none; border: none; border-top: 1px solid var(--mt-line-2); cursor: pointer; text-align: left; }
+.foot:hover .who { text-decoration: underline; }
+.grow { flex: 1; }
+.more { align-self: flex-start; margin-top: -4px; }
 </style>

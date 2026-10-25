@@ -265,6 +265,7 @@ describe("assistant detail (ADR-053)", () => {
 
   it("flags connections seen in traces and lets governance approve them", async () => {
     const api = new FakeAssistantApi();
+    api.card = assistantCard({ connectionCounts: { mcpServers: 0, tools: 2, agents: 1, toReview: 1 } });
     api.connections = [
       connectionDto({ id: "c1", name: "get_forecast" }),
       connectionDto({ id: "c2", name: "search_web", via: null, declared: false, status: "pending", usage: { calls: 37, errors: 3 } }),
@@ -275,12 +276,28 @@ describe("assistant detail (ADR-053)", () => {
     const { router } = { router: wrapper.vm.$router };
     await router.replace({ query: { tab: "connections" } });
     await flushPromises();
-    expect(wrapper.get("[data-testid='drift-banner']").text()).toContain("search_web");
-    expect(wrapper.get("[data-testid='group-agent']").text()).toContain("Not in catalog");
+    expect(wrapper.get("[data-testid='attention-review']").text()).toContain("1 connection is waiting for approval");
+    expect(wrapper.get("[data-testid='connection-c2']").text()).toContain("search_web");
+    expect(wrapper.get("[data-testid='connection-c3']").text()).toContain("Not in catalog");
     const approve = wrapper.findAll("button").find((b) => b.text() === "Approve")!;
     await approve.trigger("click");
     await flushPromises();
     expect(api.calls).toEqual([{ method: "decideConnection", args: ["exp-1", "c2", "approved", null] }]);
+  });
+
+  it("filters the connection cards by status and shows how many there are of each", async () => {
+    const api = new FakeAssistantApi();
+    api.connections = [
+      connectionDto({ id: "c1", name: "get_forecast" }),
+      connectionDto({ id: "c2", name: "search_web", declared: false, status: "pending" }),
+    ];
+    const { wrapper } = await setup(AssistantDetailPage, "/assistants/exp-1", api, new Identity([org("org_admin")], []), { experimentId: "exp-1" });
+    await flushPromises();
+    expect(wrapper.get("[data-testid='filter-pending']").text()).toContain("1");
+    await wrapper.get("[data-testid='filter-pending']").trigger("click");
+    expect(wrapper.find("[data-testid='connection-c1']").exists()).toBe(false);
+    expect(wrapper.find("[data-testid='connection-c2']").exists()).toBe(true);
+    wrapper.unmount();
   });
 
   it("counts tool calls in the chosen range and reloads when it changes", async () => {
@@ -290,7 +307,10 @@ describe("assistant detail (ADR-053)", () => {
     await flushPromises();
     const [first] = api.connectionRanges;
     expect(new Date(first!.to).getTime() - new Date(first!.from).getTime()).toBe(30 * 86_400_000);
-    await wrapper.findAll(".range button").find((b) => b.text() === "7 d")!.trigger("click");
+    await wrapper.get("[data-testid='calls-range']").trigger("click");
+    await flushPromises();
+    const week = [...document.body.querySelectorAll<HTMLButtonElement>(".opt")].find((b) => b.textContent?.trim() === "7 d")!;
+    week.click();
     await flushPromises();
     const last = api.connectionRanges.at(-1)!;
     expect(new Date(last.to).getTime() - new Date(last.from).getTime()).toBe(7 * 86_400_000);
