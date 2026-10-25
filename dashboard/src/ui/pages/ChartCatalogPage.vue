@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref } from "vue";
 import { useRoute } from "vue-router";
 import type { ChartCatalogEntryDto } from "@contract";
 import ChartCatalogTable from "../components/ChartCatalogTable.vue";
+import LoadingState from "../components/LoadingState.vue";
 import PageHeader from "../components/PageHeader.vue";
 import { useFilters } from "../composables/useFilters";
 import { useIdentityApi } from "../composables/useIdentityApi";
@@ -63,7 +64,7 @@ void load();
         <template v-if="!can('catalog:manage')"> {{ t("chartCatalogPage.you_can_look_but_not_change") }}</template>
       </p>
       <input v-model="search" class="search" type="search" :placeholder="t('chartCatalogPage.search_steps_and_attributes')" :aria-label="t('chartCatalogPage.search_the_catalog')" data-testid="catalog-search" />
-      <p v-if="entries === null" class="muted">{{ t("chartCatalogPage.loading") }}</p>
+      <LoadingState v-if="entries === null" size="md" />
       <ChartCatalogTable v-else ref="table" manual :experiment-id="experimentId" :range="range" :entries="entries" :readonly="!can('catalog:manage')" :search="search" @changed="entries = $event" @dirty="dirty = $event" />
       <div v-if="dirty > 0" class="savebar" role="status" data-testid="catalog-savebar">
         <span>{{ tp("chartCatalogPage.unsaved", dirty) }}</span>
