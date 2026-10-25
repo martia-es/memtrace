@@ -2,14 +2,14 @@
 import Card from "./Card.vue";
 import Button from "./Button.vue";
 import { t } from "../i18n";
-defineProps<{ title: string; medium?: boolean; wide?: boolean; full?: boolean }>();
+defineProps<{ title: string; medium?: boolean; wide?: boolean; full?: boolean; fixed?: boolean }>();
 const emit = defineEmits<{ close: [] }>();
 </script>
 
 <template>
   <Teleport to="body">
     <div class="modal-backdrop" @click.self="emit('close')" @keydown.esc="emit('close')">
-      <Card padding="none" block class="modal-card" :class="{ medium, wide, full }" role="dialog" aria-modal="true" :aria-label="title">
+      <Card padding="none" block class="modal-card" :class="{ medium, wide, full, fixed }" role="dialog" aria-modal="true" :aria-label="title">
         <div class="modal-header">
           <h2>{{ title }}</h2>
           <Button variant="icon" class="modal-close" :aria-label="t('modal.close')" @click="emit('close')">
@@ -64,6 +64,17 @@ const emit = defineEmits<{ close: [] }>();
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+/* Alto fijo: el diálogo no cambia de tamaño según el contenido; el cuerpo hace scroll y el pie queda siempre a la vista */
+.modal-card.fixed {
+  height: min(780px, calc(100vh - 40px));
+  overflow: hidden;
+}
+.modal-card.fixed .modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 .modal-header {
   display: flex;

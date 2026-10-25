@@ -130,7 +130,7 @@ async function save() {
 </script>
 
 <template>
-  <Modal :title="rule ? t('alertRuleModal.edit_alert') : t('alertRuleModal.new_alert')" medium @close="emit('close')">
+  <Modal :title="rule ? t('alertRuleModal.edit_alert') : t('alertRuleModal.new_alert')" medium fixed @close="emit('close')">
     <form class="form" data-testid="alert-form" @submit.prevent="save">
       <FormField :label="t('alertRuleModal.kind')" :hint="kindHint" as="div">
         <SegmentedControl :model-value="form.kind" :options="KIND_OPTIONS" :aria-label="t('alertRuleModal.kind')" data-testid="alert-kind" @update:model-value="pickKind($event as AlertKind)" />
