@@ -810,7 +810,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
   display: grid;
   grid-template-columns: 380px minmax(0, 1fr);
   gap: 16px;
-  align-items: stretch;
+  align-items: start;
 }
 @media (max-width: 1000px) {
   .cc-grid {
@@ -824,10 +824,10 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
   background: var(--mt-card);
 }
 .cc-builder {
-  padding: 18px;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
 }
 .cc-title {
   font-size: 15px;
@@ -857,7 +857,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
 .question-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 .question-card,
 .pill {
@@ -871,9 +871,9 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
 .question-card {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0;
   text-align: left;
-  padding: 10px 12px;
+  padding: 7px 12px;
   border-radius: var(--mt-radius-sm, 8px);
 }
 .question-card:hover,
@@ -898,6 +898,8 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
   display: flex;
   flex-direction: column;
   min-width: 0;
+  position: sticky;
+  top: 76px;
 }
 .cc-preview-card.empty {
   border-style: dashed;
@@ -905,7 +907,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
   justify-content: center;
   gap: 8px;
   padding: 48px 24px;
-  min-height: 360px;
+  min-height: 280px;
   text-align: center;
 }
 .ghost {
