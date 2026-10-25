@@ -1,4 +1,4 @@
-import type { RiskInputDto, AccessGrantDto, AssistantPersonDto, AssistantCardDto, ChatResponseDto, ConnectionDto, ConnectionKindDto, ConnectionStatusDto, DeployPreviewDto, DeployRunDto, DeploymentDto, EnvironmentDto, HealthCheckDto } from "@contract";
+import type { RiskInputDto, AccessGrantDto, AgentSecurityDto, AssistantPersonDto, AssistantCardDto, ChatResponseDto, ConnectionDto, ConnectionKindDto, ConnectionStatusDto, DeployPreviewDto, DeployRunDto, DeploymentDto, EnvironmentDto, HealthCheckDto } from "@contract";
 import type { AssistantApi, AssistantPatchInput, DeploymentInput, NewGrantInput } from "@/application/assistant-api";
 import { ApiError } from "@/application/trace-api";
 
@@ -52,6 +52,9 @@ export class HttpAssistantApi implements AssistantApi {
   }
   async listDeploys(experimentId: string, deploymentId: string, signal?: AbortSignal): Promise<DeployRunDto[]> {
     return (await this.request<{ items: DeployRunDto[] }>("GET", `${this.assistant(experimentId)}/deployments/${e(deploymentId)}/deploys?limit=5`, undefined, signal)).items;
+  }
+  getSecurity(experimentId: string, days: number, signal?: AbortSignal): Promise<AgentSecurityDto> {
+    return this.request("GET", `${this.assistant(experimentId)}/security?days=${days}`, undefined, signal);
   }
   checkDeploymentNow(experimentId: string, deploymentId: string, signal?: AbortSignal): Promise<DeploymentDto> {
     return this.request("POST", `${this.assistant(experimentId)}/deployments/${e(deploymentId)}/health/check`, undefined, signal);

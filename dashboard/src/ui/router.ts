@@ -48,6 +48,8 @@ export const router = createRouter({
         { path: "overview/breakdown", name: "overview-breakdown", component: () => import("./pages/BreakdownPage.vue"), meta: { title: "Breakdown", section: "breakdown" } },
         { path: "overview/charts", name: "overview-charts", component: metricsPage, meta: { title: "Charts", section: "charts", view: "charts" } },
         { path: "overview/catalog", name: "overview-catalog", component: () => import("./pages/ChartCatalogPage.vue"), meta: { title: "Data catalog", section: "catalog" } },
+        // postura de seguridad del agente (ADR-103): detecciones en producción y runs de red team
+        { path: "security", name: "security", component: () => import("./pages/AgentSecurityPage.vue"), meta: { title: "Security", section: "security", timeRange: false } },
         { path: "alerts", name: "alerts", component: () => import("./pages/AlertsPage.vue"), meta: { title: "Alerts", section: "alerts", timeRange: false } },
         { path: "overview/reports", name: "overview-reports", component: metricsPage, meta: { title: "Reports", section: "reports", view: "reports" } },
         { path: "overview/reports/:reportId", name: "overview-report", component: metricsPage, meta: { title: "Report", section: "reports", view: "report" } },

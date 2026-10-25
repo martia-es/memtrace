@@ -1141,6 +1141,38 @@ export interface DeployGateDto {
   runs: Array<{ runId: string; name: string; passed: boolean; failures: Array<{ evaluator: string; passRate: number | null; target: number; incomplete?: { scored: number; items: number } }> }>;
 }
 
+/** Postura de seguridad de un agente (ADR-103): eventos de los detectores en producción y últimos runs de red team. */
+export interface AgentSecurityDto {
+  days: number;
+  events: {
+    total: number;
+    blocked: number;
+    byDetector: Array<{ detector: string; count: number }>;
+    byCategory: Array<{ category: string; count: number }>;
+    bySeverity: Array<{ severity: string; count: number }>;
+    byAction: Array<{ action: string; count: number }>;
+    /** un punto por día del periodo (UTC), con ceros, el más antiguo primero */
+    daily: Array<{ date: string; count: number }>;
+  };
+  redteam: {
+    /** los 10 runs `redteam/…` completos más recientes */
+    runs: Array<{
+      runId: string;
+      datasetId: string;
+      name: string;
+      createdAt: string;
+      revision: string | null;
+      /** items evaluados; los que fallaron no cuentan */
+      items: number;
+      errored: number;
+      attacksSucceeded: number;
+      /** attacksSucceeded / items; null si no hay items evaluados */
+      asr: number | null;
+      byCategory: Array<{ category: string; items: number; attacksSucceeded: number; asr: number | null }>;
+    }>;
+  };
+}
+
 /** Un despliegue lanzado desde MemTrace (ADR-064). */
 export interface DeployRunDto {
   id: string;
