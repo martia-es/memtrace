@@ -62,3 +62,33 @@ In the app, a bell in the top bar lists the alerts that are firing in the experi
 * A saved chart that is deleted leaves its rules without a metric: they show as invalid and stop firing instead of being deleted silently.
 * Webhooks (Slack, Teams, PagerDuty) are not included. They need the same SSRF protection as the health probe and are the natural next step.
 * The existing report and invitation emails interpolate names without escaping HTML. The alert email escapes everything it prints; the older ones are a separate follow-up.
+
+## Update 2026-10-25: security and evaluation-quality rules (decided, not implemented)
+
+Two new families of rules, on the same state machine, delivery and permissions as above. They answer "alert me when security degrades" and "alert me when an evaluation gets worse". Online quality alerts stay discarded (backlog F3/R10): nothing here reads production trace content.
+
+### Security detections: a windowed metric, like `error_rate`
+
+* New metrics `security_detections` (detections in the window) and `security_blocked` (tool calls blocked by `ToolPolicy`), counted from the `security.*` spans of ADR-103. The unit is a count, `min_samples` is 0 (as in cost), and the condition is "more than N in W minutes".
+* Optional filters by detector and by severity. A single `secret_leak` is an incident, so the suggested starting rule is "at least 1 `secret_leak`", not a rate.
+* The query is the one behind the Security page: it excludes the playground and `security.context=redteam`, so red team runs never count as production.
+* The metric is only meaningful if the agent enabled the detectors. Without them the rule never fires; the UI says so instead of showing a green state that means nothing.
+
+### Evaluation quality: an event metric, not a windowed one
+
+Offline runs (red team included) are launched by a person or by the agent's CI. MemTrace does not schedule them. The five-minute CronJob only looks for a new completed run:
+
+* A rule targets a dataset (or a run-name prefix such as `redteam/`) and one evaluator. It reads that evaluator's score on the **latest completed run** from `dataset_runs` and its scores, not from ClickHouse.
+* Two modes: **absolute** (the score is below X) and **drop** (the mean fell more than X points against the previous run of the same dataset and dataset version). The drop mode is ignored when the drop is smaller than the noise measured with `repeats` (ADR-044), so a non-deterministic judge does not raise false alarms. A minimum number of evaluated items plays the role of `min_samples`.
+* It fires on the first cycle after a bad run arrives (up to five minutes later), and resolves only when a **later run** is back inside the threshold. A bad run does not resolve by itself with time, and if nobody evaluates again the alert stays firing. An errored item is not counted, as in the ASR.
+* Applied to `redteam/` runs the same rule is "the attack success rate went up", so offline security needs no third mechanism.
+
+### Not evaluated for a while
+
+A rule "no completed run of this dataset or prefix in N days" (`no_data` in the state machine, with its own notification). The regression that hurts is the one nobody measured, and without it a bad red team run could stay unnoticed indefinitely.
+
+### Consequences
+
+* A migration will be needed if `alert_rules.metric` is constrained, plus fields for the detector and severity filters and for dataset, evaluator and mode. The rule form grows, and its UI proposal goes first in the design artifact.
+* The evaluator reads two stores (ClickHouse for security, Postgres for evaluation) behind two ports; the domain stays free of both.
+* MemTrace still cannot launch a red team run by itself. Triggering it on deploy belongs to the deploy gate (ADR-064), which is out of scope here.
