@@ -154,11 +154,18 @@ async function inviteOrgAdmin({ email }: { email: string }) {
             <li v-for="e in orgExperiments" :key="e.id">
               <router-link class="exp-card" :to="{ name: 'admin-experiment', params: { expId: e.id } }">
                 <div class="exp-head">
-                  <span class="exp-title">{{ e.name }}</span>
-                  <Pill :tone="roleTone(e.myRole)">{{ ROLE_LABEL[e.myRole] }}</Pill>
+                  <span class="exp-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path :d="ICONS.experiments" /></svg>
+                  </span>
+                  <div class="exp-id">
+                    <span class="exp-title">{{ e.name }}</span>
+                    <span class="exp-meta">{{ t("adminOrganizationPage.service_name") + " " }}<span class="mono">{{ e.serviceName }}</span></span>
+                  </div>
                 </div>
-                <span class="exp-meta">{{ t("adminOrganizationPage.service_name") + " " }}<span class="mono">{{ e.serviceName }}</span></span>
-                <span class="exp-open" aria-hidden="true">›</span>
+                <div class="exp-foot">
+                  <Pill :tone="roleTone(e.myRole)">{{ ROLE_LABEL[e.myRole] }}</Pill>
+                  <span class="exp-open" aria-hidden="true">Open <span class="exp-arrow">→</span></span>
+                </div>
               </router-link>
             </li>
           </ul>
@@ -259,36 +266,64 @@ async function inviteOrgAdmin({ email }: { email: string }) {
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
 }
 .exp-card {
   position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 18px;
   height: 100%;
-  padding: 16px 18px;
+  padding: 18px 20px;
   border: 1px solid var(--mt-line-2);
   border-radius: var(--mt-radius-lg);
-  background: var(--mt-card);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--mt-accent) 9%, var(--mt-card)), var(--mt-card) 62%);
   color: inherit;
   text-decoration: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.exp-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--mt-accent), #ff6b4a);
+  opacity: 0.85;
 }
 .exp-card:hover {
+  transform: translateY(-3px);
   border-color: var(--mt-accent);
-  box-shadow: inset 3px 0 0 var(--mt-accent);
+  box-shadow: 0 10px 24px -12px color-mix(in srgb, var(--mt-accent) 55%, transparent);
 }
 .exp-head {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+.exp-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--mt-accent), color-mix(in srgb, var(--mt-accent) 55%, #00b3ad));
+}
+.exp-id {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 .exp-title {
-  font-size: 14px;
-  font-weight: 600;
-  min-width: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--mt-ink);
   overflow-wrap: anywhere;
 }
 .exp-meta {
@@ -296,12 +331,26 @@ async function inviteOrgAdmin({ email }: { email: string }) {
   color: var(--mt-muted);
   overflow-wrap: anywhere;
 }
+.exp-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
 .exp-open {
-  position: absolute;
-  right: 16px;
-  bottom: 10px;
-  color: var(--mt-muted);
-  font-size: 18px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mt-accent);
+}
+.exp-arrow {
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+.exp-card:hover .exp-arrow {
+  transform: translateX(4px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .exp-card, .exp-arrow { transition: none; }
+  .exp-card:hover { transform: none; }
 }
 .adm-empty a {
   color: var(--mt-accent);
