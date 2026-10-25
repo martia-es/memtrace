@@ -301,6 +301,7 @@ Un usuario puede agrupar varias gráficas custom ya guardadas en un **informe** 
 - [x] **Auditoría de la frontera de cliente** sobre el registro de la Fase 1.9 (`audit_log`): altas y bajas de relaciones partner y de grants, y cada acceso de una consultora a los datos de un cliente (`partner.access`), legibles por el cliente con `audit:read` — [ADR-093](adrs/cybersecurity/adr-093-audit-of-consultancy-access.md)
 - [ ] P1 (ADR-087) pendiente: TLS (ingress) y HSTS, cifrado en reposo y gestor de secretos, límites de uso en el resto de la API y cuotas por tenant, borrado y retención por cliente, política de PII en el servidor, flujos hacia terceros (jueces LLM, playground). Detalle completo en [security-pending.md](security-pending.md)
 - [ ] P2 (ADR-087): políticas de fila en ClickHouse, políticas de sesión, escaneo de la cadena de suministro en CI, copias de seguridad cifradas, pentest y cumplimiento
+- [ ] **Seguridad de los agentes observados** (**decidido, sin implementar**): red team como un run de evaluación más (ataques por categoría OWASP LLM Top 10, jueces de seguridad, tasa de éxito del ataque) y detectores deterministas en el agente que emiten spans `security.*` (secretos, PII, fuga del system prompt, `ToolPolicy` con modos `observe`/`warn`/`enforce`), apoyados en librerías existentes. Sin detector de inyección en producción: se mide offline — [ADR-103](adrs/cybersecurity/adr-103-agent-security-red-team-and-runtime-detectors.md). Después: pantalla de postura por agente y requisito de seguridad en el gate de despliegue
 
 ---
 
