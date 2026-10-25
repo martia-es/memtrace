@@ -9,4 +9,6 @@ import type { TimeRange } from "@/domain/time-range";
 export interface SecurityEventRepository {
   /** Solo detecciones (`security.detected = true`), sin las trazas del playground (ADR-071). */
   countEvents(query: TimeRange & { scope: TenantScope }): Promise<SecurityEventRow[]>;
+  /** Detecciones en una ventana corta (las alertas, ADR-086), filtradas por detector y severidad; `blockedOnly` cuenta solo las que cortaron la ejecución. */
+  countInWindow(query: TimeRange & { scope: TenantScope; detector: string | null; severity: string | null; blockedOnly: boolean }): Promise<number>;
 }

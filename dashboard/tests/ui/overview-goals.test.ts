@@ -21,7 +21,7 @@ const overview = {
 };
 const rule = (over: Partial<AlertRuleDto>): AlertRuleDto => ({
   id: "r1", experimentId: "exp-1", name: "goal", metric: "error_rate", customMetricId: null, comparator: "above", threshold: 3, windowMinutes: 1440,
-  minSamples: 10, reminderMinutes: null, recipients: [], enabled: true, createdAt: "", updatedAt: "", ...over,
+  minSamples: 10, reminderMinutes: null, recipients: [], enabled: true, params: {}, createdAt: "", updatedAt: "", ...over,
 });
 const status = (state: "ok" | "firing", lastValue: number) => ({ state, since: "", lastValue, lastCheckedAt: null, lastNotifiedAt: null });
 const budget: BudgetViewDto = { budget: { experimentId: "exp-1", monthlyUsd: 95, warnPercent: 80, recipients: [], enabled: true, updatedAt: "" }, month: "2026-10-01", spentUsd: 38.72, percent: 40.8, projectedUsd: 74 };

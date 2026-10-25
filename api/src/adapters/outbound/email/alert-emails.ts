@@ -25,7 +25,7 @@ const WRAP = (body: string) =>
 export function alertEmailContent(p: AlertEmail): { subject: string; html: string; text: string } {
   const headline = p.kind === "resolved" ? "is back to normal" : p.kind === "reminder" ? "is still firing" : "fired";
   const subject = `[MemTrace] ${p.kind === "resolved" ? "Resolved" : p.kind === "reminder" ? "Still firing" : "Alert"}: ${oneLine(p.ruleName)} · ${oneLine(p.experimentName)}`;
-  const rule = `${METRIC_LABEL[p.metric]} ${COMPARATOR_TEXT[p.comparator]} ${p.thresholdText} (last ${p.windowMinutes} min)`;
+  const rule = p.ruleText ?? `${METRIC_LABEL[p.metric]} ${COMPARATOR_TEXT[p.comparator]} ${p.thresholdText} (last ${p.windowMinutes} min)`;
   const html = WRAP(
     `<p>The alert <strong>${escapeHtml(p.ruleName)}</strong> on <strong>${escapeHtml(p.experimentName)}</strong> ${headline}.</p>
 <table style="border-collapse:collapse;font-size:14px">

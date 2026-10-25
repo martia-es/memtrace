@@ -129,7 +129,7 @@ export interface ScoreConfigPatchInput {
 
 /** Gráfico custom guardado por el usuario (ADR-027); su definición usa la misma forma que el query de ClickHouse. */
 /** Lo que se envía al crear o cambiar una regla de alerta (ADR-086). */
-export type AlertRuleBody = Pick<AlertRuleDto, "name" | "metric" | "customMetricId" | "comparator" | "threshold" | "windowMinutes" | "minSamples" | "reminderMinutes" | "recipients" | "enabled">;
+export type AlertRuleBody = Pick<AlertRuleDto, "name" | "metric" | "customMetricId" | "comparator" | "threshold" | "windowMinutes" | "minSamples" | "reminderMinutes" | "recipients" | "enabled"> & { params?: AlertRuleDto["params"] };
 
 export interface BudgetBody {
   monthlyUsd: number;

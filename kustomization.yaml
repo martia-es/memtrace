@@ -104,6 +104,7 @@ configMapGenerator:
       - migrations/postgres/049_run_group.sql
       - migrations/postgres/050_risk_classification.sql
       - migrations/postgres/051_risk_policies.sql
+      - migrations/postgres/052_alert_security_and_evaluation.sql
     options:
       disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
   - name: clickhouse-config

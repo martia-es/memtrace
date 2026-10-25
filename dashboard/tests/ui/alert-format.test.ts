@@ -5,6 +5,8 @@ import {
   emailedText,
   formatValue,
   gaugeFill,
+  kindOf,
+  metricsOf,
   needsSamples,
   parseRecipients,
   samplesLabel,
@@ -107,5 +109,34 @@ describe("gaugeFill", () => {
     expect(gaugeFill(null, 5)).toBeNull();
     expect(gaugeFill(3, 0)).toBe(100);
     expect(gaugeFill(0, 0)).toBe(0);
+  });
+});
+
+describe("security and evaluation rules (ADR-086, 2026-10-25)", () => {
+  it("writes counts, scores, drops and days", () => {
+    expect(formatValue("security_detections", 3.4)).toBe("3");
+    expect(formatValue("eval_score", 91.26)).toBe("91.3 %");
+    expect(formatValue("eval_score", 17, { mode: "drop" })).toBe("17 points");
+    expect(formatValue("eval_stale", 3)).toBe("3 days");
+    expect(formatValue("eval_stale", 1)).toBe("1 day");
+  });
+
+  it("describes each kind in a sentence", () => {
+    const base = { comparator: "above" as const, windowMinutes: 15 };
+    expect(conditionText({ ...base, metric: "security_detections", threshold: 0, params: { detector: "secret_leak", severity: "high" } })).toBe("secret_leak detections, severity high above 0 over 15 min");
+    expect(conditionText({ ...base, metric: "security_blocked", threshold: 5, windowMinutes: 60 })).toBe("Blocked tool calls above 5 over 1 hour");
+    expect(conditionText({ ...base, metric: "eval_score", threshold: 5, params: { target: "redteam/", score: "", mode: "drop" } })).toBe("redteam/: any check dropped more than 5 points against the previous run");
+    expect(conditionText({ ...base, metric: "eval_score", comparator: "below", threshold: 80, params: { target: "weather", score: "correctness", mode: "absolute" } })).toBe("weather: correctness below 80 % in the latest run");
+    expect(conditionText({ ...base, metric: "eval_stale", threshold: 14, params: { target: "redteam/" } })).toBe("No finished run of redteam/ in more than 14 days");
+  });
+
+  it("classifies the metrics and lists the right ones per kind", () => {
+    expect(kindOf("error_rate")).toBe("traffic");
+    expect(kindOf("security_blocked")).toBe("security");
+    expect(kindOf("eval_stale")).toBe("evaluation");
+    expect(metricsOf("security").map((m) => m.value)).toEqual(["security_detections", "security_blocked"]);
+    expect(metricsOf("evaluation").map((m) => m.value)).toEqual(["eval_score", "eval_stale"]);
+    expect(needsSamples("eval_score")).toBe(true);
+    expect(samplesLabel("eval_score")).toBe("evaluated items");
   });
 });

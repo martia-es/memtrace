@@ -4,7 +4,7 @@ import { budgetGoalOf, goalOf, limitText, missingStarterGoals, starterRuleBody, 
 
 const rule = (over: Partial<AlertRuleDto> = {}): AlertRuleDto => ({
   id: "r1", experimentId: "exp-1", name: "Errors goal", metric: "error_rate", customMetricId: null, comparator: "above", threshold: 3, windowMinutes: 1440,
-  minSamples: 10, reminderMinutes: null, recipients: [], enabled: true, createdAt: "", updatedAt: "", ...over,
+  minSamples: 10, reminderMinutes: null, recipients: [], enabled: true, params: {}, createdAt: "", updatedAt: "", ...over,
 });
 const withStatus = (r: AlertRuleDto, state: "ok" | "firing" | "no_data" | null, lastValue: number | null = null): AlertRuleWithStatusDto => ({
   rule: r,

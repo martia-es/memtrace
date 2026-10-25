@@ -57,4 +57,31 @@ export class ClickHouseSecurityEventRepository implements SecurityEventRepositor
       throw new RepositoryUnavailableError(error);
     }
   }
+
+  async countInWindow({ fromMs, toMs, scope, detector, severity, blockedOnly }: TimeRange & { scope: TenantScope; detector: string | null; severity: string | null; blockedOnly: boolean }): Promise<number> {
+    const query = `SELECT count() AS events
+                     FROM ${this.spans}
+                    WHERE ${TENANT_SQL} AND startsWith(SpanName, '${SPAN_PREFIX}') AND ${attr("security.detected")} = 'true'
+                      AND ${attr("memtrace.playground")} != 'true'
+                      AND ${attr("security.context")} != 'redteam'
+                      AND ({detector:String} = '' OR SpanName = concat('${SPAN_PREFIX}', {detector:String}))
+                      AND ({severity:String} = '' OR ${attr("security.severity")} = {severity:String})
+                      AND ({blockedOnly:UInt8} = 0 OR ${attr("security.action")} = 'blocked')
+                      AND Timestamp >= fromUnixTimestamp64Milli({fromMs:Int64}) AND Timestamp < fromUnixTimestamp64Milli({toMs:Int64})`;
+    try {
+      const rows = await this.limiter.run(async () => {
+        const result = await this.client.query({
+          query,
+          query_params: { fromMs, toMs, detector: detector ?? "", severity: severity ?? "", blockedOnly: blockedOnly ? 1 : 0, ...tenantParams(scope) },
+          format: "JSONEachRow",
+          clickhouse_settings: DEDUPED_READS,
+        });
+        return await result.json<Record<string, unknown>>();
+      });
+      return num(rows[0]?.events);
+    } catch (error) {
+      console.error("[memtrace-api] ClickHouse query (security events in a window) failed:", error);
+      throw new RepositoryUnavailableError(error);
+    }
+  }
 }

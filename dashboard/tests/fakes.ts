@@ -141,7 +141,7 @@ export class FakeIdentityApi implements IdentityApi {
   async createAlertRule(_experimentId: string, body: AlertRuleBody): Promise<AlertRuleDto> {
     this.alertCalls.push({ op: "create", body });
     if (this.alertError) throw this.alertError;
-    const rule: AlertRuleDto = { ...body, id: `rule-${this.alerts.rules.length + 1}`, experimentId: "exp-1", createdAt: "2026-10-10T00:00:00.000Z", updatedAt: "2026-10-10T00:00:00.000Z" };
+    const rule: AlertRuleDto = { ...body, params: body.params ?? {}, id: `rule-${this.alerts.rules.length + 1}`, experimentId: "exp-1", createdAt: "2026-10-10T00:00:00.000Z", updatedAt: "2026-10-10T00:00:00.000Z" };
     this.alerts = { ...this.alerts, rules: [...this.alerts.rules, { rule, status: null }], monthCost: NO_MONTH_COST };
     return rule;
   }

@@ -30,7 +30,7 @@ When a detector of the library finds something, it records a short step called `
 
 Each detection has an **action**: *observed* (only recorded), *warned* (recorded and logged) or *blocked* (the agent stopped). Whether the agent stops is decided by your code, not by MemTrace.
 
-The detected text is never stored, only the category, severity and a score. Because the steps are normal spans, they also appear in the trace and can be charted and alerted on like any other step.
+The detected text is never stored, only the category, severity and a score. Because the steps are normal spans, they also appear in the trace and can be charted like any other step. To be warned, create a [Security or Evaluation alert](/platform/alerts#security-alerts): one for detections and blocked calls in production, and one for a red team run whose attack success rate went up.
 
 ## Red team runs
 

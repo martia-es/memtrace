@@ -40,10 +40,11 @@ interface RuleRow {
   reminder_minutes: number | null;
   recipients: string[];
   enabled: boolean;
+  params: AlertRule["params"] | null;
   created_at: Ts;
   updated_at: Ts;
 }
-const RULE_COLUMNS = "id, experiment_id, name, metric, custom_metric_id, comparator, threshold, window_minutes, min_samples, reminder_minutes, recipients, enabled, created_at, updated_at";
+const RULE_COLUMNS = "id, experiment_id, name, metric, custom_metric_id, comparator, threshold, window_minutes, min_samples, reminder_minutes, recipients, enabled, params, created_at, updated_at";
 const prefixed = (alias: string, columns: string) => columns.split(",").map((c) => `${alias}.${c.trim()}`).join(", ");
 
 const toRule = (r: RuleRow): AlertRule => ({
@@ -59,6 +60,7 @@ const toRule = (r: RuleRow): AlertRule => ({
   reminderMinutes: r.reminder_minutes,
   recipients: r.recipients,
   enabled: r.enabled,
+  params: r.params ?? {},
   createdAt: iso(r.created_at),
   updatedAt: iso(r.updated_at),
 });
@@ -120,9 +122,9 @@ export class PostgresAlertRepository implements AlertRepository {
 
   async createRule(experimentId: string, userId: string, input: AlertRuleInput): Promise<AlertRule> {
     const { rows } = await this.pool.query<RuleRow>(
-      `INSERT INTO alert_rules (experiment_id, name, metric, custom_metric_id, comparator, threshold, window_minutes, min_samples, reminder_minutes, recipients, enabled, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING ${RULE_COLUMNS}`,
-      [experimentId, input.name, input.metric, input.customMetricId, input.comparator, input.threshold, input.windowMinutes, input.minSamples, input.reminderMinutes, input.recipients, input.enabled, userId],
+      `INSERT INTO alert_rules (experiment_id, name, metric, custom_metric_id, comparator, threshold, window_minutes, min_samples, reminder_minutes, recipients, enabled, params, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13) RETURNING ${RULE_COLUMNS}`,
+      [experimentId, input.name, input.metric, input.customMetricId, input.comparator, input.threshold, input.windowMinutes, input.minSamples, input.reminderMinutes, input.recipients, input.enabled, JSON.stringify(input.params), userId],
     );
     return toRule(rows[0]!);
   }
@@ -134,9 +136,9 @@ export class PostgresAlertRepository implements AlertRepository {
       await client.query("BEGIN");
       const { rows } = await client.query<RuleRow>(
         `UPDATE alert_rules SET name = $3, metric = $4, custom_metric_id = $5, comparator = $6, threshold = $7, window_minutes = $8, min_samples = $9,
-                reminder_minutes = $10, recipients = $11, enabled = $12, updated_at = now()
+                reminder_minutes = $10, recipients = $11, enabled = $12, params = $13::jsonb, updated_at = now()
           WHERE experiment_id = $1 AND id = $2 RETURNING ${RULE_COLUMNS}`,
-        [experimentId, ruleId, input.name, input.metric, input.customMetricId, input.comparator, input.threshold, input.windowMinutes, input.minSamples, input.reminderMinutes, input.recipients, input.enabled],
+        [experimentId, ruleId, input.name, input.metric, input.customMetricId, input.comparator, input.threshold, input.windowMinutes, input.minSamples, input.reminderMinutes, input.recipients, input.enabled, JSON.stringify(input.params)],
       );
       if (!rows[0]) {
         await client.query("ROLLBACK");

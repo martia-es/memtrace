@@ -18,7 +18,7 @@ import { chooseOption } from "./select";
 const exp = (role: string): ExperimentDto => ({ id: "exp-1", organizationId: "org-1", name: "Weather", serviceName: "weather", myRole: role, permissions: permissionsOf(role), organizationTheme: EMPTY_THEME });
 const rule = (over: Partial<AlertRuleDto> = {}): AlertRuleDto => ({
   id: "r1", experimentId: "exp-1", name: "Too many errors", metric: "error_rate", customMetricId: null, comparator: "above", threshold: 5, windowMinutes: 15,
-  minSamples: 20, reminderMinutes: null, recipients: ["ops@example.com"], enabled: true, createdAt: "2026-10-01T00:00:00.000Z", updatedAt: "2026-10-01T00:00:00.000Z", ...over,
+  minSamples: 20, reminderMinutes: null, recipients: ["ops@example.com"], enabled: true, params: {}, createdAt: "2026-10-01T00:00:00.000Z", updatedAt: "2026-10-01T00:00:00.000Z", ...over,
 });
 const status = (state: "ok" | "firing" | "no_data", lastValue: number | null = 9) => ({ state, since: new Date(Date.now() - 3 * 60_000).toISOString(), lastValue, lastCheckedAt: null, lastNotifiedAt: null });
 const event = (id: string, over: Partial<AlertEventDto> = {}): AlertEventDto => ({ id, ruleId: "r1", experimentId: "exp-1", at: new Date(Date.now() - 60_000).toISOString(), kind: "fired", value: 9, threshold: 5, emailed: 1, ...over });
@@ -141,7 +141,7 @@ describe("the alerts page", () => {
           op: "create",
           body: {
             name: "Errors up", metric: "error_rate", customMetricId: null, comparator: "above", threshold: 7.5, windowMinutes: 15, minSamples: 20,
-            reminderMinutes: null, recipients: ["Ops@Example.com", "dev@example.com", "qa@example.com"], enabled: true,
+            reminderMinutes: null, recipients: ["Ops@Example.com", "dev@example.com", "qa@example.com"], enabled: true, params: {},
           },
         },
       ]);
@@ -678,3 +678,61 @@ describe("the bell", () => {
     expect(q("bell-count")).toBeNull();
   });
 });
+
+describe("security and evaluation alerts", () => {
+  it("shows the kind and the condition of each rule", async () => {
+    const api = new Api();
+    api.alerts = {
+      rules: [
+        { rule: rule({ id: "s1", name: "Secret leaked", metric: "security_detections", comparator: "above", threshold: 0, windowMinutes: 15, params: { detector: "secret_leak" } }), status: status("ok", 0) },
+        { rule: rule({ id: "e1", name: "Red team regression", metric: "eval_score", comparator: "above", threshold: 5, params: { target: "redteam/", score: "", mode: "drop" } }), status: status("firing", 17) },
+      ],
+      events: [], budget: null, monthCost: NO_MONTH_COST,
+    };
+    await openPage(api);
+    const text = (id: string) => q(id)!.textContent!.replace(/\s+/g, " ");
+    expect(text("rule-s1")).toContain("secret_leak detections above 0 over 15 min");
+    expect(q("kind-s1")!.textContent).toBe("Security");
+    expect(text("rule-e1")).toContain("redteam/: any check dropped more than 5 points against the previous run");
+    expect(text("rule-e1")).toContain("17 points");
+    expect(q("kind-e1")!.textContent).toBe("Evaluation");
+  });
+
+  it("creates a security rule with its detector", async () => {
+    const api = new Api();
+    await openPage(api);
+    q("new-alert")!.click();
+    await flushPromises();
+    buttons("Security")[0]!.click();
+    await flushPromises();
+    expect(q("security-note")).not.toBeNull();
+    await type("[aria-label='Alert name']", "Secret leaked");
+    await type("[aria-label='Only this detector']", "secret_leak");
+    q("alert-save")!.click();
+    await flushPromises();
+    expect(api.alertCalls[0]).toMatchObject({ op: "create", body: { name: "Secret leaked", metric: "security_detections", threshold: 0, params: { detector: "secret_leak", severity: null } } });
+  });
+
+  it("creates an evaluation rule that compares with the previous run, and needs a target first", async () => {
+    const api = new Api();
+    await openPage(api);
+    q("new-alert")!.click();
+    await flushPromises();
+    buttons("Evaluation")[0]!.click();
+    await flushPromises();
+    expect(q("evaluation-note")).not.toBeNull();
+    await type("[aria-label='Alert name']", "Red team regression");
+    await type("[aria-label='Threshold']", "5");
+    expect((q("alert-save") as HTMLButtonElement).disabled).toBe(true); // sin dataset ni prefijo no hay qué vigilar
+    await type("[data-testid='alert-target'] input, input[data-testid='alert-target']", "redteam/");
+    buttons("It drops vs the previous run")[0]!.click();
+    await flushPromises();
+    q("alert-save")!.click();
+    await flushPromises();
+    expect(api.alertCalls[0]).toMatchObject({
+      op: "create",
+      body: { name: "Red team regression", metric: "eval_score", threshold: 5, params: { target: "redteam/", score: "", mode: "drop" } },
+    });
+  });
+});
+

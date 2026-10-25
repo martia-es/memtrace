@@ -1733,7 +1733,7 @@ export interface AlertRuleDto {
   id: string;
   experimentId: string;
   name: string;
-  metric: "error_rate" | "latency_p95" | "cost" | "satisfaction" | "custom";
+  metric: "error_rate" | "latency_p95" | "cost" | "satisfaction" | "custom" | "security_detections" | "security_blocked" | "eval_score" | "eval_stale";
   /** la gráfica guardada de una regla `custom`; null si se borró */
   customMetricId: string | null;
   comparator: "above" | "below";
@@ -1744,6 +1744,14 @@ export interface AlertRuleDto {
   reminderMinutes: number | null;
   recipients: string[];
   enabled: boolean;
+  /** lo propio de las reglas de seguridad (detector, severity) y de evaluación (target, score, mode); vacío en las demás */
+  params: {
+    detector?: string | null;
+    severity?: string | null;
+    target?: string;
+    score?: string;
+    mode?: "absolute" | "drop";
+  };
   createdAt: string;
   updatedAt: string;
 }

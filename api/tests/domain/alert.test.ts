@@ -4,6 +4,7 @@ import {
   MAX_RECIPIENTS,
   evaluateBudget,
   evaluateRule,
+  describeAlertRule,
   formatAlertValue,
   monthKey,
   projectMonthEnd,
@@ -41,6 +42,7 @@ describe("validateAlertRule", () => {
       reminderMinutes: null,
       recipients: ["ops@example.com", "a@b.io"],
       enabled: true,
+      params: {},
     });
   });
 
@@ -278,5 +280,52 @@ describe("cost budgets", () => {
 
   it("a new month starts clean: the notified set is per month", () => {
     expect(evaluateBudget(budget, 90, new Date("2026-11-20T00:00:00Z"), none).notify).toBe("warning");
+  });
+});
+
+describe("security and evaluation rules (ADR-086, 2026-10-25)", () => {
+  const security = { name: "Secret leaked", metric: "security_detections", threshold: 0, windowMinutes: 15, recipients: [], params: { detector: "secret_leak" } };
+  const evaluation = { name: "Red team", metric: "eval_score", threshold: 5, recipients: [], params: { target: "redteam/", score: "", mode: "drop" } };
+
+  it("a security rule counts events: always 'above', no minimum of samples, optional detector and severity", () => {
+    const rule = validateAlertRule(security);
+    expect(rule).toMatchObject({ comparator: "above", minSamples: 0, windowMinutes: 15, params: { detector: "secret_leak", severity: null } });
+    expect(validateAlertRule({ ...security, params: undefined }).params).toEqual({ detector: null, severity: null });
+  });
+
+  it("rejects a detector or severity that is not a plain slug", () => {
+    expect(fieldsOf(() => validateAlertRule({ ...security, params: { detector: "a b; DROP" } }))).toContain("params.detector");
+    expect(fieldsOf(() => validateAlertRule({ ...security, params: { severity: "X".repeat(3) } }))).toContain("params.severity");
+  });
+
+  it("an evaluation rule has no window to choose, and its comparator follows the mode", () => {
+    const drop = validateAlertRule(evaluation);
+    expect(drop).toMatchObject({ comparator: "above", windowMinutes: 5, minSamples: 20, params: { target: "redteam/", score: "", mode: "drop" } });
+    const absolute = validateAlertRule({ ...evaluation, threshold: 80, params: { target: "weather", score: "correctness", mode: "absolute" } });
+    expect(absolute.comparator).toBe("below");
+  });
+
+  it("an evaluation rule needs a target and a valid mode", () => {
+    expect(fieldsOf(() => validateAlertRule({ ...evaluation, params: { score: "x" } }))).toContain("params.target");
+    expect(fieldsOf(() => validateAlertRule({ ...evaluation, params: { target: "redteam/", mode: "sideways" } }))).toContain("params.mode");
+  });
+
+  it("'no recent run' is in days, above, and needs only a target", () => {
+    const rule = validateAlertRule({ name: "Stale", metric: "eval_stale", threshold: 14, recipients: [], params: { target: "redteam/", mode: "drop" } });
+    expect(rule).toMatchObject({ comparator: "above", minSamples: 0, params: { target: "redteam/" } });
+    expect(rule.params.mode).toBeUndefined();
+  });
+
+  it("other rules drop params they do not use", () => {
+    expect(validateAlertRule({ ...valid, params: { target: "x" } }).params).toEqual({});
+  });
+
+  it("formats and describes the new rules in one sentence", () => {
+    expect(formatAlertValue("security_detections", 3.4)).toBe("3");
+    expect(formatAlertValue("eval_score", 17.25, { mode: "drop" })).toBe("17.3 points");
+    expect(formatAlertValue("eval_score", 80)).toBe("80 %");
+    expect(formatAlertValue("eval_stale", 3)).toBe("3 days");
+    expect(describeAlertRule({ ...validateAlertRule(security), params: { detector: "secret_leak", severity: null } })).toBe("More than 0 secret_leak detections in 15 min");
+    expect(describeAlertRule(validateAlertRule(evaluation))).toBe("redteam/: any check dropped more than 5 points against the previous run");
   });
 });

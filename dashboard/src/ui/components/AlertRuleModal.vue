@@ -5,7 +5,7 @@ import type { AlertRuleBody, SavedCustomMetricDto } from "@/application/identity
 import { ApiError } from "@/application/trace-api";
 import { describeApiError } from "@/application/describe-api-error";
 import { useIdentityApi } from "../composables/useIdentityApi";
-import { METRICS, REMINDERS, WINDOWS, metricUnit, needsSamples, parseRecipients, samplesLabel } from "../alert-format";
+import { KINDS, METRICS, REMINDERS, WINDOWS, kindOf, metricUnit, metricsOf, needsSamples, parseRecipients, samplesLabel, type AlertKind } from "../alert-format";
 import Button from "./Button.vue";
 import Checkbox from "./Checkbox.vue";
 import FormField from "./FormField.vue";
@@ -25,6 +25,7 @@ const emit = defineEmits<{ close: []; saved: [rule: AlertRuleDto] }>();
 const api = useIdentityApi();
 
 const form = reactive({
+  kind: kindOf(props.rule?.metric ?? "error_rate") as AlertKind,
   name: props.rule?.name ?? "",
   metric: (props.rule?.metric ?? "error_rate") as AlertRuleDto["metric"],
   customMetricId: props.rule?.customMetricId ?? null,
@@ -37,12 +38,35 @@ const form = reactive({
   reminder: props.rule?.reminderMinutes ?? 0,
   recipients: (props.rule?.recipients ?? []).join("\n"),
   enabled: props.rule?.enabled ?? true,
+  // lo propio de las reglas de seguridad y de evaluación; el detector y la severidad vacíos significan «cualquiera»
+  detector: props.rule?.params?.detector ?? "",
+  severity: props.rule?.params?.severity ?? "",
+  target: props.rule?.params?.target ?? "",
+  score: props.rule?.params?.score ?? "",
+  mode: (props.rule?.params?.mode ?? "absolute") as "absolute" | "drop",
 });
 const saving = ref(false);
 const errors = ref<Record<string, string>>({});
 const generalError = ref<string | null>(null);
 
-const METRIC_OPTIONS = METRICS.map((m) => ({ label: m.label, value: m.value }));
+const KIND_OPTIONS = KINDS.map((k) => ({ label: k.label, value: k.value }));
+const kindHint = computed(() => KINDS.find((k) => k.value === form.kind)?.hint ?? "");
+const metricOptions = computed(() => metricsOf(form.kind).map((m) => ({ label: m.label, value: m.value })));
+const MODES = [
+  { value: "absolute", label: t("alertRuleModal.mode_absolute") },
+  { value: "drop", label: t("alertRuleModal.mode_drop") },
+];
+/** Al cambiar de tipo, la métrica pasa a la primera de ese tipo y el umbral se vuelve a escribir: el de antes tenía otra unidad. */
+function pickKind(kind: AlertKind) {
+  if (kind === form.kind) return;
+  form.kind = kind;
+  form.metric = metricsOf(kind)[0]!.value;
+  form.threshold = kind === "security" ? 0 : "";
+  form.comparator = "above";
+}
+const isSecurity = computed(() => form.kind === "security");
+const isEvaluation = computed(() => form.kind === "evaluation");
+const isScore = computed(() => form.metric === "eval_score");
 const WINDOW_OPTIONS = WINDOWS.map((w) => ({ label: w.label, value: w.value }));
 const REMINDER_OPTIONS = REMINDERS.map((r) => ({ label: r.label, value: r.value ?? 0 }));
 const COMPARATORS = [
@@ -56,7 +80,21 @@ const chartOptions = computed(() => usableCharts.value.map((c) => ({ label: c.na
 const unit = computed(() => metricUnit(form.metric));
 const metricHint = computed(() => METRICS.find((m) => m.value === form.metric)?.hint ?? "");
 const threshold = computed(() => (String(form.threshold).trim() === "" ? null : Number(form.threshold)));
-const canSave = computed(() => form.name.trim() !== "" && threshold.value !== null && Number.isFinite(threshold.value) && (form.metric !== "custom" || form.customMetricId !== null));
+const canSave = computed(
+  () =>
+    form.name.trim() !== "" &&
+    threshold.value !== null &&
+    Number.isFinite(threshold.value) &&
+    (form.metric !== "custom" || form.customMetricId !== null) &&
+    (!isEvaluation.value || form.target.trim() !== ""),
+);
+
+function params(): AlertRuleBody["params"] {
+  if (isSecurity.value) return { detector: form.detector.trim() || null, severity: form.severity.trim() || null };
+  if (form.metric === "eval_stale") return { target: form.target.trim() };
+  if (isScore.value) return { target: form.target.trim(), score: form.score.trim(), mode: form.mode };
+  return {};
+}
 
 function body(): AlertRuleBody {
   return {
@@ -70,6 +108,7 @@ function body(): AlertRuleBody {
     reminderMinutes: form.reminder || null,
     recipients: parseRecipients(form.recipients),
     enabled: form.enabled,
+    params: params(),
   };
 }
 
@@ -97,9 +136,40 @@ async function save() {
         <TextInput v-model="form.name" :placeholder="t('alertRuleModal.e_g_too_many_errors')" autofocus :aria-label="t('alertRuleModal.alert_name')" />
       </FormField>
 
-      <FormField :label="t('alertRuleModal.measure')" :hint="metricHint" :error="errors.metric" as="div">
-        <Select v-model="form.metric" :options="METRIC_OPTIONS" :aria-label="t('alertRuleModal.metric')" />
+      <FormField :label="t('alertRuleModal.kind')" :hint="kindHint" as="div">
+        <SegmentedControl :model-value="form.kind" :options="KIND_OPTIONS" :aria-label="t('alertRuleModal.kind')" data-testid="alert-kind" @update:model-value="pickKind($event as AlertKind)" />
       </FormField>
+
+      <FormField :label="t('alertRuleModal.measure')" :hint="metricHint" :error="errors.metric" as="div">
+        <Select v-model="form.metric" :options="metricOptions" :aria-label="t('alertRuleModal.metric')" />
+      </FormField>
+
+      <template v-if="isSecurity">
+        <div class="row">
+          <FormField :label="t('alertRuleModal.detector')" :hint="t('alertRuleModal.detector_hint')" :error="errors['params.detector']">
+            <TextInput v-model="form.detector" placeholder="secret_leak" :aria-label="t('alertRuleModal.detector')" />
+          </FormField>
+          <FormField :label="t('alertRuleModal.severity')" :error="errors['params.severity']">
+            <TextInput v-model="form.severity" :placeholder="t('alertRuleModal.any')" :aria-label="t('alertRuleModal.severity')" />
+          </FormField>
+        </div>
+        <p class="note" data-testid="security-note">{{ t("alertRuleModal.security_note") }}</p>
+      </template>
+
+      <template v-if="isEvaluation">
+        <FormField :label="t('alertRuleModal.target')" :hint="t('alertRuleModal.target_hint')" :error="errors['params.target']">
+          <TextInput v-model="form.target" placeholder="redteam/" :aria-label="t('alertRuleModal.target')" data-testid="alert-target" />
+        </FormField>
+        <template v-if="isScore">
+          <FormField :label="t('alertRuleModal.score')" :hint="t('alertRuleModal.score_hint')" :error="errors['params.score']">
+            <TextInput v-model="form.score" :placeholder="t('alertRuleModal.any_check')" :aria-label="t('alertRuleModal.score')" />
+          </FormField>
+          <FormField :label="t('alertRuleModal.fire_when')" :error="errors['params.mode']" as="div">
+            <SegmentedControl v-model="form.mode" :options="MODES" :aria-label="t('alertRuleModal.fire_when')" />
+          </FormField>
+        </template>
+        <p class="note" data-testid="evaluation-note">{{ t("alertRuleModal.evaluation_note") }}</p>
+      </template>
 
       <FormField v-if="form.metric === 'custom'" :label="t('alertRuleModal.chart')" :error="errors.customMetricId" as="div" :hint="usableCharts.length ? t('alertRuleModal.only_charts_about_one_step_with') : undefined">
         <Select v-if="usableCharts.length" v-model="form.customMetricId" :options="chartOptions" :placeholder="t('alertRuleModal.choose_a_saved_chart')" :aria-label="t('alertRuleModal.custom_chart')" />
@@ -107,16 +177,16 @@ async function save() {
       </FormField>
 
       <div class="row">
-        <FormField :label="t('alertRuleModal.when_it')" as="div">
+        <FormField v-if="!isSecurity && !isEvaluation" :label="t('alertRuleModal.when_it')" as="div">
           <SegmentedControl v-model="form.comparator" :options="COMPARATORS" :aria-label="t('alertRuleModal.direction')" />
         </FormField>
-        <FormField :label="t('alertRuleModal.this_value')" :error="errors.threshold">
+        <FormField :label="isEvaluation && isScore && form.mode === 'drop' ? t('alertRuleModal.drop_by') : t('alertRuleModal.this_value')" :error="errors.threshold">
           <span class="with-unit">
             <TextInput v-model="form.threshold" type="number" :aria-label="t('alertRuleModal.threshold')" placeholder="0" />
-            <span v-if="unit" class="unit">{{ unit }}</span>
+            <span v-if="unit || (isScore && form.mode === 'drop')" class="unit">{{ isScore && form.mode === 'drop' ? t("alertRuleModal.points") : unit }}</span>
           </span>
         </FormField>
-        <FormField :label="t('alertRuleModal.over_the_last')" :error="errors.windowMinutes" as="div">
+        <FormField v-if="!isEvaluation" :label="t('alertRuleModal.over_the_last')" :error="errors.windowMinutes" as="div">
           <Select v-model="form.windowMinutes" :options="WINDOW_OPTIONS" :aria-label="t('alertRuleModal.window')" />
         </FormField>
       </div>
@@ -155,5 +225,6 @@ async function save() {
 .with-unit { display: inline-flex; align-items: center; gap: 8px; }
 .unit { font-size: 13px; color: var(--mt-muted); }
 .empty { margin: 0; font-size: 12px; color: var(--mt-muted); }
+.note { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--mt-soft); font-size: 12px; line-height: 1.45; color: var(--mt-muted); }
 .general { margin: 0; font-size: 13px; font-weight: 600; color: var(--mt-err-ink); }
 </style>

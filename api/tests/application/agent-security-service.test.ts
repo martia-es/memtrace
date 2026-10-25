@@ -83,7 +83,7 @@ describe("AgentSecurityService", () => {
   function setup(runs: ReturnType<typeof run>[], results: Record<string, DatasetRunItemResult[]> = {}) {
     const identity = { listRunsForExperiment: vi.fn().mockResolvedValue(runs) } as unknown as IdentityRepository;
     const scores = { listScoresByRun: vi.fn(async (_s, id: string) => results[id] ?? []) } as unknown as ScoreRepository;
-    const events: SecurityEventRepository = { countEvents: vi.fn().mockResolvedValue([]) };
+    const events: SecurityEventRepository = { countEvents: vi.fn().mockResolvedValue([]), countInWindow: vi.fn().mockResolvedValue(0) };
     return { service: new AgentSecurityService(identity, scores, events, () => NOW), events, scores };
   }
 

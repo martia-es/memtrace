@@ -2,7 +2,7 @@ import { ValidationError } from "./errors";
 
 /** Alertas y presupuestos de coste (ADR-086). Todo lo de aquí es lógica pura: ni bases de datos ni reloj propio. */
 
-export const ALERT_METRICS = ["error_rate", "latency_p95", "cost", "satisfaction", "custom"] as const;
+export const ALERT_METRICS = ["error_rate", "latency_p95", "cost", "satisfaction", "custom", "security_detections", "security_blocked", "eval_score", "eval_stale"] as const;
 export type AlertMetric = (typeof ALERT_METRICS)[number];
 export type Comparator = "above" | "below";
 export type AlertState = "ok" | "firing" | "no_data";
@@ -19,14 +19,47 @@ export const MAX_NAME_LENGTH = 80;
 export const DAILY_EMAIL_CAP_PER_ORGANIZATION = 100;
 
 /** Unidad en la que se escribe el umbral de cada métrica (la que ve la persona, no la interna). */
-export const METRIC_UNIT: Record<AlertMetric, string> = { error_rate: "%", latency_p95: "ms", cost: "USD", satisfaction: "%", custom: "" };
+export const METRIC_UNIT: Record<AlertMetric, string> = {
+  error_rate: "%", latency_p95: "ms", cost: "USD", satisfaction: "%", custom: "", security_detections: "", security_blocked: "", eval_score: "%", eval_stale: "days",
+};
 export const METRIC_LABEL: Record<AlertMetric, string> = {
   error_rate: "Error rate",
   latency_p95: "Latency (p95)",
   cost: "Cost",
   satisfaction: "User satisfaction",
   custom: "Custom chart",
+  security_detections: "Security detections",
+  security_blocked: "Blocked tool calls",
+  eval_score: "Evaluation score",
+  eval_stale: "Days since the last evaluation",
 };
+
+/** Las reglas de seguridad cuentan eventos en una ventana de tiempo (ADR-086, actualización 2026-10-25). */
+export const SECURITY_METRICS: readonly AlertMetric[] = ["security_detections", "security_blocked"];
+/** Las de evaluación miran el último run offline, no una ventana: no hay ventana que elegir. */
+export const EVALUATION_METRICS: readonly AlertMetric[] = ["eval_score", "eval_stale"];
+export const isSecurityMetric = (metric: AlertMetric): boolean => SECURITY_METRICS.includes(metric);
+export const isEvaluationMetric = (metric: AlertMetric): boolean => EVALUATION_METRICS.includes(metric);
+/** La ventana que se guarda en una regla de evaluación, que no la usa (la columna exige un valor válido). */
+export const EVALUATION_WINDOW_MINUTES = MIN_WINDOW_MINUTES;
+export const EVAL_MODES = ["absolute", "drop"] as const;
+export type EvalMode = (typeof EVAL_MODES)[number];
+const SLUG = /^[a-z][a-z0-9_.-]{0,39}$/;
+const MAX_TARGET_LENGTH = 120;
+const MAX_SCORE_LENGTH = 80;
+
+/** Lo propio de cada tipo de regla; los campos que no aplican a la métrica van vacíos. */
+export interface AlertRuleParams {
+  /** seguridad: solo este detector (`secret_leak`...); null = cualquiera */
+  detector?: string | null;
+  /** seguridad: solo esta severidad; null = cualquiera */
+  severity?: string | null;
+  /** evaluación: un dataset por nombre, o un prefijo de nombre de run si termina en `/` (`redteam/`) */
+  target?: string;
+  /** eval_score: el score a vigilar; "" = «cualquier check» (el ataque gana si alguno falla, como en el ASR) */
+  score?: string;
+  mode?: EvalMode;
+}
 
 export interface AlertRule {
   id: string;
@@ -44,12 +77,13 @@ export interface AlertRule {
   reminderMinutes: number | null;
   recipients: string[];
   enabled: boolean;
+  params: AlertRuleParams;
   createdAt: string;
   updatedAt: string;
 }
 
 /** Lo que una persona escribe al crear o cambiar una regla. */
-export type AlertRuleInput = Pick<AlertRule, "name" | "metric" | "customMetricId" | "comparator" | "threshold" | "windowMinutes" | "minSamples" | "reminderMinutes" | "recipients" | "enabled">;
+export type AlertRuleInput = Pick<AlertRule, "name" | "metric" | "customMetricId" | "comparator" | "threshold" | "windowMinutes" | "minSamples" | "reminderMinutes" | "recipients" | "enabled" | "params">;
 
 export interface AlertStatus {
   state: AlertState;
@@ -125,7 +159,63 @@ function thresholdRange(metric: AlertMetric): { min: number; max: number } {
   if (metric === "error_rate" || metric === "satisfaction") return { min: 0, max: 100 };
   if (metric === "latency_p95") return { min: 1, max: 3_600_000 };
   if (metric === "cost") return { min: 0, max: 1_000_000_000 };
+  if (isSecurityMetric(metric)) return { min: 0, max: 1_000_000 };
+  if (metric === "eval_score") return { min: 0, max: 100 };
+  if (metric === "eval_stale") return { min: 0, max: 3650 };
   return { min: -1e15, max: 1e15 };
+}
+
+/** Valida lo propio del tipo de regla; lo que no aplica a la métrica se descarta. */
+function validateParams(metric: AlertMetric, input: unknown, fields: Record<string, string>): AlertRuleParams {
+  const raw = input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+  if (isSecurityMetric(metric)) {
+    const pick = (key: "detector" | "severity"): string | null => {
+      const value = raw[key];
+      if (value === undefined || value === null || value === "") return null;
+      if (typeof value !== "string" || !SLUG.test(value)) {
+        fields[`params.${key}`] = "Lower-case letters, digits, _ . -; or empty for any";
+        return null;
+      }
+      return value;
+    };
+    return { detector: pick("detector"), severity: pick("severity") };
+  }
+  if (isEvaluationMetric(metric)) {
+    const target = typeof raw.target === "string" ? raw.target.trim() : "";
+    if (target.length < 1 || target.length > MAX_TARGET_LENGTH) fields["params.target"] = `A dataset name or a run prefix such as redteam/ (1 to ${MAX_TARGET_LENGTH} characters)`;
+    if (metric === "eval_stale") return { target };
+    const score = raw.score === undefined || raw.score === null ? "" : raw.score;
+    if (typeof score !== "string" || score.length > MAX_SCORE_LENGTH) fields["params.score"] = `A score name up to ${MAX_SCORE_LENGTH} characters, or empty for any check`;
+    const mode = raw.mode ?? "absolute";
+    if (typeof mode !== "string" || !(EVAL_MODES as readonly string[]).includes(mode)) fields["params.mode"] = "Must be absolute or drop";
+    return { target, score: typeof score === "string" ? score.trim() : "", mode: mode as EvalMode };
+  }
+  return {};
+}
+
+/** Cómo se compara cada tipo de regla. Seguridad y «sin evaluar» siempre «por encima»; el score, según el modo. */
+function forcedComparator(metric: AlertMetric, params: AlertRuleParams): Comparator | null {
+  if (isSecurityMetric(metric) || metric === "eval_stale") return "above";
+  if (metric === "eval_score") return params.mode === "drop" ? "above" : "below";
+  return null;
+}
+
+/** La regla en una frase, para los correos y las listas. */
+export function describeAlertRule(rule: Pick<AlertRule, "metric" | "comparator" | "threshold" | "windowMinutes" | "params">): string {
+  const { metric, params } = rule;
+  if (isSecurityMetric(metric)) {
+    const what = metric === "security_blocked" ? "tool calls blocked" : `${params.detector ?? "any"} detections`;
+    const sev = params.severity ? `, severity ${params.severity}` : "";
+    return `More than ${rule.threshold} ${what}${sev} in ${rule.windowMinutes} min`;
+  }
+  if (metric === "eval_stale") return `No finished run of ${params.target ?? "?"} in more than ${rule.threshold} days`;
+  if (metric === "eval_score") {
+    const score = params.score ? params.score : "any check";
+    return params.mode === "drop"
+      ? `${params.target ?? "?"}: ${score} dropped more than ${rule.threshold} points against the previous run`
+      : `${params.target ?? "?"}: ${score} below ${rule.threshold} % in the latest run`;
+  }
+  return `${METRIC_LABEL[metric]} ${rule.comparator} ${rule.threshold} (last ${rule.windowMinutes} min)`;
 }
 
 /** Valida y normaliza una regla. Lanza `ValidationError` con el campo que falla. */
@@ -145,7 +235,9 @@ export function validateAlertRule(input: Record<string, unknown>): AlertRuleInpu
     fields.customMetricId = "Only a custom chart rule points to a chart";
   }
 
-  const comparator: Comparator | null = input.comparator === "above" || input.comparator === "below" ? input.comparator : null;
+  const params = metric ? validateParams(metric, input.params, fields) : {};
+  const forced = metric ? forcedComparator(metric, params) : null;
+  const comparator: Comparator | null = forced ?? (input.comparator === "above" || input.comparator === "below" ? input.comparator : null);
   if (!comparator) fields.comparator = "Must be above or below";
 
   const threshold = input.threshold;
@@ -155,12 +247,12 @@ export function validateAlertRule(input: Record<string, unknown>): AlertRuleInpu
     if (threshold < min || threshold > max) fields.threshold = `Must be between ${min} and ${max}${METRIC_UNIT[metric] ? ` ${METRIC_UNIT[metric]}` : ""}`;
   }
 
-  const windowMinutes = input.windowMinutes;
+  const windowMinutes = metric && isEvaluationMetric(metric) ? EVALUATION_WINDOW_MINUTES : input.windowMinutes;
   if (typeof windowMinutes !== "number" || !Number.isInteger(windowMinutes) || windowMinutes < MIN_WINDOW_MINUTES || windowMinutes > MAX_WINDOW_MINUTES) {
     fields.windowMinutes = `Whole minutes from ${MIN_WINDOW_MINUTES} to ${MAX_WINDOW_MINUTES}`;
   }
 
-  const needsSamples = metric === "error_rate" || metric === "latency_p95" || metric === "satisfaction";
+  const needsSamples = metric === "error_rate" || metric === "latency_p95" || metric === "satisfaction" || metric === "eval_score";
   let minSamples = 0;
   if (needsSamples) {
     const given = input.minSamples ?? DEFAULT_MIN_SAMPLES;
@@ -190,7 +282,7 @@ export function validateAlertRule(input: Record<string, unknown>): AlertRuleInpu
   if (Object.keys(fields).length > 0 || !metric || !comparator || typeof threshold !== "number" || typeof windowMinutes !== "number") {
     throw new ValidationError("Invalid alert rule", fields);
   }
-  return { name, metric, customMetricId, comparator, threshold, windowMinutes: windowMinutes as number, minSamples, reminderMinutes, recipients, enabled: enabled as boolean };
+  return { name, metric, customMetricId, comparator, threshold, windowMinutes: windowMinutes as number, minSamples, reminderMinutes, recipients, enabled: enabled as boolean, params };
 }
 
 /** Una medida de la ventana: el valor (en la unidad del umbral) y con cuántas observaciones se calculó. */
@@ -246,7 +338,10 @@ export function evaluateRule(rule: Pick<AlertRule, "comparator" | "threshold" | 
 }
 
 /** El valor de una alerta tal como se escribe en un mensaje: «12.5 %», «1,800 ms», «$3.20». */
-export function formatAlertValue(metric: AlertMetric, value: number): string {
+export function formatAlertValue(metric: AlertMetric, value: number, params?: AlertRuleParams): string {
+  if (isSecurityMetric(metric)) return String(Math.round(value));
+  if (metric === "eval_stale") return `${Number(value.toFixed(1))} days`;
+  if (metric === "eval_score") return `${Number(value.toFixed(1))} ${params?.mode === "drop" ? "points" : "%"}`;
   if (metric === "cost") return `$${value.toFixed(2)}`;
   if (metric === "error_rate" || metric === "satisfaction") return `${Number(value.toFixed(1))} %`;
   if (metric === "latency_p95") return `${Math.round(value).toLocaleString("en-US")} ms`;

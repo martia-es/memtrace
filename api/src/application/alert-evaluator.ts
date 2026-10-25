@@ -1,7 +1,7 @@
 import type { AlertMetricSource } from "@/application/ports/alert-metric-source";
 import type { AlertRepository, CostTrackedExperiment, EvaluableBudget, EvaluableRule } from "@/application/ports/alert-repository";
 import type { EmailSender } from "@/application/ports/email-sender";
-import { DAILY_EMAIL_CAP_PER_ORGANIZATION, evaluateBudget, evaluateRule, formatAlertValue, monthKey, monthStart, type AlertStatus } from "@/domain/alert";
+import { DAILY_EMAIL_CAP_PER_ORGANIZATION, describeAlertRule, evaluateBudget, evaluateRule, formatAlertValue, monthKey, monthStart, type AlertStatus } from "@/domain/alert";
 
 const DAY_MS = 86_400_000;
 /** Un agente sin presupuesto no avisa de nada, así que su coste de hoy se renueva cada media hora y no en cada pasada. */
@@ -107,8 +107,9 @@ export class AlertEvaluator {
             metric: rule.metric,
             comparator: rule.comparator,
             windowMinutes: rule.windowMinutes,
-            valueText: formatAlertValue(rule.metric, result.status.lastValue ?? 0),
-            thresholdText: formatAlertValue(rule.metric, rule.threshold),
+            ruleText: describeAlertRule(rule),
+            valueText: formatAlertValue(rule.metric, result.status.lastValue ?? 0, rule.params),
+            thresholdText: formatAlertValue(rule.metric, rule.threshold, rule.params),
             link: this.link(rule.experimentId),
           });
         } catch (error) {

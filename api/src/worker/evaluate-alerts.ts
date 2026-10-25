@@ -4,6 +4,8 @@
  * presupuestos. Raíz de composición propia, como `probe-health.ts`. También purga el historial de alertas de más de 90 días.
  */
 import { ClickHouseTraceRepository } from "@/adapters/outbound/clickhouse/clickhouse-trace-repository";
+import { ClickHouseScoreRepository } from "@/adapters/outbound/clickhouse/clickhouse-score-repository";
+import { ClickHouseSecurityEventRepository } from "@/adapters/outbound/clickhouse/clickhouse-security-event-repository";
 import { ClickHouseUserFeedbackRepository } from "@/adapters/outbound/clickhouse/clickhouse-user-feedback-repository";
 import { configFromEnv as clickhouseConfigFromEnv, createReadOnlyClient } from "@/adapters/outbound/clickhouse/client";
 import { NoopEmailSender, ResendEmailSender } from "@/adapters/outbound/email/resend-email-sender";
@@ -30,6 +32,11 @@ async function main() {
     const source = new TraceAlertMetricSource(traces, feedback, async (experimentId, metricId) => {
       const found = (await identity.listCustomMetrics(experimentId)).find((m) => m.id === metricId);
       return found ? found.definition : null;
+    }, {
+      // las reglas de seguridad leen spans y las de evaluación, los runs y sus scores; el worker solo lee
+      security: new ClickHouseSecurityEventRepository(read, clickhouse.database, clickhouse.maxConcurrentQueries),
+      runs: identity,
+      scores: new ClickHouseScoreRepository(read, read, clickhouse.database),
     });
     const resendApiKey = process.env.RESEND_API_KEY;
     const email = resendApiKey ? new ResendEmailSender(resendApiKey, process.env.EMAIL_FROM ?? "MemTrace <invites@memtrace.local>") : new NoopEmailSender();

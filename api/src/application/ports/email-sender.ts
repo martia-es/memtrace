@@ -28,6 +28,8 @@ export interface AlertEmail {
   metric: AlertMetric;
   comparator: Comparator;
   windowMinutes: number;
+  /** la regla en una frase (`describeAlertRule`); si falta, se arma con la métrica y la ventana */
+  ruleText?: string;
   /** ya con su unidad: «12.5 %», «$3.20» */
   valueText: string;
   thresholdText: string;

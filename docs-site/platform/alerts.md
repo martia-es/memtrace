@@ -24,6 +24,36 @@ Everyone who can read the agent can see its alerts. Creating, changing and delet
 
 Each alert says *when the value goes above or falls below a threshold over the last 5 minutes to 24 hours*. A custom chart alert needs a chart about **one step** and **not split by a detail**, because an alert is a single number.
 
+When you create an alert you first choose **what to watch**: *Traffic* (everything above), *Security* or *Evaluation*. The cards in the list carry a tag with the kind.
+
+## Security alerts
+
+They count what the agent's [security detectors](/library/security) report, over a time window like the traffic alerts.
+
+| Alert on | The value is |
+|---|---|
+| **Detections reported by the agent** | How many detections in the window, optionally only one detector (for example `secret_leak`) and one severity |
+| **Blocked tool calls** | How many calls the [tool policy](/library/security) stopped before they ran |
+
+You write the threshold as a number of events ("more than 0 `secret_leak` in 15 minutes" warns you about a single leaked secret). Detections made during a red team run are never counted.
+
+::: warning Only what the agent reports
+MemTrace counts the detections your agent sends with `memtrace.security`. If the detectors are not turned on, a security alert stays green without meaning anything.
+:::
+
+## Evaluation alerts
+
+Offline evaluations (red team included) are started by your team or your CI: MemTrace does not schedule them. These alerts are therefore checked when a **new run finishes**, within five minutes, not on a time window. You choose a dataset by name, or a run prefix ending in `/` such as `redteam/` to cover every red team run.
+
+| Alert on | The value is |
+|---|---|
+| **Score of the latest evaluation** | The pass rate of the latest finished run, in %. Either *below a value*, or *drops more than N points* against the previous run of the same dataset and version |
+| **Days without an evaluation** | Days since the last finished run, so you notice that nobody has measured the agent for a while |
+
+The score can be one score by name, or **any check** (empty): an item passes when none of its true/false scores fails, which is 100 % minus the attack success rate of a red team run. Items that failed to run do not count, and you set a minimum number of evaluated items (20 by default).
+
+An evaluation alert resolves only when a **later run** is back inside the limit; time alone never resolves it. A drop is not compared with the noise of a repeated run yet, so a judge that varies can still fire on a small drop: set a threshold above the variation you measured with `repeats` (see [Offline evaluation](/library/evaluation)).
+
 ## How it works
 
 MemTrace checks every alert every **5 minutes**. An alert is in one of these states:
@@ -32,7 +62,7 @@ MemTrace checks every alert every **5 minutes**. An alert is in one of these sta
 |---|---|
 | **OK** | The last check was inside the threshold |
 | **Firing** | The value crossed the threshold. You are emailed once |
-| **Not enough data** | The window had fewer conversations or votes than the minimum you set, so the value is not trustworthy |
+| **Not enough data** | The window had fewer conversations or votes than the minimum you set (or an evaluation had too few items, or there is no run to compare with), so the value is not trustworthy |
 | **Paused** | You switched the alert off |
 | **Chart deleted** | A custom chart alert whose chart no longer exists. It stops firing instead of disappearing |
 

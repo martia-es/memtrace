@@ -63,7 +63,7 @@ In the app, a bell in the top bar lists the alerts that are firing in the experi
 * Webhooks (Slack, Teams, PagerDuty) are not included. They need the same SSRF protection as the health probe and are the natural next step.
 * The existing report and invitation emails interpolate names without escaping HTML. The alert email escapes everything it prints; the older ones are a separate follow-up.
 
-## Update 2026-10-25: security and evaluation-quality rules (decided, not implemented)
+## Update 2026-10-25: security and evaluation-quality rules (implemented)
 
 Two new families of rules, on the same state machine, delivery and permissions as above. They answer "alert me when security degrades" and "alert me when an evaluation gets worse". Online quality alerts stay discarded (backlog F3/R10): nothing here reads production trace content.
 
@@ -87,8 +87,16 @@ Offline runs (red team included) are launched by a person or by the agent's CI. 
 
 A rule "no completed run of this dataset or prefix in N days" (`no_data` in the state machine, with its own notification). The regression that hurts is the one nobody measured, and without it a bad red team run could stay unnoticed indefinitely.
 
+### Implementation
+
+* Four new metrics: `security_detections`, `security_blocked`, `eval_score` and `eval_stale`. Migration 052 adds a `params` JSONB column to `alert_rules` (detector and severity; target, score and mode) and widens the metric check, instead of a column per field. Security and "no recent run" rules are always "above"; the comparator of a score rule follows its mode. Evaluation rules store the minimum window, which they do not use.
+* The metric source gets two extra ports: a count of detections in a window (ClickHouse, same filters as the Security page) and the runs and scores of an experiment (Postgres and ClickHouse). Without them those rules have no value.
+* A score is a pass rate in %: a boolean score counts `true`, a numeric 0-1 score is its mean, and an empty score means "any check".
+* The previous run for a drop is the newest earlier completed run of the same dataset and dataset version.
+* **Not done:** the drop is not yet discounted by the noise of `repeats`; the threshold has to be set above the measured variation (backlog F11).
+
 ### Consequences
 
-* A migration will be needed if `alert_rules.metric` is constrained, plus fields for the detector and severity filters and for dataset, evaluator and mode. The rule form grows, and its UI proposal goes first in the design artifact.
+* The rule form grows by kind (Traffic, Security, Evaluation), as in the design artifact (boards 108 and 109).
 * The evaluator reads two stores (ClickHouse for security, Postgres for evaluation) behind two ports; the domain stays free of both.
 * MemTrace still cannot launch a red team run by itself. Triggering it on deploy belongs to the deploy gate (ADR-064), which is out of scope here.

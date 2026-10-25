@@ -14,7 +14,7 @@ import PageHeader from "../components/PageHeader.vue";
 import Pill from "../components/Pill.vue";
 import Switch from "../components/Switch.vue";
 import ToggleChip from "../components/ToggleChip.vue";
-import { EVENT_LABEL, GAUGE_LIMIT_AT, budgetTone, conditionText, emailedText, formatValue, gaugeFill, stateOf } from "../alert-format";
+import { EVENT_LABEL, GAUGE_LIMIT_AT, KINDS, budgetTone, conditionText, emailedText, formatValue, gaugeFill, kindOf, stateOf } from "../alert-format";
 import { useIdentityApi } from "../composables/useIdentityApi";
 import { usePermissions } from "../composables/usePermissions";
 import { t, tp, dateLocale } from "../i18n";
@@ -42,6 +42,7 @@ const confirmDelete = ref<string | null>(null);
 const confirmBudgetDelete = ref(false);
 const actionError = ref<string | null>(null);
 const loadingMore = ref(false);
+const kindLabel = (metric: AlertRuleDto["metric"]) => KINDS.find((k) => k.value === kindOf(metric))?.label ?? "";
 
 async function load() {
   try {
@@ -235,6 +236,7 @@ const EVENT_VERB = (kind: AlertEventDto["kind"]): string => ({ fired: t("alertsP
             <div class="rule-title">
               <span class="strong">{{ item.rule.name }}</span>
               <Pill :tone="stateOf(item.rule, item.status).tone" dot>{{ stateOf(item.rule, item.status).label }}</Pill>
+              <Pill v-if="kindOf(item.rule.metric) !== 'traffic'" tone="neutral" :data-testid="`kind-${item.rule.id}`">{{ kindLabel(item.rule.metric) }}</Pill>
             </div>
             <span class="muted">{{ conditionText(item.rule, chartName(item.rule)) }}</span>
             <span class="faint">
@@ -243,8 +245,8 @@ const EVENT_VERB = (kind: AlertEventDto["kind"]): string => ({ fired: t("alertsP
           </div>
           <div class="rule-now">
             <div class="now-line">
-              <span class="now" :class="{ bad: isFiring(item) }">{{ item.status && item.rule.enabled ? formatValue(item.rule.metric, item.status.lastValue) : "—" }}</span>
-              <span class="muted">{{ t('alertsPage.limit_value', { value: formatValue(item.rule.metric, item.rule.threshold) }) }}</span>
+              <span class="now" :class="{ bad: isFiring(item) }">{{ item.status && item.rule.enabled ? formatValue(item.rule.metric, item.status.lastValue, item.rule.params) : "—" }}</span>
+              <span class="muted">{{ t('alertsPage.limit_value', { value: formatValue(item.rule.metric, item.rule.threshold, item.rule.params) }) }}</span>
             </div>
             <div v-if="gaugeOf(item) !== null" class="gauge" aria-hidden="true">
               <div class="gauge-fill" :class="{ bad: isFiring(item) }" :style="{ width: `${gaugeOf(item)}%` }" />

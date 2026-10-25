@@ -12,6 +12,22 @@ export const METRICS: ReadonlyArray<{ value: AlertMetric; label: string; unit: s
   { value: "cost", get label() { return t("alertFmt.metric.cost"); }, unit: "USD", get hint() { return t("alertFmt.hint.cost"); } },
   { value: "satisfaction", get label() { return t("alertFmt.metric.satisfaction"); }, unit: "%", get hint() { return t("alertFmt.hint.satisfaction"); } },
   { value: "custom", get label() { return t("alertFmt.metric.custom"); }, unit: "", get hint() { return t("alertFmt.hint.custom"); } },
+  { value: "security_detections", get label() { return t("alertFmt.metric.security_detections"); }, unit: "", get hint() { return t("alertFmt.hint.security_detections"); } },
+  { value: "security_blocked", get label() { return t("alertFmt.metric.security_blocked"); }, unit: "", get hint() { return t("alertFmt.hint.security_blocked"); } },
+  { value: "eval_score", get label() { return t("alertFmt.metric.eval_score"); }, unit: "%", get hint() { return t("alertFmt.hint.eval_score"); } },
+  { value: "eval_stale", get label() { return t("alertFmt.metric.eval_stale"); }, unit: "days", get hint() { return t("alertFmt.hint.eval_stale"); } },
+];
+
+/** Qué mira una regla: el tráfico del agente, lo que reportan sus detectores o el último run de una evaluación (ADR-086, 2026-10-25). */
+export type AlertKind = "traffic" | "security" | "evaluation";
+export type AlertParams = AlertRuleDto["params"];
+export const kindOf = (metric: AlertMetric): AlertKind =>
+  metric === "security_detections" || metric === "security_blocked" ? "security" : metric === "eval_score" || metric === "eval_stale" ? "evaluation" : "traffic";
+export const metricsOf = (kind: AlertKind) => METRICS.filter((m) => kindOf(m.value) === kind);
+export const KINDS: ReadonlyArray<{ value: AlertKind; label: string; hint: string }> = [
+  { value: "traffic", get label() { return t("alertFmt.kind.traffic"); }, get hint() { return t("alertFmt.kindHint.traffic"); } },
+  { value: "security", get label() { return t("alertFmt.kind.security"); }, get hint() { return t("alertFmt.kindHint.security"); } },
+  { value: "evaluation", get label() { return t("alertFmt.kind.evaluation"); }, get hint() { return t("alertFmt.kindHint.evaluation"); } },
 ];
 
 export const WINDOWS: ReadonlyArray<{ value: number; label: string }> = [5, 15, 30, 60, 180, 360, 1440].map((value) => ({
@@ -32,8 +48,8 @@ export const REMINDERS: ReadonlyArray<{ value: number | null; label: string }> =
 export const metricLabel = (metric: AlertMetric): string => METRICS.find((m) => m.value === metric)?.label ?? metric;
 export const metricUnit = (metric: AlertMetric): string => METRICS.find((m) => m.value === metric)?.unit ?? "";
 /** Las métricas cuyo valor solo es fiable con un mínimo de trazas o de votos. */
-export const needsSamples = (metric: AlertMetric): boolean => metric === "error_rate" || metric === "latency_p95" || metric === "satisfaction";
-export const samplesLabel = (metric: AlertMetric): string => (metric === "satisfaction" ? t("alertFmt.votes") : t("alertFmt.conversations"));
+export const needsSamples = (metric: AlertMetric): boolean => metric === "error_rate" || metric === "latency_p95" || metric === "satisfaction" || metric === "eval_score";
+export const samplesLabel = (metric: AlertMetric): string => (metric === "satisfaction" ? t("alertFmt.votes") : metric === "eval_score" ? t("alertFmt.items") : t("alertFmt.conversations"));
 
 /** «15 min», «1 hour», «6 hours»; con `long`, también los minutos con todas las letras («15 minutes»). */
 export function windowText(minutes: number, long = false): string {
@@ -42,8 +58,11 @@ export function windowText(minutes: number, long = false): string {
 }
 
 /** «12.5 %», «1,834 ms», «$3.20». */
-export function formatValue(metric: AlertMetric, value: number | null): string {
+export function formatValue(metric: AlertMetric, value: number | null, params?: AlertParams): string {
   if (value === null) return "—";
+  if (kindOf(metric) === "security") return String(Math.round(value));
+  if (metric === "eval_stale") return tp("alertFmt.days", Math.round(value * 10) / 10);
+  if (metric === "eval_score") return params?.mode === "drop" ? t("alertFmt.points", { n: Number(value.toFixed(1)) }) : `${Number(value.toFixed(1))} %`;
   if (metric === "cost") return `$${value.toFixed(2)}`;
   if (metric === "error_rate" || metric === "satisfaction") return `${Number(value.toFixed(1))} %`;
   if (metric === "latency_p95") return `${Math.round(value).toLocaleString(dateLocale("en-US"))} ms`;
@@ -57,7 +76,19 @@ export function thresholdPhrase(rule: Pick<AlertRuleDto, "metric" | "comparator"
 }
 
 /** La condición de una regla en una frase: «Error rate above 5 % over 15 min». */
-export function conditionText(rule: Pick<AlertRuleDto, "metric" | "comparator" | "threshold" | "windowMinutes">, chartName?: string | null): string {
+export function conditionText(rule: Pick<AlertRuleDto, "metric" | "comparator" | "threshold" | "windowMinutes"> & { params?: AlertParams }, chartName?: string | null): string {
+  const params = rule.params ?? {};
+  if (kindOf(rule.metric) === "security") {
+    const what = rule.metric === "security_blocked" ? t("alertFmt.what.blocked") : params.detector ? t("alertFmt.what.detector", { detector: params.detector }) : t("alertFmt.what.any");
+    return t("alertFmt.cond.security", { what, severity: params.severity ? t("alertFmt.cond.severity", { severity: params.severity }) : "", n: rule.threshold, window: windowText(rule.windowMinutes) });
+  }
+  if (rule.metric === "eval_stale") return t("alertFmt.cond.stale", { target: params.target ?? "?", days: rule.threshold });
+  if (rule.metric === "eval_score") {
+    const score = params.score ? params.score : t("alertFmt.anyCheck");
+    return params.mode === "drop"
+      ? t("alertFmt.cond.drop", { target: params.target ?? "?", score, n: rule.threshold })
+      : t("alertFmt.cond.absolute", { target: params.target ?? "?", score, n: rule.threshold });
+  }
   return t("alertFmt.condition", { phrase: thresholdPhrase(rule, chartName), window: windowText(rule.windowMinutes) });
 }
 
