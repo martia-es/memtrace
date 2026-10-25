@@ -1001,7 +1001,8 @@ export class FakeAssistantApi implements AssistantApi {
   people: AssistantPersonDto[] = [];
   async searchPeople(experimentId: string, query: string) { this.record("searchPeople", experimentId, query); return this.people; }
   async removeGrant(experimentId: string, deploymentId: string, grantId: string) { this.record("removeGrant", experimentId, deploymentId, grantId); }
-  async listConnections() { return this.connections; }
+  connectionRanges: Array<{ from: string; to: string } | undefined> = [];
+  async listConnections(_experimentId: string, range?: { from: string; to: string }) { this.connectionRanges.push(range); return this.connections; }
   async declareConnection(experimentId: string, input: unknown) { this.record("declareConnection", experimentId, input); return connectionDto(); }
   async decideConnection(experimentId: string, id: string, status: string, note: string | null) { this.record("decideConnection", experimentId, id, status, note); return connectionDto({ id, status: status as ConnectionDto["status"] }); }
   async undeclareConnection(experimentId: string, id: string) { this.record("undeclareConnection", experimentId, id); }

@@ -282,6 +282,20 @@ describe("assistant detail (ADR-053)", () => {
     await flushPromises();
     expect(api.calls).toEqual([{ method: "decideConnection", args: ["exp-1", "c2", "approved", null] }]);
   });
+
+  it("counts tool calls in the chosen range and reloads when it changes", async () => {
+    const api = new FakeAssistantApi();
+    api.connections = [connectionDto({ id: "c1", name: "get_forecast" })];
+    const { wrapper } = await setup(AssistantDetailPage, "/assistants/exp-1?tab=connections&range=30d", api, new Identity([org("org_admin")], []), { experimentId: "exp-1" });
+    await flushPromises();
+    const [first] = api.connectionRanges;
+    expect(new Date(first!.to).getTime() - new Date(first!.from).getTime()).toBe(30 * 86_400_000);
+    await wrapper.findAll(".range button").find((b) => b.text() === "7 d")!.trigger("click");
+    await flushPromises();
+    const last = api.connectionRanges.at(-1)!;
+    expect(new Date(last.to).getTime() - new Date(last.from).getTime()).toBe(7 * 86_400_000);
+    wrapper.unmount();
+  });
 });
 
 describe("chat with an agent (ADR-055)", () => {

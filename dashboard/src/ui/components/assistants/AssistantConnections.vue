@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useQuasar } from "quasar";
 import type { AssistantCardDto, ConnectionDto, ConnectionKindDto, ConnectionStatusDto } from "@contract";
 import { describeApiError } from "@/application/describe-api-error";
 import { useAsync } from "../../composables/useAsync";
 import { useAssistantApi } from "../../composables/useAssistantApi";
+import { useFilters } from "../../composables/useFilters";
 import { formatCount, formatPercent } from "@/domain/format";
 import { formatRelativeTime } from "../../i18n/format";
 import { ORIGIN_LABEL, connectionOrigin, errorRate, isPendingReview } from "@/domain/assistants";
@@ -24,15 +25,17 @@ const emit = defineEmits<{ changed: [] }>();
 
 const api = useAssistantApi();
 const $q = useQuasar();
-const connections = useAsync((signal) => api.listConnections(props.card.experimentId, signal));
-onMounted(() => void connections.run());
+const filters = useFilters();
+// el contador de llamadas sigue el rango global; el reloj no avanza solo, así que «Última hora» se recalcula al cambiar de rango o de pestaña
+const connections = useAsync((signal) => api.listConnections(props.card.experimentId, filters.resolve(), signal));
+watch(filters.rangeSig, () => void connections.run(), { immediate: true });
 
 const declaring = ref(false);
 const busy = ref(false);
 
 const GROUPS: { kind: ConnectionKindDto; title: string; hint: string }[] = [
   { kind: "mcp_server", get title() { return t("assistantConnections.mcp_servers"); }, get hint() { return t("assistantConnections.tool_servers_the_assistant_connects_to"); } },
-  { kind: "tool", get title() { return t("assistantConnections.tools"); }, get hint() { return t("assistantConnections.derived_from_tool_spans_last_7"); } },
+  { kind: "tool", get title() { return t("assistantConnections.tools"); }, get hint() { return t("assistantConnections.derived_from_tool_spans"); } },
   { kind: "agent", get title() { return t("assistantConnections.agents_it_talks_to"); }, get hint() { return t("assistantConnections.other_agents_it_calls"); } },
 ];
 const STATUS = {
