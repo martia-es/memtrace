@@ -39,6 +39,7 @@ import { PostgresChartCatalogRepository } from "@/adapters/outbound/postgres/pos
 import { PostgresApprovalRepository } from "@/adapters/outbound/postgres/postgres-approval-repository";
 import { PostgresPromptRepository } from "@/adapters/outbound/postgres/postgres-prompt-repository";
 import { PromptService } from "@/application/prompt-service";
+import { AgentSecurityService } from "@/application/agent-security-service";
 import { BreakdownService } from "@/application/breakdown-service";
 import { PromptEvidenceService } from "@/application/prompt-evidence-service";
 import { PromptFailureService } from "@/application/prompt-failure-service";
@@ -58,6 +59,7 @@ import { ApprovalRuleResolver } from "@/application/approval-rules";
 import { ApprovalService } from "@/application/approval-service";
 import { PromptGateService } from "@/application/prompt-gate-service";
 import { PromptPlaygroundService } from "@/application/prompt-playground-service";
+import { ClickHouseSecurityEventRepository } from "@/adapters/outbound/clickhouse/clickhouse-security-event-repository";
 import { ClickHouseBreakdownRepository } from "@/adapters/outbound/clickhouse/clickhouse-breakdown-repository";
 import { ClickHousePromptEvidenceRepository } from "@/adapters/outbound/clickhouse/clickhouse-prompt-evidence-repository";
 import { PostgresScoreConfigRepository } from "@/adapters/outbound/postgres/postgres-score-config-repository";
@@ -101,6 +103,7 @@ const globalForContainer = globalThis as unknown as {
   __memtraceApprovalRepository?: PostgresApprovalRepository;
   __memtracePromptEvidence?: PromptEvidenceService;
   __memtraceBreakdown?: BreakdownService;
+  __memtraceAgentSecurity?: AgentSecurityService;
   __memtracePromptFailures?: PromptFailureService;
   __memtracePromptGate?: PromptGateService;
   __memtracePromptMap?: PromptMapService;
@@ -465,6 +468,19 @@ export function getBreakdown(): BreakdownService {
     globalForContainer.__memtraceBreakdown = new BreakdownService(new ClickHouseBreakdownRepository(createReadOnlyClient(config), config.database, config.maxConcurrentQueries), () => getTraceQueryService().getPricingCatalog());
   }
   return globalForContainer.__memtraceBreakdown;
+}
+
+/** Postura de seguridad de un agente (ADR-103): eventos de los detectores del SDK y runs de red team. Solo lee. */
+export function getAgentSecurity(): AgentSecurityService {
+  if (!globalForContainer.__memtraceAgentSecurity) {
+    const config = configFromEnv();
+    globalForContainer.__memtraceAgentSecurity = new AgentSecurityService(
+      getIdentity().identityRepository,
+      getScoreRepository(),
+      new ClickHouseSecurityEventRepository(createReadOnlyClient(config), config.database, config.maxConcurrentQueries),
+    );
+  }
+  return globalForContainer.__memtraceAgentSecurity;
 }
 
 export function getPromptEvidence(): PromptEvidenceService {

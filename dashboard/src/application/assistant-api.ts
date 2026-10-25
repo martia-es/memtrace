@@ -1,5 +1,6 @@
 import type { RiskInputDto,
   AccessGrantDto,
+  AgentSecurityDto,
   AssistantPersonDto,
   AssistantCardDto,
   AuthMethodDto,
@@ -69,6 +70,8 @@ export interface AssistantApi {
   /** Dispara el CI del repo del agente. `bypassReason` solo para saltarse el gate (exige permiso de gobernanza). */
   deploy(experimentId: string, deploymentId: string, bypassReason: string | null, signal?: AbortSignal): Promise<DeployRunDto>;
   listDeploys(experimentId: string, deploymentId: string, signal?: AbortSignal): Promise<DeployRunDto[]>;
+  /** Postura de seguridad del agente (ADR-103): detecciones de los detectores del SDK y runs de red team de los últimos `days` días. */
+  getSecurity(experimentId: string, days: number, signal?: AbortSignal): Promise<AgentSecurityDto>;
   /** Sondea /health ahora; si se comprobó hace menos de 10 s devuelve el estado actual. */
   checkDeploymentNow(experimentId: string, deploymentId: string, signal?: AbortSignal): Promise<DeploymentDto>;
   getHealthHistory(experimentId: string, deploymentId: string, hours: number, signal?: AbortSignal): Promise<HealthCheckDto[]>;

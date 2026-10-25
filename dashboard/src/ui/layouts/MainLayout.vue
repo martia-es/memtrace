@@ -58,6 +58,7 @@ const NAV: readonly NavGroup[] = [
     ],
   },
   { id: "monitoring", label: "nav.alertsBudget", heading: "nav.watch", icon: "M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0", children: [{ name: "alerts", label: "nav.alertsBudget", sections: ["alerts"] }] },
+  { id: "security", label: "nav.security", icon: "M12 3l8 3v6c0 4.5-3.2 8.3-8 9-4.8-.7-8-4.5-8-9V6zM9 12l2 2 4-4", children: [{ name: "security", label: "nav.security", sections: ["security"] }] },
   {
     id: "review",
     label: "nav.review",
@@ -122,6 +123,12 @@ const navExperimentId = computed(
   () => currentExperimentId.value ?? localStorage.getItem("memtrace:lastExperimentId") ?? experimentOptions.value[0]?.id ?? null,
 );
 
+// la API de seguridad pide `assistant:manage` o `governance:read` (ADR-103): quien no los tiene no ve la entrada
+const navCanSeeSecurity = computed(() => {
+  const experiment = experimentOptions.value.find((e) => e.id === navExperimentId.value);
+  return hasPermission(experiment, "assistant:manage") || hasPermission(experiment, "governance:read");
+});
+const visibleNav = computed(() => NAV.filter((g) => g.id !== "security" || navCanSeeSecurity.value));
 // quien no tiene `experiment:read` (p. ej. un org_admin sin rol de trabajo) solo ve Admin (ADR-052)
 const navCanRead = computed(() => hasPermission(experimentOptions.value.find((e) => e.id === navExperimentId.value), "experiment:read"));
 
@@ -205,7 +212,7 @@ function switchExperiment(experimentId: string | null) {
       </nav>
       <nav v-else :aria-label="t('nav.main')" class="nav">
         <template v-if="navExperimentId && navCanRead">
-          <template v-for="g in NAV" :key="g.id">
+          <template v-for="g in visibleNav" :key="g.id">
             <div v-if="g.heading" class="nav-heading" :class="{ collapsed: isCollapsed }" data-testid="nav-heading">
               <span v-if="!isCollapsed">{{ t(g.heading) }}</span>
             </div>

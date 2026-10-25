@@ -44,6 +44,7 @@ export default defineConfig({
             { text: "Improvement cycle", link: "/platform/improvement-cycle" },
             { text: "Dashboard", link: "/platform/dashboard" },
             { text: "Alerts & budgets", link: "/platform/alerts" },
+            { text: "Agent security", link: "/platform/agent-security" },
             { text: "Model pricing & quality", link: "/platform/model-pricing" },
             { text: "Datasets & offline evals", link: "/platform/evaluation" },
             { text: "Annotations & review", link: "/platform/annotations" },

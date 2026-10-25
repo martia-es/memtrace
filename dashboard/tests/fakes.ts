@@ -1,5 +1,5 @@
 import { permissionsOf } from "./permissions";
-import type { AlertEventsPageDto, AlertRuleDto, AlertsOverviewDto, MonthCostDto, AuditPageDto, BudgetViewDto, ChartCatalogEntryDto, ModelMatchBody, ModelQualityCandidatesResponse, ModelQualityPendingResponse, ModelQualityResponse, NotificationsDto, OpenAlertsDto, PartnerClientDto, PartnerGrantDto, PartnershipDto, LevelChangePreviewDto, RetentionLevelDto, RetentionPolicyDto } from "@contract";
+import type { AgentSecurityDto, AlertEventsPageDto, AlertRuleDto, AlertsOverviewDto, MonthCostDto, AuditPageDto, BudgetViewDto, ChartCatalogEntryDto, ModelMatchBody, ModelQualityCandidatesResponse, ModelQualityPendingResponse, ModelQualityResponse, NotificationsDto, OpenAlertsDto, PartnerClientDto, PartnerGrantDto, PartnershipDto, LevelChangePreviewDto, RetentionLevelDto, RetentionPolicyDto } from "@contract";
 import type {
   AddQueueItemsResponse,
   BreakdownResponse,
@@ -992,6 +992,8 @@ export class FakeAssistantApi implements AssistantApi {
     return { id: "dr-1", deploymentId: id, commitSha: "3a08213f9b1c2d4e5f60718293a4b5c6d7e8f901", ref: "main", requestedBy: "u1", status: "running", gateVerdict: "allowed", gateBypassed: bypassReason !== null, bypassReason, providerRunUrl: null, error: null, createdAt: "2026-10-07T10:00:00Z", finishedAt: null };
   }
   async listDeploys() { return this.deploys; }
+  security: AgentSecurityDto | Error = emptySecurity();
+  async getSecurity(experimentId: string, days: number) { this.record("getSecurity", experimentId, days); if (this.security instanceof Error) throw this.security; return { ...this.security, days }; }
   async checkDeploymentNow(experimentId: string, id: string) { this.record("checkDeploymentNow", experimentId, id); return deploymentDto("pro", "up"); }
   async getHealthHistory() { return this.history; }
   async listGrants() { return this.grants; }
@@ -1004,4 +1006,8 @@ export class FakeAssistantApi implements AssistantApi {
   async decideConnection(experimentId: string, id: string, status: string, note: string | null) { this.record("decideConnection", experimentId, id, status, note); return connectionDto({ id, status: status as ConnectionDto["status"] }); }
   async undeclareConnection(experimentId: string, id: string) { this.record("undeclareConnection", experimentId, id); }
   async syncConnections(experimentId: string) { this.record("syncConnections", experimentId); return { observed: 2 }; }
+}
+
+export function emptySecurity(): AgentSecurityDto {
+  return { days: 30, events: { total: 0, blocked: 0, byDetector: [], byCategory: [], bySeverity: [], byAction: [], daily: [{ date: "2026-10-24", count: 0 }, { date: "2026-10-25", count: 0 }] }, redteam: { runs: [] } };
 }
