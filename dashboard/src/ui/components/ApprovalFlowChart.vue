@@ -71,7 +71,9 @@ const cards = computed(() =>
       <div class="card" :class="{ open: c.step.open, none: c.needs.length === 0 }" :data-testid="`${testPrefix}-${c.id}`">
         <div class="top">
           <span class="env" :class="`env-${c.env === 'publish' ? 'publish' : ['dev', 'pre', 'pro'].includes(c.env) ? c.env : 'other'}`">{{ c.env === "publish" ? t("approvalFlowChart.publish") : c.env }}</span>
-          <span class="count" :class="{ off: c.needs.length === 0 }">{{ c.needs.length === 0 ? "No approval" : `${c.needs.length} approval${c.needs.length > 1 ? "s" : ""}` }}</span>
+          </div>
+        <div class="big">
+          <span class="count" :class="{ off: c.needs.length === 0 }"><span v-if="c.needs.length" class="num">{{ c.needs.length }}</span> {{ c.needs.length === 0 ? "No approval" : `approval${c.needs.length > 1 ? "s" : ""}` }}</span>
         </div>
         <div class="head">
           <span class="title">{{ c.title }}</span>
@@ -98,29 +100,28 @@ const cards = computed(() =>
 <style scoped>
 .flow { display: flex; align-items: stretch; margin: 0; padding: 0; list-style: none; overflow-x: auto; }
 .stop { display: flex; align-items: stretch; flex: 1 1 0; min-width: 220px; }
-.arrow { flex: none; width: 36px; display: flex; align-items: center; justify-content: center; color: var(--mt-muted); }
-.card { flex: 1; min-width: 0; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; background: var(--mt-surface, transparent); border: 1px solid var(--mt-line); border-radius: 10px; }
-.card.none { border-style: dashed; }
-.card.open { border: 2px solid var(--mt-accent, var(--mt-ink)); padding: 13px 15px; box-shadow: 0 0 0 4px var(--mt-soft); }
+.arrow { flex: none; width: 28px; display: flex; align-items: center; justify-content: center; color: var(--mt-faint, var(--mt-muted)); }
+.card { flex: 1; min-width: 0; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; padding: 20px 22px; background: var(--mt-soft); border-radius: 12px; }
+.card.open { background: var(--mt-accent-soft, var(--mt-soft)); }
 .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.env { height: 22px; padding: 0 8px; display: inline-flex; align-items: center; border-radius: 4px; font: 800 11px/1 var(--mt-mono, monospace); letter-spacing: 0.04em; background: var(--mt-soft); color: var(--mt-muted); }
+.env { height: 22px; padding: 0 8px; display: inline-flex; align-items: center; border-radius: 4px; font: 800 11px/1 var(--mt-mono, monospace); letter-spacing: 0.04em; background: var(--mt-card); color: var(--mt-muted); }
 .env-publish { background: var(--mt-accent-soft, var(--mt-soft)); color: var(--mt-ink); }
 .env-pre { background: var(--mt-warn-bg, var(--mt-soft)); color: var(--mt-warn-ink, var(--mt-ink)); }
 .env-pro { background: var(--mt-accent, var(--mt-ink)); color: var(--mt-accent-ink, #fff); }
-.count { font-size: 12px; font-weight: 700; color: var(--mt-ink); }
-.count.off { color: var(--mt-muted); }
+.num { margin-right: 4px; font: 800 40px/1 var(--mt-mono, monospace); letter-spacing: -0.03em; color: var(--mt-ink); }
+.count { display: flex; align-items: baseline; gap: 4px; font-size: 13px; font-weight: 700; color: var(--mt-muted); }
 .head { display: flex; flex-direction: column; gap: 3px; }
-.title { font-size: 16px; font-weight: 800; letter-spacing: -0.01em; color: var(--mt-ink); }
+.title { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; color: var(--mt-ink); }
 .sub { font-size: 12px; line-height: 1.45; color: var(--mt-muted); }
-.needs { display: flex; flex-direction: column; gap: 8px; flex: 1; margin: 0; padding: 0; list-style: none; }
-.empty { padding: 10px 12px; border: 1px dashed var(--mt-line); border-radius: 6px; font-size: 12.5px; line-height: 1.45; color: var(--mt-muted); }
-.need { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; box-sizing: border-box; border-radius: 6px; background: var(--mt-soft); }
+.needs { display: flex; flex-direction: column; gap: 6px; flex: 1; margin: 0; padding: 0; list-style: none; }
+.empty { font-size: 12.5px; line-height: 1.45; color: var(--mt-muted); }
+.need { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; box-sizing: border-box; border-radius: 8px; background: var(--mt-card); }
 .mark { flex: none; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; border-radius: 4px; background: var(--mt-accent-soft, var(--mt-line)); color: var(--mt-ink); }
 .mark.person { border-radius: 50%; font-size: 8.5px; background: var(--mt-warn-bg, var(--mt-line)); }
 .label { flex: 1; min-width: 0; font-size: 13px; font-weight: 700; color: var(--mt-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tag { font-size: 11px; font-weight: 700; color: var(--mt-muted); }
 .floor { font-size: 11.5px; color: var(--mt-muted); }
-.mode { width: fit-content; height: 20px; padding: 0 8px; display: inline-flex; align-items: center; border-radius: 10px; font-size: 11px; font-weight: 800; background: var(--mt-accent-soft, var(--mt-line)); color: var(--mt-ink); }
+.mode { width: fit-content; height: 20px; padding: 0 8px; display: inline-flex; align-items: center; border-radius: 10px; font-size: 11px; font-weight: 800; background: var(--mt-card); color: var(--mt-ink); }
 .mode.none { background: var(--mt-ok-bg, var(--mt-line)); color: var(--mt-ok-ink, var(--mt-ink)); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .actions { display: flex; gap: 8px; }
