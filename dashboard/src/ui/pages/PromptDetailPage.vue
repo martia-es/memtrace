@@ -1082,10 +1082,11 @@ h3 {
   align-items: start;
 }
 .context {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 0;
+  display: contents;
+}
+/* el mapa es un diagrama de tres columnas: necesita todo el ancho, debajo del texto y su contexto */
+.deps-fold {
+  grid-column: 1 / -1;
 }
 @media (max-width: 1280px) {
   .content-grid { grid-template-columns: minmax(0, 1fr); }
