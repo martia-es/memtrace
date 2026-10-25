@@ -6,15 +6,13 @@ import { describeApiError } from "@/application/describe-api-error";
 import { useAsync } from "../../composables/useAsync";
 import { useAssistantApi } from "../../composables/useAssistantApi";
 import { formatRelativeTime } from "../../i18n/format";
-import { personLabel } from "@/domain/assistants";
+import { initials as initialsOf, personLabel } from "@/domain/assistants";
 import EmptyState from "../EmptyState.vue";
 import ErrorBanner from "../ErrorBanner.vue";
 import AddAccessModal from "./AddAccessModal.vue";
 import PersonAvatar from "./PersonAvatar.vue";
 import Button from "../Button.vue";
-import DataTable from "../DataTable.vue";
 import Card from "../Card.vue";
-import Pill from "../Pill.vue";
 import { t } from "../../i18n";
 import { lazyMessages } from "../../../domain/translate";
 
@@ -31,6 +29,8 @@ watch(() => props.deployment.id, () => void grants.run());
 const adding = ref(false);
 const TYPE_LABEL = lazyMessages({ user: "accessPanel.user", group: "accessPanel.group", everyone: "accessPanel.everyone" });
 const SOURCE_LABEL = lazyMessages({ manual: "accessPanel.added_manually", oidc: "accessPanel.synced_at_sign_in", scim: "accessPanel.synced_by_scim" });
+
+const whoLabel = (g: { subjectType: string; externalGroup: string | null; userId: string | null }) => (g.subjectType === "everyone" ? t("accessPanel.everyone_in_the_organization") : g.externalGroup ?? g.userId ?? "–");
 
 async function remove(grantId: string) {
   try {
@@ -60,38 +60,33 @@ function saved() {
     <EmptyState v-else-if="(grants.data.value ?? []).length === 0 && !grants.loading.value" icon="lock_open" :title="t('accessPanel.no_access_defined')">
       Nobody is listed yet for {{ deployment.environment.label }}.
     </EmptyState>
-    <DataTable v-else class="grid" bare>
-      <thead><tr><th>{{ t("accessPanel.who") }}</th><th>{{ t("accessPanel.type") }}</th><th>{{ t("accessPanel.people") }}</th><th>{{ t("accessPanel.source") }}</th><th /></tr></thead>
-      <tbody>
-        <tr v-for="g in grants.data.value ?? []" :key="g.id">
-          <td class="who">
-            <span v-if="g.user" class="person-cell"><PersonAvatar :name="g.user.name" :email="g.user.email" :image="g.user.image" :size="22" />{{ personLabel(g.user) }}</span>
-            <template v-else>{{ g.subjectType === "everyone" ? t("accessPanel.everyone_in_the_organization") : g.externalGroup ?? g.userId }}</template>
-          </td>
-          <td><Pill :tone="g.subjectType === 'group' ? 'info' : g.subjectType === 'everyone' ? 'highlight' : 'neutral'">{{ TYPE_LABEL[g.subjectType] }}</Pill></td>
-          <td class="mono">{{ g.memberCount ?? (g.subjectType === "user" ? 1 : "–") }}</td>
-          <td class="muted">{{ SOURCE_LABEL[g.source] }}<template v-if="g.syncedAt"> · {{ formatRelativeTime(g.syncedAt, nowMs) }}</template></td>
-          <td class="end"><Button variant="link" v-if="canGovern" @click="remove(g.id)">{{ t("accessPanel.remove") }}</Button></td>
-        </tr>
-      </tbody>
-    </DataTable>
+    <ul v-else class="people">
+      <li v-for="g in grants.data.value ?? []" :key="g.id" class="person" :data-testid="`grant-${g.id}`">
+        <PersonAvatar v-if="g.user" :name="g.user.name" :email="g.user.email" :image="g.user.image" :size="38" />
+        <span v-else class="badge" :class="g.subjectType">{{ initialsOf(whoLabel(g)) }}</span>
+        <div class="who">
+          <b>{{ g.user ? personLabel(g.user) : whoLabel(g) }}</b>
+          <span class="muted">{{ TYPE_LABEL[g.subjectType] }} · {{ g.memberCount ?? (g.subjectType === "user" ? 1 : "–") }} · {{ SOURCE_LABEL[g.source] }}<template v-if="g.syncedAt"> · {{ formatRelativeTime(g.syncedAt, nowMs) }}</template></span>
+        </div>
+        <Button variant="link" v-if="canGovern" class="remove" @click="remove(g.id)">{{ t("accessPanel.remove") }}</Button>
+      </li>
+    </ul>
     <AddAccessModal v-if="adding" :experiment-id="experimentId" :deployment-id="deployment.id" :env-label="deployment.environment.label" @close="adding = false" @saved="saved" />
   </Card>
 </template>
 
 <style scoped>
-.panel { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; }
+.panel { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; background: var(--mt-accent-tint); border-color: var(--mt-accent-soft); }
 .head { display: flex; align-items: center; gap: 12px; }
 .title { flex: 1; }
 h2 { margin: 0; font-size: 14px; font-weight: 800; }
 p { margin: 2px 0 0; font-size: 12px; color: var(--mt-muted); }
 .mono { font-family: var(--mt-mono); font-weight: 500; }
-
-.who { font-weight: 700; }
-.person-cell { display: inline-flex; align-items: center; gap: 8px; }
-.muted { color: var(--mt-muted); }
-.end { text-align: right; }
-.link { font: inherit; font-size: 12px; font-weight: 700; color: var(--mt-accent-text); background: none; border: none; cursor: pointer; }
-.link:hover { text-decoration: underline; }
-
+.people { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+.person { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--mt-card); border: 1px solid var(--mt-line); border-radius: var(--mt-radius); min-width: 0; }
+.badge { width: 38px; height: 38px; flex: none; display: grid; place-items: center; border-radius: 10px; font-size: 13px; font-weight: 800; background: var(--mt-accent-soft); color: var(--mt-accent-text); }
+.badge.everyone { background: var(--mt-highlight-soft); color: var(--mt-highlight-ink); }
+.who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.who b { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.muted { font-size: 12px; color: var(--mt-muted); }
 </style>
