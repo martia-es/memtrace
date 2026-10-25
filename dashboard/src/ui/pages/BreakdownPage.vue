@@ -156,7 +156,7 @@ const chartsRoute = computed(() => ({ name: "overview-charts", params: route.par
       <header class="head">
         <div class="head-text">
           <h2>{{ byNoun("breakdownPage.compareHeading") }}</h2>
-          <p class="muted">{{ t("breakdownPage.always_two_at_a_time_a") }}</p>
+          <p class="muted">{{ t("breakdownPage.always_two_at_a_time_a") }} {{ t("breakdownPage.scope_hint") }}</p>
         </div>
         <span class="group-label">{{ t("breakdownPage.group_by") }}</span>
         <SegmentedControl :options="GROUPS" :model-value="groupBy" :aria-label="t('breakdownPage.group_by2')" data-testid="group-tabs" @update:model-value="setGroup" />

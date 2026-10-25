@@ -116,6 +116,7 @@ const charts = computed(() => {
 
 <template>
   <div class="ac">
+    <p class="ac-scope muted" data-testid="agent-compare-scope">{{ t("agentCompareView.scope_hint") }}</p>
     <div class="ac-pick">
       <div class="ac-agent a">
         <span class="ac-dot a" aria-hidden="true" />
@@ -217,6 +218,7 @@ const charts = computed(() => {
 .ac { display: flex; flex-direction: column; gap: 14px; font-family: var(--mt-sans); }
 h3 { margin: 0; font-size: 14px; font-weight: 800; letter-spacing: -0.01em; }
 
+.ac-scope { margin: 0; font-size: 13px; }
 .ac-pick { display: flex; align-items: stretch; gap: 12px; flex-wrap: wrap; }
 .ac-agent { flex: 1 1 280px; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--mt-card); border: 1px solid var(--mt-line); border-top-width: 3px; border-radius: var(--mt-radius-lg); }
 .ac-agent.a { border-top-color: var(--mt-brand); }

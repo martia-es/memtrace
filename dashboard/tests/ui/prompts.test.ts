@@ -29,6 +29,7 @@ async function setup(component: object, role: string, api: FakePromptApi, props:
       { path: "/e/:experimentId/prompts", name: "prompts", component: stub },
       { path: "/e/:experimentId/prompts/:promptId", name: "prompt", component: stub },
       { path: "/e/:experimentId/conversations", name: "conversations", component: stub },
+      { path: "/e/:experimentId/overview/breakdown", name: "overview-breakdown", component: stub },
     ],
   });
   await router.push(`/e/exp-1/prompts${query}`);
@@ -161,6 +162,16 @@ describe("prompt detail (ADR-067)", () => {
     expect(wrapper.find("[data-testid='env-strip']").exists()).toBe(true);
     await wrapper.get("[data-testid='tab-prompt']").trigger("click");
     expect(wrapper.find("[data-testid='pane-content']").exists()).toBe(true);
+  });
+
+  it("links the Changes tab to Breakdown grouped by prompt version", async () => {
+    const { wrapper, router } = await setup(PromptDetailPage, "technical", new FakePromptApi(), { promptId: "p1" });
+    await wrapper.get("[data-testid='tab-compare']").trigger("click");
+    expect(wrapper.get("[data-testid='tab-compare']").text()).toBe("Changes");
+    await wrapper.get("[data-testid='see-in-breakdown']").trigger("click");
+    await flushPromises();
+    expect(router.currentRoute.value.name).toBe("overview-breakdown");
+    expect(router.currentRoute.value.query.groupBy).toBe("prompt_version");
   });
 
   it("picks a version from the list on the left", async () => {
