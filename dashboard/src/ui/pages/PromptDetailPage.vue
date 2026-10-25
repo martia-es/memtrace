@@ -371,7 +371,7 @@ const envOpen = ref<string | null>(null);
 const openTag = ref<string | null>(null);
 const addingTag = ref(false);
 const openFreeTags = computed(() => freeTags.value.filter((t) => t.tag === openTag.value));
-const mapOpen = ref(false);
+const mapOpen = ref(true);
 const allVersionsOpen = ref(false);
 /** Las trazas de la versión que se mira, en Conversaciones (la lista completa vive allí). */
 const tracesLink = computed(() => ({
@@ -709,6 +709,8 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                   </div>
                   <pre class="code" data-testid="version-content"><span v-for="line in codeLines" :key="line.n" class="ln" :class="{ changed: line.changed, heading: line.heading }"><span v-for="(part, i) in line.parts" :key="i" :class="{ variable: part.variable && !part.text.startsWith('{{>'), 'inc-ref': part.text.startsWith('{{>') }">{{ part.text }}</span></span></pre>
                   <div v-if="!showingSource && changedLines.size > 0" class="code-foot"><i /> {{ t("promptDetailPage.lines_changed_since_v_version", { version: parentOfSelected?.version }) }}</div>
+                </div>
+                <div class="context">
                   <div class="props" data-testid="props">
                     <div class="prop" data-testid="variables-card">
                       <span class="eyebrow">{{ t("promptDetailPage.variables") }}</span>
@@ -734,13 +736,13 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
                       </span>
                     </div>
                   </div>
+                  <Card class="deps-fold" data-testid="pane-map">
+                    <Disclosure :open="mapOpen" toggle-testid="deps-toggle" @toggle="mapOpen = !mapOpen">
+                      <template #head><strong>{{ t("promptDetailPage.dependencies") }}</strong><span class="soft">{{ t("promptDetailPage.agents_that_read_it_fragments_and") }}</span></template>
+                      <PromptDependencyMap :prompt-id="promptId" :kind="data.prompt.kind" :name="data.prompt.name" :tag-versions="tagVersionMap" :latest="latestVersion" />
+                    </Disclosure>
+                  </Card>
                 </div>
-                <Card class="deps-fold" data-testid="pane-map">
-                  <Disclosure :open="mapOpen" toggle-testid="deps-toggle" @toggle="mapOpen = !mapOpen">
-                    <template #head><strong>{{ t("promptDetailPage.dependencies") }}</strong><span class="soft">{{ t("promptDetailPage.agents_that_read_it_fragments_and") }}</span></template>
-                    <PromptDependencyMap :prompt-id="promptId" :kind="data.prompt.kind" :name="data.prompt.name" :tag-versions="tagVersionMap" :latest="latestVersion" />
-                  </Disclosure>
-                </Card>
               </div>
               <div v-else class="editor-layout">
                 <form class="editor" @submit.prevent="saveVersion(false)">
@@ -1000,7 +1002,7 @@ const usageOf = (env: string) => usageRows.value.find((u) => u.environment === e
   flex-direction: column;
   gap: 12px;
   padding: 16px 24px 20px;
-  background: var(--mt-card);
+  background: var(--mt-bg);
 }
 .actions {
   display: flex;
@@ -1072,8 +1074,21 @@ h3 {
 }
 
 /* contenido */
+/* texto a ancho de lectura; a su lado, el contexto (variables, includes, dependencias) siempre a la vista */
 .content-grid {
-  display: block;
+  display: grid;
+  grid-template-columns: minmax(0, 880px) minmax(300px, 380px);
+  gap: 16px;
+  align-items: start;
+}
+.context {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+@media (max-width: 1280px) {
+  .content-grid { grid-template-columns: minmax(0, 1fr); }
 }
 .code-card {
   border: 1px solid var(--mt-line);
@@ -1693,18 +1708,21 @@ ul.plain {
 /* ---- propiedades del texto: variables, fragmentos que incluye, quién lo usa ---- */
 .props {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px 28px;
-  padding: 12px 16px;
-  border-top: 1px solid var(--mt-line);
-  background: var(--mt-soft);
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--mt-line);
+  border-radius: 10px;
+  background: var(--mt-card);
 }
 .prop {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px 8px;
+}
+.prop .eyebrow {
+  flex: 0 0 100%;
 }
 .include {
   display: inline-flex;
@@ -1743,20 +1761,27 @@ ul.plain {
 }
 /* entornos: filas planas (sin tarjetas); la versión que sirve cada uno ya se ve en la línea de versiones */
 .env-list {
-  display: flex;
-  flex-direction: column;
-  border-top: 1px solid var(--mt-line);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
 }
 .env-card {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 8px 4px;
-  border-bottom: 1px solid var(--mt-line);
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--mt-line);
+  border-radius: var(--mt-radius-sm);
+  background: var(--mt-card);
+}
+.env-card.open {
+  grid-column: 1 / -1;
 }
 .env-card.late {
   box-shadow: inset 3px 0 0 var(--mt-warn-ink);
-  padding-left: 12px;
+}
+.env-row {
+  flex-wrap: wrap;
 }
 .env-card-ver {
   font-size: 14px;
@@ -1855,6 +1880,13 @@ ul.plain {
   flex-direction: column;
   gap: 14px;
   overflow-y: auto;
+  padding: 16px 20px;
+  border: 1px solid var(--mt-line);
+  border-radius: 10px;
+  background: var(--mt-card);
+}
+.detail .pane {
+  padding: 0;
 }
 .vhead {
   flex: none;
