@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { useAsync } from "../composables/useAsync";
 import { useAssistantAccess } from "../composables/useAssistantAccess";
 import { useAssistantApi } from "../composables/useAssistantApi";
+import { useFilters } from "../composables/useFilters";
 import { ROLE_LABEL, headline, personLabel } from "@/domain/assistants";
 import { RISK_LABEL, RISK_TONE, levelOf } from "@/domain/risk";
 import Pill from "../components/Pill.vue";
@@ -13,6 +14,7 @@ import AssistantEnvironments from "../components/assistants/AssistantEnvironment
 import EditAssistantModal from "../components/assistants/EditAssistantModal.vue";
 import CiSetup from "../components/assistants/CiSetup.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
+import FilterBar from "../components/FilterBar.vue";
 import PageHeader from "../components/PageHeader.vue";
 import StatusChip from "../components/StatusChip.vue";
 import TabBar from "../components/TabBar.vue";
@@ -32,6 +34,7 @@ const { canManage, canGovern, canDeploy, canManagePeople, organizationId } = use
 
 const card = useAsync((signal) => api.getAssistant(props.experimentId, signal));
 void card.run();
+const filters = useFilters();
 const nowMs = ref(Date.now());
 let timer: ReturnType<typeof setInterval> | undefined;
 onMounted(() => {
@@ -62,6 +65,8 @@ const editing = ref(false);
       :title="card.data.value?.name ?? t('assistantDetailPage.assistant')"
     >
       <StatusChip v-if="head" :tone="head.tone" :label="head.label" />
+      <!-- las llamadas de las tools se cuentan en este rango (ADR-053); en Entornos no aplica -->
+      <FilterBar v-if="tab === 'connections'" :range="filters.range.value" :custom="filters.customRange.value" @update:range="filters.setRange" @update:custom="filters.setCustomRange" />
     </PageHeader>
 
     <ErrorBanner v-if="card.error.value" :error="card.error.value" @retry="card.run()" />

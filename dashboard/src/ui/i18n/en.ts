@@ -2762,7 +2762,7 @@ export default {
   "assistantConnections.mcp_servers": "MCP servers",
   "assistantConnections.tool_servers_the_assistant_connects_to": "Tool servers the assistant connects to",
   "assistantConnections.tools": "Tools",
-  "assistantConnections.derived_from_tool_spans_last_7": "Derived from tool spans, last 7 days",
+  "assistantConnections.derived_from_tool_spans": "Derived from tool spans in the selected range",
   "assistantConnections.agents_it_talks_to": "Agents it talks to",
   "assistantConnections.other_agents_it_calls": "Other agents it calls",
   "assistantConnections.approved": "Approved",

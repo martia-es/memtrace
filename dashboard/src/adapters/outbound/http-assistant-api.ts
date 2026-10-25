@@ -76,8 +76,9 @@ export class HttpAssistantApi implements AssistantApi {
     await this.request("DELETE", `${this.assistant(experimentId)}/deployments/${e(deploymentId)}/access/${e(grantId)}`, undefined, signal);
   }
 
-  async listConnections(experimentId: string, signal?: AbortSignal): Promise<ConnectionDto[]> {
-    return (await this.request<{ items: ConnectionDto[] }>("GET", `${this.assistant(experimentId)}/connections`, undefined, signal)).items;
+  async listConnections(experimentId: string, range?: { from: string; to: string }, signal?: AbortSignal): Promise<ConnectionDto[]> {
+    const query = range ? `?from=${e(range.from)}&to=${e(range.to)}` : "";
+    return (await this.request<{ items: ConnectionDto[] }>("GET", `${this.assistant(experimentId)}/connections${query}`, undefined, signal)).items;
   }
   declareConnection(experimentId: string, input: { kind: ConnectionKindDto; name: string; via?: string | null }, signal?: AbortSignal): Promise<ConnectionDto> {
     return this.request("POST", `${this.assistant(experimentId)}/connections`, input, signal);

@@ -171,12 +171,14 @@ export class AssistantRegistryService {
 
   // ── Conexiones ──────────────────────────────────────────────────────────────────────────────────────────────
 
-  /** Conexiones registradas con el uso observado (últimos 7 días): tools y servidores MCP (la suma de sus tools). Agentes aún sin medir (`usage: null`). */
-  async listConnections(experimentId: string, serviceName: string): Promise<ConnectionWithUsage[]> {
-    const to = this.now();
+  /** Conexiones registradas con el uso observado en `range` (por defecto los últimos 7 días): tools y servidores MCP (la suma de sus tools). Agentes aún sin medir (`usage: null`). */
+  async listConnections(experimentId: string, serviceName: string, range: { from?: Date; to?: Date } = {}): Promise<ConnectionWithUsage[]> {
+    const to = range.to ?? this.now();
+    const from = range.from ?? new Date(to.getTime() - OBSERVATION_WINDOW_DAYS * DAY_MS);
+    if (from >= to) throw new ValidationError("`from` must be before `to`");
     const [connections, usage] = await Promise.all([
       this.repo.listConnections(experimentId),
-      this.toolUsage.toolUsage({ experimentId, serviceName }, new Date(to.getTime() - OBSERVATION_WINDOW_DAYS * DAY_MS), to),
+      this.toolUsage.toolUsage({ experimentId, serviceName }, from, to),
     ]);
     const byTool = new Map(usage.map((u) => [u.tool, u]));
     const byServer = new Map<string, { calls: number; errors: number }>();

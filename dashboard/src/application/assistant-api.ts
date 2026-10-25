@@ -82,7 +82,8 @@ export interface AssistantApi {
   /** Personas de la organización cuyo nombre o email contiene `query` (vacío = las primeras por nombre). */
   searchPeople(experimentId: string, query: string, signal?: AbortSignal): Promise<AssistantPersonDto[]>;
 
-  listConnections(experimentId: string, signal?: AbortSignal): Promise<ConnectionDto[]>;
+  /** Conexiones con el uso de las tools en `range` (ISO); sin rango, los últimos 7 días. */
+  listConnections(experimentId: string, range?: { from: string; to: string }, signal?: AbortSignal): Promise<ConnectionDto[]>;
   declareConnection(experimentId: string, input: { kind: ConnectionKindDto; name: string; via?: string | null }, signal?: AbortSignal): Promise<ConnectionDto>;
   decideConnection(experimentId: string, connectionId: string, status: ConnectionStatusDto, note: string | null, signal?: AbortSignal): Promise<ConnectionDto>;
   undeclareConnection(experimentId: string, connectionId: string, signal?: AbortSignal): Promise<void>;

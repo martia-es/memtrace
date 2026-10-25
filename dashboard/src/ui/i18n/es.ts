@@ -2763,7 +2763,7 @@ const es: Record<keyof typeof en, string> = {
   "assistantConnections.mcp_servers": "Servidores MCP",
   "assistantConnections.tool_servers_the_assistant_connects_to": "Servidores de herramientas a los que se conecta el asistente",
   "assistantConnections.tools": "Herramientas",
-  "assistantConnections.derived_from_tool_spans_last_7": "Derivadas de los spans de herramientas, últimos 7 días",
+  "assistantConnections.derived_from_tool_spans": "Derivadas de los spans de herramientas, en el rango elegido",
   "assistantConnections.agents_it_talks_to": "Agentes con los que habla",
   "assistantConnections.other_agents_it_calls": "Otros agentes a los que llama",
   "assistantConnections.approved": "Aprobada",

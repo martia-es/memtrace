@@ -1235,7 +1235,7 @@ export interface ConnectionDto {
   decidedBy: string | null;
   decidedAt: string | null;
   note: string | null;
-  /** últimos 7 días; en un servidor MCP, la suma de sus tools; null donde todavía no se mide (agentes) */
+  /** en el rango pedido (`?from&to`, por defecto los últimos 7 días); en un servidor MCP, la suma de sus tools; null donde todavía no se mide (agentes) */
   usage: { calls: number; errors: number } | null;
 }
 

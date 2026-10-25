@@ -29,6 +29,15 @@ describe("AssistantRegistryService (ADR-053)", () => {
     expect(NOW.getTime() - from.getTime()).toBe(7 * 86_400_000);
   });
 
+  it("counts usage in the requested range instead of the default 7 days", async () => {
+    const { service, toolUsage } = build({ listConnections: async () => [connection({})] }, [{ tool: "get_forecast", calls: 9, errors: 0 }]);
+    const from = new Date("2026-09-05T00:00:00Z");
+    const to = new Date("2026-09-20T00:00:00Z");
+    await service.listConnections("e1", "weather-assistant", { from, to });
+    expect(toolUsage.mock.calls[0]).toEqual([{ experimentId: "e1", serviceName: "weather-assistant" }, from, to]);
+    await expect(service.listConnections("e1", "weather-assistant", { from: to, to: from })).rejects.toBeInstanceOf(ValidationError);
+  });
+
   it("syncs only tools that were actually called", async () => {
     const recordObservedConnections = vi.fn(async () => {});
     const { service } = build({ getCard: async () => ({}) as AssistantCard, recordObservedConnections }, [
