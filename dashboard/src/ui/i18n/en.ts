@@ -3186,6 +3186,7 @@ export default {
   "nav.watch": "Watch",
   "nav.improve": "Improve",
   "nav.workspace": "Workspace",
+  "nav.settingsMode": "Organization settings",
   "nav.modelPricing": "Model pricing",
   "routeTitle.Charts": "Charts",
   "routeTitle.Quality trends": "Quality trends",

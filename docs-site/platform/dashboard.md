@@ -19,7 +19,7 @@ The sidebar groups its entries by what you want to do, under three small heading
 
 The **experiment** selector at the top of the sidebar switches between the agents you have access to. The badge next to **Review** is the number of items waiting for review.
 
-**Settings** replaces the sidebar with the sections of your organization instead of opening tabs: **Experiments** and **Members** (Workspace), **Approvals** and **Data protection** (Governance), and **Partners**, **Identity** and **Appearance** (Organization). Only an `org_admin` sees all of them; everyone else sees **Experiments**. **Back to app** at the top returns you to the normal menu.
+**Settings** replaces the sidebar with the sections of your organization instead of opening tabs: **Experiments** and **Members** (Workspace), **Approvals** and **Data protection** (Governance), and **Partners**, **Identity** and **Appearance** (Organization). Only an `org_admin` sees all of them; everyone else sees **Experiments**. The sidebar slides in with an **Organization settings** label above the organization name so you can tell you've left the normal menu; **Back to app** at the top returns you to it.
 
 ## Conversations
 
