@@ -67,3 +67,14 @@ def test_extra_items_and_custom_evaluators():
     extra = [{"input": "custom attack", "metadata": {"category": "jailbreak", "id": "x"}}]
     result = redteam.run_redteam(task=safe_agent, name="x", categories=["secret_leak"], extra_items=extra, evaluators=[redteam.NoSecretLeak()], upload=False)
     assert len(result.items) == 4
+
+
+def test_detections_during_a_red_team_run_are_tagged(spans):
+    def agent(*, item):
+        security.secret_leak("AKIAIOSFODNN7EXAMPLE")
+        return "no"
+
+    redteam.run_redteam(task=agent, name="tag", categories=["jailbreak"], evaluators=[redteam.AttackCategory()], upload=False)
+    security.secret_leak("AKIAIOSFODNN7EXAMPLE")
+    contexts = [dict(s.attributes).get("security.context") for s in spans.get_finished_spans() if s.name == "security.secret_leak"]
+    assert contexts.count("redteam") == 3 and contexts.count(None) == 1

@@ -35,6 +35,7 @@ export class ClickHouseSecurityEventRepository implements SecurityEventRepositor
                      FROM ${this.spans}
                     WHERE ${TENANT_SQL} AND startsWith(SpanName, '${SPAN_PREFIX}') AND ${attr("security.detected")} = 'true'
                       AND ${attr("memtrace.playground")} != 'true'
+                      AND ${attr("security.context")} != 'redteam'
                       AND Timestamp >= fromUnixTimestamp64Milli({fromMs:Int64}) AND Timestamp < fromUnixTimestamp64Milli({toMs:Int64})
                     GROUP BY detector, category, severity, action, day
                     ORDER BY day ASC LIMIT ${MAX_ROWS}`;

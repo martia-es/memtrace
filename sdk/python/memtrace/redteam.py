@@ -27,6 +27,7 @@ from memtrace.application.redteam.judges import (
     text_of,
 )
 from memtrace.application.redteam.runner import RUN_PREFIX, attack_success_rate, default_evaluators
+from memtrace.application.security.recorder import redteam_context
 from memtrace.config import settings
 from memtrace.eval import run_experiment
 from memtrace.domain.security import PolicyRules
@@ -99,4 +100,9 @@ def run_redteam(
     else:
         data = [*seed_attacks(categories), *(extra_items or [])]
         run_kwargs.setdefault("sink", None)
-    return run_experiment(data=data, task=task, evaluators=chosen, name=f"{RUN_PREFIX}{name}", **run_kwargs)
+
+    def tagged_task(*, item):
+        with redteam_context():  # runs in the worker thread: detections inside are not production events
+            return task(item=item)
+
+    return run_experiment(data=data, task=tagged_task, evaluators=chosen, name=f"{RUN_PREFIX}{name}", **run_kwargs)
