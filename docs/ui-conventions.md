@@ -145,6 +145,8 @@ Pantalla `AnnotationQueueReviewPage` (sin endpoint ni almacén nuevos; propuesta
 - **Traza técnica**: ya no se despliega en la pantalla; el enlace «Technical trace ↗» (solo con `trace:read_technical`) abre el detalle de la traza en otra pestaña.
 - **Sin selector de fechas**: la ruta lleva `timeRange: false` porque el rango no afecta a lo que se revisa.
 
+- Reglas de aprobación (`ApprovalRulesPanel`, pestaña Approvals de la organización y del experimento): una frase de resumen arriba («A change reaches pro after N approvals») con la explicación larga tras un «?»; cada paso es una tarjeta sin borde con la cifra grande de aprobaciones; «Set up» abre un **panel lateral** (`position: fixed`, sin Teleport para que se pueda probar dentro del componente) con el interruptor de tres modos, perfiles, personas y una frase de lo que significa. Sin bordes ni degradados: filas con relleno suave, activas en `--mt-accent-soft`.
+
 ## 12. Estados vacíos y muestras pequeñas
 
 - **Sin resultados, explica la causa y ofrece la salida**: con filtros de lista activos (texto, errores, lentas, versión, prompt) la lista dice «Nothing matches these filters» y `Quitar filtros` (`clearListFilters` de `useFilters`, un solo cambio de URL). Sin filtros, dice «No conversations in this range» y propone los tres rangos más amplios; la guía de conexión (`OnboardingGuide`) queda plegada, y abierta desde 7 días. Nunca un recuadro en blanco.

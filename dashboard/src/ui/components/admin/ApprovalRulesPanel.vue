@@ -100,9 +100,18 @@ function setMode(next: unknown) {
   fill(editing.value, next);
 }
 
-const caretLeft = computed(() => {
-  const at = rows.value.findIndex((r) => r.action === editing.value?.action && r.stage === editing.value.stage);
-  return at < 0 ? "50%" : `${((at + 0.5) / rows.value.length) * 100}%`;
+/** Cuántas aprobaciones pide un paso (perfiles y personas, sin repetir lo que la organización ya pide). */
+const approvalsOf = (row: { action: "publish" | "promote"; stage: string }) => {
+  const sources = [isExperiment.value ? floorOf(row.action, row.stage) : null, ownRuleOf(row.action, row.stage)];
+  const roles = new Set(sources.flatMap((r) => r?.requirements.map((x) => x.role) ?? []));
+  const people = new Set(sources.flatMap((r) => r?.approvers ?? []));
+  return roles.size + people.size;
+};
+/** La frase de arriba: lo que cuesta llegar al último entorno. */
+const summary = computed(() => {
+  const last = [...rows.value].reverse().find((r) => r.action === "promote");
+  const n = last ? approvalsOf(last) : 0;
+  return last && n > 0 ? tp("approvalRulesPanel.reach_stage", n, { stage: last.stage }) : t("approvalRulesPanel.no_step_needs_approval");
 });
 
 const candidate = computed(() => ({
@@ -211,15 +220,22 @@ async function remove(row: { action: "publish" | "promote"; stage: string }) {
     <LoadingState v-if="loading && !data" fill data-testid="rules-loading" />
     <p v-else-if="loadError" class="adm-empty" role="alert" data-testid="rules-error">{{ loadError }}</p>
     <template v-else-if="data">
-      <p class="intro">
-        <template v-if="isExperiment">{{ t("approvalRulesPanel.a_change_travels_left_to_right") + " " }}<b>{{ t("approvalRulesPanel.stricter") }}</b>{{ t("approvalRulesPanel.ask_for_more_people_or_add") }}</template>
-        <template v-else>{{ t("approvalRulesPanel.a_change_travels_left_to_right2") }}</template>
-      </p>
-      <p class="legend">
-        <span><i class="mark role">T</i>{{ t("approvalRulesPanel.any_person_with_the_profile") }}</span>
-        <span><i class="mark person">MF</i>{{ t("approvalRulesPanel.this_person_always") }}</span>
-      </p>
-
+      <div class="summary">
+        <p class="headline" data-testid="rules-summary">{{ summary }}</p>
+        <details class="help">
+          <summary :aria-label="t('approvalRulesPanel.how_it_works')">?</summary>
+          <div class="help-body">
+            <p>
+              <template v-if="isExperiment">{{ t("approvalRulesPanel.a_change_travels_left_to_right") + " " }}<b>{{ t("approvalRulesPanel.stricter") }}</b>{{ t("approvalRulesPanel.ask_for_more_people_or_add") }}</template>
+              <template v-else>{{ t("approvalRulesPanel.a_change_travels_left_to_right2") }}</template>
+            </p>
+            <p class="legend">
+              <span><i class="mark role">T</i>{{ t("approvalRulesPanel.any_person_with_the_profile") }}</span>
+              <span><i class="mark person">MF</i>{{ t("approvalRulesPanel.this_person_always") }}</span>
+            </p>
+          </div>
+        </details>
+      </div>
       <ApprovalFlowChart :steps="flowSteps" :names="names" test-prefix="rule">
         <template #actions="{ step }">
           <Button size="sm" :class="isEditing(step) ? 'primary' : 'ghost'" :disabled="saving" data-testid="rule-edit" @click="edit(step)">
@@ -228,13 +244,14 @@ async function remove(row: { action: "publish" | "promote"; stage: string }) {
         </template>
       </ApprovalFlowChart>
 
-      <section v-if="editing" class="editor" data-testid="rule-editor" :aria-label="t('approvalRulesPanel.edit_the_rule')">
-        <span class="caret" :style="{ left: caretLeft }" aria-hidden="true" />
+      <div v-if="editing" class="scrim" @click="editing = null" />
+      <aside v-if="editing" class="editor" data-testid="rule-editor" role="dialog" :aria-label="t('approvalRulesPanel.edit_the_rule')" @keydown.esc="editing = null">
         <form @submit.prevent="save">
           <header>
             <span class="env">{{ editing.action === "publish" ? t("approvalRulesPanel.publish") : editing.stage }}</span>
             <h4>{{ t("approvalRulesPanel.rule_for_step", { step: stepLabel(editing.action, editing.stage).toLowerCase() }) }}</h4>
             <Button variant="danger" size="sm" v-if="!mode && ruleFor(data.rules, editing.action, editing.stage)" class="remove" :disabled="saving" data-testid="rule-remove" @click="remove(editing)">{{ t("approvalRulesPanel.remove_rule") }}</Button>
+            <Button variant="icon" type="button" class="close" :aria-label="t('approvalRulesPanel.cancel')" @click="editing = null">✕</Button>
           </header>
           <div v-if="mode" class="modes" role="radiogroup" :aria-label="t('approvalRulesPanel.what_this_agent_does_in_this')" data-testid="rule-modes">
             <span class="kicker">{{ t("approvalRulesPanel.in_this_step_this_agent") }}</span>
@@ -289,47 +306,52 @@ async function remove(row: { action: "publish" | "promote"; stage: string }) {
             </div>
           </div>
         </form>
-      </section>
+      </aside>
     </template>
   </div>
 </template>
 
 <style scoped>
 .rules { display: flex; flex-direction: column; gap: 14px; }
-.intro { margin: 0; max-width: 760px; font-size: 14px; line-height: 1.55; color: var(--mt-muted); }
+.summary { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+.headline { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.4; color: var(--mt-ink); }
+.help summary { width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--mt-soft); color: var(--mt-muted); font-size: 12px; font-weight: 800; cursor: pointer; list-style: none; }
+.help summary::-webkit-details-marker { display: none; }
+.help-body { margin-top: 10px; max-width: 640px; padding: 12px 14px; border-radius: 10px; background: var(--mt-soft); font-size: 13px; line-height: 1.55; color: var(--mt-muted); }
+.help-body p { margin: 0 0 8px; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 0; font-size: 12px; font-weight: 600; color: var(--mt-muted); }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .mark { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex: none; border-radius: 4px; font-size: 10px; font-weight: 800; font-style: normal; background: var(--mt-accent-soft, var(--mt-line)); color: var(--mt-ink); }
 .mark.person { border-radius: 50%; font-size: 8.5px; background: var(--mt-warn-bg, var(--mt-line)); }
 
-.editor { position: relative; margin-top: 2px; }
-.caret { position: absolute; top: -8px; width: 14px; height: 14px; margin-left: -7px; background: var(--mt-surface, var(--mt-bg)); border-top: 2px solid var(--mt-accent, var(--mt-ink)); border-left: 2px solid var(--mt-accent, var(--mt-ink)); transform: rotate(45deg); }
-.editor form { border: 2px solid var(--mt-accent, var(--mt-ink)); border-radius: 10px; background: var(--mt-surface, transparent); overflow: hidden; }
-header { display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-bottom: 1px solid var(--mt-line); }
-header h4 { flex: 1; margin: 0; font-size: 15px; font-weight: 800; }
+.scrim { position: fixed; inset: 0; z-index: 999; background: rgba(10, 35, 33, 0.28); }
+.editor { position: fixed; top: 0; right: 0; bottom: 0; z-index: 1000; width: min(480px, 100vw); display: flex; flex-direction: column; background: var(--mt-card); box-shadow: -12px 0 32px rgba(10, 35, 33, 0.16); }
+.editor form { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; }
+header { display: flex; align-items: center; gap: 10px; padding: 24px 28px 8px; }
+header h4 { flex: 1; margin: 0; font-size: 18px; font-weight: 800; }
+.close { flex: none; }
 .env { height: 22px; padding: 0 8px; display: inline-flex; align-items: center; border-radius: 4px; font: 800 11px/1 var(--mt-mono, monospace); background: var(--mt-accent, var(--mt-ink)); color: var(--mt-accent-ink, #fff); }
-
-.modes { display: flex; flex-direction: column; gap: 8px; padding: 14px 20px; border-bottom: 1px solid var(--mt-line); }
-.opt { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border: 1px solid var(--mt-line); border-radius: 8px; cursor: pointer; }
-.opt.on { border: 2px solid var(--mt-accent, var(--mt-ink)); padding: 11px 13px; background: var(--mt-soft); }
-.opt .txt { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
-.opt .adm-hint { font-weight: 400; }
-.cols.single { grid-template-columns: minmax(0, 1fr); }
-.cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-@media (max-width: 900px) { .cols { grid-template-columns: minmax(0, 1fr); } }
-fieldset { border: none; margin: 0; padding: 16px 20px; display: flex; flex-direction: column; gap: 8px; border-right: 1px solid var(--mt-line); min-width: 0; }
-legend { padding: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--mt-muted); float: left; margin-bottom: 8px; width: 100%; }
-legend span { font-weight: 500; letter-spacing: 0; text-transform: none; }
+.modes { display: flex; gap: 4px; margin: 12px 28px 4px; padding: 4px; border-radius: 10px; background: var(--mt-soft); }
+.modes .kicker { display: none; }
+.opt { position: relative; flex: 1; justify-content: center; padding: 8px 6px; border-radius: 8px; cursor: pointer; text-align: center; }
+.opt :deep(.dot) { position: absolute; opacity: 0; pointer-events: none; }
+.opt.on { background: var(--mt-card); }
+.opt .txt { display: flex; flex-direction: column; font-size: 13px; }
+.opt .adm-hint { display: none; }
+.cols, .cols.single { display: flex; flex-direction: column; gap: 22px; padding: 16px 28px; }
+fieldset { border: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+legend { padding: 0; font-size: 13px; font-weight: 800; float: left; margin-bottom: 8px; width: 100%; }
+legend span { font-weight: 500; color: var(--mt-muted); }
 legend + * { clear: both; }
-.row { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 12px; box-sizing: border-box; border: 1px solid var(--mt-line); border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer; }
-.row.on { border-color: var(--mt-accent, var(--mt-ink)); background: var(--mt-soft); }
+.row { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 14px; box-sizing: border-box; border-radius: 10px; background: var(--mt-soft); font-size: 13px; font-weight: 700; cursor: pointer; }
+.row.on { background: var(--mt-accent-soft, var(--mt-soft)); }
 .grow { flex: 1; min-width: 0; }
-.min { width: 56px; height: 28px; padding: 0 6px; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-xs); background: var(--mt-surface, transparent); color: var(--mt-ink); font: inherit; font-family: var(--mt-mono, monospace); font-weight: 800; text-align: center; }
-.means { display: flex; flex-direction: column; gap: 10px; padding: 16px 20px; background: var(--mt-soft); }
+.min { width: 56px; height: 28px; padding: 0 6px; border: none; border-radius: var(--mt-radius-xs); background: var(--mt-card); color: var(--mt-ink); font: inherit; font-family: var(--mt-mono, monospace); font-weight: 800; text-align: center; }
+.means { display: flex; flex-direction: column; gap: 6px; padding: 16px 18px; border-radius: 10px; background: var(--mt-accent-soft, var(--mt-soft)); }
 .means p { margin: 0; font-size: 15px; line-height: 1.5; font-weight: 700; color: var(--mt-ink); }
 .means p.small { font-size: 12px; font-weight: 500; color: var(--mt-muted); }
 .kicker { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--mt-muted); }
-.means p.hint { padding: 8px 10px; font-size: 13px; font-weight: 500; color: var(--mt-muted); background: var(--mt-bg, transparent); border: 1px dashed var(--mt-line); border-radius: var(--mt-radius-sm); }
+.means p.hint { padding: 8px 10px; font-size: 13px; font-weight: 500; color: var(--mt-muted); background: var(--mt-card); border-radius: var(--mt-radius-sm); }
 .problem { padding: 8px 10px; font-size: 13px !important; color: var(--mt-err-ink) !important; background: var(--mt-err-bg); border-radius: var(--mt-radius-sm); }
-.actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: auto; }
+.actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
 </style>
