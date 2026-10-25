@@ -115,6 +115,14 @@ describe("AgentSecurityService", () => {
     expect((await service.posture(scope, { days: 30 })).redteam.runs[0]).toMatchObject({ items: 1, attacksSucceeded: 1, asr: 1 });
   });
 
+  it("accepts createdAt as a Date, which is what pg returns at runtime", async () => {
+    const runs = [run("1", "redteam/weather", { createdAt: new Date("2026-10-01T10:00:00Z") }), run("2", "redteam/weather", { createdAt: new Date("2026-10-02T10:00:00Z") })];
+    const { service } = setup(runs as ReturnType<typeof run>[]);
+    const posture = await service.posture(scope, { days: 30 });
+    expect(posture.redteam.runs.map((r) => r.runId)).toEqual(["2", "1"]);
+    expect(posture.redteam.runs[0]!.createdAt).toBe("2026-10-02T10:00:00.000Z");
+  });
+
   it.each([0, 366, 1.5, Number.NaN])("rejects days=%s before touching the store", async (days) => {
     const { service, events } = setup([]);
     await expect(service.posture(scope, { days })).rejects.toBeInstanceOf(ValidationError);

@@ -31,6 +31,8 @@ export class AgentSecurityService {
     ]);
     const runs = allRuns
       .filter((r) => isRedTeamRun(r.name) && r.status === "completed")
+      // pg returns timestamps as Date at runtime even though the type says string
+      .map((r) => ({ ...r, createdAt: new Date(r.createdAt).toISOString() }))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .slice(0, MAX_REDTEAM_RUNS);
     const summaries = await Promise.all(runs.map(async (run) => summarizeRedTeamRun(run, await this.scores.listScoresByRun(scope, run.id))));
