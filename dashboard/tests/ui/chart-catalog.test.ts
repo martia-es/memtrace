@@ -168,7 +168,7 @@ describe("custom charts with a name catalog (ADR-078)", () => {
 
 describe("attribute classification in the builder and the catalog (ADR-078, phase 2)", () => {
   const splitByLabels = async (w: VueWrapper) => {
-    const field = w.findAll(".field").find((f) => f.find("label").exists() && f.find("label").text().startsWith("Split by"))!;
+    const field = w.findAll(".fold").find((f) => f.find(".fold-label").text().startsWith("Split by"))!;
     return optionLabels(field.element, ".select-trigger");
   };
   const pickTool = async (w: VueWrapper) => {

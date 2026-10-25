@@ -439,6 +439,15 @@ const filterAttributeOptions = computed(() => [
   { label: t("customChartsPanel.choose_a_detail"), value: "" },
   ...visibleAttributeKeys.value.map((k) => ({ label: attributeLabel(k.key, names.value), value: k.key })),
 ]);
+// ---- constructor plegado: cada control es una fila cerrada con su valor actual como resumen ----
+const folds = reactive({ see: false, measure: false, split: false, filter: false });
+const seeSummary = computed(() => (hasSteps.value ? selectedSteps.value.map((s) => stepLabel(s, names.value)).join(", ") : t("customChartsPanel.pick_one_or_several_summary", { count: stepKinds.value.length })));
+const measureSummary = computed(() => {
+  const label = METRICS.value.find((m) => m.value === metric.value)?.label ?? "";
+  return isAttributeMetric(metric.value) && metricAttribute.value ? `${label} · ${attributeLabel(metricAttribute.value, names.value)}` : label;
+});
+const splitSummary = computed(() => (groupByAttribute.value ? attributeLabel(groupByAttribute.value, names.value) : t("customChartsPanel.dont_break_down_short")));
+const filterSummary = computed(() => (filterRows.value.length ? tp("customChartsPanel.conditions", filterRows.value.length) : t("customChartsPanel.no_conditions")));
 const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) => (def.groupByAttribute ? attributeLabel(def.groupByAttribute, names.value) : t("customChartsPanel.step"));
 </script>
 
@@ -458,8 +467,12 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
           <p class="hint cc-sub">{{ t("customChartsPanel.pick_a_question_we_set_up") }}</p>
           <div class="question-list">
             <button v-for="t in visibleQuestions" :key="t.id" type="button" class="question-card" @click="applyTemplate(t)">
-              <span class="q-text">{{ t.question }}</span>
-              <span class="q-basis">{{ templateBasis(t) }}</span>
+              <svg class="q-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V10M12 21V4M19 21v-7" /></svg>
+              <span class="q-main">
+                <span class="q-text">{{ t.question }}</span>
+                <span class="q-basis">{{ templateBasis(t) }}</span>
+              </span>
+              <svg class="q-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
             </button>
           </div>
           <Button class="self-start" variant="link" v-if="templates.length > QUESTIONS_COLLAPSED" @click="showAllQuestions = !showAllQuestions">
@@ -469,74 +482,105 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
           <div class="eyebrow">{{ t("customChartsPanel.or_build_it_yourself") }}</div>
         </template>
 
-        <div class="field">
-          <label>{{ t("customChartsPanel.i_want_to_see") }} <span class="label-note">{{ t("customChartsPanel.pick_one_or_several_to_compare") }}</span>
-            <Button v-if="can('catalog:manage')" size="sm" class="rename-btn" data-testid="open-catalog" @click="showCatalog = true">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
-              {{ t("customChartsPanel.customize_names") }}
-            </Button>
-          </label>
-          <div class="chip-select">
-            <span v-if="stepKindsLoading" class="hint">{{ t("customChartsPanel.loading") }}</span>
-            <span v-else-if="!stepKinds.length" class="hint">{{ t("customChartsPanel.no_activity_in_this_range_yet") }}</span>
-            <template v-for="k in stepKinds" :key="k.stepType">
-              <span v-if="editingStep === k.stepType" class="chip-edit">
-                <input v-model="stepDraft" type="text" maxlength="80" :placeholder="stepLabel(k.stepType)" :aria-label="t('customChartsPanel.name_for_step', { step: k.stepType })" data-testid="step-rename-input" autofocus @keydown.enter.prevent="commitRename" @keydown.esc.prevent="editingStep = null" @blur="commitRename" />
-              </span>
-              <span v-else class="chip-wrap" :class="{ renamed: isRenamed(k.stepType) }">
-                <ToggleChip :pressed="selectedSteps.includes(k.stepType)" :count="k.count.toLocaleString()" @click="toggleStep(k.stepType)">{{ stepLabel(k.stepType, names) }}</ToggleChip>
-                <Button v-if="can('catalog:manage')" variant="icon" size="sm" class="chip-pencil" :aria-label="t('customChartsPanel.rename_step', { step: stepLabel(k.stepType, names) })" :data-testid="`rename-step-${k.stepType}`" @click="startRename(k.stepType)">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
-                </Button>
-              </span>
-            </template>
+        <div class="folds">
+          <div class="fold" :class="{ open: folds.see }">
+            <button type="button" class="fold-head" :aria-expanded="folds.see" data-testid="fold-see" @click="folds.see = !folds.see">
+              <span class="fold-label">{{ t("customChartsPanel.i_want_to_see") }}</span>
+              <span class="fold-summary">{{ seeSummary }}</span>
+              <svg class="fold-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+            </button>
+            <div v-show="folds.see" class="fold-body">
+              <span class="hint">{{ t("customChartsPanel.pick_one_or_several_to_compare") }}</span>
+              <div class="chip-select">
+                <span v-if="stepKindsLoading" class="hint">{{ t("customChartsPanel.loading") }}</span>
+                <span v-else-if="!stepKinds.length" class="hint">{{ t("customChartsPanel.no_activity_in_this_range_yet") }}</span>
+                <template v-for="k in stepKinds" :key="k.stepType">
+                  <span v-if="editingStep === k.stepType" class="chip-edit">
+                    <input v-model="stepDraft" type="text" maxlength="80" :placeholder="stepLabel(k.stepType)" :aria-label="t('customChartsPanel.name_for_step', { step: k.stepType })" data-testid="step-rename-input" autofocus @keydown.enter.prevent="commitRename" @keydown.esc.prevent="editingStep = null" @blur="commitRename" />
+                  </span>
+                  <span v-else class="chip-wrap" :class="{ renamed: isRenamed(k.stepType) }">
+                    <ToggleChip :pressed="selectedSteps.includes(k.stepType)" :count="k.count.toLocaleString()" @click="toggleStep(k.stepType)">{{ stepLabel(k.stepType, names) }}</ToggleChip>
+                    <Button v-if="can('catalog:manage')" variant="icon" size="sm" class="chip-pencil" :aria-label="t('customChartsPanel.rename_step', { step: stepLabel(k.stepType, names) })" :data-testid="`rename-step-${k.stepType}`" @click="startRename(k.stepType)">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
+                    </Button>
+                  </span>
+                </template>
+              </div>
+              <span v-if="stepRenameError" class="hint error-text" role="alert" data-testid="step-rename-error">{{ stepRenameError }}</span>
+            </div>
           </div>
-          <span v-if="stepRenameError" class="hint error-text" role="alert" data-testid="step-rename-error">{{ stepRenameError }}</span>
-          <Button v-if="can('catalog:manage') && stepKinds.length" variant="link" class="self-start" data-testid="open-catalog-page" @click="router?.push({ name: 'overview-catalog', params: { experimentId } })">{{ t("customChartsPanel.manage_all_names_and_details") }}</Button>
-        </div>
-        <ChartCatalogEditor v-if="showCatalog" :experiment-id="experimentId" :range="range" :entries="catalogEntries" @close="showCatalog = false" @changed="catalogEntries = $event" />
-        <div class="field">
-          <label>{{ t("customChartsPanel.measured_as") }}</label>
-          <Select v-model="metric" :options="METRICS" :disabled="!hasSteps" data-testid="metric-select" />
-          <template v-if="isAttributeMetric(metric)">
-            <label class="sub-label">{{ t("customChartsPanel.of_which_number") }}</label>
-            <Select v-model="metricAttribute" :options="measureOptions" data-testid="measure-select" />
-          </template>
-          <span v-else-if="singleStep && !measureAttributes.length && !attributeKeysLoading" class="hint" data-testid="no-measures">{{ t("customChartsPanel.this_step_has_no_numbers_to") }}</span>
-        </div>
-        <div class="field">
-          <label>{{ t("customChartsPanel.split_by_optional") }}</label>
-          <Select v-model="groupByAttribute" :options="groupByOptions" :disabled="!singleStep" />
-          <span v-if="attributeKeysLoading" class="hint">{{ t("customChartsPanel.loading_details") }}</span>
-          <span v-else-if="multiStep" class="hint">{{ t(chartType === "line" || chartType === "area" ? "customChartsPanel.comparing.line" : "customChartsPanel.comparing.bar", { count: selectedSteps.length }) }}</span>
-          <span v-else-if="singleStep && !visibleAttributeKeys.length" class="hint">{{ t("customChartsPanel.nothing_to_split_by_for_this") }}</span>
-          <Button class="self-start" variant="link" v-if="singleStep && (hiddenTechnicalCount > 0 || showTechnical)" @click="showTechnical = !showTechnical">
-            {{ showTechnical ? "Show fewer details" : `Show ${hiddenTechnicalCount} more detail${hiddenTechnicalCount === 1 ? "" : "s"}` }}
-          </Button>
+
+          <div class="fold" :class="{ open: folds.measure }">
+            <button type="button" class="fold-head" :aria-expanded="folds.measure" data-testid="fold-measure" @click="folds.measure = !folds.measure">
+              <span class="fold-label">{{ t("customChartsPanel.measured_as") }}</span>
+              <span class="fold-summary">{{ measureSummary }}</span>
+              <svg class="fold-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+            </button>
+            <div v-show="folds.measure" class="fold-body">
+              <Select v-model="metric" :options="METRICS" :disabled="!hasSteps" data-testid="metric-select" />
+              <template v-if="isAttributeMetric(metric)">
+                <label class="sub-label">{{ t("customChartsPanel.of_which_number") }}</label>
+                <Select v-model="metricAttribute" :options="measureOptions" data-testid="measure-select" />
+              </template>
+              <span v-else-if="singleStep && !measureAttributes.length && !attributeKeysLoading" class="hint" data-testid="no-measures">{{ t("customChartsPanel.this_step_has_no_numbers_to") }}</span>
+            </div>
+          </div>
+
+          <div class="fold" :class="{ open: folds.split }">
+            <button type="button" class="fold-head" :aria-expanded="folds.split" data-testid="fold-split" @click="folds.split = !folds.split">
+              <span class="fold-label">{{ t("customChartsPanel.split_by_optional") }}</span>
+              <span class="fold-summary">{{ splitSummary }}</span>
+              <svg class="fold-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+            </button>
+            <div v-show="folds.split" class="fold-body">
+              <Select v-model="groupByAttribute" :options="groupByOptions" :disabled="!singleStep" />
+              <span v-if="attributeKeysLoading" class="hint">{{ t("customChartsPanel.loading_details") }}</span>
+              <span v-else-if="multiStep" class="hint">{{ t(chartType === "line" || chartType === "area" ? "customChartsPanel.comparing.line" : "customChartsPanel.comparing.bar", { count: selectedSteps.length }) }}</span>
+              <span v-else-if="singleStep && !visibleAttributeKeys.length" class="hint">{{ t("customChartsPanel.nothing_to_split_by_for_this") }}</span>
+              <Button class="self-start" variant="link" v-if="singleStep && (hiddenTechnicalCount > 0 || showTechnical)" @click="showTechnical = !showTechnical">
+                {{ showTechnical ? "Show fewer details" : `Show ${hiddenTechnicalCount} more detail${hiddenTechnicalCount === 1 ? "" : "s"}` }}
+              </Button>
+            </div>
+          </div>
+
+          <div class="fold" :class="{ open: folds.filter }">
+            <button type="button" class="fold-head" :aria-expanded="folds.filter" data-testid="fold-filter" @click="folds.filter = !folds.filter">
+              <span class="fold-label">{{ t("customChartsPanel.only_when_optional") }}</span>
+              <span class="fold-summary">{{ filterSummary }}</span>
+              <svg class="fold-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+            </button>
+            <div v-show="folds.filter" class="fold-body">
+              <div v-for="(row, i) in filterRows" :key="i" class="filter-block">
+                <div class="filter-row">
+                  <Select v-model="row.attribute" :options="filterAttributeOptions" :disabled="!singleStep" @update:model-value="loadFilterRowValues(row)" />
+                  <Button variant="icon" size="sm" :aria-label="t('customChartsPanel.remove_condition')" @click="removeFilterRow(i)"><q-icon name="close" size="16px" /></Button>
+                </div>
+                <div v-if="row.attribute" class="value-box">
+                  <span v-if="row.loading" class="hint">{{ t("customChartsPanel.loading_values") }}</span>
+                  <span v-else-if="!row.values.length" class="hint">{{ t("customChartsPanel.no_values_found_for_this_detail") }}</span>
+                  <template v-else>
+                    <span class="hint">{{ t("customChartsPanel.only_include_these") }}</span>
+                    <div class="chip-select">
+                      <ToggleChip v-for="v in row.values" :key="v.value" :pressed="row.selected.has(v.value)" :count="v.count" @click="toggleFilterRowValue(row, v.value)">{{ v.value }}</ToggleChip>
+                    </div>
+                  </template>
+                </div>
+              </div>
+              <div>
+                <Button variant="link" class="add-condition" :disabled="!singleStep" @click="addFilterRow">{{ t("customChartsPanel.add_condition") }}</Button>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div class="field">
-          <label>{{ t("customChartsPanel.only_when_optional") }}</label>
-          <div v-for="(row, i) in filterRows" :key="i" class="filter-block">
-            <div class="filter-row">
-              <Select v-model="row.attribute" :options="filterAttributeOptions" :disabled="!singleStep" @update:model-value="loadFilterRowValues(row)" />
-              <Button variant="icon" size="sm" :aria-label="t('customChartsPanel.remove_condition')" @click="removeFilterRow(i)"><q-icon name="close" size="16px" /></Button>
-            </div>
-            <div v-if="row.attribute" class="value-box">
-              <span v-if="row.loading" class="hint">{{ t("customChartsPanel.loading_values") }}</span>
-              <span v-else-if="!row.values.length" class="hint">{{ t("customChartsPanel.no_values_found_for_this_detail") }}</span>
-              <template v-else>
-                <span class="hint">{{ t("customChartsPanel.only_include_these") }}</span>
-                <div class="chip-select">
-                  <ToggleChip v-for="v in row.values" :key="v.value" :pressed="row.selected.has(v.value)" :count="v.count" @click="toggleFilterRowValue(row, v.value)">{{ v.value }}</ToggleChip>
-                </div>
-              </template>
-            </div>
-          </div>
-          <div>
-            <Button variant="link" class="add-condition" :disabled="!singleStep" @click="addFilterRow">{{ t("customChartsPanel.add_condition") }}</Button>
-          </div>
+        <div v-if="can('catalog:manage')" class="catalog-links">
+          <Button size="sm" data-testid="open-catalog" @click="showCatalog = true">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
+            {{ t("customChartsPanel.customize_names") }}
+          </Button>
+          <Button v-if="stepKinds.length" variant="link" data-testid="open-catalog-page" @click="router?.push({ name: 'overview-catalog', params: { experimentId } })">{{ t("customChartsPanel.manage_all_names_and_details") }}</Button>
         </div>
+        <ChartCatalogEditor v-if="showCatalog" :experiment-id="experimentId" :range="range" :entries="catalogEntries" @close="showCatalog = false" @changed="catalogEntries = $event" />
 
         <template v-if="templates.length && hasSteps">
           <div class="cc-divider" />
@@ -870,12 +914,45 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
 }
 .question-card {
   display: flex;
-  flex-direction: column;
-  gap: 0;
+  align-items: center;
+  gap: 10px;
   text-align: left;
   padding: 7px 12px;
   border-radius: var(--mt-radius-sm, 8px);
 }
+.q-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.q-icon { flex: none; color: var(--mt-accent-text); }
+.q-chev { flex: none; color: var(--mt-muted); }
+.folds { display: flex; flex-direction: column; gap: 6px; }
+.fold {
+  border: 1px solid var(--mt-line);
+  border-radius: var(--mt-radius-sm, 8px);
+  background: var(--mt-card);
+}
+.fold-head {
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border: none;
+  border-radius: inherit;
+  background: transparent;
+  color: var(--mt-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.fold-head:hover { background: var(--mt-accent-tint); }
+.fold-head:focus-visible { outline: 2px solid var(--mt-accent); outline-offset: -2px; }
+.fold-label { flex: none; font-weight: 700; }
+.fold-summary { flex: 1; min-width: 0; text-align: right; color: var(--mt-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fold-chev { flex: none; color: var(--mt-muted); transition: transform 0.15s ease; }
+.fold.open .fold-chev { transform: rotate(180deg); }
+.fold-body { display: flex; flex-direction: column; gap: 8px; padding: 4px 12px 12px; }
+.catalog-links { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
 .question-card:hover,
 .pill:hover {
   border-color: var(--mt-muted);

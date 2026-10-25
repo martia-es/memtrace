@@ -82,4 +82,18 @@ describe("CustomChartsPanel", () => {
     await flushPromises();
     expect((mounted.find(".add-condition").element as HTMLButtonElement).disabled).toBe(false);
   });
+
+  it("keeps the builder controls folded and summarises their value until opened", async () => {
+    mounted = mount(CustomChartsPanel, {
+      props: { experimentId: "e1", range: { from: "2026-10-01T00:00:00.000Z", to: "2026-10-08T00:00:00.000Z" } },
+      global: { plugins: [[Quasar, { plugins: { Dark, Notify } }]], provide: { [TRACE_API as symbol]: new Api(), [IDENTITY_API as symbol]: new FakeIdentityApi() } },
+      attachTo: document.body,
+    });
+    await flushPromises();
+    const head = mounted.find("[data-testid='fold-split']");
+    expect(head.attributes("aria-expanded")).toBe("false");
+    expect(head.text()).toContain("Don't break down");
+    await head.trigger("click");
+    expect(head.attributes("aria-expanded")).toBe("true");
+  });
 });

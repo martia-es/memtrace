@@ -105,7 +105,7 @@ A builder for charts over what your assistant does — model calls, tool calls a
 
 **Start from a question.** The first thing you see is a list of questions such as "Which tools fail the most?" or "How many model calls do I make each day?", each one showing how much data it is based on. Picking one fills the chart in for you. They only appear when your traces contain the data they need, and each custom step you instrumented gets its own "how often does it happen / fail" questions. Once you start building, the questions shrink to a row of pills so you can switch at any time.
 
-Or build one from the panel on the left, with the result on the right:
+Or build one from the panel on the left, with the result on the right. The four controls are closed rows that show their current value (for example **Measured as… How many times**); click a row to change it. The chart stays in view while you scroll.
 
 1. **I want to see…** — pick what happened (found in your traces for the selected time range, with how many times it happened). Pick several to compare them in one chart, for example your input guardrail and your tool calls: you get one line or bar per step, all measured the same way. Splitting by a detail and **Only when…** conditions apply to a single step, so they are available again when you pick just one. **Measured as…** how many times, how long it takes (average or in the slowest 5%), the % that fail or, when the step carries numbers, the **total**, **average**, **lowest** or **highest** of one of them (see [Measuring a number](#measuring-a-number)). Optionally **split by** a detail such as the tool or the model; the list offers the details that make sense to group by and hides the rest (see [Which details are offered](#which-details-are-offered)), which **Show more details** brings back. Add **Only when…** conditions to restrict it to certain values of a detail.
 2. **See it** — the chart updates as you go. Choose over time, bars, pie, area, a single number or a table from the selector above the chart; one is suggested for you, and a sentence under the name describes exactly what the chart shows.
@@ -114,7 +114,7 @@ Or build one from the panel on the left, with the result on the right:
 **Rename things.** The names come from your agent's code, so a step called `input_guardrail` shows as "Input guardrail". If your team calls it something else you can change it in three places, all editing the same names:
 
 - **Right on the step.** Each step in **I want to see…** has a small pencil. Click it, type the name and press Enter (Esc cancels, empty goes back to the automatic name). A step with your own name has a dashed outline.
-- **Customize names**, the button next to **I want to see…**: a window with every step and detail, so you can rename several without leaving the builder.
+- **Customize names**, the button below the four controls: a window with every step and detail, so you can rename several without leaving the builder.
 - **Alerts & budget**: the agent's alerts, monthly cost budget and what has fired; the bell at the top right counts what is firing now. See [Alerts and cost budgets](/platform/alerts).
 - **Analytics › Charts › Data catalog** (the link above the builder): the same list as a full page with a search box. Edits there are held until you press **Save changes** (or **Discard** to drop them); rows with pending changes are marked on the left. Without the `catalog:manage` permission you can look at it but not change it.
 
