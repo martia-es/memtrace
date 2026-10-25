@@ -9,7 +9,8 @@
 | Fichero | Qué hace |
 |---|---|
 | `gen_traces.py` | Genera ~5.000 trazas con la forma de `otel_traces`, feedback y puntuaciones de evaluador |
-| `data/` | Salida del generador (no se versiona) |
+| `data/` | Salida del generador y descargas públicas en `data/raw/` (no se versiona) |
+| `bench_data/` | Conversores de datasets públicos al formato común de episodio (`out/datasets/`). Hoy: Exgentic v2 (`python -m bench_data.exgentic download\|build`) |
 
 ## Fallos sembrados
 
