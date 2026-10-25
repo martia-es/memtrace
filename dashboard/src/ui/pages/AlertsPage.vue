@@ -9,6 +9,7 @@ import AlertRuleModal from "../components/AlertRuleModal.vue";
 import BudgetModal from "../components/BudgetModal.vue";
 import Button from "../components/Button.vue";
 import Card from "../components/Card.vue";
+import LoadingState from "../components/LoadingState.vue";
 import PageHeader from "../components/PageHeader.vue";
 import Pill from "../components/Pill.vue";
 import Switch from "../components/Switch.vue";
@@ -215,7 +216,7 @@ const EVENT_VERB = (kind: AlertEventDto["kind"]): string => ({ fired: t("alertsP
         </div>
         <p v-if="!can('alert:manage')" class="muted">{{ t("alertsPage.you_can_see_them_changing_them") }}</p>
 
-        <p v-if="rules === null" class="muted">{{ t("alertsPage.loading") }}</p>
+        <LoadingState v-if="rules === null" size="md" />
         <p v-else-if="rules.length === 0" class="empty" data-testid="no-alerts">
           {{ t("alertsPage.no_alerts_yet") }}
           <template v-if="can('alert:manage')"> {{ t("alertsPage.start_with_one_on_the_error") }}</template>
