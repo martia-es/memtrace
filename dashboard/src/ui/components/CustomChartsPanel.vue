@@ -36,6 +36,7 @@ import {
   type ChartTemplate,
 } from "@/domain/custom-chart-vocabulary";
 import Button from "./Button.vue";
+import LoadingState from "./LoadingState.vue";
 import ToggleChip from "./ToggleChip.vue";
 import SegmentedControl from "./SegmentedControl.vue";
 import { t, tp } from "../i18n";
@@ -388,8 +389,11 @@ async function removeSaved(id: string) {
   delete savedResults[id];
 }
 
-watch(() => props.range, () => { void loadStepKinds(); void loadSaved(); }, { immediate: true });
-watch(() => props.experimentId, () => { void loadSaved(); void loadCatalog(); }, { immediate: true });
+// la primera carga muestra el loader de MemTrace en vez de un panel a medias; los cambios de rango o de experimento refrescan sin vaciarlo
+const ready = ref(false);
+void Promise.all([loadStepKinds(), loadSaved(), loadCatalog()]).finally(() => { ready.value = true; });
+watch(() => props.range, () => { void loadStepKinds(); void loadSaved(); });
+watch(() => props.experimentId, () => { void loadSaved(); void loadCatalog(); });
 
 const CHART_TYPES: { value: CustomMetricDefinitionDto["chartType"]; label: string }[] = [
   { value: "line", get label() { return t("customChartsPanel.over_time"); } },
@@ -460,6 +464,8 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
       </div>
     </div>
 
+    <LoadingState v-if="!ready" data-testid="charts-loading" />
+    <template v-else>
     <div class="cc-grid">
       <div class="cc-builder">
         <template v-if="templates.length && !hasSteps">
@@ -670,6 +676,7 @@ const groupHeader = (def: Pick<CustomMetricDefinitionDto, "groupByAttribute">) =
         </div>
       </div>
     </div>
+    </template>
   </section>
 </template>
 
