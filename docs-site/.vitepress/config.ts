@@ -27,6 +27,7 @@ export default defineConfig({
             { text: "Bring your own backend", link: "/library/bring-your-own-backend" },
             { text: "Configuration", link: "/library/configuration" },
             { text: "Personal data (PII)", link: "/library/pii" },
+            { text: "Agent security", link: "/library/security" },
             { text: "Offline evaluation", link: "/library/evaluation" },
             { text: "User feedback", link: "/library/feedback" },
             { text: "Prompts", link: "/library/prompts" },

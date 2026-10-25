@@ -1,6 +1,6 @@
 # ADR-103: Agent Security — Offline Red Team Runs and Deterministic Runtime Detectors
 
-* **Status**: Accepted — not implemented
+* **Status**: Accepted — SDK (Python), query endpoint and dashboard page implemented; TypeScript SDK pending
 * **Date**: 2026-10-25
 * **Deciders**: MemTrace Core Team
 * **Extends**: [ADR-028](../evaluation/adr-028-offline-evaluation-decoupled-sdk.md)
@@ -38,7 +38,7 @@ Two constraints from earlier decisions shape the answer:
 
 A red team run is a `dataset_run` (ADR-028, ADR-044) executed with `run_experiment`. It adds only metadata, no new store:
 
-- `run_kind = "redteam"` on the run, and `category` on each item (taxonomy below).
+- The run is identified by its **name prefix `redteam/`** (no `run_kind` column for now: eval items do not store metadata and a column would touch every SDK, the ingest API and Postgres for no gain yet). The item's category travels as a categorical score `attack_category`, so the API can group a run by category from `eval_scores` alone. A dedicated `run_kind` stays a possible later migration.
 - Judges are ordinary evaluators (`Score(source=...)`): `InjectionResisted`, `SystemPromptNotRevealed` and `NoSecretLeak` are LLM judges (ADR-029); `NoUnauthorizedTool` is deterministic and uses the tool policy of section 3.
 - Seed datasets per category ship with the SDK, mapped to the OWASP Top 10 for LLM Applications. Users add their own.
 - The headline metric is the **attack success rate (ASR)** per category, derived from the scores. Comparison, noise measurement (ADR-097) and the eval gate keep working unchanged.
@@ -55,7 +55,7 @@ Detectors run **inside the agent**, on the input, the output, retrieved chunks o
 | `security.action` | `observed` / `warned` / `blocked` |
 | `security.score` | optional number (e.g. overlap ratio) |
 
-**The matched text is never recorded**, only the category, severity and score. MemTrace stores and charts these spans like any other (custom charts, "Needs attention", alerts of phase 1.95). It does not interpret content.
+Only detections are recorded (a clean check creates no span), so `security.detected` is always true on emitted spans; this keeps traces light. **The matched text is never recorded**, only the category, severity and score. MemTrace stores and charts these spans like any other (custom charts, "Needs attention", alerts of phase 1.95). It does not interpret content.
 
 Detectors wrap existing libraries (spike results in [spikes/redteam](../../../spikes/redteam/README.md)):
 
@@ -104,4 +104,4 @@ A security requirement in the deploy gate (ADR-064) and a security posture scree
 
 ## Pending
 
-Attack seed sets and judges; `memtrace.security` detectors and `ToolPolicy` (Python, then TypeScript); canary token; detector benchmark in CI; dashboard posture screen (UI proposal first); user documentation in `docs-site/`.
+TypeScript SDK parity (`memtrace.security`, `memtrace.redteam`) and its conformance scenarios (ADR-095); detector benchmark in CI; integration hooks for LangGraph, OpenAI Agents SDK and LangChain so `ToolPolicy` need not wrap each tool; optional external injection detector adapter; `run_kind` column if name prefixes prove limiting.
