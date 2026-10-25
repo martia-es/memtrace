@@ -234,10 +234,21 @@ const MEMBER_ROLE_OPTIONS = [
   color: var(--mt-muted);
 }
 
+/* cada pestaña es una superficie blanca sobre el fondo tintado; las tarjetas internas dejan de duplicar el blanco */
 .panel {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 18px;
+  padding: 24px 28px;
+  background: var(--mt-card);
+  border-radius: var(--mt-radius-lg);
+}
+.panel > .adm-card {
+  padding: 0;
+}
+.adm-step-body > :deep(button),
+.adm-step-body > :deep(a) {
+  align-self: flex-start;
 }
 .mono {
   font-family: var(--mt-mono);
