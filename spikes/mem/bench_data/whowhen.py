@@ -3,15 +3,19 @@
 Descarga (abierto, sin token):  python -m bench_data.whowhen download
 Construye:                      python -m bench_data.whowhen build
 
-Solo trae fallos. Cada uno tiene agente culpable, paso decisivo y una razón en texto libre; NO trae categoría de causa,
-así que `cause_behavior` queda vacío hasta que se fije la taxonomía (Q10) y se etiquete a partir de `cause_text`.
+Solo trae fallos. Cada uno tiene agente culpable, paso decisivo y una razón en texto libre; NO trae categoría de causa.
+`cause_behavior` sale de `labels/whowhen_claude.json` (taxonomía en `taxonomy.py`): un LLM leyó solo la razón humana, no es
+verdad humana hasta que una persona revise la muestra de `whowhen_review.csv` y se mida el acuerdo.
 """
 import argparse
+import json
 import urllib.request
 
 import pandas as pd
 
-from .common import OUT, RAW, clip
+from .common import HERE, OUT, RAW, clip
+
+LABELS = HERE / "bench_data" / "labels" / "whowhen_claude.json"  # primer anotador: Claude, sobre `cause_text`
 
 BASE = "https://huggingface.co/datasets/Kevin355/Who_and_When/resolve/main/{}.parquet"
 SUBSETS = ("Algorithm-Generated", "Hand-Crafted")
@@ -27,6 +31,7 @@ def download() -> None:
 
 def build() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
+    labels = {int(k): v for k, v in json.loads(LABELS.read_text()).items()} if LABELS.exists() else {}
     eps = []
     for n in SUBSETS:
         for _, r in pd.read_parquet(RAW / "whowhen" / f"{n}.parquet").iterrows():
@@ -36,12 +41,19 @@ def build() -> None:
             ]
             eps.append(dict(
                 source="whowhen", trace_id=r["question_ID"], split_group=r["question_ID"], outcome="fail",
-                cause_infra=None, cause_behavior=None, cause_text=r["mistake_reason"],
-                decisive_step=int(r["mistake_step"]), label_origin="human",
+                cause_infra=None, cause_behavior=labels.get(len(eps)), cause_text=r["mistake_reason"],
+                decisive_step=int(r["mistake_step"]), label_origin="human_step+llm_cause",
                 meta=dict(subset=n, mistake_agent=r["mistake_agent"], question=clip(r["question"], 400)),
                 steps=steps,
             ))
-    pd.DataFrame(eps).to_parquet(OUT / "whowhen.parquet")
+    df = pd.DataFrame(eps)
+    df.to_parquet(OUT / "whowhen.parquet")
+    # hoja para que una persona etiquete a ciegas (sin ver la etiqueta del LLM) una muestra y se pueda medir el acuerdo
+    sample = df.sample(40, random_state=7)
+    sheet = pd.DataFrame({"idx": sample.index, "agent": sample.meta.map(lambda m: m["mistake_agent"]),
+                          "reason": sample.cause_text, "tu_etiqueta": ""})
+    sheet.to_csv(OUT / "whowhen_review.csv", index=False)
+    sample[["cause_behavior"]].rename(columns={"cause_behavior": "etiqueta_llm"}).to_csv(OUT / "whowhen_review_key.csv")
     print(f"{len(eps)} episodios")
 
 
