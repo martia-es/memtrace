@@ -102,23 +102,35 @@ describe("Data protection tab (organization)", () => {
       expect(sectionLabels()).not.toContain("Risk & retention");
     });
 
-    it("shows one block per level with its period, the AI Act floor and the agents in it", async () => {
+    it("shows one tile per level with its period and the AI Act floor, and one table with every agent", async () => {
       const { wrapper } = await open();
       expect(wrapper.text()).toContain("cannot go below 180 days");
       for (const [level, value] of [["High", "365"], ["Limited", "90"], ["Minimal", "30"], ["Unclassified", "180"]] as Array<[string, string]>) {
         expect((days(wrapper, level).element as HTMLInputElement).value).toBe(value);
       }
-      expect(wrapper.get('[data-testid="level-high"]').text()).toContain("claims-assistant");
-      expect(wrapper.get('[data-testid="level-high"]').text()).toContain("Marta F.");
-      expect(wrapper.get('[data-testid="level-unclassified"]').text()).toContain("rag-assistant");
-      expect(wrapper.get('[data-testid="level-unclassified"]').text()).toContain("Never classified");
-      expect(wrapper.get('[data-testid="level-limited"]').text()).toContain("No agents at this level");
+      const claims = wrapper.get('[data-testid="agent-claims-assistant"]').text();
+      expect(claims).toContain("High");
+      expect(claims).toContain("365 days");
+      expect(claims).toContain("Marta F.");
+      const rag = wrapper.get('[data-testid="agent-rag-assistant"]').text();
+      expect(rag).toContain("Unclassified");
+      expect(rag).toContain("180 days");
+      expect(rag).toContain("Never classified");
+      expect(wrapper.get('[data-testid="level-limited"]').text()).toContain("0 agents");
+    });
+
+    it("warns about agents without a level and offers to classify the first one", async () => {
+      const { wrapper } = await open();
+      expect(wrapper.get('[data-testid="unclassified-banner"]').text()).toContain("has no level yet");
+      expect(wrapper.get('[data-testid="unclassified-banner"]').text()).toContain("180 days");
+      expect(wrapper.find('[data-testid="classify-first"]').exists()).toBe(true);
     });
 
     it("saves a period only when it changed and is valid, and never below the floor", async () => {
       const { wrapper, identity } = await open();
       const save = () => wrapper.get('[data-testid="save-high"]');
-      expect(save().attributes("disabled")).toBeDefined();
+      const hasSave = () => wrapper.find('[data-testid="save-high"]').exists();
+      expect(hasSave()).toBe(false); // sin cambios no hay botón
       type(days(wrapper, "High").element, "100"); // por debajo del suelo del AI Act
       await flushPromises();
       expect(save().attributes("disabled")).toBeDefined();
@@ -128,7 +140,7 @@ describe("Data protection tab (organization)", () => {
       expect(save().attributes("disabled")).toBeDefined();
       type(days(wrapper, "High").element, "365");
       await flushPromises();
-      expect(save().attributes("disabled")).toBeDefined(); // igual que lo guardado
+      expect(hasSave()).toBe(false); // igual que lo guardado
       type(days(wrapper, "Limited").element, "120");
       await flushPromises();
       await wrapper.get('[data-testid="save-limited"]').trigger("click");
