@@ -77,6 +77,7 @@ Do **not** write one for a new screen, an endpoint that follows an existing patt
 | 101 | LLM Provider Keys Held by MemTrace, Sealed for a Single Worker | [cybersecurity/adr-101-provider-keys-held-by-memtrace.md](cybersecurity/adr-101-provider-keys-held-by-memtrace.md) |
 | 102 | Agent Risk Classification and Risk-Based Requirements | [governance/adr-102-agent-risk-classification.md](governance/adr-102-agent-risk-classification.md) |
 | 103 | Agent Security — Offline Red Team Runs and Deterministic Runtime Detectors | [cybersecurity/adr-103-agent-security-red-team-and-runtime-detectors.md](cybersecurity/adr-103-agent-security-red-team-and-runtime-detectors.md) |
+| 104 | Mem Cause Taxonomy and Discovery by LLM Classification, Validated on a Public Test Bench | [evaluation/adr-104-mem-cause-taxonomy-and-llm-classification.md](evaluation/adr-104-mem-cause-taxonomy-and-llm-classification.md) |
 
 ## Retired ADRs
 

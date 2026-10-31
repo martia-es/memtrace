@@ -14,6 +14,7 @@ import urllib.request
 import pandas as pd
 
 from .common import HERE, OUT, RAW, clip
+from .taxonomy import ALIASES
 
 LABELS = HERE / "bench_data" / "labels" / "whowhen_claude.json"  # primer anotador: Claude, sobre `cause_text`
 
@@ -41,7 +42,7 @@ def build() -> None:
             ]
             eps.append(dict(
                 source="whowhen", trace_id=r["question_ID"], split_group=r["question_ID"], outcome="fail",
-                cause_infra=None, cause_behavior=labels.get(len(eps)), cause_text=r["mistake_reason"],
+                cause_infra=None, cause_behavior=ALIASES.get(labels.get(len(eps)), labels.get(len(eps))), cause_text=r["mistake_reason"],
                 decisive_step=int(r["mistake_step"]), label_origin="human_step+llm_cause",
                 meta=dict(subset=n, mistake_agent=r["mistake_agent"], question=clip(r["question"], 400)),
                 steps=steps,

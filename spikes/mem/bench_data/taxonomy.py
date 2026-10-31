@@ -16,8 +16,7 @@ eran casi todos entre `bad_retrieval`, `bad_termination` y `fabrication`:
 """
 
 CAUSES = {
-    "tool_misuse": "Elige mal la herramienta, la llama con argumentos incorrectos o en mal orden, o interpreta mal su salida.",
-    "bad_code": "Escribe código o consultas que son incorrectos o no se ejecutan (fallos de lógica, imports, esquema).",
+    "tool_misuse": "Elige mal la herramienta, la llama con argumentos incorrectos o en mal orden, interpreta mal su salida, o escribe código o consultas incorrectos para llamarla.",
     "bad_retrieval": "No obtiene la información necesaria: búsqueda mal planteada, fuente irrelevante, no encuentra o se rinde.",
     "fabrication": "Inventa datos o da por cierto algo sin comprobarlo: valores de relleno, ficheros o hechos supuestos.",
     "context_loss": "Olvida o ignora algo que ya estaba en la conversación (historial, restricción, aportación de otro agente).",
@@ -27,12 +26,14 @@ CAUSES = {
     "wrong_reasoning": "El razonamiento o la respuesta es incorrecto (alucinación, cálculo, conclusión sin base) sin encajar en lo anterior.",
     "unclear": "La razón es demasiado vaga para clasificarla.",
 }
+# Etiquetas antiguas que se funden en otra. `bad_code` se fundió en `tool_misuse`: el código del agente es una forma de llamar a una
+# herramienta y ni las personas ni los LLM las separaban de forma fiable (ver ADR-104).
+ALIASES = {"bad_code": "tool_misuse"}
 PRIORITY = list(CAUSES)  # el orden del diccionario es la prioridad
 
 # Equivalencias aproximadas con MAST, para contrastar con sus etiquetas
 MAST = {
     "tool_misuse": ["2.6"],
-    "bad_code": [],
     "bad_retrieval": [],
     "fabrication": "Inventa datos o da por cierto algo sin comprobarlo: valores de relleno, ficheros o hechos supuestos.",
     "fabrication": [],
