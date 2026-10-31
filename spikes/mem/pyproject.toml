@@ -10,6 +10,7 @@ dependencies = [
     "statsmodels>=0.14",
     "scikit-learn>=1.4",
     "sentence-transformers>=3.0",
+    "pyarrow>=25.0.1",
 ]
 
 [tool.uv]
