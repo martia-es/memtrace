@@ -5,7 +5,7 @@ Construye:                      python -m bench_data.whowhen build
 
 Solo trae fallos. Cada uno tiene agente culpable, paso decisivo y una razón en texto libre; NO trae categoría de causa.
 `cause_behavior` sale de `labels/whowhen_claude.json` (taxonomía en `taxonomy.py`): un LLM leyó solo la razón humana, no es
-verdad humana hasta que una persona revise la muestra de `whowhen_review.csv` y se mida el acuerdo.
+verdad humana salvo los 40 de `whowhen_review.csv`, que una persona etiquetó a ciegas (kappa 0,73) y prevalecen sobre el LLM.
 """
 import argparse
 import json
@@ -52,8 +52,9 @@ def build() -> None:
     sample = df.sample(40, random_state=7)
     sheet = pd.DataFrame({"idx": sample.index, "agent": sample.meta.map(lambda m: m["mistake_agent"]),
                           "reason": sample.cause_text, "tu_etiqueta": ""})
-    sheet.to_csv(OUT / "whowhen_review.csv", index=False)
-    sample[["cause_behavior"]].rename(columns={"cause_behavior": "etiqueta_llm"}).to_csv(OUT / "whowhen_review_key.csv")
+    if not (OUT / "whowhen_review.csv").exists():  # no pisar las etiquetas de la persona
+        sheet.to_csv(OUT / "whowhen_review.csv", index=False)
+        sample[["cause_behavior"]].rename(columns={"cause_behavior": "etiqueta_llm"}).to_csv(OUT / "whowhen_review_key.csv")
     print(f"{len(eps)} episodios")
 
 

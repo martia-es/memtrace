@@ -5,6 +5,14 @@ Los errores de infraestructura (cuota, timeout, credenciales...) no entran aquí
 Adaptada de MAST (14 modos) y de las categorías de TRAIL; se quitan los modos que solo existen entre varios agentes.
 
 Cuando una razón encaja en varias, gana la primera de `PRIORITY` (de más específica a más general).
+
+Desempates acordados al medir el acuerdo entre anotadores (kappa 0,73 sobre 40 casos de Who&When); los 9 desacuerdos
+eran casi todos entre `bad_retrieval`, `bad_termination` y `fabrication`:
+- Se clasifica por el PRIMER paso que se tuerce, no por la respuesta final. «No encontró la información y respondió igual»
+  es `bad_retrieval` (el fallo está en la búsqueda); `bad_termination` solo si no hubo ningún intento de obtenerla o verificarla.
+- `bad_retrieval` exige un intento de obtener la información que falla o se desvía. Si el agente responde de memoria sin
+  intentar obtenerla, o da algo por cierto sin base, es `fabrication`.
+- `unclear` solo si ni el texto ni el contexto permiten decidir; «la información es incorrecta» tras una búsqueda es `bad_retrieval`.
 """
 
 CAUSES = {
