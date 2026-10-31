@@ -84,6 +84,7 @@ An LLM reads each failed episode, locates the **first wrong step** and classifie
 | Same, with `bad_code` merged into `tool_misuse` | 0.45 and 0.42 |
 | Both models agree | 19 of 40 cases; right on the cause 0.63 and on the step 0.65 (0.29 and 0.24 when they disagree) |
 | Development sample (30 other cases, no hint) | cause 0.37, step 0.27 |
+| Giving the human decisive step as a hint (22 paired development cases) | cause 0.36 without, 0.32 with: 3 cases improve and 4 get worse. Locating the step is not what limits the cause accuracy; the run was cut at 22 of 30 by the provider's token limit |
 | Cost of one diagnosis call per failure | Who&When 184 failures: 1.3 M tokens; MAST 200: 0.8 M; Exgentic τ² 300: 2.7 M (median 2.5 to 6.8 k tokens per episode, p90 up to 21 k) |
 | Own traces of the weather assistant | 160 conversations generated with `gpt-oss-20b` (Groq free tier); not yet labelled |
 
@@ -93,6 +94,6 @@ The best published step accuracy on Who&When we found is below 15 %, so 0.35 is 
 
 - Thresholds of the gates: minimum agreement between annotators (0.6 proposed), minimum gain of the full pipeline over the cheap baseline, minimum drop of the failure against the placebo and maximum regression in the control, and the maximum cost per diagnosed episode.
 - Q6 (control group to measure recurrence) needs a power calculation before fixing 10 %; Q7 (minimum support, 30 proposed).
-- Does giving the decisive step (which the design's step 4 would produce) raise the classification accuracy? Measured on the development sample; result to be added here.
+- Giving the decisive step did not raise the cause accuracy (section 5), so the limit looks like the fuzzy boundaries between causes and the one-sentence human reasons used as truth. Next to try: few-shot examples per cause and a labelled sample from own traces, where the reason can be checked against the trace.
 - A lesson's effect (stage C) needs an agent that can be re-run, with and without the lesson, a placebo and a human fix: not covered by any public data. The RAG assistant is blocked here because its embeddings use a Gemini key.
 - What to do with the cases where the two models disagree (review queue vs. a third model).
