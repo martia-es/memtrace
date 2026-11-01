@@ -1,0 +1,11 @@
+[project]
+name = "memtrace-spike-mem-graph"
+version = "0.0.0"
+description = "Spike 2: build a graph of entities and steps from MemTrace spans and look at it. Throwaway; not part of the product."
+requires-python = ">=3.10"
+dependencies = [
+    "networkx>=3.2",
+]
+
+[tool.uv]
+package = false
