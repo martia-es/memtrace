@@ -15,7 +15,7 @@ HTML = r"""<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Grafo de trazas (spike 2)</title>
+<title>Qué hace el asistente del tiempo</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.9/standalone/umd/vis-network.min.js"></script>
 <style>
   :root { --bg:#f6f7f9; --panel:#ffffff; --ink:#1c2230; --muted:#5d6678; --line:#d9dde5; --accent:#3b6ef5;
@@ -45,34 +45,46 @@ HTML = r"""<!doctype html>
 </head>
 <body>
 <header>
-  <h1>Grafo de trazas del asistente del tiempo</h1>
+  <h1>Qué hace el asistente del tiempo</h1>
   <div class="sub" id="sub"></div>
 </header>
 <div class="bar">
-  <div><button id="v-agg" class="on">Agregado</button> <button id="v-ep">Episodio</button></div>
-  <label>Intención <select id="f-intent"></select></label>
-  <label>Señal <select id="f-signal"></select></label>
-  <label id="l-ep" style="display:none">Episodio <select id="f-ep"></select></label>
+  <div><button id="v-agg" class="on">Visión general</button> <button id="v-ep">Una conversación</button></div>
+  <label>Qué pide el usuario <select id="f-intent"></select></label>
+  <label>Algo a revisar <select id="f-signal"></select></label>
+  <label id="l-ep" style="display:none">Conversación <select id="f-ep"></select></label>
 </div>
 <div class="legend" id="legend"></div>
-<div class="main"><div id="net"></div><aside id="detail"><p class="k">Pulsa un nodo o una arista para ver el detalle.</p></aside></div>
-<section><h2 style="font-size:14px;margin:0 0 8px">Señales por intención (nº de episodios)</h2><div id="tbl"></div>
-<p class="k" style="max-width:760px">Las señales son comprobaciones deterministas que cruzan el texto del usuario con lo que hizo el agente. No son un veredicto de fallo: no hay etiqueta de éxito.</p></section>
+<div class="main"><div id="net"></div><aside id="detail"><p class="k">Pulsa una bolita o una flecha para ver el detalle.</p></aside></div>
+<section><h2 style="font-size:14px;margin:0 0 8px">Cosas a revisar, según lo que pide el usuario (nº de conversaciones)</h2><div id="tbl"></div>
+<p class="k" style="max-width:760px">Son avisos automáticos que comparan lo que pidió el usuario con lo que hizo el asistente. Son pistas para revisar, no un veredicto de que algo falló.</p></section>
 <script>
 const D = __DATA__;
+// Nombres para personas. Los ids técnicos (get_weather, unit_ignored...) solo aparecen en la ayuda al pasar el ratón.
+const L = {
+  intent: {current:'Tiempo ahora', forecast:'Previsión', compare:'Comparar ciudades', follow_up:'Pregunta de seguimiento', pollen_uv:'Polen y UV',
+           air_quality:'Calidad del aire', greeting:'Saludo o gracias', other:'Otras preguntas', injection:'Intento de manipulación'},
+  tool: {get_weather:'Consultar el tiempo', get_uv_and_pollen:'Consultar polen y UV', get_air_quality:'Consultar calidad del aire', none:'Responde sin consultar nada'},
+  signal: {blocked:'Bloqueado por seguridad', refused_without_tool:'Rechaza sin consultar (suele ser correcto)', answered_without_tool:'Responde sin consultar datos',
+           tool_without_city_in_user_text:'Consulta una ciudad que el usuario no dijo', city_not_from_user:'Usa una ciudad distinta a la pedida',
+           empty_argument:'Consulta sin indicar ciudad', compare_partial:'Compara pero consulta una sola ciudad', tool_result_error:'La consulta devolvió un error',
+           repeated_call:'Repite la misma consulta', unit_ignored:'Ignora la unidad pedida (°F, Kelvin)'},
+  edge: {intent:'pide', city:'nombra', first:'empieza con', next:'después', tool:'usa', arg:'para la ciudad', signal:'aviso'},
+};
+const name = (kind, id) => (L[kind] && L[kind][id]) || id;
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const COLOR = () => ({intent:css('--intent'), tool:css('--tool'), signal:css('--signal'), city:css('--city'), step_llm:css('--llm'), step_tool:css('--tool'),
                       episode:css('--episode'), model:css('--model'), none:css('--muted')});
-const NAMES = {intent:'Intención', tool:'Herramienta', signal:'Señal', city:'Ciudad', step_llm:'Paso LLM', step_tool:'Paso herramienta', episode:'Episodio', model:'Modelo', none:'Sin herramienta'};
+const NAMES = {intent:'Lo que pide el usuario', tool:'Lo que consulta el asistente', signal:'Algo a revisar', city:'Ciudad', step_llm:'El modelo piensa o responde', step_tool:'Consulta', episode:'Conversación', model:'Modelo de IA', none:'No consulta nada'};
 const $ = id => document.getElementById(id);
 let view = 'agg', net = null;
 
-$('sub').textContent = `${D.episodes.length} episodios · ${D.nodes.length} nodos · ${D.edges.length} aristas · construido solo con spans y reglas (sin etiqueta de éxito)`;
+$('sub').textContent = `${D.episodes.length} conversaciones de prueba · cada bolita es algo que ocurre (una petición, una consulta, un aviso) y cada flecha une dos cosas relacionadas`;
 const intents = [...new Set(D.episodes.map(e => e.intent))].sort();
 const sigs = [...new Set(D.episodes.flatMap(e => e.signals))].sort();
-$('f-intent').innerHTML = '<option value="">Todas</option>' + intents.map(i => `<option>${i}</option>`).join('');
-$('f-signal').innerHTML = '<option value="">Todas</option>' + sigs.map(i => `<option>${i}</option>`).join('');
-$('legend').innerHTML = Object.keys(NAMES).filter(k => k !== 'step_tool').map(k => `<span><i class="dot" style="background:var(--${({step_llm:'llm',none:'muted'})[k] || k})"></i>${NAMES[k]}</span>`).join('');
+$('f-intent').innerHTML = '<option value="">Todo</option>' + intents.map(i => `<option value="${i}">${name('intent', i)}</option>`).join('');
+$('f-signal').innerHTML = '<option value="">Todo</option>' + sigs.map(i => `<option value="${i}">${name('signal', i)}</option>`).join('');
+$('legend').innerHTML = Object.keys(NAMES).filter(k => !['step_tool', 'model'].includes(k)).map(k => `<span><i class="dot" style="background:var(--${({step_llm:'llm',none:'muted'})[k] || k})"></i>${NAMES[k]}</span>`).join('');
 
 const selected = () => D.episodes.filter(e => (!$('f-intent').value || e.intent === $('f-intent').value) && (!$('f-signal').value || e.signals.includes($('f-signal').value)));
 const tools = e => e.steps.filter(s => s.kind === 'tool');
@@ -91,31 +103,32 @@ function aggregate() {
   const edge = (a, b, ep, label) => { const k = a + '→' + b; (E[k] ||= {from:a, to:b, n:0, eps:[]}).n++; E[k].eps.push(ep.id); };
   for (const e of eps) {
     const i = 'intent:' + e.intent, ts = tools(e);
-    node(i, 'intent', e.intent);
+    node(i, 'intent', name('intent', e.intent));
     const names = [...new Set(ts.map(s => s.tool))];
-    if (!names.length) { node('tool:none', 'none', '(sin herramienta)'); edge(i, 'tool:none', e); }
-    names.forEach(t => { node('tool:' + t, 'tool', t); edge(i, 'tool:' + t, e); });
+    if (!names.length) { node('tool:none', 'none', name('tool', 'none')); edge(i, 'tool:none', e); }
+    names.forEach(t => { node('tool:' + t, 'tool', name('tool', t)); edge(i, 'tool:' + t, e); });
     ts.slice(1).forEach((s, k) => { edge('tool:' + ts[k].tool, 'tool:' + s.tool, e); });
-    e.signals.forEach(s => { node('signal:' + s, 'signal', s); edge(i, 'signal:' + s, e); });
+    e.signals.forEach(s => { node('signal:' + s, 'signal', name('signal', s)); edge(i, 'signal:' + s, e); });
   }
-  const nodes = Object.values(N).map(n => ({id:n.id, label:`${n.label}\n${n.n}`, value:n.n, color:c[n.type], title:`${NAMES[n.type]}: ${n.label} (${n.n} episodios)`, _t:n.type}));
-  const edges = Object.values(E).map(x => ({from:x.from, to:x.to, value:x.n, label:String(x.n), arrows:'to', color:{color:css('--line'), highlight:css('--accent')}, _eps:x.eps, title:`${x.n} episodios`}));
+  const nodes = Object.values(N).map(n => ({id:n.id, label:`${n.label.replace(/(.{1,22})(\s|$)/g, '$1\n').trim()}\n(${n.n})`, value:n.n, color:c[n.type], title:`${NAMES[n.type]}: ${n.label} · ${n.n} conversaciones`, _t:n.type}));
+  const edges = Object.values(E).map(x => ({from:x.from, to:x.to, value:x.n, label:String(x.n), arrows:'to', color:{color:css('--line'), highlight:css('--accent')}, _eps:x.eps, title:`${x.n} conversaciones siguen este camino`}));
   return {nodes, edges, eps};
 }
 
 function episodeGraph(e) {
   const c = COLOR(), nodes = [], edges = [], add = (id, type, label, extra={}) => { if (!nodes.find(n => n.id === id)) nodes.push({id, label, color:c[type], _t:type, ...extra}); };
   const ep = 'ep'; add(ep, 'episode', e.text.slice(0, 38) + (e.text.length > 38 ? '…' : ''), {size:22});
-  add('i', 'intent', e.intent); edges.push({from:ep, to:'i', label:'tiene intención'});
-  e.cities.forEach(ci => { add('c:' + ci, 'city', ci); edges.push({from:ep, to:'c:' + ci, label:'menciona'}); });
+  add('i', 'intent', name('intent', e.intent)); edges.push({from:ep, to:'i', label:L.edge.intent});
+  e.cities.forEach(ci => { add('c:' + ci, 'city', ci); edges.push({from:ep, to:'c:' + ci, label:L.edge.city}); });
   let prev = null;
   e.steps.forEach((s, k) => {
-    const id = 's' + k; add(id, s.kind === 'llm' ? 'step_llm' : 'step_tool', s.label, {title:s.kind === 'tool' ? s.result : s.tokens, shape:'square'});
-    edges.push({from:prev || ep, to:id, label:prev ? 'siguiente' : 'primer paso'}); prev = id;
-    if (s.kind === 'tool') { add('t:' + s.tool, 'tool', s.tool); edges.push({from:id, to:'t:' + s.tool, label:'llama'});
-      if (s.city) { add('c:' + s.city, 'city', s.city); edges.push({from:id, to:'c:' + s.city, label:'argumento'}); } }
+    const id = 's' + k, lab = s.kind === 'llm' ? (k === e.steps.length - 1 ? 'El modelo responde' : 'El modelo piensa') : name('tool', s.tool) + (s.city ? ' · ' + s.city : '');
+    add(id, s.kind === 'llm' ? 'step_llm' : 'step_tool', lab, {title:s.kind === 'tool' ? 'Resultado: ' + s.result : s.tokens + ' tokens (entrada → salida)', shape:'square'});
+    edges.push({from:prev || ep, to:id, label:prev ? L.edge.next : L.edge.first}); prev = id;
+    if (s.kind === 'tool') { add('t:' + s.tool, 'tool', name('tool', s.tool)); edges.push({from:id, to:'t:' + s.tool, label:L.edge.tool});
+      if (s.city) { add('c:' + s.city, 'city', s.city); edges.push({from:id, to:'c:' + s.city, label:L.edge.arg}); } }
   });
-  e.signals.forEach(sg => { add('g:' + sg, 'signal', sg); edges.push({from:ep, to:'g:' + sg, label:'señal'}); });
+  e.signals.forEach(sg => { add('g:' + sg, 'signal', name('signal', sg)); edges.push({from:ep, to:'g:' + sg, label:L.edge.signal}); });
   return {nodes, edges};
 }
 
@@ -126,42 +139,42 @@ function show(g, hier) {
     if (view === 'agg') {
       const n = p.nodes[0];
       if (n) { const nd = g.nodes.find(x => x.id === n), eps = D.episodes.filter(e => nodeEps(n, e));
-        detail(`<h2>${NAMES[nd._t]}: ${nd.label.split('\n')[0]}</h2><p>${eps.length} episodios en la selección actual</p>` + epList(eps)); }
+        detail(`<h2>${NAMES[nd._t]}: ${nd.label.split('\n')[0]}</h2><p>${eps.length} conversaciones</p>` + epList(eps)); }
     }
   });
   net.on('selectEdge', p => { if (view !== 'agg' || !p.edges.length || p.nodes.length) return;
     const x = data.edges.get(p.edges[0]); if (x && x._eps) { const eps = D.episodes.filter(e => x._eps.includes(e.id));
-      detail(`<h2>${x.from.split(':')[1]} → ${x.to.split(':')[1]}</h2><p>${x.value} episodios</p>` + epList(eps)); } });
+      detail(`<h2>${g.nodes.find(n => n.id === x.from).label.split('\n')[0]} → ${g.nodes.find(n => n.id === x.to).label.split('\n')[0]}</h2><p>${x.value} conversaciones</p>` + epList(eps)); } });
   net.on('selectNode', p => { if (view === 'ep') { const nd = data.nodes.get(p.nodes[0]); if (nd) { detail(`<h2>${NAMES[nd._t]}: ${nd.label}</h2>` + (nd.title ? `<pre>${esc(nd.title)}</pre>` : '')); } } });
 }
 const nodeEps = (id, e) => id.startsWith('intent:') ? e.intent === id.slice(7) : id === 'tool:none' ? !tools(e).length : id.startsWith('tool:') ? tools(e).some(s => s.tool === id.slice(5)) : id.startsWith('signal:') ? e.signals.includes(id.slice(7)) : false;
 const esc = s => String(s).replace(/[&<>]/g, m => ({'&':'&amp;', '<':'&lt;', '>':'&gt;'}[m]));
 const detail = h => $('detail').innerHTML = h;
-const epList = eps => '<p class="k">Haz clic en un episodio para abrirlo:</p>' + eps.slice(0, 40).map(e => `<p><a href="#" data-ep="${e.id}">${esc(e.text.slice(0, 54))}</a> <span class="k">${e.intent}</span></p>`).join('') + (eps.length > 40 ? `<p class="k">… y ${eps.length - 40} más</p>` : '');
+const epList = eps => '<p class="k">Haz clic en una conversación para ver su recorrido:</p>' + eps.slice(0, 40).map(e => `<p><a href="#" data-ep="${e.id}">${esc(e.text.slice(0, 54))}</a> <span class="k">${name('intent', e.intent)}</span></p>`).join('') + (eps.length > 40 ? `<p class="k">… y ${eps.length - 40} más</p>` : '');
 $('detail').addEventListener('click', ev => { const a = ev.target.closest('a[data-ep]'); if (a) { ev.preventDefault(); openEp(a.dataset.ep); } });
 
 function episodeDetail(e) {
   const c = COLOR();
-  return `<h2>${esc(e.text)}</h2><p><span class="k">Respuesta:</span> ${esc(e.reply || '—')}</p>
-    <p><span class="k">Intención:</span> ${e.intent} · <span class="k">idioma:</span> ${e.lang} · <span class="k">${e.latency_ms} ms</span> · <span class="k">sesión</span> ${e.session} t${e.turn}</p>
-    <p>${e.signals.map(s => `<span class="chip" style="background:${c.signal}">${s}</span>`).join('') || '<span class="k">Sin señales</span>'}</p>
-    <h2>Pasos</h2>` + e.steps.map((s, k) => `<p>${k + 1}. ${s.kind === 'llm' ? 'LLM <span class="k">' + s.tokens + ' tokens</span>' : '<b>' + esc(s.label) + '</b>' + (s.failed ? ' ⚠' : '')}</p>`).join('');
+  return `<h2>${esc(e.text)}</h2><p><span class="k">Respuesta del asistente:</span> ${esc(e.reply || '—')}</p>
+    <p><span class="k">Pide:</span> ${name('intent', e.intent)} · <span class="k">idioma:</span> ${e.lang} · <span class="k">tardó</span> ${(e.latency_ms / 1000).toFixed(1)} s</p>
+    <p>${e.signals.map(s => `<span class="chip" style="background:${c.signal}">${name('signal', s)}</span>`).join('') || '<span class="k">Sin nada que revisar</span>'}</p>
+    <h2>Qué hizo el asistente, paso a paso</h2>` + e.steps.map((s, k) => `<p>${k + 1}. ${s.kind === 'llm' ? (k === e.steps.length - 1 ? 'El modelo redacta la respuesta' : 'El modelo decide qué hacer') : '<b>' + name('tool', s.tool) + (s.city ? ' · ' + esc(s.city) : '') + '</b>' + (s.failed ? ' ⚠ devolvió error' : '')}</p>`).join('');
 }
 function openEp(id) { view = 'ep'; setView(); $('f-ep').value = id; render(); }
 
 function setView() {
   $('v-agg').classList.toggle('on', view === 'agg'); $('v-ep').classList.toggle('on', view === 'ep'); $('l-ep').style.display = view === 'ep' ? '' : 'none';
   if (view === 'ep') { const eps = selected(); const cur = $('f-ep').value;
-    $('f-ep').innerHTML = eps.map(e => `<option value="${e.id}">${e.id} · ${e.intent} · ${esc(e.text.slice(0, 40))}${e.signals.length ? ' ⚑' : ''}</option>`).join('');
+    $('f-ep').innerHTML = eps.map(e => `<option value="${e.id}">${name('intent', e.intent)} · ${esc(e.text.slice(0, 44))}${e.signals.length ? ' ⚑' : ''}</option>`).join('');
     if (eps.some(e => e.id === cur)) $('f-ep').value = cur; }
 }
 function render() {
-  if (view === 'agg') { const g = aggregate(); show(g, false); detail(`<h2>Vista agregada</h2><p>${g.eps.length} episodios. El tamaño de cada nodo y el grosor de cada arista cuentan episodios. Pulsa un nodo o una arista para listarlos.</p>`); }
-  else { const e = D.episodes.find(x => x.id === $('f-ep').value) || selected()[0]; if (!e) { net && net.destroy(); detail('<p class="k">Ningún episodio con ese filtro.</p>'); return; } show(episodeGraph(e), true); detail(episodeDetail(e)); }
+  if (view === 'agg') { const g = aggregate(); show(g, false); detail(`<h2>Visión general</h2><p>${g.eps.length} conversaciones.</p><p><span class="k">Cómo leerlo:</span> las bolitas <b style="color:var(--intent)">azules</b> son lo que pide el usuario, las <b style="color:var(--tool)">verdes</b> lo que consulta el asistente y las <b style="color:var(--signal)">rojas</b> avisos a revisar. Cada flecha lleva un número: cuántas conversaciones siguen ese camino. Cuanto más gruesa, más conversaciones.</p><p>Ejemplo: de «Tiempo ahora», unas consultan el tiempo y otras no consultan nada. Pulsa esa flecha para ver cuáles.</p><p class="k">Pulsa una bolita o una flecha para listar sus conversaciones.</p>`); }
+  else { const e = D.episodes.find(x => x.id === $('f-ep').value) || selected()[0]; if (!e) { net && net.destroy(); detail('<p class="k">Ninguna conversación con ese filtro.</p>'); return; } show(episodeGraph(e), true); detail(episodeDetail(e)); }
 }
 function table() {
-  const rows = intents.map(i => { const eps = D.episodes.filter(e => e.intent === i); return [i, eps.length, ...sigs.map(s => eps.filter(e => e.signals.includes(s)).length)]; });
-  $('tbl').innerHTML = '<table><tr><th>Intención</th><th>Episodios</th>' + sigs.map(s => `<th>${s}</th>`).join('') + '</tr>' +
+  const rows = intents.map(i => { const eps = D.episodes.filter(e => e.intent === i); return [name('intent', i), eps.length, ...sigs.map(s => eps.filter(e => e.signals.includes(s)).length)]; });
+  $('tbl').innerHTML = '<table><tr><th>Qué pide el usuario</th><th>Conversaciones</th>' + sigs.map(s => `<th>${name('signal', s)}</th>`).join('') + '</tr>' +
     rows.map(r => '<tr>' + r.map((v, k) => `<td>${k > 1 && v ? `<b>${v}</b>` : v}</td>`).join('') + '</tr>').join('') + '</table>';
 }
 $('v-agg').onclick = () => { view = 'agg'; setView(); render(); }; $('v-ep').onclick = () => { view = 'ep'; setView(); render(); };
