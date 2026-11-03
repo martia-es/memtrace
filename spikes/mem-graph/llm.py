@@ -24,13 +24,14 @@ def _load() -> None:
             _cache[r["k"]] = r["v"]
 
 
-def ask_json(prompt: str) -> dict:
+def ask_json(prompt: str, model: str | None = None) -> dict:
     """Pide un JSON al modelo; si ya se preguntó lo mismo, devuelve lo guardado."""
     _load()
-    k = hashlib.sha256((MODEL + prompt).encode()).hexdigest()
+    model = model or MODEL
+    k = hashlib.sha256((model + prompt).encode()).hexdigest()
     if k in _cache:
         return _cache[k]
-    body = json.dumps({"model": MODEL, "messages": [{"role": "user", "content": prompt}], "temperature": 0}).encode()
+    body = json.dumps({"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": 0}).encode()
     for attempt in range(6):
         req = urllib.request.Request("https://api.groq.com/openai/v1/chat/completions", body,
                                      {"content-type": "application/json", "user-agent": "memtrace-spike/0",
@@ -47,6 +48,8 @@ def ask_json(prompt: str) -> dict:
             break
     else:
         raise RuntimeError("el proveedor no responde")
+    if not v:  # una respuesta vacía o no parseable no se guarda: se reintentará la próxima vez
+        return v
     CACHE.parent.mkdir(exist_ok=True)
     with CACHE.open("a") as f:
         f.write(json.dumps({"k": k, "v": v}, ensure_ascii=False) + "\n")

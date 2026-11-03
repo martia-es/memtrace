@@ -17,9 +17,11 @@ from pathlib import Path
 
 import networkx as nx
 
+import intents
 import llm
 
 HERE = Path(__file__).parent
+QUALITY: dict = {}  # estabilidad y silueta de las categorías de petición, se guardan en graph.json
 SIGNALS = ["no_tool", "tool_error", "repeated_call", "ignored_user_entity", "invented_argument", "blocked"]  # vocabulario de MemTrace, no del agente
 
 
@@ -90,15 +92,16 @@ def understand(eps: list[dict], defs: dict[str, str]) -> dict[str, str]:
         e["request"] = str(r.get("request") or "sin petición clara").strip()
         e["entities"] = [x for x in r.get("entities", []) if isinstance(x, dict) and x.get("value")]
 
-    counts = Counter(e["request"] for e in eps)
-    cats = llm.ask_json(
-        "These are short descriptions of what users asked an AI assistant, with how many times each appears. Group them into at most 10 "
-        "categories with short, clear names in Spanish (2 to 4 words, no jargon). Return JSON only: "
-        '{"categories": {"<name>": ["<exact phrase>", ...]}} and include every phrase exactly once.\n'
-        + json.dumps(dict(counts.most_common(150)), ensure_ascii=False)).get("categories", {})
-    cat_of = {p: name for name, phrases in cats.items() if isinstance(phrases, list) for p in phrases}
+    for e in eps:  # plantilla: el mensaje con cada entidad sustituida por su tipo («¿Va a llover en <ciudad>?»)
+        tpl = e["text"]
+        for x in sorted(e["entities"], key=lambda x: -len(x["value"])):
+            tpl = re.sub(re.escape(x["value"]), f"<{x['type']}>", tpl, flags=re.I)
+        e["template"] = tpl
+    counts = Counter(e["template"] for e in eps)
+    cat_of, quality = intents.group_templates(counts)
+    QUALITY.update(quality)
     for e in eps:
-        e["intent"] = cat_of.get(e["request"], "Otras peticiones")
+        e["intent"] = cat_of.get(e["template"], "Otras peticiones")
 
     names = {}
     for tool, desc in defs.items():
@@ -195,6 +198,7 @@ if __name__ == "__main__":
     (HERE / "out").mkdir(exist_ok=True)
     keep = ("id", "session", "turn", "text", "reply", "intent", "request", "entities", "signals", "steps", "latency_ms")
     data = {
+        "quality": QUALITY,
         "tools": {t: {"name": tool_names.get(t, t), "description": d} for t, d in defs.items()},
         "episodes": [{k: e[k] for k in keep} for e in eps],
         "nodes": [{"id": n, **a} for n, a in g.nodes(data=True)],
@@ -204,5 +208,6 @@ if __name__ == "__main__":
     types = Counter(a["type"] for _, a in g.nodes(data=True))
     print(f"{len(eps)} conversaciones | {g.number_of_nodes()} nodos {dict(types)} | {g.number_of_edges()} aristas")
     print("peticiones:", dict(Counter(e["intent"] for e in eps)))
+    print("calidad de las categorías:", QUALITY)
     print("herramientas:", {t: tool_names[t] for t in tool_names})
     print("señales:", dict(Counter(s for e in eps for s in e["signals"])))

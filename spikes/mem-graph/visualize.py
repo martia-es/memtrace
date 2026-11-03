@@ -74,7 +74,7 @@ const NAMES = {intent:'Lo que pide el usuario', tool:'Lo que consulta el asisten
 const $ = id => document.getElementById(id);
 let view = 'agg', net = null;
 
-$('sub').textContent = `${D.episodes.length} conversaciones de prueba · cada bolita es algo que ocurre (una petición, una consulta, un aviso) y cada flecha une dos cosas relacionadas`;
+$('sub').textContent = `${D.episodes.length} conversaciones de prueba · cada bolita es algo que ocurre (una petición, una consulta, un aviso) y cada flecha une dos cosas relacionadas` + (D.quality && D.quality.categories ? ` · ${D.quality.categories} tipos de petición` + (D.quality.stability_vs_other_model != null ? `, coincidencia entre dos modelos ${D.quality.stability_vs_other_model} (1 = igual)` : '') : '');
 const intents = [...new Set(D.episodes.map(e => e.intent))].sort();
 const sigs = [...new Set(D.episodes.flatMap(e => e.signals))].sort();
 $('f-intent').innerHTML = '<option value="">Todo</option>' + intents.map(i => `<option value="${i}">${name('intent', i)}</option>`).join('');
