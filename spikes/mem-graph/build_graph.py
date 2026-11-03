@@ -1,11 +1,13 @@
-"""Construye el grafo de entidades y pasos a partir de los spans exportados (`data/spans.jsonl`) -> `out/graph.json`.
+"""Construye, de forma automática y sin nada específico de un agente, el grafo de una traza a otra -> `out/graph.json`.
 
-Capa 1 (sin LLM, desde la estructura del span): episodio, pasos (LLM y herramienta), herramienta, argumentos, modelo, errores.
-Capa 2 (aquí con reglas, placeholder de un LLM ligero): intención y entidades del mensaje del usuario (ciudad, idioma, unidad).
-Señales: comprobaciones deterministas que cruzan texto y estructura (p. ej. «el usuario nombró 2 ciudades y solo se consultó 1»).
-No hay etiqueta de éxito o fallo: las señales son pistas, no veredictos.
+Nada está escrito a mano para el weather assistant: ni listas de ciudades, ni palabras clave, ni nombres.
+  1. Estructura (sin LLM): episodio, pasos LLM y de herramienta, herramienta, argumentos, errores, bloqueos. Salen de los spans.
+  2. Texto libre (LLM, una llamada por conversación): qué pide el usuario y qué cosas concretas nombra (entidades de cualquier tipo).
+     Las peticiones se agrupan en pocas categorías con nombre (una llamada) y cada herramienta recibe un nombre corto leído de su descripción.
+  3. Señales genéricas, válidas para cualquier agente con herramientas (ver SIGNALS): se calculan comparando lo que dijo el usuario
+     con los argumentos de las herramientas; un LLM solo decide si dos textos nombran lo mismo («Londres» y «London»).
 
-  python build_graph.py
+  GROQ_API_KEY=... python build_graph.py
 """
 import json
 import re
@@ -15,35 +17,14 @@ from pathlib import Path
 
 import networkx as nx
 
+import llm
+
 HERE = Path(__file__).parent
-CITIES = ["Madrid", "Sevilla", "Barcelona", "Valencia", "Bilbao", "Zaragoza", "Málaga", "Granada", "Turín", "París", "Londres",
-          "Lisboa", "Narnia", "Gotham", "Villabajo del Mar", "Springfield", "Ciudad Real", "Santiago"]
+SIGNALS = ["no_tool", "tool_error", "repeated_call", "ignored_user_entity", "invented_argument", "blocked"]  # vocabulario de MemTrace, no del agente
 
 
 def norm(s: str) -> str:
-    return "".join(c for c in unicodedata.normalize("NFKD", s.lower()) if not unicodedata.combining(c))
-
-
-CITY_BY_NORM = {norm(c): c for c in CITIES}
-# El modelo pasa a la herramienta el nombre en inglés: sin resolver alias, «Londres» y «London» serían dos ciudades.
-ALIASES = {"london": "londres", "paris": "paris", "turin": "turin", "lisbon": "lisboa", "seville": "sevilla", "saragossa": "zaragoza"}
-REFUSAL = r"no dispongo|lo siento|no puedo|no tengo|sorry|cannot|can.t|solo llega|no se encontr"
-
-
-def canon(city: str) -> str:
-    n = norm(city)
-    return ALIASES.get(n, n)
-# Orden = prioridad. Reglas sobre texto sin tildes; sustituibles por un LLM sin cambiar el resto.
-INTENT_RULES = [
-    ("injection", r"ignora tus instrucciones|ignore your instructions|prompt del sistema|system prompt"),
-    ("greeting", r"^(hola|gracias|hello|thanks)\W*$"),
-    ("air_quality", r"\baire\b|air quality|calidad del aire"),
-    ("pollen_uv", r"polen|pollen|\buv\b"),
-    ("follow_up", r"^\W*(y |and what about)"),
-    ("forecast", r"llover|lluvia|\brain|previsi|semana|manana|weekend|fin de semana|paraguas|tomorrow"),
-    ("current", r"tiempo|weather|temperatura|temperature|calor|grados|quel temps|chaqueta"),
-]
-WEATHER_INTENTS = {"current", "forecast", "compare", "air_quality", "pollen_uv"}
+    return re.sub(r"\s+", " ", "".join(c for c in unicodedata.normalize("NFKD", str(s).lower()) if not unicodedata.combining(c))).strip()
 
 
 def user_texts(input_messages: str) -> list[str]:
@@ -54,127 +35,152 @@ def user_texts(input_messages: str) -> list[str]:
     return [p["content"] for m in msgs if m.get("role") == "user" for p in m.get("parts", []) if p.get("type") == "text" and p.get("content")]
 
 
-def cities_in(text: str) -> list[str]:
-    t = norm(text)
-    return [c for n, c in CITY_BY_NORM.items() if re.search(rf"\b{re.escape(n)}\b", t)]
-
-
-def intent_of(text: str, n_cities: int) -> str:
-    t = norm(text)
-    if n_cities >= 2:
-        return "compare"
-    for name, rx in INTENT_RULES:
-        if re.search(rx, t):
-            return name
-    return "other"
-
-
-def language_of(text: str) -> str:
-    t = norm(text)
-    if re.search(r"\b(quel|temps|il|fait)\b", t):
-        return "fr"
-    return "en" if re.search(r"\b(what|weather|will|the|is|how|which|in)\b", t) and not re.search(r"[¿¡]|\bque\b|\bhace\b", t) else "es"
-
-
 def tool_failed(result: str) -> bool:
     r = result.lower()
     return not r.strip() or '"error"' in r or "'error'" in r or "not found" in r or "no se encontr" in r
 
 
-def episodes() -> list[dict]:
-    by_trace = defaultdict(list)
+def string_args(args: str) -> list[str]:
+    try:
+        d = json.loads(args or "{}")
+    except ValueError:
+        return []
+    return [v for v in d.values() if isinstance(v, str) and v]
+
+
+def load() -> tuple[list[dict], dict[str, str]]:
+    by_trace, defs = defaultdict(list), {}
     for line in (HERE / "data" / "spans.jsonl").read_text().splitlines():
         s = json.loads(line)
         by_trace[s["TraceId"]].append(s)
-    turn_of, seen = {}, Counter()
-    out = []
+        if s["tool_defs"] and not defs:
+            defs = {d["name"]: d.get("description", "") for d in json.loads(s["tool_defs"])}
+    seen, eps = Counter(), []
     for tid, spans in sorted(by_trace.items(), key=lambda kv: min(s["ts"] for s in kv[1])):
         spans.sort(key=lambda s: s["ts"])
-        session = spans[0]["ConversationId"]
-        turn_of[tid] = seen[session]
-        seen[session] += 1
         chats = [s for s in spans if s["SpanName"].startswith("chat ")]
         history = user_texts(chats[0]["input_messages"]) if chats else []
-        text = history[-1] if history else ""
-        cur_cities = cities_in(text)
-        ctx_cities = sorted({c for h in history for c in cities_in(h)})
+        agent = next((s for s in spans if s["SpanName"].startswith("invoke_agent")), None)
         steps = []
         for s in spans:
             if s["SpanName"].startswith("chat "):
-                steps.append({"kind": "llm", "label": "LLM", "tokens": f'{s["tokens_in"] or 0}→{s["tokens_out"] or 0}'})
+                steps.append({"kind": "llm", "tokens": f'{s["tokens_in"] or 0}→{s["tokens_out"] or 0}'})
             elif s["SpanName"].startswith("execute_tool"):
-                try:
-                    args = json.loads(s["args"] or "{}")
-                except ValueError:
-                    args = {}
-                city = str(args.get("location") or args.get("city") or "")
-                steps.append({"kind": "tool", "tool": s["tool"], "city": city, "args": s["args"], "failed": tool_failed(s["result"]),
-                              "result": s["result"][:300], "label": f'{s["tool"]}({city})'})
-        agent = next((s for s in spans if s["SpanName"].startswith("invoke_agent")), None)
-        reply = agent["final_result"] if agent else ""
-        out.append(dict(
-            id=tid[:8], trace_id=tid, session=session, turn=turn_of[tid], text=text, reply=reply, steps=steps,
-            cities=cur_cities, ctx_cities=ctx_cities, intent=intent_of(text, len(cur_cities)), lang=language_of(text),
-            blocked=any(s["SpanName"] == "guardrail.blocked" for s in spans),
-            model=next((s["model"] for s in chats if s["model"]), ""), latency_ms=round(int(agent["Duration"] if agent else 0) / 1e6),
-        ))
+                steps.append({"kind": "tool", "tool": s["tool"], "args": s["args"], "values": string_args(s["args"]),
+                              "failed": tool_failed(s["result"]), "result": s["result"][:300]})
+        session = spans[0]["ConversationId"]
+        eps.append(dict(id=tid[:8], session=session, turn=seen[session], text=history[-1] if history else "", history=history[:-1],
+                        reply=agent["final_result"] if agent else "", steps=steps,
+                        blocked=any("blocked" in s["SpanName"] for s in spans), latency_ms=round(int(agent["Duration"] if agent else 0) / 1e6),
+                        model=next((s["model"] for s in chats if s["model"]), "")))
+        seen[session] += 1
+    return eps, defs
+
+
+def understand(eps: list[dict], defs: dict[str, str]) -> dict[str, str]:
+    """Capa 2 con LLM: petición y entidades por conversación, categorías de petición y nombre corto de cada herramienta."""
+    for e in eps:
+        ctx = ("Previous messages: " + " | ".join(e["history"][-2:]) + "\n") if e["history"] else ""
+        r = llm.ask_json(
+            "You analyze one message sent to an AI assistant. Return JSON only: "
+            '{"request": "...", "entities": [{"type": "...", "value": "..."}]}. '
+            "'request' = what the user wants, as a short generic phrase in Spanish (max 6 words, without specific names or values). "
+            "'entities' = concrete things the message names (places, dates, units, people, products...); 'value' copied exactly from the "
+            "message, 'type' a short generic noun in Spanish. " + ctx + "Message: " + e["text"])
+        e["request"] = str(r.get("request") or "sin petición clara").strip()
+        e["entities"] = [x for x in r.get("entities", []) if isinstance(x, dict) and x.get("value")]
+
+    counts = Counter(e["request"] for e in eps)
+    cats = llm.ask_json(
+        "These are short descriptions of what users asked an AI assistant, with how many times each appears. Group them into at most 10 "
+        "categories with short, clear names in Spanish (2 to 4 words, no jargon). Return JSON only: "
+        '{"categories": {"<name>": ["<exact phrase>", ...]}} and include every phrase exactly once.\n'
+        + json.dumps(dict(counts.most_common(150)), ensure_ascii=False)).get("categories", {})
+    cat_of = {p: name for name, phrases in cats.items() if isinstance(phrases, list) for p in phrases}
+    for e in eps:
+        e["intent"] = cat_of.get(e["request"], "Otras peticiones")
+
+    names = {}
+    for tool, desc in defs.items():
+        names[tool] = str(llm.ask_json('Give a short name in Spanish (2 to 4 words, no jargon) for this assistant tool. Return JSON only: {"name": "..."}.\n'
+                                       f"Tool: {tool}\nDescription: {desc}").get("name") or tool)
+    return names
+
+
+def same_entity_judge(pairs: list[tuple[str, str]]) -> dict[tuple[str, str], bool]:
+    """Un LLM decide si dos textos nombran lo mismo; solo se le pregunta por los que no coinciden literalmente."""
+    todo = sorted({p for p in pairs if norm(p[0]) != norm(p[1]) and norm(p[0]) not in norm(p[1]) and norm(p[1]) not in norm(p[0])})
+    out = {}
+    for i in range(0, len(todo), 40):
+        chunk = todo[i:i + 40]
+        r = llm.ask_json("For each numbered pair decide whether both texts name the same thing (same place, date, unit, person... even in another "
+                         "language or spelling). Return JSON only: {\"same\": [true or false for each pair, in order]}.\n"
+                         + "\n".join(f"{n + 1}. {a} | {b}" for n, (a, b) in enumerate(chunk))).get("same", [])
+        out.update({p: bool(r[n]) if n < len(r) else False for n, p in enumerate(chunk)})
     return out
 
 
-def signals(e: dict) -> list[str]:
-    tools = [s for s in e["steps"] if s["kind"] == "tool"]
-    called = {canon(s["city"]) for s in tools if s["city"]}
-    sig = []
-    if e["blocked"]:
-        sig.append("blocked")
-    if e["intent"] in WEATHER_INTENTS and e["ctx_cities"] and not tools and not e["blocked"]:
-        sig.append("refused_without_tool" if re.search(REFUSAL, norm(e["reply"])) else "answered_without_tool")
-    if tools and not e["ctx_cities"]:
-        sig.append("tool_without_city_in_user_text")
-    if any(s["city"] == "" for s in tools):
-        sig.append("empty_argument")
-    if any(c and c not in {canon(x) for x in e["ctx_cities"]} for c in called) and e["ctx_cities"]:
-        sig.append("city_not_from_user")
-    if len(e["cities"]) >= 2 and len(called & {canon(c) for c in e["cities"]}) < len(e["cities"]):
-        sig.append("compare_partial")
-    if any(s["failed"] for s in tools):
-        sig.append("tool_result_error")
-    if any(a["kind"] == "tool" and a.get("args") == b.get("args") and a.get("tool") == b.get("tool") for a, b in zip(e["steps"], e["steps"][1:]) if b["kind"] == "tool"):
-        sig.append("repeated_call")
-    t = norm(e["text"])
-    if ("fahrenheit" in t and "°f" not in norm(e["reply"]) and " f" not in norm(e["reply"])) or ("kelvin" in t and not re.search(r"\bk\b|kelvin", norm(e["reply"]))):
-        sig.append("unit_ignored")
-    return sig
+def signals(eps: list[dict]) -> None:
+    pairs = []
+    for e in eps:
+        vals = [v for s in e["steps"] if s["kind"] == "tool" for v in s["values"]]
+        ents = [x["value"] for x in e["entities"]]
+        e["_vals"], e["_ents"] = vals, ents
+        pairs += [(a, b) for a in ents for b in vals] + [(b, a) for a in ents for b in vals]
+    same = same_entity_judge(pairs)
+    match = lambda a, b: norm(a) == norm(b) or norm(a) in norm(b) or norm(b) in norm(a) or same.get((a, b)) or same.get((b, a))
+
+    # ¿qué tipos de entidad suelen llegar a una herramienta? solo de esos tiene sentido avisar si se ignoran
+    seen, used = Counter(), Counter()
+    for e in eps:
+        for x in e["entities"]:
+            if e["_vals"]:
+                seen[x["type"]] += 1
+                used[x["type"]] += any(match(x["value"], v) for v in e["_vals"])
+    tool_bound = {t for t in seen if used[t] / seen[t] >= 0.3}
+
+    for e in eps:
+        tools = [s for s in e["steps"] if s["kind"] == "tool"]
+        sig = []
+        if e["blocked"]:
+            sig.append("blocked")
+        if not tools and not e["blocked"]:
+            sig.append("no_tool")
+        if any(s["failed"] for s in tools):
+            sig.append("tool_error")
+        if any(a.get("tool") == b.get("tool") and a.get("args") == b.get("args") for a, b in zip(tools, tools[1:])):
+            sig.append("repeated_call")
+        if tools and any(x["type"] in tool_bound and not any(match(x["value"], v) for v in e["_vals"]) for x in e["entities"]):
+            sig.append("ignored_user_entity")
+        context = e["_ents"] + [e["text"]] + e["history"]
+        if any(not any(match(c, v) for c in context) for v in e["_vals"]):
+            sig.append("invented_argument")
+        e["signals"] = sig
 
 
-def build(eps: list[dict]) -> nx.MultiDiGraph:
+def build(eps: list[dict], tool_names: dict[str, str], defs: dict[str, str]) -> nx.MultiDiGraph:
     g = nx.MultiDiGraph()
     for e in eps:
-        e["signals"] = signals(e)
         ep = f"ep:{e['id']}"
-        g.add_node(ep, type="episode", label=e["text"][:42] or e["id"], **{k: e[k] for k in ("text", "reply", "intent", "lang", "signals", "session", "turn", "model", "latency_ms", "blocked")})
-        g.add_edge(ep, f"intent:{e['intent']}", rel="HAS_INTENT")
-        g.add_node(f"intent:{e['intent']}", type="intent", label=e["intent"])
-        for c in e["cities"]:
-            g.add_node(f"city:{norm(c)}", type="city", label=c)
-            g.add_edge(ep, f"city:{norm(c)}", rel="MENTIONS")
-        if e["model"]:
-            g.add_node(f"model:{e['model']}", type="model", label=e["model"])
-            g.add_edge(ep, f"model:{e['model']}", rel="RUNS_ON")
+        g.add_node(ep, type="episode", label=e["text"][:42] or e["id"])
+        intent = f"intent:{norm(e['intent'])}"
+        g.add_node(intent, type="intent", label=e["intent"])
+        g.add_edge(ep, intent, rel="HAS_INTENT")
+        for x in e["entities"]:
+            en = f"entity:{norm(x['type'])}:{norm(x['value'])}"
+            g.add_node(en, type="entity", label=x["value"], kind=x["type"])
+            g.add_edge(ep, en, rel="MENTIONS")
         prev = None
         for i, s in enumerate(e["steps"]):
             sid = f"step:{e['id']}:{i}"
-            g.add_node(sid, type="step_" + s["kind"], label=s["label"], **{k: v for k, v in s.items() if k not in ("kind", "label")})
+            g.add_node(sid, type="step_" + s["kind"], label=tool_names.get(s.get("tool"), "LLM"), **{k: v for k, v in s.items() if k not in ("kind", "tool", "values")})
             g.add_edge(ep, sid, rel="HAS_STEP", order=i)
             if prev:
                 g.add_edge(prev, sid, rel="NEXT")
             prev = sid
             if s["kind"] == "tool":
-                g.add_node(f"tool:{s['tool']}", type="tool", label=s["tool"])
+                g.add_node(f"tool:{s['tool']}", type="tool", label=tool_names.get(s["tool"], s["tool"]), description=defs.get(s["tool"], ""))
                 g.add_edge(sid, f"tool:{s['tool']}", rel="CALLS")
-                if s["city"]:
-                    g.add_node(f"city:{norm(s['city'])}", type="city", label=s["city"])
-                    g.add_edge(sid, f"city:{norm(s['city'])}", rel="ARG_CITY")
         for sg in e["signals"]:
             g.add_node(f"signal:{sg}", type="signal", label=sg)
             g.add_edge(ep, f"signal:{sg}", rel="SIGNALS")
@@ -182,16 +188,21 @@ def build(eps: list[dict]) -> nx.MultiDiGraph:
 
 
 if __name__ == "__main__":
-    eps = episodes()
-    g = build(eps)
+    eps, defs = load()
+    tool_names = understand(eps, defs)
+    signals(eps)
+    g = build(eps, tool_names, defs)
     (HERE / "out").mkdir(exist_ok=True)
+    keep = ("id", "session", "turn", "text", "reply", "intent", "request", "entities", "signals", "steps", "latency_ms")
     data = {
-        "episodes": [{k: e[k] for k in ("id", "session", "turn", "text", "reply", "intent", "lang", "signals", "cities", "steps", "latency_ms")} for e in eps],
+        "tools": {t: {"name": tool_names.get(t, t), "description": d} for t, d in defs.items()},
+        "episodes": [{k: e[k] for k in keep} for e in eps],
         "nodes": [{"id": n, **a} for n, a in g.nodes(data=True)],
         "edges": [{"from": u, "to": v, **a} for u, v, a in g.edges(data=True)],
     }
     (HERE / "out" / "graph.json").write_text(json.dumps(data, ensure_ascii=False))
     types = Counter(a["type"] for _, a in g.nodes(data=True))
-    print(f"{len(eps)} episodios | {g.number_of_nodes()} nodos {dict(types)} | {g.number_of_edges()} aristas")
-    print("intenciones:", dict(Counter(e["intent"] for e in eps)))
+    print(f"{len(eps)} conversaciones | {g.number_of_nodes()} nodos {dict(types)} | {g.number_of_edges()} aristas")
+    print("peticiones:", dict(Counter(e["intent"] for e in eps)))
+    print("herramientas:", {t: tool_names[t] for t in tool_names})
     print("señales:", dict(Counter(s for e in eps for s in e["signals"])))

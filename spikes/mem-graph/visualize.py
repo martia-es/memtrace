@@ -60,22 +60,17 @@ HTML = r"""<!doctype html>
 <p class="k" style="max-width:760px">Son avisos automáticos que comparan lo que pidió el usuario con lo que hizo el asistente. Son pistas para revisar, no un veredicto de que algo falló.</p></section>
 <script>
 const D = __DATA__;
-// Nombres para personas. Los ids técnicos (get_weather, unit_ignored...) solo aparecen en la ayuda al pasar el ratón.
+// Vocabulario de MemTrace (igual para cualquier agente). Los nombres de peticiones, herramientas y datos vienen de los datos, no de aquí.
 const L = {
-  intent: {current:'Tiempo ahora', forecast:'Previsión', compare:'Comparar ciudades', follow_up:'Pregunta de seguimiento', pollen_uv:'Polen y UV',
-           air_quality:'Calidad del aire', greeting:'Saludo o gracias', other:'Otras preguntas', injection:'Intento de manipulación'},
-  tool: {get_weather:'Consultar el tiempo', get_uv_and_pollen:'Consultar polen y UV', get_air_quality:'Consultar calidad del aire', none:'Responde sin consultar nada'},
-  signal: {blocked:'Bloqueado por seguridad', refused_without_tool:'Rechaza sin consultar (suele ser correcto)', answered_without_tool:'Responde sin consultar datos',
-           tool_without_city_in_user_text:'Consulta una ciudad que el usuario no dijo', city_not_from_user:'Usa una ciudad distinta a la pedida',
-           empty_argument:'Consulta sin indicar ciudad', compare_partial:'Compara pero consulta una sola ciudad', tool_result_error:'La consulta devolvió un error',
-           repeated_call:'Repite la misma consulta', unit_ignored:'Ignora la unidad pedida (°F, Kelvin)'},
-  edge: {intent:'pide', city:'nombra', first:'empieza con', next:'después', tool:'usa', arg:'para la ciudad', signal:'aviso'},
+  signal: {no_tool:'Responde sin consultar nada', tool_error:'La consulta devolvió un error', repeated_call:'Repite la misma consulta',
+           ignored_user_entity:'Ignora algo que pidió el usuario', invented_argument:'Consulta un dato que el usuario no dio', blocked:'Bloqueado por seguridad'},
+  edge: {intent:'pide', entity:'nombra', first:'empieza con', next:'después', tool:'usa', signal:'aviso'},
 };
-const name = (kind, id) => (L[kind] && L[kind][id]) || id;
+const name = (kind, id) => kind === 'tool' ? (id === 'none' ? 'Responde sin consultar nada' : ((D.tools[id] || {}).name || id)) : ((L[kind] && L[kind][id]) || id);
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-const COLOR = () => ({intent:css('--intent'), tool:css('--tool'), signal:css('--signal'), city:css('--city'), step_llm:css('--llm'), step_tool:css('--tool'),
+const COLOR = () => ({intent:css('--intent'), tool:css('--tool'), signal:css('--signal'), entity:css('--city'), step_llm:css('--llm'), step_tool:css('--tool'),
                       episode:css('--episode'), model:css('--model'), none:css('--muted')});
-const NAMES = {intent:'Lo que pide el usuario', tool:'Lo que consulta el asistente', signal:'Algo a revisar', city:'Ciudad', step_llm:'El modelo piensa o responde', step_tool:'Consulta', episode:'Conversación', model:'Modelo de IA', none:'No consulta nada'};
+const NAMES = {intent:'Lo que pide el usuario', tool:'Lo que consulta el asistente', signal:'Algo a revisar', entity:'Dato que nombra el usuario', step_llm:'El modelo piensa o responde', step_tool:'Consulta', episode:'Conversación', model:'Modelo de IA', none:'No consulta nada'};
 const $ = id => document.getElementById(id);
 let view = 'agg', net = null;
 
@@ -84,7 +79,7 @@ const intents = [...new Set(D.episodes.map(e => e.intent))].sort();
 const sigs = [...new Set(D.episodes.flatMap(e => e.signals))].sort();
 $('f-intent').innerHTML = '<option value="">Todo</option>' + intents.map(i => `<option value="${i}">${name('intent', i)}</option>`).join('');
 $('f-signal').innerHTML = '<option value="">Todo</option>' + sigs.map(i => `<option value="${i}">${name('signal', i)}</option>`).join('');
-$('legend').innerHTML = Object.keys(NAMES).filter(k => !['step_tool', 'model'].includes(k)).map(k => `<span><i class="dot" style="background:var(--${({step_llm:'llm',none:'muted'})[k] || k})"></i>${NAMES[k]}</span>`).join('');
+$('legend').innerHTML = Object.keys(NAMES).filter(k => !['step_tool', 'model'].includes(k)).map(k => `<span><i class="dot" style="background:var(--${({step_llm:'llm',none:'muted',entity:'city'})[k] || k})"></i>${NAMES[k]}</span>`).join('');
 
 const selected = () => D.episodes.filter(e => (!$('f-intent').value || e.intent === $('f-intent').value) && (!$('f-signal').value || e.signals.includes($('f-signal').value)));
 const tools = e => e.steps.filter(s => s.kind === 'tool');
@@ -108,7 +103,7 @@ function aggregate() {
     if (!names.length) { node('tool:none', 'none', name('tool', 'none')); edge(i, 'tool:none', e); }
     names.forEach(t => { node('tool:' + t, 'tool', name('tool', t)); edge(i, 'tool:' + t, e); });
     ts.slice(1).forEach((s, k) => { edge('tool:' + ts[k].tool, 'tool:' + s.tool, e); });
-    e.signals.forEach(s => { node('signal:' + s, 'signal', name('signal', s)); edge(i, 'signal:' + s, e); });
+    e.signals.filter(s => s !== 'no_tool').forEach(s => { node('signal:' + s, 'signal', name('signal', s)); edge(i, 'signal:' + s, e); }); // «no consulta nada» ya es el nodo gris
   }
   const nodes = Object.values(N).map(n => ({id:n.id, label:`${n.label.replace(/(.{1,22})(\s|$)/g, '$1\n').trim()}\n(${n.n})`, value:n.n, color:c[n.type], title:`${NAMES[n.type]}: ${n.label} · ${n.n} conversaciones`, _t:n.type}));
   const edges = Object.values(E).map(x => ({from:x.from, to:x.to, value:x.n, label:String(x.n), arrows:'to', color:{color:css('--line'), highlight:css('--accent')}, _eps:x.eps, title:`${x.n} conversaciones siguen este camino`}));
@@ -119,14 +114,14 @@ function episodeGraph(e) {
   const c = COLOR(), nodes = [], edges = [], add = (id, type, label, extra={}) => { if (!nodes.find(n => n.id === id)) nodes.push({id, label, color:c[type], _t:type, ...extra}); };
   const ep = 'ep'; add(ep, 'episode', e.text.slice(0, 38) + (e.text.length > 38 ? '…' : ''), {size:22});
   add('i', 'intent', name('intent', e.intent)); edges.push({from:ep, to:'i', label:L.edge.intent});
-  e.cities.forEach(ci => { add('c:' + ci, 'city', ci); edges.push({from:ep, to:'c:' + ci, label:L.edge.city}); });
+  e.entities.forEach(x => { add('x:' + x.value, 'entity', x.value, {title:'Tipo: ' + x.type}); edges.push({from:ep, to:'x:' + x.value, label:L.edge.entity}); });
   let prev = null;
   e.steps.forEach((s, k) => {
-    const id = 's' + k, lab = s.kind === 'llm' ? (k === e.steps.length - 1 ? 'El modelo responde' : 'El modelo piensa') : name('tool', s.tool) + (s.city ? ' · ' + s.city : '');
-    add(id, s.kind === 'llm' ? 'step_llm' : 'step_tool', lab, {title:s.kind === 'tool' ? 'Resultado: ' + s.result : s.tokens + ' tokens (entrada → salida)', shape:'square'});
+    const id = 's' + k, lab = s.kind === 'llm' ? (k === e.steps.length - 1 ? 'El modelo responde' : 'El modelo piensa') : name('tool', s.tool);
+    add(id, s.kind === 'llm' ? 'step_llm' : 'step_tool', lab, {title:s.kind === 'tool' ? 'Pidió: ' + s.args + '\nResultado: ' + s.result : s.tokens + ' tokens (entrada → salida)', shape:'square'});
     edges.push({from:prev || ep, to:id, label:prev ? L.edge.next : L.edge.first}); prev = id;
     if (s.kind === 'tool') { add('t:' + s.tool, 'tool', name('tool', s.tool)); edges.push({from:id, to:'t:' + s.tool, label:L.edge.tool});
-      if (s.city) { add('c:' + s.city, 'city', s.city); edges.push({from:id, to:'c:' + s.city, label:L.edge.arg}); } }
+    }
   });
   e.signals.forEach(sg => { add('g:' + sg, 'signal', name('signal', sg)); edges.push({from:ep, to:'g:' + sg, label:L.edge.signal}); });
   return {nodes, edges};
@@ -158,7 +153,7 @@ function episodeDetail(e) {
   return `<h2>${esc(e.text)}</h2><p><span class="k">Respuesta del asistente:</span> ${esc(e.reply || '—')}</p>
     <p><span class="k">Pide:</span> ${name('intent', e.intent)} · <span class="k">idioma:</span> ${e.lang} · <span class="k">tardó</span> ${(e.latency_ms / 1000).toFixed(1)} s</p>
     <p>${e.signals.map(s => `<span class="chip" style="background:${c.signal}">${name('signal', s)}</span>`).join('') || '<span class="k">Sin nada que revisar</span>'}</p>
-    <h2>Qué hizo el asistente, paso a paso</h2>` + e.steps.map((s, k) => `<p>${k + 1}. ${s.kind === 'llm' ? (k === e.steps.length - 1 ? 'El modelo redacta la respuesta' : 'El modelo decide qué hacer') : '<b>' + name('tool', s.tool) + (s.city ? ' · ' + esc(s.city) : '') + '</b>' + (s.failed ? ' ⚠ devolvió error' : '')}</p>`).join('');
+    <h2>Qué hizo el asistente, paso a paso</h2>` + e.steps.map((s, k) => `<p>${k + 1}. ${s.kind === 'llm' ? (k === e.steps.length - 1 ? 'El modelo redacta la respuesta' : 'El modelo decide qué hacer') : '<b>' + name('tool', s.tool) + '</b> <span class="k">' + esc(s.args) + '</span>' + (s.failed ? ' ⚠ devolvió error' : '')}</p>`).join('');
 }
 function openEp(id) { view = 'ep'; setView(); $('f-ep').value = id; render(); }
 
@@ -169,7 +164,7 @@ function setView() {
     if (eps.some(e => e.id === cur)) $('f-ep').value = cur; }
 }
 function render() {
-  if (view === 'agg') { const g = aggregate(); show(g, false); detail(`<h2>Visión general</h2><p>${g.eps.length} conversaciones.</p><p><span class="k">Cómo leerlo:</span> las bolitas <b style="color:var(--intent)">azules</b> son lo que pide el usuario, las <b style="color:var(--tool)">verdes</b> lo que consulta el asistente y las <b style="color:var(--signal)">rojas</b> avisos a revisar. Cada flecha lleva un número: cuántas conversaciones siguen ese camino. Cuanto más gruesa, más conversaciones.</p><p>Ejemplo: de «Tiempo ahora», unas consultan el tiempo y otras no consultan nada. Pulsa esa flecha para ver cuáles.</p><p class="k">Pulsa una bolita o una flecha para listar sus conversaciones.</p>`); }
+  if (view === 'agg') { const g = aggregate(); show(g, false); detail(`<h2>Visión general</h2><p>${g.eps.length} conversaciones.</p><p><span class="k">Cómo leerlo:</span> las bolitas <b style="color:var(--intent)">azules</b> son lo que pide el usuario, las <b style="color:var(--tool)">verdes</b> lo que consulta el asistente y las <b style="color:var(--signal)">rojas</b> avisos a revisar. Cada flecha lleva un número: cuántas conversaciones siguen ese camino. Cuanto más gruesa, más conversaciones.</p><p>Ejemplo: si una petición tiene una flecha hacia «Responde sin consultar nada», el asistente contestó sin usar ninguna herramienta. Púlsala para ver cuáles.</p><p class="k">Pulsa una bolita o una flecha para listar sus conversaciones.</p>`); }
   else { const e = D.episodes.find(x => x.id === $('f-ep').value) || selected()[0]; if (!e) { net && net.destroy(); detail('<p class="k">Ninguna conversación con ese filtro.</p>'); return; } show(episodeGraph(e), true); detail(episodeDetail(e)); }
 }
 function table() {

@@ -18,7 +18,8 @@ SELECT TraceId, SpanId, ParentSpanId, SpanName, StatusCode, StatusMessage, toStr
        SpanAttributes['gen_ai.usage.input_tokens'] AS tokens_in,
        SpanAttributes['gen_ai.usage.output_tokens'] AS tokens_out,
        if(SpanName LIKE 'chat %', SpanAttributes['gen_ai.input.messages'], '') AS input_messages,
-       if(SpanName LIKE 'invoke_agent%', SpanAttributes['final_result'], '') AS final_result
+       if(SpanName LIKE 'invoke_agent%', SpanAttributes['final_result'], '') AS final_result,
+       if(SpanName LIKE 'chat %', SpanAttributes['gen_ai.tool.definitions'], '') AS tool_defs
 FROM memtrace.otel_traces
 WHERE ConversationId LIKE '{prefix}%'
 ORDER BY TraceId, Timestamp
