@@ -5,6 +5,7 @@ las trazas completas se leen después de ClickHouse por `trace_id`. Reanuda lo y
 Las sesiones empiezan por `gen-` para poder filtrarlas o borrarlas del experimento.
 
   python -m bench_data.drive --name weather --port 8100 --n 160 --pause 18
+  python -m bench_data.drive --name weather-b --seed 11 --n 400   (más conversaciones, sesiones gen-weather-b-NNNN)
 
 La pausa existe por el límite gratuito de Groq (8.000 tokens/min, 1.000 peticiones/día).
 """
@@ -78,12 +79,13 @@ def main() -> None:
     ap.add_argument("--port", type=int, default=8100)
     ap.add_argument("--n", type=int, default=160)
     ap.add_argument("--pause", type=float, default=18)
+    ap.add_argument("--seed", type=int, default=7, help="otra semilla = otras conversaciones; usa también otro --name")
     a = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
     f = OUT / f"drive_{a.name}.jsonl"
     done = {json.loads(l)["session_id"] + str(json.loads(l)["turn"]) for l in f.read_text().splitlines()} if f.exists() else set()
     with f.open("a") as out:
-        for i, conv in enumerate(conversations(a.n)):
+        for i, conv in enumerate(conversations(a.n, a.seed)):
             session = f"gen-{a.name}-{i:04d}"
             for t, msg in enumerate(conv):
                 if session + str(t) in done:
