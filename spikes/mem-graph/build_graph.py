@@ -18,7 +18,9 @@ from pathlib import Path
 import networkx as nx
 
 import intents
+import judge
 import llm
+import patterns
 
 HERE = Path(__file__).parent
 QUALITY: dict = {}  # estabilidad y silueta de las categorías de petición, se guardan en graph.json
@@ -110,6 +112,26 @@ def understand(eps: list[dict], defs: dict[str, str]) -> dict[str, str]:
     return names
 
 
+def resolve_entities(eps: list[dict]) -> None:
+    """Une las entidades que nombran lo mismo («Londres», «London»): un LLM agrupa los valores y se queda con el más frecuente."""
+    freq = Counter(x["value"] for e in eps for x in e["entities"])
+    values = sorted(freq)
+    canon = {v: v for v in values}
+    for i in range(0, len(values), 60):
+        chunk = values[i:i + 60]
+        r = llm.ask_json("Group the numbered values that name exactly the same thing (same place, date, unit, person... even in another "
+                         "language or spelling). Values that are different things stay out. Return JSON only: "
+                         '{"groups": [[numbers of values that are the same], ...]}.\n' + "\n".join(f"{n + 1}. {v}" for n, v in enumerate(chunk)))
+        for g in r.get("groups", []):
+            members = [chunk[n - 1] for n in g if isinstance(n, int) and 0 < n <= len(chunk)]
+            if len(members) > 1:
+                best = max(members, key=lambda m: (freq[m], -len(m)))
+                canon.update({m: best for m in members})
+    for e in eps:
+        for x in e["entities"]:
+            x["canonical"] = canon[x["value"]]
+
+
 def same_entity_judge(pairs: list[tuple[str, str]]) -> dict[tuple[str, str], bool]:
     """Un LLM decide si dos textos nombran lo mismo; solo se le pregunta por los que no coinciden literalmente."""
     todo = sorted({p for p in pairs if norm(p[0]) != norm(p[1]) and norm(p[0]) not in norm(p[1]) and norm(p[1]) not in norm(p[0])})
@@ -165,13 +187,13 @@ def build(eps: list[dict], tool_names: dict[str, str], defs: dict[str, str]) -> 
     g = nx.MultiDiGraph()
     for e in eps:
         ep = f"ep:{e['id']}"
-        g.add_node(ep, type="episode", label=e["text"][:42] or e["id"])
+        g.add_node(ep, type="episode", label=e["text"][:42] or e["id"], verdict=e.get("verdict", ""))
         intent = f"intent:{norm(e['intent'])}"
         g.add_node(intent, type="intent", label=e["intent"])
         g.add_edge(ep, intent, rel="HAS_INTENT")
         for x in e["entities"]:
-            en = f"entity:{norm(x['type'])}:{norm(x['value'])}"
-            g.add_node(en, type="entity", label=x["value"], kind=x["type"])
+            en = f"entity:{norm(x.get('canonical', x['value']))}"
+            g.add_node(en, type="entity", label=x.get("canonical", x["value"]), kind=x["type"])
             g.add_edge(ep, en, rel="MENTIONS")
         prev = None
         for i, s in enumerate(e["steps"]):
@@ -193,12 +215,15 @@ def build(eps: list[dict], tool_names: dict[str, str], defs: dict[str, str]) -> 
 if __name__ == "__main__":
     eps, defs = load()
     tool_names = understand(eps, defs)
+    resolve_entities(eps)
     signals(eps)
+    judged = judge.judge(eps)
+    mined = patterns.mine(eps, tool_names)
     g = build(eps, tool_names, defs)
     (HERE / "out").mkdir(exist_ok=True)
-    keep = ("id", "session", "turn", "text", "reply", "intent", "request", "entities", "signals", "steps", "latency_ms")
+    keep = ("id", "session", "turn", "text", "reply", "intent", "request", "entities", "signals", "steps", "latency_ms", "verdict", "reason", "judges")
     data = {
-        "quality": QUALITY,
+        "quality": QUALITY, "judge": judged, "patterns": mined,
         "tools": {t: {"name": tool_names.get(t, t), "description": d} for t, d in defs.items()},
         "episodes": [{k: e[k] for k in keep} for e in eps],
         "nodes": [{"id": n, **a} for n, a in g.nodes(data=True)],
@@ -210,4 +235,6 @@ if __name__ == "__main__":
     print("peticiones:", dict(Counter(e["intent"] for e in eps)))
     print("calidad de las categorías:", QUALITY)
     print("herramientas:", {t: tool_names[t] for t in tool_names})
+    print("juez:", judged)
+    print("patrones:", [(p["text"], p["fail"], p["n"], p["rate"], p["rest_rate"], p["validated"]) for p in mined["patterns"]])
     print("señales:", dict(Counter(s for e in eps for s in e["signals"])))

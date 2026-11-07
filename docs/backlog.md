@@ -34,6 +34,9 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 | R6 | [ ] | Apariencia (ADR-063) | Preferencia de modo en el perfil, avatar y bienvenida, presets de tema, paleta de gráficas | B |
 | R8 | [ ] | Identidad (ADR-052) | Mapeo de IdP externo (SCIM/grupos) | B |
 | R9 | [ ] | Seguridad | Guardrails sobre trazas | B |
+| R12 | [ ] | Mem — grafo (spike `spikes/mem-graph`) | Dimensión temporal en el grafo (hechos que caducan o se superan, como en Zep/Graphiti y Mem0 con grafo); contrastarlo antes con lo publicado | B |
+| R13 | [ ] | Mem — lecciones (ADR-104) | Pasar del patrón a la lección y verificarla por replay (con/sin lección, placebo, control de regresiones); necesita un agente re-ejecutable | M |
+| R14 | [ ] | Mem — escala y validación | Más trazas y más agentes, ground truth propio y comparación con la línea base de un LLM que resuma los fallos | M |
 
 ## 3. Mejoras sobre lo ya construido
 
