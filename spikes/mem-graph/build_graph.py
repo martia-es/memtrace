@@ -221,7 +221,7 @@ if __name__ == "__main__":
     mined = patterns.mine(eps, tool_names)
     g = build(eps, tool_names, defs)
     (HERE / "out").mkdir(exist_ok=True)
-    keep = ("id", "session", "turn", "text", "reply", "intent", "request", "entities", "signals", "steps", "latency_ms", "verdict", "reason", "judges")
+    keep = ("id", "session", "turn", "text", "reply", "intent", "request", "entities", "signals", "steps", "latency_ms", "history", "verdict", "reason", "judges")
     data = {
         "quality": QUALITY, "judge": judged, "patterns": mined,
         "tools": {t: {"name": tool_names.get(t, t), "description": d} for t, d in defs.items()},
