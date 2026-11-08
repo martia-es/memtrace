@@ -79,7 +79,7 @@ const L = {
            ignored_user_entity:'Ignora algo que pidió el usuario', invented_argument:'Consulta un dato que el usuario no dio', blocked:'Bloqueado por seguridad'},
   edge: {intent:'pide', entity:'nombra', first:'empieza con', next:'después', tool:'usa', signal:'aviso'},
 };
-const VERDICT = {ok:'Bien', partial:'A medias', bad:'Mal', unsure:'Dudosa'};
+const VERDICT = {ok:'Bien', partial:'A medias', bad:'Mal', unsure:'Dudosa', blocked:'Bloqueada por seguridad'};
 const name = (kind, id) => kind === 'tool' ? (id === 'none' ? 'Responde sin consultar nada' : ((D.tools[id] || {}).name || id)) : ((L[kind] && L[kind][id]) || id);
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const COLOR = () => ({intent:css('--intent'), tool:css('--tool'), signal:css('--signal'), entity:css('--city'), step_llm:css('--llm'), step_tool:css('--tool'),
@@ -167,7 +167,7 @@ function episodeDetail(e) {
   const c = COLOR();
   return `<h2>${esc(e.text)}</h2><p><span class="k">Respuesta del asistente:</span> ${esc(e.reply || '—')}</p>
     <p><span class="k">Pide:</span> ${name('intent', e.intent)} · <span class="k">idioma:</span> ${e.lang} · <span class="k">tardó</span> ${(e.latency_ms / 1000).toFixed(1)} s</p>
-    <p><span class="chip" style="background:${({ok:'#00857f', partial:'#f59e0b', bad:'#ff6b4a', unsure:'#6f8a87'})[e.verdict] || '#6f8a87'}">${VERDICT[e.verdict] || 'Sin juzgar'}</span> <span class="k">${esc(e.reason || '')}</span></p>
+    <p><span class="chip" style="background:${({ok:'#00857f', partial:'#f59e0b', bad:'#ff6b4a', unsure:'#6f8a87', blocked:'#6f8a87'})[e.verdict] || '#6f8a87'}">${VERDICT[e.verdict] || 'Sin juzgar'}</span> <span class="k">${esc(e.reason || '')}</span></p>
     <p>${e.signals.map(s => `<span class="chip" style="background:${c.signal}">${name('signal', s)}</span>`).join('') || '<span class="k">Sin nada que revisar</span>'}</p>
     <h2>Qué hizo el asistente, paso a paso</h2>` + e.steps.map((s, k) => `<p>${k + 1}. ${s.kind === 'llm' ? (k === e.steps.length - 1 ? 'El modelo redacta la respuesta' : 'El modelo decide qué hacer') : '<b>' + name('tool', s.tool) + '</b> <span class="k">' + esc(s.args) + '</span>' + (s.failed ? ' ⚠ devolvió error' : '')}</p>`).join('');
 }

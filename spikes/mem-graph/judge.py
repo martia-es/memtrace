@@ -33,15 +33,19 @@ def _ask(e: dict, model: str) -> dict:
 
 
 def judge(eps: list[dict], models: tuple[str, str] = (llm.MODEL, SECOND_MODEL)) -> dict:
-    """Pone `verdict` (`ok`, `partial`, `bad` o `unsure`), `reason` y `judges` en cada episodio; devuelve un resumen."""
+    """Pone `verdict` (`ok`, `partial`, `bad`, `unsure` o `blocked`, esta última sin juzgar), `reason` y `judges` en cada episodio; devuelve un resumen."""
     for e in eps:
+        if "blocked" in e["signals"]:  # la seguridad cortó la petición: no hubo respuesta del asistente que juzgar
+            e["judges"], e["verdict"], e["reason"] = ["", ""], "blocked", "La seguridad bloqueó la petición antes de llegar al asistente."
+            continue
         a, b = (_ask(e, m) for m in models)
         e["judges"] = [a["verdict"], b["verdict"]]
         e["verdict"] = a["verdict"] if a["verdict"] and a["verdict"] == b["verdict"] else "unsure"
         e["reason"] = a["reason"] if a["verdict"] == e["verdict"] or not b["reason"] else b["reason"]
-    agree = sum(e["verdict"] != "unsure" for e in eps)
-    counts = {v: sum(e["verdict"] == v for e in eps) for v in sorted(VERDICTS | {"unsure"})}
-    return {"models": list(models), "agreement": round(agree / max(len(eps), 1), 2), "counts": counts}
+    judged = [e for e in eps if e["verdict"] != "blocked"]
+    agree = sum(e["verdict"] != "unsure" for e in judged)
+    counts = {v: sum(e["verdict"] == v for e in eps) for v in sorted(VERDICTS | {"unsure", "blocked"})}
+    return {"models": list(models), "agreement": round(agree / max(len(judged), 1), 2), "counts": counts}
 
 
 if __name__ == "__main__":
