@@ -58,6 +58,16 @@ export interface UsedBy {
   outdated: boolean;
 }
 
+/** Un fragmento incluido en un prompt: de qué ref y versión, y si el fragmento ya va por delante. */
+export interface FragmentEdge {
+  fragmentId: string;
+  promptId: string;
+  ref: string;
+  pinned: number;
+  current: number | null;
+  outdated: boolean;
+}
+
 export interface PromptDetail {
   prompt: Prompt;
   versions: PromptVersion[];
@@ -412,6 +422,18 @@ export class PromptService {
         return { promptId: u.promptId, name: u.name, version: u.version, outdated: status.some((s) => s.outdated) };
       }),
     );
+  }
+
+  /** Una arista por cada inclusión de este fragmento en la última versión publicada de un prompt (grafo global). */
+  async fragmentEdges(fragment: Prompt): Promise<FragmentEdge[]> {
+    const users = await this.repo.usedBy(fragment.organizationId, fragment.name);
+    const edges = await Promise.all(
+      users.map(async (u) => {
+        const status = await this.includeStatus(fragment.organizationId, u.includes.filter((i) => i.name === fragment.name));
+        return status.map((s) => ({ fragmentId: fragment.id, promptId: u.promptId, ref: s.ref, pinned: s.pinned, current: s.current, outdated: s.outdated }));
+      }),
+    );
+    return edges.flat();
   }
 
   /** Los prompts que usan este fragmento con una referencia que hoy apunta a otra versión: los candidatos a reconstruirse. */

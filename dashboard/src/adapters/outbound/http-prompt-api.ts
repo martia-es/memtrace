@@ -1,4 +1,4 @@
-import type { ApprovalRequestDto, ApprovalRuleDto, ApprovalRulesResponse, PromptApprovalsResponse, PromptDetailDto, PromptEvidenceResponse, PromptFailuresResponse, PromptGateDto, PromptMapDto, PromptListResponse, PromptPlaygroundResponse, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto } from "@contract";
+import type { ApprovalRequestDto, ApprovalRuleDto, ApprovalRulesResponse, PromptApprovalsResponse, PromptDetailDto, PromptEvidenceResponse, PromptFailuresResponse, PromptGateDto, PromptGraphResponse, PromptMapDto, PromptListResponse, PromptPlaygroundResponse, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto } from "@contract";
 import type { ApprovalScope, NewPromptInput, OpenApprovalInput, PromptApi } from "@/application/prompt-api";
 import { ApiError } from "@/application/trace-api";
 
@@ -60,6 +60,9 @@ export class HttpPromptApi implements PromptApi {
   }
   previewGate(promptId: string, tag: string, version: number, signal?: AbortSignal): Promise<PromptGateDto> {
     return this.request("GET", `/prompts/${e(promptId)}/gate?tag=${e(tag)}&version=${version}`, undefined, signal);
+  }
+  graph(experimentId: string, signal?: AbortSignal): Promise<PromptGraphResponse> {
+    return this.request("GET", `/experiments/${e(experimentId)}/prompts/graph`, undefined, signal);
   }
   map(promptId: string, move?: { tag: string; version: number }, signal?: AbortSignal): Promise<PromptMapDto> {
     const query = move ? `?tag=${e(move.tag)}&version=${move.version}` : "";

@@ -14,6 +14,7 @@ import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import Modal from "../components/Modal.vue";
 import PromptEditor from "../components/PromptEditor.vue";
+import PromptGlobalGraph from "../components/PromptGlobalGraph.vue";
 import PageHeader from "../components/PageHeader.vue";
 import TextInput from "../components/TextInput.vue";
 import { useApprovalInbox } from "../composables/useApprovalInbox";
@@ -258,6 +259,7 @@ async function create() {
         <span><span class="dot ok" />{{ t("promptsPage.in_sync") }}</span>
         <span><span class="dot late" />{{ t("promptsPage.behind_in_pro") }}</span>
       </div>
+      <PromptGlobalGraph :key="String(showArchived) + items.length" :experiment-id="experimentId" />
     </template>
 
     <Modal v-if="showCreate" :title="form.kind === 'fragment' ? t('promptsPage.new_fragment') : t('promptsPage.new_prompt')" :wide="true" @close="showCreate = false">

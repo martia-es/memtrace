@@ -198,6 +198,10 @@ The reference is **mandatory** (an include without `@tag` or `@number` is reject
 
 Limits: a fragment cannot include another fragment; only published versions can be included; at most 20 different fragments per version. The fragment's `{{variables}}` become variables of the prompt.
 
+## Dependency map of the whole list
+
+Below the table in **Prompts**, the **Dependency map** shows every fragment (left) and the prompts that include it (right). Each wire carries the reference and the version it is pinned to (`@pro · pinned to v1`); it turns amber with *now vN* when the fragment moved on, and a fragment no prompt includes is dashed and marked *Unused*. Hover a node to highlight its connections; click it to open it. It only appears once you have at least one fragment, and it reads each prompt's latest published version, like **Used by**.
+
 ## Dependencies and impact
 
 The **Dependencies** map, folded in the **Prompt** tab, answers "what is connected to this prompt?":
