@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import type { AssistantCardDto, DeployRunDto } from "@contract";
-import { buildAgentSummary, type SummaryTone } from "@/domain/agent-summary";
+import { DEFAULT_PERIOD, SUMMARY_PERIODS, buildAgentSummary, periodRange, type SummaryPeriod, type SummaryTone } from "@/domain/agent-summary";
 import { formatRelativeTime } from "@/domain/format";
 import { useAsync } from "../../composables/useAsync";
 import { useAssistantApi } from "../../composables/useAssistantApi";
@@ -10,15 +11,28 @@ import { useTraceApi } from "../../composables/useTraceApi";
 import { t } from "../../i18n";
 import Card from "../Card.vue";
 import LoadingState from "../LoadingState.vue";
+import SegmentedControl from "../SegmentedControl.vue";
 
 /**
  * Resumen de un agente (ficha del asistente): salud, coste, calidad, seguridad y alertas de un vistazo, qué cambió y por qué
- * fallan las ejecuciones. Cada parte se carga por separado y se omite si falla o si la persona no tiene permiso para verla.
+ * fallan las ejecuciones. Todo habla del mismo periodo (por defecto, este mes) y se compara con el anterior. Cada parte se
+ * carga por separado y se omite si falla o si la persona no tiene permiso para verla.
  */
 const props = defineProps<{ card: AssistantCardDto; experimentId: string }>();
 
-const DAYS = 7;
+const route = useRoute();
+const router = useRouter();
 const nowMs = ref(Date.now());
+
+// el periodo viaja en el enlace (`?period=`) para poder compartir la vista
+const period = computed<SummaryPeriod>(() => {
+  const q = route.query.period;
+  return SUMMARY_PERIODS.includes(q as SummaryPeriod) ? (q as SummaryPeriod) : DEFAULT_PERIOD;
+});
+const periodOptions = computed(() => SUMMARY_PERIODS.map((p) => ({ value: p, label: t(`agentSummary.period_${p}`) })));
+function setPeriod(value: unknown) {
+  void router.replace({ query: { ...route.query, period: value === DEFAULT_PERIOD ? undefined : String(value) } });
+}
 
 const assistantApi = useAssistantApi();
 const identityApi = useIdentityApi();
@@ -29,30 +43,37 @@ const ok = <T,>(r: PromiseSettledResult<T>): T | null => (r.status === "fulfille
 const summary = useAsync(async (signal) => {
   const id = props.experimentId;
   const scoped = traceApi.forExperiment(id);
-  const to = new Date();
-  const range = { from: new Date(to.getTime() - DAYS * 86_400_000).toISOString(), to: to.toISOString() };
+  const range = periodRange(period.value);
+  const current = { from: range.from.toISOString(), to: range.to.toISOString() };
+  const before = { from: range.previousFrom.toISOString(), to: range.previousTo.toISOString() };
   const deployments = props.card.deployments;
-  const [overview, alerts, security, errors, runs, ...deploys] = await Promise.allSettled([
-    traceApi.getOverviewForExperiment(id, range, signal),
+  const [overview, previousOverview, alerts, security, securityTwice, errors, runs, ...deploys] = await Promise.allSettled([
+    traceApi.getOverviewForExperiment(id, current, signal),
+    traceApi.getOverviewForExperiment(id, before, signal),
     identityApi.getAlerts(id, signal),
-    assistantApi.getSecurity(id, DAYS, signal),
-    scoped.getErrorOverview(range, signal),
+    assistantApi.getSecurity(id, range.days, signal),
+    // the daily series of twice the days holds the span before as its first half
+    assistantApi.getSecurity(id, range.days * 2, signal),
+    scoped.getErrorOverview(current, signal),
     scoped.listRuns(signal),
     ...deployments.map((d) => assistantApi.listDeploys(id, d.id, signal)),
   ]);
   nowMs.value = Date.now();
+  const twice = ok(securityTwice);
   return buildAgentSummary({
-    days: DAYS,
+    period: range,
     overview: ok(overview),
+    previousOverview: ok(previousOverview),
     alerts: ok(alerts),
     security: ok(security),
+    previousSecurityEvents: twice ? twice.events.daily.slice(0, Math.max(0, twice.events.daily.length - range.days)).reduce((sum, d) => sum + d.count, 0) : null,
     errors: ok(errors),
     runs: ok(runs)?.items ?? null,
     deploys: (deploys as PromiseSettledResult<DeployRunDto[]>[]).flatMap((d) => (d.status === "fulfilled" ? d.value : [])),
     environmentOf: Object.fromEntries(deployments.map((d) => [d.id, d.environment.label])),
   });
 });
-void summary.run();
+watch(period, () => void summary.run(), { immediate: true });
 
 const data = computed(() => summary.data.value);
 const empty = computed(() => data.value !== null && data.value.health === null && data.value.cards.length === 0);
@@ -63,6 +84,12 @@ const TONE_CLASS: Record<SummaryTone, string> = { ok: "t-ok", warn: "t-warn", er
 
 <template>
   <section v-if="!empty" class="summary" data-testid="agent-summary" :aria-label="t('agentSummary.title')">
+    <div class="bar-top">
+      <h2>{{ t("agentSummary.title") }}</h2>
+      <span class="note muted">{{ t(period === "month" ? "agentSummary.compare_note_month" : "agentSummary.compare_note_rolling") }}</span>
+      <SegmentedControl size="sm" :aria-label="t('agentSummary.period_label')" :options="periodOptions" :model-value="period" data-testid="summary-period" @update:model-value="setPeriod" />
+    </div>
+
     <LoadingState v-if="!data" size="md" />
     <template v-else>
       <div v-if="data.health" class="health" :class="TONE_CLASS[data.health.tone]" role="status" data-testid="summary-health">
@@ -76,13 +103,14 @@ const TONE_CLASS: Record<SummaryTone, string> = { ok: "t-ok", warn: "t-warn", er
         <Card v-for="c in data.cards" :key="c.id" as="router-link" :to="{ name: LINK[c.id], params: { experimentId } }" class="kpi" :data-testid="`summary-card-${c.id}`">
           <span class="kpi-label">{{ c.label }}</span>
           <span class="kpi-value" :class="TONE_CLASS[c.tone]">{{ c.value }}</span>
+          <span v-if="c.delta" class="kpi-delta" :class="TONE_CLASS[c.delta.tone]" :data-testid="`summary-delta-${c.id}`">{{ c.delta.text }}</span>
           <span class="kpi-sub">{{ c.sub }}</span>
         </Card>
       </div>
 
       <div class="columns">
         <Card as="section" class="panel" data-testid="summary-events">
-          <header class="panel-head"><h3>{{ t("agentSummary.events_title") }}</h3><span class="muted">{{ t("agentSummary.last_days", { days: DAYS }) }}</span></header>
+          <header class="panel-head"><h3>{{ t("agentSummary.events_title") }}</h3></header>
           <p v-if="data.events.length === 0" class="muted empty">{{ t("agentSummary.events_empty") }}</p>
           <ol v-else class="events">
             <li v-for="e in data.events" :key="e.id" class="event">
@@ -112,6 +140,9 @@ const TONE_CLASS: Record<SummaryTone, string> = { ok: "t-ok", warn: "t-warn", er
 
 <style scoped>
 .summary { display: flex; flex-direction: column; gap: 12px; }
+.bar-top { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+.bar-top h2 { margin: 0; font-size: 15px; font-weight: 800; }
+.note { flex: 1; }
 .health { padding: 12px 16px; border-radius: var(--mt-radius); }
 .health-text { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
 .health strong { font-size: 15px; font-weight: 800; }
@@ -126,6 +157,9 @@ const TONE_CLASS: Record<SummaryTone, string> = { ok: "t-ok", warn: "t-warn", er
 .kpi-value { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; }
 .kpi-value.t-error { color: var(--mt-err-ink); }
 .kpi-value.t-warn { color: var(--mt-warn-ink); }
+.kpi-delta { font-size: 12px; font-weight: 700; color: var(--mt-muted); }
+.kpi-delta.t-ok { color: var(--mt-ok-ink); }
+.kpi-delta.t-error { color: var(--mt-err-ink); }
 .kpi-sub { font-size: 12px; color: var(--mt-muted); }
 .columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; }
 .panel { gap: 10px; }
