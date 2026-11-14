@@ -189,12 +189,26 @@ describe("assistants catalog (ADR-053)", () => {
 describe("assistant detail (ADR-053)", () => {
   it("opens with a summary of the agent: health sentence, key figures and links to where each one lives", async () => {
     const trace = new FakeTraceApi();
-    trace.overviewByExperiment["exp-1"] = { totals: { traces: 1000, errorTraces: 20, errorRate: 0.02 } } as never;
+    trace.overviewByExperiment["exp-1"] = { totals: { traces: 1000, errorTraces: 20, errorRate: 0.02, costUsd: 0 } } as never;
     const { wrapper } = await setup(AssistantDetailPage, "/assistants/exp-1", new FakeAssistantApi(), new Identity([org("technical")], [exp("technical")]), { experimentId: "exp-1" }, trace);
+    await flushPromises();
     expect(wrapper.get("[data-testid='summary-health']").text()).toContain("healthy");
     expect(wrapper.get("[data-testid='summary-card-reliability']").text()).toContain("98.0%");
     expect(wrapper.find("[data-testid='summary-card-security']").exists()).toBe(true);
     expect(wrapper.find("[data-testid='section-environments']").exists()).toBe(true);
+  });
+
+  it("the whole summary follows one period, this month by default, kept in the link", async () => {
+    const trace = new FakeTraceApi();
+    trace.overviewByExperiment["exp-1"] = { totals: { traces: 1000, errorTraces: 20, errorRate: 0.02, costUsd: 12 } } as never;
+    const { wrapper, router } = await setup(AssistantDetailPage, "/assistants/exp-1", new FakeAssistantApi(), new Identity([org("technical")], [exp("technical")]), { experimentId: "exp-1" }, trace);
+    await flushPromises();
+    expect(wrapper.get("[data-testid='summary-health']").text()).toContain("this month");
+    const thirty = wrapper.findAll("[data-testid='summary-period'] button").find((b) => b.text() === "30 days")!;
+    await thirty.trigger("click");
+    await flushPromises();
+    expect(router.currentRoute.value.query.period).toBe("30d");
+    expect(wrapper.get("[data-testid='summary-health']").text()).toContain("in the last 30 days");
   });
 
   it("shows one card per environment and who can call the production one", async () => {

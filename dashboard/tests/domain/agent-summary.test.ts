@@ -1,9 +1,9 @@
 import type { AlertsOverviewDto, ErrorOverviewResponse, OverviewResponse } from "@contract";
 import { describe, expect, it } from "vitest";
-import { buildAgentSummary, type AgentSummaryInput } from "@/domain/agent-summary";
+import { buildAgentSummary, periodRange, type AgentSummaryInput } from "@/domain/agent-summary";
 
-const overview = (traces: number, errorTraces: number): OverviewResponse =>
-  ({ totals: { traces, errorTraces, errorRate: traces ? errorTraces / traces : 0 } }) as OverviewResponse;
+const overview = (traces: number, errorTraces: number, costUsd = 0): OverviewResponse =>
+  ({ totals: { traces, errorTraces, errorRate: traces ? errorTraces / traces : 0, costUsd } }) as OverviewResponse;
 
 const rule = (name: string, state: "ok" | "firing", metric: "error_rate" | "cost" = "error_rate") =>
   ({ rule: { id: name, name, metric }, status: { state } }) as unknown as AlertsOverviewDto["rules"][number];
@@ -12,7 +12,7 @@ const alerts = (rules: AlertsOverviewDto["rules"], over: Partial<AlertsOverviewD
   rules, events: [], budget: null, monthCost: { month: "2026-11-01", spentUsd: 38.72, projectedUsd: 82, daily: [] }, ...over,
 });
 
-const base: AgentSummaryInput = { days: 7, overview: null, alerts: null, security: null, errors: null, runs: null, deploys: null, environmentOf: {} };
+const base: AgentSummaryInput = { period: periodRange("7d"), overview: null, previousOverview: null, previousSecurityEvents: null, alerts: null, security: null, errors: null, runs: null, deploys: null, environmentOf: {} };
 const build = (over: Partial<AgentSummaryInput>) => buildAgentSummary({ ...base, ...over });
 
 describe("buildAgentSummary", () => {
@@ -40,7 +40,7 @@ describe("buildAgentSummary", () => {
 
   it("colours the cost by the budget threshold", () => {
     const budget = { budget: { monthlyUsd: 95, warnPercent: 80, enabled: true }, percent: 85, spentUsd: 80, projectedUsd: null, month: "2026-11-01" } as AlertsOverviewDto["budget"];
-    expect(build({ alerts: alerts([], { budget }) }).cards.find((c) => c.id === "cost")?.tone).toBe("warn");
+    expect(build({ period: periodRange("month"), overview: overview(10, 0, 80), alerts: alerts([], { budget }) }).cards.find((c) => c.id === "cost")?.tone).toBe("warn");
   });
 
   it("leaves out the parts that did not load", () => {
@@ -64,5 +64,57 @@ describe("buildAgentSummary", () => {
     const category = (id: string, occurrences: number, previousOccurrences: number) => ({ id, title: id, occurrences, previousOccurrences });
     const errors = { previousRange: { from: "", to: "" }, totals: { occurrences: 100 }, categories: [category("a", 60, 0), category("b", 30, 60), category("c", 10, 10)] } as unknown as ErrorOverviewResponse;
     expect(build({ errors }).causes.map((c) => [c.id, c.share, c.trend])).toEqual([["a", 60, "new"], ["b", 30, "down"], ["c", 10, "flat"]]);
+  });
+
+  it("the budget and the forecast only apply to the current month", () => {
+    const budget = { budget: { monthlyUsd: 95, warnPercent: 80, enabled: true }, percent: 85, spentUsd: 80, projectedUsd: 100, month: "2026-11-01" } as AlertsOverviewDto["budget"];
+    const cost = build({ period: periodRange("30d"), overview: overview(10, 0, 12.5), alerts: alerts([], { budget }) }).cards.find((c) => c.id === "cost");
+    expect(cost?.value).toBe("$12.50");
+    expect(cost?.tone).toBe("neutral");
+    expect(cost?.sub).toBe("");
+  });
+
+  it("compares reliability, cost and security with the previous period", () => {
+    const s = build({
+      overview: overview(1000, 20, 30),
+      previousOverview: overview(1000, 60, 20),
+      security: { days: 7, events: { total: 5, blocked: 0 } } as never,
+      previousSecurityEvents: 9,
+    });
+    const delta = (id: string) => s.cards.find((c) => c.id === id)?.delta;
+    expect(delta("reliability")).toMatchObject({ tone: "ok" });
+    expect(delta("reliability")?.text).toContain("4.0 pp");
+    expect(delta("cost")).toMatchObject({ tone: "neutral" });
+    expect(delta("cost")?.text).toContain("50%");
+    expect(delta("security")).toMatchObject({ tone: "ok" });
+  });
+
+  it("says nothing about the change when the previous period has no data", () => {
+    const s = build({ overview: overview(1000, 20, 30), previousOverview: overview(0, 0, 0) });
+    expect(s.cards.find((c) => c.id === "reliability")?.delta).toBeNull();
+    expect(s.cards.find((c) => c.id === "cost")?.delta).toBeNull();
+  });
+});
+
+describe("periodRange", () => {
+  const now = new Date("2026-11-14T12:00:00.000Z");
+
+  it("this month runs from the 1st (UTC) to now and is compared with the same days of the month before", () => {
+    const r = periodRange("month", now);
+    expect(r.from.toISOString()).toBe("2026-11-01T00:00:00.000Z");
+    expect(r.previousFrom.toISOString()).toBe("2026-10-01T00:00:00.000Z");
+    expect(r.previousTo.getTime() - r.previousFrom.getTime()).toBe(now.getTime() - r.from.getTime());
+    expect(r.days).toBe(14);
+  });
+
+  it("a rolling period is compared with the span of the same length right before", () => {
+    const r = periodRange("30d", now);
+    expect(r.days).toBe(30);
+    expect(r.previousTo.getTime()).toBe(r.from.getTime());
+    expect(r.from.getTime() - r.previousFrom.getTime()).toBe(30 * 86_400_000);
+  });
+
+  it("never covers less than one day", () => {
+    expect(periodRange("month", new Date("2026-11-01T00:30:00.000Z")).days).toBe(1);
   });
 });
