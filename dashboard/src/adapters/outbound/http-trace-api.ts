@@ -75,6 +75,12 @@ export class HttpTraceApi implements TraceApi {
     this.experimentId = experimentId;
   }
 
+  forExperiment(experimentId: string): TraceApi {
+    const scoped = new HttpTraceApi(this.baseUrl, this.fetchFn);
+    scoped.setExperimentId(experimentId);
+    return scoped;
+  }
+
   private scopedBase(): string {
     if (!this.experimentId) throw new Error("HttpTraceApi: no experiment selected");
     return `${this.baseUrl}/experiments/${encodeURIComponent(this.experimentId)}`;

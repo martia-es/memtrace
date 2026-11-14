@@ -160,6 +160,8 @@ export interface QueueLabelBody {
 
 /** Puerto de salida: lo que el dashboard necesita del backend. Es el único acceso a datos (roadmap, pieza 5). */
 export interface TraceApi {
+  /** Cliente fijado a un experimento concreto, sin tocar el contexto del router: para pantallas globales que miran un agente (la ficha del asistente). */
+  forExperiment(experimentId: string): TraceApi;
   listTraces(params: ListTracesParams, signal?: AbortSignal): Promise<TraceListResponse>;
   /** spans sueltos (más recientes primero) con una vista previa de su entrada y salida */
   listSpans(params: ListSpansParams, signal?: AbortSignal): Promise<SpanListResponse>;
