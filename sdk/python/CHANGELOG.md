@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 - 2026-11-14
 
 ### Added
 - `memtrace.user(user_id)` attributes every span inside it to an end user (`enduser.id`), also for spans of auto-instrumented libraries; LangChain `metadata["user_id"]` does the same. The dashboard groups cost by user in Overview › Breakdown. Use an opaque id, not an email.
