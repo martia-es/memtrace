@@ -163,6 +163,8 @@ export interface ConversationSummaryDto {
   title: string | null;
   /** null si ningún modelo de la conversación tiene precio conocido (ADR-025) */
   costUsd: number | null;
+  /** hechos para redactar la frase de la fila; el texto lo compone el dashboard */
+  story: { toolCalls: number; tools: string[]; failedTools: string[]; retrievals: number; guardrailBlocks: number };
 }
 
 /** Mensajes de la conversación por turno; vacío si el agente no capturó contenido (ADR-013). */

@@ -434,6 +434,7 @@ export function conversation(overrides: Partial<ConversationSummaryDto> = {}): C
     activeMs: 100,
     title: null,
     costUsd: null,
+    story: { toolCalls: 0, tools: [], failedTools: [], retrievals: 0, guardrailBlocks: 0 },
     ...overrides,
   };
 }

@@ -51,7 +51,7 @@ describe("TraceQueryService", () => {
     const { repo, service } = setup();
     repo.conversations.set("c1", {
       conversationId: "c1", serviceNames: ["svc"], startTimeUs: 1, lastActivityUs: 2,
-      turnCount: 2, errorTurns: 0, failedSpans: 0, totalTokens: 0, activeMs: 0, prompts: [],
+      turnCount: 2, errorTurns: 0, failedSpans: 0, totalTokens: 0, activeMs: 0, prompts: [], story: { toolCalls: 0, tools: [], failedTools: [], retrievals: 0, guardrailBlocks: 0 },
     });
     repo.page = {
       items: [

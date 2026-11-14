@@ -33,6 +33,8 @@ const CONTENT_KEYS = ["gen_ai.input.messages", "gen_ai.output.messages", "gen_ai
 const CONTENT_MATCH = `(${CONTENT_KEYS.map((k) => `positionCaseInsensitiveUTF8(${attr(k)}, {text:String}) > 0`).join(" OR ")})`;
 /** Tipo de paso: el declarado por el SDK o, si falta, el que se deduce de la operación GenAI. */
 export const KIND = `multiIf(${attr("memtrace.step_type")} != '', ${attr("memtrace.step_type")}, ${OP} = 'chat', 'llm', ${OP} = 'execute_tool', 'tool', 'unknown')`;
+/** Nombre de la tool: el atributo GenAI o, si falta, el nombre del span. */
+const TOOL_NAME = `if(${attr("gen_ai.tool.name")} != '', ${attr("gen_ai.tool.name")}, SpanName)`;
 /** Primer atributo de contenido presente, acotado al máximo que guarda el SDK (16 KB). */
 const firstOf = (keys: string[]) => `substring(multiIf(${keys.map((k) => `${attr(k)} != '', ${attr(k)}`).join(", ")}, ''), 1, 16384)`;
 
@@ -684,7 +686,12 @@ export class ClickHouseTraceRepository implements TraceRepository {
               uniqExactIf(SpanId, StatusCode = ${ERROR}) AS failedSpans,
               sumIf(${TOKENS}, ${OP} = 'chat') AS totalTokens,
               sumIf(Duration, ParentSpanId = '') AS activeNs,
-              groupUniqArrayIf(20)((PromptName, PromptVersion), PromptName != '') AS prompts
+              groupUniqArrayIf(20)((PromptName, PromptVersion), PromptName != '') AS prompts,
+              uniqExactIf(SpanId, ${OP} = 'execute_tool') AS toolCalls,
+              groupUniqArrayIf(5)(${TOOL_NAME}, ${OP} = 'execute_tool') AS tools,
+              groupUniqArrayIf(3)(${TOOL_NAME}, ${OP} = 'execute_tool' AND StatusCode = ${ERROR}) AS failedTools,
+              uniqExactIf(SpanId, ${KIND} = 'retriever') AS retrievals,
+              uniqExactIf(SpanId, SpanName = 'guardrail.blocked') AS guardrailBlocks
        FROM ${this.spans} WHERE ConversationId IN {ids:Array(String)} AND ${TENANT_SQL} AND ${clause} GROUP BY ConversationId`,
       { ...params, ...tenantParams(scope), ids },
     );
@@ -701,6 +708,13 @@ export class ClickHouseTraceRepository implements TraceRepository {
         totalTokens: num(r.totalTokens),
         activeMs: nsToMs(r.activeNs),
         prompts: promptRefs(r.prompts),
+        story: {
+          toolCalls: num(r.toolCalls),
+          tools: ((r.tools as string[]) ?? []).slice().sort(),
+          failedTools: ((r.failedTools as string[]) ?? []).slice().sort(),
+          retrievals: num(r.retrievals),
+          guardrailBlocks: num(r.guardrailBlocks),
+        },
       });
     }
     return result;

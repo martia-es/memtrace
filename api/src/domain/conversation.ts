@@ -1,4 +1,16 @@
 import type { PromptRef } from "@/domain/trace";
+/** Hechos sueltos con los que el dashboard redacta la frase de cada conversación (sin IA, reglas fijas). */
+export interface ConversationStory {
+  toolCalls: number;
+  /** nombres distintos de las tools llamadas (máx. 5) */
+  tools: string[];
+  /** tools con alguna llamada fallida (máx. 3) */
+  failedTools: string[];
+  retrievals: number;
+  /** veces que un guardarraíl frenó un mensaje */
+  guardrailBlocks: number;
+}
+
 /** Una conversación = las trazas (turnos) que comparten `gen_ai.conversation.id` (ADR-012). */
 export interface ConversationSummary {
   conversationId: string;
@@ -17,6 +29,7 @@ export interface ConversationSummary {
   activeMs: number;
   /** versiones de prompt del registro que usó algún turno, la más reciente primero */
   prompts: PromptRef[];
+  story: ConversationStory;
 }
 
 /** Lo que el repositorio lee para dar título y coste a una conversación; el precio lo aplica el servicio (ADR-025). */
