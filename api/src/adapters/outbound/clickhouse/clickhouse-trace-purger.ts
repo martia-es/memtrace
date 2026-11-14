@@ -5,7 +5,7 @@ import type { TenantScope } from "@/domain/tenant";
 import { TENANT_SQL, tenantParams } from "./tenant-sql";
 
 /**
- * Borra spans antiguos de un experimento (ADR-084, ADR-088): el nombre de servicio no basta, porque dos organizaciones pueden usar el mismo. Primero las temáticas derivadas, que se localizan por las trazas que se van
+ * Borra spans antiguos de un experimento (ADR-084, ADR-088): el nombre de servicio no basta, porque dos organizaciones pueden usar el mismo. Primero lo derivado (temáticas y episodios de Mem), que se localiza por las trazas que se van
  * a borrar, y después los spans. El índice `otel_traces_trace_id_ts` no lleva `ServiceName` ni contenido (solo ids y
  * tiempos) y lo vacía su propio TTL de techo.
  */
@@ -27,6 +27,12 @@ export class ClickHouseTracePurger implements TracePurger {
     const settings = { mutations_sync: "1" as const };
     await this.client.command({
       query: `ALTER TABLE ${this.database}.span_topics DELETE WHERE TraceId IN (SELECT TraceId FROM ${this.database}.otel_traces WHERE ${where})`,
+      query_params: params,
+      clickhouse_settings: settings,
+    });
+    // Episodios de Mem (Fase 2.0): llevan texto de la conversación (objetivo y respuesta), así que siguen la misma retención.
+    await this.client.command({
+      query: `ALTER TABLE ${this.database}.mem_episodes DELETE WHERE TraceId IN (SELECT TraceId FROM ${this.database}.otel_traces WHERE ${where})`,
       query_params: params,
       clickhouse_settings: settings,
     });

@@ -53,11 +53,21 @@ describe.skipIf(!enabled)("ClickHouseTracePurger", () => {
     });
     const topic = (trace: string) => ({ TraceId: trace, SpanId: id(8), Topic: "t", Confidence: 0.9, ModelVersion: "v", ExtractedAt: ts(now) });
     await client.insert({ table: `${config.database}.span_topics`, format: "JSONEachRow", values: [topic(oldTrace), topic(newTrace), topic(otherOldTrace), topic(siblingOldTrace)] });
+    const episode = (service: string, experimentId: string, trace: string) => ({
+      ServiceName: service, ExperimentId: experimentId, TraceId: trace, StartedAt: ts(now), Goal: "g", Answer: "a", Steps: ["chat"], NChat: 1, NTools: 0, HasError: 0, Loop: 0,
+      Thumbs: 0, Value: 0, Outcome: "ok", Reasons: [], EpisodeVersion: 1, BuiltAt: ts(now),
+    });
+    await client.insert({
+      table: `${config.database}.mem_episodes`,
+      format: "JSONEachRow",
+      values: [episode(SERVICE, EXP, oldTrace), episode(SERVICE, EXP, newTrace), episode(OTHER, OTHER_EXP, otherOldTrace), episode(SERVICE, SAME_NAME_EXP, siblingOldTrace)],
+    });
   });
 
   afterAll(async () => {
     await client.command({ query: `ALTER TABLE ${config.database}.otel_traces DELETE WHERE ServiceName IN ({a:String}, {b:String})`, query_params: { a: SERVICE, b: OTHER } });
     await client.command({ query: `ALTER TABLE ${config.database}.span_topics DELETE WHERE TraceId IN ({a:String}, {b:String}, {c:String}, {d:String})`, query_params: { a: oldTrace, b: newTrace, c: otherOldTrace, d: siblingOldTrace } });
+    await client.command({ query: `ALTER TABLE ${config.database}.mem_episodes DELETE WHERE TraceId IN ({a:String}, {b:String}, {c:String}, {d:String})`, query_params: { a: oldTrace, b: newTrace, c: otherOldTrace, d: siblingOldTrace } });
     await client.close();
   });
 
@@ -75,6 +85,11 @@ describe.skipIf(!enabled)("ClickHouseTracePurger", () => {
     // mismo nombre de servicio, otro experimento: intacto
     expect(await count("otel_traces", `ServiceName = '${SERVICE}' AND ExperimentId = '${SAME_NAME_EXP}'`)).toBe(1);
     expect(await count("span_topics", `TraceId = '${siblingOldTrace}'`)).toBe(1);
+    // los episodios de Mem siguen la misma retención y el mismo aislamiento
+    expect(await count("mem_episodes", `TraceId = '${oldTrace}'`)).toBe(0);
+    expect(await count("mem_episodes", `TraceId = '${newTrace}'`)).toBe(1);
+    expect(await count("mem_episodes", `TraceId = '${otherOldTrace}'`)).toBe(1);
+    expect(await count("mem_episodes", `TraceId = '${siblingOldTrace}'`)).toBe(1);
   });
 
   it("does nothing when nothing is old enough", async () => {
