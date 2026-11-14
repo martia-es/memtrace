@@ -187,7 +187,8 @@ def template(G: pd.DataFrame, P: pd.DataFrame) -> dict | None:
                 if sorted(ptools) == sorted(gtools):
                     return {"when": "Cuando hay que usar varias herramientas en la misma petición",
                             "failure": f"se usan en el orden «{gseq.replace('>', ' → ')}»",
-                            "guidance": f"Llama a las herramientas en este orden: {' → '.join(ptools)}.",
+                            "guidance": (f"Llama siempre a {ptools[0]} antes que a {', '.join(ptools[1:])}: orden {' → '.join(ptools)}. "
+                                         f"No empieces por {gseq.split('>')[0]}, aunque otra regla lo permita."),
                             "evidence": f"El {round(100 * share)} % de las conversaciones correctas del mismo tipo siguen «{pseq}»; las fallidas siguen «{gseq}».",
                             "confidence": "medium"}
                 extra = Counter(ptools) - Counter(gtools)

@@ -15,9 +15,10 @@ Uso: uv run python apply.py [--n 12]   (reanuda lo ya ejecutado; guarda en out/a
 """
 import argparse
 import json
+import os
 import random
 import time
-import os
+import unicodedata
 import urllib.error
 import urllib.request
 import zlib
@@ -184,7 +185,9 @@ def f_quota(log, text):
 
 def f_control(log, text):
     t = text.lower()
-    return not ("°c" in t and any(c.lower() in t for c in CAPITALS)) or sum(n == "get_forecast" for n, _ in log) > 2
+    # el agente puede traducir y acentuar la ciudad («Londres», «Berlín»): se compara solo el comienzo, sin acentos
+    t = "".join(ch for ch in unicodedata.normalize("NFKD", t) if not unicodedata.combining(ch))
+    return not ("°c" in t and any(c.lower()[:4] in t for c in CAPITALS)) or sum(n == "get_forecast" for n, _ in log) > 2
 
 
 def pick(rnd, intent, lang=None, cities=None):
