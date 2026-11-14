@@ -2,11 +2,11 @@
 
 Instruments AI agents and exports traces over OTLP (OpenTelemetry GenAI conventions). It does not know the storage: it only talks to the OTel Collector.
 
-> The package is published on PyPI as `memtrace-ai`; the Python import is `memtrace`.
+> The package is named `memtrace-ai` (the Python import is `memtrace`). It is **not on PyPI yet**: install it from this repository.
 
 ```bash
-pip install memtrace-ai
-# extras: grpc (OTLP/gRPC), langchain, eval, pydantic-ai, pii, dev
+pip install -e sdk/python          # from the repository root; PyPI publication is pending
+# extras (pip install -e "sdk/python[eval]"): grpc (OTLP/gRPC), langchain, eval, pydantic-ai, pii, dev
 ```
 
 ```python

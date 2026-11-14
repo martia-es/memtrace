@@ -4,19 +4,24 @@ MemTrace has two SDKs that send the same traces, with the same attribute names, 
 
 | | Python | TypeScript / Node.js |
 |---|---|---|
-| Package | `memtrace-ai` on PyPI (the import is `memtrace`) | `@memtrace-ai/sdk` on npm |
+| Package | `memtrace-ai` (the import is `memtrace`), **not on PyPI yet** | `@memtrace-ai/sdk` on npm |
 | Requires | Python 3.9 or later | Node.js 18 or later |
 
 ::: code-group
 
 ```bash [Python]
-pip install memtrace-ai
+# Not on PyPI yet: install from a checkout of the repository
+pip install -e sdk/python
 ```
 
 ```bash [TypeScript]
 npm install @memtrace-ai/sdk
 ```
 
+:::
+
+::: warning The Python SDK is not on PyPI yet
+Until it is published, `pip install memtrace-ai` fails. Install it from the repository (`pip install -e sdk/python`) and add extras the same way: `pip install -e "sdk/python[eval]"`. Every `pip install "memtrace-ai[...]"` command in these docs will work as written once the package is published.
 :::
 
 Traces are sent over **OTLP/HTTP** by default, and that exporter is part of the base install, so nothing else is needed to send to the MemTrace platform or to any OTLP/HTTP collector. The old `http` extra still installs, but it no longer adds anything.

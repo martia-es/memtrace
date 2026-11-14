@@ -1,6 +1,6 @@
 {
   "name": "@memtrace-ai/sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MemTrace SDK for TypeScript: traces, prompts, feedback and evaluation of AI agents",
   "keywords": [
     "memtrace",
