@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
 from mem.episode import (
@@ -9,6 +10,7 @@ from mem.episode import (
     decisive_span,
     messages_text,
     normalise_error,
+    safe_attributes,
 )
 
 T0 = datetime(2026, 11, 1, 10, 0, tzinfo=timezone.utc)
@@ -115,3 +117,22 @@ def test_long_goal_is_truncated_and_version_is_exposed():
 
 def test_normalise_error_groups_numbers():
     assert normalise_error("status_code: 429, quota 17") == normalise_error("status_code: 503, quota 99")
+
+
+def test_safe_attributes_keeps_context_and_drops_identifiers_content_and_long_values():
+    kept = safe_attributes({
+        "user.lang": "es", "app.channel": "web", "deployment.environment": "prod",
+        "enduser.id": "u-123", "user.email": "a@b.com", "session.id": "abc", "customer_name": "Ana", "api.key": "k",
+        "gen_ai.input.messages": "hi", "memtrace.input": "x", "contact": "ana@example.com", "note": "x" * 65, "empty": "",
+    })
+    assert kept == {"user.lang": "es", "app.channel": "web", "deployment.environment": "prod"}
+
+
+def test_episode_keeps_root_attributes_and_the_tools_called_with_an_empty_argument():
+    ep = build([
+        replace(span(1, op="invoke_agent", parent=""), attributes={"user.lang": "es", "enduser.id": "u1"}),
+        span(2, inp=user("Weather?")),
+        span(3, op="execute_tool", tool="get_forecast", args='{"city":""}'),
+        span(4, op="execute_tool", tool="geocode", args='{"city":"Rome"}'),
+    ])
+    assert ep.attributes == {"user.lang": "es"} and ep.empty_arg_tools == ["get_forecast"]
