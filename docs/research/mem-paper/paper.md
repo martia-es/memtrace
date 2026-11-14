@@ -1,10 +1,10 @@
 # From OpenTelemetry Traces to Failure Rules: Deterministic Episode Construction and Statistically Filtered Rule Discovery for LLM Agents
 
-*Draft v0.2 — MemTrace team. Working paper; not peer reviewed. All numbers come from `experiments.py` in this directory (5 seeds); see [Reproducibility](#9-reproducibility). v0.2 reports the method after fixing a defect found by v0.1's evaluation (§7).*
+*Draft v0.3 — MemTrace team. Working paper; not peer reviewed. All numbers come from `experiments.py` in this directory (5 seeds); see [Reproducibility](#9-reproducibility). v0.3 reports the final method on held-out seeds, after fixing a defect and testing mitigations (§7).*
 
 ## Abstract
 
-Teams that operate LLM agents already emit OpenTelemetry (OTel) traces, but turning those traces into actionable knowledge — *what fails repeatedly, under which conditions, and has it been fixed?* — is still mostly manual. We describe the first two stages of the learning pipeline of MemTrace, an open observability platform: (1) **episode construction**, which collapses the spans of an OTel GenAI trace into one row with ordered steps, a *decisive span* and a multi-signal outcome estimate, and (2) **rule discovery**, which proposes human-readable conditions that explain recurring failures, using sequential coverage and an exact test with multiple-comparison correction. Neither stage calls an LLM, both run as idempotent batch jobs over the trace store, and every derived row is reproducible from the traces. On synthetic traces with seeded failure modes (5 seeds × 5,000 traces) the pipeline recovers all five seeded failures with mean recall ≥ 0.95, whereas an error-summary baseline (what dashboards do) reaches recall 0.62–0.68 on silent failures at purity 0.30–0.51, and a single decision tree misses the confounded failure (recall 0.07). Ablations show that sequential coverage, a request-level entity feature and rule generalisation each recover a distinct failure; they do *not* show a measurable benefit of the exact test on these data. Our first evaluation exposed a robustness defect in the shipped generalisation step (a near-universal rule in 2 of 5 seeds); we analyse it, fix it, and report both versions. A weaker problem remains: broad, low-lift rules on residual failures in some seeds. The evaluation is synthetic and single-domain, which limits what it supports.
+Teams that operate LLM agents already emit OpenTelemetry (OTel) traces, but turning those traces into actionable knowledge — *what fails repeatedly, under which conditions, and has it been fixed?* — is still mostly manual. We describe the first two stages of the learning pipeline of MemTrace, an open observability platform: (1) **episode construction**, which collapses the spans of an OTel GenAI trace into one row with ordered steps, a *decisive span* and a multi-signal outcome estimate, and (2) **rule discovery**, which proposes human-readable conditions that explain recurring failures, using sequential coverage and an exact test with multiple-comparison correction. Neither stage calls an LLM, both run as idempotent batch jobs over the trace store, and every derived row is reproducible from the traces. On synthetic traces with seeded failure modes, evaluated on **five held-out seeds** never used during development, the pipeline recovers the seeded failures with mean recall 0.86–1.00 and 0.2 spurious findings per run on average, whereas an error-summary baseline (what dashboards do) reaches recall 0.64–0.67 on silent failures at purity 0.30–0.51, and a single decision tree misses the confounded failure (recall 0.07). Ablations show that sequential coverage, a request-level entity feature and rule generalisation each recover a distinct failure; goal clustering has a mixed effect (it improves one failure's purity but lowered silent-failure recall in 2 of 5 held-out seeds); and we find no measurable benefit of the exact test on held-out data. Development exposed a defect that single-seed validation had hidden (a near-universal rule in 2 of 5 development seeds), which we analyse and fix; we then test three mitigations of residual noise on held-out seeds and adopt only the one that does not reduce recall. The evaluation is synthetic and single-domain, which limits what it supports.
 
 ## 1. Introduction
 
@@ -16,7 +16,7 @@ Three properties make this harder than classical log mining:
 2. **Causes live in behaviour, not only in context.** "The agent called the forecast tool before geocoding" or "it compared two cities but queried one" are properties of the *sequence* of steps and of the request.
 3. **Recurrence needs significance.** With thousands of candidate conditions, some will separate failures from successes by chance; a system that proposes fixes from them will persist noise.
 
-**Contributions.** (i) An episode abstraction over OTel GenAI spans with a decisive-span definition and a versioned, additive outcome estimate (§3–4). (ii) A rule-discovery procedure that generates features automatically, searches with sequential coverage, and filters with Fisher's exact test and Bonferroni correction (§5). (iii) An evaluation with baselines, ablations and five seeds (§6), including the analysis and fix of a robustness defect that single-seed validation had hidden (§7). We deliberately scope this paper to *knowledge extraction from traces*; what is done with the knowledge (lessons, approvals, applying them to a prompt) is out of scope.
+**Contributions.** (i) An episode abstraction over OTel GenAI spans with a decisive-span definition and a versioned, additive outcome estimate (§3–4). (ii) A rule-discovery procedure that generates features automatically, searches with sequential coverage, and filters with Fisher's exact test and Bonferroni correction (§5). (iii) An evaluation with baselines and ablations on development and held-out seeds (§6), including the analysis and fix of a robustness defect that single-seed validation had hidden, and a held-out test of three mitigations (§7). We deliberately scope this paper to *knowledge extraction from traces*; what is done with the knowledge (lessons, approvals, applying them to a prompt) is out of scope.
 
 ## 2. Related work
 
@@ -80,7 +80,7 @@ Discovery runs per agent (tenant) once enough episodes exist (≥ 200 in a windo
 
 **Cause split.** Failed episodes with an error are separated by *(failing step, normalised error)*; silent failures form one group. Each group is explained independently; failures of other groups are excluded from the negatives of that group.
 
-**Sequential coverage with an exact test.** For each cause: a depth-3 decision tree (minimum leaf size 30) proposes candidate conjunctions; each candidate gets a one-sided Fisher exact test against the rest and is kept only if lift ≥ 1.5; the best candidate must satisfy *p × (number of candidates) ≤ α* (Bonferroni inside the round, α = 0.01) and must still cover ≥ 30 failures of that cause. The failures it explains are removed and the search repeats (at most 12 rules per cause).
+**Sequential coverage with an exact test.** For each cause: a depth-3 decision tree (minimum leaf size 30) proposes candidate conjunctions; each candidate gets a one-sided Fisher exact test against the rest and is kept only if lift ≥ 1.5; the best candidate must satisfy *p × (candidates tested so far in the whole pass) ≤ α* (Bonferroni over the pass, α = 0.01; §7.2 explains why not per round) and must still cover ≥ 30 failures of that cause. The failures it explains are removed and the search repeats (at most 12 rules per cause).
 
 **Generalisation and merging.** A condition is dropped if the shorter rule keeps at least 95 % of the original precision *and* still reaches the minimum lift, both measured on the same training set with which the rule was found (shorter rules explain more and read better; §7 explains why the training set matters). Rules of one cause that explain mostly the same failures are merged; rules with the same signature (failing step, error, tool sequence, behavioural features) are merged across causes.
 
@@ -101,7 +101,7 @@ We use a generator of synthetic traces for a weather agent (two tools, `geocode`
 | F5 | fails only for Spanish **and** `model_b` (wrong units), no error | confounders |
 | F6 | random transient failures | noise: must not become a finding |
 
-Signals are noisy by construction: for silent failures the user gives a thumb down with probability 0.55 and the evaluator returns 0 with probability 0.7; for failures with an error, 0.3 and 0.9; for successes, a thumb in 15 % of traces (7 % of them wrong) and an evaluator score in 60 % (3 % wrong). We generate 5,000 traces per seed (≈ 1,450 truly failed) for **five seeds** (7, 11, 13, 17, 19) and report mean ± standard deviation across seeds.
+Signals are noisy by construction: for silent failures the user gives a thumb down with probability 0.55 and the evaluator returns 0 with probability 0.7; for failures with an error, 0.3 and 0.9; for successes, a thumb in 15 % of traces (7 % of them wrong) and an evaluator score in 60 % (3 % wrong). We generate 5,000 traces per seed (≈ 1,450 truly failed). **Development seeds** (7, 11, 13, 17, 19) were used throughout development: the defect of §7.1 was found on them and the thresholds of the mitigations in §7.2 were chosen after seeing their residual errors, so they are contaminated for those purposes. **Held-out seeds** (23, 29, 31, 37, 41) were generated and scored only after the method and the mitigation candidates were fixed. Headline results use the held-out seeds; mean ± standard deviation is across seeds.
 
 ### 6.2 Metrics
 
@@ -111,63 +111,75 @@ Signals are noisy by construction: for silent failures the user gives a thumb do
 
 * **Error summary**: group failed episodes by *(failing step, error)*, with one group for silent failures — what error dashboards offer.
 * **Single decision tree**: one depth-3 tree on the same features, no statistical test, no sequential coverage, no merging.
-* Ablations of the full pipeline (v2, §7): no goal clusters; no entity feature; no Fisher/Bonferroni (α = 10⁹, so any candidate with lift ≥ 1.5 passes); no generalisation; one rule per cause (no sequential coverage); no cause split.
+* Ablations of the final pipeline: no goal clusters; no entity feature; no Fisher/Bonferroni (α = 10⁹, so any candidate with lift ≥ 1.5 passes); no generalisation; one rule per cause (no sequential coverage); no cause split.
 
 ### 6.4 Results: finding quality
 
-Numbers are for the pipeline after the fix of §7 (v2); `results_v2/` has the raw output and `results/` the pre-fix run. Recall of the best finding per seeded mode (mean ± std over 5 seeds):
+Final pipeline, **held-out seeds** (23, 29, 31, 37, 41). Recall of the best finding per seeded mode:
 
 | Variant | F1 | F2 | F3 | F4 | F5 | F6 (noise) | findings | spurious |
 |---|---|---|---|---|---|---|---|---|
-| **Full pipeline (v2)** | 1.00 ± 0.00 | 0.95 ± 0.01 | 1.00 ± 0.00 | 1.00 ± 0.00 | 1.00 ± 0.00 | 0.24 ± 0.13 | 7.0 ± 1.6 | 0.8 ± 1.2 |
-| − goal clusters | 1.00 ± 0.00 | 0.94 ± 0.01 | 1.00 ± 0.00 | 1.00 ± 0.00 | 1.00 ± 0.00 | 0.21 ± 0.09 | 8.6 ± 1.5 | 1.8 ± 1.3 |
-| − entity feature | 1.00 ± 0.00 | 0.95 ± 0.01 | 0.65 ± 0.03 | 1.00 ± 0.00 | 1.00 ± 0.00 | 0.14 ± 0.09 | 8.0 ± 1.1 | 0.2 ± 0.4 |
-| − Fisher/Bonferroni | 1.00 ± 0.00 | 0.95 ± 0.01 | 1.00 ± 0.00 | 1.00 ± 0.00 | 1.00 ± 0.00 | 0.24 ± 0.13 | 7.2 ± 1.5 | 1.0 ± 1.1 |
-| − generalisation | 1.00 ± 0.00 | 0.95 ± 0.01 | 0.65 ± 0.08 | 1.00 ± 0.00 | 0.89 ± 0.08 | 0.22 ± 0.15 | 7.4 ± 0.5 | 0.8 ± 1.0 |
-| − sequential coverage | 1.00 ± 0.00 | 0.94 ± 0.01 | 1.00 ± 0.00 | 0.80 ± 0.02 | 0.25 ± 0.37 | 0.16 ± 0.08 | 4.2 ± 0.4 | 0.2 ± 0.4 |
-| − cause split | 1.00 ± 0.00 | 0.93 ± 0.01 | 1.00 ± 0.00 | 0.89 ± 0.10 | 1.00 ± 0.00 | 0.14 ± 0.02 | 4.4 ± 0.5 | 0.0 ± 0.0 |
-| *Baseline: error summary* | 1.00 ± 0.00 | 1.00 ± 0.00 | 0.68 ± 0.01 | 0.79 ± 0.02 | 0.62 ± 0.02 | 0.50 ± 0.02 | 6.0 ± 0.0 | 2.2 ± 0.4 |
-| *Baseline: single tree* | 1.00 ± 0.00 | 0.84 ± 0.02 | 1.00 ± 0.00 | 0.80 ± 0.02 | 0.07 ± 0.01 | 0.12 ± 0.03 | 3.0 ± 0.0 | 0.0 ± 0.0 |
+| **Full pipeline** | 1.00 ± 0.00 | 0.96 ± 0.02 | 0.86 ± 0.17 | 1.00 ± 0.00 | 1.00 ± 0.00 | 0.15 ± 0.07 | 6.2 ± 0.4 | 0.2 ± 0.4 |
+| − goal clusters | 1.00 ± 0.00 | 0.94 ± 0.02 | 1.00 ± 0.00 | 1.00 ± 0.00 | 1.00 ± 0.00 | 0.13 ± 0.01 | 7.2 ± 0.8 | 0.8 ± 0.4 |
+| − entity feature | 1.00 ± 0.00 | 0.96 ± 0.02 | 0.66 ± 0.01 | 1.00 ± 0.00 | 1.00 ± 0.00 | 0.14 ± 0.07 | 7.0 ± 0.6 | 0.2 ± 0.4 |
+| − Fisher/Bonferroni | 1.00 ± 0.00 | 0.96 ± 0.02 | 0.86 ± 0.17 | 1.00 ± 0.00 | 1.00 ± 0.00 | 0.15 ± 0.07 | 6.2 ± 0.4 | 0.2 ± 0.4 |
+| − generalisation | 1.00 ± 0.00 | 0.96 ± 0.02 | 0.62 ± 0.08 | 1.00 ± 0.00 | 0.91 ± 0.01 | 0.13 ± 0.05 | 7.0 ± 0.0 | 0.6 ± 0.5 |
+| − sequential coverage | 1.00 ± 0.00 | 0.94 ± 0.02 | 0.86 ± 0.17 | 0.80 ± 0.02 | 0.07 ± 0.01 | 0.09 ± 0.03 | 4.0 ± 0.0 | 0.0 ± 0.0 |
+| − cause split | 0.95 ± 0.09 | 0.94 ± 0.02 | 1.00 ± 0.00 | 0.93 ± 0.09 | 1.00 ± 0.00 | 0.13 ± 0.01 | 4.8 ± 0.4 | 0.0 ± 0.0 |
+| *Baseline: error summary* | 1.00 ± 0.00 | 1.00 ± 0.00 | 0.67 ± 0.02 | 0.80 ± 0.02 | 0.64 ± 0.04 | 0.48 ± 0.02 | 6.0 ± 0.0 | 2.2 ± 0.4 |
+| *Baseline: single tree* | 1.00 ± 0.00 | 0.83 ± 0.02 | 1.00 ± 0.00 | 0.80 ± 0.02 | 0.07 ± 0.01 | 0.10 ± 0.03 | 3.0 ± 0.0 | 0.0 ± 0.0 |
 
-Purity of the best finding:
+Purity of the best finding (held-out):
 
 | Variant | F1 | F2 | F3 | F4 | F5 |
 |---|---|---|---|---|---|
-| **Full pipeline (v2)** | 1.00 ± 0.00 | 0.77 ± 0.19 | 1.00 ± 0.00 | 1.00 ± 0.00 | 0.53 ± 0.02 |
-| − goal clusters | 0.42 ± 0.03 | 1.00 ± 0.00 | 1.00 ± 0.00 | 1.00 ± 0.00 | 0.53 ± 0.02 |
-| − entity feature | 1.00 ± 0.00 | 0.77 ± 0.19 | 0.99 ± 0.02 | 1.00 ± 0.00 | 0.53 ± 0.02 |
-| − Fisher/Bonferroni | 1.00 ± 0.00 | 0.77 ± 0.19 | 1.00 ± 0.00 | 1.00 ± 0.00 | 0.53 ± 0.02 |
-| − generalisation | 1.00 ± 0.00 | 0.77 ± 0.19 | 0.99 ± 0.00 | 1.00 ± 0.00 | 0.45 ± 0.19 |
-| − sequential coverage | 1.00 ± 0.00 | 1.00 ± 0.00 | 1.00 ± 0.00 | 0.58 ± 0.03 | 0.08 ± 0.08 |
-| − cause split | 0.42 ± 0.03 | 0.94 ± 0.12 | 0.97 ± 0.00 | 0.76 ± 0.20 | 0.53 ± 0.02 |
-| *Baseline: error summary* | 1.00 ± 0.00 | 1.00 ± 0.00 | 0.51 ± 0.01 | 1.00 ± 0.00 | 0.30 ± 0.02 |
-| *Baseline: single tree* | 0.42 ± 0.03 | 1.00 ± 0.00 | 0.97 ± 0.00 | 0.58 ± 0.03 | 0.04 ± 0.00 |
+| **Full pipeline** | 1.00 ± 0.00 | 0.80 ± 0.17 | 1.00 ± 0.00 | 1.00 ± 0.00 | 0.46 ± 0.12 |
+| − goal clusters | 0.44 ± 0.02 | 1.00 ± 0.00 | 1.00 ± 0.00 | 1.00 ± 0.00 | 0.52 ± 0.01 |
+| − entity feature | 1.00 ± 0.00 | 0.80 ± 0.17 | 0.99 ± 0.02 | 1.00 ± 0.00 | 0.46 ± 0.12 |
+| − Fisher/Bonferroni | 1.00 ± 0.00 | 0.80 ± 0.17 | 1.00 ± 0.00 | 1.00 ± 0.00 | 0.46 ± 0.12 |
+| − generalisation | 1.00 ± 0.00 | 0.80 ± 0.17 | 1.00 ± 0.00 | 1.00 ± 0.00 | 0.45 ± 0.11 |
+| − sequential coverage | 1.00 ± 0.00 | 1.00 ± 0.00 | 1.00 ± 0.00 | 0.56 ± 0.02 | 0.04 ± 0.01 |
+| − cause split | 0.48 ± 0.07 | 1.00 ± 0.00 | 0.98 ± 0.02 | 0.83 ± 0.21 | 0.52 ± 0.01 |
+| *Baseline: error summary* | 1.00 ± 0.00 | 1.00 ± 0.00 | 0.51 ± 0.02 | 1.00 ± 0.00 | 0.30 ± 0.02 |
+| *Baseline: single tree* | 0.44 ± 0.02 | 1.00 ± 0.00 | 0.97 ± 0.00 | 0.56 ± 0.02 | 0.04 ± 0.01 |
+
+Development seeds, full pipeline vs. the two baselines (`results_final_dev/`), for comparison:
+
+| Seeds | Variant | F3 recall | F5 recall | F6 recall | spurious |
+|---|---|---|---|---|---|
+| development | Full pipeline | 1.00 ± 0.00 | 1.00 ± 0.00 | 0.14 ± 0.02 | 0.0 ± 0.0 |
+| development | Error summary | 0.68 ± 0.01 | 0.62 ± 0.02 | 0.50 ± 0.02 | 2.2 ± 0.4 |
+| development | Single tree | 1.00 ± 0.00 | 0.07 ± 0.01 | 0.12 ± 0.03 | 0.0 ± 0.0 |
+| held-out | Full pipeline | 0.86 ± 0.17 | 1.00 ± 0.00 | 0.15 ± 0.07 | 0.2 ± 0.4 |
 
 **Reading the results.**
 
-* *Against the baselines.* The error summary handles errors (F1, F2) but cannot separate silent failures: F3 and F5 end up in one group, giving recall 0.68/0.62 at purity 0.51/0.30, and it also includes about half of the noise (F6 recall 0.50). The single tree matches the full pipeline on easy modes but misses F5 almost completely (recall 0.07): the confounded failure is not the largest split, and without removing explained failures it is never reached.
-* *Sequential coverage* recovers F5 (0.25 → 1.00 recall) and F4 (0.80 → 1.00).
-* *Generalisation* matters for the silent failures once it is correct: without it F3 recall is 0.65 and F5 0.89 (full: 1.00).
-* *The entity feature* matters for F3 (recall 0.65 → 1.00): "compares two cities" is visible in the request, not in the steps.
-* *Goal clusters* improve F1 purity (0.42 → 1.00) and reduce spurious findings (1.8 → 0.8), but F2 purity is *lower* with clusters (0.77 ± 0.19 vs 1.00), so their effect is mixed.
-* *The exact test with correction shows no measurable effect here.* Removing it leaves recall and purity unchanged and changes spurious findings from 0.8 to 1.0 (std ≈ 1.1). The benefit seen in the first evaluation (F6 recall 0.97 without the test) was mostly an artefact of the generalisation defect (§7). On these data the support and lift thresholds do the filtering; whether the test matters on other data is not established here.
-* *The cause split has a cost:* removing it gives fewer findings and no spurious ones (F6 recall 0.14), because transient errors (F6) form their own cause group when errors are split. We keep the split for interpretability (a finding names a failing step and error) and report the trade-off.
-* *F5 purity is capped at ≈ 0.53* in every variant: only about half of the Spanish/`model_b` traces fail and nothing in steps or context says which. This is a property of the data, not of the search.
-* *Residual noise remains and is seed-dependent* (F6 recall 0.12–0.46; spurious findings 0–3), see §7.
+* *Against the baselines.* The error summary handles errors (F1, F2) but cannot separate silent failures: F3 and F5 end up in one group, giving recall 0.67/0.64 at purity 0.51/0.30, and it includes about half of the noise (F6 recall 0.48). The single tree matches the full pipeline on easy modes but misses F5 almost completely (recall 0.07): the confounded failure is not the largest split, and without removing explained failures it is never reached.
+* *Sequential coverage* recovers F5 (0.07 → 1.00 recall) and F4 (0.80 → 1.00).
+* *Generalisation* matters for the silent failures: without it F3 recall is 0.62 and F5 0.91.
+* *The entity feature* matters for F3 (recall 0.66 without it): "compares two cities" is visible in the request, not in the steps.
+* *Goal clusters have a mixed effect, and the held-out seeds change the picture.* They are what makes F1 pure (0.44 → 1.00) and they cut spurious findings (0.8 → 0.2). But with clusters F3 recall falls to 0.86 ± 0.17 (seeds 29 and 41: 0.65 and 0.67; without clusters 1.00 in all five), F2 purity is lower (0.80 vs 1.00), and F5 purity is lower (0.46 vs 0.52; 0.23 in seed 41). On the development seeds the F3 recall cost did not appear, which is a reminder of how little five seeds from one generator establish.
+* *The exact test with correction shows no effect on held-out seeds* (identical to the full pipeline). On development seeds it removes spurious findings (1.0 → 0.0 and F6 recall 0.24 → 0.14), but those seeds are where the correction was tuned (§7.2), so we do not count that as evidence.
+* *The cause split has a cost:* removing it gives fewer findings and no spurious ones, but F1 purity falls to 0.48 and F1 recall to 0.95. We keep the split for interpretability (a finding names a failing step and error).
+* *F5 purity is capped at about 0.5* in every variant: only about half of the Spanish/`model_b` traces fail and nothing in steps or context says which. This is a property of the data, not of the search.
 
 ### 6.5 Results: outcome estimation
 
+Held-out seeds (the development seeds give the same numbers within ±0.01):
+
 | Signals used | Precision | Recall | F1 | Recall on silent failures (F3, F5) |
 |---|---|---|---|---|
-| error only | 0.84 ± 0.02 | 0.46 ± 0.01 | 0.59 ± 0.01 | 0.07 ± 0.01 |
-| error + loop | 0.84 ± 0.02 | 0.46 ± 0.01 | 0.59 ± 0.01 | 0.07 ± 0.01 |
-| error + loop + evaluator | 0.87 ± 0.01 | 0.85 ± 0.01 | 0.86 ± 0.01 | 0.72 ± 0.01 |
-| error + loop + feedback | 0.87 ± 0.01 | 0.75 ± 0.01 | 0.81 ± 0.01 | 0.59 ± 0.01 |
+| error only | 0.84 ± 0.00 | 0.46 ± 0.01 | 0.59 ± 0.01 | 0.06 ± 0.01 |
+| error + loop | 0.84 ± 0.00 | 0.46 ± 0.01 | 0.59 ± 0.01 | 0.06 ± 0.01 |
+| error + loop + evaluator | 0.87 ± 0.00 | 0.85 ± 0.01 | 0.86 ± 0.00 | 0.72 ± 0.01 |
+| error + loop + feedback | 0.87 ± 0.01 | 0.74 ± 0.02 | 0.80 ± 0.01 | 0.57 ± 0.02 |
 | all signals (as shipped) | 0.87 ± 0.01 | 0.85 ± 0.01 | 0.86 ± 0.01 | 0.72 ± 0.01 |
 
-Error spans alone find under half of the failures and 7 % of the silent ones; adding evaluator scores nearly doubles recall. In this data, **user feedback adds nothing once an evaluator is present** (rows 3 and 5 are identical), while without an evaluator it still recovers 59 % of silent failures. The loop signal adds nothing here because the only looping mode (F2) already carries an error span. The first claim depends on how we generated the signals (§8) and should not be generalised.
+Error spans alone find under half of the failures and 6 % of the silent ones; adding evaluator scores nearly doubles recall. In this data, **user feedback adds nothing once an evaluator is present** (rows 3 and 5 are identical), while without an evaluator it still recovers 57 % of silent failures. The loop signal adds nothing here because the only looping mode (F2) already carries an error span. The first claim depends on how we generated the signals (§8) and should not be generalised.
 
-## 7. Failure analysis: a robustness defect found by adding seeds
+## 7. Failure analysis and mitigations
+
+### 7.1 A robustness defect found by adding seeds (v1 → v2)
 
 **v1 (as first shipped).** In seeds 17 and 19 the best finding for F3 had recall 1.00 but purity ≈ 0.10, and F6 recall jumped to 0.95–1.00 (seeds 7, 11, 13: 0.12–0.17). In seed 17 the first finding for the silent-failure cause had the rule `goal_cluster=4 <= 0.5 AND user.lang=es <= 0.5`, with support 4,932 of 5,000 traces: a near-universal rule built from *negated* indicators.
 
@@ -175,7 +187,7 @@ Error spans alone find under half of the failures and 7 % of the silent ones; ad
 
 **Fix (v2).** Precision is measured on the same training set used by the search, and a condition is dropped only if the generalised rule still reaches the minimum lift (1.5). A unit test builds a case where the old criterion drops the discriminative condition. The discovery version stored in each row was bumped (1 → 2), so existing findings are recomputed.
 
-**Effect (full pipeline, per seed; findings / spurious):**
+**Effect of the fix (development seeds, full pipeline; findings / spurious):**
 
 | Seed | F3 purity v1 → v2 | F6 recall v1 → v2 | findings / spurious v1 | findings / spurious v2 |
 |---|---|---|---|---|
@@ -186,19 +198,45 @@ Error spans alone find under half of the failures and 7 % of the silent ones; ad
 | 19 | 0.11 → 0.99 | 0.95 → 0.46 | 7 / 1 | 10 / 3 |
 | mean | 0.64 → 1.00 | 0.47 → 0.24 | 6.4 / 0.6 | 7.0 / 0.8 |
 
-The fix removes the near-universal rule and restores F3 purity in every seed. It does **not** remove spurious findings: in seed 19 v2 reports 10 findings, three of them broad rules with lift 1.5–1.7 on the failures left after the real causes were explained (for example `prompt.version=2 <= 0.5`, support 2,500, failure rate 0.11, p ≈ 10⁻⁴), which still pass the Bonferroni threshold used inside a round. These pick up part of the residual noise (F6 recall 0.46 in this seed). Candidate mitigations (a coverage cap, a minimum failure rate for a rule, correcting across rounds) are not evaluated here.
+The fix removes the near-universal rule and restores F3 purity in every development seed. It does not remove spurious findings: in seed 19 v2 reports 10 findings, three of them broad rules with lift 1.5–1.7 on the failures left after the real causes were explained (for example `prompt.version=2 <= 0.5`, support 2,500, failure rate 0.11, p ≈ 10⁻⁴), which still pass a Bonferroni threshold applied per round.
 
-**Lesson.** The defect was invisible to a single-seed validation, and the ablation of the exact test in the first evaluation was confounded by it. We now evaluate on several seeds and re-run ablations after each fix.
+### 7.2 Mitigating residual noise: three candidates, tested on held-out seeds
+
+We fixed three candidate mitigations and an adoption rule before looking at the held-out seeds: *adopt a mitigation only if it helps on held-out seeds without reducing the recall of the seeded failures.* (The two thresholds below were set after seeing the development-seed residual rules, so those seeds cannot validate them.)
+
+* **Support cap**: reject a rule that covers more than 25 % of all episodes (such a rule describes context, not a recurring failure).
+* **Minimum precision**: reject a rule whose cause-failure rate inside the rule, on the search's training set, is below 0.15.
+* **Family-wise Bonferroni**: multiply p by the number of candidates tested in the whole pass (all rounds and causes), not only in the round.
+
+| Seeds | Variant | F2 purity | F4 recall | F5 recall | F6 recall | findings | spurious |
+|---|---|---|---|---|---|---|---|
+| dev | v2 (per-round Bonferroni) | 0.77 | 1.00 | 1.00 | 0.24 ± 0.13 | 7.0 | 0.8 ± 1.2 |
+| dev | + support cap | 0.77 | 1.00 | 1.00 | 0.17 ± 0.07 | 6.4 | 0.2 ± 0.4 |
+| dev | + minimum precision | 1.00 | 1.00 | 1.00 | 0.14 ± 0.02 | 6.2 | 0.0 |
+| dev | + family-wise Bonferroni | 0.77 | 1.00 | 1.00 | 0.14 ± 0.02 | 6.2 | 0.0 |
+| held-out | v2 (per-round Bonferroni) | 0.80 | 1.00 | 1.00 | 0.15 ± 0.07 | 6.2 | 0.2 ± 0.4 |
+| held-out | + support cap | 0.80 | 0.96 ± 0.09 | **0.81 ± 0.38** | 0.10 ± 0.04 | 5.8 | 0.0 |
+| held-out | + minimum precision | 1.00 | 1.00 | 1.00 | 0.15 ± 0.07 | 6.4 | 0.2 ± 0.4 |
+| held-out | + family-wise Bonferroni | 0.80 | 1.00 | 1.00 | 0.15 ± 0.07 | 6.2 | 0.2 ± 0.4 |
+
+* **Support cap: rejected.** It lowers the recall of F5 (1.00 → 0.81) and F4 on held-out seeds: in some seeds a real failure covers more than a quarter of the traffic, and the cap removes its rule.
+* **Minimum precision: not adopted.** On held-out seeds it improves only F2 purity (0.80 → 1.00), at a 0.02 recall cost on F2, and does not reduce noise. It is also a constant tuned to these data: silent failures seen through weak signals can have precision around 0.2 (F4 does here), so on real traces it risks discarding legitimate patterns.
+* **Family-wise Bonferroni: adopted** (discovery version 3). It is the only one without a tuned constant. It removes the residual noise on development seeds (spurious 0.8 → 0.0) and is neutral on held-out seeds (same recall, purity and spurious findings). That is weak evidence of benefit, but no evidence of harm across ten seeds, and it is the statistically sound choice when many candidates are tested in one pass.
+
+Held-out noise is already low without any mitigation (spurious 0.2, F6 recall 0.15), with one exception: seed 41 (F6 recall 0.27, F5 purity 0.23, one spurious finding), which none of the three mitigations fixes.
+
+**Lessons.** The defect was invisible to a single-seed validation; the first ablation of the exact test was confounded by it; and the development seeds hid a cost of goal clustering that the held-out seeds showed. We now evaluate on several seeds, keep a held-out set, and re-run ablations after each change.
 
 ## 8. Limitations and threats to validity
 
+* **Few seeds, one generator.** Five development and five held-out seeds, all from the same generator, so the variance between seeds understates the variance between real agents. Held-out seeds are 'unseen' for the method, not for the data-generating process.
 * **Synthetic, single-domain data.** One simulated weather agent with two tools. The failure modes were designed by the authors, together with the generator that creates the signals. The pipeline's features (e.g. entity count, tool-order pairs) are general, but the evaluation cannot show they find *real* production failures, nor how often real failures resemble F1–F6.
 * **Circularity.** The outcome weights and the signal noise model were chosen by the same team. The result that evaluators dominate feedback, for instance, follows partly from the probabilities in §6.1. No human validated the findings.
 * **Hand-set weights and thresholds.** They are not learned and were not tuned against real labels.
 * **Estimate, not truth.** Outcome precision is ≈ 0.87: about 13 % of `failed` episodes are not failures in this data. Rules explain the *estimate*, not necessarily the real failure.
-* **Multiple testing.** Bonferroni is applied inside each round, not across rounds, causes and agents; §7 shows spurious rules passing it. On these data the test itself showed no measurable benefit (§6.4).
+* **Multiple testing.** Bonferroni is applied inside each round, not across rounds, causes and agents; family-wise correction is used from version 3 (§7.2). On held-out data the test showed no measurable benefit (§6.4).
 * **Statistical power.** At least 200 episodes and 30 supporting failures are required; smaller agents get no findings.
-* **Robustness.** §7 shows one defect found and fixed, and one weakness that remains (broad low-lift rules on residual failures). Only five seeds from one generator were run; other noise levels and base rates were not explored.
+* **Robustness.** §7 shows one defect found and fixed. Residual noise is low on held-out seeds except one (seed 41), which no mitigation fixed. Goal clustering lowered silent-failure recall in 2 of 5 held-out seeds. Other noise levels and base rates were not explored.
 * **Baselines.** Both baselines are ours, built from the same features. We did not compare with clustering tools or LLM-based extraction on the same data.
 * **Cost.** No latency or scale measurement is reported here; we only note that the job is batch and the embedding model is local.
 
@@ -211,11 +249,11 @@ PYTHONPATH=analytics/mem:spikes/mem spikes/mem/.venv/bin/python docs/research/me
     --work-dir /tmp/mem-paper-work --out-dir docs/research/mem-paper/results --seeds 7 11 13 17 19
 ```
 
-Outputs: `results_v2/results.json` and `results_v2/results.md` (the tables of §6.4–6.5, after the fix) and, for the pre-fix run, `results/` (use `git checkout 93f0849 -- analytics/mem` to reproduce it). The multilingual encoder is `paraphrase-multilingual-MiniLM-L12-v2`.
+Outputs, one directory per run, each with `results.json` and `results.md`: `results_final_test/` (held-out seeds, headline tables), `results_final_dev/` (development seeds), `results_mitigation_{dev,test}/` (§7.2, run with `--suite mitigation`), `results_v2/` (development seeds after the §7.1 fix, before family-wise correction) and `results/` (v1; reproduce with `git checkout 93f0849 -- analytics/mem`). Held-out seeds: `--seeds 23 29 31 37 41`. The multilingual encoder is `paraphrase-multilingual-MiniLM-L12-v2`.
 
 ## 10. Conclusion and next steps
 
-A deterministic pipeline can turn OTel GenAI traces into episodes and into statistically filtered, human-readable failure rules, and on seeded data it beats an error-summary baseline and a single decision tree, mainly through sequential coverage, an exact test with correction, and a request-level behavioural feature. Our evidence is synthetic; the same evaluation exposed a robustness defect in the generalisation step, which we fixed, and a weaker residual-noise problem that we did not. The next steps, in order: reduce spurious broad rules (coverage cap, minimum failure rate, correction across rounds) and re-evaluate; test whether the exact test matters on other data; evaluate on real traces with human-validated failures; learn the outcome weights instead of setting them; and add a decision-level attribution (which decision caused, recovered from or wasted a run), as proposed by trajectory-learning work.
+A deterministic pipeline can turn OTel GenAI traces into episodes and into statistically filtered, human-readable failure rules, and on seeded data it beats an error-summary baseline and a single decision tree, mainly through sequential coverage, an exact test with correction, and a request-level behavioural feature. Our evidence is synthetic; development exposed a robustness defect in the generalisation step, which we fixed, and held-out seeds exposed a cost of goal clustering for silent-failure recall that we did not resolve. The next steps, in order: understand and fix the clustering cost (for example by clustering only when it improves a finding, or by using clusters only as a refinement); test whether the exact test matters on other data; evaluate on real traces with human-validated failures; learn the outcome weights instead of setting them; and add a decision-level attribution (which decision caused, recovered from or wasted a run), as proposed by trajectory-learning work.
 
 ## References
 

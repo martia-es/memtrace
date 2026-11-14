@@ -133,3 +133,17 @@ def test_generalize_does_not_drop_the_condition_that_gives_the_rule_its_lift():
     path = [("a", ">", 0.5), ("b", "<=", 0.5)]  # `b` no aporta nada: se puede quitar
     out = _generalize(X, pd.Series(y), path, Config(), train)
     assert [c[0] for c in out] == ["a"]
+
+
+def test_coverage_and_precision_caps_reject_rules():
+    df = frame()
+    assert discover(df, Config()).findings, "con la configuración por defecto hay hallazgos"
+    assert discover(df, Config(max_support_share=0.001)).findings == []  # ninguna regla cubre tan poco
+    assert discover(df, Config(min_precision=1.01)).findings == []  # ninguna regla supera el 100 %
+
+
+def test_family_correction_is_never_more_permissive():
+    df = frame(seed=3, noise=0.05)
+    per_round = discover(df, Config(family_correction=False))
+    strict = discover(df, Config())  # la corrección sobre toda la pasada es la configuración por defecto
+    assert {f.rule for f in strict.findings} <= {f.rule for f in per_round.findings}
