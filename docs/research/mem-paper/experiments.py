@@ -76,7 +76,7 @@ def run_discover(eps: pd.DataFrame, labels, k: int, cfg: Config, *, no_entities=
         df["has_error"] = False  # every failure becomes the single cause "(sin error)"
     original = discovery._generalize
     if no_generalize:
-        discovery._generalize = lambda X, y, path, cfg: path
+        discovery._generalize = lambda X, y, path, cfg, train=None: path
     try:
         res = discover(df, cfg, labels, k)
     finally:
@@ -149,6 +149,7 @@ def main() -> None:
     ap.add_argument("--work-dir", type=Path, required=True)
     ap.add_argument("--out-dir", type=Path, required=True)
     ap.add_argument("--seeds", type=int, nargs="+", default=[7, 11, 13, 17, 19])
+    ap.add_argument("--suite", choices=["ablation", "mitigation"], default="ablation", help="ablation: baselines and ablations; mitigation: residual-noise mitigations")
     ap.add_argument("--no-clusters", action="store_true", help="skip the embedding model (clustered variants are then reported without clusters)")
     args = ap.parse_args()
     args.out_dir.mkdir(parents=True, exist_ok=True)
@@ -164,6 +165,14 @@ def main() -> None:
         "- sequential coverage (1 rule/cause)": dict(cfg=replace(cfg, max_rules=1), clusters=True),
         "- cause split (errors vs silent)": dict(cfg=cfg, clusters=True, no_cause_split=True),
     }
+    if args.suite == "mitigation":
+        variants = {
+            "v2 (per-round Bonferroni)": dict(cfg=replace(cfg, family_correction=False), clusters=True),
+            "+ support cap (<= 25% of episodes)": dict(cfg=replace(cfg, family_correction=False, max_support_share=0.25), clusters=True),
+            "+ min precision (>= 0.15)": dict(cfg=replace(cfg, family_correction=False, min_precision=0.15), clusters=True),
+            "+ family-wise Bonferroni": dict(cfg=replace(cfg, family_correction=True), clusters=True),
+            "+ all three": dict(cfg=replace(cfg, max_support_share=0.25, min_precision=0.15, family_correction=True), clusters=True),
+        }
     rows: dict[str, list[dict]] = {}
     outcomes: dict[str, list[dict]] = {}
     for seed in args.seeds:
@@ -176,8 +185,9 @@ def main() -> None:
             members = run_discover(eps, labels if use_clusters else None, k if use_clusters else 0, v["cfg"],
                                    no_entities=v.get("no_entities", False), no_cause_split=v.get("no_cause_split", False), no_generalize=v.get("no_generalize", False))
             rows.setdefault(name, []).append(score_findings(members, sets))
-        rows.setdefault("baseline: error summary", []).append(score_findings(baseline_error_summary(eps), sets))
-        rows.setdefault("baseline: single decision tree", []).append(score_findings(baseline_plain_tree(eps, labels, k, cfg), sets))
+        if args.suite == "ablation":
+            rows.setdefault("baseline: error summary", []).append(score_findings(baseline_error_summary(eps), sets))
+            rows.setdefault("baseline: single decision tree", []).append(score_findings(baseline_plain_tree(eps, labels, k, cfg), sets))
         for name, res in outcome_ablation(eps, truth).items():
             outcomes.setdefault(name, []).append(res)
 

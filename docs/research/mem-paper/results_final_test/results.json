@@ -1,0 +1,1541 @@
+{
+ "seeds": [
+  23,
+  29,
+  31,
+  37,
+  41
+ ],
+ "discovery": {
+  "full pipeline": [
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 0.944,
+      "purity": 0.645
+     },
+     "F3": {
+      "recall": 1.0,
+      "purity": 0.996
+     },
+     "F4": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 1.0,
+      "purity": 0.508
+     },
+     "F6": {
+      "recall": 0.144,
+      "purity": 0.049
+     }
+    },
+    "n_findings": 6,
+    "n_spurious": 0
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 0.93,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 0.653,
+      "purity": 0.997
+     },
+     "F4": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 1.0,
+      "purity": 0.546
+     },
+     "F6": {
+      "recall": 0.074,
+      "purity": 0.036
+     }
+    },
+    "n_findings": 7,
+    "n_spurious": 0
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 0.96,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F4": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 1.0,
+      "purity": 0.507
+     },
+     "F6": {
+      "recall": 0.123,
+      "purity": 0.033
+     }
+    },
+    "n_findings": 6,
+    "n_spurious": 0
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 0.953,
+      "purity": 0.679
+     },
+     "F3": {
+      "recall": 1.0,
+      "purity": 0.998
+     },
+     "F4": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 1.0,
+      "purity": 0.52
+     },
+     "F6": {
+      "recall": 0.136,
+      "purity": 0.04
+     }
+    },
+    "n_findings": 6,
+    "n_spurious": 0
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 1.0,
+      "purity": 0.658
+     },
+     "F3": {
+      "recall": 0.669,
+      "purity": 1.0
+     },
+     "F4": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 1.0,
+      "purity": 0.227
+     },
+     "F6": {
+      "recall": 0.27,
+      "purity": 0.029
+     }
+    },
+    "n_findings": 6,
+    "n_spurious": 1
+   }
+  ],
+  "- goal clusters": [
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 0.432
+     },
+     "F2": {
+      "recall": 0.906,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F4": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 1.0,
+      "purity": 0.508
+     },
+     "F6": {
+      "recall": 0.144,
+      "purity": 0.049
+     }
+    },
+    "n_findings": 8,
+    "n_spurious": 1
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 0.437
+     },
+     "F2": {
+      "recall": 0.93,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F4": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 1.0,
+      "purity": 0.546
+     },
+     "F6": {
+      "recall": 0.105,
+      "purity": 0.033
+     }
+    },
+    "n_findings": 7,
+    "n_spurious": 1
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 0.415
+     },
+     "F2": {
+      "recall": 0.96,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 1.0,
+      "purity": 0.998
+     },
+     "F4": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 1.0,
+      "purity": 0.507
+     },
+     "F6": {
+      "recall": 0.123,
+      "purity": 0.033
+     }
+    },
+    "n_findings": 6,
+    "n_spurious": 0
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 0.48
+     },
+     "F2": {
+      "recall": 0.929,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F4": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 1.0,
+      "purity": 0.52
+     },
+     "F6": {
+      "recall": 0.136,
+      "purity": 0.04
+     }
+    },
+    "n_findings": 8,
+    "n_spurious": 1
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 0.447
+     },
+     "F2": {
+      "recall": 0.969,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F4": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 1.0,
+      "purity": 0.516
+     },
+     "F6": {
+      "recall": 0.138,
+      "purity": 0.034
+     }
+    },
+    "n_findings": 7,
+    "n_spurious": 1
+   }
+  ],
+  "- goal-entity feature": [
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 0.944,
+      "purity": 0.645
+     },
+     "F3": {
+      "recall": 0.687,
+      "purity": 1.0
+     },
+     "F4": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 1.0,
+      "purity": 0.508
+     },
+     "F6": {
+      "recall": 0.108,
+      "purity": 0.054
+     }
+    },
+    "n_findings": 8,
+    "n_spurious": 0
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 0.93,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 0.653,
+      "purity": 0.96
+     },
+     "F4": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 1.0,
+      "purity": 0.546
+     },
+     "F6": {
+      "recall": 0.074,
+      "purity": 0.034
+     }
+    },
+    "n_findings": 7,
+    "n_spurious": 0
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 0.96,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 0.646,
+      "purity": 1.0
+     },
+     "F4": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 1.0,
+      "purity": 0.507
+     },
+     "F6": {
+      "recall": 0.123,
+      "purity": 0.033
+     }
+    },
+    "n_findings": 7,
+    "n_spurious": 0
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 0.953,
+      "purity": 0.679
+     },
+     "F3": {
+      "recall": 0.668,
+      "purity": 1.0
+     },
+     "F4": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 1.0,
+      "purity": 0.52
+     },
+     "F6": {
+      "recall": 0.136,
+      "purity": 0.04
+     }
+    },
+    "n_findings": 7,
+    "n_spurious": 0
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 1.0,
+      "purity": 0.658
+     },
+     "F3": {
+      "recall": 0.669,
+      "purity": 1.0
+     },
+     "F4": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 1.0,
+      "purity": 0.227
+     },
+     "F6": {
+      "recall": 0.27,
+      "purity": 0.029
+     }
+    },
+    "n_findings": 6,
+    "n_spurious": 1
+   }
+  ],
+  "- Fisher/Bonferroni (alpha=1e9)": [
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 0.944,
+      "purity": 0.645
+     },
+     "F3": {
+      "recall": 1.0,
+      "purity": 0.996
+     },
+     "F4": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 1.0,
+      "purity": 0.508
+     },
+     "F6": {
+      "recall": 0.144,
+      "purity": 0.049
+     }
+    },
+    "n_findings": 6,
+    "n_spurious": 0
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 0.93,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 0.653,
+      "purity": 0.997
+     },
+     "F4": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 1.0,
+      "purity": 0.546
+     },
+     "F6": {
+      "recall": 0.074,
+      "purity": 0.036
+     }
+    },
+    "n_findings": 7,
+    "n_spurious": 0
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 0.96,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F4": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 1.0,
+      "purity": 0.507
+     },
+     "F6": {
+      "recall": 0.123,
+      "purity": 0.033
+     }
+    },
+    "n_findings": 6,
+    "n_spurious": 0
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 0.953,
+      "purity": 0.679
+     },
+     "F3": {
+      "recall": 1.0,
+      "purity": 0.998
+     },
+     "F4": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 1.0,
+      "purity": 0.52
+     },
+     "F6": {
+      "recall": 0.136,
+      "purity": 0.04
+     }
+    },
+    "n_findings": 6,
+    "n_spurious": 0
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 1.0,
+      "purity": 0.658
+     },
+     "F3": {
+      "recall": 0.669,
+      "purity": 1.0
+     },
+     "F4": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 1.0,
+      "purity": 0.227
+     },
+     "F6": {
+      "recall": 0.27,
+      "purity": 0.029
+     }
+    },
+    "n_findings": 6,
+    "n_spurious": 1
+   }
+  ],
+  "- rule generalisation": [
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 0.944,
+      "purity": 0.645
+     },
+     "F3": {
+      "recall": 0.73,
+      "purity": 0.994
+     },
+     "F4": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 0.906,
+      "purity": 0.493
+     },
+     "F6": {
+      "recall": 0.114,
+      "purity": 0.034
+     }
+    },
+    "n_findings": 7,
+    "n_spurious": 1
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 0.93,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 0.653,
+      "purity": 0.997
+     },
+     "F4": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 0.901,
+      "purity": 0.53
+     },
+     "F6": {
+      "recall": 0.074,
+      "purity": 0.036
+     }
+    },
+    "n_findings": 7,
+    "n_spurious": 0
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 0.96,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 0.509,
+      "purity": 1.0
+     },
+     "F4": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 0.919,
+      "purity": 0.499
+     },
+     "F6": {
+      "recall": 0.104,
+      "purity": 0.03
+     }
+    },
+    "n_findings": 7,
+    "n_spurious": 1
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 0.953,
+      "purity": 0.679
+     },
+     "F3": {
+      "recall": 0.53,
+      "purity": 0.996
+     },
+     "F4": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 0.933,
+      "purity": 0.514
+     },
+     "F6": {
+      "recall": 0.124,
+      "purity": 0.039
+     }
+    },
+    "n_findings": 7,
+    "n_spurious": 0
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 1.0,
+      "purity": 0.658
+     },
+     "F3": {
+      "recall": 0.669,
+      "purity": 1.0
+     },
+     "F4": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 0.912,
+      "purity": 0.233
+     },
+     "F6": {
+      "recall": 0.224,
+      "purity": 0.027
+     }
+    },
+    "n_findings": 7,
+    "n_spurious": 1
+   }
+  ],
+  "- sequential coverage (1 rule/cause)": [
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 0.906,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 1.0,
+      "purity": 0.996
+     },
+     "F4": {
+      "recall": 0.798,
+      "purity": 0.568
+     },
+     "F5": {
+      "recall": 0.078,
+      "purity": 0.05
+     },
+     "F6": {
+      "recall": 0.144,
+      "purity": 0.049
+     }
+    },
+    "n_findings": 4,
+    "n_spurious": 0
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 0.93,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 0.653,
+      "purity": 0.997
+     },
+     "F4": {
+      "recall": 0.772,
+      "purity": 0.563
+     },
+     "F5": {
+      "recall": 0.073,
+      "purity": 0.048
+     },
+     "F6": {
+      "recall": 0.074,
+      "purity": 0.036
+     }
+    },
+    "n_findings": 4,
+    "n_spurious": 0
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 0.96,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F4": {
+      "recall": 0.839,
+      "purity": 0.585
+     },
+     "F5": {
+      "recall": 0.071,
+      "purity": 0.041
+     },
+     "F6": {
+      "recall": 0.098,
+      "purity": 0.032
+     }
+    },
+    "n_findings": 4,
+    "n_spurious": 0
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 0.929,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 1.0,
+      "purity": 0.998
+     },
+     "F4": {
+      "recall": 0.797,
+      "purity": 0.52
+     },
+     "F5": {
+      "recall": 0.057,
+      "purity": 0.032
+     },
+     "F6": {
+      "recall": 0.065,
+      "purity": 0.023
+     }
+    },
+    "n_findings": 4,
+    "n_spurious": 0
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 0.969,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 0.669,
+      "purity": 1.0
+     },
+     "F4": {
+      "recall": 0.78,
+      "purity": 0.553
+     },
+     "F5": {
+      "recall": 0.059,
+      "purity": 0.037
+     },
+     "F6": {
+      "recall": 0.046,
+      "purity": 0.021
+     }
+    },
+    "n_findings": 4,
+    "n_spurious": 0
+   }
+  ],
+  "- cause split (errors vs silent)": [
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 0.764,
+      "purity": 0.602
+     },
+     "F2": {
+      "recall": 0.906,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 1.0,
+      "purity": 0.962
+     },
+     "F4": {
+      "recall": 0.798,
+      "purity": 0.568
+     },
+     "F5": {
+      "recall": 1.0,
+      "purity": 0.508
+     },
+     "F6": {
+      "recall": 0.144,
+      "purity": 0.048
+     }
+    },
+    "n_findings": 5,
+    "n_spurious": 0
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 0.437
+     },
+     "F2": {
+      "recall": 0.93,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 1.0,
+      "purity": 0.966
+     },
+     "F4": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 1.0,
+      "purity": 0.546
+     },
+     "F6": {
+      "recall": 0.105,
+      "purity": 0.032
+     }
+    },
+    "n_findings": 5,
+    "n_spurious": 0
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 0.415
+     },
+     "F2": {
+      "recall": 0.96,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 1.0,
+      "purity": 0.998
+     },
+     "F4": {
+      "recall": 0.839,
+      "purity": 0.585
+     },
+     "F5": {
+      "recall": 1.0,
+      "purity": 0.507
+     },
+     "F6": {
+      "recall": 0.123,
+      "purity": 0.033
+     }
+    },
+    "n_findings": 4,
+    "n_spurious": 0
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 0.48
+     },
+     "F2": {
+      "recall": 0.929,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 1.0,
+      "purity": 0.998
+     },
+     "F4": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 1.0,
+      "purity": 0.52
+     },
+     "F6": {
+      "recall": 0.136,
+      "purity": 0.04
+     }
+    },
+    "n_findings": 5,
+    "n_spurious": 0
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 0.447
+     },
+     "F2": {
+      "recall": 0.969,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 1.0,
+      "purity": 0.963
+     },
+     "F4": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 1.0,
+      "purity": 0.516
+     },
+     "F6": {
+      "recall": 0.138,
+      "purity": 0.034
+     }
+    },
+    "n_findings": 5,
+    "n_spurious": 0
+   }
+  ],
+  "baseline: error summary": [
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 0.672,
+      "purity": 0.509
+     },
+     "F4": {
+      "recall": 0.798,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 0.59,
+      "purity": 0.282
+     },
+     "F6": {
+      "recall": 0.473,
+      "purity": 1.0
+     }
+    },
+    "n_findings": 6,
+    "n_spurious": 2
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 0.702,
+      "purity": 0.544
+     },
+     "F4": {
+      "recall": 0.769,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 0.599,
+      "purity": 0.282
+     },
+     "F6": {
+      "recall": 0.494,
+      "purity": 1.0
+     }
+    },
+    "n_findings": 6,
+    "n_spurious": 2
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 0.654,
+      "purity": 0.507
+     },
+     "F4": {
+      "recall": 0.839,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 0.657,
+      "purity": 0.317
+     },
+     "F6": {
+      "recall": 0.454,
+      "purity": 1.0
+     }
+    },
+    "n_findings": 6,
+    "n_spurious": 2
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 0.681,
+      "purity": 0.506
+     },
+     "F4": {
+      "recall": 0.794,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 0.636,
+      "purity": 0.299
+     },
+     "F6": {
+      "recall": 0.521,
+      "purity": 1.0
+     }
+    },
+    "n_findings": 6,
+    "n_spurious": 2
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F2": {
+      "recall": 1.0,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 0.651,
+      "purity": 0.476
+     },
+     "F4": {
+      "recall": 0.78,
+      "purity": 1.0
+     },
+     "F5": {
+      "recall": 0.706,
+      "purity": 0.334
+     },
+     "F6": {
+      "recall": 0.467,
+      "purity": 1.0
+     }
+    },
+    "n_findings": 6,
+    "n_spurious": 3
+   }
+  ],
+  "baseline: single decision tree": [
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 0.432
+     },
+     "F2": {
+      "recall": 0.794,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 1.0,
+      "purity": 0.962
+     },
+     "F4": {
+      "recall": 0.798,
+      "purity": 0.568
+     },
+     "F5": {
+      "recall": 0.078,
+      "purity": 0.05
+     },
+     "F6": {
+      "recall": 0.144,
+      "purity": 0.048
+     }
+    },
+    "n_findings": 3,
+    "n_spurious": 0
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 0.437
+     },
+     "F2": {
+      "recall": 0.825,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 1.0,
+      "purity": 0.966
+     },
+     "F4": {
+      "recall": 0.772,
+      "purity": 0.563
+     },
+     "F5": {
+      "recall": 0.073,
+      "purity": 0.048
+     },
+     "F6": {
+      "recall": 0.105,
+      "purity": 0.032
+     }
+    },
+    "n_findings": 3,
+    "n_spurious": 0
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 0.415
+     },
+     "F2": {
+      "recall": 0.86,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 1.0,
+      "purity": 0.971
+     },
+     "F4": {
+      "recall": 0.839,
+      "purity": 0.585
+     },
+     "F5": {
+      "recall": 0.071,
+      "purity": 0.041
+     },
+     "F6": {
+      "recall": 0.098,
+      "purity": 0.031
+     }
+    },
+    "n_findings": 3,
+    "n_spurious": 0
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 0.48
+     },
+     "F2": {
+      "recall": 0.828,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 1.0,
+      "purity": 0.963
+     },
+     "F4": {
+      "recall": 0.797,
+      "purity": 0.52
+     },
+     "F5": {
+      "recall": 0.057,
+      "purity": 0.032
+     },
+     "F6": {
+      "recall": 0.065,
+      "purity": 0.023
+     }
+    },
+    "n_findings": 3,
+    "n_spurious": 0
+   },
+   {
+    "per_mode": {
+     "F1": {
+      "recall": 1.0,
+      "purity": 0.447
+     },
+     "F2": {
+      "recall": 0.827,
+      "purity": 1.0
+     },
+     "F3": {
+      "recall": 1.0,
+      "purity": 0.963
+     },
+     "F4": {
+      "recall": 0.78,
+      "purity": 0.553
+     },
+     "F5": {
+      "recall": 0.059,
+      "purity": 0.037
+     },
+     "F6": {
+      "recall": 0.105,
+      "purity": 0.031
+     }
+    },
+    "n_findings": 3,
+    "n_spurious": 0
+   }
+  ]
+ },
+ "outcome": {
+  "error only": [
+   {
+    "precision": 0.844,
+    "recall": 0.46,
+    "f1": 0.595,
+    "recall_silent": 0.072
+   },
+   {
+    "precision": 0.838,
+    "recall": 0.444,
+    "f1": 0.58,
+    "recall_silent": 0.058
+   },
+   {
+    "precision": 0.841,
+    "recall": 0.465,
+    "f1": 0.599,
+    "recall_silent": 0.056
+   },
+   {
+    "precision": 0.844,
+    "recall": 0.48,
+    "f1": 0.612,
+    "recall_silent": 0.056
+   },
+   {
+    "precision": 0.847,
+    "recall": 0.442,
+    "f1": 0.581,
+    "recall_silent": 0.053
+   }
+  ],
+  "error + loop": [
+   {
+    "precision": 0.844,
+    "recall": 0.46,
+    "f1": 0.595,
+    "recall_silent": 0.072
+   },
+   {
+    "precision": 0.838,
+    "recall": 0.444,
+    "f1": 0.58,
+    "recall_silent": 0.058
+   },
+   {
+    "precision": 0.841,
+    "recall": 0.465,
+    "f1": 0.599,
+    "recall_silent": 0.056
+   },
+   {
+    "precision": 0.844,
+    "recall": 0.48,
+    "f1": 0.612,
+    "recall_silent": 0.056
+   },
+   {
+    "precision": 0.847,
+    "recall": 0.442,
+    "f1": 0.581,
+    "recall_silent": 0.053
+   }
+  ],
+  "error + loop + evaluator": [
+   {
+    "precision": 0.863,
+    "recall": 0.84,
+    "f1": 0.851,
+    "recall_silent": 0.712
+   },
+   {
+    "precision": 0.875,
+    "recall": 0.844,
+    "f1": 0.859,
+    "recall_silent": 0.72
+   },
+   {
+    "precision": 0.871,
+    "recall": 0.841,
+    "f1": 0.856,
+    "recall_silent": 0.711
+   },
+   {
+    "precision": 0.871,
+    "recall": 0.854,
+    "f1": 0.863,
+    "recall_silent": 0.72
+   },
+   {
+    "precision": 0.873,
+    "recall": 0.847,
+    "f1": 0.86,
+    "recall_silent": 0.725
+   }
+  ],
+  "error + loop + feedback": [
+   {
+    "precision": 0.865,
+    "recall": 0.726,
+    "f1": 0.79,
+    "recall_silent": 0.547
+   },
+   {
+    "precision": 0.874,
+    "recall": 0.717,
+    "f1": 0.788,
+    "recall_silent": 0.547
+   },
+   {
+    "precision": 0.871,
+    "recall": 0.751,
+    "f1": 0.806,
+    "recall_silent": 0.576
+   },
+   {
+    "precision": 0.88,
+    "recall": 0.757,
+    "f1": 0.814,
+    "recall_silent": 0.587
+   },
+   {
+    "precision": 0.881,
+    "recall": 0.733,
+    "f1": 0.8,
+    "recall_silent": 0.569
+   }
+  ],
+  "all signals (production)": [
+   {
+    "precision": 0.862,
+    "recall": 0.84,
+    "f1": 0.851,
+    "recall_silent": 0.712
+   },
+   {
+    "precision": 0.883,
+    "recall": 0.844,
+    "f1": 0.863,
+    "recall_silent": 0.72
+   },
+   {
+    "precision": 0.871,
+    "recall": 0.841,
+    "f1": 0.856,
+    "recall_silent": 0.711
+   },
+   {
+    "precision": 0.876,
+    "recall": 0.854,
+    "f1": 0.865,
+    "recall_silent": 0.72
+   },
+   {
+    "precision": 0.875,
+    "recall": 0.847,
+    "f1": 0.861,
+    "recall_silent": 0.725
+   }
+  ]
+ }
+}

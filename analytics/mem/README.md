@@ -97,3 +97,5 @@ Y F7 se ve: F1 baja de 8,24 a 0,84 por 100 trazas con el prompt v2. El recall de
 uv run --extra test python -m pytest                              # episodio y descubrimiento, sin ClickHouse ni embeddings
 make images                                                       # construye las dos imágenes y las carga en kind
 ```
+
+> **Validación en varias semillas.** El resultado de arriba es de la semilla 7. Con cinco semillas (7, 11, 13, 17, 19; `docs/research/mem-paper/`) la regla de generalización producía en 2 de 5 una regla casi universal; se corrigió en la versión 2 del descubrimiento. Sigue habiendo ruido residual dependiente de la semilla (reglas amplias de lift bajo): recall del ruido F6 entre 0,12 y 0,46.

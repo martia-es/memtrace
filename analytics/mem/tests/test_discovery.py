@@ -3,7 +3,7 @@ import random
 import numpy as np
 import pandas as pd
 
-from mem.discovery import Config, cluster_goals, discover, mask_goal
+from mem.discovery import Config, _generalize, cluster_goals, discover, mask_goal
 
 CITIES = ["Rome", "Berlin", "Madrid", "Lisbon", "Paris", "Porto"]
 
@@ -118,3 +118,32 @@ def test_cluster_goals_groups_by_meaning_with_an_injected_embedder():
 def test_cluster_goals_skips_grouping_when_there_is_nothing_to_group():
     labels, k, _ = cluster_goals(pd.Series(["Is it warmer in Rome or in Bilbao?"] * 5), fake_embedder)
     assert k == 0 and set(labels) == {0}
+
+
+def test_generalize_does_not_drop_the_condition_that_gives_the_rule_its_lift():
+    """Los fallos de otras causas no están en `train`: contarlos como negativos diluía la regla y dejaba soltar la condición `a`."""
+    n_in, n_out = 400, 600
+    a = np.r_[np.ones(n_in), np.zeros(n_out)]
+    y = np.zeros(n_in + n_out)
+    train = np.ones(n_in + n_out, dtype=bool)
+    y[:100] = 1                     # dentro de `a`: 100 fallos de esta causa...
+    train[100:370] = False          # ...270 fallos de OTRA causa (fuera de train) y 30 episodios normales
+    y[n_in:n_in + 140] = 1          # fuera de `a`: 140 fallos de esta causa, dispersos
+    X = pd.DataFrame({"a": a, "b": np.zeros(n_in + n_out)})
+    path = [("a", ">", 0.5), ("b", "<=", 0.5)]  # `b` no aporta nada: se puede quitar
+    out = _generalize(X, pd.Series(y), path, Config(), train)
+    assert [c[0] for c in out] == ["a"]
+
+
+def test_coverage_and_precision_caps_reject_rules():
+    df = frame()
+    assert discover(df, Config()).findings, "con la configuración por defecto hay hallazgos"
+    assert discover(df, Config(max_support_share=0.001)).findings == []  # ninguna regla cubre tan poco
+    assert discover(df, Config(min_precision=1.01)).findings == []  # ninguna regla supera el 100 %
+
+
+def test_family_correction_is_never_more_permissive():
+    df = frame(seed=3, noise=0.05)
+    per_round = discover(df, Config(family_correction=False))
+    strict = discover(df, Config())  # la corrección sobre toda la pasada es la configuración por defecto
+    assert {f.rule for f in strict.findings} <= {f.rule for f in per_round.findings}

@@ -1,0 +1,15 @@
+clickhouse-connect>=0.7
+
+[discovery]
+pandas>=2.1
+numpy>=1.26
+scipy>=1.11
+scikit-learn>=1.4
+sentence-transformers>=3.0
+
+[test]
+pytest>=8
+pandas>=2.1
+numpy>=1.26
+scipy>=1.11
+scikit-learn>=1.4
