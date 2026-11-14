@@ -171,4 +171,30 @@ describe.skipIf(!url)("annotation queues (postgres)", () => {
     expect(await repo.listQueuesForTrace(experimentId, "nobody")).toEqual([]);
     expect(await repo.listQueuesForTrace("00000000-0000-4000-8000-0000000000ff", "shared-trace")).toEqual([]);
   });
+
+  it("serves higher-priority items first in an uncertainty queue and leaves NULL priorities last (migration 053)", async () => {
+    const q = await repo.create(experimentId, users[0]!, { name: `uncertainty-${stamp}`, instructions: null, requiredAnnotations: 1, prioritization: "uncertainty", reviewerIds: users, rubric: [{ configId, required: true }] });
+    expect(q.prioritization).toBe("uncertainty");
+    await repo.addItems(q.id, users[0]!, [
+      { targetType: "trace", traceId: "none" },
+      { targetType: "trace", traceId: "low", priority: 0.1 },
+      { targetType: "trace", traceId: "high", priority: 0.9 },
+      { targetType: "trace", traceId: "mid", priority: 0.5 },
+    ]);
+    const order: string[] = [];
+    for (let item = await repo.claimNext(q, users[1]!); item; item = await repo.claimNext(q, users[1]!)) {
+      order.push(item.traceId!);
+      await repo.completeClaim(q, item.id, users[1]!);
+    }
+    expect(order).toEqual(["high", "mid", "low", "none"]);
+
+    const fifo = await newQueue(`fifo-${stamp}`);
+    // en llamadas separadas: dentro de un lote todos comparten `added_at` y desempata el UUID
+    await repo.addItems(fifo.id, users[0]!, [{ targetType: "trace", traceId: "a", priority: 0.1 }]);
+    await repo.addItems(fifo.id, users[0]!, [{ targetType: "trace", traceId: "b", priority: 0.9 }]);
+    expect((await repo.claimNext(fifo, users[1]!))?.traceId).toBe("a"); // `fifo` ignora la prioridad
+
+    const patched = await repo.update(experimentId, fifo.id, { prioritization: "uncertainty" });
+    expect(patched?.prioritization).toBe("uncertainty");
+  });
 });

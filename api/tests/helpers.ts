@@ -29,6 +29,8 @@ import {
   type ReviewerProgress,
 } from "@/domain/annotation-queue";
 import type { TenantScope } from "@/domain/tenant";
+import type { EpisodeRepository } from "@/application/ports/episode-repository";
+import type { EpisodeSignals } from "@/domain/uncertainty";
 import type { ScoreConfigRepository } from "@/application/ports/score-config-repository";
 import { AnnotationQueueInvariantError, ScoreConfigInvariantError } from "@/domain/errors";
 import type { NewScoreConfig, ScoreConfig, ScoreConfigChanges } from "@/domain/score-config";
@@ -394,6 +396,7 @@ export class FakeAnnotationQueueRepository implements AnnotationQueueRepository 
       name: input.name,
       instructions: input.instructions,
       requiredAnnotations: input.requiredAnnotations,
+      prioritization: input.prioritization ?? "fifo",
       reviewerIds: [...input.reviewerIds],
       rubric: input.rubric.map((r, position) => ({ ...r, position })),
       createdBy: createdByUserId,
@@ -412,6 +415,7 @@ export class FakeAnnotationQueueRepository implements AnnotationQueueRepository 
     }
     if (patch.reviewerIds) queue.reviewerIds = [...patch.reviewerIds];
     if (patch.name !== undefined) queue.name = patch.name;
+    if (patch.prioritization !== undefined) queue.prioritization = patch.prioritization;
     if (patch.instructions !== undefined) queue.instructions = patch.instructions;
     if (patch.archived !== undefined) queue.archivedAt = patch.archived ? "2026-10-03T00:00:00.000Z" : null;
     if (patch.requiredAnnotations !== undefined && patch.requiredAnnotations !== queue.requiredAnnotations) {
@@ -433,6 +437,7 @@ export class FakeAnnotationQueueRepository implements AnnotationQueueRepository 
         status: "pending",
         population: provenance.population,
         sampleSeed: provenance.seed,
+        priority: t.targetType === "trace" ? (t.priority ?? null) : null,
         addedBy,
         addedAt: `2026-10-03T00:00:${String(this.items.length).padStart(2, "0")}.000Z`,
         completedAt: null,
@@ -454,13 +459,16 @@ export class FakeAnnotationQueueRepository implements AnnotationQueueRepository 
   async claimNext(queue: AnnotationQueue, userId: string) {
     const open = this.claims.find((c) => c.userId === userId && !c.completed && !c.skipped && this.items.find((i) => i.id === c.itemId)?.queueId === queue.id);
     if (open) return this.items.find((i) => i.id === open.itemId)!;
-    const item = this.items.find(
+    const candidates = this.items.filter(
       (i) =>
         i.queueId === queue.id &&
         i.status === "pending" &&
         !this.claims.some((c) => c.itemId === i.id && c.userId === userId) &&
         this.claims.filter((c) => c.itemId === i.id && !c.skipped).length < queue.requiredAnnotations,
     );
+    // misma regla que el SQL: en colas `uncertainty`, mayor prioridad primero y los null al final; el orden de llegada desempata
+    const byPriority = queue.prioritization === "uncertainty" ? [...candidates].sort((a, b) => (b.priority ?? -1) - (a.priority ?? -1)) : candidates;
+    const item = byPriority[0];
     if (!item) return null;
     this.claims.push({ itemId: item.id, userId, completed: false, skipped: false });
     return item;
@@ -509,5 +517,13 @@ export class FakeAnnotationQueueRepository implements AnnotationQueueRepository 
     const before = this.resolutions.length;
     this.resolutions = this.resolutions.filter((r) => !(r.queueItemId === itemId && r.configId === configId));
     return this.resolutions.length < before;
+  }
+}
+
+/** `EpisodeRepository` en memoria: solo devuelve las trazas que se le han dado. */
+export class FakeEpisodeRepository implements EpisodeRepository {
+  constructor(private readonly byTrace: Record<string, EpisodeSignals> = {}) {}
+  async signalsForTraces(_scope: TenantScope, traceIds: string[]) {
+    return new Map(traceIds.flatMap((id) => (this.byTrace[id] ? [[id, this.byTrace[id]!] as const] : [])));
   }
 }

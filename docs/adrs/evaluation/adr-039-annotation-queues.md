@@ -166,9 +166,22 @@ Authorization: create/edit/archive queues -> `admin`; add items, pull, complete,
 * **Changing `required_annotations` mid-flight**: raising it reopens `completed` items below the new threshold (status is derived, so recomputation on read/transition suffices); lowering it can complete items. The recomputation is a single SQL update, tested.
 * **Trace disappears or becomes unreadable** while pending: `next` returns the item, the UI detail load 404s, and the reviewer uses "skip". The queue never blocks on a missing trace.
 * **Reviewers who leave the experiment**: their `claims` rows persist for history; open claims lapse by lease.
-* **Bias**: ordering by `added_at` is deterministic and unbiased; random ordering is a possible per-queue option later (useful to reduce position bias in agreement studies) but not now. Random *sampling* when populating a queue (`sample: N`) is also still open: [ADR-040](../README.md#retired-adrs) recommends it to avoid selection bias in agreement studies.
+* **Bias**: the default ordering by `added_at` is deterministic and unbiased (see *Update 2026-11-14* for the opt-in uncertainty order); random ordering is a possible per-queue option later (useful to reduce position bias in agreement studies) but not now. Random *sampling* when populating a queue (`sample: N`) is also still open: [ADR-040](../README.md#retired-adrs) recommends it to avoid selection bias in agreement studies.
 * **Hand-off to ADR-038**: a "Promote completed items to dataset" action in the queue view calls the batch endpoint, so a whole review session yields one dataset version.
 * **Dashboard**: new `AnnotationQueuesPage.vue` and a focused review screen (rubric on one side, trace detail on the other). It reuses the trace detail components rather than a new renderer.
+
+## Update 2026-11-14: uncertainty-ordered queues
+
+Context: Mem (roadmap phase 2) already computes, per trace, an outcome estimate from weak signals (`mem_episodes.Value`, thresholds `SUSPECT = 0.3`, `FAILED = 0.6`). A clear success or a clear failure teaches a reviewer little; the ambiguous ones teach most (the idea behind uncertainty-driven supervision in TraceBrain).
+
+Decision: a per-queue `prioritization` (`fifo` default | `uncertainty`).
+
+* **Score** (`api/src/domain/uncertainty.ts`, pure, no LLM): `base = 1 - |value - 0.45| / 0.45` clipped at 0 (maximum in the middle of the *suspect* band) plus `0.5` when signals disagree (evaluator passes with a 👎 or an error; evaluator fails with a 👍; `thumbs_mixed`), capped at 1. If the worker thresholds change (`EPISODE_VERSION`), these constants change with them.
+* **Stored at add time**, in `annotation_queue_items.priority REAL NULL` (migration 053). `next` stays one PostgreSQL statement (`ORDER BY priority DESC NULLS LAST, added_at, id` for `uncertainty` queues, `FOR UPDATE SKIP LOCKED` unchanged); it never reads ClickHouse. Alternative rejected: ranking at `next` time, which would add a ClickHouse read to the hot path and break the single-store claim transaction.
+* **Reading episodes**: new read-only port `EpisodeRepository` (ClickHouse `mem_episodes FINAL`, tenant-scoped, covered by the ADR-088 guard). It is not part of `TraceRepository` so queue prioritisation does not depend on trace-listing code.
+* **No episode yet** (trace still open, or older than the worker): `priority = NULL`, served last in arrival order. The priority is not refreshed when the episode appears later; accepted for now.
+* Changing `prioritization` on a running queue only affects items added afterwards. Run items (`run_item`) have no episode and always get `NULL`.
+* Out of scope: re-scoring pending items, weighting by reviewer disagreement (ADR-040), a UI indicator of each item's priority.
 
 ## Consequences
 
@@ -191,4 +204,5 @@ Authorization: create/edit/archive queues -> `admin`; add items, pull, complete,
 - [x] Routes, schemas, contract, handler/schema tests
 - [x] Dashboard: queues list, creation form, add-by-filter, "Add to queue" from the trace, review screen, progress/details; fakes and tests (strings are in English like the rest of the dashboard)
 - [x] Docs: `docs-site/` user guide ("Reviewing traces with a queue"), API reference, access control, roadmap
+- [x] Uncertainty-ordered queues (update 2026-11-14): migration 053, `uncertainty.ts`, `EpisodeRepository`, creation form select, docs-site
 - [ ] "Add to queue" from the dataset run detail page and "Promote completed items to dataset" (ADR-040 / ADR-038)

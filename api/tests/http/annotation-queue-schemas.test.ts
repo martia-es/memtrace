@@ -54,11 +54,11 @@ describe("queue bodies", () => {
 describe("queue mappers", () => {
   it("never exposes who added an item or the creator", () => {
     const dto = toQueueItemDto({
-      id: "i", queueId: "q", targetType: "trace", traceId: "t", datasetRunId: null, itemIndex: null, status: "pending", population: "manual", sampleSeed: null, addedBy: "secret-user", addedAt: "x", completedAt: null,
+      id: "i", queueId: "q", targetType: "trace", traceId: "t", datasetRunId: null, itemIndex: null, status: "pending", population: "manual", sampleSeed: null, priority: null, addedBy: "secret-user", addedAt: "x", completedAt: null,
     });
     expect(JSON.stringify(dto)).not.toContain("secret-user");
     const list = toAnnotationQueuesListResponse([
-      { queue: { id: "q", experimentId: "e", name: "n", instructions: null, requiredAnnotations: 1, reviewerIds: [], rubric: [], createdBy: "secret-user", createdAt: "x", archivedAt: null }, progress: { pending: 1, completed: 0, skipped: 0 }, toCurate: 0, assignedReviewers: [], isReviewer: false },
+      { queue: { id: "q", experimentId: "e", name: "n", instructions: null, requiredAnnotations: 1, prioritization: "fifo", reviewerIds: [], rubric: [], createdBy: "secret-user", createdAt: "x", archivedAt: null }, progress: { pending: 1, completed: 0, skipped: 0 }, toCurate: 0, assignedReviewers: [], isReviewer: false },
     ]);
     expect(JSON.stringify(list)).not.toContain("secret-user");
   });

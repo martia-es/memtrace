@@ -2,6 +2,7 @@
 import { TraceQueryService } from "@/application/trace-query-service";
 import { createHandlers, type Handlers } from "@/adapters/inbound/http/handlers";
 import { ClickHouseTraceRepository } from "@/adapters/outbound/clickhouse/clickhouse-trace-repository";
+import { ClickHouseEpisodeRepository } from "@/adapters/outbound/clickhouse/clickhouse-episode-repository";
 import { ClickHouseAnnotationRepository } from "@/adapters/outbound/clickhouse/clickhouse-annotation-repository";
 import { ClickHouseScoreRepository } from "@/adapters/outbound/clickhouse/clickhouse-score-repository";
 import { configFromEnv, createReadOnlyClient, createEvaluationWriteClient } from "@/adapters/outbound/clickhouse/client";
@@ -240,6 +241,9 @@ export function getAnnotationQueues(): AnnotationQueueService {
       new ClickHouseAnnotationRepository(createEvaluationWriteClient(config), createReadOnlyClient(config), config.database, config.maxConcurrentQueries),
       getTraceRepository(),
       getIdentity().identityRepository,
+      undefined,
+      undefined,
+      new ClickHouseEpisodeRepository(createReadOnlyClient(config), config.database, config.maxConcurrentQueries),
     );
   }
   return globalForContainer.__memtraceAnnotationQueue;

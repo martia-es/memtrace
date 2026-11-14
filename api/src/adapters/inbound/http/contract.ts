@@ -820,6 +820,8 @@ export interface AnnotationQueueDto {
   name: string;
   instructions: string | null;
   requiredAnnotations: number;
+  /** `fifo` (llegada) o `uncertainty` (primero lo más dudoso, según el episodio de Mem). */
+  prioritization: "fifo" | "uncertainty";
   /** Personas autorizadas a anotar (ADR-046). */
   reviewerIds: string[];
   rubric: Array<{ configId: string; required: boolean }>;

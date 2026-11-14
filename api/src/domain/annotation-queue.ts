@@ -9,6 +9,9 @@ export const MAX_ITEMS_PER_REQUEST = 500;
 export const MAX_REQUIRED_ANNOTATIONS = 10;
 
 export type QueueItemStatus = "pending" | "completed" | "skipped";
+/** Orden de reparto: `fifo` (llegada) o `uncertainty` (primero lo más dudoso, ver `domain/uncertainty.ts`). */
+export type QueuePrioritization = "fifo" | "uncertainty";
+export const QUEUE_PRIORITIZATIONS: readonly QueuePrioritization[] = ["fifo", "uncertainty"];
 export type QueueTargetType = "trace" | "run_item";
 /** Cómo se eligió un item (ADR-040): a mano, por un filtro o un run completo, o por muestreo aleatorio. */
 export type QueuePopulation = "manual" | "filter" | "random_sample";
@@ -31,6 +34,7 @@ export interface AnnotationQueue {
   name: string;
   instructions: string | null;
   requiredAnnotations: number;
+  prioritization: QueuePrioritization;
   /** Personas autorizadas a anotar en esta cola (ADR-051). Nadie más puede reclamar ni completar items. */
   reviewerIds: string[];
   rubric: QueueRubricEntry[];
@@ -64,6 +68,8 @@ export interface QueueItem {
   status: QueueItemStatus;
   population: QueuePopulation;
   sampleSeed: string | null;
+  /** Incertidumbre 0-1 al añadirlo (solo colas `uncertainty`); null = sin episodio todavía o no es una traza */
+  priority: number | null;
   addedBy: string;
   addedAt: string;
   completedAt: string | null;
@@ -71,13 +77,14 @@ export interface QueueItem {
 
 /** Qué se añade a la cola. Los `run_item` identifican el resultado de una run por (run, posición). */
 export type QueueTarget =
-  | { targetType: "trace"; traceId: string }
+  | { targetType: "trace"; traceId: string; priority?: number | null }
   | { targetType: "run_item"; datasetRunId: string; itemIndex: number };
 
 export interface NewAnnotationQueue {
   name: string;
   instructions: string | null;
   requiredAnnotations: number;
+  prioritization?: QueuePrioritization;
   reviewerIds: string[];
   rubric: Array<{ configId: string; required: boolean }>;
 }
@@ -86,6 +93,7 @@ export interface AnnotationQueuePatch {
   name?: string;
   instructions?: string | null;
   requiredAnnotations?: number;
+  prioritization?: QueuePrioritization;
   /** Lista completa deseada de revisores; sustituye a la actual. Quitar a alguien no borra lo que ya anotó. */
   reviewerIds?: string[];
   /** Rúbrica completa deseada. En una cola con trabajo ya hecho solo puede añadir configs. */

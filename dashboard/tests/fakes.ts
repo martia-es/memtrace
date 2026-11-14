@@ -665,7 +665,7 @@ export class FakeTraceApi implements TraceApi {
   }
   async createAnnotationQueue(body: NewAnnotationQueueBody): Promise<AnnotationQueueDto> {
     this.createdQueues.push(body);
-    return { id: "q-new", name: body.name, instructions: body.instructions ?? null, requiredAnnotations: body.requiredAnnotations, reviewerIds: body.reviewerIds, rubric: body.rubric, createdAt: "2026-10-03T00:00:00.000Z", archivedAt: null };
+    return { id: "q-new", name: body.name, instructions: body.instructions ?? null, requiredAnnotations: body.requiredAnnotations, prioritization: body.prioritization ?? "fifo", reviewerIds: body.reviewerIds, rubric: body.rubric, createdAt: "2026-10-03T00:00:00.000Z", archivedAt: null };
   }
   reviewerCandidates: ReviewerCandidatesResponse["candidates"] = [];
   async listReviewerCandidates(): Promise<ReviewerCandidatesResponse> {
@@ -916,6 +916,7 @@ export function queueSummary(overrides: Partial<AnnotationQueueListItemDto> = {}
     name: "Chatbot answers",
     instructions: null,
     requiredAnnotations: 1,
+    prioritization: "fifo",
     reviewerIds: ["u-1"],
     rubric: [{ configId: "cfg-1", required: true }],
     createdAt: "2026-10-03T00:00:00.000Z",

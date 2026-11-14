@@ -4,6 +4,8 @@ import type { AnnotationRepository } from "@/application/ports/annotation-reposi
 import type { IdentityRepository, PromotedTraceLocation } from "@/application/ports/identity-repository";
 import type { ScoreConfigRepository } from "@/application/ports/score-config-repository";
 import type { TraceRepository } from "@/application/ports/trace-repository";
+import type { EpisodeRepository } from "@/application/ports/episode-repository";
+import { uncertainty } from "@/domain/uncertainty";
 import { validateAnnotationValue, type Annotation, type AnnotationValue } from "@/domain/annotation";
 import { randomUUID } from "node:crypto";
 import {
@@ -158,6 +160,8 @@ export class AnnotationQueueService {
     private readonly identity: Pick<IdentityRepository, "getUsersByIds" | "findPromotedTraces" | "listRunsForExperiment" | "listExperimentMembers" | "getExperiment" | "listOrgMembers">,
     private readonly now: () => Date = () => new Date(),
     private readonly newSeed: () => string = () => randomUUID(),
+    /** Sin él, las colas `uncertainty` reparten como `fifo` (todas las prioridades quedan en null). */
+    private readonly episodes?: EpisodeRepository,
   ) {}
 
   async list(experimentId: string, userId: string, includeArchived = false): Promise<QueueListItem[]> {
@@ -318,7 +322,8 @@ export class AnnotationQueueService {
   async addItems(actor: QueueActor, queueId: string, input: AddItemsInput): Promise<AddItemsResult> {
     const queue = await this.requireOpenQueue(actor.experimentId, queueId);
     const { targets, provenance, sample } = await this.resolveTargets(actor, input);
-    const { added, duplicates } = await this.queues.addItems(queue.id, actor.userId, targets, provenance);
+    const prioritized = queue.prioritization === "uncertainty" ? await this.withPriority(actor, targets) : targets;
+    const { added, duplicates } = await this.queues.addItems(queue.id, actor.userId, prioritized, provenance);
     return { added, duplicates, ...(sample ? { sample } : {}) };
   }
 
@@ -377,6 +382,21 @@ export class AnnotationQueueService {
     const item = await this.queues.markUnreviewable(queue.id, itemId);
     if (!item) throw new AnnotationQueueNotFoundError(queueId, itemId);
     return item;
+  }
+
+  /**
+   * Incertidumbre de cada traza a partir de su episodio de Mem. Se fija al añadir: un episodio que se complete
+   * después no reordena lo ya encolado (el reparto no consulta ClickHouse). Sin episodio, `null` y va al final.
+   */
+  private async withPriority(actor: QueueActor, targets: QueueTarget[]): Promise<QueueTarget[]> {
+    if (!this.episodes) return targets;
+    const traceIds = targets.flatMap((t) => (t.targetType === "trace" ? [t.traceId] : []));
+    const signals = await this.episodes.signalsForTraces(tenantOf(actor), traceIds);
+    return targets.map((t) => {
+      if (t.targetType !== "trace") return t;
+      const s = signals.get(t.traceId);
+      return { ...t, priority: s ? uncertainty(s) : null };
+    });
   }
 
   private async resolveTargets(actor: QueueActor, input: AddItemsInput): Promise<ResolvedTargets> {

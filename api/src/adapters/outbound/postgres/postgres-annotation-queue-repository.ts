@@ -11,6 +11,7 @@ import {
   type QueueProgress,
   type QueueRubricEntry,
   type QueuePopulation,
+  type QueuePrioritization,
   type QueueProvenance,
   type QueueTarget,
   type ReviewerProgress,
@@ -18,8 +19,8 @@ import {
 import { AnnotationQueueInvariantError } from "@/domain/errors";
 import type { QueueResolution } from "@/domain/queue-results";
 
-const QUEUE_COLUMNS = `id, experiment_id, name, instructions, required_annotations, created_by, created_at, archived_at`;
-const ITEM_COLUMNS = `id, queue_id, target_type, trace_id, dataset_run_id, item_index, status, population, sample_seed, added_by, added_at, completed_at`;
+const QUEUE_COLUMNS = `id, experiment_id, name, instructions, required_annotations, prioritization, created_by, created_at, archived_at`;
+const ITEM_COLUMNS = `id, queue_id, target_type, trace_id, dataset_run_id, item_index, status, population, sample_seed, priority, added_by, added_at, completed_at`;
 const CLAIM_RETRIES = 4;
 const CLAIM_RETRY_DELAY_MS = 40;
 const UNIQUE_VIOLATION = "23505";
@@ -32,6 +33,7 @@ interface QueueRow {
   name: string;
   instructions: string | null;
   required_annotations: number;
+  prioritization: QueuePrioritization;
   created_by: string;
   created_at: Date | string;
   archived_at: Date | string | null;
@@ -59,6 +61,7 @@ interface ItemRow {
   status: QueueItemStatus;
   population: QueuePopulation;
   sample_seed: string | null;
+  priority: number | null;
   added_by: string;
   added_at: Date | string;
   completed_at: Date | string | null;
@@ -159,9 +162,9 @@ export class PostgresAnnotationQueueRepository implements AnnotationQueueReposit
       let row: QueueRow;
       try {
         const { rows } = await client.query<QueueRow>(
-          `INSERT INTO annotation_queues (experiment_id, name, instructions, required_annotations, created_by)
-           VALUES ($1, $2, $3, $4, $5) RETURNING ${QUEUE_COLUMNS}`,
-          [experimentId, input.name, input.instructions, input.requiredAnnotations, createdByUserId],
+          `INSERT INTO annotation_queues (experiment_id, name, instructions, required_annotations, prioritization, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6) RETURNING ${QUEUE_COLUMNS}`,
+          [experimentId, input.name, input.instructions, input.requiredAnnotations, input.prioritization ?? "fifo", createdByUserId],
         );
         row = rows[0]!;
       } catch (error) {
@@ -193,7 +196,7 @@ export class PostgresAnnotationQueueRepository implements AnnotationQueueReposit
       try {
         await client.query(
           `UPDATE annotation_queues
-              SET name = $2, instructions = $3, required_annotations = $4,
+              SET name = $2, instructions = $3, required_annotations = $4, prioritization = $6,
                   archived_at = CASE WHEN $5::boolean IS NULL THEN archived_at WHEN $5 THEN COALESCE(archived_at, now()) ELSE NULL END
             WHERE id = $1`,
           [
@@ -202,6 +205,7 @@ export class PostgresAnnotationQueueRepository implements AnnotationQueueReposit
             patch.instructions === undefined ? current.instructions : patch.instructions,
             patch.requiredAnnotations ?? current.requiredAnnotations,
             patch.archived ?? null,
+            patch.prioritization ?? current.prioritization,
           ],
         );
       } catch (error) {
@@ -220,13 +224,14 @@ export class PostgresAnnotationQueueRepository implements AnnotationQueueReposit
     const traceIds = targets.map((t) => (t.targetType === "trace" ? t.traceId : ""));
     const runIds = targets.map((t) => (t.targetType === "run_item" ? t.datasetRunId : null));
     const indexes = targets.map((t) => (t.targetType === "run_item" ? t.itemIndex : null));
+    const priorities = targets.map((t) => (t.targetType === "trace" ? (t.priority ?? null) : null));
     // `unnest` inserta el lote entero en una sola sentencia; ON CONFLICT descarta los ya presentes (NULLS NOT DISTINCT)
     const { rowCount } = await this.pool.query(
-      `INSERT INTO annotation_queue_items (queue_id, target_type, trace_id, dataset_run_id, item_index, added_by, population, sample_seed)
-       SELECT $1::uuid, t.target_type, t.trace_id, t.dataset_run_id, t.item_index, $6::uuid, $7::text, $8::text
-         FROM unnest($2::text[], $3::text[], $4::uuid[], $5::int[]) AS t(target_type, trace_id, dataset_run_id, item_index)
+      `INSERT INTO annotation_queue_items (queue_id, target_type, trace_id, dataset_run_id, item_index, added_by, population, sample_seed, priority)
+       SELECT $1::uuid, t.target_type, t.trace_id, t.dataset_run_id, t.item_index, $6::uuid, $7::text, $8::text, t.priority
+         FROM unnest($2::text[], $3::text[], $4::uuid[], $5::int[], $9::real[]) AS t(target_type, trace_id, dataset_run_id, item_index, priority)
        ON CONFLICT DO NOTHING`,
-      [queueId, types, traceIds, runIds, indexes, addedBy, provenance.population, provenance.seed],
+      [queueId, types, traceIds, runIds, indexes, addedBy, provenance.population, provenance.seed, priorities],
     );
     const added = rowCount ?? 0;
     return { added, duplicates: targets.length - added };
@@ -436,6 +441,7 @@ export class PostgresAnnotationQueueRepository implements AnnotationQueueReposit
  */
 function candidateSql(lock: boolean): string {
   return `SELECT ${prefixed("i", ITEM_COLUMNS)} FROM annotation_queue_items i
+           JOIN annotation_queues q ON q.id = i.queue_id
            WHERE i.queue_id = $1 AND i.status = 'pending'
              AND NOT EXISTS (SELECT 1 FROM annotation_queue_claims c WHERE c.queue_item_id = i.id AND c.user_id = $2
                                AND (c.completed_at IS NOT NULL OR c.skipped_at IS NULL))
@@ -443,6 +449,7 @@ function candidateSql(lock: boolean): string {
                    WHERE c.queue_item_id = i.id AND c.skipped_at IS NULL
                      AND (c.completed_at IS NOT NULL OR c.claimed_at > now() - make_interval(mins => $4))) < $3
            ORDER BY (SELECT c.skipped_at FROM annotation_queue_claims c WHERE c.queue_item_id = i.id AND c.user_id = $2) ASC NULLS FIRST,
+                    CASE WHEN q.prioritization = 'uncertainty' THEN i.priority END DESC NULLS LAST,
                     i.added_at ASC, i.id ASC
            ${lock ? "FOR UPDATE OF i SKIP LOCKED" : ""}
            LIMIT 1`;
@@ -474,6 +481,7 @@ function toQueue(row: QueueRow, rubric: RubricRow[], reviewers: ReviewerRow[]): 
     name: row.name,
     instructions: row.instructions,
     requiredAnnotations: row.required_annotations,
+    prioritization: row.prioritization,
     reviewerIds: reviewers.map((r) => r.user_id),
     rubric: entries,
     createdBy: row.created_by,
@@ -513,6 +521,7 @@ function toItem(row: ItemRow): QueueItem {
     status: row.status,
     population: row.population,
     sampleSeed: row.sample_seed,
+    priority: row.priority,
     addedBy: row.added_by,
     addedAt: iso(row.added_at),
     completedAt: row.completed_at ? iso(row.completed_at) : null,
