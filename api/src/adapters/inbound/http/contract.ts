@@ -1637,6 +1637,12 @@ export interface BreakdownResponse {
   unpricedTokens: number;
 }
 
+/** Grafo global de prompts y fragmentos de un agente: cada arista es un fragmento incluido en un prompt (ADR-073/074). */
+export interface PromptGraphResponse {
+  nodes: Array<{ id: string; name: string; kind: "prompt" | "fragment"; latestVersion: number }>;
+  edges: Array<{ fragmentId: string; promptId: string; ref: string; pinned: number; current: number | null; outdated: boolean }>;
+}
+
 export interface PromptListResponse {
   items: PromptSummaryDto[];
 }

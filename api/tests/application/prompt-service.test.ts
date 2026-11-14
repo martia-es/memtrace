@@ -792,6 +792,17 @@ describe("dependency map (ADR-074)", () => {
     expect((await map.map(tone.id)).usedBy).toMatchObject([{ name: "weather-system", version: 1, outdated: false }]);
   });
 
+  it("builds the global graph: one edge per include, with the pinned version and whether the fragment moved on", async () => {
+    const { service, map, tone, main } = await setup();
+    const unused = (await service.create(ORG, USER, { name: "unused", kind: "fragment", content: "x" })).prompt;
+    const all = [tone, main, unused];
+    expect(await map.graph(all)).toEqual([{ fragmentId: tone.id, promptId: main.id, ref: "pro", pinned: 1, current: 1, outdated: false }]);
+    await service.saveVersion(tone.id, USER, { content: "Sé formal." });
+    await service.moveTag(tone.id, USER, { tag: "pro", version: 2 }, true);
+    expect(await map.graph(all)).toMatchObject([{ promptId: main.id, pinned: 1, current: 2, outdated: true }]);
+    expect(await map.graph([tone, unused])).toEqual([]); // edges only between the prompts given
+  });
+
   it("previews who would receive a tag move: agents following that tag, not the pinned or the other environments", async () => {
     const { service, map, main } = await setup();
     await service.saveVersion(main.id, USER, { content: "{{> tone@pro}}\nNuevo." });

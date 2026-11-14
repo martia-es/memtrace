@@ -1,5 +1,5 @@
 /** Dobles del registro de prompts (ADR-067). */
-import type { ApprovalRequestDto, ApprovalRuleDto, ApprovalRulesResponse, PromptApprovalsResponse, PromptDetailDto, PromptEvidenceResponse, PromptFailuresResponse, PromptGateDto, PromptMapDto, PromptPlaygroundResponse, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto, VersionEvidenceDto } from "@contract";
+import type { ApprovalRequestDto, ApprovalRuleDto, ApprovalRulesResponse, PromptApprovalsResponse, PromptDetailDto, PromptEvidenceResponse, PromptFailuresResponse, PromptGateDto, PromptGraphResponse, PromptMapDto, PromptPlaygroundResponse, PromptPolicyDto, PromptSummaryDto, PromptTagEventDto, PromptVersionDto, VersionEvidenceDto } from "@contract";
 import type { ApprovalScope, NewPromptInput, OpenApprovalInput, PromptApi } from "@/application/prompt-api";
 
 export function promptVersion(version: number, content: string, extra: Partial<PromptVersionDto> = {}): PromptVersionDto {
@@ -193,6 +193,11 @@ export class FakePromptApi implements PromptApi {
   async previewGate(promptId: string, tag: string, version: number) {
     this.record("previewGate", promptId, tag, version);
     return { ...this.gate, tag, version };
+  }
+  graphResult: PromptGraphResponse = { nodes: [], edges: [] };
+  async graph(experimentId: string) {
+    this.record("graph", experimentId);
+    return this.graphResult;
   }
   mapResult = { agents: [], dataset: null, includes: [], usedBy: [], impact: null } as PromptMapDto;
   async map(promptId: string, move?: { tag: string; version: number }) {

@@ -1,6 +1,6 @@
 import type { IdentityRepository } from "@/application/ports/identity-repository";
 import type { PromptRepository } from "@/application/ports/prompt-repository";
-import type { IncludeStatus, PromptService, UsedBy } from "@/application/prompt-service";
+import type { FragmentEdge, IncludeStatus, PromptService, UsedBy } from "@/application/prompt-service";
 import type { Prompt } from "@/domain/prompt";
 import { promotionImpact, servingByAgent, type AgentLink, type PromotionImpact } from "@/domain/prompt-map";
 
@@ -42,6 +42,16 @@ export class PromptMapService {
       ...links,
       impact: move ? await this.impact(prompt, agents, move) : null,
     };
+  }
+
+  /**
+   * Grafo global de un conjunto de prompts: qué fragmento entra en qué prompt. Solo cuenta aristas entre los prompts dados
+   * (los visibles para quien pregunta); lee la última versión publicada de cada uno, igual que «Used by».
+   */
+  async graph(prompts: Prompt[]): Promise<FragmentEdge[]> {
+    const ids = new Set(prompts.map((p) => p.id));
+    const edges = await Promise.all(prompts.filter((p) => p.kind === "fragment").map((f) => this.prompts.fragmentEdges(f)));
+    return edges.flat().filter((e) => ids.has(e.promptId));
   }
 
   private async impact(prompt: Prompt, agents: AgentLink[], move: { tag: string; version: number }): Promise<PromotionImpact> {
