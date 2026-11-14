@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "memtrace-mem"
 version = "0.1.0"
-description = "Mem worker: builds one episode per trace with a multi-signal outcome (Phase 2.0, Observe)"
+description = "Mem workers: episodes per trace (Phase 2.0) and failure-rule discovery (Phase 2.1)"
 readme = "README.md"
 requires-python = ">=3.10.18"
 dependencies = [
@@ -13,7 +13,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=8"]
+# descubrimiento (Fase 2.1): estadística y agrupación de objetivos con embeddings locales; el worker de episodios no lo necesita
+discovery = ["pandas>=2.1", "numpy>=1.26", "scipy>=1.11", "scikit-learn>=1.4", "sentence-transformers>=3.0"]
+test = ["pytest>=8", "pandas>=2.1", "numpy>=1.26", "scipy>=1.11", "scikit-learn>=1.4"]
 
 [tool.setuptools.packages.find]
 include = ["mem*"]
