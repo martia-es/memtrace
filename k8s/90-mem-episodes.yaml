@@ -1,0 +1,37 @@
+# Worker de Mem (Fase 2.0, Observar): construye un episodio por traza con su resultado multi-señal y lo escribe en `mem_episodes`.
+# No llama a ningún LLM ni a Internet. Es idempotente: si falla, la siguiente pasada retoma las trazas sin episodio.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mem-episodes
+  namespace: memtrace
+spec:
+  schedule: "*/10 * * * *" # cada 10 minutos: el episodio de una traza se cierra tras MEM_SETTLE_MINUTES sin spans nuevos
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: mem-episodes
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: mem-episodes
+              image: localhost/memtrace/mem:dev
+              imagePullPolicy: Never
+              env:
+                - name: CLICKHOUSE_HOST
+                  value: clickhouse
+                - name: CLICKHOUSE_PORT
+                  value: "8123"
+                - name: CLICKHOUSE_USER
+                  value: default
+                - name: CLICKHOUSE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: clickhouse-credentials
+                      key: password
+                - name: CLICKHOUSE_DATABASE
+                  value: memtrace

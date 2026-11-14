@@ -325,8 +325,8 @@ Un usuario puede agrupar varias gráficas custom ya guardadas en un **informe** 
 
 ### Deliverables Fase 2
 
-- [ ] Worker `analytics/mem` y tabla `mem_episodes` en ClickHouse
-- [ ] Resultado multi-señal de una traza y paso decisivo
+- [x] Worker `analytics/mem` y tabla `mem_episodes` en ClickHouse (CronJob cada 10 minutos, sin LLM, con `ExperimentId` y retención de ADR-084; guía en `analytics/mem/README.md`)
+- [x] Resultado multi-señal de una traza y paso decisivo (error, bucle, evaluador y feedback; pesos validados en el spike)
 - [ ] Patrones recurrentes en Overview
 - [ ] Clusters y contraste éxito/fallo con significación estadística
 - [ ] Modelo de datos de lecciones en Postgres, estados y permisos (`lesson:*`)
