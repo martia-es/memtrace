@@ -114,6 +114,7 @@ export function toConversationSummaryDto(c: ConversationListItem): ConversationS
     title: c.title,
     costUsd: c.costUsd,
     prompts: c.prompts,
+    story: c.story,
   };
 }
 

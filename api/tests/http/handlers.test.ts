@@ -119,7 +119,7 @@ describe("other endpoints", () => {
 describe("conversations endpoints", () => {
   const summary = (id: string) => ({
     conversationId: id, serviceNames: ["svc"], startTimeUs: 1_790_000_000_000_000, lastActivityUs: 1_790_000_060_000_000,
-    turnCount: 2, errorTurns: 1, failedSpans: 2, totalTokens: 30, activeMs: 1500.5, prompts: [],
+    turnCount: 2, errorTurns: 1, failedSpans: 2, totalTokens: 30, activeMs: 1500.5, prompts: [], story: { toolCalls: 0, tools: [], failedTools: [], retrievals: 0, guardrailBlocks: 0 },
   });
 
   it("lists conversations with ISO dates and a cursor that round-trips", async () => {

@@ -2,6 +2,7 @@
 import TextInput from "@/ui/components/TextInput.vue";
 import Select from "../components/Select.vue";
 import type { ConversationSummaryDto, TraceSummaryDto } from "@contract";
+import { conversationStory } from "@/domain/conversation-story";
 import { computed, inject, onBeforeUnmount, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { CURRENT_EXPERIMENT } from "@/dependency-container";
@@ -301,6 +302,7 @@ const connectOpen = computed(() => connectOverride.value ?? (f.range.value === "
                 <td class="name-cell">
                   <span class="name" :class="{ mono: !c.title }" :title="c.title ?? c.conversationId">{{ c.title ?? c.conversationId }}</span>
                   <span class="sub"><span v-if="c.title" class="mono">{{ c.conversationId }} · </span>{{ c.serviceNames.join(", ") }}</span>
+                  <span class="story" :class="`story-${conversationStory(c).tone}`" :title="conversationStory(c).text">{{ conversationStory(c).text }}</span>
                 </td>
                 <td><PromptChips :prompts="c.prompts" :max="2" /></td>
                 <td class="muted mono">{{ formatDateTime(c.lastActivity) }}</td>
@@ -532,6 +534,19 @@ const connectOpen = computed(() => connectOverride.value ?? (f.range.value === "
   display: block;
   font-size: 11.5px;
   color: var(--mt-faint);
+}
+.story {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  color: var(--mt-muted);
+}
+.story-error {
+  color: var(--mt-err-ink);
+}
+.story-warn {
+  color: var(--mt-warn-ink);
 }
 .no-match {
   display: flex;
