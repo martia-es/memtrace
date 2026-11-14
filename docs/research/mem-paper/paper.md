@@ -1,6 +1,6 @@
 # From OpenTelemetry Traces to Failure Rules: Deterministic Episode Construction and Statistically Filtered Rule Discovery for LLM Agents
 
-*Draft v0.3 — MemTrace team. Working paper; not peer reviewed. All numbers come from `experiments.py` in this directory (5 seeds); see [Reproducibility](#9-reproducibility). v0.3 reports the final method on held-out seeds, after fixing a defect and testing mitigations (§7).*
+*Draft v0.3 — MemTrace team. Working paper; not peer reviewed. All numbers come from `experiments.py` in this directory (5 development and 5 held-out seeds); see §9. v0.3 reports the final method on held-out seeds, after fixing a defect and testing mitigations (§7).*
 
 ## Abstract
 
@@ -246,7 +246,7 @@ Code: `analytics/mem/mem/{episode,discovery}.py` (the code under test), `spikes/
 
 ```bash
 PYTHONPATH=analytics/mem:spikes/mem spikes/mem/.venv/bin/python docs/research/mem-paper/experiments.py \
-    --work-dir /tmp/mem-paper-work --out-dir docs/research/mem-paper/results --seeds 7 11 13 17 19
+    --work-dir /tmp/mem-paper-work --out-dir docs/research/mem-paper/results_final_test --seeds 23 29 31 37 41
 ```
 
 Outputs, one directory per run, each with `results.json` and `results.md`: `results_final_test/` (held-out seeds, headline tables), `results_final_dev/` (development seeds), `results_mitigation_{dev,test}/` (§7.2, run with `--suite mitigation`), `results_v2/` (development seeds after the §7.1 fix, before family-wise correction) and `results/` (v1; reproduce with `git checkout 93f0849 -- analytics/mem`). Held-out seeds: `--seeds 23 29 31 37 41`. The multilingual encoder is `paraphrase-multilingual-MiniLM-L12-v2`.
