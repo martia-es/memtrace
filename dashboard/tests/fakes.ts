@@ -569,6 +569,9 @@ export function datasetRunItem(overrides: Partial<DatasetRunItemResultDto> = {})
 export const NO_MONTH_COST: MonthCostDto = { month: "2026-10-01", spentUsd: 0, projectedUsd: null, daily: [] };
 
 export class FakeTraceApi implements TraceApi {
+  forExperiment(): TraceApi {
+    return this;
+  }
   pages: TraceListResponse[] = [{ items: [], nextCursor: null }];
   listCalls: ListTracesParams[] = [];
   detail: TraceDetailResponse | Error | null = null;

@@ -12,6 +12,7 @@ import AssistantConnections from "../components/assistants/AssistantConnections.
 import AssistantEnvironments from "../components/assistants/AssistantEnvironments.vue";
 import EditAssistantModal from "../components/assistants/EditAssistantModal.vue";
 import CiSetup from "../components/assistants/CiSetup.vue";
+import AssistantSummary from "../components/assistants/AssistantSummary.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import PageHeader from "../components/PageHeader.vue";
 import StatusChip from "../components/StatusChip.vue";
@@ -133,6 +134,8 @@ const editing = ref(false);
         </span>
         <Button v-for="a in attention" :key="a.id" variant="link" class="jump" @click="jump(a.anchor)">{{ a.anchor === "connections" ? t("assistantDetailPage.review_connections") : t("assistantDetailPage.see_environments") }}</Button>
       </section>
+
+      <AssistantSummary :card="card.data.value" :experiment-id="experimentId" />
 
       <section ref="environmentsEl" class="section" data-testid="section-environments">
         <header class="section-head">

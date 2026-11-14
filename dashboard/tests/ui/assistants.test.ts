@@ -17,13 +17,16 @@ const THEME = EMPTY_THEME;
 const org = (role: string): OrganizationDto => ({ id: "org-1", name: "Acme", myRole: role === "org_admin" ? "org_admin" : null, permissions: permissionsOf(role), theme: THEME });
 const exp = (role: string): ExperimentDto => ({ id: "exp-1", organizationId: "org-1", name: "weather", serviceName: "weather-assistant", myRole: role, permissions: permissionsOf(role), organizationTheme: THEME });
 
+/** what the person did: the summary of the page also reads (security) on load, which is not an action */
+const actions = (api: FakeAssistantApi) => api.calls.filter((c) => c.method !== "getSecurity");
+
 class Identity extends FakeIdentityApi {
   constructor(private orgs: OrganizationDto[], private exps: ExperimentDto[]) { super(); }
   override async listOrganizations() { return this.orgs; }
   override async listExperiments() { return this.exps; }
 }
 
-async function setup(component: object, path: string, assistants: FakeAssistantApi, identity: FakeIdentityApi, props: Record<string, unknown> = {}) {
+async function setup(component: object, path: string, assistants: FakeAssistantApi, identity: FakeIdentityApi, props: Record<string, unknown> = {}, trace = new FakeTraceApi()) {
   const stub = { template: "<div />" };
   const router = createRouter({
     history: createMemoryHistory(),
@@ -31,6 +34,10 @@ async function setup(component: object, path: string, assistants: FakeAssistantA
       { path: "/assistants", name: "assistants", component: stub },
       { path: "/assistants/:expId", name: "assistant", component: stub },
       { path: "/e/:experimentId/overview", name: "overview", component: stub },
+      { path: "/e/:experimentId/conversations", name: "conversations", component: stub },
+      { path: "/e/:experimentId/alerts", name: "alerts", component: stub },
+      { path: "/e/:experimentId/runs", name: "runs", component: stub },
+      { path: "/e/:experimentId/security", name: "security", component: stub },
       { path: "/admin/experiments/:expId", name: "admin-experiment", component: stub },
       { path: "/admin/organizations/:organizationId", name: "admin-organization", component: stub },
     ],
@@ -40,7 +47,7 @@ async function setup(component: object, path: string, assistants: FakeAssistantA
   const Host = defineComponent({ setup: () => () => h(QLayout, () => h(QPageContainer, () => h(component, props))) });
   const wrapper = mount(Host, {
     attachTo: document.body,
-    global: { plugins: [[Quasar, { plugins: { Dark, Notify } }], router], provide: { [TRACE_API as symbol]: new FakeTraceApi(), [IDENTITY_API as symbol]: identity, [ASSISTANT_API as symbol]: assistants } },
+    global: { plugins: [[Quasar, { plugins: { Dark, Notify } }], router], provide: { [TRACE_API as symbol]: trace, [IDENTITY_API as symbol]: identity, [ASSISTANT_API as symbol]: assistants } },
   });
   await flushPromises();
   return { wrapper, router };
@@ -180,6 +187,16 @@ describe("assistants catalog (ADR-053)", () => {
 });
 
 describe("assistant detail (ADR-053)", () => {
+  it("opens with a summary of the agent: health sentence, key figures and links to where each one lives", async () => {
+    const trace = new FakeTraceApi();
+    trace.overviewByExperiment["exp-1"] = { totals: { traces: 1000, errorTraces: 20, errorRate: 0.02 } } as never;
+    const { wrapper } = await setup(AssistantDetailPage, "/assistants/exp-1", new FakeAssistantApi(), new Identity([org("technical")], [exp("technical")]), { experimentId: "exp-1" }, trace);
+    expect(wrapper.get("[data-testid='summary-health']").text()).toContain("healthy");
+    expect(wrapper.get("[data-testid='summary-card-reliability']").text()).toContain("98.0%");
+    expect(wrapper.find("[data-testid='summary-card-security']").exists()).toBe(true);
+    expect(wrapper.find("[data-testid='section-environments']").exists()).toBe(true);
+  });
+
   it("shows one card per environment and who can call the production one", async () => {
     const api = new FakeAssistantApi();
     api.grants = [{ id: "g1", deploymentId: "dep-pro", subjectType: "group", userId: null, user: null, externalGroup: "Support-Agents", memberCount: 214, source: "scim", syncedAt: "2026-10-05T10:00:00.000Z" }];
@@ -212,7 +229,7 @@ describe("assistant detail (ADR-053)", () => {
     const owner = await setup(AssistantDetailPage, "/assistants/exp-1", api, new Identity([org("technical")], [exp("technical")]), { experimentId: "exp-1" });
     await owner.wrapper.get("[data-testid='deployment-pro'] [data-testid='check-now']").trigger("click");
     await flushPromises();
-    expect(api.calls).toEqual([{ method: "checkDeploymentNow", args: ["exp-1", "dep-pro"] }]);
+    expect(actions(api)).toEqual([{ method: "checkDeploymentNow", args: ["exp-1", "dep-pro"] }]);
     owner.wrapper.unmount();
 
     const reader = await setup(AssistantDetailPage, "/assistants/exp-1", new FakeAssistantApi(), new Identity([org("governance_reader")], []), { experimentId: "exp-1" });
@@ -228,7 +245,7 @@ describe("assistant detail (ADR-053)", () => {
     const remove = a.wrapper.findAll("button").find((b) => b.text() === "Remove")!;
     await remove.trigger("click");
     await flushPromises();
-    expect(governed.calls).toEqual([{ method: "removeGrant", args: ["exp-1", "dep-pro", "g1"] }]);
+    expect(actions(governed)).toEqual([{ method: "removeGrant", args: ["exp-1", "dep-pro", "g1"] }]);
     a.wrapper.unmount();
 
     const owner = new FakeAssistantApi();
@@ -282,7 +299,7 @@ describe("assistant detail (ADR-053)", () => {
     const approve = wrapper.findAll("button").find((b) => b.text() === "Approve")!;
     await approve.trigger("click");
     await flushPromises();
-    expect(api.calls).toEqual([{ method: "decideConnection", args: ["exp-1", "c2", "approved", null] }]);
+    expect(actions(api)).toEqual([{ method: "decideConnection", args: ["exp-1", "c2", "approved", null] }]);
   });
 
   it("filters the connection cards by status and shows how many there are of each", async () => {
