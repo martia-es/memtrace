@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "memtrace-mem"
+version = "0.1.0"
+description = "Mem worker: builds one episode per trace with a multi-signal outcome (Phase 2.0, Observe)"
+readme = "README.md"
+requires-python = ">=3.10.18"
+dependencies = [
+    "clickhouse-connect>=0.7",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+include = ["mem*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
