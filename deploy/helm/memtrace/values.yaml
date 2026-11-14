@@ -55,6 +55,9 @@ images:
   modelQuality:
     repository: localhost/memtrace/model-quality
     tag: dev
+  mem:
+    repository: localhost/memtrace/mem
+    tag: dev
   otelCollector:
     repository: otel/opentelemetry-collector-contrib
     tag: 0.96.0
