@@ -421,6 +421,7 @@ export function toDatasetDto(
   return {
     id: dataset.id,
     name: dataset.name,
+    category: dataset.category,
     createdAt: dataset.createdAt,
     runCount,
     versionCount,

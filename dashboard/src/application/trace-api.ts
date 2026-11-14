@@ -28,6 +28,7 @@ import type {
   CustomMetricDefinitionDto,
   CustomMetricResultResponse,
   DatasetDto,
+  DatasetCategoryDto,
   CommitDatasetChangesBody,
   PromoteTracesBody,
   PromoteTracesResponse,
@@ -239,7 +240,9 @@ export interface TraceApi {
   /** datasets de evaluación offline del experimento (ADR-028) */
   listDatasets(signal?: AbortSignal): Promise<DatasetsListResponse>;
   getDataset(datasetId: string, signal?: AbortSignal): Promise<DatasetDto>;
-  createDataset(name: string, signal?: AbortSignal): Promise<DatasetDto>;
+  createDataset(name: string, category?: DatasetCategoryDto | null, signal?: AbortSignal): Promise<DatasetDto>;
+  /** Cambia la categoría de un dataset (`null` la quita). */
+  setDatasetCategory(datasetId: string, category: DatasetCategoryDto | null, signal?: AbortSignal): Promise<void>;
   deleteDataset(datasetId: string, signal?: AbortSignal): Promise<void>;
 
   /** historial de versiones de un dataset (ADR-032), más recientes primero. Puramente

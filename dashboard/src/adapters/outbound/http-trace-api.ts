@@ -28,6 +28,7 @@ import type {
   CustomMetricDefinitionDto,
   CustomMetricResultResponse,
   DatasetDto,
+  DatasetCategoryDto,
   CommitDatasetChangesBody,
   PromoteTracesBody,
   PromoteTracesResponse,
@@ -279,8 +280,12 @@ export class HttpTraceApi implements TraceApi {
     return this.get<DatasetDto>(`${this.scopedBase()}/datasets/${encodeURIComponent(datasetId)}`, {}, signal);
   }
 
-  createDataset(name: string, signal?: AbortSignal) {
-    return this.post<DatasetDto>(`${this.scopedBase()}/datasets`, { name }, signal);
+  createDataset(name: string, category: DatasetCategoryDto | null = null, signal?: AbortSignal) {
+    return this.post<DatasetDto>(`${this.scopedBase()}/datasets`, category ? { name, category } : { name }, signal);
+  }
+
+  async setDatasetCategory(datasetId: string, category: DatasetCategoryDto | null, signal?: AbortSignal) {
+    await this.patch(`${this.scopedBase()}/datasets/${encodeURIComponent(datasetId)}`, { category }, signal);
   }
 
   deleteDataset(datasetId: string, signal?: AbortSignal) {

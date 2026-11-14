@@ -757,7 +757,7 @@ describe("dependency map (ADR-074)", () => {
   const names: Record<string, string> = { [AGENT_A]: "weather", [AGENT_B]: "billing" };
   const identity = {
     getExperiment: async (id: string) => (names[id] ? { id, organizationId: ORG, name: names[id], serviceName: id } : null),
-    getDataset: async (id: string) => (id === "ds-1" ? { id, experimentId: AGENT_A, name: "golden", createdAt: "t" } : null),
+    getDataset: async (id: string) => (id === "ds-1" ? { id, experimentId: AGENT_A, name: "golden", category: null, createdAt: "t" } : null),
   } as unknown as IdentityRepository;
 
   async function setup() {

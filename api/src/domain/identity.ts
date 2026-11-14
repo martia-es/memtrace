@@ -159,10 +159,15 @@ export interface MetricReportWithCharts extends MetricReport {
 }
 
 /** Dataset de evaluación offline (ADR-028): una colección curada de ejemplos para un experimento. */
+export const DATASET_CATEGORIES = ["functional", "security", "regression", "other"] as const;
+export type DatasetCategory = (typeof DATASET_CATEGORIES)[number];
+
 export interface Dataset {
   id: string;
   experimentId: string;
   name: string;
+  /** Clasificación opcional para filtrar en el dashboard; `null` = sin categoría. */
+  category: DatasetCategory | null;
   createdAt: string;
 }
 

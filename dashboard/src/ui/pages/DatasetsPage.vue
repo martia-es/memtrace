@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import TextInput from "@/ui/components/TextInput.vue";
-import type { DatasetDto } from "@contract";
+import type { DatasetCategoryDto, DatasetDto } from "@contract";
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useQuasar } from "quasar";
@@ -17,6 +17,8 @@ import Button from "../components/Button.vue";
 import DataTable from "../components/DataTable.vue";
 import LoadingState from "../components/LoadingState.vue";
 import Card from "../components/Card.vue";
+import Pill from "../components/Pill.vue";
+import Select from "../components/Select.vue";
 import { t, tp } from "../i18n";
 
 const api = useTraceApi();
@@ -50,12 +52,33 @@ const VIEW_OPTIONS = [
   { value: "list", get label() { return t("datasetsPage.list"); } },
 ];
 
+// categorías: conjunto cerrado del servidor; el color solo ayuda a escanear, la etiqueta siempre va escrita
+const CATEGORIES: DatasetCategoryDto[] = ["functional", "security", "regression", "other"];
+const CATEGORY_TONE: Record<DatasetCategoryDto, "info" | "highlight" | "neutral"> = { functional: "info", security: "highlight", regression: "neutral", other: "neutral" };
+const categoryLabel = (c: DatasetCategoryDto | null) => (c ? t(`datasetsPage.category_${c}`) : t("datasetsPage.category_none"));
+const categoryOptions = () => [{ value: "none", label: t("datasetsPage.category_none") }, ...CATEGORIES.map((c) => ({ value: c as string, label: categoryLabel(c) }))];
+const toCategory = (v: string): DatasetCategoryDto | null => ((CATEGORIES as string[]).includes(v) ? (v as DatasetCategoryDto) : null);
+
+// filtro por categoría (all | none | una categoría); solo se ofrecen las que tienen datasets
+const categoryFilter = ref<string>("all");
+const categoryFilterOptions = computed(() => {
+  const items = datasets.data.value?.items ?? [];
+  const count = (c: string) => (c === "all" ? items.length : items.filter((d) => (d.category ?? "none") === c).length);
+  const all = [
+    { value: "all", label: t("datasetsPage.category_all") },
+    ...CATEGORIES.map((c) => ({ value: c as string, label: categoryLabel(c) })),
+    { value: "none", label: t("datasetsPage.category_none") },
+  ];
+  return all.filter((o) => o.value === "all" || count(o.value) > 0).map((o) => ({ value: o.value, label: `${o.label} · ${count(o.value)}` }));
+});
+
 const search = ref("");
 // el más recientemente editado primero, como en un explorador de ficheros
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase();
   const all = [...(datasets.data.value?.items ?? [])].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-  return !q ? all : all.filter((d) => d.name.toLowerCase().includes(q));
+  const byCategory = categoryFilter.value === "all" ? all : all.filter((d) => (d.category ?? "none") === categoryFilter.value);
+  return !q ? byCategory : byCategory.filter((d) => d.name.toLowerCase().includes(q));
 });
 
 function openDataset(datasetId: string) {
@@ -79,13 +102,15 @@ function thumbCells(d: DatasetDto): boolean[] {
 // ---- create dataset ----
 const showCreateModal = ref(false);
 const newDatasetName = ref("");
+const newDatasetCategory = ref("none");
 const creating = ref(false);
 async function createDataset() {
   if (!newDatasetName.value.trim()) return;
   creating.value = true;
   try {
-    const dataset = await api.createDataset(newDatasetName.value.trim());
+    const dataset = await api.createDataset(newDatasetName.value.trim(), toCategory(newDatasetCategory.value));
     newDatasetName.value = "";
+    newDatasetCategory.value = "none";
     showCreateModal.value = false;
     await datasets.run();
     router.push({ name: "dataset", params: { datasetId: dataset.id } });
@@ -138,6 +163,28 @@ function onPick(event: Event) {
   if (file) void importFile(file);
 }
 
+// ---- cambiar categoría ----
+const toCategorize = ref<DatasetDto | null>(null);
+const categoryDraft = ref("none");
+const savingCategory = ref(false);
+function openCategorize(d: DatasetDto) {
+  toCategorize.value = d;
+  categoryDraft.value = d.category ?? "none";
+}
+async function saveCategory() {
+  if (!toCategorize.value) return;
+  savingCategory.value = true;
+  try {
+    await api.setDatasetCategory(toCategorize.value.id, toCategory(categoryDraft.value));
+    toCategorize.value = null;
+    await datasets.run();
+  } catch (error) {
+    notifyError(t("datasetsPage.could_not_set_category"), error);
+  } finally {
+    savingCategory.value = false;
+  }
+}
+
 // ---- borrar ----
 const toDelete = ref<DatasetDto | null>(null);
 const deleting = ref(false);
@@ -173,6 +220,7 @@ async function confirmDelete() {
     <div class="toolbar">
       <TextInput type="search" v-model="search" :placeholder="t('datasetsPage.filter_by_name')" class="search" />
       <SegmentedControl :options="VIEW_OPTIONS" :model-value="view" size="sm" :aria-label="t('datasetsPage.view')" @update:model-value="setView" />
+      <SegmentedControl v-if="categoryFilterOptions.length > 2" class="cat-filter" :options="categoryFilterOptions" v-model="categoryFilter" size="sm" :aria-label="t('datasetsPage.category')" />
     </div>
 
     <input ref="fileInput" type="file" accept=".csv,.tsv,.txt,text/csv" class="file-input" :aria-label="t('datasetsPage.choose_a_csv_file')" @change="onPick" />
@@ -200,10 +248,14 @@ async function confirmDelete() {
               <span class="file-name">{{ d.name }}</span>
               <span class="version mono">{{ versionLabel(d) }}</span>
             </span>
+            <Pill v-if="d.category" :tone="CATEGORY_TONE[d.category]" class="cat-pill" :data-testid="`dataset-category-${d.name}`">{{ categoryLabel(d.category) }}</Pill>
             <span class="file-meta muted">{{ meta(d) }}</span>
             <span class="file-meta muted">{{ t("datasetsPage.edited_when", { when: formatDateTime(d.updatedAt) }) }}</span>
           </span>
         </button>
+        <Button variant="icon" size="sm" class="file-categorize" :aria-label="t('datasetsPage.set_category_for', { name: d.name })" :title="t('datasetsPage.set_category_for', { name: d.name })" @click="openCategorize(d)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z" /><circle cx="7.5" cy="7.5" r="1.2" /></svg>
+        </Button>
         <Button variant="icon" size="sm" class="file-delete" :aria-label="t('datasetsPage.delete_name2', { name: d.name })" :title="t('datasetsPage.delete_name2', { name: d.name })" @click="toDelete = d">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6" /></svg>
         </Button>
@@ -222,6 +274,7 @@ async function confirmDelete() {
         <thead>
           <tr>
             <th>{{ t("datasetsPage.dataset") }}</th>
+            <th>{{ t("datasetsPage.category") }}</th>
             <th class="num">{{ t("datasetsPage.version") }}</th>
             <th class="num">{{ t("datasetsPage.items") }}</th>
             <th class="num">{{ t("datasetsPage.runs") }}</th>
@@ -232,6 +285,12 @@ async function confirmDelete() {
         <tbody>
           <tr v-for="d in filtered" :key="d.id" class="dataset-row" tabindex="0" @click="openDataset(d.id)" @keydown.enter="openDataset(d.id)">
             <td class="name">{{ d.name }}</td>
+            <td>
+              <button type="button" class="cat-cell" :aria-label="t('datasetsPage.set_category_for', { name: d.name })" @click.stop="openCategorize(d)" @keydown.enter.stop>
+                <Pill v-if="d.category" :tone="CATEGORY_TONE[d.category]">{{ categoryLabel(d.category) }}</Pill>
+                <span v-else class="muted">—</span>
+              </button>
+            </td>
             <td class="num mono">{{ versionLabel(d) }}</td>
             <td class="num mono">{{ d.itemCount }}</td>
             <td class="num mono">{{ d.runCount }}</td>
@@ -255,8 +314,16 @@ async function confirmDelete() {
     <Modal v-if="showCreateModal" :title="t('datasetsPage.new_dataset2')" @close="showCreateModal = false">
       <form class="modal-form" @submit.prevent="createDataset">
         <TextInput v-model="newDatasetName" :placeholder="t('datasetsPage.dataset_name')" autofocus />
+        <Select v-model="newDatasetCategory" :options="categoryOptions()" :aria-label="t('datasetsPage.category')" />
         <Button variant="primary" type="submit" :disabled="creating || !newDatasetName.trim()">{{ t("datasetsPage.create") }}</Button>
       </form>
+    </Modal>
+
+    <Modal v-if="toCategorize" :title="t('datasetsPage.category_of', { name: toCategorize.name })" @close="toCategorize = null">
+      <div class="modal-form">
+        <Select v-model="categoryDraft" :options="categoryOptions()" :aria-label="t('datasetsPage.category')" />
+        <Button variant="primary" :disabled="savingCategory" @click="saveCategory">{{ t("datasetsPage.save") }}</Button>
+      </div>
     </Modal>
 
     <Modal v-if="toDelete" :title="t('datasetsPage.delete_name', { name: toDelete.name })" @close="toDelete = null">
@@ -407,9 +474,33 @@ async function confirmDelete() {
   background: var(--mt-card);
   border: 1px solid var(--mt-line);
 }
+.file-categorize {
+  position: absolute;
+  top: 8px;
+  right: 44px;
+  opacity: 0;
+  background: var(--mt-card);
+  border: 1px solid var(--mt-line);
+}
 .file:hover .file-delete,
-.file:focus-within .file-delete {
+.file:focus-within .file-delete,
+.file:hover .file-categorize,
+.file:focus-within .file-categorize {
   opacity: 1;
+}
+.cat-pill {
+  align-self: flex-start;
+  margin: 2px 0;
+}
+.cat-filter {
+  margin-left: auto;
+}
+.cat-cell {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
 }
 .file.drop {
   min-height: 190px;

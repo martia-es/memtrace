@@ -84,12 +84,41 @@ describe("DatasetsPage", () => {
 
     await wrapper.findAll(".mt-segmented button").find((b) => b.text() === "List")!.trigger("click");
     await flushPromises();
-    expect(wrapper.findAll("th").map((th) => th.text())).toEqual(["Dataset", "Version", "Items", "Runs", "Edited", ""]);
+    expect(wrapper.findAll("th").map((th) => th.text())).toEqual(["Dataset", "Category", "Version", "Items", "Runs", "Edited", ""]);
     expect(localStorage.getItem("mt.datasets.view")).toBe("list");
 
     await wrapper.find("tbody tr").trigger("click");
     await flushPromises();
     expect(router.currentRoute.value.params.datasetId).toBe("ds-1");
+  });
+
+  it("shows the category on each card and filters by it", async () => {
+    useFiles();
+    const api = new FakeTraceApi();
+    api.datasets = {
+      items: [
+        datasetDto({ id: "ds-1", name: "red-team", category: "security" }),
+        datasetDto({ id: "ds-2", name: "faq", category: "functional" }),
+        datasetDto({ id: "ds-3", name: "loose" }),
+      ],
+    };
+    const { wrapper } = await setup(DatasetsPage, api, "/datasets");
+    expect(wrapper.get('[data-testid="dataset-category-red-team"]').text()).toBe("Security");
+    expect(wrapper.find('[data-testid="dataset-category-loose"]').exists()).toBe(false);
+
+    await wrapper.findAll(".cat-filter button").find((b) => b.text().startsWith("Security"))!.trigger("click");
+    await flushPromises();
+    expect(wrapper.findAll(".file-name").map((n) => n.text())).toEqual(["red-team"]);
+  });
+
+  it("changes the category of a dataset", async () => {
+    useFiles();
+    const api = new FakeTraceApi();
+    api.datasets = { items: [datasetDto({ id: "ds-1", name: "faq" })] };
+    const { wrapper } = await setup(DatasetsPage, api, "/datasets");
+    await wrapper.get(".file-categorize").trigger("click");
+    await flushPromises();
+    expect(document.body.textContent).toContain("Category of faq");
   });
 
   it("filters by name", async () => {

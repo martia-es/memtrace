@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DATASET_CATEGORIES } from "@/domain/identity";
 import { ValidationError } from "@/domain/errors";
 import { ATTRIBUTE_METRICS } from "@/domain/metrics";
 import type { ConversationCursor } from "@/domain/conversation";
@@ -144,9 +145,15 @@ export const sendMetricReportEmailBody = z.object({ toEmails: z.array(z.string()
 
 /** Evaluación offline (ADR-028). */
 
+const datasetCategory = z.enum(DATASET_CATEGORIES);
+
 export const createDatasetBody = z.object({
   name: z.string().trim().min(1).max(200),
+  category: datasetCategory.nullable().optional(),
 });
+
+/** PATCH de un dataset: hoy solo la categoría (`null` la quita). */
+export const updateDatasetBody = z.strictObject({ category: datasetCategory.nullable() });
 
 const datasetItemBody = z.object({
   input: z.unknown(),
