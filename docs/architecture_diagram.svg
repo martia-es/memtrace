@@ -1,0 +1,167 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520" width="100%" height="100%" style="background-color: #0b0f19; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <defs>
+    <!-- Arrow marker -->
+    <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#38bdf8" />
+    </marker>
+    <!-- Subtle gradient for cards -->
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="kafkaGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2e1065"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="chGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2a1b08"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Title & Header -->
+  <text x="50" y="50" fill="#f8fafc" font-size="24" font-weight="700" letter-spacing="-0.5">MemTrace: Pipeline de Telemetría para Agentes de IA</text>
+  <text x="50" y="76" fill="#94a3b8" font-size="14">El flujo de ingestión desacoplado y resiliente desde el agente hasta la base de datos columnar</text>
+
+  <!-- ================= 1. AGENTE ================= -->
+  <g id="step1">
+    <rect x="50" y="115" width="200" height="340" rx="14" fill="url(#cardGrad)" stroke="#38bdf8" stroke-width="1.8"/>
+    <rect x="65" y="130" width="32" height="24" rx="6" fill="#0284c7"/>
+    <text x="81" y="146" fill="#ffffff" font-size="12" font-weight="700" text-anchor="middle">1</text>
+    <text x="105" y="147" fill="#38bdf8" font-size="12" font-weight="700">ORIGEN</text>
+    
+    <text x="65" y="185" fill="#f8fafc" font-size="16" font-weight="700">Agente de IA</text>
+    <text x="65" y="205" fill="#38bdf8" font-size="13" font-family="monospace">memtrace-ai</text>
+
+    <line x1="65" y1="225" x2="235" y2="225" stroke="#334155" stroke-width="1"/>
+
+    <text x="65" y="248" fill="#e2e8f0" font-size="12" font-weight="600">¿Qué hace?</text>
+    <text x="65" y="268" fill="#94a3b8" font-size="11">Instrumenta LLMs,</text>
+    <text x="65" y="284" fill="#94a3b8" font-size="11">prompts, tools y latencias.</text>
+    <text x="65" y="300" fill="#94a3b8" font-size="11">Exporta vía OTLP.</text>
+
+    <text x="65" y="335" fill="#fbbf24" font-size="12" font-weight="600">¿Por qué hace falta?</text>
+    <text x="65" y="355" fill="#cbd5e1" font-size="11">Envío asíncrono en</text>
+    <text x="65" y="371" fill="#cbd5e1" font-size="11">background: jamás</text>
+    <text x="65" y="387" fill="#cbd5e1" font-size="11">bloquea la respuesta</text>
+    <text x="65" y="403" fill="#cbd5e1" font-size="11">hacia el usuario final.</text>
+  </g>
+
+  <!-- Arrow 1 -> 2 -->
+  <line x1="250" y1="285" x2="275" y2="285" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- ================= 2. COLLECTOR INGEST ================= -->
+  <g id="step2">
+    <rect x="280" y="115" width="200" height="340" rx="14" fill="url(#cardGrad)" stroke="#38bdf8" stroke-width="1.8"/>
+    <rect x="295" y="130" width="32" height="24" rx="6" fill="#0284c7"/>
+    <text x="311" y="146" fill="#ffffff" font-size="12" font-weight="700" text-anchor="middle">2</text>
+    <text x="335" y="147" fill="#38bdf8" font-size="12" font-weight="700">ENTRADA</text>
+
+    <text x="295" y="185" fill="#f8fafc" font-size="16" font-weight="700">Collector Ingest</text>
+    <text x="295" y="205" fill="#94a3b8" font-size="13">OTel Collector</text>
+
+    <line x1="295" y1="225" x2="465" y2="225" stroke="#334155" stroke-width="1"/>
+
+    <text x="295" y="248" fill="#e2e8f0" font-size="12" font-weight="600">¿Qué hace?</text>
+    <text x="295" y="268" fill="#94a3b8" font-size="11">Recibe trazas OTLP y</text>
+    <text x="295" y="284" fill="#f43f5e" font-size="11" font-weight="600">enmascara PII / secretos</text>
+    <text x="295" y="300" fill="#94a3b8" font-size="11">antes de tocar disco.</text>
+
+    <text x="295" y="335" fill="#fbbf24" font-size="12" font-weight="600">¿Por qué hace falta?</text>
+    <text x="295" y="355" fill="#cbd5e1" font-size="11">Es 100% stateless:</text>
+    <text x="295" y="371" fill="#cbd5e1" font-size="11">recibe y publica sin</text>
+    <text x="295" y="387" fill="#cbd5e1" font-size="11">esperar a la BD, con</text>
+    <text x="295" y="403" fill="#cbd5e1" font-size="11">máxima seguridad.</text>
+  </g>
+
+  <!-- Arrow 2 -> 3 -->
+  <line x1="480" y1="285" x2="505" y2="285" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- ================= 3. KAFKA ================= -->
+  <g id="step3">
+    <rect x="510" y="115" width="200" height="340" rx="14" fill="url(#kafkaGrad)" stroke="#a855f7" stroke-width="2"/>
+    <rect x="525" y="130" width="32" height="24" rx="6" fill="#7c3aed"/>
+    <text x="541" y="146" fill="#ffffff" font-size="12" font-weight="700" text-anchor="middle">3</text>
+    <text x="565" y="147" fill="#c084fc" font-size="12" font-weight="700">BUFFER</text>
+
+    <text x="525" y="185" fill="#f8fafc" font-size="16" font-weight="700">Apache Kafka</text>
+    <text x="525" y="205" fill="#c084fc" font-size="13">Buffer duradero (KRaft)</text>
+
+    <line x1="525" y1="225" x2="695" y2="225" stroke="#4c1d95" stroke-width="1"/>
+
+    <text x="525" y="248" fill="#e2e8f0" font-size="12" font-weight="600">¿Qué hace?</text>
+    <text x="525" y="268" fill="#94a3b8" font-size="11">Retiene y persiste</text>
+    <text x="525" y="284" fill="#94a3b8" font-size="11">las trazas en disco</text>
+    <text x="525" y="300" fill="#94a3b8" font-size="11">con garantía acks=all.</text>
+
+    <text x="525" y="335" fill="#fbbf24" font-size="12" font-weight="600">¿Por qué hace falta?</text>
+    <text x="525" y="355" fill="#f8fafc" font-size="11" font-weight="600">Desacopla producción:</text>
+    <text x="525" y="371" fill="#cbd5e1" font-size="11">si la BD cae o hay un</text>
+    <text x="525" y="387" fill="#cbd5e1" font-size="11">pico de 10k agentes,</text>
+    <text x="525" y="403" fill="#cbd5e1" font-size="11">cero datos perdidos.</text>
+  </g>
+
+  <!-- Arrow 3 -> 4 -->
+  <line x1="710" y1="285" x2="735" y2="285" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- ================= 4. COLLECTOR WRITE ================= -->
+  <g id="step4">
+    <rect x="740" y="115" width="200" height="340" rx="14" fill="url(#cardGrad)" stroke="#38bdf8" stroke-width="1.8"/>
+    <rect x="755" y="130" width="32" height="24" rx="6" fill="#0284c7"/>
+    <text x="771" y="146" fill="#ffffff" font-size="12" font-weight="700" text-anchor="middle">4</text>
+    <text x="795" y="147" fill="#38bdf8" font-size="12" font-weight="700">ESCRITURA</text>
+
+    <text x="755" y="185" fill="#f8fafc" font-size="16" font-weight="700">Collector Write</text>
+    <text x="755" y="205" fill="#94a3b8" font-size="13">OTel Consumer Group</text>
+
+    <line x1="755" y1="225" x2="925" y2="225" stroke="#334155" stroke-width="1"/>
+
+    <text x="755" y="248" fill="#e2e8f0" font-size="12" font-weight="600">¿Qué hace?</text>
+    <text x="755" y="268" fill="#94a3b8" font-size="11">Lee de Kafka en grupo</text>
+    <text x="755" y="284" fill="#94a3b8" font-size="11">y agrupa los spans</text>
+    <text x="755" y="300" fill="#94a3b8" font-size="11">en lotes (micro-batches).</text>
+
+    <text x="755" y="335" fill="#fbbf24" font-size="12" font-weight="600">¿Por qué hace falta?</text>
+    <text x="755" y="355" fill="#cbd5e1" font-size="11">ClickHouse odia los</text>
+    <text x="755" y="371" fill="#cbd5e1" font-size="11">inserts individuales:</text>
+    <text x="755" y="387" fill="#cbd5e1" font-size="11">necesita lotes para</text>
+    <text x="755" y="403" fill="#cbd5e1" font-size="11">no colapsar en disco.</text>
+  </g>
+
+  <!-- Arrow 4 -> 5 -->
+  <line x1="940" y1="285" x2="965" y2="285" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- ================= 5. CLICKHOUSE ================= -->
+  <g id="step5">
+    <rect x="970" y="115" width="200" height="340" rx="14" fill="url(#chGrad)" stroke="#f59e0b" stroke-width="2"/>
+    <rect x="985" y="130" width="32" height="24" rx="6" fill="#d97706"/>
+    <text x="1001" y="146" fill="#ffffff" font-size="12" font-weight="700" text-anchor="middle">5</text>
+    <text x="1025" y="147" fill="#fbbf24" font-size="12" font-weight="700">STORAGE</text>
+
+    <text x="985" y="185" fill="#f8fafc" font-size="16" font-weight="700">ClickHouse</text>
+    <text x="985" y="205" fill="#fbbf24" font-size="13">Almacén Columnar</text>
+
+    <line x1="985" y1="225" x2="1155" y2="225" stroke="#78350f" stroke-width="1"/>
+
+    <text x="985" y="248" fill="#e2e8f0" font-size="12" font-weight="600">¿Qué hace?</text>
+    <text x="985" y="268" fill="#94a3b8" font-size="11">Almacena millones</text>
+    <text x="985" y="284" fill="#94a3b8" font-size="11">de spans en formato</text>
+    <text x="985" y="300" fill="#94a3b8" font-size="11">columnar append-only.</text>
+
+    <text x="985" y="335" fill="#fbbf24" font-size="12" font-weight="600">¿Por qué hace falta?</text>
+    <text x="985" y="355" fill="#cbd5e1" font-size="11">Compresión del 80%</text>
+    <text x="985" y="371" fill="#cbd5e1" font-size="11">y consultas analíticas</text>
+    <text x="985" y="387" fill="#cbd5e1" font-size="11">(latencias, costes) en</text>
+    <text x="985" y="403" fill="#cbd5e1" font-size="11">milisegundos.</text>
+  </g>
+
+  <!-- Bottom summary bar -->
+  <rect x="50" y="475" width="1120" height="30" rx="8" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+  <text x="610" y="495" fill="#94a3b8" font-size="12" text-anchor="middle">
+    <tspan fill="#38bdf8" font-weight="600">Asíncrono en el agente</tspan> ➔ 
+    <tspan fill="#38bdf8" font-weight="600">Sanitizado sin estado</tspan> ➔ 
+    <tspan fill="#c084fc" font-weight="600">Buffer duradero</tspan> ➔ 
+    <tspan fill="#38bdf8" font-weight="600">Escritura por lotes</tspan> ➔ 
+    <tspan fill="#fbbf24" font-weight="600">Analítica columnar instantánea</tspan>
+  </text>
+</svg>
