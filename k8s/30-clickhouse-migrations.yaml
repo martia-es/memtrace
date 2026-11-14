@@ -72,7 +72,7 @@ spec:
           # ninguna otra tabla y no puede alterar el esquema.
           $CH --query "CREATE USER IF NOT EXISTS retention_worker IDENTIFIED WITH sha256_password BY '$CLICKHOUSE_RETENTION_PASSWORD'"
           $CH --query "ALTER USER retention_worker IDENTIFIED WITH sha256_password BY '$CLICKHOUSE_RETENTION_PASSWORD'"
-          for t in otel_traces span_topics mem_episodes; do
+          for t in otel_traces span_topics mem_episodes mem_discovery_runs mem_findings; do
             $CH --query "GRANT SELECT, ALTER DELETE ON memtrace.$t TO retention_worker"
           done
           # Usuario de lectura de la API (ADR-090): solo SELECT, y no puede cambiar `readonly` (=2 permite fijar max_threads por consulta)
