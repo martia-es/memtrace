@@ -14,6 +14,7 @@
 | `distill.py` | Redacta una lección por grupo de fallos (plantilla o LLM) y la verifica con conversaciones no usadas |
 | `evaluate.py` | Compara lo descubierto con los fallos sembrados (único que conoce la solución) |
 | `apply.py` | Prueba de efecto: pone cada lección en el prompt de un agente de laboratorio y mide si corrige el fallo |
+| `check_production.py` | Pasa los episodios del spike por el descubrimiento de producción (`analytics/mem`) y lo puntúa contra los fallos sembrados |
 | `main.py` | Lanza los pasos en orden y explica cada uno |
 | `data/`, `out/` | Salidas (no se versionan) |
 
@@ -38,6 +39,8 @@ uv run python apply.py --n 12        # prueba de efecto; reanuda lo ya ejecutado
 ```
 
 `apply.py` usa Groq por defecto (`GROQ_API_KEY` en `.env`, modelo `openai/gpt-oss-120b`). Con `APPLY_PROVIDER=gemini` usa Gemini, y `APPLY_MODEL` cambia el modelo. Si se agota la cuota diaria, sale limpio y se reanuda al relanzarlo.
+
+El spike ya está llevado a producción: episodios y descubrimiento viven en [analytics/mem](../../analytics/mem/README.md), que repite esta validación con su propio código.
 
 ## Resultados
 
