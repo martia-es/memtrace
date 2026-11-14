@@ -51,7 +51,7 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 | M6 | [ ] | Gobierno | Simplificar u ocultar por defecto «quién puede llamar a cada entorno» si no se usa (ver sección 5) | B | S |
 | M8 | [x] | Dashboard | Hecho (ADR-084, actualización): la API acepta hasta 365 días, presets 90 d y 1 y, rango propio de hasta un año; el periodo anterior de Errores respeta la retención efectiva del agente | M | M |
 | M7 | [x] | Documentación | Hecho (`docs-site/platform/improvement-cycle.md`): guía «ciclo de mejora en 30 minutos»: traza → fallo → dataset → prompt → eval → deploy | M | S |
-| M13 | [ ] | SDK Python | Publicar `memtrace-ai` en PyPI: dar de alta el proyecto, configurar el trusted publisher del workflow `python-publish-pypi.yml` y lanzar el tag. Hasta entonces la documentación indica instalar desde el repositorio | A | S |
+| M13 | [x] | SDK Python | Hecho: `memtrace-ai` 0.2.0 publicado en PyPI con trusted publishing (`python-publish-pypi.yml`) | A | S |
 
 ## 4. Orden propuesto
 
