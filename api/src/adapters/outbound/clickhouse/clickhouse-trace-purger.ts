@@ -18,6 +18,16 @@ export class ClickHouseTracePurger implements TracePurger {
   async purge(scope: TenantScope, cutoff: Date): Promise<{ spans: number }> {
     const params = { ...tenantParams(scope), cutoffMs: cutoff.getTime() };
     const where = `${TENANT_SQL} AND Timestamp < fromUnixTimestamp64Milli({cutoffMs:Int64})`;
+    // Hallazgos de Mem (Fase 2.1): se derivan de episodios que ya no existen pasado el plazo, y llevan ids de traza y el texto
+    // normalizado de los errores. No cuelgan de un span concreto sino de la fecha de la pasada, así que se borran por fecha y
+    // organización, y antes del atajo de abajo: pueden quedar viejos aunque ya no haya spans que borrar.
+    for (const table of ["mem_findings", "mem_discovery_runs"]) {
+      await this.client.command({
+        query: `ALTER TABLE ${this.database}.${table} DELETE WHERE ${TENANT_SQL} AND RunAt < fromUnixTimestamp64Milli({cutoffMs:Int64})`,
+        query_params: params,
+        clickhouse_settings: { mutations_sync: "1" as const },
+      });
+    }
     const counted = await this.client.query({ query: `SELECT count() AS n FROM ${this.database}.otel_traces WHERE ${where}`, query_params: params, format: "JSONEachRow", clickhouse_settings: DEDUPED_READS });
     const spans = Number(((await counted.json()) as { n: string | number }[])[0]?.n ?? 0);
     if (spans === 0) return { spans: 0 };

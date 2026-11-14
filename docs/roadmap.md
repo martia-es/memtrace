@@ -328,7 +328,7 @@ Un usuario puede agrupar varias gráficas custom ya guardadas en un **informe** 
 - [x] Worker `analytics/mem` y tabla `mem_episodes` en ClickHouse (CronJob cada 10 minutos, sin LLM, con `ExperimentId` y retención de ADR-084; guía en `analytics/mem/README.md`)
 - [x] Resultado multi-señal de una traza y paso decisivo (error, bucle, evaluador y feedback; pesos validados en el spike)
 - [ ] Patrones recurrentes en Overview
-- [ ] Clusters y contraste éxito/fallo con significación estadística
+- [x] Clusters y contraste éxito/fallo con significación estadística (reglas con test de Fisher y Bonferroni, agrupación de objetivos con embeddings locales dentro de la imagen; validado con los fallos sembrados del spike, ver `analytics/mem/README.md`)
 - [ ] Modelo de datos de lecciones en Postgres, estados y permisos (`lesson:*`)
 - [ ] Ajustes: clave del proveedor LLM sellada para el worker de Mem, con límites y vista previa ([ADR-101](adrs/cybersecurity/adr-101-provider-keys-held-by-memtrace.md))
 - [ ] `memtrace.mem.distill` en los SDK (modo sin clave guardada) y pantalla *Learning* (con propuesta de interfaz previa)

@@ -27,7 +27,7 @@ EVAL_JOIN = ("sc.ServiceName = i.ServiceName AND sc.ExperimentId = i.ExperimentI
 EPISODE_COLUMNS = [
     "ServiceName", "ExperimentId", "TraceId", "ConversationId", "StartedAt", "Revision", "PromptName", "PromptVersion", "Model",
     "Goal", "Answer", "Steps", "NChat", "NTools", "DecisiveSpanId", "DecisiveStep", "DecisiveError", "DecisiveException",
-    "HasError", "Loop", "Thumbs", "EvalScore", "Value", "Outcome", "Reasons", "EpisodeVersion", "BuiltAt",
+    "HasError", "Loop", "Thumbs", "EvalScore", "Value", "Outcome", "Reasons", "EpisodeVersion", "BuiltAt", "Attributes", "EmptyArgTools",
 ]
 
 
@@ -123,7 +123,9 @@ class ClickHouseClient:
                    StatusCode, StatusMessage,
                    arrayFirst(x -> x != '', arrayMap((n, a) -> if(n = 'exception', a['exception.type'], ''), `Events.Name`, `Events.Attributes`)),
                    SpanAttributes['gen_ai.input.messages'], SpanAttributes['gen_ai.output.messages'],
-                   ConversationId, Revision, PromptName, PromptVersion, SpanAttributes['gen_ai.request.model']
+                   ConversationId, Revision, PromptName, PromptVersion, SpanAttributes['gen_ai.request.model'],
+                   if(ParentSpanId = '', mapFilter((k, v) -> NOT startsWith(k, 'gen_ai.') AND NOT startsWith(k, 'memtrace.input')
+                                                          AND NOT startsWith(k, 'memtrace.output'), SpanAttributes), map())
             FROM {self._db}.otel_traces
             WHERE TraceId IN {{ids:Array(String)}}
             ORDER BY TraceId, Timestamp
@@ -139,7 +141,7 @@ class ClickHouseClient:
         for key, group in grouped.items():
             spans = [SpanRow(span_id=r[3], parent_span_id=r[4], timestamp=r[5], name=r[6], operation=r[7], tool_name=r[8],
                              tool_args=r[9], tool_result=r[10], status_code=r[11], status_message=r[12], exception_type=r[13],
-                             input_messages=r[14], output_messages=r[15]) for r in group]
+                             input_messages=r[14], output_messages=r[15], attributes=dict(r[21])) for r in group]
             first = lambda i: next((r[i] for r in group if r[i]), "")  # noqa: E731 - primer valor no vacío de la traza
             traces.append(TraceData(key=key, spans=spans, conversation_id=first(16), revision=first(17), prompt_name=first(18),
                                     prompt_version=int(first(19) or 0), model=first(20)))
@@ -185,6 +187,6 @@ class ClickHouseClient:
             e.service_name, e.experiment_id, e.trace_id, e.conversation_id, e.started_at, e.revision, e.prompt_name,
             e.prompt_version, e.model, e.goal, e.answer, e.steps, e.n_chat, e.n_tools, e.decisive_span_id, e.decisive_step,
             e.decisive_error, e.decisive_exception, int(e.has_error), int(e.loop), e.thumbs, e.eval_score, e.value,
-            e.outcome, e.reasons, EPISODE_VERSION, now,
+            e.outcome, e.reasons, EPISODE_VERSION, now, e.attributes, e.empty_arg_tools,
         ] for e in episodes]
         self._client.insert(f"{self._db}.mem_episodes", data, column_names=EPISODE_COLUMNS)

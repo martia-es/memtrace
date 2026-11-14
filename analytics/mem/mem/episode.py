@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 # Versión de las reglas de abajo: cámbiala si tocas pesos, umbrales o la definición de bucle.
-EPISODE_VERSION = 1
+EPISODE_VERSION = 2  # 2: añade Attributes y EmptyArgTools (migración 019)
 
 # Peso de cada señal en el valor del episodio. Las positivas empujan hacia «fallo», las negativas hacia «bien».
 W_ERROR, W_LOOP, W_EVAL, W_DOWN = 1.0, 0.8, 0.7, 0.6
@@ -26,6 +26,11 @@ W_UP, W_EVAL_OK = -0.3, -0.2
 FAILED, SUSPECT = 0.6, 0.3  # umbrales: valor >= FAILED → «failed»; >= SUSPECT → «suspect»
 LOOP_MIN_REPEATS = 3  # la misma llamada (o el mismo error del modelo) tres veces seguidas es un bucle
 
+# Atributos de la traza que se guardan para que el descubrimiento pueda cruzar fallos con el contexto (idioma, canal...).
+# Solo valores cortos y sin pinta de identificar a nadie: es una lista de exclusión, así que se revisa si aparecen claves nuevas.
+ATTR_VALUE_MAX = 64
+ATTR_KEY_DENY_PREFIXES = ("gen_ai.", "memtrace.input", "memtrace.output", "memtrace.metadata", "enduser.", "http.", "url.")
+ATTR_KEY_DENY_PARTS = ("id", "email", "phone", "name", "token", "key", "secret", "password", "address", "ip", "message")
 GOAL_MAX = 500
 ERROR_MAX = 120
 STATUS_ERROR = "STATUS_CODE_ERROR"
@@ -48,6 +53,7 @@ class SpanRow:
     exception_type: str
     input_messages: str
     output_messages: str
+    attributes: dict[str, str] = field(default_factory=dict)  # atributos de la traza; solo se rellena en el span raíz
 
 
 @dataclass(frozen=True)
@@ -86,6 +92,29 @@ class Episode:
     value: float = 0.0
     outcome: str = "ok"
     reasons: list[str] = field(default_factory=list)
+    attributes: dict[str, str] = field(default_factory=dict)
+    empty_arg_tools: list[str] = field(default_factory=list)
+
+
+def safe_attributes(attrs: dict[str, str]) -> dict[str, str]:
+    """Atributos de la traza aptos para guardar: valores cortos y claves que no parecen identificadores ni contenido."""
+    keep = {}
+    for key, value in attrs.items():
+        parts = set(re.split(r"[._\-]", key.lower()))
+        if key.startswith(ATTR_KEY_DENY_PREFIXES) or parts & set(ATTR_KEY_DENY_PARTS):
+            continue
+        if value and len(value) <= ATTR_VALUE_MAX and "@" not in value:
+            keep[key] = value
+    return keep
+
+
+def has_empty_argument(args: str) -> bool:
+    """¿Esta llamada a una herramienta lleva algún argumento vacío? Vale para cualquier herramienta."""
+    try:
+        parsed = json.loads(args)
+    except (ValueError, TypeError):
+        return False
+    return isinstance(parsed, dict) and any(v in ("", None) for v in parsed.values())
 
 
 def normalise_error(msg: str) -> str:
@@ -221,4 +250,6 @@ def build_episode(trace_id: str, service_name: str, experiment_id: str, spans: l
         decisive_exception=decisive.exception_type if decisive else "",
         has_error=has_error, loop=loop, thumbs=thumbs, eval_score=eval_score,
         value=value, outcome=outcome, reasons=reasons,
+        attributes=safe_attributes(next((s.attributes for s in spans if s.attributes), {})),
+        empty_arg_tools=sorted({_step_name(s) for s in steps if s.operation == "execute_tool" and has_empty_argument(s.tool_args)}),
     )

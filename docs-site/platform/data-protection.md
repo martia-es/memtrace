@@ -49,7 +49,7 @@ How long an agent's traces are kept depends on its **risk level**. An `org_admin
 
 You can set any whole number of days from the minimum up to **365**; MemTrace refuses a lower value for High and Unclassified, in the dashboard and in the API. The risk level of each agent is declared on the same page (see [Risk classification](./assistants#risk-classification)): an agent keeps its traces for the period of its level, so changing its level changes its period.
 
-Every night (03:30 UTC) MemTrace deletes the spans, the extracted topics and the Mem episodes older than the period of each agent. Changes and deletions are recorded in the audit log.
+Every night (03:30 UTC) MemTrace deletes the spans, the extracted topics, the Mem episodes and the Mem findings older than the period of each agent. Changes and deletions are recorded in the audit log.
 
 ::: warning Lowering a period deletes data
 The next nightly purge applies the new period and what it deletes cannot be recovered. When you lower the period of a level that has agents, MemTrace shows how many agents and about how many spans are affected, and asks you to confirm. Moving an agent to a lower level can shorten its period in the same way, and the dialog tells you. Only an organization admin can lower a level.
@@ -63,7 +63,7 @@ What it covers and what it does not:
 
 | | |
 |---|---|
-| **Deleted when it expires** | Spans (traces, with their prompts and answers if content capture is on), the topics extracted from them and the Mem episodes (goal, steps and estimated outcome of each conversation) |
+| **Deleted when it expires** | Spans (traces, with their prompts and answers if content capture is on), the topics extracted from them, the Mem episodes (goal, steps and estimated outcome of each conversation) and the Mem findings (rules that explain recurring failures) |
 | **Not deleted** | Evaluation scores, human annotations and end-user feedback. They are not traces; feedback must outlive the trace it refers to. The text of evaluation run items has its own limit of 180 days |
 
 ::: tip The dashboard looks as far back as you keep

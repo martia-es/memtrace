@@ -30,6 +30,7 @@ resources:
   - k8s/88-dedupe-otel-traces.yaml
   - k8s/89-maintain-otel-traces.yaml
   - k8s/90-mem-episodes.yaml
+  - k8s/91-mem-discovery.yaml
 configMapGenerator:
   - name: clickhouse-migrations
     files:
@@ -51,6 +52,7 @@ configMapGenerator:
       - migrations/clickhouse/016_user_id.sql
       - migrations/clickhouse/017_otel_traces_dedup.sql
       - migrations/clickhouse/018_mem_episodes.sql
+      - migrations/clickhouse/019_mem_discovery.sql
     options:
       disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
   - name: postgres-migrations

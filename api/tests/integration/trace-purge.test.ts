@@ -57,6 +57,15 @@ describe.skipIf(!enabled)("ClickHouseTracePurger", () => {
       ServiceName: service, ExperimentId: experimentId, TraceId: trace, StartedAt: ts(now), Goal: "g", Answer: "a", Steps: ["chat"], NChat: 1, NTools: 0, HasError: 0, Loop: 0,
       Thumbs: 0, Value: 0, Outcome: "ok", Reasons: [], EpisodeVersion: 1, BuiltAt: ts(now),
     });
+    const finding = (service: string, experimentId: string, runAgeDays: number) => ({
+      ServiceName: service, ExperimentId: experimentId, RunAt: ts(now - runAgeDays * DAY), FindingId: id(8), Cause: "c", Rule: "r", Support: 30, Failures: 30,
+      FailureRate: 1, Lift: 2, PValue: 0.001, DecisiveStep: "", DecisiveError: "", ToolSequence: "", OccurrenceByPrompt: {}, ExampleTraceIds: [], DiscoveryVersion: 1,
+    });
+    await client.insert({
+      table: `${config.database}.mem_findings`,
+      format: "JSONEachRow",
+      values: [finding(SERVICE, EXP, 45), finding(SERVICE, EXP, 2), finding(OTHER, OTHER_EXP, 45), finding(SERVICE, SAME_NAME_EXP, 45)],
+    });
     await client.insert({
       table: `${config.database}.mem_episodes`,
       format: "JSONEachRow",
@@ -67,6 +76,7 @@ describe.skipIf(!enabled)("ClickHouseTracePurger", () => {
   afterAll(async () => {
     await client.command({ query: `ALTER TABLE ${config.database}.otel_traces DELETE WHERE ServiceName IN ({a:String}, {b:String})`, query_params: { a: SERVICE, b: OTHER } });
     await client.command({ query: `ALTER TABLE ${config.database}.span_topics DELETE WHERE TraceId IN ({a:String}, {b:String}, {c:String}, {d:String})`, query_params: { a: oldTrace, b: newTrace, c: otherOldTrace, d: siblingOldTrace } });
+    await client.command({ query: `ALTER TABLE ${config.database}.mem_findings DELETE WHERE ServiceName IN ({a:String}, {b:String})`, query_params: { a: SERVICE, b: OTHER } });
     await client.command({ query: `ALTER TABLE ${config.database}.mem_episodes DELETE WHERE TraceId IN ({a:String}, {b:String}, {c:String}, {d:String})`, query_params: { a: oldTrace, b: newTrace, c: otherOldTrace, d: siblingOldTrace } });
     await client.close();
   });
@@ -90,6 +100,10 @@ describe.skipIf(!enabled)("ClickHouseTracePurger", () => {
     expect(await count("mem_episodes", `TraceId = '${newTrace}'`)).toBe(1);
     expect(await count("mem_episodes", `TraceId = '${otherOldTrace}'`)).toBe(1);
     expect(await count("mem_episodes", `TraceId = '${siblingOldTrace}'`)).toBe(1);
+    // los hallazgos de Mem se borran por fecha de pasada y por organización
+    expect(await count("mem_findings", `ServiceName = '${SERVICE}' AND ExperimentId = '${EXP}'`)).toBe(1);
+    expect(await count("mem_findings", `ServiceName = '${OTHER}'`)).toBe(1);
+    expect(await count("mem_findings", `ServiceName = '${SERVICE}' AND ExperimentId = '${SAME_NAME_EXP}'`)).toBe(1);
   });
 
   it("does nothing when nothing is old enough", async () => {
