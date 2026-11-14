@@ -76,7 +76,7 @@ def run_discover(eps: pd.DataFrame, labels, k: int, cfg: Config, *, no_entities=
         df["has_error"] = False  # every failure becomes the single cause "(sin error)"
     original = discovery._generalize
     if no_generalize:
-        discovery._generalize = lambda X, y, path, cfg: path
+        discovery._generalize = lambda X, y, path, cfg, train=None: path
     try:
         res = discover(df, cfg, labels, k)
     finally:

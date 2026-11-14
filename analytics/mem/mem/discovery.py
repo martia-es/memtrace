@@ -24,7 +24,7 @@ import pandas as pd
 from scipy.stats import fisher_exact
 from sklearn.tree import DecisionTreeClassifier, _tree
 
-DISCOVERY_VERSION = 1
+DISCOVERY_VERSION = 2  # 2: `_generalize` mide sobre el conjunto de entrenamiento y exige el lift mínimo (antes podía dar reglas casi universales)
 
 
 @dataclass(frozen=True)
@@ -164,22 +164,31 @@ def _best_rule(X: pd.DataFrame, y: pd.Series, train: np.ndarray, cfg: Config):
     return cands[0], len(cands)
 
 
-def _generalize(X: pd.DataFrame, y: pd.Series, path: list, cfg: Config) -> list:
-    """Quita condiciones que no aportan: la regla más corta con casi la misma precisión explica más y se entiende mejor."""
+def _generalize(X: pd.DataFrame, y: pd.Series, path: list, cfg: Config, train: np.ndarray | None = None) -> list:
+    """Quita condiciones que no aportan: la regla más corta con casi la misma precisión explica más y se entiende mejor.
 
-    def prec(p: list) -> tuple[float, int]:
+    La precisión y el lift se miden sobre `train`, el mismo conjunto con el que se encontró la regla: en él no están los
+    fallos de otras causas. Medirlos sobre todos los episodios los contaba como negativos, diluía la regla original y
+    dejaba que una regla casi universal pareciera igual de precisa. Una condición solo se quita si la regla resultante
+    sigue superando el lift mínimo.
+    """
+    train = np.ones(len(X), dtype=bool) if train is None else train
+    base_rate = float(y[train].mean()) if train.any() else 0.0
+
+    def prec(p: list) -> tuple[float, int, float]:
         m = _mask(X, p)
-        return (y[m].mean() if m.any() else 0.0), int(m.sum())
+        mt = m & train
+        return (float(y[mt].mean()) if mt.any() else 0.0), int(m.sum()), (float(y[mt].mean()) / base_rate if mt.any() and base_rate else 0.0)
 
-    base_p, _ = prec(path)
+    base_p, _, _ = prec(path)
     path = list(path)
     changed = True
     while changed and len(path) > 1:
         changed = False
         for c in list(path):
             trial = [x for x in path if x is not c]
-            p, n = prec(trial)
-            if p >= 0.95 * base_p and n >= cfg.min_support:
+            p, n, lift = prec(trial)
+            if p >= 0.95 * base_p and n >= cfg.min_support and lift >= cfg.min_lift:
                 path, changed = trial, True
                 break
     return path
@@ -259,7 +268,7 @@ def discover(df: pd.DataFrame, cfg: Config = Config(), goal_labels: pd.Series | 
             (p, r, lift), n_candidates = found
             if p * n_candidates > cfg.alpha:  # Bonferroni dentro de la ronda
                 break
-            path = _generalize(X, y, r["path"], cfg)
+            path = _generalize(X, y, r["path"], cfg, train)
             m = _mask(X, path)
             members, fail_members = df[m], df[m][cause[m] == g]
             if len(fail_members) < cfg.min_support:  # pocos fallos reales: una coincidencia, no un patrón
