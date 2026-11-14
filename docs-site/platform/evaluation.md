@@ -4,7 +4,9 @@ The platform stores the datasets you evaluate against, the runs your experiments
 
 ## Datasets
 
-**Datasets** shows each dataset as a file card: name, version, number of items and runs, and when it was last edited, newest first. Switch to **List** for a table; the dashboard remembers your choice. Hover a card to delete it.
+**Datasets** shows each dataset as a file card: name, version, number of items and runs, and when it was last edited, newest first. Switch to **List** for a table; the dashboard remembers your choice. Hover a card to set its category or delete it.
+
+Give each dataset a **category** (Functional, Security, Regression or Other) to tell them apart at a glance: it shows as a label on the card and in the list, you choose it when creating the dataset or later with the tag button, and the filter next to the view switch narrows the page to one category. A dataset without category shows no label.
 
 To create a dataset, use **+ New dataset**, or drop a `.csv` file on the page (or click the dashed card to choose one). With a header row, the columns named `input` and `expected_output` are used; without one, the first column is the input and the second the expected output. Files saved from Excel with `;` as separator work too. Rows without an input are skipped, and the dataset is named after the file. Excel files (`.xlsx`) are not read directly: use **Save as → CSV** first.
 

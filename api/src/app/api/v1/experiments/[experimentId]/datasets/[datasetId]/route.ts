@@ -1,7 +1,9 @@
 import { requireUser } from "@/adapters/inbound/http/auth-context";
 import { identityGuard } from "@/adapters/inbound/http/identity-guard";
 import { toDatasetDto } from "@/adapters/inbound/http/mappers";
+import { parseJsonOrThrow } from "@/adapters/inbound/http/identity-schemas";
 import { json, problem } from "@/adapters/inbound/http/problem";
+import { updateDatasetBody } from "@/adapters/inbound/http/schemas";
 import { getIdentity } from "@/dependency-container";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +24,26 @@ export async function GET(_request: Request, context: { params: Promise<{ experi
 
     const [runs, versions] = await Promise.all([identityRepository.listDatasetRuns(datasetId), identityRepository.listDatasetVersions(datasetId)]);
     return json(toDatasetDto(dataset, runs.length, versions.length, versions[0]?.major ?? 1, versions[0]?.minor ?? 0, runs[0] ?? null, [], versions[0] ? { itemCount: (await identityRepository.listDatasetItems(versions[0].id)).length, createdAt: versions[0].createdAt } : null));
+  });
+}
+
+/** Cambia la categoría de un dataset (o la quita con `null`). Requiere `dataset:write`. */
+export async function PATCH(request: Request, context: { params: Promise<{ experimentId: string; datasetId: string }> }) {
+  return identityGuard(async () => {
+    const { experimentId, datasetId } = await context.params;
+    const user = await requireUser();
+    if (user instanceof Response) return user;
+
+    const { authorizationService, identityRepository } = getIdentity();
+    if (!(await authorizationService.can(user.id, experimentId, "dataset:write"))) {
+      return problem(403, "Forbidden", "No access to this experiment");
+    }
+    const dataset = await identityRepository.getDataset(datasetId);
+    if (!dataset || dataset.experimentId !== experimentId) return problem(404, "Not Found", "Dataset not found");
+
+    const { category } = await parseJsonOrThrow(updateDatasetBody, request);
+    await identityRepository.setDatasetCategory(datasetId, category);
+    return json({ id: datasetId, category });
   });
 }
 

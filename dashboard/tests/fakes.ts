@@ -36,6 +36,7 @@ import type {
   TraceAnnotationsResponse,
   CustomMetricResultResponse,
   DatasetDto,
+  DatasetCategoryDto,
   CommitDatasetChangesBody,
   PromoteTracesBody,
   PromoteTracesResponse,
@@ -507,6 +508,7 @@ export function datasetDto(overrides: Partial<DatasetDto> = {}): DatasetDto {
   return {
     id: "ds-1",
     name: "toy-agent-smoke-test",
+    category: null,
     createdAt: "2026-09-30T22:45:54Z",
     runCount: 1,
     versionCount: 1,
@@ -788,10 +790,16 @@ export class FakeTraceApi implements TraceApi {
     return found;
   }
   createDatasetCalls: string[] = [];
+  createDatasetCategories: (DatasetCategoryDto | null | undefined)[] = [];
   createdDataset: DatasetDto = datasetDto();
-  async createDataset(name: string): Promise<DatasetDto> {
+  async createDataset(name: string, category?: DatasetCategoryDto | null): Promise<DatasetDto> {
     this.createDatasetCalls.push(name);
+    this.createDatasetCategories.push(category);
     return this.createdDataset;
+  }
+  setDatasetCategoryCalls: { datasetId: string; category: DatasetCategoryDto | null }[] = [];
+  async setDatasetCategory(datasetId: string, category: DatasetCategoryDto | null): Promise<void> {
+    this.setDatasetCategoryCalls.push({ datasetId, category });
   }
   deleteDatasetCalls: string[] = [];
   async deleteDataset(datasetId: string): Promise<void> {

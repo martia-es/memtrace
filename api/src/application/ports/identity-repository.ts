@@ -2,6 +2,7 @@ import type {
   ApiKey,
   CustomMetric,
   Dataset,
+  DatasetCategory,
   DatasetItem,
   DatasetRun,
   RunGroup,
@@ -102,7 +103,8 @@ export interface IdentityRepository {
 /** Datasets de evaluación offline del experimento (ADR-028), más recientes primero. Crear un
    * dataset crea también su versión 1.0 (vacía) en la misma transacción (ADR-031). */
   listDatasets(experimentId: string): Promise<Dataset[]>;
-  createDataset(experimentId: string, createdByUserId: string, name: string): Promise<Dataset>;
+  createDataset(experimentId: string, createdByUserId: string, name: string, category?: DatasetCategory | null): Promise<Dataset>;
+  setDatasetCategory(datasetId: string, category: DatasetCategory | null): Promise<void>;
   getDataset(datasetId: string): Promise<Dataset | null>;
   deleteDataset(datasetId: string): Promise<void>;
 

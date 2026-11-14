@@ -478,9 +478,13 @@ export interface DatasetLastRunDto {
   aggregates: ScoreAggregateDto[];
 }
 
+export type DatasetCategoryDto = "functional" | "security" | "regression" | "other";
+
 export interface DatasetDto {
   id: string;
   name: string;
+  /** Clasificación opcional (filtro y etiqueta en el dashboard); `null` = sin categoría. */
+  category: DatasetCategoryDto | null;
   createdAt: string;
   runCount: number;
   versionCount: number;

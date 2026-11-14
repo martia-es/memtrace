@@ -34,7 +34,7 @@ import type {
   FontPreset,
   User,
 } from "@/domain/identity";
-import { ASSISTANT_DISPLAY_MODES, type RunGroup, type RunRevision } from "@/domain/identity";
+import { ASSISTANT_DISPLAY_MODES, type DatasetCategory, type RunGroup, type RunRevision } from "@/domain/identity";
 
 const API_KEY_PREFIX = "mtk_";
 const RADIUS_PRESETS = new Set<RadiusPreset>(["sharp", "soft", "round"]);
@@ -581,21 +581,21 @@ export class PostgresIdentityRepository implements IdentityRepository {
   }
 
   async listDatasets(experimentId: string): Promise<Dataset[]> {
-    const { rows } = await this.pool.query<{ id: string; experiment_id: string; name: string; created_at: string }>(
-      `SELECT id, experiment_id, name, created_at FROM datasets WHERE experiment_id = $1 ORDER BY created_at DESC`,
+    const { rows } = await this.pool.query<DatasetRow>(
+      `SELECT id, experiment_id, name, category, created_at FROM datasets WHERE experiment_id = $1 ORDER BY created_at DESC`,
       [experimentId],
     );
     return rows.map(toDataset);
   }
 
-  async createDataset(experimentId: string, createdByUserId: string, name: string): Promise<Dataset> {
+  async createDataset(experimentId: string, createdByUserId: string, name: string, category: DatasetCategory | null = null): Promise<Dataset> {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
-      const { rows } = await client.query<{ id: string; experiment_id: string; name: string; created_at: string }>(
-        `INSERT INTO datasets (experiment_id, name, created_by) VALUES ($1, $2, $3)
-         RETURNING id, experiment_id, name, created_at`,
-        [experimentId, name, createdByUserId],
+      const { rows } = await client.query<DatasetRow>(
+        `INSERT INTO datasets (experiment_id, name, category, created_by) VALUES ($1, $2, $3, $4)
+         RETURNING id, experiment_id, name, category, created_at`,
+        [experimentId, name, category, createdByUserId],
       );
       const row = rows[0];
       if (!row) throw new Error("failed to insert dataset");
@@ -612,11 +612,15 @@ export class PostgresIdentityRepository implements IdentityRepository {
   }
 
   async getDataset(datasetId: string): Promise<Dataset | null> {
-    const { rows } = await this.pool.query<{ id: string; experiment_id: string; name: string; created_at: string }>(
-      `SELECT id, experiment_id, name, created_at FROM datasets WHERE id = $1`,
+    const { rows } = await this.pool.query<DatasetRow>(
+      `SELECT id, experiment_id, name, category, created_at FROM datasets WHERE id = $1`,
       [datasetId],
     );
     return rows[0] ? toDataset(rows[0]) : null;
+  }
+
+  async setDatasetCategory(datasetId: string, category: DatasetCategory | null): Promise<void> {
+    await this.pool.query(`UPDATE datasets SET category = $2 WHERE id = $1`, [datasetId, category]);
   }
 
   async deleteDataset(datasetId: string): Promise<void> {
@@ -1123,8 +1127,10 @@ function toMember(row: { user_id: string; email: string; name: string | null; ro
   return { userId: row.user_id, email: row.email, name: row.name, role: row.role, source: row.source };
 }
 
-function toDataset(row: { id: string; experiment_id: string; name: string; created_at: string }): Dataset {
-  return { id: row.id, experimentId: row.experiment_id, name: row.name, createdAt: row.created_at };
+type DatasetRow = { id: string; experiment_id: string; name: string; category: string | null; created_at: string };
+
+function toDataset(row: DatasetRow): Dataset {
+  return { id: row.id, experimentId: row.experiment_id, name: row.name, category: (row.category as DatasetCategory | null) ?? null, createdAt: row.created_at };
 }
 
 function toDatasetVersion(row: {

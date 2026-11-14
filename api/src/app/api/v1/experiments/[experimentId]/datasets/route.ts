@@ -59,9 +59,9 @@ export async function POST(request: Request, context: { params: Promise<{ experi
     const access = await requireExperimentAccess(experimentId, request);
     if (access instanceof Response) return access;
 
-    const { name } = await parseJsonOrThrow(createDatasetBody, request);
+    const { name, category } = await parseJsonOrThrow(createDatasetBody, request);
     const { identityRepository } = getIdentity();
-    const dataset = await identityRepository.createDataset(experimentId, access.createdByUserId, name);
+    const dataset = await identityRepository.createDataset(experimentId, access.createdByUserId, name, category ?? null);
     return json(toDatasetDto(dataset, 0, 1, 1, 0, null), 201);
   });
 }
