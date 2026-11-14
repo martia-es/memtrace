@@ -12,6 +12,8 @@ PRICING_IMAGE ?= localhost/memtrace/model-pricing:dev
 QUALITY_IMAGE ?= localhost/memtrace/model-quality:dev
 # Debe coincidir con la imagen del CronJob (k8s/90-mem-episodes.yaml)
 MEM_IMAGE ?= localhost/memtrace/mem:dev
+# Debe coincidir con la imagen del CronJob (k8s/91-mem-discovery.yaml)
+MEM_DISCOVERY_IMAGE ?= localhost/memtrace/mem-discovery:dev
 
 .DEFAULT_GOAL := help
 .PHONY: help check up images dashboard api ingest monitoring monitoring-down prune kafka-topics dedupe dedupe-cleanup compact metrics-server keda autoscaling autoscaling-down status forward logs query migrate backfill-experiment-id netpol-check migrate-postgres pricing-sync quality-sync down reset db-reset dev-data docs weather weather-bg weather-stop weather-restart rag rag-bg rag-stop rag-restart
@@ -78,9 +80,10 @@ images: ## Construye las imágenes de la API, la ingesta, el dashboard y la docu
 	docker build -t $(DOCS_IMAGE) docs-site
 	docker build -t $(PRICING_IMAGE) analytics/model_pricing
 	docker build -t $(QUALITY_IMAGE) analytics/model_quality
-	docker build -t $(MEM_IMAGE) analytics/mem
+	docker build --target episodes -t $(MEM_IMAGE) analytics/mem
+	docker build --target discovery -t $(MEM_DISCOVERY_IMAGE) analytics/mem
 	@tmp=$$(mktemp -t memtrace-image.XXXXXX); \
-	for img in $(API_IMAGE) $(INGEST_IMAGE) $(DASH_IMAGE) $(DOCS_IMAGE) $(PRICING_IMAGE) $(QUALITY_IMAGE) $(MEM_IMAGE); do \
+	for img in $(API_IMAGE) $(INGEST_IMAGE) $(DASH_IMAGE) $(DOCS_IMAGE) $(PRICING_IMAGE) $(QUALITY_IMAGE) $(MEM_IMAGE) $(MEM_DISCOVERY_IMAGE); do \
 		docker save -o $$tmp $$img && kind load image-archive $$tmp --name $(CLUSTER) || { rm -f $$tmp; exit 1; }; \
 	done; rm -f $$tmp
 	@kubectl rollout restart deployment/api deployment/ingest deployment/dashboard deployment/docs -n $(NS) 2>/dev/null \

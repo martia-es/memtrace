@@ -1,0 +1,38 @@
+# Worker de Mem (Fase 2.1, Descubrir): reglas que explican los fallos recurrentes de cada agente, con tests estadísticos.
+# Lee `mem_episodes` y escribe `mem_discovery_runs` y `mem_findings`. No llama a ningún LLM ni a Internet: el modelo de
+# embeddings va dentro de la imagen. Cada pasada es independiente; si falla, la siguiente la rehace.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mem-discovery
+  namespace: memtrace
+spec:
+  schedule: "20 4 * * *" # diario a las 04:20: los episodios del día ya están cerrados
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: mem-discovery
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: mem-discovery
+              image: localhost/memtrace/mem-discovery:dev
+              imagePullPolicy: Never
+              env:
+                - name: CLICKHOUSE_HOST
+                  value: clickhouse
+                - name: CLICKHOUSE_PORT
+                  value: "8123"
+                - name: CLICKHOUSE_USER
+                  value: default
+                - name: CLICKHOUSE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: clickhouse-credentials
+                      key: password
+                - name: CLICKHOUSE_DATABASE
+                  value: memtrace

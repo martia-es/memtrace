@@ -58,6 +58,9 @@ images:
   mem:
     repository: localhost/memtrace/mem
     tag: dev
+  memDiscovery:
+    repository: localhost/memtrace/mem-discovery
+    tag: dev
   otelCollector:
     repository: otel/opentelemetry-collector-contrib
     tag: 0.96.0
