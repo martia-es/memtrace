@@ -111,7 +111,11 @@ function openDetail(queueId: string, tab: "summary" | "results" = "summary") {
 const showCreate = ref(false);
 const configs = ref<ScoreConfigDto[]>([]);
 const members = ref<ReviewerCandidatesResponse["candidates"]>([]);
-const form = reactive({ name: "", instructions: "", requiredAnnotations: 1, reviewerIds: [] as string[], picked: {} as Record<string, { on: boolean; required: boolean }> });
+const PRIORITIZATION_OPTIONS = () => [
+  { value: "fifo", label: t("annotationQueuesPage.order_fifo") },
+  { value: "uncertainty", label: t("annotationQueuesPage.order_uncertainty") },
+];
+const form = reactive({ name: "", instructions: "", requiredAnnotations: 1, prioritization: "fifo" as "fifo" | "uncertainty", reviewerIds: [] as string[], picked: {} as Record<string, { on: boolean; required: boolean }> });
 const creating = ref(false);
 const rubric = computed(() => Object.entries(form.picked).filter(([, v]) => v.on).map(([configId, v]) => ({ configId, required: v.required })));
 
@@ -133,11 +137,12 @@ async function create() {
       name: form.name.trim(),
       instructions: form.instructions.trim() || null,
       requiredAnnotations: form.requiredAnnotations,
+      prioritization: form.prioritization,
       reviewerIds: form.reviewerIds,
       rubric: rubric.value,
     });
     showCreate.value = false;
-    Object.assign(form, { name: "", instructions: "", requiredAnnotations: 1, reviewerIds: [], picked: {} });
+    Object.assign(form, { name: "", instructions: "", requiredAnnotations: 1, prioritization: "fifo", reviewerIds: [], picked: {} });
     await queues.run();
   } catch (error) {
     notifyError(t("annotationQueuesPage.could_not_create_the_queue"), error);
@@ -293,6 +298,11 @@ const STATUS_OPTIONS: { label: string; value: "" | "ok" | "error" }[] = [
           {{ t("annotationQueuesPage.reviews_required_per_item") }}
           <TextInput v-model="form.requiredAnnotations" type="number" min="1" max="10" :aria-label="t('annotationQueuesPage.reviews_required_per_item')" />
         </label>
+        <label class="inline">
+          {{ t("annotationQueuesPage.review_order") }}
+          <Select v-model="form.prioritization" :options="PRIORITIZATION_OPTIONS()" :aria-label="t('annotationQueuesPage.review_order')" />
+        </label>
+        <p class="muted">{{ form.prioritization === "uncertainty" ? t("annotationQueuesPage.order_uncertainty_hint") : t("annotationQueuesPage.order_fifo_hint") }}</p>
         <fieldset class="rubric">
           <legend>{{ t("annotationQueuesPage.reviewers") }}</legend>
           <p class="muted">{{ t("annotationQueuesPage.only_the_people_you_pick_can") }}</p>

@@ -129,6 +129,7 @@ export interface NewAnnotationQueueBody {
   name: string;
   instructions?: string | null;
   requiredAnnotations: number;
+  prioritization?: "fifo" | "uncertainty";
   reviewerIds: string[];
   rubric: Array<{ configId: string; required: boolean }>;
 }

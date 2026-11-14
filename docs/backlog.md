@@ -52,6 +52,8 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 | M8 | [x] | Dashboard | Hecho (ADR-084, actualización): la API acepta hasta 365 días, presets 90 d y 1 y, rango propio de hasta un año; el periodo anterior de Errores respeta la retención efectiva del agente | M | M |
 | M7 | [x] | Documentación | Hecho (`docs-site/platform/improvement-cycle.md`): guía «ciclo de mejora en 30 minutos»: traza → fallo → dataset → prompt → eval → deploy | M | S |
 | M13 | [ ] | SDK Python | Publicar `memtrace-ai` en PyPI: dar de alta el proyecto, configurar el trusted publisher del workflow `python-publish-pypi.yml` y lanzar el tag. Hasta entonces la documentación indica instalar desde el repositorio | A | S |
+| M14 | [ ] | Mem | Atribución a nivel de decisión (idea del paper de IBM, `docs/research/`): además del paso decisivo, clasificar cada decisión del episodio como causa del fallo, recuperación (se equivocó y se corrigió) o ineficiencia (funcionó con rodeos), para generar lecciones de «qué hacer cuando falle X» y de atajo, no solo de «evita X» | B | M |
+| M15 | [ ] | Mem | Vista de grafo de la traza con enlace a cada span (idea de AgentGraph, `docs/research/`); va con el grafo aplazado de ADR-100 | B | L |
 
 ## 4. Orden propuesto
 
@@ -81,6 +83,7 @@ Documento vivo. Recoge lo que falta y lo que conviene mejorar para que MemTrace 
 | 2026-10-10 | F1 y F2 hechos (ADR-086). Pendiente de este bloque: webhooks para las alertas |
 | 2026-10-10 | M8 hecho: el dashboard y la API consultan hasta 365 días |
 | 2026-10-10 | Limpieza de documentación: `pending-gaps.md` se fusiona aquí (R8-R10) y este documento pasa a llamarse `backlog.md` |
+| 2026-11-14 | Colas de anotación con orden por incertidumbre (ADR-039, actualización). Nuevos: M14 (atribución por decisión) y M15 (vista de grafo) |
 | 2026-10-10 | F6 hecho: LangGraph, OpenAI Agents SDK y SDK TypeScript (ADR-095) |
 | 2026-10-10 | Se descartan F3 (evaluación online), R7 (alertas de satisfacción y satisfacción por versión) y R10 (webhooks y alertas de calidad online); se elimina Q4 |
 | 2026-10-11 | F5 hecho (ADR-064, fase 3): check de GitHub con el veredicto de la evaluación |

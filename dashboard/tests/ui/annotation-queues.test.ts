@@ -168,7 +168,26 @@ describe("AnnotationQueuesPage", () => {
     await click(checkboxes[1]); // Luis
     await click(create());
 
-    expect(api.createdQueues).toEqual([{ name: "Tone review", instructions: null, requiredAnnotations: 1, reviewerIds: ["u-luis"], rubric: [{ configId: "cfg-1", required: true }] }]);
+    expect(api.createdQueues).toEqual([{ name: "Tone review", instructions: null, requiredAnnotations: 1, prioritization: "fifo", reviewerIds: ["u-luis"], rubric: [{ configId: "cfg-1", required: true }] }]);
+  });
+
+  it("creates a queue that serves the most uncertain items first", async () => {
+    const api = new FakeTraceApi();
+    const identity = new FakeIdentityApi();
+    identity.scoreConfigs = [scoreConfigDto({ id: "cfg-1", name: "tone" })];
+    api.reviewerCandidates = [{ userId: "u-luis", email: "luis@acme.com", name: "Luis" }];
+    const { wrapper } = await setup(AnnotationQueuesPage, api, "/e/e1/annotation-queues", {}, "technical", identity);
+
+    await wrapper.get('[data-testid="new-queue"]').trigger("click");
+    await flushPromises();
+    await setValue(body().querySelector('[aria-label="Queue name"]'), "Doubtful");
+    await chooseOption(document.body, "[aria-label='Review order']", "Most uncertain first");
+    const checkboxes = [...body().querySelectorAll<HTMLInputElement>('.rubric input[type="checkbox"]')];
+    await click(checkboxes[1]); // config
+    await click(checkboxes[0]); // Luis
+    await click([...body().querySelectorAll("button")].find((b) => b.textContent === "Create") as HTMLButtonElement);
+
+    expect(api.createdQueues[0]?.prioritization).toBe("uncertainty");
   });
 
   it("adds traces by filter as a bounded snapshot", async () => {

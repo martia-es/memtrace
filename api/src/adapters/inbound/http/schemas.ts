@@ -362,6 +362,7 @@ export const createAnnotationQueueBody = z.object({
   name: z.string().max(200),
   instructions: z.string().max(5000).nullable().optional().default(null),
   requiredAnnotations: z.number().int().optional().default(1),
+  prioritization: z.enum(["fifo", "uncertainty"]).optional().default("fifo"),
   reviewerIds: z.array(z.string().uuid()).max(100),
   rubric: z.array(queueRubricEntryBody).max(50),
 });
@@ -370,6 +371,7 @@ export const updateAnnotationQueueBody = z.object({
   name: z.string().max(200).optional(),
   instructions: z.string().max(5000).nullable().optional(),
   requiredAnnotations: z.number().int().optional(),
+  prioritization: z.enum(["fifo", "uncertainty"]).optional(),
   reviewerIds: z.array(z.string().uuid()).max(100).optional(),
   rubric: z.array(queueRubricEntryBody).max(50).optional(),
   archived: z.boolean().optional(),

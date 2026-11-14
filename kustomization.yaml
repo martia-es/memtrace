@@ -109,6 +109,7 @@ configMapGenerator:
       - migrations/postgres/050_risk_classification.sql
       - migrations/postgres/051_risk_policies.sql
       - migrations/postgres/052_dataset_category.sql
+      - migrations/postgres/053_queue_prioritization.sql
     options:
       disableNameSuffixHash: true   # el Job referencia el nombre fijo del ConfigMap
   - name: clickhouse-config

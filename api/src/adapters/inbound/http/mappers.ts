@@ -524,6 +524,7 @@ export function toAnnotationQueueDto(q: AnnotationQueue): AnnotationQueueDto {
     name: q.name,
     instructions: q.instructions,
     requiredAnnotations: q.requiredAnnotations,
+    prioritization: q.prioritization,
     reviewerIds: q.reviewerIds,
     rubric: q.rubric.map((r) => ({ configId: r.configId, required: r.required })),
     createdAt: q.createdAt,
