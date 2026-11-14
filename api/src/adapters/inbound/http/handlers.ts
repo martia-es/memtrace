@@ -13,6 +13,7 @@ import {
   toExperimentUsageResponse,
   toModelPricingResponse,
   toOverviewResponse,
+  toMemPatternsResponse,
   toErrorOverviewResponse,
   toSpanListResponse,
   toStepKindsResponse,
@@ -124,6 +125,9 @@ export function createHandlers(service: TraceQueryService) {
 
     overview: (request: Request, scope: TenantScope) =>
       guard(async () => json(toOverviewResponse(await service.getOverview({ ...parseOrThrow(overviewQuery, query(request)), scope })))),
+
+    memPatterns: (request: Request, scope: TenantScope) =>
+      guard(async () => json(toMemPatternsResponse(await service.getMemPatterns({ ...parseOrThrow(overviewQuery, query(request)), scope })))),
 
     /** errores del rango en lenguaje de negocio (ADR-066) */
     errorOverview: (request: Request, scope: TenantScope) =>

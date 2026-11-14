@@ -17,6 +17,31 @@ export interface RevisionSummary {
   lastSeenMs: number;
 }
 
+export interface MemFinding {
+  findingId: string;
+  cause: string;
+  rule: string;
+  support: number;
+  failures: number;
+  failureRate: number;
+  lift: number;
+  pValue: number;
+  decisiveStep: string;
+  decisiveError: string;
+  toolSequence: string;
+  occurrenceByPrompt: Record<string, number>;
+  exampleTraceIds: string[];
+}
+
+export interface MemPatterns {
+  runAtMs: number | null;
+  episodes: number;
+  failed: number;
+  unexplained: number;
+  goalClusters: number;
+  findings: MemFinding[];
+}
+
 export interface TraceListQuery extends TimeRange {
   scope: TenantScope;
   /** estado del span raíz */
@@ -126,6 +151,8 @@ export interface TraceRepository {
 
   /** spans fallidos más profundos (los que no tienen un hijo fallido) agrupados por señal técnica, más los totales del rango (ADR-066) */
   listErrorGroups(query: TimeRange & { scope: TenantScope }): Promise<ErrorGroupsResult>;
+  /** Última pasada de descubrimiento de Mem dentro del rango, ya aislada por tenant. */
+  getMemPatterns(query: TimeRange & { scope: TenantScope }): Promise<MemPatterns>;
 
   ping(): Promise<void>;
 }

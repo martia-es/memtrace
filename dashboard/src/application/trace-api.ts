@@ -44,6 +44,7 @@ import type {
   ModelPricingResponse,
   TraceAnnotationsResponse,
   OverviewResponse,
+  MemPatternsResponse,
   RunNoiseComparisonResponse,
   RunsListResponse,
   RunVariabilityResponse,
@@ -184,6 +185,7 @@ export interface TraceApi {
   /** Satisfacción, serie diaria, alineación y últimas trazas con 👎 del rango. */
   /** errores del rango en lenguaje de negocio, agrupados por causa (ADR-066) */
   getErrorOverview(params: RangeParams, signal?: AbortSignal): Promise<ErrorOverviewResponse>;
+  getMemPatterns(params: RangeParams, signal?: AbortSignal): Promise<MemPatternsResponse>;
   getFeedbackOverview(params: RangeParams, signal?: AbortSignal): Promise<FeedbackOverviewResponse>;
   /** etiquetas humanas (y si alguna es baja) de las trazas o conversaciones de una página de lista; solo vuelven las que tienen alguna */
   getAnnotationRatings(target: { traceIds: string[] } | { conversationIds: string[] }, signal?: AbortSignal): Promise<AnnotationRatingsResponse>;

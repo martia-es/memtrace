@@ -1,7 +1,7 @@
 import type { ClickHouseClient } from "@clickhouse/client";
 import { DEDUPED_READS } from "./client";
 import { RepositoryUnavailableError } from "@/application/errors";
-import type { ConversationListQuery, RevisionSummary, SpanListQuery, TraceListQuery, TraceRepository, TraceSpans } from "@/application/ports/trace-repository";
+import type { ConversationListQuery, MemPatterns, RevisionSummary, SpanListQuery, TraceListQuery, TraceRepository, TraceSpans } from "@/application/ports/trace-repository";
 import type { ErrorGroupsResult } from "@/domain/error-categories";
 import type { ConversationCursor, ConversationSummary, ConversationUsage } from "@/domain/conversation";
 import type { ArenaModel } from "@/domain/model-quality";
@@ -1040,6 +1040,49 @@ export class ClickHouseTraceRepository implements TraceRepository {
         topic: String(r.topic),
         responses: num(r.responses),
         avgConfidence: num(r.avgConfidence),
+      })),
+    };
+  }
+
+  async getMemPatterns(q: TimeRange & { scope: TenantScope }): Promise<MemPatterns> {
+    const p: Params = { ...tenantParams(q.scope) };
+    const tenant = TENANT_SQL;
+    const latest = await this.rows<{ runAtMs: number | null }>(
+      `SELECT toUnixTimestamp64Milli(maxOrNull(RunAt)) AS runAtMs FROM ${this.spans.replace("otel_traces", "mem_discovery_runs")}
+       WHERE ${tenant} AND RunAt >= fromUnixTimestamp64Milli({fromMs:Int64}) AND RunAt <= fromUnixTimestamp64Milli({toMs:Int64})`,
+      { ...p, fromMs: q.fromMs, toMs: q.toMs },
+    );
+    const rawRunAtMs = latest[0]?.runAtMs;
+    const runAtMs = rawRunAtMs == null ? null : num(rawRunAtMs);
+    if (runAtMs === null) return { runAtMs: null, episodes: 0, failed: 0, unexplained: 0, goalClusters: 0, findings: [] };
+
+    const [runRows, findingRows] = await Promise.all([
+      this.rows<Record<string, unknown>>(
+        `SELECT Episodes, Failed, Unexplained, GoalClusters, toUnixTimestamp64Milli(RunAt) AS runAtMs
+         FROM ${this.spans.replace("otel_traces", "mem_discovery_runs")} FINAL
+         WHERE ${tenant} AND RunAt = fromUnixTimestamp64Milli({runAtMs:Int64}) LIMIT 1`,
+        { ...p, runAtMs },
+      ),
+      this.rows<Record<string, unknown>>(
+        `SELECT FindingId, Cause, Rule, Support, Failures, FailureRate, Lift, PValue, DecisiveStep, DecisiveError,
+                ToolSequence, OccurrenceByPrompt, ExampleTraceIds
+         FROM ${this.spans.replace("otel_traces", "mem_findings")} FINAL
+         WHERE ${tenant} AND RunAt = fromUnixTimestamp64Milli({runAtMs:Int64}) ORDER BY Failures DESC, Support DESC`,
+        { ...p, runAtMs },
+      ),
+    ]);
+    const r = runRows[0] ?? {};
+    return {
+      runAtMs,
+      episodes: num(r.Episodes),
+      failed: num(r.Failed),
+      unexplained: num(r.Unexplained),
+      goalClusters: num(r.GoalClusters),
+      findings: findingRows.map((f) => ({
+        findingId: String(f.FindingId), cause: String(f.Cause), rule: String(f.Rule), support: num(f.Support), failures: num(f.Failures),
+        failureRate: num(f.FailureRate), lift: num(f.Lift), pValue: num(f.PValue), decisiveStep: String(f.DecisiveStep),
+        decisiveError: String(f.DecisiveError), toolSequence: String(f.ToolSequence), occurrenceByPrompt: (f.OccurrenceByPrompt as Record<string, number>) ?? {},
+        exampleTraceIds: ((f.ExampleTraceIds as unknown[]) ?? []).map(String),
       })),
     };
   }

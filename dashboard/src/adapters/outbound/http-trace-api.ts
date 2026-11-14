@@ -44,6 +44,7 @@ import type {
   ModelPricingResponse,
   TraceAnnotationsResponse,
   OverviewResponse,
+  MemPatternsResponse,
   ProblemDetails,
   RunNoiseComparisonResponse,
   RunsListResponse,
@@ -142,6 +143,10 @@ export class HttpTraceApi implements TraceApi {
 
   getErrorOverview(params: RangeParams, signal?: AbortSignal) {
     return this.get<ErrorOverviewResponse>(`${this.scopedBase()}/errors/overview`, { ...params }, signal);
+  }
+
+  getMemPatterns(params: RangeParams, signal?: AbortSignal) {
+    return this.get<MemPatternsResponse>(`${this.scopedBase()}/mem/patterns`, { ...params }, signal);
   }
 
   getFeedbackOverview(params: RangeParams, signal?: AbortSignal) {

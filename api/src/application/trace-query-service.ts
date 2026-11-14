@@ -269,6 +269,10 @@ export class TraceQueryService {
     return summarizeErrors(current, previous, range, previousRange);
   }
 
+  getMemPatterns(input: { from?: Date; to?: Date; scope: TenantScope }) {
+    return this.repository.getMemPatterns({ ...resolveTimeRange(input, this.now()), scope: input.scope });
+  }
+
   /** Commits vistos en el rango (para elegirlos en el filtro de versión). */
   listRevisions(input: { from?: Date; to?: Date; scope: TenantScope }): Promise<RevisionSummary[]> {
     return this.repository.listRevisions({ ...resolveTimeRange(input, this.now()), scope: input.scope });

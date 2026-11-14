@@ -93,13 +93,14 @@ class ClickHouseClient:
             SELECT e.ServiceName, e.ExperimentId, e.TraceId
             FROM {self._db}.mem_episodes AS e FINAL
             INNER JOIN (
-                SELECT TraceId, max(CreatedAt) AS Last FROM {self._db}.user_feedback GROUP BY TraceId
+                SELECT ServiceName, ExperimentId, TraceId, max(CreatedAt) AS Last
+                FROM {self._db}.user_feedback FINAL GROUP BY ServiceName, ExperimentId, TraceId
                 UNION ALL
-                SELECT assumeNotNull(i.TraceId) AS TraceId, max(sc.CreatedAt) AS Last
+                SELECT i.ServiceName, i.ExperimentId, assumeNotNull(i.TraceId) AS TraceId, max(sc.CreatedAt) AS Last
                 FROM {self._db}.eval_scores AS sc FINAL
                 INNER JOIN {self._db}.eval_items AS i FINAL ON {EVAL_JOIN}
-                WHERE i.TraceId IS NOT NULL GROUP BY i.TraceId
-            ) AS s ON e.TraceId = s.TraceId
+                WHERE i.TraceId IS NOT NULL GROUP BY i.ServiceName, i.ExperimentId, i.TraceId
+            ) AS s ON e.ServiceName = s.ServiceName AND e.ExperimentId = s.ExperimentId AND e.TraceId = s.TraceId
             WHERE e.StartedAt >= now() - INTERVAL {{lookback:UInt32}} DAY AND e.EpisodeVersion = {{version:UInt16}}
             GROUP BY e.ServiceName, e.ExperimentId, e.TraceId, e.BuiltAt
             HAVING max(s.Last) > e.BuiltAt
@@ -115,7 +116,8 @@ class ClickHouseClient:
         """Spans de las trazas pedidas, agrupados. Se filtra por TraceId y se comprueba el tenant después."""
         if not keys:
             return []
-        wanted = {k[2]: k for k in keys}
+        # TraceId no es la identidad completa: puede colisionar entre tenants.
+        wanted = {(k[0], k[1], k[2]): k for k in keys}
         query = f"""
             SELECT ServiceName, ExperimentId, TraceId, SpanId, ParentSpanId, Timestamp, SpanName,
                    SpanAttributes['gen_ai.operation.name'], SpanAttributes['gen_ai.tool.name'],
@@ -130,11 +132,11 @@ class ClickHouseClient:
             WHERE TraceId IN {{ids:Array(String)}}
             ORDER BY TraceId, Timestamp
         """
-        rows = self._client.query(query, parameters={"ids": list(wanted)}, settings=DEDUPED).result_rows
+        rows = self._client.query(query, parameters={"ids": [k[2] for k in keys]}, settings=DEDUPED).result_rows
         grouped: dict[TraceKey, list[tuple]] = defaultdict(list)
         for r in rows:
             key = (r[0], r[1], r[2])
-            if wanted.get(r[2]) == key:  # el tenant del span tiene que ser el de la clave pedida
+            if key in wanted:  # el tenant del span tiene que ser el de la clave pedida
                 grouped[key].append(r)
 
         traces = []
@@ -147,31 +149,31 @@ class ClickHouseClient:
                                     prompt_version=int(first(19) or 0), model=first(20)))
         return traces
 
-    def fetch_signals(self, trace_ids: list[str]) -> dict[str, TraceSignals]:
+    def fetch_signals(self, keys: list[TraceKey]) -> dict[TraceKey, TraceSignals]:
         """Feedback del usuario final (👍/👎, sin los votos retirados) y puntuaciones de evaluadores por traza."""
-        if not trace_ids:
+        if not keys:
             return {}
-        params = {"ids": trace_ids}
+        params = {"ids": [k[2] for k in keys]}
         feedback = self._client.query(
-            f"""SELECT TraceId, countIf(Rating > 0), countIf(Rating < 0)
+            f"""SELECT ServiceName, ExperimentId, TraceId, countIf(Rating > 0), countIf(Rating < 0)
                 FROM (SELECT * FROM {self._db}.user_feedback FINAL WHERE TraceId IN {{ids:Array(String)}} AND IsDeleted = 0)
-                GROUP BY TraceId""",
+                GROUP BY ServiceName, ExperimentId, TraceId""",
             parameters=params,
         ).result_rows
         scores = self._client.query(
-            f"""SELECT assumeNotNull(i.TraceId), sc.DataType, sc.ValueNum
+            f"""SELECT i.ServiceName, i.ExperimentId, assumeNotNull(i.TraceId), sc.DataType, sc.ValueNum
                 FROM {self._db}.eval_scores AS sc FINAL
                 INNER JOIN {self._db}.eval_items AS i FINAL ON {EVAL_JOIN}
                 WHERE i.TraceId IN {{ids:Array(String)}}""",
             parameters=params,
         ).result_rows
 
-        up_down = {r[0]: (int(r[1]), int(r[2])) for r in feedback}
-        by_trace: dict[str, list[float]] = defaultdict(list)
-        for trace_id, data_type, value_num in scores:
+        up_down = {(r[0], r[1], r[2]): (int(r[3]), int(r[4])) for r in feedback}
+        by_trace: dict[TraceKey, list[float]] = defaultdict(list)
+        for service, experiment, trace_id, data_type, value_num in scores:
             parsed = parse_score(data_type, value_num)
             if parsed is not None:
-                by_trace[trace_id].append(parsed)
+                by_trace[(service, experiment, trace_id)].append(parsed)
         return {
             t: TraceSignals(thumbs_up=up_down.get(t, (0, 0))[0], thumbs_down=up_down.get(t, (0, 0))[1], eval_scores=tuple(by_trace.get(t, ())))
             for t in set(up_down) | set(by_trace)

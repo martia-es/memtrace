@@ -46,6 +46,7 @@ export const router = createRouter({
         { path: "overview", name: "overview", component: metricsPage, beforeEnter: legacyOverviewTab, meta: { title: "Overview", section: "overview", view: "summary" } },
         { path: "overview/compare", name: "overview-compare", component: metricsPage, meta: { title: "Compare", section: "compare", view: "compare" } },
         { path: "overview/breakdown", name: "overview-breakdown", component: () => import("./pages/BreakdownPage.vue"), meta: { title: "Breakdown", section: "breakdown" } },
+        { path: "overview/patterns", name: "overview-patterns", component: () => import("./pages/MemPatternsPage.vue"), meta: { title: "Patterns", section: "patterns" } },
         { path: "overview/charts", name: "overview-charts", component: metricsPage, meta: { title: "Charts", section: "charts", view: "charts" } },
         { path: "overview/catalog", name: "overview-catalog", component: () => import("./pages/ChartCatalogPage.vue"), meta: { title: "Data catalog", section: "catalog" } },
         // postura de seguridad del agente (ADR-103): detecciones en producción y runs de red team

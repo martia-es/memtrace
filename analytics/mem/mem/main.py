@@ -32,11 +32,11 @@ def run() -> int:
         if not keys:
             break
         traces = ch.fetch_traces(keys)
-        signals = ch.fetch_signals([t.key[2] for t in traces])
+        signals = ch.fetch_signals([t.key for t in traces])
         episodes = []
         for t in traces:
             service, experiment, trace_id = t.key
-            ep = build_episode(trace_id, service, experiment, t.spans, signals.get(trace_id, TraceSignals()),
+            ep = build_episode(trace_id, service, experiment, t.spans, signals.get(t.key, TraceSignals()),
                                conversation_id=t.conversation_id, revision=t.revision, prompt_name=t.prompt_name,
                                prompt_version=t.prompt_version, model=t.model)
             if ep is not None:

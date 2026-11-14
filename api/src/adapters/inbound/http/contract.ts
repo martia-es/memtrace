@@ -213,6 +213,29 @@ export interface OverviewResponse {
   byTopic: { topic: string; responses: number; avgConfidence: number }[];
 }
 
+export interface MemPatternsResponse {
+  runAt: string | null;
+  episodes: number;
+  failed: number;
+  unexplained: number;
+  goalClusters: number;
+  findings: Array<{
+    findingId: string;
+    cause: string;
+    rule: string;
+    support: number;
+    failures: number;
+    failureRate: number;
+    lift: number;
+    pValue: number;
+    decisiveStep: string;
+    decisiveError: string;
+    toolSequence: string;
+    occurrenceByPrompt: Record<string, number>;
+    exampleTraceIds: string[];
+  }>;
+}
+
 /** Errores en lenguaje de negocio, agrupados por categoría (ADR-066). */
 export interface ErrorCategoryDto {
   id: string;

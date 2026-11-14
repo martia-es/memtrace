@@ -1,7 +1,7 @@
 import type { ErrorGroupsResult } from "@/domain/error-categories";
 import type { UserFeedbackRepository } from "@/application/ports/user-feedback-repository";
 import type { UserFeedback } from "@/domain/user-feedback";
-import type { ConversationListQuery, SpanListQuery, TraceListQuery, TraceRepository, TraceSpans } from "@/application/ports/trace-repository";
+import type { ConversationListQuery, MemPatterns, SpanListQuery, TraceListQuery, TraceRepository, TraceSpans } from "@/application/ports/trace-repository";
 import type { ConversationCursor, ConversationSummary, ConversationUsage } from "@/domain/conversation";
 import type { ChatSpanRecord } from "@/domain/transcript";
 import type { MetricsOverview, MetricsQuery, ServiceUsage } from "@/domain/metrics";
@@ -181,11 +181,16 @@ export class FakeTraceRepository implements TraceRepository {
     return this.modelsInUse;
   }
   errorGroups: ErrorGroupsResult = { groups: [], tracesWithErrors: 0, conversationsWithErrors: 0, totalTraces: 0, totalConversations: 0 };
+  memPatterns: MemPatterns = { runAtMs: null, episodes: 0, failed: 0, unexplained: 0, goalClusters: 0, findings: [] };
   lastErrorQueries: (TimeRange & { scope: TenantScope })[] = [];
   async listErrorGroups(query: TimeRange & { scope: TenantScope }) {
     this.check();
     this.lastErrorQueries.push(query);
     return this.errorGroups;
+  }
+  async getMemPatterns(_query: TimeRange & { scope: TenantScope }) {
+    this.check();
+    return this.memPatterns;
   }
   async getStepKinds() {
     this.check();

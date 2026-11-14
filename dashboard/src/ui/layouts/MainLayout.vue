@@ -52,6 +52,7 @@ const NAV: readonly NavGroup[] = [
     icon: "M4 20V10M10 20V4M16 20v-8M22 20H2",
     children: [
       { name: "overview-breakdown", label: "nav.breakdown", sections: ["breakdown"] },
+      { name: "overview-patterns", label: "nav.patterns", sections: ["patterns"] },
       { name: "overview-compare", label: "nav.compare", sections: ["compare"] },
       { name: "overview-charts", label: "nav.charts", sections: ["charts", "catalog"] },
       { name: "overview-reports", label: "nav.reports", sections: ["reports"] },

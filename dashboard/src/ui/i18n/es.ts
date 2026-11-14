@@ -3277,6 +3277,7 @@ const es: Record<keyof typeof en, string> = {
   "promptPlayground.no_agent_has_reported_reading_this": "Ningún agente ha reportado leer este prompt en {env}. El playground solo funciona si el agente lo lee con",
   "promptPlayground.and_that_the": "y que el",
   "nav.analytics": "Analítica",
+  "nav.patterns": "Patrones",
   "nav.charts": "Gráficas",
   "nav.alertsBudget": "Alertas y presupuesto",
   "nav.qualityTrends": "Tendencias de calidad",
@@ -3424,6 +3425,20 @@ const es: Record<keyof typeof en, string> = {
   "securityPage.col_categories": "Por categoría",
   "securityPage.errored": "{count} no se pudieron ejecutar y no se cuentan",
   "securityPage.none_succeeded": "Ninguno logró pasar",
+  "memPatterns.title": "Patrones recurrentes",
+  "memPatterns.noRun": "Aún no hay ningún análisis",
+  "memPatterns.noRunHint": "Mem necesita suficientes episodios cerrados para identificar un patrón recurrente.",
+  "memPatterns.episodes": "Episodios",
+  "memPatterns.failed": "Fallos",
+  "memPatterns.unexplained": "Sin explicar",
+  "memPatterns.clusters": "Grupos de objetivos",
+  "memPatterns.findings": "Lo que ha encontrado Mem",
+  "memPatterns.findingsHint": "Señales con suficiente evidencia para destacar del resto del tráfico.",
+  "memPatterns.latestRun": "Último análisis",
+  "memPatterns.noFindings": "Ningún patrón fiable",
+  "memPatterns.noFindingsHint": "No hay evidencia suficiente para explicar un fallo recurrente en este periodo.",
+  "memPatterns.examples": "Ejemplos",
+  "memPatterns.evidence": "{failures} fallos en {support} episodios · lift {lift}",
 };
 
 export default es;

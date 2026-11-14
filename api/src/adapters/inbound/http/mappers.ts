@@ -1,5 +1,6 @@
 import type { ConversationCursor, ConversationListItem } from "@/domain/conversation";
 import type { ErrorOverview } from "@/domain/error-categories";
+import type { MemPatterns } from "@/application/ports/trace-repository";
 import { classifyAttribute } from "@/domain/attribute-classification";
 import type { AttributeKeyCount, AttributeValueCount, CustomMetricResult, MetricsOverview, ServiceUsage, StepKindCount } from "@/domain/metrics";
 import type { DatasetVersionDiff } from "@/domain/dataset-diff";
@@ -51,6 +52,7 @@ import type {
   MetricReportSummaryDto,
   ModelPricingResponse,
   OverviewResponse,
+  MemPatternsResponse,
   ErrorOverviewResponse,
   SavedCustomMetricDto,
   ScoreConfigDto,
@@ -216,6 +218,11 @@ export function toOverviewResponse(o: MetricsOverview & { fromMs: number; toMs: 
     byTool: o.byTool,
     byTopic: o.byTopic,
   };
+}
+
+export function toMemPatternsResponse(p: MemPatterns): MemPatternsResponse {
+  const { runAtMs, ...rest } = p;
+  return { ...rest, runAt: runAtMs === null ? null : new Date(runAtMs).toISOString() };
 }
 
 export function toErrorOverviewResponse(o: ErrorOverview): ErrorOverviewResponse {

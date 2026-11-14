@@ -58,6 +58,7 @@ import type {
   ExperimentUsageResponse,
   ModelPricingResponse,
   OverviewResponse,
+  MemPatternsResponse,
   RevisionsResponse,
   ServicesResponse,
   SpanListResponse,
@@ -653,6 +654,10 @@ export class FakeTraceApi implements TraceApi {
   errorOverview: ErrorOverviewResponse = { range: { from: "", to: "" }, previousRange: null, totals: { occurrences: 0, tracesWithErrors: 0, conversationsWithErrors: 0, totalTraces: 0, totalConversations: 0 }, categories: [] };
   async getErrorOverview(): Promise<ErrorOverviewResponse> {
     return this.errorOverview;
+  }
+  memPatterns: MemPatternsResponse = { runAt: null, episodes: 0, failed: 0, unexplained: 0, goalClusters: 0, findings: [] };
+  async getMemPatterns(): Promise<MemPatternsResponse> {
+    return this.memPatterns;
   }
   async getFeedbackOverview(): Promise<FeedbackOverviewResponse> {
     return this.feedbackOverview;
