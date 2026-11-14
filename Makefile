@@ -37,8 +37,8 @@ up: check ## Levanta todo en 1 solo comando (clúster, despliegue, migraciones y
 	fi
 	kubectl config use-context kind-$(CLUSTER)
 	@$(MAKE) --no-print-directory images
-	# los Jobs son inmutables: estos dos son idempotentes y se recrean en cada despliegue (un cambio en su spec haría fallar el apply)
-	kubectl delete job kafka-topics dedupe-otel-traces -n $(NS) --ignore-not-found
+	# los Jobs son inmutables: todos son idempotentes y se recrean en cada despliegue (un cambio en su spec haría fallar el apply)
+	kubectl delete job clickhouse-migrate postgres-migrate kafka-topics dedupe-otel-traces -n $(NS) --ignore-not-found
 	kubectl apply -k .
 	kubectl wait --for=condition=complete job/clickhouse-migrate -n $(NS) --timeout=300s
 	kubectl rollout status statefulset/clickhouse -n $(NS) --timeout=300s
@@ -340,3 +340,6 @@ tunel: ## Expone la API (puerto 3001) en un dominio público fijo de ngrok: lo n
 	@command -v ngrok >/dev/null 2>&1 || { echo "Falta 'ngrok': brew install ngrok"; exit 1; }
 	@echo "Webhook URL de la GitHub App: https://$(NGROK_DOMAIN)/api/v1/webhooks/github"
 	ngrok http --url=$(NGROK_DOMAIN) 3001
+
+npm-publish:
+	npm publish --access public --provenance=false

@@ -10,3 +10,7 @@ rag_assistant/uvicorn.log
 
 # Caché de Python del generador de carga
 load-testing/__pycache__/
+
+# Local tooling
+.claude/
+.vscode/
