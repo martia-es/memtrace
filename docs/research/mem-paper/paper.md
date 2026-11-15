@@ -1,6 +1,6 @@
 # From OpenTelemetry Traces to Failure Rules: Deterministic Episode Construction and Statistically Filtered Rule Discovery for LLM Agents
 
-*Draft v0.3 — MemTrace team. Working paper; not peer reviewed. All numbers come from `experiments.py` in this directory (5 development and 5 held-out seeds); see §9. v0.3 reports the final method on held-out seeds, after fixing a defect and testing mitigations (§7).*
+*Draft v0.4 — MemTrace team. Working paper; not peer reviewed. All numbers come from `experiments.py` in this directory (5 development and 5 held-out seeds); see Section 9. v0.4 expands the method description (step-by-step construction, formulas and pseudocode); the results are those of v0.3, which reports the final method on held-out seeds, after fixing a defect and testing mitigations (Section 7).*
 
 ## Abstract
 
@@ -16,7 +16,7 @@ Three properties make this harder than classical log mining:
 2. **Causes live in behaviour, not only in context.** "The agent called the forecast tool before geocoding" or "it compared two cities but queried one" are properties of the *sequence* of steps and of the request.
 3. **Recurrence needs significance.** With thousands of candidate conditions, some will separate failures from successes by chance; a system that proposes fixes from them will persist noise.
 
-**Contributions.** (i) An episode abstraction over OTel GenAI spans with a decisive-span definition and a versioned, additive outcome estimate (§3–4). (ii) A rule-discovery procedure that generates features automatically, searches with sequential coverage, and filters with Fisher's exact test and Bonferroni correction (§5). (iii) An evaluation with baselines and ablations on development and held-out seeds (§6), including the analysis and fix of a robustness defect that single-seed validation had hidden, and a held-out test of three mitigations (§7). We deliberately scope this paper to *knowledge extraction from traces*; what is done with the knowledge (lessons, approvals, applying them to a prompt) is out of scope.
+**Contributions.** (i) An episode abstraction over OTel GenAI spans with a decisive-span definition and a versioned, additive outcome estimate (Sections 3 and 4). (ii) A rule-discovery procedure that generates features automatically, searches with sequential coverage, and filters with Fisher's exact test and Bonferroni correction (Section 5). (iii) An evaluation with baselines and ablations on development and held-out seeds (Section 6), including the analysis and fix of a robustness defect that single-seed validation had hidden, and a held-out test of three mitigations (Section 7). We deliberately scope this paper to *knowledge extraction from traces*; what is done with the knowledge (lessons, approvals, applying them to a prompt) is out of scope.
 
 ## 2. Related work
 
@@ -41,15 +41,31 @@ One trace becomes one **episode** row:
 | Field | Definition |
 |---|---|
 | `Steps` | ordered step names (`chat` or the tool name) |
-| `Goal`, `Answer` | last user message and last model reply (truncated to 500 characters; already PII-masked at the SDK) |
+| `Goal`, `Answer` | user request and final model reply (truncated to 500 characters; already PII-masked at the SDK) |
 | *decisive span* | the failing span that is not the parent of another failing span (parents inherit errors from children); with several independent leaves, the earliest in time, since it triggers the rest |
 | `HasError`, `Loop` | an error span exists; a *loop* exists |
 | `Thumbs`, `EvalScore` | user feedback and the minimum evaluator score (only boolean or [0, 1] scores, read as fail/pass) |
 | `Attributes` | trace attributes with short values, filtered by an exclusion list (no `gen_ai.*`, `enduser.*`, keys containing id/email/name/token…, long values or values with `@`) |
 | `EmptyArgTools` | tools called with at least one empty argument (generic: no tool names are hard-coded) |
-| `Outcome`, `Value`, `Reasons` | see §4 |
+| `Outcome`, `Value`, `Reasons` | see Section 4 |
 
-A **loop** is the same tool call (same name and arguments) or the same normalised model error repeated at least three times. Error messages are normalised by replacing digits, so quota codes or ids do not split one error into many.
+A **loop** is the same tool call (same name and same argument string) or the same normalised model error occurring at least three times in the trace (not necessarily consecutively). Error messages are normalised by replacing every digit sequence with the placeholder `N` and truncating to 120 characters, so quota codes, ids or timings do not split one error into many.
+
+### 3.3 Construction, step by step
+
+For each trace (`trace_id`), the builder runs the following steps; all of them are pure functions of the span rows and the two side tables.
+
+1. **Order and filter.** Sort the spans by timestamp. Keep as *steps* those with `gen_ai.operation.name ∈ {chat, execute_tool}`. If there are no steps, the trace produces no episode. The step name is `chat` for model calls and `gen_ai.tool.name` for tool calls (the span name if the tool name is missing).
+2. **Goal and answer.** `Goal` is the text of the last `user` message inside the input messages of the first chat span that has one; `Answer` is the text of the last `assistant` message of the last chat span that has one. Messages follow the GenAI format (plain `content` or a list of `parts`); both are truncated to 500 characters.
+3. **Decisive span.** Let *F* be the spans with status error. Let *P* be the set of parent ids of the spans in *F*. The leaves are the spans in *F* that are not in *P*; the decisive span is the leaf with the smallest timestamp (if there were no leaves, the earliest span of *F*). `decisive_step` is its step name and `decisive_error` is its normalised status message. If *F* is empty, the trace has no error (`HasError = false`).
+4. **Loop.** Count occurrences of the key `(tool name, argument string)` for every tool step, and of the normalised message for every failing chat step; `Loop` is true if any count reaches 3.
+5. **Feedback.** `Thumbs = +1` if there is at least one thumb up and no thumb down, `−1` if the reverse, and `0` if there are none or both (a contradictory vote is recorded in `Reasons` as `thumbs_mixed` and carries no weight).
+6. **Evaluator score.** `EvalScore` is the minimum of the scores of all evaluators that ran on the trace. It counts as *fail* if it equals 0 and as *pass* if it equals 1; an intermediate value (for example 0.5) is neither and adds nothing to the outcome.
+7. **Empty arguments.** For each tool step, the argument string is parsed as JSON; if it is an object with at least one value equal to `""` or `null`, the tool name is added to `EmptyArgTools`. No tool names are hard-coded.
+8. **Attributes.** The attributes of the root span are kept if the key does not start with `gen_ai.`, `memtrace.input|output|metadata`, `enduser.`, `http.` or `url.`; none of the tokens of the key (split on `.`, `_`, `-`) is in `{id, email, phone, name, token, key, secret, password, address, ip, message}`; and the value is non-empty, at most 64 characters, and has no `@`. This is an exclusion list, so it must be reviewed when new keys appear.
+9. **Outcome.** Computed as in Section 4.
+
+### 3.4 Engineering properties
 
 ### 3.3 Engineering properties
 
@@ -68,23 +84,95 @@ The outcome is an **estimate from weak signals, not a label**. Each signal adds 
 | thumbs up | −0.3 |
 | evaluator = 1 | −0.2 |
 
-`failed` if value ≥ 0.6; `suspect` if ≥ 0.3. The `Reasons` list records which signals contributed, so a human can see why an episode is `failed`. Weights were set by hand and checked on synthetic data (§6); they are not learned, and §8 discusses what this implies.
+Formally, with indicator variables *e* (error span), *l* (loop), *d* (thumbs down), *u* (thumbs up), *v⁻* (minimum evaluator score = 0) and *v⁺* (minimum evaluator score = 1):
+
+> value = 1.0·e + 0.8·l + 0.7·v⁻ + 0.6·d − 0.3·u − 0.2·v⁺
+
+and `Outcome = failed` if value ≥ 0.6, `suspect` if 0.3 ≤ value < 0.6, `ok` otherwise. The comparison is inclusive, so a single thumb down (0.6), a loop (0.8), an evaluator failure (0.7) or an error span (1.0) is enough on its own to mark `failed`; a lone thumb up or evaluator pass gives a negative value and `ok`. Some worked cases: error + thumb up = 0.7 → `failed`; loop + evaluator pass = 0.6 → `failed`; thumb down + evaluator pass = 0.4 → `suspect`; evaluator failure + thumb up = 0.4 → `suspect`. The value is rounded to two decimals before thresholding. The `Reasons` list records which positive signals contributed (`error_span`, `retry_loop`, `eval_failed`, `thumbs_down`, `thumbs_mixed`), so a human can see why an episode is `failed`.
+
+*Evaluator scores* are scores written by an automatic evaluator (a heuristic check, an LLM judge or a classifier, run outside this pipeline) into a side table keyed by trace; this pipeline only reads them. Only boolean or [0, 1] values are accepted, with the convention 0 = fails and 1 = passes. Weights were set by hand and checked on synthetic data (Section 6); they are not learned, and Section 8 discusses what this implies.
 
 ## 5. Rule discovery
 
-Discovery runs per agent (tenant) once enough episodes exist (≥ 200 in a window; below that no statistical test is meaningful).
+Discovery runs per agent (tenant) over the episodes of an analysis window, once there are at least 200 episodes and at least 30 `failed` ones (below that no statistical test is meaningful). Its parameters are: minimum support *s* = 30, minimum lift *L* = 1.5, significance α = 0.01, at most 12 rules per cause, tree depth 3, and at most 20 distinct values for a context attribute.
 
-**Features, generated without domain knowledge.** (a) *Context*: every trace attribute with at most 20 distinct values becomes a set of indicator features (language, model, prompt version…). (b) *Behaviour*: for every step name, its count; for every ordered pair of tools, "A occurs before B"; per tool, "called with an empty argument"; the longest run of one step; the number of steps. (c) *Request*: a goal cluster (below) and the number of entities mentioned in the request (proper-noun-like tokens and numbers), which captures requests such as "compare A and B" independently of clustering. No tool, city or failure names are written by hand.
+### 5.1 Features, generated without domain knowledge
 
-**Goal clusters.** Goals are masked (numbers and proper nouns replaced by placeholders, because entities change the text but not the intent), embedded with a local multilingual sentence encoder (shipped inside the job image: the job needs no network) and clustered with k-means, choosing k ∈ [3, 14] by silhouette.
+Every episode becomes a row of numeric or 0/1 features. No tool, city or failure name is written by hand.
 
-**Cause split.** Failed episodes with an error are separated by *(failing step, normalised error)*; silent failures form one group. Each group is explained independently; failures of other groups are excluded from the negatives of that group.
+* **Context.** Each trace attribute with at most 20 distinct values in the window becomes one indicator per value (`user.lang=es`, `model=model_b`, `prompt.version=2`). Attributes with more values are treated as identifiers and ignored.
+* **Behaviour.** For every step name *n*: `count:n`, how many times it occurs. For every ordered pair of distinct tools (*A*, *B*): `A_before_B`, equal to 1 if both occur and the first occurrence of *A* precedes the first occurrence of *B*. For every tool: `empty_arg:A`, 1 if it was called with an empty argument. Plus `max_repeat_of_a_step` (length of the longest run of the same step, for example 3 in `chat, f, f, f, chat`) and `n_steps`.
+* **Request.** `goal_entities` is the number of tokens of the goal that look like entities: after masking (below), the count of `<name>` plus `<n>` placeholders. It captures requests such as "compare A and B" (two entities) without any named-entity model. `goal_cluster=c` are indicators of the goal cluster (5.2).
 
-**Sequential coverage with an exact test.** For each cause: a depth-3 decision tree (minimum leaf size 30) proposes candidate conjunctions; each candidate gets a one-sided Fisher exact test against the rest and is kept only if lift ≥ 1.5; the best candidate must satisfy *p × (candidates tested so far in the whole pass) ≤ α* (Bonferroni over the pass, α = 0.01; §7.2 explains why not per round) and must still cover ≥ 30 failures of that cause. The failures it explains are removed and the search repeats (at most 12 rules per cause).
+**Masking.** Numbers (`\b\d+([.,]\d+)?\b`) are replaced by `<n>`. A word with an initial capital that is preceded by a word character or a comma/semicolon and a space (so it does not open the sentence) is replaced by `<name>`. This is a lexical heuristic that suits English and Spanish; it is not language-aware, and a capitalised common noun mid-sentence is also masked.
 
-**Generalisation and merging.** A condition is dropped if the shorter rule keeps at least 95 % of the original precision *and* still reaches the minimum lift, both measured on the same training set with which the rule was found (shorter rules explain more and read better; §7 explains why the training set matters). Rules of one cause that explain mostly the same failures are merged; rules with the same signature (failing step, error, tool sequence, behavioural features) are merged across causes.
+### 5.2 Goal clusters
 
-**Recurrence over time.** For each finding we report occurrences per 100 traces by prompt version, so one can see whether a failure disappeared after a fix.
+Goals are masked (entities change the text but not the intent), de-duplicated, and embedded with a local multilingual sentence encoder (`paraphrase-multilingual-MiniLM-L12-v2`, shipped in the job image: no network calls; vectors are L2-normalised). For each *k* from 3 to min(14, number of distinct masked goals − 1) we run k-means (10 initialisations, fixed random seed 0) and compute the mean silhouette coefficient; we keep the *k* with the highest silhouette. The silhouette of a point is (*b* − *a*) / max(*a*, *b*), where *a* is its mean distance to the points of its own cluster and *b* its mean distance to the nearest other cluster, so values near 1 mean compact, well-separated clusters. If there are 3 or fewer distinct masked goals, no clustering is done. Each cluster becomes an indicator feature.
+
+### 5.3 Cause split
+
+Failed episodes are partitioned into disjoint groups called *causes*. An episode with an error span goes to the group *(decisive step | normalised error)*; every `failed` episode without an error span goes to a single group `(no error)` (silent failures). Groups with fewer than 30 episodes are skipped. Each group *g* is explained separately, as a binary problem: *y* = 1 for the episodes of *g*; the **training set** contains all non-failed episodes plus the episodes of *g*. Failures of other causes are removed from it, so they never count as negatives of *g*.
+
+### 5.4 Sequential coverage
+
+For each cause the following loop runs, at most 12 times:
+
+1. **Propose.** Fit a CART decision tree (scikit-learn `DecisionTreeClassifier`, `max_depth = 3`, `min_samples_leaf = 30`, `random_state = 0`) on the current training set. Each root-to-leaf path is a **conjunctive rule**: a list of at most three conditions `feature ≤ t` or `feature > t`. For a 0/1 feature the threshold is 0.5, so a condition reads "feature is 0" or "feature is 1".
+2. **Score each candidate.** For a candidate with mask *m* (the episodes that satisfy all conditions) build the 2 × 2 table: rows = inside / outside the rule, columns = in cause *g* / not, counted on the current training set. Then
+   * **precision** = failures of *g* inside the rule ÷ episodes inside the rule;
+   * **base rate** = share of *g* in the training set;
+   * **lift** = precision ÷ base rate (how many times more likely a failure of *g* is inside the rule than overall);
+   * **p-value** = one-sided Fisher exact test (`alternative = greater`) on the 2 × 2 table, i.e. the probability of seeing at least this many failures of *g* inside the rule if the rule were unrelated to the failure, with the margins fixed.
+   Candidates with fewer than 30 episodes in the leaf or lift below 1.5 are discarded. The number of surviving candidates is added to a counter *T* that is **never reset within a pass** (all rounds and causes).
+3. **Select and test.** The candidate with the smallest p-value is chosen. It is accepted only if **p × T ≤ α** (Bonferroni over all candidates tested so far in the pass; the earlier, weaker variant multiplied by the number of candidates of the current round only, see Section 7.2). If it fails, the search for this cause stops.
+4. **Generalise** the rule (5.5) and recompute its mask on all episodes.
+5. **Check support.** If the generalised rule contains fewer than 30 failures of cause *g*, the search for this cause stops. (Two optional guards, a cap on the share of all episodes covered and a minimum precision, exist in the code but are off; Section 7.2.)
+6. **Record and remove.** Store the rule with its support (episodes covered), failures, failure rate, lift and p-value, and remove from the training set the failures of *g* that it covers (the negatives stay). Go to step 1: the new tree must explain what remains.
+
+Removing explained failures is what allows smaller or confounded failures to become the best split in later rounds; a single tree never reaches them (Section 6).
+
+### 5.5 Generalisation
+
+A depth-3 path can contain conditions that add nothing. Starting from the rule *R* with precision *p₀* measured on the training set, repeat: for each condition, form the rule without it; accept the first removal whose rule *R′* satisfies all of (i) precision(*R′*) ≥ 0.95 · *p₀*, (ii) it covers at least 30 episodes, (iii) lift(*R′*) ≥ 1.5. Precision and lift are measured on **the same training set as the search** (Section 7.1 explains why). Stop when no condition can be removed or one remains. The reported lift and p-value are those of the rule found by the tree.
+
+### 5.6 Merging and recurrence
+
+Two merge steps run after all causes are done.
+
+1. **Overlap merge (same cause).** Findings are sorted by number of failures, descending. A finding is merged into an earlier one of the same cause if the Jaccard overlap of their sets of failed trace ids, |*A* ∩ *B*| ÷ |*A* ∪ *B*|, is at least 0.5; the larger finding is kept and the other rule is listed under it as a merged rule.
+2. **Signature merge (across causes).** Two findings have the same signature if they share the decisive step, decisive error, most common tool sequence and the same set of behavioural features in their rules (features other than `goal_cluster` and `user.lang`). They are merged into one: its rule is the disjunction of the rules, its members the union of their traces, and support, failures and failure rate are recomputed on that union.
+
+For each finding we also report **occurrences per 100 traces by prompt version** (episodes covered with that version ÷ episodes of that version × 100), so one can see whether a failure disappeared after a fix. The *finding id* is a hash of cause and rule text, so it is stable across passes. Failed episodes covered by no finding are reported as *unexplained* with their three most common errors.
+
+### 5.7 Pseudocode
+
+```text
+discover(episodes):
+  if |episodes| < 200 or #failed < 30: return []
+  X       <- features(episodes)                      # 5.1, 5.2
+  cause   <- split failed episodes by (step | error) # 5.3
+  T <- 0 ; found <- []
+  for each cause g with >= 30 episodes:
+    y     <- [episode in g]
+    train <- all episodes except failures of other causes
+    repeat up to 12 times:
+      cands <- leaves of CART(depth 3, leaf >= 30) on train
+      cands <- {r : lift(r) >= 1.5}                  # 5.4 step 2
+      if cands empty: break
+      T <- T + |cands|
+      r <- argmin_p cands                            # one-sided Fisher
+      if p(r) * T > 0.01: break                      # family-wise Bonferroni
+      r <- generalise(r)                             # 5.5
+      if failures_of_g(r) < 30: break
+      found += r ; train <- train minus failures of g covered by r
+  found <- merge_overlap(found) ; found <- merge_signature(found)
+  return found with occurrences per 100 traces by prompt version
+```
+
+### 5.8 Complexity and determinism
+
+The tree has at most 8 leaves per round, so at most 8 Fisher tests per round; the cost is dominated by building the feature matrix (the number of ordered tool pairs grows with the square of the number of tools) and by the embedding. Every random component has a fixed seed (tree, k-means), and the ordering of ties is fixed by sorting, so the same episodes always produce the same findings.
 
 ## 6. Evaluation
 
@@ -101,7 +189,7 @@ We use a generator of synthetic traces for a weather agent (two tools, `geocode`
 | F5 | fails only for Spanish **and** `model_b` (wrong units), no error | confounders |
 | F6 | random transient failures | noise: must not become a finding |
 
-Signals are noisy by construction: for silent failures the user gives a thumb down with probability 0.55 and the evaluator returns 0 with probability 0.7; for failures with an error, 0.3 and 0.9; for successes, a thumb in 15 % of traces (7 % of them wrong) and an evaluator score in 60 % (3 % wrong). We generate 5,000 traces per seed (≈ 1,450 truly failed). **Development seeds** (7, 11, 13, 17, 19) were used throughout development: the defect of §7.1 was found on them and the thresholds of the mitigations in §7.2 were chosen after seeing their residual errors, so they are contaminated for those purposes. **Held-out seeds** (23, 29, 31, 37, 41) were generated and scored only after the method and the mitigation candidates were fixed. Headline results use the held-out seeds; mean ± standard deviation is across seeds.
+Signals are noisy by construction: for silent failures the user gives a thumb down with probability 0.55 and the evaluator returns 0 with probability 0.7; for failures with an error, 0.3 and 0.9; for successes, a thumb in 15 % of traces (7 % of them wrong) and an evaluator score in 60 % (3 % wrong). We generate 5,000 traces per seed (≈ 1,450 truly failed). **Development seeds** (7, 11, 13, 17, 19) were used throughout development: the defect of Section 7.1 was found on them and the thresholds of the mitigations in Section 7.2 were chosen after seeing their residual errors, so they are contaminated for those purposes. **Held-out seeds** (23, 29, 31, 37, 41) were generated and scored only after the method and the mitigation candidates were fixed. Headline results use the held-out seeds; mean ± standard deviation is across seeds.
 
 ### 6.2 Metrics
 
@@ -159,7 +247,7 @@ Development seeds, full pipeline vs. the two baselines (`results_final_dev/`), f
 * *Generalisation* matters for the silent failures: without it F3 recall is 0.62 and F5 0.91.
 * *The entity feature* matters for F3 (recall 0.66 without it): "compares two cities" is visible in the request, not in the steps.
 * *Goal clusters have a mixed effect, and the held-out seeds change the picture.* They are what makes F1 pure (0.44 → 1.00) and they cut spurious findings (0.8 → 0.2). But with clusters F3 recall falls to 0.86 ± 0.17 (seeds 29 and 41: 0.65 and 0.67; without clusters 1.00 in all five), F2 purity is lower (0.80 vs 1.00), and F5 purity is lower (0.46 vs 0.52; 0.23 in seed 41). On the development seeds the F3 recall cost did not appear, which is a reminder of how little five seeds from one generator establish.
-* *The exact test with correction shows no effect on held-out seeds* (identical to the full pipeline). On development seeds it removes spurious findings (1.0 → 0.0 and F6 recall 0.24 → 0.14), but those seeds are where the correction was tuned (§7.2), so we do not count that as evidence.
+* *The exact test with correction shows no effect on held-out seeds* (identical to the full pipeline). On development seeds it removes spurious findings (1.0 → 0.0 and F6 recall 0.24 → 0.14), but those seeds are where the correction was tuned (Section 7.2), so we do not count that as evidence.
 * *The cause split has a cost:* removing it gives fewer findings and no spurious ones, but F1 purity falls to 0.48 and F1 recall to 0.95. We keep the split for interpretability (a finding names a failing step and error).
 * *F5 purity is capped at about 0.5* in every variant: only about half of the Spanish/`model_b` traces fail and nothing in steps or context says which. This is a property of the data, not of the search.
 
@@ -175,7 +263,7 @@ Held-out seeds (the development seeds give the same numbers within ±0.01):
 | error + loop + feedback | 0.87 ± 0.01 | 0.74 ± 0.02 | 0.80 ± 0.01 | 0.57 ± 0.02 |
 | all signals (as shipped) | 0.87 ± 0.01 | 0.85 ± 0.01 | 0.86 ± 0.01 | 0.72 ± 0.01 |
 
-Error spans alone find under half of the failures and 6 % of the silent ones; adding evaluator scores nearly doubles recall. In this data, **user feedback adds nothing once an evaluator is present** (rows 3 and 5 are identical), while without an evaluator it still recovers 57 % of silent failures. The loop signal adds nothing here because the only looping mode (F2) already carries an error span. The first claim depends on how we generated the signals (§8) and should not be generalised.
+Error spans alone find under half of the failures and 6 % of the silent ones; adding evaluator scores nearly doubles recall. In this data, **user feedback adds nothing once an evaluator is present** (rows 3 and 5 are identical), while without an evaluator it still recovers 57 % of silent failures. The loop signal adds nothing here because the only looping mode (F2) already carries an error span. The first claim depends on how we generated the signals (Section 8) and should not be generalised.
 
 ## 7. Failure analysis and mitigations
 
@@ -231,12 +319,12 @@ Held-out noise is already low without any mitigation (spurious 0.2, F6 recall 0.
 
 * **Few seeds, one generator.** Five development and five held-out seeds, all from the same generator, so the variance between seeds understates the variance between real agents. Held-out seeds are 'unseen' for the method, not for the data-generating process.
 * **Synthetic, single-domain data.** One simulated weather agent with two tools. The failure modes were designed by the authors, together with the generator that creates the signals. The pipeline's features (e.g. entity count, tool-order pairs) are general, but the evaluation cannot show they find *real* production failures, nor how often real failures resemble F1–F6.
-* **Circularity.** The outcome weights and the signal noise model were chosen by the same team. The result that evaluators dominate feedback, for instance, follows partly from the probabilities in §6.1. No human validated the findings.
+* **Circularity.** The outcome weights and the signal noise model were chosen by the same team. The result that evaluators dominate feedback, for instance, follows partly from the probabilities in Section 6.1. No human validated the findings.
 * **Hand-set weights and thresholds.** They are not learned and were not tuned against real labels.
 * **Estimate, not truth.** Outcome precision is ≈ 0.87: about 13 % of `failed` episodes are not failures in this data. Rules explain the *estimate*, not necessarily the real failure.
-* **Multiple testing.** Bonferroni is applied inside each round, not across rounds, causes and agents; family-wise correction is used from version 3 (§7.2). On held-out data the test showed no measurable benefit (§6.4).
+* **Multiple testing.** Bonferroni is applied inside each round, not across rounds, causes and agents; family-wise correction is used from version 3 (Section 7.2). On held-out data the test showed no measurable benefit (Section 6.4).
 * **Statistical power.** At least 200 episodes and 30 supporting failures are required; smaller agents get no findings.
-* **Robustness.** §7 shows one defect found and fixed. Residual noise is low on held-out seeds except one (seed 41), which no mitigation fixed. Goal clustering lowered silent-failure recall in 2 of 5 held-out seeds. Other noise levels and base rates were not explored.
+* **Robustness.** Section 7 shows one defect found and fixed. Residual noise is low on held-out seeds except one (seed 41), which no mitigation fixed. Goal clustering lowered silent-failure recall in 2 of 5 held-out seeds. Other noise levels and base rates were not explored.
 * **Baselines.** Both baselines are ours, built from the same features. We did not compare with clustering tools or LLM-based extraction on the same data.
 * **Cost.** No latency or scale measurement is reported here; we only note that the job is batch and the embedding model is local.
 
@@ -249,7 +337,7 @@ PYTHONPATH=analytics/mem:spikes/mem spikes/mem/.venv/bin/python docs/research/me
     --work-dir /tmp/mem-paper-work --out-dir docs/research/mem-paper/results_final_test --seeds 23 29 31 37 41
 ```
 
-Outputs, one directory per run, each with `results.json` and `results.md`: `results_final_test/` (held-out seeds, headline tables), `results_final_dev/` (development seeds), `results_mitigation_{dev,test}/` (§7.2, run with `--suite mitigation`), `results_v2/` (development seeds after the §7.1 fix, before family-wise correction) and `results/` (v1; reproduce with `git checkout 93f0849 -- analytics/mem`). Held-out seeds: `--seeds 23 29 31 37 41`. The multilingual encoder is `paraphrase-multilingual-MiniLM-L12-v2`.
+Outputs, one directory per run, each with `results.json` and `results.md`: `results_final_test/` (held-out seeds, headline tables), `results_final_dev/` (development seeds), `results_mitigation_{dev,test}/` (Section 7.2, run with `--suite mitigation`), `results_v2/` (development seeds after the Section 7.1 fix, before family-wise correction) and `results/` (v1; reproduce with `git checkout 93f0849 -- analytics/mem`). Held-out seeds: `--seeds 23 29 31 37 41`. The multilingual encoder is `paraphrase-multilingual-MiniLM-L12-v2`.
 
 ## 10. Conclusion and next steps
 
