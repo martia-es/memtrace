@@ -147,25 +147,31 @@ For each finding we also report **occurrences per 100 traces by prompt version**
 
 ```text
 discover(episodes):
-  if |episodes| < 200 or #failed < 30: return []
-  X       <- features(episodes)                      # 5.1, 5.2
-  cause   <- split failed episodes by (step | error) # 5.3
+  if too few episodes or failures: return []
+  X <- features(episodes)            (5.1, 5.2)
+  causes <- split failures           (5.3)
   T <- 0 ; found <- []
   for each cause g with >= 30 episodes:
-    y     <- [episode in g]
-    train <- all episodes except failures of other causes
-    repeat up to 12 times:
-      cands <- leaves of CART(depth 3, leaf >= 30) on train
-      cands <- {r : lift(r) >= 1.5}                  # 5.4 step 2
-      if cands empty: break
-      T <- T + |cands|
-      r <- argmin_p cands                            # one-sided Fisher
-      if p(r) * T > 0.01: break                      # family-wise Bonferroni
-      r <- generalise(r)                             # 5.5
-      if failures_of_g(r) < 30: break
-      found += r ; train <- train minus failures of g covered by r
-  found <- merge_overlap(found) ; found <- merge_signature(found)
-  return found with occurrences per 100 traces by prompt version
+    y <- 1 if episode is in g
+    train <- everything except the
+             failures of other causes
+    repeat at most 12 times:
+      cands <- leaves of depth-3 CART
+               on train                (5.4)
+      keep cands with lift >= 1.5
+      if none: stop
+      T <- T + number of cands
+      r <- cand with smallest p
+           (one-sided Fisher)
+      if p(r) * T > 0.01: stop
+      r <- generalise(r)             (5.5)
+      if failures of g in r < 30: stop
+      found <- found + r
+      train <- train minus the failures
+               of g that r covers
+  merge by overlap, then signature (5.6)
+  return found, plus occurrences per
+    100 traces by prompt version
 ```
 
 ### 5.8 Complexity and determinism
