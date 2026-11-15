@@ -81,6 +81,7 @@ def run_discover(eps: pd.DataFrame, labels, k: int, cfg: Config, *, no_entities=
         res = discover(df, cfg, labels, k)
     finally:
         discovery._generalize = original
+    run_discover.last = res
     return [f.members for f in res.findings]
 
 
@@ -149,7 +150,7 @@ def main() -> None:
     ap.add_argument("--work-dir", type=Path, required=True)
     ap.add_argument("--out-dir", type=Path, required=True)
     ap.add_argument("--seeds", type=int, nargs="+", default=[7, 11, 13, 17, 19])
-    ap.add_argument("--suite", choices=["ablation", "mitigation"], default="ablation", help="ablation: baselines and ablations; mitigation: residual-noise mitigations")
+    ap.add_argument("--suite", choices=["ablation", "mitigation", "validation"], default="ablation", help="ablation: baselines and ablations; mitigation: residual-noise mitigations")
     ap.add_argument("--no-clusters", action="store_true", help="skip the embedding model (clustered variants are then reported without clusters)")
     args = ap.parse_args()
     args.out_dir.mkdir(parents=True, exist_ok=True)
@@ -173,6 +174,12 @@ def main() -> None:
             "+ family-wise Bonferroni": dict(cfg=replace(cfg, family_correction=True), clusters=True),
             "+ all three": dict(cfg=replace(cfg, max_support_share=0.25, min_precision=0.15, family_correction=True), clusters=True),
         }
+    if args.suite == "validation":
+        variants = {
+            "exploratory (p-values on the search episodes)": dict(cfg=cfg, clusters=True),
+            "validated (30% reserved)": dict(cfg=replace(cfg, validation_split=0.3), clusters=True),
+            "validated (50% reserved)": dict(cfg=replace(cfg, validation_split=0.5), clusters=True),
+        }
     rows: dict[str, list[dict]] = {}
     outcomes: dict[str, list[dict]] = {}
     for seed in args.seeds:
@@ -184,7 +191,12 @@ def main() -> None:
             use_clusters = v["clusters"] and labels is not None
             members = run_discover(eps, labels if use_clusters else None, k if use_clusters else 0, v["cfg"],
                                    no_entities=v.get("no_entities", False), no_cause_split=v.get("no_cause_split", False), no_generalize=v.get("no_generalize", False))
-            rows.setdefault(name, []).append(score_findings(members, sets))
+            row = score_findings(members, sets)
+            res = run_discover.last
+            row["rejected_on_validation"] = res.rejected_on_validation
+            row["stats"] = [{"rule": f.rule, "validated": f.validated, "lift": f.lift, "p": f.p_value, "discovery_lift": f.discovery_lift,
+                             "discovery_p": f.discovery_p_value, "p_before_generalisation": f.p_value_before_generalisation} for f in res.findings]
+            rows.setdefault(name, []).append(row)
         if args.suite == "ablation":
             rows.setdefault("baseline: error summary", []).append(score_findings(baseline_error_summary(eps), sets))
             rows.setdefault("baseline: single decision tree", []).append(score_findings(baseline_plain_tree(eps, labels, k, cfg), sets))

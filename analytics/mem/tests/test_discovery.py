@@ -147,3 +147,24 @@ def test_family_correction_is_never_more_permissive():
     per_round = discover(df, Config(family_correction=False))
     strict = discover(df, Config())  # la corrección sobre toda la pasada es la configuración por defecto
     assert {f.rule for f in strict.findings} <= {f.rule for f in per_round.findings}
+
+
+def test_validation_split_is_stable_and_reports_confirmed_stats():
+    df = frame()
+    cfg = Config(validation_split=0.4)
+    a, b = discover(df, cfg), discover(df, cfg)
+    assert [f.finding_id for f in a.findings] == [f.finding_id for f in b.findings]
+    assert a.findings, "los fallos sembrados se confirman en los episodios reservados"
+    assert all(f.validated and f.lift >= cfg.min_lift for f in a.findings)
+    assert all(f.discovery_p_value <= 1 and f.p_value_before_generalisation <= 1 for f in a.findings)
+
+
+def test_validation_rejects_rules_that_do_not_replicate():
+    df = frame()
+    res = discover(df, Config(validation_split=0.4, min_lift=1e6))
+    assert res.findings == []
+
+
+def test_without_validation_stats_are_those_of_the_final_rule():
+    for f in discover(frame()).findings:
+        assert not f.validated and f.p_value == f.discovery_p_value and f.lift == f.discovery_lift

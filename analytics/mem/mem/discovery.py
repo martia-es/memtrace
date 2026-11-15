@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import zlib
 from dataclasses import dataclass, field
 from typing import Callable
 
@@ -24,7 +25,7 @@ import pandas as pd
 from scipy.stats import fisher_exact
 from sklearn.tree import DecisionTreeClassifier, _tree
 
-DISCOVERY_VERSION = 3  # 2: `_generalize` mide sobre el conjunto de entrenamiento y exige el lift mínimo; 3: Bonferroni sobre toda la pasada
+DISCOVERY_VERSION = 4  # 2: `_generalize` mide sobre el conjunto de entrenamiento y exige el lift mínimo; 3: Bonferroni sobre toda la pasada; 4: lift y p-value son los de la regla final (ya generalizada) y, con `validation_split`, se miden en episodios que la búsqueda no vio
 
 
 @dataclass(frozen=True)
@@ -41,6 +42,10 @@ class Config:
     family_correction: bool = True  # Bonferroni sobre todos los candidatos probados en la pasada, no solo sobre los de la ronda
     max_support_share: float = 1.0  # una regla que cubre más de esta fracción de todos los episodios se rechaza
     min_precision: float = 0.0  # tasa de fallo mínima de la causa dentro de la regla (sobre el conjunto de entrenamiento)
+    # Fracción de episodios (elegidos por hash de `trace_id`, estable entre pasadas) que la búsqueda no ve. Con 0 todo se mide
+    # sobre los mismos episodios con los que se buscó y el p-value solo sirve para ordenar y filtrar (exploratorio). Con > 0 cada
+    # regla final se confirma en los episodios reservados: lift mínimo y Fisher con Bonferroni sobre las reglas propuestas.
+    validation_split: float = 0.0
 
 
 @dataclass
@@ -59,6 +64,10 @@ class Finding:
     members: list[str] = field(repr=False, default_factory=list)  # trazas que cumplen la regla
     example_trace_ids: list[str] = field(default_factory=list)
     merged_rules: list[str] = field(default_factory=list)
+    validated: bool = False  # lift y p_value medidos en episodios reservados (False: sobre los de la búsqueda, exploratorio)
+    discovery_lift: float = 0.0  # de la regla final, en los episodios de la búsqueda
+    discovery_p_value: float = 1.0
+    p_value_before_generalisation: float = 1.0  # de la regla del árbol, antes de quitar condiciones (mismo conjunto que p_value)
 
     @property
     def finding_id(self) -> str:
@@ -74,6 +83,7 @@ class Discovery:
     unexplained: int
     unexplained_top: dict[str, int]
     goal_clusters: int
+    rejected_on_validation: int = 0  # reglas que no se confirmaron en los episodios reservados
 
 
 # ---------- rasgos ----------
@@ -199,6 +209,26 @@ def _generalize(X: pd.DataFrame, y: pd.Series, path: list, cfg: Config, train: n
     return path
 
 
+def _rule_stats(y: np.ndarray, train: np.ndarray, m: np.ndarray) -> tuple[float, float]:
+    """(p-value de Fisher unilateral, lift) de la regla `m` sobre los episodios `train`."""
+    inside, outside = m & train, ~m & train
+    a, c = int(y[inside].sum()), int(y[outside].sum())
+    b, d = int(inside.sum()) - a, int(outside.sum()) - c
+    base = float(y[train].mean()) if train.any() else 0.0
+    if a + b == 0 or c + d == 0 or base == 0:
+        return 1.0, 0.0
+    _, p = fisher_exact([[a, b], [c, d]], alternative="greater")
+    return float(p), (a / (a + b)) / base
+
+
+def _validation_mask(trace_ids: pd.Series, fraction: float) -> np.ndarray:
+    """Episodios reservados: depende solo del `trace_id`, así que es el mismo en cada pasada y la búsqueda no los ve."""
+    if fraction <= 0:
+        return np.zeros(len(trace_ids), dtype=bool)
+    h = np.array([zlib.crc32(str(t).encode()) % 1000 for t in trace_ids])
+    return h < int(round(fraction * 1000))
+
+
 def _top(series: pd.Series) -> str:
     counts = series.replace("", "(sin error)").value_counts()
     return str(counts.index[0]) if len(counts) else ""
@@ -256,6 +286,8 @@ def discover(df: pd.DataFrame, cfg: Config = Config(), goal_labels: pd.Series | 
         return Discovery([], len(df), n_failed, n_failed, {}, goal_k)
 
     X = build_features(df, goal_k, cfg)
+    val = _validation_mask(df["trace_id"], cfg.validation_split)
+    disc = ~val  # episodios que la búsqueda puede ver
     # los fallos con error se separan por lo que muestran; los silenciosos van juntos
     cause = pd.Series(np.where(failed_all, df.apply(
         lambda r: f"{r.decisive_step} | {r.decisive_error}" if r.has_error else "(sin error)", axis=1), ""), index=df.index)
@@ -266,7 +298,8 @@ def discover(df: pd.DataFrame, cfg: Config = Config(), goal_labels: pd.Series | 
     tested = 0  # candidatos probados en toda la pasada (para `family_correction`)
     for g in [c for c, n in sizes.items() if n >= cfg.min_support]:
         y = (cause == g).astype(int)
-        train = ~(failed_all & (cause != g).values)  # los fallos de otras causas no cuentan como «no fallo»
+        others = ~(failed_all & (cause != g).values)  # los fallos de otras causas no cuentan como «no fallo»
+        train = others & disc
         for _ in range(cfg.max_rules):
             found = _best_rule(X, y, train, cfg)
             if not found:
@@ -280,11 +313,20 @@ def discover(df: pd.DataFrame, cfg: Config = Config(), goal_labels: pd.Series | 
             if m.mean() > cfg.max_support_share or (m & train).any() and float(y[m & train].mean()) < cfg.min_precision:
                 break  # demasiado amplia o con muy pocos fallos dentro: no es un patrón recurrente
             members, fail_members = df[m], df[m][cause[m] == g]
-            if len(fail_members) < cfg.min_support:  # pocos fallos reales: una coincidencia, no un patrón
+            if int((m & disc & (cause == g).values).sum()) < cfg.min_support:  # pocos fallos reales: una coincidencia, no un patrón
                 break
+            # estadísticos de la regla FINAL (la generalizada), no de la que propuso el árbol
+            p_final, lift_final = _rule_stats(y.values, train, m)
+            if cfg.validation_split > 0:
+                p_rep, lift_rep = _rule_stats(y.values, others & val, m)
+                p_pre, _ = _rule_stats(y.values, others & val, _mask(X, r["path"]))
+            else:
+                p_rep, lift_rep, p_pre = p_final, lift_final, float(p)
             raw.append({
                 "path": path, "cause": g, "rule": describe(path), "support": int(m.sum()), "failures": int(len(fail_members)),
-                "failure_rate": round(float(y[m].mean()), 3), "lift": round(lift, 2), "p_value": float(p),
+                "failure_rate": round(float(y[m].mean()), 3), "lift": round(lift_rep, 2), "p_value": float(p_rep),
+                "validated": cfg.validation_split > 0, "discovery_lift": round(lift_final, 2), "discovery_p_value": float(p_final),
+                "p_value_before_generalisation": float(p_pre),
                 "decisive_step": _top(fail_members["decisive_step"]), "decisive_error": _top(fail_members["decisive_error"]),
                 "tool_sequence": _top(fail_members["tools"]), "members": members["trace_id"].tolist(),
                 "fail_ids": fail_members["trace_id"].tolist(), "merged_rules": [],
@@ -295,6 +337,12 @@ def discover(df: pd.DataFrame, cfg: Config = Config(), goal_labels: pd.Series | 
             })
             train &= ~(m & (y.values == 1))  # se retiran los fallos ya explicados
 
+    rejected = 0
+    if cfg.validation_split > 0:
+        # la familia son las reglas que se proponen a validar: su tamaño se conoce antes de mirar los episodios reservados
+        n_family = len(raw)
+        confirmed = [f for f in raw if f["lift"] >= cfg.min_lift and f["p_value"] * n_family <= cfg.alpha]
+        rejected, raw = n_family - len(confirmed), confirmed
     raw = _merge_duplicates(df, _merge_overlapping(raw))
     covered = np.zeros(len(df), dtype=bool)
     for f in raw:
@@ -302,7 +350,7 @@ def discover(df: pd.DataFrame, cfg: Config = Config(), goal_labels: pd.Series | 
     resid = df[(df.outcome == "failed") & ~covered]
     top = resid["decisive_error"].replace("", "(sin error)").value_counts().head(3)
     findings = [Finding(**{k: v for k, v in f.items() if k not in ("path", "fail_ids")}) for f in raw]
-    return Discovery(findings, len(df), n_failed, int(len(resid)), {str(k): int(v) for k, v in top.items()}, goal_k)
+    return Discovery(findings, len(df), n_failed, int(len(resid)), {str(k): int(v) for k, v in top.items()}, goal_k, rejected)
 
 
 # ---------- agrupación de objetivos (opcional) ----------
