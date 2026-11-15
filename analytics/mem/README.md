@@ -47,7 +47,7 @@ Por cada agente (organización/experimento) con al menos 200 episodios en 7 día
 
 1. Calcula **rasgos automáticos**, sin nombres de herramientas ni de fallos escritos a mano: atributos de la traza con pocos valores (idioma, modelo, versión de prompt…), grupo de objetivo, cuántas veces se llama a cada paso, qué paso va antes que cuál, repeticiones, argumentos vacíos y cuántas entidades menciona la petición.
 2. Separa los fallos por lo que muestran (paso que falla y error); los silenciosos van juntos.
-3. Por cada causa busca reglas por *cobertura secuencial*: un árbol poco profundo propone la condición más significativa, se retiran los fallos que explica y se repite. Cada regla pasa un test exacto de Fisher con Bonferroni (α = 0,01), exige un soporte mínimo de 30 y un *lift* mínimo de 1,5.
+3. Por cada causa busca reglas por *cobertura secuencial*: un árbol poco profundo propone la condición más significativa, se retiran los fallos que explica y se repite. Cada regla pasa un test exacto de Fisher con Bonferroni (α = 0,01) como filtro exploratorio (con `Config(validation_split=0.3)` la búsqueda no ve ese 30 % de episodios y cada regla final se confirma ahí, que es la medida con valor estadístico; lift y p-value son siempre los de la regla final ya generalizada), exige un soporte mínimo de 30 y un *lift* mínimo de 1,5.
 4. Simplifica las reglas, une las que describen lo mismo y mide cuánto ocurre **por versión de prompt**: así se ve si un fallo ya se corrigió (`OccurrenceByPrompt`).
 5. Escribe la pasada en `mem_discovery_runs` (con los fallos que ninguna regla explica) y los hallazgos en `mem_findings`. La lectura toma la última pasada de cada agente.
 
