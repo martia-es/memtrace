@@ -67,8 +67,6 @@ For each trace (`trace_id`), the builder runs the following steps; all of them a
 
 ### 3.4 Engineering properties
 
-### 3.3 Engineering properties
-
 The episode table is *derived*: it can be dropped and rebuilt from the traces. A batch job runs every ten minutes, takes traces that have had no new spans for a settle window, and also recomputes those that received a late signal (a thumb or a score). Rows are written to a `ReplacingMergeTree` keyed by trace (last write wins), so a pass without news writes nothing. Every row carries an `EpisodeVersion`; changing weights, thresholds or the loop definition bumps it and the job recomputes the old rows. Every row carries the tenant (experiment) identifier and follows the traces' retention.
 
 ## 4. Outcome estimation
