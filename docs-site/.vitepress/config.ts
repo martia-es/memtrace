@@ -1,11 +1,16 @@
 import { defineConfig } from "vitepress";
 
+// Base path: "/" (Docker/nginx, custom domain) or "/memtrace/" (GitHub Pages project site).
+const base = process.env.DOCS_BASE ?? "/";
+const hostname = process.env.DOCS_HOSTNAME ?? "https://docs.memtraces.ai";
+
 export default defineConfig({
+  base,
   title: "MemTrace Docs",
   description: "Observability and learning for AI agents: the Python library and the MemTrace platform.",
   cleanUrls: true,
   markdown: { theme: { light: "github-dark", dark: "github-dark" } },
-  sitemap: { hostname: "https://docs.memtraces.ai" },
+  sitemap: { hostname },
   themeConfig: {
     nav: [
       { text: "Library", link: "/library/", activeMatch: "/library/" },
