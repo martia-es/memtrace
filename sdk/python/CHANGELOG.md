@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- `memtrace.mem` (Mem phase 2.2): `mem.findings()` reads the recurring-failure findings of the agent's last discovery run; `mem.distill(finding, llm)` turns one into a short reviewable `Lesson` with **your** LLM; `mem.propose_fix(finding, name, llm)` applies it to a prompt as a draft (ADR-072 flow). The model sees the finding only, never a trace. Lessons are not stored in MemTrace yet.
+
 ## 0.2.0 - 2026-11-14
 
 ### Added
