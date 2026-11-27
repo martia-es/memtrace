@@ -38,7 +38,7 @@ class Llm:
 
 
 def lesson_json(**over) -> str:
-    base = {"title": "No repitas search_flights", "guidance": "Si search_flights falla, espera y no lo repitas con los mismos argumentos.", "applies_when": "Al consultar vuelos", "rationale": "Evita el bucle de reintentos."}
+    base = {"title": "No repitas search_flights", "guidance": "Si search_flights falla, espera y no lo repitas con los mismos argumentos.", "situation": "Al consultar vuelos", "rationale": "Evita el bucle de reintentos."}
     return json.dumps({**base, **over})
 
 
@@ -76,6 +76,18 @@ def test_reads_the_json_even_when_the_model_wraps_it(wrap):
 def test_an_unusable_answer_raises_instead_of_returning_a_lesson(reply):
     with pytest.raises(LessonError):
         distill_lesson(FINDING, Llm(reply))
+
+
+def test_the_lesson_carries_the_trigger_and_metrics_from_the_finding_not_from_the_model():
+    lesson = distill_lesson(FINDING, Llm(lesson_json(match={"tools": ["inventada"]})))
+    assert lesson.match == {"tools": ("search_flights",)}
+    assert lesson.failure == "search_flights | 429 Too Many Requests"
+    assert lesson.origin_metrics == {"rule": "goal_cluster=3 > 0.5", "support": 35, "failures": 32, "failureRate": 0.91, "lift": 3.5}
+
+
+def test_a_finding_that_breaks_in_the_model_has_no_automatic_trigger():
+    silent = Finding.from_api({**API_FINDING, "decisiveStep": "chat"})
+    assert distill_lesson(silent, Llm(lesson_json())).match == {}
 
 
 def test_findings_are_read_with_the_agents_credentials():
@@ -123,3 +135,52 @@ def test_propose_fix_saves_a_draft_that_applies_the_lesson_and_links_the_example
     assert "Apply this lesson: Si search_flights falla" in llm.calls[1]
     assert posted["origin"]["traceIds"] == [FINDING.example_trace_ids[0]]
     assert posted["basedOn"] == 3 and "No repitas" in posted["content"]
+
+
+# ----- saving -----
+
+
+def _saving(handler, lesson, **kw):
+    return mem.save(lesson, base_url="http://api/v1/experiments/e1", api_key="k", transport=httpx.MockTransport(handler), **kw)
+
+
+def test_save_proposes_the_lesson_in_memtrace_with_its_evidence():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"], seen["auth"], seen["body"] = str(request.url), request.headers.get("authorization"), json.loads(request.content)
+        return httpx.Response(201, json={"lesson": {"id": "L1", "status": "proposed"}, "current": {"version": 1}, "environments": []})
+
+    saved = _saving(handler, distill_lesson(FINDING, Llm(lesson_json())))
+    assert (saved.lesson_id, saved.status, saved.version) == ("L1", "proposed", 1)
+    assert seen["url"] == "http://api/v1/experiments/e1/lessons" and seen["auth"] == "Bearer k"
+    body = seen["body"]
+    assert body["findingId"] == "f1" and body["match"] == {"tools": ["search_flights"]}
+    assert body["evidenceTraceIds"] == list(FINDING.example_trace_ids) and body["originMetrics"]["support"] == 35
+    assert body["guidance"].startswith("Si search_flights") and body["message"] == "Evita el bucle de reintentos."
+
+
+def test_save_without_a_trigger_asks_for_one_and_sends_nothing():
+    silent = distill_lesson(Finding.from_api({**API_FINDING, "decisiveStep": "chat"}), Llm(lesson_json()))
+    calls = []
+    with pytest.raises(LessonError, match="match="):
+        _saving(lambda r: calls.append(r) or httpx.Response(201, json={}), silent)
+    assert calls == []
+
+
+def test_save_accepts_an_explicit_trigger():
+    silent = distill_lesson(Finding.from_api({**API_FINDING, "decisiveStep": "chat"}), Llm(lesson_json()))
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(json.loads(request.content))
+        return httpx.Response(201, json={"lesson": {"id": "L2", "status": "proposed"}, "current": {"version": 1}})
+
+    _saving(handler, silent, match={"intents": ["booking"]})
+    assert seen["match"] == {"intents": ["booking"]}
+
+
+def test_a_finding_that_already_has_a_lesson_says_so():
+    lesson = distill_lesson(FINDING, Llm(lesson_json()))
+    with pytest.raises(mem.MemSourceError, match="already has a lesson"):
+        _saving(lambda r: httpx.Response(409, json={"detail": "exists"}), lesson)

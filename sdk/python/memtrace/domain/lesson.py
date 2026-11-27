@@ -7,9 +7,11 @@ no network, no LLM.
 from dataclasses import dataclass, field
 from typing import Mapping, Tuple
 
-MAX_TITLE_CHARS = 80
-MAX_GUIDANCE_CHARS = 400
-MAX_WHEN_CHARS = 200
+# Same bounds as the API (ADR-104): `guidance` is the only text injected into the agent, so it stays short.
+MAX_TITLE_CHARS = 120
+MAX_GUIDANCE_CHARS = 500
+MAX_SITUATION_CHARS = 400
+MAX_FAILURE_CHARS = 400
 MAX_RATIONALE_CHARS = 300
 
 
@@ -54,11 +56,18 @@ class Finding:
 
 @dataclass(frozen=True)
 class Lesson:
-    """What the agent should do differently, in one instruction. Generated text: it never quotes a user's message."""
+    """What the agent should do differently, in one instruction. Generated text: it never quotes a user's message.
+
+    `guidance` is what the agent will receive; `situation` and `failure` are context for the person who reviews it. `match`
+    says when it applies, deterministically (`{"tools": [...]}`); it comes from the finding, not from the model.
+    """
 
     finding_id: str
     title: str
     guidance: str
-    applies_when: str
+    situation: str
+    failure: str
     rationale: str
+    match: Mapping[str, Tuple[str, ...]] = field(default_factory=dict)
     evidence_trace_ids: Tuple[str, ...] = ()
+    origin_metrics: Mapping[str, object] = field(default_factory=dict)

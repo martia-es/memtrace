@@ -12,7 +12,8 @@ from memtrace.domain.lesson import (
     MAX_GUIDANCE_CHARS,
     MAX_RATIONALE_CHARS,
     MAX_TITLE_CHARS,
-    MAX_WHEN_CHARS,
+    MAX_FAILURE_CHARS,
+    MAX_SITUATION_CHARS,
     Finding,
     Lesson,
     LessonError,
@@ -26,8 +27,8 @@ _SYSTEM = (
 )
 
 _FORMAT = (
-    'Respond with a single JSON object and nothing else: {"title": "<up to 80 characters>", "guidance": "<the instruction, up to 400 '
-    'characters>", "applies_when": "<when it applies, up to 200 characters>", "rationale": "<one or two sentences: why this should help>"}.'
+    'Respond with a single JSON object and nothing else: {"title": "<up to 120 characters>", "guidance": "<the instruction, up to 500 '
+    'characters>", "situation": "<when it applies, up to 400 characters>", "rationale": "<one or two sentences: why this should help>"}.'
 )
 
 
@@ -60,6 +61,17 @@ def _field(data: dict, key: str, limit: int, *, required: bool) -> str:
     return text
 
 
+def match_of(finding: Finding) -> dict:
+    """When the lesson fires, from the finding and without the model: the tool where it breaks. `chat` is not a tool."""
+    step = finding.decisive_step.strip()
+    return {"tools": (step,)} if step and step != "chat" else {}
+
+
+def _failure_of(finding: Finding) -> str:
+    text = " ".join(finding.cause.split())
+    return text if len(text) <= MAX_FAILURE_CHARS else text[: MAX_FAILURE_CHARS - 1] + "…"
+
+
 def distill_lesson(finding: Finding, llm: LLMClient, *, instructions: Optional[str] = None, model: Optional[str] = None) -> Lesson:
     """Asks `llm` for a lesson that would avoid `finding`. Raises `LessonError` instead of returning something unusable."""
     reply = llm.complete(system=_SYSTEM, prompt=build_request(finding, instructions), model=model)
@@ -71,7 +83,10 @@ def distill_lesson(finding: Finding, llm: LLMClient, *, instructions: Optional[s
         finding_id=finding.finding_id,
         title=_field(data, "title", MAX_TITLE_CHARS, required=True),
         guidance=_field(data, "guidance", MAX_GUIDANCE_CHARS, required=True),
-        applies_when=_field(data, "applies_when", MAX_WHEN_CHARS, required=False),
+        situation=_field(data, "situation", MAX_SITUATION_CHARS, required=False),
+        failure=_failure_of(finding),
         rationale=_field(data, "rationale", MAX_RATIONALE_CHARS, required=False),
+        match=match_of(finding),
         evidence_trace_ids=finding.example_trace_ids,
+        origin_metrics={"rule": finding.rule[:300], "support": finding.support, "failures": finding.failures, "failureRate": round(finding.failure_rate, 4), "lift": round(finding.lift, 3)},
     )
