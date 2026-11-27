@@ -1,6 +1,6 @@
 # Mem: lessons and fixes from recurring failures
 
-MemTrace's discovery worker finds **rules that explain recurring failures** of your agent (shown in Analytics › Patterns). `memtrace.mem` turns one of those findings into a short **lesson** or into a **prompt draft**, written by **your own LLM**: MemTrace never holds your provider key.
+MemTrace's discovery worker finds **rules that explain recurring failures** of your agent (shown in Analytics › Patterns, with how often each fails per prompt version). On a finding that depends on your agent, **Propose a fix** shows the code below with that finding's id, ready to copy; a rate limit or a timeout is not fixed in the prompt, so the card offers an alert instead. `memtrace.mem` turns one of those findings into a short **lesson** or into a **prompt draft**, written by **your own LLM**: MemTrace never holds your provider key.
 
 ```python
 from memtrace import mem

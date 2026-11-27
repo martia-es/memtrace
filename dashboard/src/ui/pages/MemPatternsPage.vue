@@ -13,7 +13,7 @@ import EmptyState from "../components/EmptyState.vue";
 import ErrorBanner from "../components/ErrorBanner.vue";
 import LoadingState from "../components/LoadingState.vue";
 import { formatCount, formatPercent } from "@/domain/format";
-import { presentFinding } from "@/domain/mem-finding";
+import { fixSnippet, presentFinding } from "@/domain/mem-finding";
 import { t } from "../i18n";
 
 const api = useTraceApi();
@@ -29,7 +29,26 @@ function toggleRaw(id: string): void {
   if (!next.delete(id)) next.add(id);
   raw.value = next;
 }
-const views = computed(() => (data.value?.findings ?? []).map((f) => ({ id: f.findingId, rate: f.failureRate, examples: f.exampleTraceIds, view: presentFinding(f) })));
+const views = computed(() =>
+  (data.value?.findings ?? []).map((f) => ({ id: f.findingId, rate: f.failureRate, examples: f.exampleTraceIds, view: presentFinding(f), snippet: fixSnippet(f.findingId, f.decisiveStep) })),
+);
+
+const fixOpen = ref(new Set<string>());
+function toggleFix(id: string): void {
+  const next = new Set(fixOpen.value);
+  if (!next.delete(id)) next.add(id);
+  fixOpen.value = next;
+}
+const copied = ref<string | null>(null);
+async function copySnippet(id: string, text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+    copied.value = id;
+    setTimeout(() => { if (copied.value === id) copied.value = null; }, 2000);
+  } catch {
+    // sin permiso de portapapeles el código sigue visible para seleccionarlo a mano
+  }
+}
 const hasRun = computed(() => data.value?.runAt !== null && data.value?.runAt !== undefined);
 </script>
 
@@ -81,6 +100,29 @@ const hasRun = computed(() => data.value?.runAt !== null && data.value?.runAt !=
                 {{ raw.has(finding.id) ? t('memPatterns.hideRawError') : t('memPatterns.rawError') }}
               </Button>
               <p v-if="raw.has(finding.id)" class="raw mono">{{ finding.view.rawError }}</p>
+
+              <div v-if="finding.view.promptTrend.length > 0" class="trend" data-testid="mem-finding-trend">
+                <span class="side-label">{{ t('memPatterns.trendLabel') }}</span>
+                <template v-for="(point, i) in finding.view.promptTrend" :key="point.label">
+                  <span v-if="i > 0" class="arrow" aria-hidden="true">→</span>
+                  <span class="chip"><strong>{{ point.label }}</strong> {{ point.value }}</span>
+                </template>
+                <span class="muted small">{{ t('memPatterns.trendUnit') }}</span>
+              </div>
+
+              <div v-if="finding.view.canFix" class="fix">
+                <Button variant="secondary" size="sm" :aria-expanded="fixOpen.has(finding.id)" data-testid="mem-finding-fix" @click="toggleFix(finding.id)">
+                  {{ fixOpen.has(finding.id) ? t('memPatterns.hideFix') : t('memPatterns.proposeFix') }}
+                </Button>
+                <div v-if="fixOpen.has(finding.id)" class="fix-panel" data-testid="mem-finding-snippet">
+                  <p class="muted small">{{ t('memPatterns.fixIntro') }}</p>
+                  <pre class="code mono">{{ finding.snippet }}</pre>
+                  <Button variant="link" size="sm" @click="copySnippet(finding.id, finding.snippet)">{{ copied === finding.id ? t('memPatterns.copied') : t('memPatterns.copy') }}</Button>
+                </div>
+              </div>
+              <Button v-else-if="finding.view.watchWithAlert" variant="link" size="sm" class="raw-toggle" :to="{ name: 'alerts', params: { experimentId: route.params.experimentId } }">
+                {{ t('memPatterns.watchAlert') }}
+              </Button>
             </div>
             <div class="finding-side">
               <span class="rate">{{ formatPercent(finding.rate) }}</span>
@@ -115,6 +157,12 @@ const hasRun = computed(() => data.value?.runAt !== null && data.value?.runAt !=
 .chip { padding: 3px 10px; border-radius: var(--mt-radius-sm); background: var(--mt-soft); color: var(--mt-ink); font-size: 12.5px; }
 .raw-toggle { margin-top: 8px; }
 .raw { margin: 8px 0 0; padding: 8px 10px; border-radius: var(--mt-radius-sm); background: var(--mt-soft); color: var(--mt-muted); font-size: 12px; overflow-wrap: anywhere; }
+.trend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; }
+.arrow { color: var(--mt-muted); }
+.fix { margin-top: 12px; }
+.fix-panel { margin-top: 8px; padding: 12px; border: 1px solid var(--mt-line); border-radius: var(--mt-radius-sm); background: var(--mt-soft); }
+.fix-panel p { margin: 0 0 8px; }
+.code { margin: 0 0 6px; overflow-x: auto; color: var(--mt-ink); font-size: 12.5px; line-height: 1.5; white-space: pre; }
 .finding-side { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
 .rate { color: var(--mt-ink); font-size: 28px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
 .bar { width: 100%; height: 6px; border-radius: 3px; background: var(--mt-soft); overflow: hidden; }

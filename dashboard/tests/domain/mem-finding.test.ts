@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeClause, findingKind, presentFinding, whenOf, type FindingInput } from "@/domain/mem-finding";
+import { describeClause, findingKind, fixSnippet, presentFinding, promptTrendOf, whenOf, type FindingInput } from "@/domain/mem-finding";
 
 const base: FindingInput = {
   cause: "chat | ModelHTTPError: status_code: N, model_name: openai/gpt-oss-Nb, body: {'message': 'Rate limit reached for model `openai/g",
@@ -32,5 +32,34 @@ describe("mem-finding", () => {
     expect(describeClause("goal_cluster=3 <= 0.5")).toMatch(/Not|Fuera/);
     expect(whenOf("goal_cluster=3 > 0.5 AND goal_cluster=3 > 0.5 | steps > 4")).toHaveLength(2);
     expect(describeClause("algo raro")).toBe("algo raro");
+  });
+});
+
+describe("mem-finding: arreglar desde un hallazgo", () => {
+  it("ordena la tendencia por versión de prompt y exige al menos dos versiones", () => {
+    expect(promptTrendOf({ "10": 0.84, "2": 8.24 })).toEqual([{ label: "v2", value: 8.2 }, { label: "v10", value: 0.8 }]);
+    expect(promptTrendOf({ "1": 3 })).toEqual([]);
+    expect(promptTrendOf(undefined)).toEqual([]);
+    expect(promptTrendOf({ beta: 2, alpha: 1 }).map((p) => p.label)).toEqual(["alpha", "beta"]);
+  });
+
+  it("solo ofrece proponer arreglo cuando el fallo depende del agente", () => {
+    expect(presentFinding(base).canFix).toBe(false); // 429: no se arregla con el prompt
+    expect(presentFinding(base).watchWithAlert).toBe(true);
+    const own = presentFinding({ ...base, cause: "search | KeyError", decisiveStep: "search", decisiveError: "KeyError" });
+    expect(own.canFix).toBe(true);
+    expect(own.watchWithAlert).toBe(false);
+    expect(presentFinding({ ...base, cause: "(sin error)", decisiveError: "" }).canFix).toBe(true);
+    expect(presentFinding({ ...base, decisiveError: "401 Unauthorized", cause: "chat | 401" }).watchWithAlert).toBe(false);
+  });
+
+  it("el código usa el id del hallazgo y pide el disparador cuando no hay herramienta", () => {
+    const withTool = fixSnippet("f1", "search_flights");
+    expect(withTool).toContain('f.finding_id == "f1"');
+    expect(withTool).toContain("mem.save(lesson)");
+    expect(withTool).toContain("mem.propose_fix(");
+    const silent = fixSnippet('a"b', "chat");
+    expect(silent).toContain('"a\\"b"');
+    expect(silent).toContain('match={"intents"');
   });
 });
