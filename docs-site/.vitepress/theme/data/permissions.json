@@ -232,6 +232,32 @@
       ]
     },
     {
+      "id": "lesson:read",
+      "group": "Mem",
+      "description": "See the lessons Mem proposes from the recurring failures of an agent.",
+      "unlocks": [
+        "Reading the lessons, their evidence and their history"
+      ]
+    },
+    {
+      "id": "lesson:review",
+      "group": "Mem",
+      "description": "Say whether a lesson is true: edit it, mark it as reviewed, ask for changes or dismiss it.",
+      "unlocks": [
+        "Proposing a lesson by hand and editing its text (each edit is a new version)",
+        "Marking a lesson as reviewed, sending it back or dismissing it so Mem does not propose it again"
+      ]
+    },
+    {
+      "id": "lesson:approve",
+      "group": "Mem",
+      "description": "Decide that a reviewed lesson may reach the agent, and retire it when it stops being true.",
+      "unlocks": [
+        "Approving a lesson and turning it on in an environment",
+        "Retiring a lesson or declaring it obsolete"
+      ]
+    },
+    {
       "id": "retention:manage",
       "group": "Data protection",
       "description": "Choose how many days traces are kept for each risk level (High and Unclassified never below 180).",
@@ -281,7 +307,10 @@
         "prompt:promote",
         "approval:manage",
         "retention:manage",
-        "audit:read"
+        "audit:read",
+        "lesson:read",
+        "lesson:review",
+        "lesson:approve"
       ]
     },
     {
@@ -314,7 +343,10 @@
         "catalog:manage",
         "data:export",
         "alert:manage",
-        "pricing:manage"
+        "pricing:manage",
+        "lesson:read",
+        "lesson:review",
+        "lesson:approve"
       ]
     },
     {
@@ -333,7 +365,9 @@
         "annotation:write",
         "prompt:read",
         "prompt:approve",
-        "catalog:manage"
+        "catalog:manage",
+        "lesson:read",
+        "lesson:review"
       ]
     },
     {
@@ -349,7 +383,8 @@
       "permissions": [
         "governance:read",
         "governance:manage",
-        "prompt:read"
+        "prompt:read",
+        "lesson:read"
       ]
     }
   ],
@@ -441,6 +476,14 @@
     {
       "label": "Define who must approve prompt changes",
       "permission": "approval:manage"
+    },
+    {
+      "label": "Review a lesson Mem proposed, or dismiss it",
+      "permission": "lesson:review"
+    },
+    {
+      "label": "Approve a lesson so it can reach the agent",
+      "permission": "lesson:approve"
     },
     {
       "label": "Rename and hide steps and attributes in the Custom charts",

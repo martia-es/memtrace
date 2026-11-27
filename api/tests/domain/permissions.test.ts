@@ -11,7 +11,7 @@ describe("built-in roles (ADR-052)", () => {
   });
 
   it("business reads the dashboard and labels, but curates and configures nothing", () => {
-    expect(role("business").permissions).toEqual(["experiment:read", "annotation:write", "prompt:read", "prompt:approve", "catalog:manage"]);
+    expect(role("business").permissions).toEqual(["experiment:read", "annotation:write", "prompt:read", "prompt:approve", "catalog:manage", "lesson:read", "lesson:review"]);
   });
 
   it("technical does the curation and keeps its own API key, but invites nobody", () => {
@@ -68,7 +68,7 @@ describe("built-in roles (ADR-052)", () => {
   it("governance permissions (ADR-053): org_admin and governance see and decide, technical only maintains its own assistant", () => {
     expect(role("org_admin").permissions).toEqual(expect.arrayContaining(["governance:read", "governance:manage"]));
     expect(role("governance").scope).toBe("organization");
-    expect(role("governance").permissions).toEqual(["governance:read", "governance:manage", "prompt:read"]);
+    expect(role("governance").permissions).toEqual(["governance:read", "governance:manage", "prompt:read", "lesson:read"]);
     expect(role("technical").permissions).toContain("assistant:manage");
     expect(role("technical").permissions).not.toContain("governance:manage");
     expect(role("business").permissions).not.toContain("assistant:manage");

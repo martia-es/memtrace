@@ -329,7 +329,7 @@ Un usuario puede agrupar varias gráficas custom ya guardadas en un **informe** 
 - [x] Resultado multi-señal de una traza y paso decisivo (error, bucle, evaluador y feedback; pesos validados en el spike)
 - [ ] Patrones recurrentes en Overview
 - [x] Clusters y contraste éxito/fallo con significación estadística (reglas con test de Fisher y Bonferroni, agrupación de objetivos con embeddings locales dentro de la imagen; validado con los fallos sembrados del spike, ver `analytics/mem/README.md`)
-- [ ] Modelo de datos de lecciones en Postgres, estados y permisos (`lesson:*`)
+- [x] Modelo de datos de lecciones en Postgres (migración 054), máquina de estados y permisos `lesson:*` — [ADR-104](adrs/governance/adr-104-mem-lessons-data-model-states-and-permissions.md). *Pendiente*: `LessonRepository` y endpoints, y que el SDK guarde la lección
 - [ ] Ajustes: clave del proveedor LLM sellada para el worker de Mem, con límites y vista previa ([ADR-101](adrs/cybersecurity/adr-101-provider-keys-held-by-memtrace.md))
 - [x] `memtrace.mem` en el SDK Python (modo sin clave guardada): `findings()`, `distill()` y `propose_fix()` desde un hallazgo, con el LLM del usuario; el modelo solo ve el hallazgo, nunca trazas. *Pendiente*: paridad en el SDK TypeScript (ADR-095)
 - [ ] Pantalla *Learning* y tarjetas de Patrones con sugerencia y «Proponer arreglo» (propuesta de interfaz aprobada el 2026-11-27), lecciones guardadas en Postgres con ADR previo
