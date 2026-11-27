@@ -331,7 +331,8 @@ Un usuario puede agrupar varias gráficas custom ya guardadas en un **informe** 
 - [x] Clusters y contraste éxito/fallo con significación estadística (reglas con test de Fisher y Bonferroni, agrupación de objetivos con embeddings locales dentro de la imagen; validado con los fallos sembrados del spike, ver `analytics/mem/README.md`)
 - [ ] Modelo de datos de lecciones en Postgres, estados y permisos (`lesson:*`)
 - [ ] Ajustes: clave del proveedor LLM sellada para el worker de Mem, con límites y vista previa ([ADR-101](adrs/cybersecurity/adr-101-provider-keys-held-by-memtrace.md))
-- [ ] `memtrace.mem.distill` en los SDK (modo sin clave guardada) y pantalla *Learning* (con propuesta de interfaz previa)
+- [x] `memtrace.mem` en el SDK Python (modo sin clave guardada): `findings()`, `distill()` y `propose_fix()` desde un hallazgo, con el LLM del usuario; el modelo solo ve el hallazgo, nunca trazas. *Pendiente*: paridad en el SDK TypeScript (ADR-095)
+- [ ] Pantalla *Learning* y tarjetas de Patrones con sugerencia y «Proponer arreglo» (propuesta de interfaz aprobada el 2026-11-27), lecciones guardadas en Postgres con ADR previo
 - [ ] `memtrace.lessons.get` y variable `{{lessons}}` en el SDK
 - [ ] Medición de efecto y reincidencia, con alerta
 - [ ] Documentación de integración con agentes

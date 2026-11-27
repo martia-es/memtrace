@@ -30,6 +30,7 @@ export default defineConfig({
             { text: "Offline evaluation", link: "/library/evaluation" },
             { text: "User feedback", link: "/library/feedback" },
             { text: "Prompts", link: "/library/prompts" },
+            { text: "Mem: lessons and fixes", link: "/library/mem" },
             { text: "Authentication", link: "/library/authentication" },
           ],
         },
