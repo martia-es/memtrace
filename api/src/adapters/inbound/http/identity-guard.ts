@@ -31,6 +31,9 @@ import {
   RetentionTargetNotFoundError,
   ExportTooLargeError,
   AlertNotFoundError,
+  LessonNotFoundError,
+  LessonInvariantError,
+  LessonForbiddenError,
 } from "@/domain/errors";
 import { problem } from "./problem";
 
@@ -41,6 +44,9 @@ export async function identityGuard(run: () => Promise<Response>): Promise<Respo
   } catch (error) {
     if (error instanceof TraceNotFoundError || error instanceof SpanNotFoundError || error instanceof DatasetRunNotFoundError) return problem(404, "Not Found", error.message);
     if (error instanceof AlertNotFoundError) return problem(404, "Not Found", error.message);
+    if (error instanceof LessonNotFoundError) return problem(404, "Not Found", error.message);
+    if (error instanceof LessonInvariantError) return problem(409, "Conflict", error.message);
+    if (error instanceof LessonForbiddenError) return problem(403, "Forbidden", error.message);
     if (error instanceof ExportTooLargeError) return problem(413, "Payload Too Large", error.message);
     if (error instanceof RetentionTargetNotFoundError) return problem(404, "Not Found", error.message);
     if (error instanceof AnnotationValueError) return problem(422, "Unprocessable Entity", error.message, { value: error.message });

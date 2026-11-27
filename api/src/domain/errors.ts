@@ -276,3 +276,27 @@ export class PartnershipInvariantError extends Error {
     this.name = "PartnershipInvariantError";
   }
 }
+
+/** La lección no existe en ese experimento (ADR-104). HTTP 404. */
+export class LessonNotFoundError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "LessonNotFoundError";
+  }
+}
+
+/** La operación rompe una regla de las lecciones: transición no permitida, huella repetida, activar sin aprobar (ADR-104). HTTP 409. */
+export class LessonInvariantError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "LessonInvariantError";
+  }
+}
+
+/** La persona no tiene el permiso que exige esta transición de la lección (ADR-104). HTTP 403. */
+export class LessonForbiddenError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "LessonForbiddenError";
+  }
+}

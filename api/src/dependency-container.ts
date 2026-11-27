@@ -46,6 +46,8 @@ import { PromptEvidenceService } from "@/application/prompt-evidence-service";
 import { PromptFailureService } from "@/application/prompt-failure-service";
 import { PromptMapService } from "@/application/prompt-map-service";
 import { ChartCatalogService } from "@/application/chart-catalog-service";
+import { LessonService } from "@/application/lesson-service";
+import { PostgresLessonRepository } from "@/adapters/outbound/postgres/postgres-lesson-repository";
 import { MAX_RETENTION_DAYS } from "@/domain/retention";
 import { ClickHouseTraceCounter } from "@/adapters/outbound/clickhouse/clickhouse-trace-counter";
 import { RetentionService } from "@/application/retention-service";
@@ -95,6 +97,7 @@ const globalForContainer = globalThis as unknown as {
   __memtraceDeploy?: DeployService;
   __memtracePrompts?: PromptService;
   __memtraceChartCatalog?: ChartCatalogService;
+  __memtraceLessons?: LessonService;
   __memtraceAudit?: AuditService;
   __memtraceRetention?: RetentionService;
   __memtraceModelQuality?: ModelQualityService;
@@ -424,6 +427,12 @@ export function getExport(): ExportService {
     globalForContainer.__memtraceExport = new ExportService(new ClickHouseDataExporter(createReadOnlyClient(config), config.database, config.maxConcurrentQueries), getAudit());
   }
   return globalForContainer.__memtraceExport;
+}
+
+/** Lecciones de Mem (ADR-104): lo que una persona decide sobre lo que el agente debe aprender de sus fallos. */
+export function getLessons(): LessonService {
+  if (!globalForContainer.__memtraceLessons) globalForContainer.__memtraceLessons = new LessonService(new PostgresLessonRepository(getPostgresPool()));
+  return globalForContainer.__memtraceLessons;
 }
 
 export function getChartCatalog(): ChartCatalogService {

@@ -258,6 +258,20 @@ Unlike the endpoints above, this one isn't scoped to a single `{experimentId}` �
 | `DELETE /experiments/{experimentId}/budget` | Removes it (`404` if there is none). `alert:manage` |
 | `GET /alerts/open` | `{ items }`: the alerts firing now in every experiment you can read, for the bell. Not scoped to one experiment |
 
+## Mem lessons (ADR-104)
+
+A lesson is a short instruction for the agent that Mem proposes from a recurring failure and a person decides on. Lessons belong to one agent (experiment). Nothing is served to the agent yet: serving arrives with `memtrace.lessons.get`.
+
+| Endpoint | Description |
+|---|---|
+| `GET /experiments/{experimentId}/lessons` | `{ items: [{ lesson, current, environments }] }`: each lesson with its current text and the environments where it is on. Param: `status` (`proposed`, `reviewed`, `approved`, `obsolete`, `retired`, `dismissed`; `400` otherwise). `lesson:read` |
+| `POST /experiments/{experimentId}/lessons` | Proposes a lesson (`201`, state `proposed`). Body: `{ title, guidance, match, situation?, failure?, message?, findingId?, evidenceTraceIds?, originMetrics? }`. `guidance` (at most 500 characters) is the only text the agent will receive; `match` needs at least one of `tools`, `errorCategories`, `intents`. With `findingId` it comes from a Mem finding and there is one lesson per finding (`409` if it exists, also after being dismissed). `lesson:review` |
+| `GET /experiments/{experimentId}/lessons/{lessonId}` | The lesson with `versions`, `evidence` (trace ids only), `activations` and `events` (who did what, newest first). `404` if it is not in that agent. `lesson:read` |
+| `POST /experiments/{experimentId}/lessons/{lessonId}/versions` | Edits the text with the same body as above (`201`). It is a new version: the lesson goes back to `proposed` and stops being served wherever it was on. A `retired` or `dismissed` lesson cannot be edited (`409`). `lesson:review` |
+| `POST /experiments/{experimentId}/lessons/{lessonId}/transition` | Body: `{ to, comment? }`. Allowed steps: `proposed` → `reviewed` or `dismissed`; `reviewed` → `approved`, `proposed` (ask for changes) or `dismissed`; `approved` → `retired` or `obsolete`; `obsolete` → `proposed` or `retired`; `dismissed` → `proposed`. Review, send back and dismiss need `lesson:review`; approve, retire and obsolete need `lesson:approve` (`403` otherwise); any other step is `409`. Leaving `approved` turns the lesson off everywhere |
+| `PUT /experiments/{experimentId}/lessons/{lessonId}/activations/{environment}` | Turns the approved version on in an environment (`dev`, `pre`, `pro`…). `409` if the lesson is not `approved`. `lesson:approve` |
+| `DELETE /experiments/{experimentId}/lessons/{lessonId}/activations/{environment}` | Turns it off there (`404` if it was not on). `lesson:approve` |
+
 ## Model quality (ADR-025)
 
 The scores come from the Arena text leaderboard and are matched with the price catalog by name. See [Model pricing and quality](/platform/model-pricing). Decisions belong to the organization of the experiment.
